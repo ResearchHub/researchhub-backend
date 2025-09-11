@@ -11,6 +11,7 @@ from hub.models import Hub, HubCategory
 from .arxiv_mappings import ARXIV_MAPPINGS
 from .biorxiv_mappings import BIORXIV_MAPPINGS
 from .hub_mapping import HubMapping
+from .medrxiv_mappings import MEDRXIV_MAPPINGS
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,7 @@ class ExternalCategoryMapper:
 
         Args:
             external_category: The external category string (e.g., "cs.AI")
-            source: The source - "arxiv" or "biorxiv"
+            source: The source - "arxiv", "biorxiv", or "medrxiv"
 
         Returns:
             HubMapping containing the HubCategory and/or subcategory hub.
@@ -91,6 +92,8 @@ class ExternalCategoryMapper:
             mappings = ARXIV_MAPPINGS
         elif source == "biorxiv":
             mappings = BIORXIV_MAPPINGS
+        elif source == "medrxiv":
+            mappings = MEDRXIV_MAPPINGS
         else:
             logger.warning(f"Unknown source: {source}. Using arxiv.")
             mappings = ARXIV_MAPPINGS

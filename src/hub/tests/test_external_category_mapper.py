@@ -84,7 +84,7 @@ class ExternalCategoryMapperTestCase(TestCase):
 
     def test_case_insensitive_mapping(self):
         """Test that mappings are case-insensitive."""
-        # Test with different cases
+        # Test with different cases for arXiv
         result1 = ExternalCategoryMapper.map("CS.LG", source="arxiv")
         result2 = ExternalCategoryMapper.map("cs.lg", source="arxiv")
         result3 = ExternalCategoryMapper.map("Cs.Lg", source="arxiv")
@@ -93,7 +93,12 @@ class ExternalCategoryMapperTestCase(TestCase):
         self.assertEqual(result1.hub_category, result2.hub_category)
         self.assertEqual(result2.hub_category, result3.hub_category)
         self.assertEqual(result1.subcategory_hub, result2.subcategory_hub)
-        self.assertEqual(result2.subcategory_hub, result3.subcategory_hub)
+
+        # Test with MedRxiv
+        result4 = ExternalCategoryMapper.map("EPIDEMIOLOGY", source="medrxiv")
+        result5 = ExternalCategoryMapper.map("epidemiology", source="medrxiv")
+        self.assertEqual(result4.hub_category, result5.hub_category)
+        self.assertEqual(result4.subcategory_hub, result5.subcategory_hub)
 
     def test_hub_caching_mechanism(self):
         """Test that hub caching works correctly."""
@@ -191,13 +196,19 @@ class ExternalCategoryMapperTestCase(TestCase):
         """Test specific mappings to ensure they work correctly."""
         test_cases = [
             # (category, source, expected_category, expected_subcategory)
+            # ArXiv mappings
             ("cs.AI", "arxiv", "Computer Science", "Artificial Intelligence"),
             ("math.CO", "arxiv", "Mathematics", "Combinatorics"),
             ("physics.bio-ph", "arxiv", "Biology", "Biological Physics"),
             ("q-bio.NC", "arxiv", "Biology", "Neuroscience"),
+            # BioRxiv mappings
             ("cell biology", "biorxiv", "Biology", "Cell Biology"),
             ("epidemiology", "biorxiv", "Medicine", "Epidemiology"),
             ("bioengineering", "biorxiv", "Engineering", "Bioengineering"),
+            # MedRxiv mappings
+            ("cardiovascular medicine", "medrxiv", "Medicine", "Cardiology"),
+            ("surgery", "medrxiv", "Medicine", "Surgery"),
+            ("public and global health", "medrxiv", "Medicine", "Public Health"),
         ]
 
         # Create the necessary hubs for testing
@@ -265,3 +276,70 @@ class ExternalCategoryMapperTestCase(TestCase):
         # Should produce same result
         self.assertEqual(result3.hub_category, result4.hub_category)
         self.assertEqual(result3.subcategory_hub, result4.subcategory_hub)
+
+        # Test MedRxiv with extra whitespace
+        result5 = ExternalCategoryMapper.map("  epidemiology  ", source="medrxiv")
+        result6 = ExternalCategoryMapper.map("epidemiology", source="medrxiv")
+
+        # Should produce same result
+        self.assertEqual(result5.hub_category, result6.hub_category)
+        self.assertEqual(result5.subcategory_hub, result6.subcategory_hub)
+
+    def test_medrxiv_mapping(self):
+        """Test MedRxiv category mapping."""
+        # Create necessary categories (get_or_create to avoid duplicates)
+        medicine_cat, _ = HubCategory.objects.get_or_create(category_name="Medicine")
+        biology_cat, _ = HubCategory.objects.get_or_create(category_name="Biology")
+
+        # Create necessary subcategories
+        subcategories_to_create = [
+            ("Epidemiology", medicine_cat),
+            ("Sports Medicine", medicine_cat),
+            ("Internal Medicine", medicine_cat),
+            ("Psychiatry", medicine_cat),
+            ("Pathology", biology_cat),
+            ("Toxicology", biology_cat),
+        ]
+
+        for subcat_name, category in subcategories_to_create:
+            Hub.objects.create(
+                name=subcat_name,
+                namespace="subcategory",
+                category=category,
+            )
+
+        # Clear cache to pick up new hubs
+        ExternalCategoryMapper.clear_cache()
+
+        # Test various MedRxiv mappings
+        test_cases = [
+            ("epidemiology", "Medicine", "Epidemiology"),
+            ("sports medicine", "Medicine", "Sports Medicine"),
+            ("allergy and immunology", "Medicine", "Internal Medicine"),
+            ("addiction medicine", "Medicine", "Psychiatry"),
+            ("pathology", "Biology", "Pathology"),
+            ("forensic medicine", "Biology", "Pathology"),
+            ("toxicology", "Biology", "Toxicology"),
+        ]
+
+        for medrxiv_cat, expected_cat, expected_subcat in test_cases:
+            with self.subTest(category=medrxiv_cat):
+                result = ExternalCategoryMapper.map(medrxiv_cat, source="medrxiv")
+                self.assertIsNotNone(result.hub_category)
+                self.assertEqual(result.hub_category.category_name, expected_cat)
+                self.assertIsNotNone(result.subcategory_hub)
+                self.assertEqual(result.subcategory_hub.name, expected_subcat)
+
+        # Test unmapped MedRxiv category
+        result = ExternalCategoryMapper.map("nonexistent specialty", source="medrxiv")
+        self.assertIsNone(result.hub_category)
+        self.assertIsNone(result.subcategory_hub)
+
+        # Test MedRxiv category with special characters
+        result = ExternalCategoryMapper.map(
+            "endocrinology (including diabetes mellitus and metabolic disease)",
+            source="medrxiv",
+        )
+        self.assertIsNotNone(result.hub_category)
+        self.assertEqual(result.hub_category.category_name, "Medicine")
+        self.assertEqual(result.subcategory_hub.name, "Internal Medicine")

@@ -1,0 +1,67 @@
+"""
+MedRxiv to ResearchHub category mappings.
+Maps MedRxiv subject areas to ResearchHub categories and subcategories.
+"""
+
+from typing import Dict, Optional, Tuple
+
+MEDRXIV_MAPPINGS: Dict[str, Tuple[str, Optional[str]]] = {
+    # MedRxiv categories mapped to Medicine category and subcategories
+    "addiction medicine": ("Medicine", "Psychiatry"),
+    "allergy and immunology": ("Medicine", "Internal Medicine"),
+    "anesthesia": ("Medicine", "Anesthesiology"),
+    "cardiovascular medicine": ("Medicine", "Cardiology"),
+    "dentistry and oral medicine": ("Medicine", "Dentistry"),
+    "dermatology": ("Medicine", "Dermatology"),
+    "emergency medicine": ("Medicine", "Emergency Medicine"),
+    "endocrinology (including diabetes mellitus and metabolic disease)": (
+        "Medicine",
+        "Internal Medicine",
+    ),
+    "epidemiology": ("Medicine", "Epidemiology"),
+    "forensic medicine": ("Biology", "Pathology"),
+    "gastroenterology": ("Medicine", "Internal Medicine"),
+    "genetic and genomic medicine": ("Medicine", "Genetics and Genomics"),
+    "geriatric medicine": ("Medicine", "Internal Medicine"),
+    "health economics": ("Medicine", "Health Economics"),
+    "health informatics": ("Medicine", "Health Informatics"),
+    "health policy": ("Medicine", "Health Policy"),
+    "health systems and quality improvement": ("Medicine", "Health Policy"),
+    "hematology": ("Medicine", "Internal Medicine"),
+    "hiv/aids": ("Medicine", "Internal Medicine"),
+    "infectious diseases (except hiv/aids)": ("Medicine", "Internal Medicine"),
+    "intensive care and critical care medicine": ("Medicine", "Critical Care Medicine"),
+    "medical education": ("Medicine", "Medical Education"),
+    "medical ethics": ("Medicine", "Medical Ethics"),
+    "nephrology": ("Medicine", "Internal Medicine"),
+    "neurology": ("Medicine", "Neurology"),
+    "nursing": ("Medicine", "Nursing"),
+    "nutrition": ("Medicine", "Nutrition"),
+    "obstetrics and gynecology": ("Medicine", "Obstetrics and Gynecology"),
+    "occupational and environmental health": ("Medicine", "Public Health"),
+    "oncology": ("Medicine", "Oncology"),
+    "ophthalmology": ("Medicine", "Ophthalmology"),
+    "orthopedics": ("Medicine", "Surgery"),
+    "otolaryngology": ("Medicine", "Surgery"),
+    "pain medicine": ("Medicine", "Pain Medicine"),
+    "palliative medicine": ("Medicine", "Oncology"),
+    "pathology": ("Biology", "Pathology"),
+    "pediatrics": ("Medicine", "Pediatrics"),
+    "pharmacology and therapeutics": ("Medicine", "Pharmacology"),
+    "primary care research": ("Medicine", "Internal Medicine"),
+    "psychiatry and clinical psychology": ("Medicine", "Psychiatry"),
+    "public and global health": ("Medicine", "Public Health"),
+    "radiology and imaging": ("Medicine", "Radiology"),
+    "rehabilitation medicine and physical therapy": (
+        "Medicine",
+        "Rehabilitation Medicine",
+    ),
+    "respiratory medicine": ("Medicine", "Internal Medicine"),
+    "rheumatology": ("Medicine", "Internal Medicine"),
+    "sexual and reproductive health": ("Medicine", "Reproductive Health"),
+    "sports medicine": ("Medicine", "Sports Medicine"),
+    "surgery": ("Medicine", "Surgery"),
+    "toxicology": ("Biology", "Toxicology"),
+    "transplantation": ("Medicine", "Surgery"),
+    "urology": ("Medicine", "Surgery"),
+}
