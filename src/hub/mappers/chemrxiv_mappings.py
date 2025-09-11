@@ -6,9 +6,7 @@ Maps ChemRxiv's chemistry categories to ResearchHub's category structure.
 
 from typing import Dict, Optional, Tuple
 
-# Map ChemRxiv categories to (ResearchHub Category, ResearchHub Subcategory)
 CHEMRXIV_MAPPINGS: Dict[str, Tuple[str, Optional[str]]] = {
-    # Parent categories and their mappings
     "agriculture and food chemistry": ("Chemistry", "Food Chemistry"),
     "analytical chemistry": ("Chemistry", "Analytical Chemistry"),
     "biological and medicinal chemistry": (
@@ -38,7 +36,6 @@ CHEMRXIV_MAPPINGS: Dict[str, Tuple[str, Optional[str]]] = {
         "Chemistry",
         "Computational Chemistry",
     ),
-    # Subcategories under Analytical Chemistry
     "analytical apparatus": ("Chemistry", "Analytical Chemistry"),
     "analytical chemistry - general": ("Chemistry", "Analytical Chemistry"),
     "biochemical analysis": ("Chemistry", "Analytical Chemistry"),
@@ -51,7 +48,6 @@ CHEMRXIV_MAPPINGS: Dict[str, Tuple[str, Optional[str]]] = {
     "microscopy": ("Chemistry", "Analytical Chemistry"),
     "separation science": ("Chemistry", "Analytical Chemistry"),
     "spectroscopy (anal. chem.)": ("Chemistry", "Analytical Chemistry"),
-    # Subcategories under Biological and Medicinal Chemistry
     "biochemistry": ("Biology", "Biochemistry"),
     "bioengineering and biotechnology": ("Engineering", "Bioengineering"),
     "bioinformatics and computational biology": (
@@ -65,7 +61,6 @@ CHEMRXIV_MAPPINGS: Dict[str, Tuple[str, Optional[str]]] = {
     "environmental biology": ("Biology", "Ecology"),
     "microbiology": ("Biology", "Microbiology"),
     "plant biology": ("Biology", "Plant Biology"),
-    # Subcategories under Catalysis
     "acid catalysis": ("Chemistry", "Catalysis"),
     "base catalysis": ("Chemistry", "Catalysis"),
     "biocatalysis": ("Chemistry", "Catalysis"),
@@ -79,9 +74,7 @@ CHEMRXIV_MAPPINGS: Dict[str, Tuple[str, Optional[str]]] = {
     "organocatalysis": ("Chemistry", "Catalysis"),
     "photocatalysis": ("Chemistry", "Catalysis"),
     "redox catalysis": ("Chemistry", "Catalysis"),
-    # Subcategories under Chemical Education
     "chemical education - general": ("Chemistry", "Chemical Education"),
-    # Subcategories under Chemical Engineering
     "fluid mechanics": ("Engineering", "Chemical Engineering"),
     "industrial manufacturing": ("Engineering", "Chemical Engineering"),
     "natural resource recovery": ("Engineering", "Chemical Engineering"),
@@ -93,7 +86,6 @@ CHEMRXIV_MAPPINGS: Dict[str, Tuple[str, Optional[str]]] = {
     "thermodynamics (chem. eng.)": ("Engineering", "Chemical Engineering"),
     "transport phenomena (chem. eng.)": ("Engineering", "Chemical Engineering"),
     "water purification": ("Engineering", "Chemical Engineering"),
-    # Subcategories under Earth, Space, and Environmental Chemistry
     "atmospheric chemistry": ("Chemistry", "Environmental Chemistry"),
     "environmental science": ("Chemistry", "Environmental Chemistry"),
     "geochemistry": ("Chemistry", "Geochemistry"),
@@ -101,7 +93,6 @@ CHEMRXIV_MAPPINGS: Dict[str, Tuple[str, Optional[str]]] = {
     "soil science": ("Chemistry", "Environmental Chemistry"),
     "space chemistry": ("Chemistry", "Astrochemistry"),
     "wastes": ("Chemistry", "Environmental Chemistry"),
-    # Subcategories under Energy
     "energy storage": ("Chemistry", "Energy Chemistry"),
     "fuel cells": ("Chemistry", "Energy Chemistry"),
     "fuels - energy science": ("Chemistry", "Energy Chemistry"),
@@ -111,7 +102,6 @@ CHEMRXIV_MAPPINGS: Dict[str, Tuple[str, Optional[str]]] = {
         "Condensed Matter",
     ),
     "power": ("Chemistry", "Energy Chemistry"),
-    # Subcategories under Inorganic Chemistry
     "bioinorganic chemistry": ("Chemistry", "Inorganic Chemistry"),
     "bonding": ("Chemistry", "Inorganic Chemistry"),
     "coordination chemistry (inorg.)": ("Chemistry", "Inorganic Chemistry"),
@@ -152,7 +142,6 @@ CHEMRXIV_MAPPINGS: Dict[str, Tuple[str, Optional[str]]] = {
         "Chemistry",
         "Inorganic Chemistry",
     ),
-    # Subcategories under Materials Science/Chemistry
     "aggregates and assemblies": ("Chemistry", "Materials Chemistry"),
     "alloys": ("Engineering", "Materials Science"),
     "biocompatible materials": ("Engineering", "Bioengineering"),
@@ -195,7 +184,6 @@ CHEMRXIV_MAPPINGS: Dict[str, Tuple[str, Optional[str]]] = {
     "surfactants": ("Chemistry", "Materials Chemistry"),
     "thermal conductors and insulators": ("Engineering", "Materials Science"),
     "thin films": ("Engineering", "Materials Science"),
-    # Subcategories under Nanoscience
     "nanocatalysis - catalysts & materials": (
         "Chemistry",
         "Nanochemistry",
@@ -211,7 +199,6 @@ CHEMRXIV_MAPPINGS: Dict[str, Tuple[str, Optional[str]]] = {
         "Physics",
         "Optics",
     ),
-    # Subcategories under Organic Chemistry
     "bioorganic chemistry": ("Chemistry", "Chemical Biology"),
     "combinatorial chemistry": ("Chemistry", "Organic Chemistry"),
     "crystallography – organic": ("Chemistry", "Organic Chemistry"),
@@ -229,7 +216,6 @@ CHEMRXIV_MAPPINGS: Dict[str, Tuple[str, Optional[str]]] = {
         "Chemistry",
         "Supramolecular Chemistry",
     ),
-    # Subcategories under Organometallic Chemistry
     "bioorganometallic chemistry": (
         "Chemistry",
         "Organometallic Chemistry",
@@ -269,7 +255,6 @@ CHEMRXIV_MAPPINGS: Dict[str, Tuple[str, Optional[str]]] = {
         "Chemistry",
         "Organometallic Chemistry",
     ),
-    # Subcategories under Physical Chemistry
     "biophysical chemistry": ("Chemistry", "Physical Chemistry"),
     "chemical kinetics": ("Chemistry", "Physical Chemistry"),
     "clusters": ("Chemistry", "Physical Chemistry"),
@@ -310,7 +295,6 @@ CHEMRXIV_MAPPINGS: Dict[str, Tuple[str, Optional[str]]] = {
         "Chemistry",
         "Physical Chemistry",
     ),
-    # Subcategories under Polymer Science
     "biopolymers": ("Chemistry", "Polymer Chemistry"),
     "cellulosic materials": ("Chemistry", "Polymer Chemistry"),
     "conducting polymers": ("Chemistry", "Polymer Chemistry"),
@@ -333,7 +317,6 @@ CHEMRXIV_MAPPINGS: Dict[str, Tuple[str, Optional[str]]] = {
     "polymerization (polymers)": ("Chemistry", "Polymer Chemistry"),
     "polymerization catalysts": ("Chemistry", "Polymer Chemistry"),
     "polymerization kinetics": ("Chemistry", "Polymer Chemistry"),
-    # Subcategories under Theoretical and Computational Chemistry
     "artificial intelligence": (
         "Computer Science",
         "Artificial Intelligence",
@@ -349,7 +332,6 @@ CHEMRXIV_MAPPINGS: Dict[str, Tuple[str, Optional[str]]] = {
     "machine learning": ("Computer Science", "Machine Learning"),
     "quantum computing": ("Computer Science", "Quantum Computing"),
     "theory - computational": ("Chemistry", "Computational Chemistry"),
-    # Agriculture subcategories
     "feed": ("Chemistry", "Food Chemistry"),
     "food": ("Chemistry", "Food Chemistry"),
 }

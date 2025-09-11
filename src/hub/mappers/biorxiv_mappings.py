@@ -1,10 +1,9 @@
 from typing import Dict, Optional, Tuple
 
 BIORXIV_MAPPINGS: Dict[str, Tuple[str, Optional[str]]] = {
-    # Biology mappings
-    "animal behavior and cognition": ("Biology", "Neuroscience"),  # Closest match
+    "animal behavior and cognition": ("Biology", "Neuroscience"),
     "biochemistry": ("Biology", "Biochemistry"),
-    "bioengineering": ("Engineering", "Bioengineering"),  # Could also be Biology
+    "bioengineering": ("Engineering", "Bioengineering"),
     "bioinformatics": ("Biology", "Bioinformatics"),
     "biophysics": ("Biology", "Biophysics"),
     "cancer biology": ("Biology", "Cancer Biology"),
@@ -25,11 +24,9 @@ BIORXIV_MAPPINGS: Dict[str, Tuple[str, Optional[str]]] = {
     "synthetic biology": ("Biology", "Synthetic Biology"),
     "systems biology": ("Biology", "Systems Biology"),
     "zoology": ("Biology", "Zoology"),
-    # Medicine mappings
     "clinical trials": ("Medicine", "Clinical Trials"),
     "epidemiology": ("Medicine", "Epidemiology"),
-    "pharmacology and toxicology": ("Biology", "Pharmacology"),  # Biology as main
-    # Social Sciences / Other mappings
+    "pharmacology and toxicology": ("Biology", "Pharmacology"),
     "scientific communication and education": (
         "Social Sciences",
         "Scientific Communication and Education",

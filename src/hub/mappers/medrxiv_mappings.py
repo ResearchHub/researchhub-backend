@@ -6,7 +6,6 @@ Maps MedRxiv subject areas to ResearchHub categories and subcategories.
 from typing import Dict, Optional, Tuple
 
 MEDRXIV_MAPPINGS: Dict[str, Tuple[str, Optional[str]]] = {
-    # MedRxiv categories mapped to Medicine category and subcategories
     "addiction medicine": ("Medicine", "Psychiatry"),
     "allergy and immunology": ("Medicine", "Internal Medicine"),
     "anesthesia": ("Medicine", "Anesthesiology"),
