@@ -51,8 +51,6 @@ class PaperIngestionService:
         papers = []
         authors = []
 
-        logger.info(f"Processing {len(raw_data)} records from {source}")
-
         for record in raw_data:
             try:
                 # Validate record
@@ -88,9 +86,6 @@ class PaperIngestionService:
                 )
                 continue
 
-        logger.info(
-            f"Successfully processed {len(papers)} papers with {len(authors)} authors"
-        )
         return papers, authors
 
     def _save_paper_with_authors(
@@ -113,12 +108,10 @@ class PaperIngestionService:
                 existing_paper = Paper.objects.filter(doi=paper.doi).first()
 
             if existing_paper:
-                logger.info(f"Paper with DOI {paper.doi} already exists, skipping")
                 return existing_paper, []
 
             # Save paper
             paper.save()
-            logger.debug(f"Saved paper: {paper.title}")
 
             # Save authors and create authorships
             saved_authors = []
@@ -136,14 +129,13 @@ class PaperIngestionService:
                 else:
                     position = Authorship.MIDDLE_AUTHOR_POSITION
 
-                authorship = Authorship.objects.create(
+                Authorship.objects.create(
                     paper=paper,
                     author=existing_author,
                     author_position=position,
                     is_corresponding=False,  # Could be enhanced based on data
                     raw_author_name=getattr(author, "_raw_name", None),
                 )
-                logger.debug(f"Created authorship for {existing_author.full_name()}")
 
             return paper, saved_authors
 
@@ -163,33 +155,8 @@ class PaperIngestionService:
         ).first()
 
         if existing_author:
-            logger.debug(f"Found existing author: {existing_author.full_name()}")
             return existing_author
 
         # Create new author
         author.save()
-        logger.debug(f"Created new author: {author.full_name()}")
         return author
-
-    def get_mapper(self, source: str) -> Optional[object]:
-        """
-        Get mapper for a specific source.
-
-        Args:
-            source: Source identifier
-
-        Returns:
-            Mapper instance or None if not found
-        """
-        return self.mappers.get(source)
-
-    def add_mapper(self, source: str, mapper: object) -> None:
-        """
-        Add a new mapper for a source.
-
-        Args:
-            source: Source identifier
-            mapper: Mapper instance
-        """
-        self.mappers[source] = mapper
-        logger.info(f"Added mapper for source: {source}")
