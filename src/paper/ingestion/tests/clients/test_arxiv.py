@@ -93,7 +93,9 @@ Machine Learning with a Hybrid Quantum-Classical Network.</summary>
         """Test ArXiv config has correct defaults."""
         config = ArXivConfig()
         self.assertEqual(config.source_name, "arxiv")
-        self.assertEqual(config.base_url, "http://export.arxiv.org/api")
+        self.assertEqual(
+            config.base_url, "http://export.arxiv.org/api"
+        )  # NOSONAR - ArXiv API uses HTTP
         self.assertEqual(config.rate_limit, 0.33)  # 3 second delay
         self.assertEqual(config.page_size, 100)
         self.assertEqual(config.request_timeout, 30.0)
