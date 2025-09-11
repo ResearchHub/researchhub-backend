@@ -10,305 +10,349 @@ from utils.retryable_requests import retryable_requests_session
 
 logger = logging.getLogger(__name__)
 
-# Cache settings
-_orcid_config = None
+
+def get_orcid_configuration() -> Dict[str, str]:
+    return {
+        "client_id": getattr(settings, "ORCID_CLIENT_ID"),
+        "client_secret": getattr(settings, "ORCID_CLIENT_SECRET"),
+        "base_url": getattr(settings, "ORCID_BASE_URL", "https://orcid.org"),
+        "api_url": getattr(settings, "ORCID_API_BASE_URL", "https://pub.orcid.org"),
+        "redirect_url": getattr(settings, "ORCID_REDIRECT_URL"),
+    }
 
 
-def _config():
-    global _orcid_config
-    if _orcid_config is None:
-        _orcid_config = {
-            "client_id": getattr(settings, "ORCID_CLIENT_ID"),
-            "client_secret": getattr(settings, "ORCID_CLIENT_SECRET"),
-            "base_url": getattr(settings, "ORCID_BASE_URL", "https://orcid.org"),
-            "api_url": getattr(settings, "ORCID_API_BASE_URL", "https://pub.orcid.org"),
-            "redirect_url": getattr(settings, "ORCID_REDIRECT_URL"),
-        }
-    return _orcid_config
+def create_standard_orcid_api_headers(access_token: str) -> Dict[str, str]:
+    return {
+        "Authorization": f"Bearer {access_token}",
+        "Accept": "application/vnd.orcid+json",
+    }
 
 
-def ensure_orcid_app_configured() -> SocialApp:
-    config = _config()
-    if not config["client_id"] or not config["client_secret"]:
+def build_oauth_token_request_payload(
+    orcid_config: Dict[str, str], **additional_params
+) -> Dict[str, str]:
+    base_payload = {
+        "client_id": orcid_config["client_id"],
+        "client_secret": orcid_config["client_secret"],
+    }
+    base_payload.update(additional_params)
+    return base_payload
+
+
+def calculate_future_token_expiry_time(expires_in_seconds: int) -> datetime:
+    return datetime.now(timezone.utc) + timedelta(seconds=int(expires_in_seconds))
+
+
+def execute_orcid_oauth_token_request(url: str, payload: Dict[str, str]) -> Dict:
+    with retryable_requests_session() as http_session:
+        response = http_session.post(
+            url,
+            data=payload,
+            headers={"Accept": "application/json"},
+            timeout=30,
+        )
+    response.raise_for_status()
+    return response.json()
+
+
+def execute_orcid_api_data_request(url: str, headers: Dict[str, str]) -> Dict:
+    with retryable_requests_session() as http_session:
+        response = http_session.get(url, headers=headers, timeout=30)
+    response.raise_for_status()
+
+    try:
+        return response.json()
+    except ValueError:
+        logger.error(
+            f"ORCID API returned non-JSON response. Status: {response.status_code}"
+        )
+        raise OrcidServiceError()
+
+
+def extract_publication_title_from_orcid_work_data(work_data: Dict) -> str:
+    title_section = work_data.get("title", {})
+    if (
+        title_section
+        and "title" in title_section
+        and title_section["title"].get("value")
+    ):
+        return title_section["title"]["value"]
+    return ""
+
+
+def extract_publication_abstract_from_orcid_work_data(work_data: Dict) -> str:
+    if "short-description" in work_data and work_data["short-description"]:
+        return work_data["short-description"]
+    return ""
+
+
+def ensure_orcid_django_social_app_exists() -> SocialApp:
+    orcid_config = get_orcid_configuration()
+
+    if not orcid_config["client_id"] or not orcid_config["client_secret"]:
         raise RuntimeError(
             "ORCID service is not properly configured. Please contact support."
         )
 
-    app, created = SocialApp.objects.get_or_create(
+    orcid_app, app_was_created = SocialApp.objects.get_or_create(
         provider="orcid",
         defaults={
             "name": "ORCID",
-            "client_id": config["client_id"],
-            "secret": config["client_secret"],
+            "client_id": orcid_config["client_id"],
+            "secret": orcid_config["client_secret"],
         },
     )
 
-    if not created and (
-        app.client_id != config["client_id"] or app.secret != config["client_secret"]
-    ):
-        SocialApp.objects.filter(id=app.id).update(
-            client_id=config["client_id"], secret=config["client_secret"]
-        )
-        app.refresh_from_db()
-
-    if not app.sites.filter(id=Site.objects.get_current().id).exists():
-        app.sites.add(Site.objects.get_current())
-    return app
-
-
-def exchange_orcid_code_for_tokens(code: str) -> Dict:
-    config = _config()
-    with retryable_requests_session() as session:
-        r = session.post(
-            f"{config['base_url']}/oauth/token",
-            data={
-                "client_id": config["client_id"],
-                "client_secret": config["client_secret"],
-                "grant_type": "authorization_code",
-                "code": code,
-                "redirect_uri": config["redirect_url"],
-            },
-            timeout=30,
-        )
-    r.raise_for_status()
-    return r.json()
-
-
-def refresh_orcid_access_token(
-    account: SocialAccount, token: SocialToken
-) -> Optional[SocialToken]:
-    if not token.token_secret:
-        return None
-
-    config = _config()
-    with retryable_requests_session() as session:
-        r = session.post(
-            f"{config['base_url']}/oauth/token",
-            data={
-                "client_id": config["client_id"],
-                "client_secret": config["client_secret"],
-                "grant_type": "refresh_token",
-                "refresh_token": token.token_secret,
-            },
-            timeout=30,
-        )
-
-    if r.status_code >= 400:
-        return None
-
-    payload = r.json()
-    expires_at = None
-    if expires_in := payload.get("expires_in"):
-        expires_at = datetime.now(timezone.utc) + timedelta(seconds=int(expires_in))
-
-    SocialToken.objects.filter(id=token.id).update(
-        token=payload.get("access_token"), expires_at=expires_at
+    app_needs_configuration_update = not app_was_created and (
+        orcid_app.client_id != orcid_config["client_id"]
+        or orcid_app.secret != orcid_config["client_secret"]
     )
-    token.refresh_from_db()
-    return token
+
+    if app_needs_configuration_update:
+        SocialApp.objects.filter(id=orcid_app.id).update(
+            client_id=orcid_config["client_id"], secret=orcid_config["client_secret"]
+        )
+        orcid_app.refresh_from_db()
+
+    current_site = Site.objects.get_current()
+    if not orcid_app.sites.filter(id=current_site.id).exists():
+        orcid_app.sites.add(current_site)
+
+    return orcid_app
+
+
+def exchange_orcid_code_for_tokens(authorization_code: str) -> Dict:
+    orcid_config = get_orcid_configuration()
+
+    token_request_payload = build_oauth_token_request_payload(
+        orcid_config,
+        grant_type="authorization_code",
+        redirect_uri=orcid_config["redirect_url"],
+        code=authorization_code,
+    )
+
+    return execute_orcid_oauth_token_request(
+        f"{orcid_config['base_url']}/oauth/token", token_request_payload
+    )
+
+
+def refresh_expired_orcid_access_token(
+    orcid_account: SocialAccount, expired_token: SocialToken
+) -> Optional[SocialToken]:
+    if not expired_token.token_secret:
+        return None
+
+    orcid_config = get_orcid_configuration()
+
+    refresh_request_payload = build_oauth_token_request_payload(
+        orcid_config,
+        grant_type="refresh_token",
+        refresh_token=expired_token.token_secret,
+    )
+
+    refreshed_token_data = execute_orcid_oauth_token_request(
+        f"{orcid_config['base_url']}/oauth/token", refresh_request_payload
+    )
+
+    new_access_token = refreshed_token_data.get("access_token")
+    token_expires_at = None
+
+    if expires_in_seconds := refreshed_token_data.get("expires_in"):
+        token_expires_at = calculate_future_token_expiry_time(expires_in_seconds)
+
+    SocialToken.objects.filter(id=expired_token.id).update(
+        token=new_access_token, expires_at=token_expires_at
+    )
+    expired_token.refresh_from_db()
+    return expired_token
 
 
 def create_or_update_orcid_account(
-    user, token_payload: Dict
+    user, orcid_token_data: Dict
 ) -> Tuple[SocialAccount, SocialToken]:
-    orcid_id = token_payload.get("orcid")
-    if not orcid_id:
-        raise ValueError("ORCID authorization is incomplete. Please try again.")
+    orcid_user_id = orcid_token_data.get("orcid")
+    if not orcid_user_id:
+        raise OrcidAuthenticationError()
 
-    # Check for conflicts
-    existing = SocialAccount.objects.filter(provider="orcid", uid=orcid_id).first()
-    if existing and existing.user_id != user.id:
-        raise ValueError(
-            f"ORCID ID {orcid_id} is already linked to another user account. "
-            f"Each ORCID can only be linked to one ResearchHub account."
-        )
+    existing_orcid_account = SocialAccount.objects.filter(
+        provider="orcid", uid=orcid_user_id
+    ).first()
+    if existing_orcid_account and existing_orcid_account.user_id != user.id:
+        raise OrcidAccountConflictError()
 
-    # Upsert account
-    account, _ = SocialAccount.objects.update_or_create(
+    user_orcid_account, _ = SocialAccount.objects.update_or_create(
         user=user,
         provider="orcid",
-        uid=orcid_id,
+        uid=orcid_user_id,
         defaults={
             "extra_data": {
-                "name": token_payload.get("name"),
-                "scope": token_payload.get("scope"),
+                "name": orcid_token_data.get("name"),
+                "scope": orcid_token_data.get("scope"),
             }
         },
     )
 
-    # Upsert token
-    app = ensure_orcid_app_configured()
-    expires_at = None
-    if expires_in := token_payload.get("expires_in"):
-        expires_at = datetime.now(timezone.utc) + timedelta(seconds=int(expires_in))
+    orcid_social_app = ensure_orcid_django_social_app_exists()
+    token_expires_at = None
 
-    token, _ = SocialToken.objects.update_or_create(
-        app=app,
-        account=account,
+    if expires_in_seconds := orcid_token_data.get("expires_in"):
+        token_expires_at = calculate_future_token_expiry_time(expires_in_seconds)
+
+    user_orcid_token, _ = SocialToken.objects.update_or_create(
+        app=orcid_social_app,
+        account=user_orcid_account,
         defaults={
-            "token": token_payload.get("access_token"),
-            "token_secret": token_payload.get("refresh_token"),
-            "expires_at": expires_at,
+            "token": orcid_token_data.get("access_token"),
+            "token_secret": orcid_token_data.get("refresh_token"),
+            "expires_at": token_expires_at,
         },
     )
 
-    return account, token
+    return user_orcid_account, user_orcid_token
 
 
 def get_user_orcid_credentials(
     user, auto_refresh: bool = True
 ) -> Tuple[Optional[SocialAccount], Optional[SocialToken]]:
     try:
-        account = SocialAccount.objects.get(user=user, provider="orcid")
-        app = ensure_orcid_app_configured()
-        token = SocialToken.objects.get(account=account, app=app)
+        user_orcid_account = SocialAccount.objects.get(user=user, provider="orcid")
+        orcid_social_app = ensure_orcid_django_social_app_exists()
+        user_orcid_token = SocialToken.objects.get(
+            account=user_orcid_account, app=orcid_social_app
+        )
 
-        # Auto-refresh if needed
-        if (
-            auto_refresh
-            and token.expires_at
-            and token.expires_at <= datetime.now(timezone.utc)
-        ):
-            token = refresh_orcid_access_token(account, token)
+        token_is_expired = (
+            user_orcid_token.expires_at
+            and user_orcid_token.expires_at <= datetime.now(timezone.utc)
+        )
 
-        return account, token
+        if auto_refresh and token_is_expired:
+            user_orcid_token = refresh_expired_orcid_access_token(
+                user_orcid_account, user_orcid_token
+            )
+
+        return user_orcid_account, user_orcid_token
     except (SocialAccount.DoesNotExist, SocialToken.DoesNotExist):
         return None, None
 
 
-def fetch_orcid_works_list(access_token: str, orcid_id: str) -> Dict:
+def fetch_user_works_list_from_orcid_api(access_token: str, orcid_user_id: str) -> Dict:
     if not access_token or len(access_token) < 10:
-        raise ValueError(
-            "ORCID access token is invalid. Please reconnect your ORCID account."
+        raise OrcidTokenExpiredError()
+
+    orcid_config = get_orcid_configuration()
+    api_request_headers = create_standard_orcid_api_headers(access_token)
+
+    with retryable_requests_session() as http_session:
+        profile_validation_response = http_session.get(
+            f"{orcid_config['api_url']}/v3.0/{orcid_user_id}",
+            headers=api_request_headers,
+            timeout=30,
         )
 
-    config = _config()
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Accept": "application/vnd.orcid+json",
-    }
+        if profile_validation_response.status_code != 200:
+            raise OrcidTokenExpiredError()
 
-    with retryable_requests_session() as session:
-        # Test token validity
-        test_r = session.get(
-            f"{config['api_url']}/v3.0/{orcid_id}", headers=headers, timeout=30
-        )
-        if test_r.status_code != 200:
-            raise ValueError(
-                "Your ORCID access token has expired. "
-                "Please reconnect your ORCID account."
-            )
+    works_data = execute_orcid_api_data_request(
+        f"{orcid_config['api_url']}/v3.0/{orcid_user_id}/works", api_request_headers
+    )
 
-        # Fetch works
-        r = session.get(
-            f"{config['api_url']}/v3.0/{orcid_id}/works", headers=headers, timeout=30
-        )
-
-    r.raise_for_status()
-
-    try:
-        response_data = r.json()
-        if isinstance(response_data, dict) and "group" in response_data:
-            logger.info(
-                f"Found {len(response_data.get('group', []))} work groups "
-                f"in ORCID response"
-            )
-        return response_data
-    except ValueError:
-        logger.error(f"ORCID API returned non-JSON response. Status: {r.status_code}")
-        raise ValueError(
-            "ORCID service returned an invalid response. Please try again later."
-        )
+    if isinstance(works_data, dict) and "group" in works_data:
+        work_group_count = len(works_data.get("group", []))
+        logger.info(f"Found {work_group_count} work groups in ORCID response")
+    return works_data
 
 
-def fetch_orcid_work_details(access_token: str, orcid_id: str, put_code: int) -> Dict:
-    config = _config()
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Accept": "application/vnd.orcid+json",
-    }
+def fetch_single_work_details_from_orcid_api(
+    access_token: str, orcid_user_id: str, work_put_code: int
+) -> Dict:
+    orcid_config = get_orcid_configuration()
+    api_request_headers = create_standard_orcid_api_headers(access_token)
+    work_detail_api_url = (
+        f"{orcid_config['api_url']}/v3.0/{orcid_user_id}/work/{work_put_code}"
+    )
 
-    with retryable_requests_session() as session:
-        url = f"{config['api_url']}/v3.0/{orcid_id}/work/{put_code}"
-        r = session.get(url, headers=headers, timeout=30)
-    r.raise_for_status()
-
-    try:
-        return r.json()
-    except ValueError:
-        logger.error(
-            f"ORCID work detail API returned non-JSON response. "
-            f"Status: {r.status_code}"
-        )
-        raise ValueError(
-            "ORCID service returned an invalid response. Please try again later."
-        )
+    return execute_orcid_api_data_request(work_detail_api_url, api_request_headers)
 
 
-def extract_work_identifiers(work_detail: Dict) -> Dict[str, List[str]]:
-    out = {}
-    for e in work_detail.get("external-ids", {}).get("external-id", []):
-        if (typ := (e.get("external-id-type") or "").lower()) and (
-            val := e.get("external-id-value")
-        ):
-            out.setdefault(typ, []).append(val)
-    return out
+def extract_all_identifiers_from_orcid_work_data(
+    orcid_work_detail: Dict,
+) -> Dict[str, List[str]]:
+    extracted_identifiers = {}
+    external_id_list = orcid_work_detail.get("external-ids", {}).get("external-id", [])
+
+    for external_id_entry in external_id_list:
+        identifier_type = external_id_entry.get("external-id-type")
+        identifier_value = external_id_entry.get("external-id-value")
+
+        if identifier_type and identifier_value:
+            if identifier_type not in extracted_identifiers:
+                extracted_identifiers[identifier_type] = []
+            extracted_identifiers[identifier_type].append(identifier_value)
+    return extracted_identifiers
 
 
-def extract_work_metadata(work_detail: Dict) -> Tuple[Optional[str], Optional[str]]:
-    title = None
-    if title_data := work_detail.get("title"):
-        if isinstance(title_data, dict):
-            title = title_data.get("title", {}).get("value") or title_data.get(
-                "subtitle", {}
-            ).get("value")
+def get_user_publication_dois(access_token: str, orcid_user_id: str) -> List[Dict]:
+    user_works_data = fetch_user_works_list_from_orcid_api(access_token, orcid_user_id)
+    complete_user_publications_with_dois = []
 
-    abstract = work_detail.get("short-description") or work_detail.get(
-        "abstract", {}
-    ).get("value")
+    work_groups = user_works_data.get("group", [])
+    for single_work_group in work_groups:
+        work_summaries_in_group = single_work_group.get("work-summary", [])
 
-    return title, abstract
-
-
-def get_user_publication_dois(access_token: str, orcid_id: str) -> List[Dict]:
-    data = fetch_orcid_works_list(access_token, orcid_id)
-    results = []
-
-    for group in data.get("group", []):
-        for work_summary in group.get("work-summary", []):
-            if not (put_code := work_summary.get("put-code")):
+        for individual_work_summary in work_summaries_in_group:
+            work_put_code = individual_work_summary.get("put-code")
+            if not work_put_code:
                 continue
 
             try:
-                detail = fetch_orcid_work_details(access_token, orcid_id, put_code)
-                dois = extract_work_identifiers(detail).get("doi", [])
+                detailed_work_data = fetch_single_work_details_from_orcid_api(
+                    access_token, orcid_user_id, work_put_code
+                )
+                work_identifiers = extract_all_identifiers_from_orcid_work_data(
+                    detailed_work_data
+                )
 
-                if not dois:
+                work_dois = work_identifiers.get("doi", [])
+                if not work_dois:
                     continue
 
-                title, abstract = extract_work_metadata(detail)
-                url = (
-                    detail.get("url", {}).get("value")
-                    if isinstance(detail.get("url"), dict)
-                    else None
+                work_title = extract_publication_title_from_orcid_work_data(
+                    detailed_work_data
+                )
+                work_abstract = extract_publication_abstract_from_orcid_work_data(
+                    detailed_work_data
                 )
 
-                for doi in dois:
-                    if doi:
-                        results.append(
-                            {
-                                "doi": doi.lower(),
-                                "title": title,
-                                "abstract": abstract,
-                                "orcid_put_code": put_code,
-                                "url": url,
-                            }
-                        )
-            except Exception as e:
+                for individual_doi in work_dois:
+                    publication_record = {
+                        "doi": individual_doi,
+                        "title": work_title,
+                        "abstract": work_abstract,
+                        "put_code": work_put_code,
+                    }
+                    complete_user_publications_with_dois.append(publication_record)
+
+            except Exception as work_processing_error:
                 logger.warning(
-                    f"Failed to fetch ORCID work detail for put_code {put_code}: {e}"
+                    f"Failed to fetch ORCID work {work_put_code}: "
+                    f"{work_processing_error}"
                 )
                 continue
+    return complete_user_publications_with_dois
 
-    # Deduplicate by DOI
-    return list({r["doi"]: r for r in results}.values())
+
+class OrcidAccountConflictError(ValueError):
+    pass
+
+
+class OrcidAuthenticationError(ValueError):
+    pass
+
+
+class OrcidTokenExpiredError(ValueError):
+    pass
+
+
+class OrcidServiceError(ValueError):
+    pass
