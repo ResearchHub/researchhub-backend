@@ -70,7 +70,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
     permission_classes = []
     pagination_class = FeedPagination
 
-    def get_CACHE_KEY(self, request, feed_type=""):
+    def get_cache_key(self, request, feed_type=""):
         """Override to include funding query parameters in cache key"""
         base_key = super().get_cache_key(request, feed_type)
 
