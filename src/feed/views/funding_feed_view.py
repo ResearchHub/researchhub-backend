@@ -18,6 +18,7 @@ from django.db.models import (
     Count,
     DecimalField,
     F,
+    FloatField,
     Sum,
     Value,
     When,
@@ -84,13 +85,19 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
 
     def _order_by_goal_percent(self, queryset):
         return queryset.annotate(
-            goal_percent=Coalesce(
-                Sum("unified_document__fundraises__escrow__amount_holding")
-                + Sum("unified_document__fundraises__escrow__amount_paid"),
-                0,
-                output_field=DecimalField(),
+            goal_percent=Case(
+                When(
+                    unified_document__fundraises__goal_amount=0,
+                    then=Value(0.0),
+                ),
+                default=Coalesce(
+                    Sum("unified_document__fundraises__escrow__amount_holding")
+                    + Sum("unified_document__fundraises__escrow__amount_paid"),
+                    0,
+                )
+                / F("unified_document__fundraises__goal_amount"),
+                output_field=FloatField(),
             )
-            / F("unified_document__fundraises__goal_amount")
         ).order_by("-goal_percent")
 
     def get_serializer_context(self):

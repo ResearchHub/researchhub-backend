@@ -1393,6 +1393,109 @@ class FundingFeedViewSetTests(TestCase):
         # The post with the higher amount raised should be first
         first_post_id = results[0]["content_object"]["id"]
         self.assertEqual(first_post_id, high_amount_post.id)
-        # The post with the higher amount raised should be first
+
+    def test_ordering_by_newest(self):
+        """Test ordering by newest"""
+        # Create a post with a recent created_date
+        newest_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        newest_post = ResearchhubPost.objects.create(
+            title="Newest Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=newest_doc,
+            created_date=timezone.now() + timezone.timedelta(minutes=5),
+        )
+
+        url = reverse("funding_feed-list") + "?ordering=newest"
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        results = response.data["results"]
+        # There are more than 2 posts, but we only care about the order of these two
+        self.assertGreater(len(results), 1)
+
+        # The newest post should be first
         first_post_id = results[0]["content_object"]["id"]
-        self.assertEqual(first_post_id, high_amount_post.id)
+        self.assertEqual(first_post_id, newest_post.id)
+
+    def test_ordering_by_expiring(self):
+        """Test ordering by expiring soon"""
+        # Create a post with an expiration date soon
+        expiring_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        expiring_post = ResearchhubPost.objects.create(
+            title="Expiring Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=expiring_doc,
+        )
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=expiring_doc,
+            end_date=timezone.now() - timezone.timedelta(minutes=1),
+            status=Fundraise.OPEN,
+        )
+
+        url = reverse("funding_feed-list") + "?ordering=expiring"
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        results = response.data["results"]
+        # There are more than 2 posts, but we only care about the order of these two
+        self.assertGreater(len(results), 1)
+
+        # The expiring soon post should be first
+        first_post_id = results[0]["content_object"]["id"]
+        self.assertEqual(first_post_id, expiring_post.id)
+
+    def test_ordering_by_goal_percent(self):
+        """Test ordering by goal percent (highest first)"""
+        # Create a post with an expiration date soon
+        goal_percent_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        goal_percent_post = ResearchhubPost.objects.create(
+            title="Goal Percent Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=goal_percent_doc,
+        )
+        goal_percent_escrow = Escrow.objects.create(
+            amount_holding=999,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=goal_percent_doc.id,
+        )
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=goal_percent_doc,
+            escrow=goal_percent_escrow,
+            goal_amount=1000,
+            status=Fundraise.OPEN,
+        )
+
+        url = reverse("funding_feed-list") + "?ordering=expiring"
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        results = response.data["results"]
+        # There are more than 2 posts, but we only care about the order of these two
+        self.assertGreater(len(results), 1)
+
+        # The expiring soon post should be first
+        first_post_id = results[0]["content_object"]["id"]
+        print(
+            "==>",
+            (results[0]["content_object"]["fundraise"]["amount_raised"]),
+            (results[0]["content_object"]["fundraise"]["goal_amount"]),
+            # (goal_percent_post["fundraise"]["amount_raised"]),
+            # (goal_percent_post["fundraise"]["goal_amount"]),
+        )
+        self.assertEqual(first_post_id, goal_percent_post.id)
