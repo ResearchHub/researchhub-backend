@@ -151,7 +151,7 @@ class ChemRxivClient(BaseClient):
             since = until - timedelta(days=7)
 
         all_papers = []
-        offset = 0
+        skip = 0
         page_size = self.config.page_size
 
         # Determine total results to fetch
@@ -165,17 +165,16 @@ class ChemRxivClient(BaseClient):
             remaining = total_to_fetch - len(all_papers)
             current_page_size = min(page_size, remaining)
 
+            # ChemRxiv API uses skip for pagination
             params = {
                 "limit": current_page_size,
-                "offset": offset,
+                "skip": skip,
                 "sort": "PUBLISHED_DATE_DESC",
-                # Note: ChemRxiv API doesn't support date filtering directly
-                # We'll fetch all recent papers and filter them client-side if needed
             }
 
             logger.info(
                 f"Fetching papers from ChemRxiv "
-                f"(offset={offset}, limit={current_page_size})"
+                f"(skip={skip}, limit={current_page_size})"
             )
 
             try:
@@ -195,14 +194,14 @@ class ChemRxivClient(BaseClient):
                 # Check total count if available
                 if isinstance(response, dict) and "totalCount" in response:
                     total_available = response["totalCount"]
-                    if offset + len(papers) >= total_available:
+                    if skip + len(papers) >= total_available:
                         break
 
                 # Move to next page
-                offset += len(papers)
+                skip += len(papers)
 
             except Exception as e:
-                logger.error(f"Failed to fetch page at offset={offset}: {e}")
+                logger.error(f"Failed to fetch page at skip={skip}: {e}")
                 # Continue with what we have
                 break
 

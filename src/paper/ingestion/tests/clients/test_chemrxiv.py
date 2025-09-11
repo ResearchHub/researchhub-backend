@@ -149,11 +149,11 @@ class TestChemRxivClient(TestCase):
         self.assertEqual(papers, [])
         mock_get.assert_called_once()
 
-        # Check that basic parameters were included
+        # Check that all required parameters were included
         call_args = mock_get.call_args
         params = call_args[1]["params"]
         self.assertIn("limit", params)
-        self.assertIn("offset", params)
+        self.assertIn("skip", params)  # Uses skip, not offset
         self.assertIn("sort", params)
 
     @patch("requests.Session.get")
