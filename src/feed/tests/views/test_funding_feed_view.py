@@ -20,7 +20,10 @@ from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import Escrow
-from researchhub_document.related_models.constants.document_type import GRANT, PREREGISTRATION
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+)
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -40,6 +43,8 @@ class FundingFeedViewSetTests(TestCase):
         self.hub = Hub.objects.create(
             name="Test Hub",
         )
+
+        self.unified_document.hubs.add(self.hub)
 
         # Create a preregistration post
         self.post = ResearchhubPost.objects.create(
@@ -299,7 +304,10 @@ class FundingFeedViewSetTests(TestCase):
         request.user = anon_user
 
         cache_key = viewset.get_cache_key(request, "funding")
-        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20")
+        self.assertEqual(
+            cache_key,
+            "funding_feed:latest:all:all:none:1-20-order:-hubs:",
+        )
 
         # Authenticated user
         request = request_factory.get("/api/funding_feed/")
@@ -312,7 +320,9 @@ class FundingFeedViewSetTests(TestCase):
         request.user = mock_user
 
         cache_key = viewset.get_cache_key(request, "funding")
-        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20")
+        self.assertEqual(
+            cache_key, "funding_feed:latest:all:all:none:1-20-order:-hubs:"
+        )
 
         # Custom page and page size
         request = request_factory.get("/api/funding_feed/?page=3&page_size=10")
@@ -320,7 +330,23 @@ class FundingFeedViewSetTests(TestCase):
         request.user = mock_user
 
         cache_key = viewset.get_cache_key(request, "funding")
-        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:3-10")
+        self.assertEqual(
+            cache_key, "funding_feed:latest:all:all:none:3-10-order:-hubs:"
+        )
+
+        # Custom filters and ordering
+        request = request_factory.get(
+            "/api/funding_feed/?ordering=-created_date&hub_ids=%5B%223%22%2C%2221%22%5D"
+        )
+        request = Request(request)
+        request.user = mock_user
+
+        cache_key = viewset.get_cache_key(request, "funding")
+
+        self.assertEqual(
+            cache_key,
+            'funding_feed:latest:all:all:none:1-20-order:-created_date-hubs:["3","21"]',
+        )
 
     def test_preregistration_post_only(self):
         """Test that funding feed only returns preregistration posts"""
@@ -1390,3 +1416,64 @@ class FundingFeedViewSetTests(TestCase):
         # The post with the higher amount raised should be first
         first_post_id = results[0]["content_object"]["id"]
         self.assertEqual(first_post_id, high_amount_post.id)
+        # The post with the higher amount raised should be first
+        first_post_id = results[0]["content_object"]["id"]
+        self.assertEqual(first_post_id, high_amount_post.id)
+
+    def test_hubs_filter(self):
+        """Test filtering funding feed by hubs parameter"""
+
+        # Test filtering by self.hub
+        url = reverse("funding_feed-list") + f"?hub_ids=[{self.hub.id}]"
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should only return posts associated with self.hub
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(
+            response.data["results"][0]["content_object"]["id"], self.post.id
+        )
+
+        # Test filtering by other_hub
+        url = reverse("funding_feed-list") + f"?hub_ids=[{self.other_hub.id}]"
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should only return posts associated with other_hub
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(
+            response.data["results"][0]["content_object"]["id"], self.other_post.id
+        )
+
+        # Test filtering with bad format (no brackets)
+        url = reverse("funding_feed-list") + f"?hub_ids={self.hub.id}"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should ignore the malformed hub_ids and return all posts
+        self.assertEqual(len(response.data["results"]), 2)
+
+    def test_get_hubs(self):
+        """Test the get_hubs action to retrieve hubs with preregistration posts"""
+        url = reverse("funding_feed-hubs")
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsInstance(response.data, list)
+        # Should include the hub associated with self.post
+        hub_ids = [hub["id"] for hub in response.data]
+        self.assertIn(self.hub.id, hub_ids)
+        self.assertIn(self.other_hub.id, hub_ids)
+
+        new_hub = Hub.objects.create(name="New Hub", slug="new-hub")
+        new_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        new_doc.hubs.add(new_hub)
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        hub_ids = [hub["id"] for hub in response.data]
+
+        # if key working new hub should not be in list yet.
+        self.assertNotIn(new_hub.id, hub_ids)
