@@ -24,7 +24,13 @@ from reputation.models import Bounty, Contribution, Deposit
 from reputation.related_models.bounty import AnnotatedBounty
 from reputation.related_models.score import Score
 from reputation.services.wallet import WalletService
-from researchhub.celery import QUEUE_CONTRIBUTIONS, QUEUE_PURCHASES, app
+from researchhub.celery import (
+    QUEUE_AI_SCORING,
+    QUEUE_CONTRIBUTIONS,
+    QUEUE_PURCHASES,
+    app,
+)
+from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_EXPIRED,
@@ -33,6 +39,7 @@ from researchhub_document.related_models.constants.document_type import (
 from user.models import User
 from user.related_models.author_model import Author
 from utils.message import send_email_message
+from utils.originality_ai import calculate_ai_score
 from utils.sentry import log_error, log_info
 from utils.web3_utils import web3_provider
 
@@ -526,3 +533,14 @@ def burn_revenue_rsc(network="BASE"):
     Weekly task to burn ResearchCoin from the revenue account.
     """
     return WalletService.burn_revenue_rsc(network)
+
+
+@app.task(queue=QUEUE_AI_SCORING)
+def score_comment_ai(comment_id: int):
+    try:
+        comment = RhCommentModel.objects.get(id=comment_id)
+        score = calculate_ai_score(comment.plain_text)
+        comment.ai_score = score
+        comment.save(update_fields=["ai_score"])
+    except Exception as error:
+        logger.exception(f"Failed to score a comment '{comment_id}'. Error: {error}")
