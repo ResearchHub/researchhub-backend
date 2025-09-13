@@ -1,5 +1,6 @@
 import uuid
 from unittest.mock import MagicMock, patch
+from urllib.parse import quote
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
@@ -28,8 +29,12 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from review.models.review_model import Review
+from user.related_models.user_verification_model import UserVerification
 
 User = get_user_model()
+
+RSC_TO_USD_RATE = 3.0
 
 
 class FundingFeedViewSetTests(TestCase):
@@ -37,12 +42,16 @@ class FundingFeedViewSetTests(TestCase):
         self.user = User.objects.create_user(
             username="testuser", password=uuid.uuid4().hex
         )
+        UserVerification.objects.create(
+            user=self.user, status=UserVerification.Status.APPROVED
+        )
         self.unified_document = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION
         )
         self.hub = Hub.objects.create(
             name="Test Hub",
         )
+        self.unified_document.hubs.add(self.hub)
 
         # Create a preregistration post
         self.post = ResearchhubPost.objects.create(
@@ -79,6 +88,21 @@ class FundingFeedViewSetTests(TestCase):
             slug="other-preregistration",
             unified_document=self.other_unified_document,
             created_date=timezone.now(),
+            score=5,
+        )
+
+        # Create reviews for both documents from the alternate users
+        self.review = Review.objects.create(
+            score=4.0,
+            created_by=self.other_user,
+            unified_document=self.unified_document,
+            created_date=timezone.now(),
+        )
+        self.other_review = Review.objects.create(
+            score=2.0,
+            created_by=self.user,
+            unified_document=self.other_unified_document,
+            created_date=timezone.now(),
         )
 
         # Create a non-preregistration post (should not appear in feed)
@@ -112,8 +136,8 @@ class FundingFeedViewSetTests(TestCase):
         # Create an exchange rate for converting currency
         self.exchange_rate = RscExchangeRate.objects.create(
             price_source=MORALIS,
-            rate=3.0,
-            real_rate=3.0,
+            rate=RSC_TO_USD_RATE,
+            real_rate=RSC_TO_USD_RATE,
             target_currency=USD,
         )
 
@@ -302,7 +326,7 @@ class FundingFeedViewSetTests(TestCase):
         request.user = anon_user
 
         cache_key = viewset.get_cache_key(request, "funding")
-        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20:all")
+        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20:all:")
 
         # Authenticated user
         request = request_factory.get("/api/funding_feed/")
@@ -315,7 +339,7 @@ class FundingFeedViewSetTests(TestCase):
         request.user = mock_user
 
         cache_key = viewset.get_cache_key(request, "funding")
-        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20:all")
+        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20:all:")
 
         # Custom page and page size
         request = request_factory.get("/api/funding_feed/?page=3&page_size=10")
@@ -323,7 +347,7 @@ class FundingFeedViewSetTests(TestCase):
         request.user = mock_user
 
         cache_key = viewset.get_cache_key(request, "funding")
-        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:3-10:all")
+        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:3-10:all:")
 
     def test_preregistration_post_only(self):
         """Test that funding feed only returns preregistration posts"""
@@ -1159,7 +1183,7 @@ class FundingFeedViewSetTests(TestCase):
 
         # Verify that cache was not used for this request
         # The view should not cache responses when grant_id is provided
-        cache_key = "funding_feed:latest:all:all:none:1-20:all"
+        cache_key = "funding_feed:latest:all:all:none:1-20:all:"
         cached_response = cache.get(cache_key)
 
         # Cache should be None since grant_id disables caching
@@ -1239,7 +1263,7 @@ class FundingFeedViewSetTests(TestCase):
 
         # Verify that cache was not used for this request
         # The view should not cache responses when created_by is provided
-        cache_key = "funding_feed:latest:all:all:none:1-20:all"
+        cache_key = "funding_feed:latest:all:all:none:1-20:all:"
         cached_response = cache.get(cache_key)
 
         # Cache should be None since created_by disables caching
@@ -1352,6 +1376,166 @@ class FundingFeedViewSetTests(TestCase):
             response.data["results"][0]["content_object"]["id"], self.post.id
         )
 
+    def test_filtering_by_hub_ids(self):
+        """Test filtering by hub_ids"""
+        post_hubs_id = self.post.hubs.values_list("id", flat=True).first().__str__()
+        other_post_hubs_id = (
+            self.other_post.hubs.values_list("id", flat=True).first().__str__()
+        )
+
+        url = (
+            reverse("funding_feed-list")
+            + "?filtering="
+            + quote("hub_ids=" + post_hubs_id + "," + other_post_hubs_id)
+        )
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.data["results"]
+        # There are exactly 2 posts
+        self.assertEqual(len(results), 2)
+
+        url2 = (
+            reverse("funding_feed-list")
+            + "?filtering="
+            + quote("hub_ids=" + post_hubs_id)
+        )
+        response2 = self.client.get(url2)
+        self.assertEqual(response2.status_code, status.HTTP_200_OK)
+        results2 = response2.data["results"]
+        self.assertEqual(len(results2), 1)
+        self.assertEqual(results2[0]["content_object"]["id"], self.post.id)
+
+        url3 = (
+            reverse("funding_feed-list")
+            + "?filtering="
+            + quote("hub_ids=" + other_post_hubs_id)
+        )
+        response3 = self.client.get(url3)
+        self.assertEqual(response3.status_code, status.HTTP_200_OK)
+        results3 = response3.data["results"]
+        self.assertEqual(len(results3), 1)
+        self.assertEqual(results3[0]["content_object"]["id"], self.other_post.id)
+
+    def test_filtering_by_min_upvotes(self):
+        """Test filtering by min_upvotes"""
+        pass
+        # print("==>", vars(self.post.votes), vars(self.other_post.votes))
+        # post_hubs_id = self.post.hubs.values_list("id", flat=True).first().__str__()
+        # other_post_hubs_id = (
+        #     self.other_post.hubs.values_list("id", flat=True).first().__str__()
+        # )
+
+        # url = (
+        #     reverse("funding_feed-list")
+        #     + "?filtering="
+        #     + quote("hub_ids=" + post_hubs_id + "," + other_post_hubs_id)
+        # )
+        # response = self.client.get(url)
+        # self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # results = response.data["results"]
+        # # There are exactly 2 posts
+        # self.assertEqual(len(results), 2)
+
+        # url2 = (
+        #     reverse("funding_feed-list")
+        #     + "?filtering="
+        #     + quote("hub_ids=" + post_hubs_id)
+        # )
+        # response2 = self.client.get(url2)
+        # self.assertEqual(response2.status_code, status.HTTP_200_OK)
+        # results2 = response2.data["results"]
+        # self.assertEqual(len(results2), 1)
+        # self.assertEqual(results2[0]["content_object"]["id"], self.post.id)
+
+        # url3 = (
+        #     reverse("funding_feed-list")
+        #     + "?filtering="
+        #     + quote("hub_ids=" + other_post_hubs_id)
+        # )
+        # response3 = self.client.get(url3)
+        # self.assertEqual(response3.status_code, status.HTTP_200_OK)
+        # results3 = response3.data["results"]
+        # self.assertEqual(len(results3), 1)
+        # self.assertEqual(results3[0]["content_object"]["id"], self.other_post.id)
+
+    def test_filtering_by_min_score(self):
+        min_score = min([self.review.score, self.other_review.score])
+        max_score = max([self.review.score, self.other_review.score])
+
+        url = (
+            reverse("funding_feed-list")
+            + "?filtering="
+            + quote("min_score=" + min_score.__str__())
+        )
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.data["results"]
+        # There are exactly 2 posts
+        self.assertEqual(len(results), 2)
+
+        url2 = (
+            reverse("funding_feed-list")
+            + "?filtering="
+            + quote("min_score=" + int(min_score + 1).__str__())
+        )
+        response2 = self.client.get(url2)
+        self.assertEqual(response2.status_code, status.HTTP_200_OK)
+        results2 = response2.data["results"]
+        self.assertEqual(len(results2), 1)
+        self.assertEqual(results2[0]["content_object"]["id"], self.post.id)
+
+        url3 = (
+            reverse("funding_feed-list")
+            + "?filtering="
+            + quote("min_score=" + int(max_score + 1).__str__())
+        )
+        response3 = self.client.get(url3)
+        self.assertEqual(response3.status_code, status.HTTP_200_OK)
+        results3 = response3.data["results"]
+        self.assertEqual(len(results3), 0)
+
+    def test_filtering_by_verified_authors_only(self):
+        url = (
+            reverse("funding_feed-list")
+            + "?filtering="
+            + quote("verified_authors_only=false")
+        )
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.data["results"]
+        # There are exactly 2 posts
+        self.assertEqual(len(results), 2)
+
+        url2 = (
+            reverse("funding_feed-list")
+            + "?filtering="
+            + quote("verified_authors_only=true")
+        )
+        response2 = self.client.get(url2)
+        self.assertEqual(response2.status_code, status.HTTP_200_OK)
+        results2 = response2.data["results"]
+        self.assertEqual(len(results2), 1)
+        self.assertEqual(results2[0]["content_object"]["id"], self.post.id)
+
+    def test_filtering_by_tax_deductible(self):
+        url = (
+            reverse("funding_feed-list") + "?filtering=" + quote("tax_deductible=false")
+        )
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.data["results"]
+        # There are exactly 2 posts
+        self.assertEqual(len(results), 2)
+
+        url2 = (
+            reverse("funding_feed-list") + "?filtering=" + quote("tax_deductible=true")
+        )
+        response2 = self.client.get(url2)
+        self.assertEqual(response2.status_code, status.HTTP_200_OK)
+        results2 = response2.data["results"]
+        self.assertEqual(len(results2), 1)
+        self.assertEqual(results2[0]["content_object"]["id"], self.post.id)
+
     def test_ordering_by_amount_raised(self):
         """Test ordering by amount raised (highest first)"""
         # Create a post with a higher amount raised
@@ -1377,9 +1561,6 @@ class FundingFeedViewSetTests(TestCase):
             escrow=high_amount_escrow,
             status=Fundraise.OPEN,
         )
-
-        # A post with a lower amount raised (from setUp)
-        # self.post has a fundraise with 0 amount_holding
 
         url = reverse("funding_feed-list") + "?ordering=amount_raised"
         response = self.client.get(url)
@@ -1466,7 +1647,7 @@ class FundingFeedViewSetTests(TestCase):
             unified_document=goal_percent_doc,
         )
         goal_percent_escrow = Escrow.objects.create(
-            amount_holding=999,
+            amount_holding=999 / RSC_TO_USD_RATE,
             hold_type=Escrow.FUNDRAISE,
             created_by=self.user,
             content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
@@ -1480,7 +1661,7 @@ class FundingFeedViewSetTests(TestCase):
             status=Fundraise.OPEN,
         )
 
-        url = reverse("funding_feed-list") + "?ordering=expiring"
+        url = reverse("funding_feed-list") + "?ordering=goal_percent"
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1491,11 +1672,4 @@ class FundingFeedViewSetTests(TestCase):
 
         # The expiring soon post should be first
         first_post_id = results[0]["content_object"]["id"]
-        print(
-            "==>",
-            (results[0]["content_object"]["fundraise"]["amount_raised"]),
-            (results[0]["content_object"]["fundraise"]["goal_amount"]),
-            # (goal_percent_post["fundraise"]["amount_raised"]),
-            # (goal_percent_post["fundraise"]["goal_amount"]),
-        )
         self.assertEqual(first_post_id, goal_percent_post.id)

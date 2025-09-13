@@ -33,6 +33,7 @@ from feed.views.feed_view_mixin import FeedViewMixin
 from purchase.related_models.fundraise_model import Fundraise
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from user.related_models.user_verification_model import UserVerification
 
 from ..serializers import PostSerializer, serialize_feed_metrics
 from .common import FeedPagination
@@ -84,6 +85,9 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         ).order_by("-amount_raised")
 
     def _order_by_goal_percent(self, queryset):
+        # TODO: jmargulis: Consider addressing the difference between RSC and USD in
+        # escrow and goal_amount. It is possible that the rate between RSC and USD
+        # changes drastically during the fundraise period
         return queryset.annotate(
             goal_percent=Case(
                 When(
@@ -169,6 +173,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
             .select_related(
                 "created_by",
                 "created_by__author_profile",
+                "created_by__userverification",
                 "unified_document",
             )
             .prefetch_related(
@@ -281,15 +286,15 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
                 except ValueError:
                     pass
             if verified_authors_only and verified_authors_only[0].lower() == "true":
-                queryset = queryset.filter(created_by__userverification=True)
+                queryset = queryset.filter(
+                    created_by__userverification__status=(
+                        UserVerification.Status.APPROVED
+                    ),
+                )
             if tax_deductible and tax_deductible[0].lower() == "true":
                 queryset = queryset.filter(
-                    unified_document__fundraises__is_tax_deductible=True
+                    unified_document__fundraises__is_nonprofit=True
                 )
-
-            # queryset = queryset.filter(
-            #     unified_document__fundraises__nonprofitfundraiselink__isnull=False
-            # )
 
         ordering = self.request.query_params.get("ordering")
         if ordering == "amount_raised":
@@ -303,4 +308,5 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         elif ordering == "goal_percent":
             queryset = self._order_by_goal_percent(queryset)
 
+        # print("==>", queryset.query)
         return queryset
