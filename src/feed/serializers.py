@@ -78,7 +78,7 @@ class SimpleHubSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Hub
-        fields = ["name", "slug"]
+        fields = ["id", "name", "slug"]
 
 
 class SimpleReviewSerializer(serializers.ModelSerializer):
@@ -101,6 +101,7 @@ class ContentObjectSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     created_date = serializers.DateTimeField()
     hub = serializers.SerializerMethodField()
+    hubs = serializers.SerializerMethodField()
     reviews = serializers.SerializerMethodField()
     slug = serializers.CharField()
 
@@ -110,6 +111,13 @@ class ContentObjectSerializer(serializers.Serializer):
             if hub:
                 return SimpleHubSerializer(hub).data
         return None
+
+    def get_hubs(self, obj):
+        if hasattr(obj, "unified_document") and obj.unified_document:
+            hubs = obj.unified_document.hubs.all()
+            if hubs:
+                return SimpleHubSerializer(hubs, many=True).data
+        return []
 
     def get_bounty_data(self, obj):
         """Return bounty data from the unified document if it exists"""
