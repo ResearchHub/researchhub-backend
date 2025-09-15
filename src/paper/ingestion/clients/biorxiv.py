@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Union
 import requests
 
 from ..exceptions import FetchError, TimeoutError
-from .base import BaseClient, ClientConfig
+from .base import BaseClient, ClientConfig, CursorState, PagedResponse
 
 logger = logging.getLogger(__name__)
 
@@ -103,85 +103,104 @@ class BioRxivClient(BaseClient):
         # {"messages": [...], "collection": [...]}
         return raw_data.get("collection", [])
 
-    def fetch_recent(
+    def fetch_page(
         self,
+        cursor: Optional[str] = None,
         since: Optional[datetime] = None,
         until: Optional[datetime] = None,
+        page_size: Optional[int] = None,
         server: str = "biorxiv",
-        cursor: int = 0,
         format: str = "json",
         **kwargs,
-    ) -> List[Dict[str, Any]]:
+    ) -> PagedResponse:
         """
-        Fetch recent papers from BioRxiv within date range.
+        Fetch a single page of BioRxiv results using cursor-based pagination.
 
         Args:
-            since: Start date (defaults to 7 days ago)
-            until: End date (defaults to today)
+            cursor: Cursor from previous request (None for first page)
+            since: Start date for filtering (used on first request)
+            until: End date for filtering (used on first request)
+            page_size: Number of results per page
             server: "biorxiv" or "medrxiv" (default: "biorxiv")
-            cursor: Pagination cursor (default: 0)
             format: Response format (default: "json")
             **kwargs: Additional parameters
 
         Returns:
-            List of raw paper records
+            PagedResponse with data and next cursor
         """
-        # Default date range: last 7 days
-        if until is None:
-            until = datetime.now()
-        if since is None:
-            since = until - timedelta(days=7)
+        # Parse cursor or initialize state
+        if cursor:
+            state = CursorState.from_cursor_string(cursor)
+            # Restore server from metadata
+            server = state.metadata.get("server", server)
+            format = state.metadata.get("format", format)
+        else:
+            # Initialize state for first request
+            if until is None:
+                until = datetime.now()
+            if since is None:
+                since = until - timedelta(days=7)
 
-        # Format dates as YYYY-MM-DD
-        since_str = since.strftime("%Y-%m-%d")
-        until_str = until.strftime("%Y-%m-%d")
-
-        all_papers = []
-        current_cursor = cursor
-
-        while True:
-            # BioRxiv API endpoint format:
-            # /details/{server}/{interval}/{cursor}/{format}
-            # interval is a date range like "2025-01-01/2025-01-31"
-            endpoint = (
-                f"/details/{server}/{since_str}/{until_str}/{current_cursor}/{format}"
+            state = CursorState(
+                position=0,
+                since=since,
+                until=until,
+                metadata={"source": "biorxiv", "server": server, "format": format},
             )
 
-            logger.info(f"Fetching from {endpoint}")
+        # Use page_size from request or config
+        if page_size is None:
+            page_size = self.config.page_size
 
-            try:
-                response = self.fetch_with_retry(endpoint)
-                papers = self.process_page(response)
+        # Format dates as YYYY-MM-DD
+        since_str = state.since.strftime("%Y-%m-%d")
+        until_str = state.until.strftime("%Y-%m-%d")
 
-                if not papers:
-                    # No more results
-                    break
-
-                all_papers.extend(papers)
-
-                # Check for pagination
-                # BioRxiv returns "messages" with info about total results
-                messages = response.get("messages", [])
-                if messages:
-                    msg = messages[0]
-                    # total and count are returned as strings
-                    total = int(msg.get("total", "0"))
-                    count = int(msg.get("count", "0"))
-
-                    # If we've fetched all results, stop
-                    if current_cursor + count >= total:
-                        break
-
-                # Move cursor forward
-                current_cursor += self.config.page_size
-
-            except Exception as e:
-                logger.error(f"Failed to fetch page at cursor {current_cursor}: {e}")
-                # Continue with what we have
-                break
-
-        logger.info(
-            f"Fetched {len(all_papers)} papers from {server} "
-            f"between {since_str} and {until_str}"
+        # BioRxiv API endpoint format:
+        # /details/{server}/{interval}/{cursor}/{format}
+        endpoint = (
+            f"/details/{server}/{since_str}/{until_str}/{state.position}/{format}"
         )
-        return all_papers
+
+        logger.info(f"Fetching from {endpoint}")
+
+        try:
+            response = self.fetch_with_retry(endpoint)
+            papers = self.process_page(response)
+
+            # Check for pagination info
+            has_more = False
+            total = None
+
+            messages = response.get("messages", [])
+            if messages:
+                msg = messages[0]
+                # total and count are returned as strings
+                total = int(msg.get("total", "0"))
+                count = int(msg.get("count", "0"))
+
+                # Check if there are more results
+                has_more = (state.position + count) < total
+
+            # Update state for next page
+            next_state = None
+            if has_more:
+                next_state = CursorState(
+                    position=state.position + page_size,
+                    since=state.since,
+                    until=state.until,
+                    total=total,
+                    has_more=True,
+                    metadata=state.metadata,
+                )
+
+            return PagedResponse(
+                data=papers,
+                cursor=next_state.to_cursor_string() if next_state else None,
+                has_more=has_more,
+                total=total,
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to fetch page at cursor {state.position}: {e}")
+            raise

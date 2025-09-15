@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Union
 import requests
 
 from ..exceptions import FetchError, TimeoutError
-from .base import BaseClient, ClientConfig
+from .base import BaseClient, ClientConfig, CursorState, PagedResponse
 
 logger = logging.getLogger(__name__)
 
@@ -129,90 +129,93 @@ class ArXivClient(BaseClient):
 
         return papers
 
-    def fetch_recent(
+    def fetch_page(
         self,
+        cursor: Optional[str] = None,
         since: Optional[datetime] = None,
         until: Optional[datetime] = None,
-        max_results: Optional[int] = None,
+        page_size: Optional[int] = None,
         **kwargs,
-    ) -> List[Dict[str, Any]]:
+    ) -> PagedResponse:
         """
-        Fetch recent papers from ArXiv within date range.
+        Fetch a single page of ArXiv results using cursor-based pagination.
 
         Args:
-            since: Start date (defaults to 7 days ago)
-            until: End date (defaults to today)
-            max_results: Maximum number of results to return
+            cursor: Cursor from previous request (None for first page)
+            since: Start date for filtering (used on first request)
+            until: End date for filtering (used on first request)
+            page_size: Number of results per page
             **kwargs: Additional parameters
 
         Returns:
-            List of raw paper records
+            PagedResponse with data and next cursor
         """
-        # Default date range: last 7 days
-        if until is None:
-            until = datetime.now()
-        if since is None:
-            since = until - timedelta(days=7)
+        # Parse cursor or initialize state
+        if cursor:
+            state = CursorState.from_cursor_string(cursor)
+        else:
+            # Initialize state for first request
+            if until is None:
+                until = datetime.now()
+            if since is None:
+                since = until - timedelta(days=7)
+
+            state = CursorState(
+                position=0,
+                since=since,
+                until=until,
+                metadata={"source": "arxiv"},
+            )
+
+        # Use page_size from request or config
+        if page_size is None:
+            page_size = min(self.config.page_size, self.config.max_results_per_query)
 
         # Format dates for ArXiv query (YYYYMMDD format)
-        since_str = since.strftime("%Y%m%d")
-        until_str = until.strftime("%Y%m%d")
+        since_str = state.since.strftime("%Y%m%d")
+        until_str = state.until.strftime("%Y%m%d")
 
         # Build search query with date range using submittedDate
         search_query = f"submittedDate:[{since_str} TO {until_str}]"
 
-        all_papers = []
-        start = 0
-        page_size = min(self.config.page_size, self.config.max_results_per_query)
-
-        # Determine total results to fetch
-        if max_results:
-            total_to_fetch = max_results
-        else:
-            total_to_fetch = float("inf")
-
-        while len(all_papers) < total_to_fetch:
-            # Calculate how many to fetch in this request
-            remaining = total_to_fetch - len(all_papers)
-            current_page_size = min(page_size, remaining)
-
-            params = {
-                "search_query": search_query,
-                "start": start,
-                "max_results": current_page_size,
-                "sortBy": "submittedDate",
-                "sortOrder": "descending",
-            }
-
-            logger.info(
-                f"Fetching papers from ArXiv "
-                f"(start={start}, max_results={current_page_size})"
-            )
-
-            try:
-                response = self.fetch_with_retry("/query", params)
-                papers = self.process_page(response)
-
-                if not papers:
-                    # No more results
-                    break
-
-                all_papers.extend(papers)
-
-                # Check if we got fewer results than requested (end of results)
-                if len(papers) < current_page_size:
-                    break
-
-                # Move to next page
-                start += len(papers)
-
-            except Exception as e:
-                logger.error(f"Failed to fetch page at start={start}: {e}")
-                # Continue with what we have
-                break
+        params = {
+            "search_query": search_query,
+            "start": state.position,
+            "max_results": page_size,
+            "sortBy": "submittedDate",
+            "sortOrder": "descending",
+        }
 
         logger.info(
-            f"Fetched {len(all_papers)} papers from ArXiv "
-            f"between {since_str} and {until_str}"
+            f"Fetching papers from ArXiv "
+            f"(start={state.position}, max_results={page_size})"
         )
-        return all_papers
+
+        try:
+            response = self.fetch_with_retry("/query", params)
+            papers = self.process_page(response)
+
+            # Check if there are more results
+            has_more = len(papers) == page_size
+
+            # Update state for next page
+            next_state = None
+            if has_more:
+                next_state = CursorState(
+                    position=state.position + len(papers),
+                    since=state.since,
+                    until=state.until,
+                    has_more=True,
+                    metadata=state.metadata,
+                )
+
+            return PagedResponse(
+                data=papers,
+                cursor=next_state.to_cursor_string() if next_state else None,
+                has_more=has_more,
+                total=state.total,  # ArXiv doesn't provide total count easily
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to fetch page at start={state.position}: {e}")
+            raise

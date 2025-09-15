@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional, Union
 import requests
 
 from ..exceptions import FetchError, TimeoutError
-from .base import BaseClient, ClientConfig
+from .base import BaseClient, ClientConfig, CursorState, PagedResponse
 
 logger = logging.getLogger(__name__)
 
@@ -125,88 +125,99 @@ class ChemRxivClient(BaseClient):
 
         return papers
 
-    def fetch_recent(
+    def fetch_page(
         self,
+        cursor: Optional[str] = None,
         since: Optional[datetime] = None,
         until: Optional[datetime] = None,
-        max_results: Optional[int] = None,
+        page_size: Optional[int] = None,
         **kwargs,
-    ) -> List[Dict[str, Any]]:
+    ) -> PagedResponse:
         """
-        Fetch recent papers from ChemRxiv within date range.
+        Fetch a single page of ChemRxiv results using cursor-based pagination.
 
         Args:
-            since: Start date (defaults to 7 days ago)
-            until: End date (defaults to today)
-            max_results: Maximum number of results to return
+            cursor: Cursor from previous request (None for first page)
+            since: Start date for filtering (used on first request)
+            until: End date for filtering (used on first request)
+            page_size: Number of results per page
             **kwargs: Additional parameters
 
         Returns:
-            List of raw paper records
+            PagedResponse with data and next cursor
         """
-        # Default date range: last 7 days
-        if until is None:
-            until = datetime.now()
-        if since is None:
-            since = until - timedelta(days=7)
-
-        all_papers = []
-        skip = 0
-        page_size = self.config.page_size
-
-        # Determine total results to fetch
-        if max_results:
-            total_to_fetch = max_results
+        # Parse cursor or initialize state
+        if cursor:
+            state = CursorState.from_cursor_string(cursor)
         else:
-            total_to_fetch = float("inf")
+            # Initialize state for first request
+            if until is None:
+                until = datetime.now()
+            if since is None:
+                since = until - timedelta(days=7)
 
-        while len(all_papers) < total_to_fetch:
-            # Calculate how many to fetch in this request
-            remaining = total_to_fetch - len(all_papers)
-            current_page_size = min(page_size, remaining)
-
-            # ChemRxiv API uses skip for pagination
-            params = {
-                "limit": current_page_size,
-                "skip": skip,
-                "sort": "PUBLISHED_DATE_DESC",
-            }
-
-            logger.info(
-                f"Fetching papers from ChemRxiv "
-                f"(skip={skip}, limit={current_page_size})"
+            state = CursorState(
+                position=0,  # ChemRxiv uses skip parameter
+                since=since,
+                until=until,
+                metadata={"source": "chemrxiv"},
             )
 
-            try:
-                response = self.fetch_with_retry("/items", params)
-                papers = self.process_page(response)
+        # Use page_size from request or config
+        if page_size is None:
+            page_size = self.config.page_size
 
-                if not papers:
-                    # No more results
-                    break
-
-                all_papers.extend(papers)
-
-                # Check if we got fewer results than requested (end of results)
-                if len(papers) < current_page_size:
-                    break
-
-                # Check total count if available
-                if isinstance(response, dict) and "totalCount" in response:
-                    total_available = response["totalCount"]
-                    if skip + len(papers) >= total_available:
-                        break
-
-                # Move to next page
-                skip += len(papers)
-
-            except Exception as e:
-                logger.error(f"Failed to fetch page at skip={skip}: {e}")
-                # Continue with what we have
-                break
+        # ChemRxiv API uses skip for pagination
+        params = {
+            "limit": page_size,
+            "skip": state.position,
+            "sort": "PUBLISHED_DATE_DESC",
+        }
 
         logger.info(
-            f"Fetched {len(all_papers)} papers from ChemRxiv "
-            f"between {since.isoformat()} and {until.isoformat()}"
+            f"Fetching papers from ChemRxiv "
+            f"(skip={state.position}, limit={page_size})"
         )
-        return all_papers
+
+        try:
+            response = self.fetch_with_retry("/items", params)
+            papers = self.process_page(response)
+
+            # Check for total count and pagination
+            has_more = False
+            total = None
+
+            if isinstance(response, dict):
+                total = response.get("totalCount")
+                if total:
+                    # Check if there are more results
+                    has_more = (state.position + len(papers)) < total
+                else:
+                    # If no total count, assume more if we got full page
+                    has_more = len(papers) == page_size
+            else:
+                # Fallback: assume more pages if we got full page
+                has_more = len(papers) == page_size
+
+            # Update state for next page
+            next_state = None
+            if has_more:
+                next_state = CursorState(
+                    position=state.position + len(papers),
+                    since=state.since,
+                    until=state.until,
+                    total=total,
+                    has_more=True,
+                    metadata=state.metadata,
+                )
+
+            return PagedResponse(
+                data=papers,
+                cursor=next_state.to_cursor_string() if next_state else None,
+                has_more=has_more,
+                total=total,
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to fetch page at skip={state.position}: {e}")
+            raise
