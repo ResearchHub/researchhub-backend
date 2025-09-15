@@ -289,18 +289,24 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
                 except ValueError:
                     pass
             if verified_authors_only and verified_authors_only[0].lower() == "true":
-                queryset = queryset.filter(
-                    created_by__userverification__status=(
-                        UserVerification.Status.APPROVED
-                    ),
-                )
+                try:
+                    queryset = queryset.filter(
+                        created_by__userverification__status=(
+                            UserVerification.Status.APPROVED
+                        ),
+                    )
+                except ValueError:
+                    pass
             if tax_deductible and tax_deductible[0].lower() == "true":
-                nonprofit_links_exist = NonprofitFundraiseLink.objects.filter(
-                    fundraise__unified_document=OuterRef("unified_document_id")
-                )
-                queryset = queryset.annotate(
-                    is_tax_deductible=Exists(nonprofit_links_exist)
-                ).filter(is_tax_deductible=True)
+                try:
+                    nonprofit_links_exist = NonprofitFundraiseLink.objects.filter(
+                        fundraise__unified_document=OuterRef("unified_document_id")
+                    )
+                    queryset = queryset.annotate(
+                        is_tax_deductible=Exists(nonprofit_links_exist)
+                    ).filter(is_tax_deductible=True)
+                except ValueError:
+                    pass
 
         ordering = self.request.query_params.get("ordering")
         if ordering == "amount_raised":
