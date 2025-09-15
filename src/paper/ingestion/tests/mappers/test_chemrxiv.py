@@ -2,8 +2,6 @@
 Tests for ChemRxiv mapper.
 """
 
-import json
-from datetime import datetime
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
@@ -214,32 +212,11 @@ class TestChemRxivMapper(TestCase):
             "https://chemrxiv.org/engage/chemrxiv/article-details/68c17d313e708a764924e728",
         )
 
-        # Check external metadata
+        # Check external metadata - should only have chemrxiv_id
         self.assertEqual(
             paper.external_metadata["chemrxiv_id"], "68c17d313e708a764924e728"
         )
-        self.assertEqual(paper.external_metadata["version"], "1")
-        self.assertEqual(paper.external_metadata["status"], "PUBLISHED")
-        self.assertIn(
-            "Theoretical and Computational Chemistry",
-            paper.external_metadata["categories"],
-        )
-        self.assertEqual(paper.external_metadata["subject"], "Chemistry")
-        self.assertEqual(
-            paper.external_metadata["keywords"],
-            ["tunneling", "quantum chemistry", "astrochemistry"],
-        )
-
-        # Check funders
-        self.assertEqual(len(paper.external_metadata["funders"]), 1)
-        self.assertEqual(paper.external_metadata["funders"][0]["name"], "NKFIH")
-        self.assertEqual(
-            paper.external_metadata["funders"][0]["grant_number"], "TKP2021-NKTA-64"
-        )
-
-        # Check metrics
-        self.assertEqual(paper.external_metadata["metrics"]["Abstract Views"], 100)
-        self.assertEqual(paper.external_metadata["metrics"]["Citations"], 5)
+        self.assertEqual(len(paper.external_metadata), 1)
 
         # Check flags
         self.assertTrue(paper.retrieved_from_external_source)
@@ -330,54 +307,6 @@ class TestChemRxivMapper(TestCase):
 
         self.assertEqual(authors[1]["full_name"], "Jane Smith")
         self.assertEqual(len(authors[1]["institutions"]), 0)
-
-    def test_extract_categories(self):
-        """Test category extraction."""
-        categories = [
-            {"name": "Chemistry", "id": "123"},
-            {"name": "Physics", "id": "456"},
-            {"id": "789"},  # No name
-        ]
-
-        result = self.mapper._extract_categories(categories)
-        self.assertEqual(result, ["Chemistry", "Physics"])
-
-    def test_extract_funders(self):
-        """Test funder extraction."""
-        funders = [
-            {
-                "name": "NSF",
-                "grantNumber": "123456",
-                "funderId": "10.13039/100000001",
-                "url": "https://nsf.gov",
-                "title": "Research Grant",
-            },
-            {"name": "NIH", "grantNumber": "789012"},
-        ]
-
-        result = self.mapper._extract_funders(funders)
-
-        self.assertEqual(len(result), 2)
-        self.assertEqual(result[0]["name"], "NSF")
-        self.assertEqual(result[0]["grant_number"], "123456")
-        self.assertEqual(result[0]["funder_id"], "10.13039/100000001")
-        self.assertEqual(result[0]["url"], "https://nsf.gov")
-        self.assertEqual(result[0]["title"], "Research Grant")
-
-        self.assertEqual(result[1]["name"], "NIH")
-        self.assertEqual(result[1]["grant_number"], "789012")
-
-    def test_extract_metrics(self):
-        """Test metrics extraction."""
-        metrics = [
-            {"description": "Views", "value": 100},
-            {"description": "Downloads", "value": 50},
-        ]
-
-        result = self.mapper._extract_metrics(metrics)
-
-        self.assertEqual(result["Views"], 100)
-        self.assertEqual(result["Downloads"], 50)
 
     def test_extract_license(self):
         """Test license extraction."""

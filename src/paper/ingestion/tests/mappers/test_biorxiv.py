@@ -2,8 +2,6 @@
 Tests for BioRxiv mapper.
 """
 
-from unittest.mock import patch
-
 from django.test import TestCase
 
 from paper.ingestion.mappers.biorxiv import BioRxivMapper
@@ -29,7 +27,10 @@ class TestBioRxivMapper(TestCase):
             "type": "new results",
             "license": "cc_no",
             "category": "neuroscience",
-            "jatsxml": "https://www.biorxiv.org/content/early/2025/01/01/2024.12.31.630767.source.xml",
+            "jatsxml": (
+                "https://www.biorxiv.org/content/early/2025/01/01/"
+                "2024.12.31.630767.source.xml"
+            ),
             "abstract": (
                 "This is a valid abstract that contains more than fifty "
                 "characters to pass validation."
@@ -100,14 +101,6 @@ class TestBioRxivMapper(TestCase):
 
         # Check date parsing
         self.assertEqual(str(paper.paper_publish_date), "2025-01-01")
-
-        # Check external metadata
-        self.assertEqual(
-            paper.external_metadata["biorxiv_doi"], "10.1101/2024.12.31.630767"
-        )
-        self.assertEqual(paper.external_metadata["version"], "1")
-        self.assertEqual(paper.external_metadata["server"], "bioRxiv")
-        self.assertEqual(paper.external_metadata["category"], "neuroscience")
 
     def test_parse_author_names(self):
         """Test author name parsing stored in Paper instance."""

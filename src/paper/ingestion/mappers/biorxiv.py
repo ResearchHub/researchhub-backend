@@ -82,15 +82,6 @@ class BioRxivMapper(BaseMapper):
             pdf_license=record.get("license"),
             is_open_access=True,  # BioRxiv is open access
             oa_status="gold",  # Gold open access for preprints
-            # External metadata
-            external_metadata={
-                "biorxiv_doi": doi,
-                "version": version,
-                "server": record.get("server", "biorxiv"),
-                "category": record.get("category"),
-                "published": record.get("published"),
-                "jatsxml": record.get("jatsxml"),
-            },
             # Status flags
             retrieved_from_external_source=True,
         )
@@ -99,10 +90,6 @@ class BioRxivMapper(BaseMapper):
         if doi and version:
             paper.pdf_url = self._compute_pdf_url(doi, version)
             paper.url = self._compute_html_url(doi, version)
-
-        # Add any additional metadata fields
-        if record.get("published"):
-            paper.external_metadata["published_date"] = record["published"]
 
         return paper
 

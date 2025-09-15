@@ -176,10 +176,6 @@ class ArXivMapper(BaseMapper):
         # Determine the best date to use
         paper_date = self._get_best_date(record)
 
-        # Extract categories
-        categories = record.get("categories", [])
-        primary_category = record.get("primary_category", "")
-
         # Create Paper instance
         paper = Paper(
             # Core identifiers
@@ -201,13 +197,6 @@ class ArXivMapper(BaseMapper):
             # External metadata
             external_metadata={
                 "arxiv_id": arxiv_id,
-                "categories": categories,
-                "primary_category": primary_category,
-                "comment": record.get("comment"),
-                "journal_ref": record.get("journal_ref"),
-                "doi": record.get("doi"),  # Store original DOI if paper was published
-                "published_date": record.get("published"),
-                "updated_date": record.get("updated"),
             },
             # Status flags
             retrieved_from_external_source=True,

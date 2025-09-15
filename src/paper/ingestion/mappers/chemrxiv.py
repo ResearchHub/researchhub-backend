@@ -67,17 +67,12 @@ class ChemRxivMapper(BaseMapper):
         # Extract basic fields
         doi = record.get("doi", "")
         chemrxiv_id = record.get("id", "")
-        version = record.get("version", "1")
 
         # Extract and process authors
         raw_authors = self._extract_authors(record.get("authors", []))
 
         # Determine the best date to use
         paper_date = self._get_best_date(record)
-
-        # Extract categories and subjects
-        categories = self._extract_categories(record.get("categories", []))
-        subject = record.get("subject", {}).get("name", "")
 
         # Create Paper instance
         paper = Paper(
@@ -96,25 +91,9 @@ class ChemRxivMapper(BaseMapper):
             pdf_license=self._extract_license(record.get("license")),
             is_open_access=True,  # ChemRxiv is open access
             oa_status="gold",  # Gold open access for preprints
-            # External metadata
             external_metadata={
                 "chemrxiv_id": chemrxiv_id,
-                "version": version,
-                "status": record.get("status"),
-                "categories": categories,
-                "subject": subject,
-                "keywords": record.get("keywords", []),
-                "funders": self._extract_funders(record.get("funders", [])),
-                "metrics": self._extract_metrics(record.get("metrics", [])),
-                "content_type": record.get("contentType", {}).get("name"),
-                "submitted_date": record.get("submittedDate"),
-                "published_date": record.get("publishedDate"),
-                "approved_date": record.get("approvedDate"),
-                "status_date": record.get("statusDate"),
-                "has_competing_interests": record.get("hasCompetingInterests"),
-                "gained_ethics_approval": record.get("gainedEthicsApproval"),
             },
-            # Status flags
             retrieved_from_external_source=True,
         )
 
@@ -237,59 +216,6 @@ class ChemRxivMapper(BaseMapper):
             )
 
         return authors
-
-    def _extract_categories(self, categories_list: List[Dict[str, Any]]) -> List[str]:
-        """
-        Extract category names from ChemRxiv categories.
-
-        Args:
-            categories_list: List of category objects
-
-        Returns:
-            List of category names
-        """
-        return [cat.get("name", "") for cat in categories_list if cat.get("name")]
-
-    def _extract_funders(
-        self, funders_list: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        """
-        Extract funder information.
-
-        Args:
-            funders_list: List of funder objects
-
-        Returns:
-            List of funder dictionaries
-        """
-        funders = []
-        for funder in funders_list:
-            funder_info = {
-                "name": funder.get("name", ""),
-                "grant_number": funder.get("grantNumber", ""),
-                "funder_id": funder.get("funderId", ""),
-            }
-            if funder.get("url"):
-                funder_info["url"] = funder["url"]
-            if funder.get("title"):
-                funder_info["title"] = funder["title"]
-            funders.append(funder_info)
-        return funders
-
-    def _extract_metrics(self, metrics_list: List[Dict[str, Any]]) -> Dict[str, int]:
-        """
-        Extract metrics as a dictionary.
-
-        Args:
-            metrics_list: List of metric objects
-
-        Returns:
-            Dictionary of metric descriptions to values
-        """
-        return {
-            metric.get("description", ""): metric.get("value", 0)
-            for metric in metrics_list
-        }
 
     def _extract_license(self, license_obj: Optional[Dict[str, Any]]) -> Optional[str]:
         """

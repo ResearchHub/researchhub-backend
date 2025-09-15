@@ -118,12 +118,9 @@ class TestArXivMapper(TestCase):
         self.assertEqual(paper.pdf_url, "http://arxiv.org/pdf/2509.08827v1")
         self.assertEqual(paper.url, "http://arxiv.org/abs/2509.08827v1")
 
-        # Check external metadata
+        # Check external metadata - should only have arxiv_id
         self.assertEqual(paper.external_metadata["arxiv_id"], "2509.08827v1")
-        self.assertEqual(
-            paper.external_metadata["categories"], ["cs.CL", "cs.AI", "cs.LG"]
-        )
-        self.assertEqual(paper.external_metadata["primary_category"], "cs.CL")
+        self.assertEqual(len(paper.external_metadata), 1)
 
         # Check flags
         self.assertTrue(paper.retrieved_from_external_source)
@@ -133,11 +130,11 @@ class TestArXivMapper(TestCase):
         """Test mapping ArXiv record with additional fields."""
         paper = self.mapper.map_to_paper(self.sample_with_extras)
 
-        # Second entry from fixture has comment but no affiliation
-        # Check comment in metadata
-        self.assertEqual(paper.external_metadata["comment"], "7 pages")
-        # Check DOI formatting
+        # Check DOI formatting for second entry
         self.assertEqual(paper.doi, "10.48550/arXiv.2509.08817")
+        # Verify only arxiv_id is in metadata
+        self.assertEqual(paper.external_metadata["arxiv_id"], "2509.08817v1")
+        self.assertEqual(len(paper.external_metadata), 1)
 
     def test_parse_xml_entry(self):
         """Test XML entry parsing."""
