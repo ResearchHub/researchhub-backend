@@ -93,49 +93,69 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
             verified_authors_only = params.get("verified_authors_only", None)
             tax_deductible = params.get("tax_deductible", None)
 
-            if hub_ids:
-                try:
-                    hub_ids = [int(hub_id) for hub_id in hub_ids[0].split(",")]
-                    queryset = queryset.filter(unified_document__hubs__id__in=hub_ids)
-                except ValueError:
-                    pass
-            if min_upvotes:
-                try:
-                    min_upvotes = int(min_upvotes[0])
-                    if min_upvotes > 0:
-                        queryset = queryset.annotate(num_votes=Count("votes")).filter(
-                            num_votes__gte=min_upvotes
-                        )
-                except ValueError:
-                    pass
-            if min_score:
-                try:
-                    min_score = int(min_score[0])
-                    if min_score > 0:
-                        queryset = queryset.annotate(
-                            avg_review_score=Avg("unified_document__reviews__score")
-                        ).filter(avg_review_score__gte=min_score)
-                except ValueError:
-                    pass
-            if verified_authors_only and verified_authors_only[0].lower() == "true":
-                try:
-                    queryset = queryset.filter(
-                        created_by__userverification__status=(
-                            UserVerification.Status.APPROVED
-                        ),
+            self._filtering_by_hub_ids(queryset, hub_ids)
+            self._filtering_by_min_upvotes(queryset, min_upvotes)
+            self._filtering_by_min_score(queryset, min_score)
+            self._filtering_by_verified_authors_only(queryset, verified_authors_only)
+            self._filtering_by_tax_deductible(queryset, tax_deductible)
+        return queryset
+
+    def _filtering_by_hub_ids(self, queryset, hub_ids):
+        if hub_ids:
+            try:
+                hub_ids = [int(hub_id) for hub_id in hub_ids[0].split(",")]
+                queryset = queryset.filter(unified_document__hubs__id__in=hub_ids)
+            except ValueError:
+                pass
+        return queryset
+
+    def _filtering_by_min_upvotes(self, queryset, min_upvotes):
+        if min_upvotes:
+            try:
+                min_upvotes = int(min_upvotes[0])
+                if min_upvotes > 0:
+                    queryset = queryset.annotate(num_votes=Count("votes")).filter(
+                        num_votes__gte=min_upvotes
                     )
-                except ValueError:
-                    pass
-            if tax_deductible and tax_deductible[0].lower() == "true":
-                try:
-                    nonprofit_links_exist = NonprofitFundraiseLink.objects.filter(
-                        fundraise__unified_document=OuterRef("unified_document_id")
-                    )
+            except ValueError:
+                pass
+        return queryset
+
+    def _filtering_by_min_score(self, queryset, min_score):
+        if min_score:
+            try:
+                min_score = int(min_score[0])
+                if min_score > 0:
                     queryset = queryset.annotate(
-                        is_tax_deductible=Exists(nonprofit_links_exist)
-                    ).filter(is_tax_deductible=True)
-                except ValueError:
-                    pass
+                        avg_review_score=Avg("unified_document__reviews__score")
+                    ).filter(avg_review_score__gte=min_score)
+            except ValueError:
+                pass
+        return queryset
+
+    def _filtering_by_verified_authors_only(self, queryset, verified_authors_only):
+        if verified_authors_only and verified_authors_only[0].lower() == "true":
+            try:
+                queryset = queryset.filter(
+                    created_by__userverification__status=(
+                        UserVerification.Status.APPROVED
+                    ),
+                )
+            except ValueError:
+                pass
+        return queryset
+
+    def _filtering_by_tax_deductible(self, queryset, tax_deductible):
+        if tax_deductible and tax_deductible[0].lower() == "true":
+            try:
+                nonprofit_links_exist = NonprofitFundraiseLink.objects.filter(
+                    fundraise__unified_document=OuterRef("unified_document_id")
+                )
+                queryset = queryset.annotate(
+                    is_tax_deductible=Exists(nonprofit_links_exist)
+                ).filter(is_tax_deductible=True)
+            except ValueError:
+                pass
         return queryset
 
     def _ordering(self, queryset):
