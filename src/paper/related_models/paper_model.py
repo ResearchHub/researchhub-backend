@@ -623,8 +623,16 @@ class PaperFetchLog(models.Model):
     Stores the logs for e.g. daily paper fetches from openalex
     """
 
+    ARXIV = "ARXIV"
+    BIOARXIV = "BIOARXIV"
+    CHEMRXIV = "CHEMRXIV"
     OPENALEX = "OPENALEX"
-    SOURCE_CHOICES = [(OPENALEX, OPENALEX)]
+    SOURCE_CHOICES = [
+        (ARXIV, ARXIV),
+        (BIOARXIV, BIOARXIV),
+        (CHEMRXIV, CHEMRXIV),
+        (OPENALEX, OPENALEX),
+    ]
 
     FETCH_NEW = "FETCH_NEW"
     FETCH_UPDATE = "FETCH_UPDATE"
