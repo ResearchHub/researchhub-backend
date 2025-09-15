@@ -8,8 +8,6 @@ from django.test import TestCase
 
 from paper.ingestion.mappers.biorxiv import BioRxivMapper
 from paper.models import Paper
-from paper.related_models.authorship_model import Authorship
-from user.related_models.author_model import Author
 
 
 class TestBioRxivMapper(TestCase):
@@ -184,31 +182,6 @@ class TestBioRxivMapper(TestCase):
 
         self.assertEqual(paper.pdf_url, expected_pdf)
         self.assertEqual(paper.url, expected_html)
-
-    def test_map_to_author(self):
-        """Test mapping author data to Author model instance."""
-        author_data = {
-            "first_name": "John",
-            "last_name": "Doe",
-            "middle_name": "M.",
-            "raw_name": "Doe, John M.",
-            "affiliations": ["University of Example"],
-        }
-
-        author = self.mapper.map_to_author(author_data)
-
-        # Check that we get an Author instance
-        self.assertIsInstance(author, Author)
-
-        # Check mapped fields
-        self.assertEqual(author.first_name, "John")
-        self.assertEqual(author.last_name, "Doe")
-        self.assertEqual(author.created_source, Author.SOURCE_RESEARCHHUB)
-
-        # Check additional attributes
-        self.assertEqual(author._middle_name, "M.")
-        self.assertEqual(author._raw_name, "Doe, John M.")
-        self.assertEqual(author._affiliations, ["University of Example"])
 
     def test_paper_model_instance_not_saved_by_default(self):
         """Test that map_to_paper returns unsaved Paper instance."""

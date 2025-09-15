@@ -9,7 +9,6 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from paper.models import Paper
-from user.related_models.author_model import Author
 
 from .base import BaseMapper
 
@@ -240,29 +239,3 @@ class BioRxivMapper(BaseMapper):
             Full HTML URL
         """
         return f"https://www.biorxiv.org/content/{doi}v{version}"
-
-    def map_to_author(self, author_data: Dict[str, Any]) -> Author:
-        """
-        Map author data to ResearchHub Author model instance.
-
-        Args:
-            author_data: Author data from BioRxiv
-
-        Returns:
-            Author model instance (not saved to database)
-        """
-        # Create Author instance with available fields
-        author = Author(
-            first_name=author_data.get("first_name", ""),
-            last_name=author_data.get("last_name", ""),
-            # Source indicates this came from external ingestion
-            created_source=Author.SOURCE_RESEARCHHUB,
-        )
-
-        # Store additional data as attributes for optional processing
-        # These aren't direct fields on the Author model
-        author._middle_name = author_data.get("middle_name", "")
-        author._raw_name = author_data.get("raw_name", "")
-        author._affiliations = author_data.get("affiliations", [])
-
-        return author
