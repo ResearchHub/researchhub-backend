@@ -63,6 +63,8 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         * hot_score: Sort by hot score (most popular first)
         * upvotes: Sort by score (most upvoted first)
         * amount_raised: Sort by amount raised (highest first)
+        * expiring: Sort by end date (soonest first)
+        * goal_percent: Sort by percent of goal reached (highest first)
 
     - filtering: More granular control, represented as URL encoded parameters
       Options:
