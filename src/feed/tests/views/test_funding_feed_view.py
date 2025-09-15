@@ -14,6 +14,7 @@ from rest_framework.test import APIClient, APIRequestFactory
 
 from discussion.models import Vote
 from hub.models import Hub
+from organizations.models import NonprofitFundraiseLink, NonprofitOrg
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.constants.rsc_exchange_currency import MORALIS
 from purchase.related_models.fundraise_model import Fundraise
@@ -156,6 +157,18 @@ class FundingFeedViewSetTests(TestCase):
             escrow=self.escrow1,
             status=Fundraise.OPEN,
             goal_amount=100,
+        )
+
+        # Create a nonprofit for the fundraise link
+        self.nonprofit = NonprofitOrg.objects.create(
+            name="Test Nonprofit",
+            ein="123456789",
+            endaoment_org_id="test-org-id",
+        )
+        self.link = NonprofitFundraiseLink.objects.create(
+            nonprofit=self.nonprofit,
+            fundraise=self.open_fundraise,
+            note="Test note for this link",
         )
 
         # Create a completed fundraise for the second post

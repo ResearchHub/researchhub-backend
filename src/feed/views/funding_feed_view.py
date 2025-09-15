@@ -17,8 +17,10 @@ from django.db.models import (
     Case,
     Count,
     DecimalField,
+    Exists,
     F,
     FloatField,
+    OuterRef,
     Sum,
     Value,
     When,
@@ -30,6 +32,7 @@ from rest_framework.viewsets import ModelViewSet
 from feed.models import FeedEntry
 from feed.serializers import FundingFeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
+from organizations.models import NonprofitFundraiseLink
 from purchase.related_models.fundraise_model import Fundraise
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -292,9 +295,12 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
                     ),
                 )
             if tax_deductible and tax_deductible[0].lower() == "true":
-                queryset = queryset.filter(
-                    unified_document__fundraises__is_nonprofit=True
+                nonprofit_links_exist = NonprofitFundraiseLink.objects.filter(
+                    fundraise__unified_document=OuterRef("unified_document_id")
                 )
+                queryset = queryset.annotate(
+                    is_tax_deductible=Exists(nonprofit_links_exist)
+                ).filter(is_tax_deductible=True)
 
         ordering = self.request.query_params.get("ordering")
         if ordering == "amount_raised":
@@ -308,5 +314,4 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         elif ordering == "goal_percent":
             queryset = self._order_by_goal_percent(queryset)
 
-        # print("==>", queryset.query)
         return queryset
