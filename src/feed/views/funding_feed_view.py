@@ -84,22 +84,20 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         if filtering:
             unquoted = unquote_plus(filtering)
             if unquoted:
-                pass
+                params = parse_qs(unquoted)
+                hub_ids = params.get("hub_ids", None)
+                min_upvotes = params.get("min_upvotes", None)
+                min_score = params.get("min_score", None)
+                verified_authors_only = params.get("verified_authors_only", None)
+                tax_deductible = params.get("tax_deductible", None)
 
-            params = parse_qs(unquoted)
-            hub_ids = params.get("hub_ids", None)
-            min_upvotes = params.get("min_upvotes", None)
-            min_score = params.get("min_score", None)
-            verified_authors_only = params.get("verified_authors_only", None)
-            tax_deductible = params.get("tax_deductible", None)
-
-            queryset = self._filtering_by_hub_ids(queryset, hub_ids)
-            queryset = self._filtering_by_min_upvotes(queryset, min_upvotes)
-            queryset = self._filtering_by_min_score(queryset, min_score)
-            queryset = self._filtering_by_verified_authors_only(
-                queryset, verified_authors_only
-            )
-            queryset = self._filtering_by_tax_deductible(queryset, tax_deductible)
+                queryset = self._filtering_by_hub_ids(queryset, hub_ids)
+                queryset = self._filtering_by_min_upvotes(queryset, min_upvotes)
+                queryset = self._filtering_by_min_score(queryset, min_score)
+                queryset = self._filtering_by_verified_authors_only(
+                    queryset, verified_authors_only
+                )
+                queryset = self._filtering_by_tax_deductible(queryset, tax_deductible)
         return queryset
 
     def _filtering_by_hub_ids(self, queryset, hub_ids):
