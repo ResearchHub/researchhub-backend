@@ -1431,45 +1431,29 @@ class FundingFeedViewSetTests(TestCase):
 
     def test_filtering_by_min_upvotes(self):
         """Test filtering by min_upvotes"""
-        pass
-        # print("==>", vars(self.post.votes), vars(self.other_post.votes))
-        # post_hubs_id = self.post.hubs.values_list("id", flat=True).first().__str__()
-        # other_post_hubs_id = (
-        #     self.other_post.hubs.values_list("id", flat=True).first().__str__()
-        # )
+        post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
+        vote = Vote.objects.create(
+            created_by=self.user,
+            object_id=self.post.id,
+            content_type=post_content_type,
+            vote_type=Vote.UPVOTE,
+        )
 
-        # url = (
-        #     reverse("funding_feed-list")
-        #     + "?filtering="
-        #     + quote("hub_ids=" + post_hubs_id + "," + other_post_hubs_id)
-        # )
-        # response = self.client.get(url)
-        # self.assertEqual(response.status_code, status.HTTP_200_OK)
-        # results = response.data["results"]
-        # # There are exactly 2 posts
-        # self.assertEqual(len(results), 2)
+        url = reverse("funding_feed-list") + "?filtering=" + quote("min_upvotes=0")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.data["results"]
+        # There are exactly 2 posts
+        self.assertEqual(len(results), 2)
 
-        # url2 = (
-        #     reverse("funding_feed-list")
-        #     + "?filtering="
-        #     + quote("hub_ids=" + post_hubs_id)
-        # )
-        # response2 = self.client.get(url2)
-        # self.assertEqual(response2.status_code, status.HTTP_200_OK)
-        # results2 = response2.data["results"]
-        # self.assertEqual(len(results2), 1)
-        # self.assertEqual(results2[0]["content_object"]["id"], self.post.id)
-
-        # url3 = (
-        #     reverse("funding_feed-list")
-        #     + "?filtering="
-        #     + quote("hub_ids=" + other_post_hubs_id)
-        # )
-        # response3 = self.client.get(url3)
-        # self.assertEqual(response3.status_code, status.HTTP_200_OK)
-        # results3 = response3.data["results"]
-        # self.assertEqual(len(results3), 1)
-        # self.assertEqual(results3[0]["content_object"]["id"], self.other_post.id)
+        url2 = reverse("funding_feed-list") + "?filtering=" + quote("min_upvotes=1")
+        response2 = self.client.get(url2)
+        self.assertEqual(response2.status_code, status.HTTP_200_OK)
+        results2 = response2.data["results"]
+        self.assertEqual(len(results2), 1)
+        self.assertEqual(results2[0]["content_object"]["id"], self.post.id)
+        self.assertIn("user_vote", results2[0])
+        self.assertEqual(results2[0]["user_vote"]["id"], vote.id)
 
     def test_filtering_by_min_score(self):
         min_score = min([self.review.score, self.other_review.score])
