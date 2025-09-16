@@ -179,7 +179,8 @@ class ArXivMapper(BaseMapper):
         # Create Paper instance
         paper = Paper(
             # Core identifiers
-            doi=self._format_arxiv_doi(arxiv_id) if arxiv_id else None,
+            doi=record.get("doi")
+            or (self._format_arxiv_doi(arxiv_id) if arxiv_id else None),
             external_source="arxiv",
             # Title and content
             title=record.get("title", "").strip(),

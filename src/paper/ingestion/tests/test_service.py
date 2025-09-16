@@ -264,7 +264,7 @@ class TestPaperIngestionService(TestCase):
             mock_mapper.map_to_paper.side_effect = [
                 mock_paper1,
                 None,  # Won't be called due to validation failure
-                Exception("Mapping failed"),
+                None,  # Returns None, triggering "Mapper returned None" error
             ]
 
             mock_get_mapper.return_value = mock_mapper
@@ -282,4 +282,4 @@ class TestPaperIngestionService(TestCase):
             self.assertEqual(len(papers), 1)
             self.assertEqual(len(failures), 2)
             self.assertEqual(failures[0]["error"], "Validation failed")
-            self.assertEqual(failures[1]["error"], "Mapping failed")
+            self.assertEqual(failures[1]["error"], "Mapper returned None")
