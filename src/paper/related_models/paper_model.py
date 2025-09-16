@@ -428,28 +428,6 @@ class Paper(AbstractGenericReactionModel):
         self.save()
         return self.is_removed
 
-    def extract_meta_data(self, title=None, check_title=False, use_celery=True):
-        if TESTING:
-            return
-
-        from paper.tasks import celery_extract_meta_data
-
-        if title is None and self.paper_title:
-            title = self.paper_title
-        elif title is None and self.title:
-            title = self.title
-        elif title is None:
-            return
-
-        if use_celery:
-            celery_extract_meta_data.apply_async(
-                (self.id, title, check_title),
-                priority=1,
-                countdown=10,
-            )
-        else:
-            celery_extract_meta_data(self.id, title, check_title)
-
     def get_boost_amount(self):
         purchases = self.purchases.filter(
             paid_status=Purchase.PAID, amount__gt=0, boost_time__gt=0

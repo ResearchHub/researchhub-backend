@@ -1,5 +1,3 @@
-import re
-from datetime import datetime
 from io import BytesIO
 
 import fitz
@@ -13,10 +11,7 @@ from PIL import Image
 # Import paper ingestion tasks for auto-discovery by Celery:
 from paper.ingestion.tasks import pull_biorxiv_papers  # noqa: F401
 from paper.utils import (
-    check_crossref_title,
-    check_pdf_title,
     get_cache_key,
-    get_crossref_results,
     get_csl_item,
     get_pdf_from_url,
     get_pdf_location_for_csl_item,
@@ -156,56 +151,3 @@ def celery_extract_pdf_preview(paper_id, retry=0):
         cache_key = get_cache_key("figure", paper_id)
         cache.delete(cache_key)
     return True
-
-
-@app.task(queue=QUEUE_PAPER_MISC)
-def celery_extract_meta_data(paper_id, title, check_title):
-    if paper_id is None:
-        return
-
-    Paper = apps.get_model("paper.Paper")
-    date_format = "%Y-%m-%dT%H:%M:%SZ"
-    paper = Paper.objects.get(id=paper_id)
-
-    if check_title:
-        has_title = check_pdf_title(title, paper.file)
-        if not has_title:
-            return
-
-    best_matching_result = get_crossref_results(title, index=1)[0]
-
-    try:
-        if "title" in best_matching_result:
-            crossref_title = best_matching_result.get("title", [""])[0]
-        else:
-            crossref_title = best_matching_result.get("container-title", [""])
-            crossref_title = crossref_title[0]
-
-        similar_title = check_crossref_title(title, crossref_title)
-
-        if not similar_title:
-            return
-
-        if not paper.doi:
-            doi = best_matching_result.get("DOI", paper.doi)
-            paper.doi = doi
-
-        url = best_matching_result.get("URL", None)
-        publish_date = best_matching_result["created"]["date-time"]
-        publish_date = datetime.strptime(publish_date, date_format).date()
-        tagline = best_matching_result.get("abstract", "")
-        tagline = re.sub(r"<[^<]+>", "", tagline)  # Removing any jat xml tags
-
-        paper.url = url
-        paper.paper_publish_date = publish_date
-
-        if not paper.tagline:
-            paper.tagline = tagline
-
-        paper_cache_key = get_cache_key("paper", paper_id)
-        cache.delete(paper_cache_key)
-
-        paper.check_doi()
-        paper.save()
-    except Exception as e:
-        sentry.log_info(e)

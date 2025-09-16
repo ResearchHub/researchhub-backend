@@ -613,20 +613,6 @@ class PaperSerializer(BasePaperSerializer):
                 validated_data["pdf_url"] = pdf_url
         return
 
-    def _check_pdf_title(self, paper, title, file):
-        if type(file) is str:
-            # For now, don't do anything if file is a url
-            return
-        else:
-            self._check_title_in_pdf(paper, title, file)
-
-    def _check_title_in_pdf(self, paper, title, file):
-        title_in_pdf = check_pdf_title(title, file)
-        if not title_in_pdf:
-            return
-        else:
-            paper.extract_meta_data(title=title, use_celery=True)
-
     def _clean_abstract_or_abstract_src(self, data):
         abstract = data.get("abstract")
         if abstract:
