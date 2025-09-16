@@ -33,7 +33,7 @@ dependencies = [
     "django-silk==5.0.2",
     "django-simple-history==3.7.0",
     "django-storages==1.10.1",
-    "djangorestframework==3.16.0",
+    "djangorestframework==3.16.1",
     "djangorestframework-api-key==2.2",
     "elastic-apm==6.13.2",
     "humanize>=4.12.2,<5.0.0",
