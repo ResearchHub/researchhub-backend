@@ -31,7 +31,6 @@ from paper.related_models.authorship_model import Authorship
 from paper.tasks import download_pdf
 from paper.utils import (
     check_file_is_url,
-    check_pdf_title,
     check_url_is_pdf,
     clean_abstract,
     convert_journal_url_to_pdf_url,
@@ -612,20 +611,6 @@ class PaperSerializer(BasePaperSerializer):
                 validated_data["url"] = journal_url
                 validated_data["pdf_url"] = pdf_url
         return
-
-    def _check_pdf_title(self, paper, title, file):
-        if type(file) is str:
-            # For now, don't do anything if file is a url
-            return
-        else:
-            self._check_title_in_pdf(paper, title, file)
-
-    def _check_title_in_pdf(self, paper, title, file):
-        title_in_pdf = check_pdf_title(title, file)
-        if not title_in_pdf:
-            return
-        else:
-            paper.extract_meta_data(title=title, use_celery=True)
 
     def _clean_abstract_or_abstract_src(self, data):
         abstract = data.get("abstract")

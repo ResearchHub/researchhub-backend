@@ -1526,12 +1526,6 @@ wheels = [
 ]
 
 [[package]]
-name = "jellyfish"
-version = "0.8.9"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/88/ee/c8c7a899960e3a116c0e0cc95aa250fb7269784a472fa590b5ce042cc48a/jellyfish-0.8.9.tar.gz", hash = "sha256:90d25e8f5971ebbcf56f216ff5bb65d6466572b78908c88c47ab588d4ea436c2", size = 137296, upload-time = "2021-10-26T15:23:22.071Z" }
-
-[[package]]
 name = "jinja2"
 version = "3.1.6"
 source = { registry = "https://pypi.org/simple" }
@@ -2649,7 +2643,6 @@ dependencies = [
     { name = "html5lib" },
     { name = "humanize" },
     { name = "iso8601" },
-    { name = "jellyfish" },
     { name = "lxml" },
     { name = "mailchimp-marketing" },
     { name = "manubot" },
@@ -2716,7 +2709,6 @@ requires-dist = [
     { name = "html5lib", specifier = "==1.1" },
     { name = "humanize", specifier = ">=4.12.2,<5.0.0" },
     { name = "iso8601", specifier = "==1.0.2" },
-    { name = "jellyfish", specifier = "==0.8.9" },
     { name = "lxml", specifier = ">=6.0.1" },
     { name = "mailchimp-marketing", specifier = ">=3.0.72,<4.0.0" },
     { name = "manubot", specifier = "==0.5.3" },

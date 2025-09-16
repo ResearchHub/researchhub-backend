@@ -1,8 +1,4 @@
-import io
-
 import cloudscraper
-import fitz
-import jellyfish
 import regex as re
 import requests
 from bs4 import BeautifulSoup
@@ -11,7 +7,6 @@ from django.core.files.base import ContentFile
 from django.core.validators import URLValidator
 from django.db import models
 from django.db.models import Count, Q
-from habanero import Crossref
 
 from discussion.models import Vote
 from paper.exceptions import ManubotProcessingError
@@ -22,7 +17,6 @@ from paper.lib import (
     journal_url_to_pdf,
 )
 from paper.manubot import RHCiteKey
-from utils import sentry
 from utils.http import check_url_contains_pdf
 
 DOI_REGEX = r"10.\d{4,9}\/[-._;()\/:a-zA-Z0-9]+?(?=[\";%<>\?#&])"
@@ -110,21 +104,6 @@ def convert_pdf_url_to_journal_url(pdf_url):
     if journal_url is not None:
         return journal_url, True
     return pdf_url, False
-
-
-def get_raw_authors_from_csl_item(csl_item):
-    authors = csl_item.get("author", None)
-    if authors is None:
-        return
-    raw_authors = []
-    for author in authors:
-        try:
-            raw_authors.append(
-                {"first_name": author["given"], "last_name": author["family"]}
-            )
-        except Exception as e:
-            print(f"Failed to construct author: {author}", e)
-    return raw_authors
 
 
 def get_csl_item(url) -> dict:
@@ -218,121 +197,6 @@ def get_pdf_from_url(url):
         filename += ".pdf"
     pdf = ContentFile(response.content, name=filename)
     return pdf
-
-
-def clean_pdf(file):
-    researchgate_1 = "ResearchGate"
-    researchgate_2 = "Some of the authors of this publication are also working on these related projects"
-    researchgate_3 = "CITATIONS"
-    researchgate_4 = "READS"
-
-    researchgate_strings = (
-        researchgate_1,
-        researchgate_2,
-        researchgate_3,
-        researchgate_4,
-    )
-    try:
-        doc = fitz.open(stream=file.read(), filetype="pdf")
-        if doc.pageCount <= 1:
-            return
-
-        found_items = 0
-        first_page = doc[0]
-        for researchgate_str in researchgate_strings:
-            if first_page.searchFor(researchgate_str):
-                found_items += 1
-
-        if found_items >= 3:
-            doc.deletePage(0)
-            pdf_bytes = io.BytesIO(doc.write())
-            file.file = pdf_bytes
-    except Exception as e:
-        sentry.log_error(e)
-    finally:
-        file.seek(0)
-
-
-def check_pdf_title(input_title, file):
-    if not input_title or not file:
-        return False
-
-    try:
-        clean_pdf(file)
-        doc = fitz.open(stream=file.read(), filetype="pdf")
-        doc_metadata = doc.metadata
-        doc_title = doc_metadata.get("title") or ""
-
-        # Lowercasing titles for simple normalization
-        normalized_input_title = input_title.lower()
-        normalized_pdf_title = doc_title.lower()
-
-        # Checks if the title matches the pdf's metadata first
-        similar = check_similarity(normalized_pdf_title, normalized_input_title)
-
-        if similar:
-            return True
-        else:
-            n_length = len(normalized_input_title.split())
-            for i, page in enumerate(doc):
-                if i > MAX_TITLE_PAGES:
-                    return False
-
-                page_text = page.getText().lower()
-                if normalized_input_title in page_text:
-                    return True
-                ngrams = _ngrams(page_text.split(), n_length)
-                for ngram in ngrams:
-                    ngram_string = " ".join(ngram)
-                    similar = check_similarity(ngram_string, normalized_input_title)
-                    if similar:
-                        return True
-        return False
-    except Exception as e:
-        print(e)
-
-
-def _ngrams(words: list, n: int) -> list:
-    """
-    Returns a list of ngrams of size n from the given list of words.
-    """
-    return zip(*[words[i:] for i in range(n)])
-
-
-def check_crossref_title(original_title, crossref_title):
-    # Lowercasing titles for simple normalization
-    normalized_original_title = original_title.lower()
-    normalized_crossref_title = crossref_title.lower()
-
-    similar = check_similarity(normalized_original_title, normalized_crossref_title)
-
-    if similar:
-        return True
-    return False
-
-
-def check_similarity(str1, str2, threshold=SIMILARITY_THRESHOLD):
-    r = jellyfish.jaro_distance(str1, str2)
-    if r >= threshold:
-        return True
-    return False
-
-
-def get_crossref_results(query, index=10):
-    cr = Crossref()
-    filters = {"type": "journal-article"}
-    limit = 10
-    sort = "score"
-    order = "desc"
-    results = cr.works(
-        query_bibliographic=query,
-        filters=filters,
-        limit=limit,
-        sort=sort,
-        order=order,
-    )
-    results = results["message"]["items"]
-    return results[:index]
 
 
 def get_cache_key(obj_type, pk):
