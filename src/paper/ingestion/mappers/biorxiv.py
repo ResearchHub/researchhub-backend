@@ -8,7 +8,10 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from institution.models import Institution
 from paper.models import Paper
+from paper.related_models.authorship_model import Authorship
+from user.related_models.author_model import Author
 
 from .base import BaseMapper
 
@@ -226,3 +229,35 @@ class BioRxivMapper(BaseMapper):
             Full HTML URL
         """
         return f"https://www.biorxiv.org/content/{doi}v{version}"
+
+    def map_to_authors(self, record: Dict[str, Any]) -> List[Author]:
+        """
+        Map BioRxiv record to author data.
+
+        Note: BioRxiv doesn't provide ORCID IDs, so we return empty list
+        to avoid creating duplicate authors without proper deduplication.
+        """
+        # Return empty list - we don't create authors without ORCID IDs
+        return []
+
+    def map_to_institutions(self, record: Dict[str, Any]) -> List[Institution]:
+        """
+        Map BioRxiv record to institution data.
+
+        Note: BioRxiv doesn't provide ROR IDs for institutions,
+        so we return empty list to avoid creating duplicate institutions.
+        """
+        # Return empty list - we don't create institutions without ROR IDs
+        return []
+
+    def map_to_authorships(
+        self, paper: Paper, record: Dict[str, Any]
+    ) -> List[Authorship]:
+        """
+        Map BioRxiv record to Authorship model instances.
+
+        Note: BioRxiv doesn't provide ORCID IDs for authors,
+        so we return empty list to avoid creating duplicate authorships.
+        """
+        # Return empty list - we don't create authorships without proper author IDs
+        return []
