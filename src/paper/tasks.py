@@ -8,6 +8,12 @@ from django.core.cache import cache
 from django.core.files.base import ContentFile
 from PIL import Image
 
+from paper.ingestion.pipeline import (  # noqa: F401
+    fetch_all_papers,
+    fetch_papers_from_source,
+    process_batch_task,
+)
+
 # Import paper ingestion tasks for auto-discovery by Celery:
 from paper.ingestion.tasks import pull_biorxiv_papers  # noqa: F401
 from paper.utils import (
