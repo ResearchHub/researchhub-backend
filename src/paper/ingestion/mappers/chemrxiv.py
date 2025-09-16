@@ -314,8 +314,6 @@ class ChemRxivMapper(BaseMapper):
             List of Authorship instances (not saved to database).
         """
         authorships = []
-        authors_list = record.get("authors", [])
-        total_authors = len(authors_list)
 
         # First, get mapped authors and institutions
         authors = self.map_to_authors(record)
