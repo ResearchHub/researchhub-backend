@@ -398,6 +398,7 @@ class TestChemRxivMapper(TestCase):
 
         result = self.mapper.get_or_create_institution(inst_data)
 
+        self.assertEqual(result, mock_institution)
         # Check that create was called with correct synthetic IDs
         mock_create.assert_called_once()
         call_args = mock_create.call_args[1]
