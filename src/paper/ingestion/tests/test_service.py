@@ -202,8 +202,8 @@ class TestPaperIngestionService(TestCase):
         new_paper.paper_publish_date = "2024-01-01"
         new_paper.raw_authors = [{"name": "Author"}]
         new_paper.external_metadata = {"key": "value"}
-        new_paper.pdf_url = "http://example.com/paper.pdf"
-        new_paper.url = "http://example.com/paper"
+        new_paper.pdf_url = "https://example.com/paper.pdf"
+        new_paper.url = "https://example.com/paper"
         new_paper.is_open_access = True
         new_paper.oa_status = "gold"
 
