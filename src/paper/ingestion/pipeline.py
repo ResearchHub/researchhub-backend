@@ -75,9 +75,6 @@ class PaperIngestionPipeline:
         if sources is None:
             sources = list(self.clients.keys())
 
-        if since is None:
-            since = timezone.now() - timedelta(days=1)
-
         if until is None:
             until = timezone.now()
 
