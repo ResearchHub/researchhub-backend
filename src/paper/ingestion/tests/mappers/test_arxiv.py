@@ -115,8 +115,12 @@ class TestArXivMapper(TestCase):
         self.assertEqual(paper.oa_status, "gold")
 
         # Check URLs
-        self.assertEqual(paper.pdf_url, "http://arxiv.org/pdf/2509.08827v1")
-        self.assertEqual(paper.url, "http://arxiv.org/abs/2509.08827v1")
+        self.assertEqual(
+            paper.pdf_url, "http://arxiv.org/pdf/2509.08827v1"  # NOSONAR - Ignore http
+        )
+        self.assertEqual(
+            paper.url, "http://arxiv.org/abs/2509.08827v1"  # NOSONAR - Ignore http
+        )
 
         # Check external metadata - should only have arxiv_id
         self.assertEqual(paper.external_metadata["arxiv_id"], "2509.08827v1")
@@ -141,7 +145,9 @@ class TestArXivMapper(TestCase):
         parsed = self.mapper._parse_xml_entry(self.sample_xml)
 
         # Check basic fields (first entry from fixture)
-        self.assertEqual(parsed["id"], "http://arxiv.org/abs/2509.08827v1")
+        self.assertEqual(
+            parsed["id"], "http://arxiv.org/abs/2509.08827v1"  # NOSONAR - Ignore http
+        )
         self.assertEqual(
             parsed["title"],
             "A Survey of Reinforcement Learning for Large Reasoning Models",
@@ -161,18 +167,22 @@ class TestArXivMapper(TestCase):
 
         # Check links
         self.assertEqual(
-            parsed["links"]["alternate"], "http://arxiv.org/abs/2509.08827v1"
+            parsed["links"]["alternate"],
+            "http://arxiv.org/abs/2509.08827v1",  # NOSONAR - Ignore http
         )
-        self.assertEqual(parsed["links"]["pdf"], "http://arxiv.org/pdf/2509.08827v1")
+        self.assertEqual(
+            parsed["links"]["pdf"],
+            "http://arxiv.org/pdf/2509.08827v1",  # NOSONAR - Ignore http
+        )
 
     def test_extract_arxiv_id(self):
         """Test ArXiv ID extraction from URLs."""
         # From abs URL
-        id_url = "http://arxiv.org/abs/2509.10432v1"
+        id_url = "http://arxiv.org/abs/2509.10432v1"  # NOSONAR - Ignore http
         self.assertEqual(self.mapper._extract_arxiv_id(id_url), "2509.10432v1")
 
         # From pdf URL
-        id_url = "http://arxiv.org/pdf/2509.10432v1.pdf"
+        id_url = "http://arxiv.org/pdf/2509.10432v1.pdf"  # NOSONAR - Ignore http
         self.assertEqual(self.mapper._extract_arxiv_id(id_url), "2509.10432v1")
 
         # Already just an ID
@@ -310,7 +320,9 @@ class TestArXivMapper(TestCase):
         parsed = self.mapper._parse_xml_entry(self.sample_xml_with_extras)
 
         # Check basic fields (second entry from fixture)
-        self.assertEqual(parsed["id"], "http://arxiv.org/abs/2509.08817v1")
+        self.assertEqual(
+            parsed["id"], "http://arxiv.org/abs/2509.08817v1"  # NOSONAR - Ignore http
+        )
         self.assertEqual(
             parsed["title"],
             "QCardEst/QCardCorr: Quantum Cardinality Estimation and Correction",
@@ -348,5 +360,10 @@ class TestArXivMapper(TestCase):
         paper = self.mapper.map_to_paper(record)
 
         # Should construct URLs from ArXiv ID
-        self.assertEqual(paper.url, "http://arxiv.org/abs/2509.10432v1")
-        self.assertEqual(paper.pdf_url, "http://arxiv.org/pdf/2509.10432v1.pdf")
+        self.assertEqual(
+            paper.url, "http://arxiv.org/abs/2509.10432v1"  # NOSONAR - Ignore http
+        )
+        self.assertEqual(
+            paper.pdf_url,
+            "http://arxiv.org/pdf/2509.10432v1.pdf",  # NOSONAR - Ignore http
+        )
