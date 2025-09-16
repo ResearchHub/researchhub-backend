@@ -2,14 +2,10 @@
 Tests for BioRxiv mapper.
 """
 
-from unittest.mock import patch
-
 from django.test import TestCase
 
 from paper.ingestion.mappers.biorxiv import BioRxivMapper
 from paper.models import Paper
-from paper.related_models.authorship_model import Authorship
-from user.related_models.author_model import Author
 
 
 class TestBioRxivMapper(TestCase):
@@ -31,7 +27,10 @@ class TestBioRxivMapper(TestCase):
             "type": "new results",
             "license": "cc_no",
             "category": "neuroscience",
-            "jatsxml": "https://www.biorxiv.org/content/early/2025/01/01/2024.12.31.630767.source.xml",
+            "jatsxml": (
+                "https://www.biorxiv.org/content/early/2025/01/01/"
+                "2024.12.31.630767.source.xml"
+            ),
             "abstract": (
                 "This is a valid abstract that contains more than fifty "
                 "characters to pass validation."
@@ -102,14 +101,6 @@ class TestBioRxivMapper(TestCase):
 
         # Check date parsing
         self.assertEqual(str(paper.paper_publish_date), "2025-01-01")
-
-        # Check external metadata
-        self.assertEqual(
-            paper.external_metadata["biorxiv_doi"], "10.1101/2024.12.31.630767"
-        )
-        self.assertEqual(paper.external_metadata["version"], "1")
-        self.assertEqual(paper.external_metadata["server"], "bioRxiv")
-        self.assertEqual(paper.external_metadata["category"], "neuroscience")
 
     def test_parse_author_names(self):
         """Test author name parsing stored in Paper instance."""
@@ -184,31 +175,6 @@ class TestBioRxivMapper(TestCase):
 
         self.assertEqual(paper.pdf_url, expected_pdf)
         self.assertEqual(paper.url, expected_html)
-
-    def test_map_to_author(self):
-        """Test mapping author data to Author model instance."""
-        author_data = {
-            "first_name": "John",
-            "last_name": "Doe",
-            "middle_name": "M.",
-            "raw_name": "Doe, John M.",
-            "affiliations": ["University of Example"],
-        }
-
-        author = self.mapper.map_to_author(author_data)
-
-        # Check that we get an Author instance
-        self.assertIsInstance(author, Author)
-
-        # Check mapped fields
-        self.assertEqual(author.first_name, "John")
-        self.assertEqual(author.last_name, "Doe")
-        self.assertEqual(author.created_source, Author.SOURCE_RESEARCHHUB)
-
-        # Check additional attributes
-        self.assertEqual(author._middle_name, "M.")
-        self.assertEqual(author._raw_name, "Doe, John M.")
-        self.assertEqual(author._affiliations, ["University of Example"])
 
     def test_paper_model_instance_not_saved_by_default(self):
         """Test that map_to_paper returns unsaved Paper instance."""
