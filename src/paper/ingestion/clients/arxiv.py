@@ -26,7 +26,7 @@ class ArXivConfig(ClientConfig):
 
         defaults = {
             "source_name": "arxiv",
-            "base_url": "http://export.arxiv.org/api",  # NOSONAR - ArXiv API uses HTTP
+            "base_url": "https://export.arxiv.org/api",
             "rate_limit": 0.33,  # Recommended 3 second delay between requests
             "page_size": 100,  # ArXiv recommends smaller batches for better performance
             "request_timeout": 30.0,

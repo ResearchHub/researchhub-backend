@@ -34,7 +34,7 @@ class TestArXivClient(TestCase):
         self.assertEqual(config.source_name, "arxiv")
         self.assertEqual(
             config.base_url,
-            "http://export.arxiv.org/api",  # NOSONAR - ArXiv API uses HTTP
+            "https://export.arxiv.org/api",
         )
         self.assertEqual(config.rate_limit, 0.33)  # 3 second delay
         self.assertEqual(config.page_size, 100)
