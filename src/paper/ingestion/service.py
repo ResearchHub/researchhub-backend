@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple, Type
 
 from django.db import transaction
 
+from institution.models import Institution
 from paper.ingestion.mappers import (
     ArXivMapper,
     BaseMapper,
@@ -18,6 +19,8 @@ from paper.ingestion.mappers import (
     ChemRxivMapper,
 )
 from paper.models import Paper
+from paper.related_models.authorship_model import Authorship
+from user.related_models.author_model import Author
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +74,123 @@ class PaperIngestionService:
             self._mappers[source] = mapper_class()
 
         return self._mappers[source]
+
+    def _create_authors_and_institutions(
+        self,
+        paper: Paper,
+        record: Dict[str, Any],
+        mapper: BaseMapper,
+    ) -> Tuple[List[Author], List[Institution], List[Authorship]]:
+        """
+        Create authors, institutions, and their relationships for a paper.
+
+        Args:
+            paper: Saved Paper instance
+            record: Original source record
+            mapper: Mapper instance for the source
+
+        Returns:
+            Tuple of (created authors, created institutions, created authorships)
+        """
+        created_authors = []
+        created_institutions = []
+        created_authorships = []
+
+        # Get model instances from mapper
+        author_models = mapper.map_to_authors(record)
+        institution_models = mapper.map_to_institutions(record)
+
+        # Save or find existing institutions
+        saved_institutions = {}  # Map ror_id to saved Institution
+        for inst_model in institution_models:
+            if not inst_model.ror_id:
+                continue
+
+            try:
+                # Try to find existing institution by ROR ID
+                existing_inst = Institution.objects.filter(
+                    ror_id=inst_model.ror_id
+                ).first()
+
+                if existing_inst:
+                    saved_institutions[inst_model.ror_id] = existing_inst
+                else:
+                    # Save new institution
+                    inst_model.save()
+                    created_institutions.append(inst_model)
+                    saved_institutions[inst_model.ror_id] = inst_model
+                    logger.info(
+                        f"Created institution: {inst_model.display_name} "
+                        f"with ROR ID: {inst_model.ror_id}"
+                    )
+
+            except Exception as e:
+                logger.error(f"Failed to save institution: {e}")
+
+        # Save or find existing authors
+        saved_authors = {}  # Map orcid_id to saved Author
+        for author_model in author_models:
+            if not author_model.orcid_id:
+                continue
+
+            try:
+                # Try to find existing author by ORCID ID
+                existing_author = Author.objects.filter(
+                    orcid_id=author_model.orcid_id
+                ).first()
+
+                if existing_author:
+                    saved_authors[author_model.orcid_id] = existing_author
+                else:
+                    # Save new author
+                    author_model.save()
+                    created_authors.append(author_model)
+                    saved_authors[author_model.orcid_id] = author_model
+                    logger.info(
+                        f"Created author: {author_model.first_name} {author_model.last_name} "
+                        f"with ORCID: {author_model.orcid_id}"
+                    )
+
+            except Exception as e:
+                logger.error(f"Failed to save author: {e}")
+
+        # Get authorship models from mapper and save them
+        authorship_models = mapper.map_to_authorships(paper, record)
+        for authorship_model in authorship_models:
+            # Update authorship with saved author instance
+            if authorship_model.author and authorship_model.author.orcid_id:
+                saved_author = saved_authors.get(authorship_model.author.orcid_id)
+                if not saved_author:
+                    continue  # Skip if author wasn't saved
+                authorship_model.author = saved_author
+
+            try:
+                # Check if authorship already exists
+                existing_authorship = Authorship.objects.filter(
+                    paper=paper, author=authorship_model.author
+                ).first()
+
+                if not existing_authorship:
+                    # Save new authorship
+                    authorship_model.save()
+                    created_authorships.append(authorship_model)
+
+                    # Add institutions (many-to-many relationship)
+                    if hasattr(authorship_model, "_institutions_to_add"):
+                        for inst in authorship_model._institutions_to_add:
+                            if inst.ror_id in saved_institutions:
+                                authorship_model.institutions.add(
+                                    saved_institutions[inst.ror_id]
+                                )
+
+                    logger.info(
+                        f"Created authorship: {authorship_model.author.last_name} -> {paper.title[:50]}"
+                    )
+
+            except Exception as e:
+                logger.error(f"Failed to create authorship: {e}")
+
+        return created_authors, created_institutions, created_authorships
 
     def ingest_papers(
         self,
@@ -141,6 +261,24 @@ class PaperIngestionService:
                 # Save to database if requested
                 if save_to_db:
                     paper = self._save_paper(paper, update_existing)
+
+                    # Create authors and institutions after paper is saved
+                    if paper and paper.id:
+                        try:
+                            authors, institutions, authorships = (
+                                self._create_authors_and_institutions(
+                                    paper, record, mapper
+                                )
+                            )
+                            logger.debug(
+                                f"Created {len(authors)} authors, "
+                                f"{len(institutions)} institutions, and "
+                                f"{len(authorships)} authorships for paper {paper.id}"
+                            )
+                        except Exception as e:
+                            logger.warning(
+                                f"Failed to create authors/institutions for paper {paper.id}: {e}"
+                            )
 
                 successful_papers.append(paper)
 
