@@ -31,7 +31,6 @@ from paper.related_models.authorship_model import Authorship
 from paper.tasks import download_pdf
 from paper.utils import (
     check_file_is_url,
-    check_pdf_title,
     check_url_is_pdf,
     clean_abstract,
     convert_journal_url_to_pdf_url,
