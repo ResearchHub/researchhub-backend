@@ -6,8 +6,11 @@ from unittest.mock import Mock, patch
 
 from django.test import TestCase
 
+from institution.models import Institution
 from paper.ingestion.service import IngestionSource, PaperIngestionService
 from paper.models import Paper
+from paper.related_models.authorship_model import Authorship
+from user.related_models.author_model import Author
 
 
 class TestPaperIngestionService(TestCase):
@@ -283,3 +286,264 @@ class TestPaperIngestionService(TestCase):
             self.assertEqual(len(failures), 2)
             self.assertEqual(failures[0]["error"], "Validation failed")
             self.assertEqual(failures[1]["error"], "Mapper returned None")
+
+    def test_create_authors_and_institutions_with_orcid(self):
+        """Test creating authors and institutions with ORCID IDs."""
+        # Create a real paper
+        paper = Paper.objects.create(
+            title="Test Paper",
+            paper_title="Test Paper",
+            doi="10.1234/chemrxiv.test",
+            external_source="chemrxiv",
+        )
+
+        # Create mock mapper that returns model instances
+        mock_mapper = Mock()
+
+        # Mock authors
+        author1 = Author(
+            first_name="John",
+            last_name="Doe",
+            orcid_id="0000-0001-2345-6789",
+            created_source=Author.SOURCE_RESEARCHHUB,
+        )
+        author2 = Author(
+            first_name="Jane",
+            last_name="Smith",
+            orcid_id="0000-0002-3456-7890",
+            created_source=Author.SOURCE_RESEARCHHUB,
+        )
+        mock_mapper.map_to_authors.return_value = [author1, author2]
+
+        # Mock institutions
+        inst1 = Institution(
+            openalex_id="chemrxiv_test123",
+            ror_id="https://ror.org/test123",
+            display_name="Test University",
+            country_code="US",
+            type="education",
+            lineage=[],
+            associated_institutions=[],
+            display_name_alternatives=[],
+        )
+        inst2 = Institution(
+            openalex_id="chemrxiv_test456",
+            ror_id="https://ror.org/test456",
+            display_name="Another Institute",
+            country_code="UK",
+            type="education",
+            lineage=[],
+            associated_institutions=[],
+            display_name_alternatives=[],
+        )
+        mock_mapper.map_to_institutions.return_value = [inst1, inst2]
+
+        # Mock authorships
+        authorship1 = Authorship(
+            paper=paper,
+            author=author1,
+            author_position="first",
+            raw_author_name="John Doe",
+        )
+        authorship1._institutions_to_add = [inst1]
+
+        authorship2 = Authorship(
+            paper=paper,
+            author=author2,
+            author_position="last",
+            raw_author_name="Jane Smith",
+        )
+        authorship2._institutions_to_add = [inst1, inst2]
+
+        mock_mapper.map_to_authorships.return_value = [authorship1, authorship2]
+
+        record = {"id": "test", "authors": []}
+
+        # Call the method
+        authors, institutions, authorships = (
+            self.service._create_authors_and_institutions(paper, record, mock_mapper)
+        )
+
+        # Verify authors were created
+        self.assertEqual(len(authors), 2)
+        self.assertEqual(authors[0].first_name, "John")
+        self.assertEqual(authors[0].last_name, "Doe")
+        self.assertEqual(authors[0].orcid_id, "0000-0001-2345-6789")
+        self.assertEqual(authors[1].first_name, "Jane")
+        self.assertEqual(authors[1].last_name, "Smith")
+
+        # Verify institutions were created
+        self.assertEqual(len(institutions), 2)
+        self.assertEqual(institutions[0].display_name, "Test University")
+        self.assertEqual(institutions[0].ror_id, "https://ror.org/test123")
+        self.assertEqual(institutions[1].display_name, "Another Institute")
+
+        # Verify authorships were created
+        self.assertEqual(len(authorships), 2)
+        db_authorships = Authorship.objects.filter(paper=paper)
+        self.assertEqual(db_authorships.count(), 2)
+
+        # Check first authorship
+        first_authorship = db_authorships.filter(author=authors[0]).first()
+        self.assertIsNotNone(first_authorship)
+        self.assertEqual(first_authorship.author_position, "first")
+        self.assertEqual(first_authorship.institutions.count(), 1)
+
+        # Check second authorship has two institutions
+        second_authorship = db_authorships.filter(author=authors[1]).first()
+        self.assertIsNotNone(second_authorship)
+        self.assertEqual(second_authorship.author_position, "last")
+        self.assertEqual(second_authorship.institutions.count(), 2)
+
+        # Verify database persistence
+        self.assertEqual(
+            Author.objects.filter(orcid_id="0000-0001-2345-6789").count(), 1
+        )
+        self.assertEqual(
+            Institution.objects.filter(ror_id="https://ror.org/test123").count(), 1
+        )
+
+    def test_reuse_existing_authors_and_institutions(self):
+        """Test that existing authors and institutions are reused."""
+        # Create existing author and institution
+        existing_author = Author.objects.create(
+            first_name="Existing",
+            last_name="Author",
+            orcid_id="0000-0003-4567-8901",
+            created_source=Author.SOURCE_RESEARCHHUB,
+        )
+
+        existing_institution = Institution.objects.create(
+            openalex_id="existing_inst",
+            ror_id="https://ror.org/existing",
+            display_name="Existing Institution",
+            country_code="US",
+            type="education",
+            lineage=[],
+            associated_institutions=[],
+            display_name_alternatives=[],
+        )
+
+        # Create a paper
+        paper = Paper.objects.create(
+            title="Test Paper 2",
+            doi="10.1234/chemrxiv.test2",
+            external_source="chemrxiv",
+        )
+
+        # Mock mapper returns same ORCID and ROR ID as existing
+        mock_mapper = Mock()
+        # Return empty lists since these already exist
+        mock_mapper.map_to_authors.return_value = [existing_author]
+        mock_mapper.map_to_institutions.return_value = [existing_institution]
+
+        # Mock authorships
+        authorship = Authorship(
+            paper=paper,
+            author=existing_author,
+            author_position="first",
+            raw_author_name="Existing Author",
+        )
+        authorship._institutions_to_add = [existing_institution]
+        mock_mapper.map_to_authorships.return_value = [authorship]
+
+        record = {"id": "test2", "authors": []}
+
+        # Call the method
+        authors, institutions, authorships = (
+            self.service._create_authors_and_institutions(paper, record, mock_mapper)
+        )
+
+        # Should reuse existing, not create new
+        self.assertEqual(len(authors), 0)  # No new authors created
+        self.assertEqual(len(institutions), 0)  # No new institutions created
+
+        # But authorship should be created
+        authorship = Authorship.objects.filter(
+            paper=paper, author=existing_author
+        ).first()
+        self.assertIsNotNone(authorship)
+
+        # Verify only one author and institution in database
+        self.assertEqual(
+            Author.objects.filter(orcid_id="0000-0003-4567-8901").count(), 1
+        )
+        self.assertEqual(
+            Institution.objects.filter(ror_id="https://ror.org/existing").count(), 1
+        )
+
+    def test_skip_authors_without_orcid(self):
+        """Test that authors without ORCID IDs are skipped."""
+        paper = Paper.objects.create(
+            title="Test Paper 3",
+            doi="10.1234/arxiv.test",
+            external_source="arxiv",
+        )
+
+        mock_mapper = Mock()
+        # Return empty list since we don't create authors without ORCID
+        mock_mapper.map_to_authors.return_value = []
+        mock_mapper.map_to_institutions.return_value = []
+        mock_mapper.map_to_authorships.return_value = []
+
+        record = {"id": "test3", "authors": []}
+
+        # Call the method
+        authors, institutions, authorships = (
+            self.service._create_authors_and_institutions(paper, record, mock_mapper)
+        )
+
+        # Should not create author without ORCID
+        self.assertEqual(len(authors), 0)
+        self.assertEqual(len(institutions), 0)
+
+        # No authorship should be created
+        self.assertEqual(Authorship.objects.filter(paper=paper).count(), 0)
+
+    def test_skip_institutions_without_ror_id(self):
+        """Test that institutions without ROR IDs are skipped."""
+        paper = Paper.objects.create(
+            title="Test Paper 4",
+            doi="10.1234/chemrxiv.test4",
+            external_source="chemrxiv",
+        )
+
+        mock_mapper = Mock()
+
+        # Author with ORCID
+        author = Author(
+            first_name="Test",
+            last_name="Author",
+            orcid_id="0000-0004-5678-9012",
+            created_source=Author.SOURCE_RESEARCHHUB,
+        )
+        mock_mapper.map_to_authors.return_value = [author]
+
+        # No institutions (skip those without ROR ID)
+        mock_mapper.map_to_institutions.return_value = []
+
+        # Authorship without institutions
+        authorship = Authorship(
+            paper=paper,
+            author=author,
+            author_position="first",
+            raw_author_name="Test Author",
+        )
+        authorship._institutions_to_add = []
+        mock_mapper.map_to_authorships.return_value = [authorship]
+
+        record = {"id": "test4", "authors": []}
+
+        # Call the method
+        authors, institutions, authorships = (
+            self.service._create_authors_and_institutions(paper, record, mock_mapper)
+        )
+
+        # Author should be created but institution should not
+        self.assertEqual(len(authors), 1)
+        self.assertEqual(len(institutions), 0)
+
+        # Authorship created but with no institutions
+        authorship = Authorship.objects.filter(paper=paper).first()
+        self.assertIsNotNone(authorship)
+        self.assertEqual(authorship.institutions.count(), 0)

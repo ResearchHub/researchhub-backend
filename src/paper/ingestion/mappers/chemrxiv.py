@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from institution.models import Institution
 from paper.models import Paper
-from user.related_models.author_institution import AuthorInstitution
+from paper.related_models.authorship_model import Authorship
 from user.related_models.author_model import Author
 
 from .base import BaseMapper
@@ -217,6 +217,144 @@ class ChemRxivMapper(BaseMapper):
 
         return authors
 
+    def map_to_authors(self, record: Dict[str, Any]) -> List[Author]:
+        """
+        Map ChemRxiv record to Author model instances.
+
+        Returns list of Author instances with ORCID IDs (not saved to database).
+        """
+        authors_list = record.get("authors", [])
+        if not authors_list:
+            return []
+
+        authors = []
+        for idx, author_data in enumerate(authors_list):
+            orcid_id = author_data.get("orcid", "")
+
+            # Skip authors without ORCID to avoid duplicates
+            if not orcid_id:
+                continue
+
+            first_name = author_data.get("firstName", "")
+            last_name = author_data.get("lastName", "")
+
+            # Create Author instance (not saved)
+            author = Author(
+                first_name=first_name,
+                last_name=last_name,
+                orcid_id=orcid_id,
+                created_source=Author.SOURCE_RESEARCHHUB,
+            )
+
+            # Store additional metadata as private attributes for authorship mapping
+            author._raw_name = f"{first_name} {last_name}".strip()
+            author._institutions_data = author_data.get("institutions", [])
+            author._index = idx
+            author._total_authors = len(authors_list)
+
+            authors.append(author)
+
+        return authors
+
+    def map_to_institutions(self, record: Dict[str, Any]) -> List[Institution]:
+        """
+        Map ChemRxiv record to Institution model instances.
+
+        Returns list of Institution instances with ROR IDs (not saved to database).
+        """
+        institutions = []
+        seen_ror_ids = set()
+
+        # Extract from all authors' institutions
+        for author_data in record.get("authors", []):
+            for inst in author_data.get("institutions", []):
+                ror_id = inst.get("rorId", "")
+
+                # Skip if we've already seen this ROR ID or if no ROR ID
+                if not ror_id or ror_id in seen_ror_ids:
+                    continue
+
+                seen_ror_ids.add(ror_id)
+
+                # Generate synthetic OpenAlex ID for ChemRxiv institutions
+                unique_id = ror_id.replace("https://ror.org/", "")
+                synthetic_openalex_id = f"chemrxiv_{unique_id}"
+
+                # Create Institution instance (not saved)
+                institution = Institution(
+                    openalex_id=synthetic_openalex_id,
+                    ror_id=ror_id,
+                    display_name=inst.get("name", ""),
+                    country_code=(
+                        inst.get("country", "")[:2].upper()
+                        if inst.get("country")
+                        else ""
+                    ),
+                    type="education",  # Default type
+                    lineage=[],
+                    associated_institutions=[],
+                    display_name_alternatives=[],
+                )
+
+                institutions.append(institution)
+
+        return institutions
+
+    def map_to_authorships(
+        self, paper: Paper, record: Dict[str, Any]
+    ) -> List[Authorship]:
+        """
+        Map ChemRxiv record to Authorship model instances for a given paper.
+
+        Args:
+            paper: The Paper instance to create authorships for
+            record: ChemRxiv record containing author data
+
+        Returns:
+            List of Authorship instances (not saved to database).
+        """
+        authorships = []
+
+        # First, get mapped authors and institutions
+        authors = self.map_to_authors(record)
+        institutions = self.map_to_institutions(record)
+
+        # Create institution lookup by display name
+        inst_by_name = {inst.display_name: inst for inst in institutions}
+
+        # Create authorship for each author
+        for author in authors:
+            # Determine position based on stored metadata
+            if hasattr(author, "_index"):
+                if author._index == 0:
+                    position = "first"
+                elif author._index == author._total_authors - 1:
+                    position = "last"
+                else:
+                    position = "middle"
+            else:
+                position = "middle"  # Default
+
+            # Create Authorship instance (not saved)
+            authorship = Authorship(
+                paper=paper,
+                author=author,
+                author_position=position,
+                raw_author_name=getattr(author, "_raw_name", ""),
+            )
+
+            # Store institutions for later association (after saving)
+            authorship._institutions_to_add = []
+            if hasattr(author, "_institutions_data"):
+                for inst_data in author._institutions_data:
+                    inst_name = inst_data.get("name", "")
+                    if inst_name in inst_by_name:
+                        authorship._institutions_to_add.append(inst_by_name[inst_name])
+
+            authorships.append(authorship)
+
+        return authorships
+
     def _extract_license(self, license_obj: Optional[Dict[str, Any]]) -> Optional[str]:
         """
         Extract license name.
@@ -244,125 +382,3 @@ class ChemRxivMapper(BaseMapper):
         if asset_obj and "original" in asset_obj:
             return asset_obj["original"].get("url")
         return None
-
-    def map_to_author(self, author_data: Dict[str, Any]) -> Author:
-        """
-        Map author data to ResearchHub Author model instance.
-
-        Args:
-            author_data: Author data from ChemRxiv
-
-        Returns:
-            Author model instance (not saved to database)
-        """
-        # Create Author instance with available fields
-        author = Author(
-            first_name=author_data.get("first_name", ""),
-            last_name=author_data.get("last_name", ""),
-            orcid_id=author_data.get("orcid_id")
-            or author_data.get("orcid"),  # Set ORCID ID
-            # Source indicates this came from external ingestion
-            created_source=Author.SOURCE_RESEARCHHUB,
-        )
-
-        # Store additional data as attributes for optional processing
-        author._raw_name = author_data.get("raw_name", "")
-
-        return author
-
-    def get_or_create_institution(
-        self, institution_data: Dict[str, Any]
-    ) -> Optional[Institution]:
-        """
-        Get or create an Institution from ChemRxiv institution data.
-
-        Only creates institutions that have a valid ROR ID.
-        Since ChemRxiv doesn't provide OpenAlex IDs, we generate a synthetic one
-        based on the ROR ID.
-
-        Args:
-            institution_data: Institution data from ChemRxiv
-
-        Returns:
-            Institution instance or None if no ROR ID or creation fails
-        """
-        if not institution_data or not institution_data.get("name"):
-            return None
-
-        ror_id = institution_data.get("ror_id", "")
-        name = institution_data.get("name", "")
-
-        # Only process institutions with ROR IDs
-        if not ror_id:
-            logger.debug(f"Skipping institution '{name}' - no ROR ID provided")
-            return None
-
-        # Try to find existing institution by ROR ID
-        try:
-            return Institution.objects.get(ror_id=ror_id)
-        except Institution.DoesNotExist:
-            pass
-
-        # Generate a synthetic OpenAlex ID for ChemRxiv institutions
-        # Use ROR ID as base for consistency
-        unique_id = ror_id.replace("https://ror.org/", "")
-        synthetic_openalex_id = f"chemrxiv_{unique_id}"
-
-        # Check if we already created this synthetic institution
-        try:
-            return Institution.objects.get(openalex_id=synthetic_openalex_id)
-        except Institution.DoesNotExist:
-            pass
-
-        # Create new institution with ROR ID
-        try:
-            institution = Institution.objects.create(
-                openalex_id=synthetic_openalex_id,
-                ror_id=ror_id,
-                display_name=name,
-                country_code=institution_data.get("country_code", ""),
-                type="education",  # Default type for ChemRxiv institutions
-                lineage=[],
-                display_name_alternatives=[name],
-            )
-            logger.info(f"Created institution: {name} with ROR ID: {ror_id}")
-            return institution
-
-        except Exception as e:
-            logger.error(f"Failed to create institution {name}: {e}")
-            return None
-
-    def create_author_institutions(
-        self, author: Author, institutions_data: List[Dict[str, Any]]
-    ) -> List[AuthorInstitution]:
-        """
-        Create AuthorInstitution relationships for an author.
-
-        Args:
-            author: Author instance
-            institutions_data: List of institution data from ChemRxiv
-
-        Returns:
-            List of created AuthorInstitution instances
-        """
-        author_institutions = []
-
-        for inst_data in institutions_data:
-            institution = self.get_or_create_institution(inst_data)
-            if institution and author.id:
-                try:
-                    author_inst, created = AuthorInstitution.objects.get_or_create(
-                        author=author, institution=institution, defaults={"years": []}
-                    )
-                    if created:
-                        author_institutions.append(author_inst)
-                        logger.info(
-                            f"Created author-institution relationship: "
-                            f"{author.last_name} - {institution.display_name}"
-                        )
-                except Exception as e:
-                    logger.error(
-                        f"Failed to create author-institution relationship: {e}"
-                    )
-
-        return author_institutions

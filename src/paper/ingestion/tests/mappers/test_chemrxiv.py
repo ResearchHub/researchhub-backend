@@ -2,12 +2,14 @@
 Tests for ChemRxiv mapper.
 """
 
-from unittest import TestCase
 from unittest.mock import MagicMock, patch
+
+from django.test import TestCase
 
 from institution.models import Institution
 from paper.ingestion.mappers.chemrxiv import ChemRxivMapper
 from paper.models import Paper
+from paper.related_models.authorship_model import Authorship
 from user.related_models.author_institution import AuthorInstitution
 from user.related_models.author_model import Author
 
@@ -356,109 +358,367 @@ class TestChemRxivMapper(TestCase):
             self.assertEqual(len(results), 1)
             mock_map.assert_called_once()
 
-    @patch("user.related_models.author_model.Author.save")
-    def test_map_to_author(self, mock_save):
-        """Test mapping author data to Author model."""
-        author_data = {
-            "first_name": "John",
-            "last_name": "Doe",
-            "title": "Dr",
-            "orcid": "0000-0000-0000-0001",
-            "orcid_id": "0000-0000-0000-0001",
-            "raw_name": "John Doe",
-            "institutions": [{"name": "MIT"}],
+    def test_map_to_authors_creates_author_models(self):
+        """Test that map_to_authors creates Author model instances."""
+        authors = self.mapper.map_to_authors(self.sample_record)
+
+        # Should only create authors with ORCID IDs (1 out of 2)
+        self.assertEqual(len(authors), 1)
+
+        # Check the author with ORCID
+        self.assertIsInstance(authors[0], Author)
+        self.assertEqual(authors[0].first_name, "Péter G.")
+        self.assertEqual(authors[0].last_name, "Szalay")
+        self.assertEqual(authors[0].orcid_id, "0000-0003-1885-3557")
+        self.assertEqual(authors[0].created_source, Author.SOURCE_RESEARCHHUB)
+
+        # Verify private attributes for authorship mapping
+        self.assertTrue(hasattr(authors[0], "_raw_name"))
+        self.assertTrue(hasattr(authors[0], "_institutions_data"))
+        self.assertTrue(hasattr(authors[0], "_index"))
+        self.assertEqual(authors[0]._index, 1)  # Second author in list
+        self.assertEqual(authors[0]._total_authors, 2)
+
+    def test_map_to_authors_skips_without_orcid(self):
+        """Test that authors without ORCID are skipped."""
+        record = {
+            "authors": [
+                {"firstName": "No", "lastName": "Orcid", "orcid": ""},
+                {"firstName": "Also No", "lastName": "Orcid"},  # Missing orcid field
+                {"firstName": "Has", "lastName": "Orcid", "orcid": None},  # None value
+            ]
         }
 
-        author = self.mapper.map_to_author(author_data)
+        authors = self.mapper.map_to_authors(record)
+        self.assertEqual(len(authors), 0)
 
-        self.assertEqual(author.first_name, "John")
-        self.assertEqual(author.last_name, "Doe")
-        self.assertEqual(author.orcid_id, "0000-0000-0000-0001")
-        self.assertEqual(author.created_source, Author.SOURCE_RESEARCHHUB)
-
-        # Check additional attributes
-        self.assertEqual(author._raw_name, "John Doe")
-
-    @patch("institution.models.Institution.objects.get")
-    @patch("institution.models.Institution.objects.create")
-    def test_get_or_create_institution_with_ror(self, mock_create, mock_get):
-        """Test institution creation with ROR ID."""
-        mock_get.side_effect = Institution.DoesNotExist
-
-        inst_data = {
-            "name": "MIT",
-            "display_name": "MIT",
-            "ror_id": "https://ror.org/042nb2s44",
-            "country_code": "US",
+    def test_map_to_authors_with_multiple_orcids(self):
+        """Test mapping multiple authors with ORCIDs."""
+        record = {
+            "authors": [
+                {
+                    "firstName": "John",
+                    "lastName": "Doe",
+                    "orcid": "0000-0001-2345-6789",
+                    "institutions": [
+                        {
+                            "name": "Test University",
+                            "rorId": "https://ror.org/test123",
+                            "country": "United States",
+                        }
+                    ],
+                },
+                {
+                    "firstName": "Jane",
+                    "lastName": "Smith",
+                    "orcid": "0000-0002-3456-7890",
+                    "institutions": [],
+                },
+                {
+                    "firstName": "Bob",
+                    "lastName": "NoOrcid",
+                    "orcid": "",  # No ORCID
+                    "institutions": [],
+                },
+            ],
         }
 
-        mock_institution = MagicMock(spec=Institution)
-        mock_institution.display_name = "MIT"
-        mock_create.return_value = mock_institution
+        authors = self.mapper.map_to_authors(record)
 
-        result = self.mapper.get_or_create_institution(inst_data)
+        # Should only create authors with ORCID IDs (2 out of 3)
+        self.assertEqual(len(authors), 2)
 
-        self.assertEqual(result, mock_institution)
-        # Check that create was called with correct synthetic IDs
-        mock_create.assert_called_once()
-        call_args = mock_create.call_args[1]
-        self.assertEqual(call_args["openalex_id"], "chemrxiv_042nb2s44")
-        self.assertEqual(call_args["ror_id"], "https://ror.org/042nb2s44")
-        self.assertEqual(call_args["display_name"], "MIT")
-        self.assertEqual(call_args["country_code"], "US")
+        # Check first author
+        self.assertEqual(authors[0].first_name, "John")
+        self.assertEqual(authors[0].last_name, "Doe")
+        self.assertEqual(authors[0].orcid_id, "0000-0001-2345-6789")
 
-    def test_get_or_create_institution_without_ror(self):
-        """Test that institutions without ROR ID are not created."""
-        inst_data = {
-            "name": "Unknown University",
-            "display_name": "Unknown University",
-            "country_code": "XX",
+        # Check second author
+        self.assertEqual(authors[1].first_name, "Jane")
+        self.assertEqual(authors[1].last_name, "Smith")
+        self.assertEqual(authors[1].orcid_id, "0000-0002-3456-7890")
+
+    def test_map_to_authors_empty_record(self):
+        """Test handling of empty author list."""
+        authors = self.mapper.map_to_authors({"authors": []})
+        self.assertEqual(authors, [])
+
+        authors = self.mapper.map_to_authors({})  # Missing authors field
+        self.assertEqual(authors, [])
+
+    def test_map_to_institutions_creates_institution_models(self):
+        """Test that map_to_institutions creates Institution model instances."""
+        institutions = self.mapper.map_to_institutions(self.sample_record)
+
+        # Should only create institutions with ROR IDs (1 out of 2)
+        self.assertEqual(len(institutions), 1)
+
+        # Check the institution with ROR ID
+        inst = institutions[0]
+        self.assertIsInstance(inst, Institution)
+        self.assertEqual(inst.ror_id, "https://ror.org/01s2bdc37")
+        self.assertIsNotNone(inst.openalex_id)
+        self.assertIn("chemrxiv_", inst.openalex_id)  # Synthetic ID
+        self.assertEqual(inst.display_name, "ELTE Eötvös Loránd University")
+        self.assertEqual(inst.country_code, "HU")
+        self.assertEqual(inst.type, "education")
+        self.assertEqual(inst.lineage, [])
+        self.assertEqual(inst.associated_institutions, [])
+
+    def test_map_to_institutions_deduplicates(self):
+        """Test that duplicate institutions are deduplicated by ROR ID."""
+        record = {
+            "authors": [
+                {
+                    "institutions": [
+                        {"name": "Uni A", "rorId": "https://ror.org/same"},
+                        {"name": "Uni B", "rorId": "https://ror.org/different"},
+                    ]
+                },
+                {
+                    "institutions": [
+                        {"name": "Uni A", "rorId": "https://ror.org/same"},  # Duplicate
+                    ]
+                },
+            ]
         }
 
-        result = self.mapper.get_or_create_institution(inst_data)
+        institutions = self.mapper.map_to_institutions(record)
+        self.assertEqual(len(institutions), 2)  # Only 2 unique ROR IDs
 
-        # Should return None for institutions without ROR ID
-        self.assertIsNone(result)
+    def test_map_to_institutions_skips_without_ror(self):
+        """Test that institutions without ROR ID are skipped."""
+        record = {
+            "authors": [
+                {
+                    "institutions": [
+                        {"name": "No ROR", "rorId": ""},
+                        {"name": "Also No ROR"},  # Missing rorId field
+                        {"name": "Has ROR", "rorId": "https://ror.org/valid"},
+                    ]
+                }
+            ]
+        }
 
-    @patch("institution.models.Institution.objects.get")
-    def test_get_existing_institution_by_ror(self, mock_get):
-        """Test getting existing institution by ROR ID."""
-        mock_institution = MagicMock(spec=Institution)
-        mock_institution.display_name = "MIT"
-        mock_get.return_value = mock_institution
+        institutions = self.mapper.map_to_institutions(record)
+        self.assertEqual(len(institutions), 1)  # Only the one with ROR ID
+        self.assertEqual(institutions[0].display_name, "Has ROR")
 
-        inst_data = {"name": "MIT", "ror_id": "https://ror.org/042nb2s44"}
+    def test_map_to_institutions_multiple_unique(self):
+        """Test mapping multiple unique institutions."""
+        record = {
+            "authors": [
+                {
+                    "institutions": [
+                        {
+                            "name": "University A",
+                            "rorId": "https://ror.org/test123",
+                            "country": "United States",
+                        },
+                        {
+                            "name": "University B",
+                            "rorId": "https://ror.org/test456",
+                            "country": "United Kingdom",
+                        },
+                    ]
+                },
+                {
+                    "institutions": [
+                        {
+                            "name": "University C",
+                            "rorId": "https://ror.org/test789",
+                            "country": "Canada",
+                        }
+                    ]
+                },
+            ]
+        }
 
-        result = self.mapper.get_or_create_institution(inst_data)
+        institutions = self.mapper.map_to_institutions(record)
+        self.assertEqual(len(institutions), 3)
 
-        self.assertEqual(result, mock_institution)
-        mock_get.assert_called_once_with(ror_id="https://ror.org/042nb2s44")
+        # Check ROR IDs
+        ror_ids = [inst.ror_id for inst in institutions]
+        self.assertIn("https://ror.org/test123", ror_ids)
+        self.assertIn("https://ror.org/test456", ror_ids)
+        self.assertIn("https://ror.org/test789", ror_ids)
 
-    @patch.object(ChemRxivMapper, "get_or_create_institution")
-    @patch(
-        "user.related_models.author_institution.AuthorInstitution.objects.get_or_create"
-    )
-    def test_create_author_institutions(self, mock_get_or_create, mock_get_inst):
-        """Test creating author-institution relationships."""
-        # Create mock author with ID
-        mock_author = MagicMock(spec=Author)
-        mock_author.id = 1
-        mock_author.last_name = "Doe"
+        # Check display names
+        names = [inst.display_name for inst in institutions]
+        self.assertIn("University A", names)
+        self.assertIn("University B", names)
+        self.assertIn("University C", names)
 
-        # Create mock institution
-        mock_institution = MagicMock(spec=Institution)
-        mock_institution.display_name = "MIT"
-        mock_get_inst.return_value = mock_institution
-
-        # Mock the get_or_create to return a new relationship
-        mock_author_inst = MagicMock(spec=AuthorInstitution)
-        mock_get_or_create.return_value = (mock_author_inst, True)
-
-        institutions_data = [{"name": "MIT", "ror_id": "https://ror.org/042nb2s44"}]
-
-        result = self.mapper.create_author_institutions(mock_author, institutions_data)
-
-        self.assertEqual(len(result), 1)
-        mock_get_or_create.assert_called_once_with(
-            author=mock_author, institution=mock_institution, defaults={"years": []}
+    def test_map_to_authorships_creates_authorship_models(self):
+        """Test that map_to_authorships creates Authorship model instances."""
+        # Create a paper for the test
+        paper = Paper(
+            id=1,  # Fake ID for testing
+            title="Test Paper",
+            doi="10.1234/test",
+            external_source="chemrxiv",
         )
+
+        authorships = self.mapper.map_to_authorships(paper, self.sample_record)
+
+        # Should create authorships only for authors with ORCID (1 out of 2)
+        self.assertEqual(len(authorships), 1)
+
+        # Check the authorship
+        authorship = authorships[0]
+        self.assertIsInstance(authorship, Authorship)
+        self.assertEqual(authorship.paper, paper)
+        self.assertIsInstance(authorship.author, Author)
+        self.assertEqual(authorship.author.first_name, "Péter G.")
+        self.assertEqual(authorship.author.last_name, "Szalay")
+        self.assertEqual(authorship.author_position, "last")  # Last of 2 authors
+        self.assertEqual(authorship.raw_author_name, "Péter G. Szalay")
+
+        # Check institutions to add
+        self.assertTrue(hasattr(authorship, "_institutions_to_add"))
+        self.assertEqual(len(authorship._institutions_to_add), 1)
+        self.assertEqual(
+            authorship._institutions_to_add[0].display_name,
+            "ELTE Eötvös Loránd University",
+        )
+
+    def test_map_to_authorships_positions(self):
+        """Test correct assignment of author positions."""
+        record = {
+            "authors": [
+                {
+                    "firstName": "First",
+                    "lastName": "Author",
+                    "orcid": "0000-0000-0000-0001",
+                    "institutions": [],
+                },
+                {
+                    "firstName": "Middle",
+                    "lastName": "Author",
+                    "orcid": "0000-0000-0000-0002",
+                    "institutions": [],
+                },
+                {
+                    "firstName": "Last",
+                    "lastName": "Author",
+                    "orcid": "0000-0000-0000-0003",
+                    "institutions": [],
+                },
+            ]
+        }
+
+        paper = Paper(id=1, title="Test", doi="test")
+        authorships = self.mapper.map_to_authorships(paper, record)
+
+        self.assertEqual(authorships[0].author_position, "first")
+        self.assertEqual(authorships[1].author_position, "middle")
+        self.assertEqual(authorships[2].author_position, "last")
+
+    def test_map_to_authorships_single_author(self):
+        """Test position for single author."""
+        record = {
+            "authors": [
+                {
+                    "firstName": "Solo",
+                    "lastName": "Author",
+                    "orcid": "0000-0000-0000-0001",
+                    "institutions": [],
+                }
+            ]
+        }
+
+        paper = Paper(id=1, title="Test", doi="test")
+        authorships = self.mapper.map_to_authorships(paper, record)
+
+        self.assertEqual(len(authorships), 1)
+        # Single author is "first" (index 0)
+        self.assertEqual(authorships[0].author_position, "first")
+
+    def test_map_to_authorships_two_authors(self):
+        """Test positions for two authors (first and last)."""
+        record = {
+            "authors": [
+                {
+                    "firstName": "First",
+                    "lastName": "Author",
+                    "orcid": "0000-0000-0000-0001",
+                    "institutions": [],
+                },
+                {
+                    "firstName": "Second",
+                    "lastName": "Author",
+                    "orcid": "0000-0000-0000-0002",
+                    "institutions": [],
+                },
+            ]
+        }
+
+        paper = Paper(id=1, title="Test", doi="test")
+        authorships = self.mapper.map_to_authorships(paper, record)
+
+        self.assertEqual(len(authorships), 2)
+        self.assertEqual(authorships[0].author_position, "first")
+        self.assertEqual(authorships[1].author_position, "last")
+
+    def test_map_to_authorships_institution_matching(self):
+        """Test that institutions are correctly matched to authorships."""
+        record = {
+            "authors": [
+                {
+                    "firstName": "Test",
+                    "lastName": "Author",
+                    "orcid": "0000-0000-0000-0001",
+                    "institutions": [
+                        {"name": "University A", "rorId": "https://ror.org/a"},
+                        {"name": "University B", "rorId": "https://ror.org/b"},
+                    ],
+                }
+            ]
+        }
+
+        paper = Paper(id=1, title="Test", doi="test")
+        authorships = self.mapper.map_to_authorships(paper, record)
+
+        # Should have matched both institutions
+        self.assertEqual(len(authorships[0]._institutions_to_add), 2)
+
+        # Check institution names
+        inst_names = [inst.display_name for inst in authorships[0]._institutions_to_add]
+        self.assertIn("University A", inst_names)
+        self.assertIn("University B", inst_names)
+
+    def test_map_to_authorships_mixed_orcids(self):
+        """Test authorships with mixed ORCID presence."""
+        record = {
+            "authors": [
+                {
+                    "firstName": "Has",
+                    "lastName": "Orcid",
+                    "orcid": "0000-0000-0000-0001",
+                    "institutions": [],
+                },
+                {
+                    "firstName": "No",
+                    "lastName": "Orcid",
+                    "orcid": "",  # No ORCID
+                    "institutions": [],
+                },
+                {
+                    "firstName": "Also Has",
+                    "lastName": "Orcid",
+                    "orcid": "0000-0000-0000-0003",
+                    "institutions": [],
+                },
+            ]
+        }
+
+        paper = Paper(id=1, title="Test", doi="test")
+        authorships = self.mapper.map_to_authorships(paper, record)
+
+        # Should only create authorships for authors with ORCID (2 out of 3)
+        self.assertEqual(len(authorships), 2)
+
+        # First author with ORCID is at index 0, so position is "first"
+        self.assertEqual(authorships[0].author_position, "first")
+        # Second author with ORCID is at index 2 (last), so position is "last"
+        self.assertEqual(authorships[1].author_position, "last")
