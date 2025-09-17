@@ -80,8 +80,12 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
         feed_view = self.request.query_params.get("feed_view", "latest")
         hub_slug = self.request.query_params.get("hub_slug")
         source = self.request.query_params.get("source", "all")
+        sort_by = self.request.query_params.get("sort_by", "latest")
 
-        if feed_view == "popular":
+        # Use FeedEntryPopular for hot_score sorting, regardless of feed_view
+        if feed_view == "popular" or (
+            feed_view == "following" and sort_by == "hot_score"
+        ):
             queryset = FeedEntryPopular.objects.all()
         else:
             queryset = FeedEntryLatest.objects.all()
@@ -109,14 +113,19 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
                     hubs__id__in=followed_hub_ids,
                 )
 
-        if feed_view == "popular":
-            # Only show paper and post
-            queryset = queryset.filter(
-                content_type__in=[
-                    self._paper_content_type,
-                    self._post_content_type,
-                ]
-            )
+        # Handle both popular view and following view with hot_score sorting
+        if feed_view == "popular" or (
+            feed_view == "following" and sort_by == "hot_score"
+        ):
+            # Only show paper and post (for popular view only)
+            if feed_view == "popular":
+                queryset = queryset.filter(
+                    content_type__in=[
+                        self._paper_content_type,
+                        self._post_content_type,
+                    ]
+                )
+
             if hub_slug:
                 try:
                     hub = Hub.objects.get(slug=hub_slug)

@@ -156,6 +156,7 @@ class FeedViewMixin:
         hub_slug = request.query_params.get("hub_slug")
         user_id = request.user.id if request.user.is_authenticated else None
         fundraise_status = request.query_params.get("fundraise_status", None)
+        sort_by = request.query_params.get("sort_by", "latest")
 
         page = request.query_params.get("page", "1")
         page_size = request.query_params.get(
@@ -172,11 +173,15 @@ class FeedViewMixin:
         pagination_part = f"{page}-{page_size}"
         status_part = f"-{fundraise_status}" if fundraise_status else ""
         feed_type_part = f"{feed_type}_" if feed_type else ""
+        sort_part = f"-{sort_by}" if sort_by != "latest" else ""
 
         source = request.query_params.get("source")
         source_part = f"{source}" if source else "all"
 
-        return f"{feed_type_part}feed:{feed_view}:{hub_part}:{source_part}:{user_part}:{pagination_part}{status_part}"
+        return (
+            f"{feed_type_part}feed:{feed_view}:{hub_part}:{source_part}:"
+            f"{user_part}:{pagination_part}{status_part}{sort_part}"
+        )
 
     def get_followed_hub_ids(self):
         """
