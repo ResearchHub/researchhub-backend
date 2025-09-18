@@ -14,6 +14,7 @@ from paper.ingestion.clients.arxiv import ArXivClient, ArXivConfig
 from paper.ingestion.clients.biorxiv import BioRxivClient, BioRxivConfig
 from paper.ingestion.clients.chemrxiv import ChemRxivClient, ChemRxivConfig
 from paper.ingestion.exceptions import FetchError, RetryExhaustedError
+from paper.ingestion.service import IngestionSource, PaperIngestionService
 from paper.models import PaperFetchLog
 from researchhub.celery import QUEUE_PULL_PAPERS, app
 from utils.sentry import log_error
@@ -318,15 +319,12 @@ def process_batch_task(
     """
     Process a batch of papers and save them to the database.
     """
-    created_count = 0
-
-    for paper_data in batch:
-        logger.info(f"Processing paper from {source}: {paper_data.get('id')}")
-        ...  # FIXME: Process individual paper in a transaction and try/except block
-        created_count += 1
+    service = PaperIngestionService()
+    successes, failures = service.ingest_papers(batch, IngestionSource(source))
 
     return {
         "source": source,
         "batch_size": len(batch),
-        "created": created_count,
+        "created": len(successes),
+        "errors": len(failures),
     }
