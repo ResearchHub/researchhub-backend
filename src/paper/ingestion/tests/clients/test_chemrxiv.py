@@ -188,9 +188,9 @@ class TestChemRxivClient(TestCase):
         call_args = mock_get.call_args
         params = call_args[1]["params"]
         self.assertIn("searchDateFrom", params)
-        self.assertEqual(params["searchDateFrom"], "2025-01-01")
+        self.assertEqual(params["searchDateFrom"], "2025-01-01T00:00:00Z")
         self.assertIn("searchDateTo", params)
-        self.assertEqual(params["searchDateTo"], "2025-01-07")
+        self.assertEqual(params["searchDateTo"], "2025-01-07T00:00:00Z")
 
     @patch("requests.Session.get")
     def test_fetch_recent_pagination(self, mock_get):

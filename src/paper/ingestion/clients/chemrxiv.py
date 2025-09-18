@@ -170,8 +170,8 @@ class ChemRxivClient(BaseClient):
                 "limit": current_page_size,
                 "skip": skip,
                 "sort": "PUBLISHED_DATE_DESC",
-                "searchDateFrom": since.strftime("%Y-%m-%d"),
-                "searchDateTo": until.strftime("%Y-%m-%d"),
+                "searchDateFrom": since.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "searchDateTo": until.strftime("%Y-%m-%dT%H:%M:%SZ"),
             }
 
             logger.info(
