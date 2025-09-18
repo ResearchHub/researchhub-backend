@@ -4,6 +4,7 @@ Tests for BioRxiv mapper.
 
 from django.test import TestCase
 
+from hub.models import Hub
 from paper.ingestion.mappers.biorxiv import BioRxivMapper
 from paper.models import Paper
 
@@ -190,3 +191,44 @@ class TestBioRxivMapper(TestCase):
         paper.save()
         self.assertIsNotNone(paper.id)
         self.assertTrue(Paper.objects.filter(doi="10.1101/2024.12.31.630767").exists())
+
+    def test_map_to_hubs(self):
+        """
+        Test map_to_hubs returns the bioRxiv hub (initially).
+        """
+        # Arrange
+        hub, _ = Hub.objects.get_or_create(
+            slug="biorxiv",
+            defaults={
+                "name": "BioRxiv",
+                "namespace": Hub.Namespace.JOURNAL,
+            },
+        )
+        mapper = BioRxivMapper()
+        mapper.BIOARXIV_HUB = hub
+        paper = mapper.map_to_paper(self.sample_record)
+
+        # Act
+        hubs = mapper.map_to_hubs(paper, self.sample_record)
+
+        # Assert
+        self.assertEqual(len(hubs), 1)
+        self.assertEqual(hubs[0], hub)
+        self.assertEqual(hubs[0].slug, "biorxiv")
+        self.assertEqual(hubs[0].namespace, Hub.Namespace.JOURNAL)
+
+    def test_map_to_hubs_without_existing_hub(self):
+        """
+        Test map_to_hubs returns empty list when bioRxiv hub doesn't exist.
+        """
+        # Arrange
+        mapper = BioRxivMapper()
+        mapper.BIOARXIV_HUB = None
+        paper = mapper.map_to_paper(self.sample_record)
+
+        # Act
+        hubs = mapper.map_to_hubs(paper, self.sample_record)
+
+        # Assert
+        self.assertEqual(len(hubs), 0)
+        self.assertEqual(hubs, [])

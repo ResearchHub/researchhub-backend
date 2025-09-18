@@ -8,6 +8,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from hub.models import Hub
 from institution.models import Institution
 from paper.models import Paper
 from paper.related_models.authorship_model import Authorship
@@ -20,6 +21,10 @@ logger = logging.getLogger(__name__)
 
 class ChemRxivMapper(BaseMapper):
     """Maps ChemRxiv paper records to ResearchHub Paper model format."""
+
+    CHEMRXIV_HUB = Hub.objects.filter(
+        slug="chemrxiv", namespace=Hub.Namespace.JOURNAL
+    ).first()
 
     def validate(self, record: Dict[str, Any]) -> bool:
         """
@@ -382,3 +387,11 @@ class ChemRxivMapper(BaseMapper):
         if asset_obj and "original" in asset_obj:
             return asset_obj["original"].get("url")
         return None
+
+    def map_to_hubs(self, paper: Paper, record: Dict[str, Any]) -> List[Hub]:
+        """
+        Map ChemRxiv record to Hub (tag) model instances.
+
+        Initially, this only returns the preprint server hub.
+        """
+        return [self.CHEMRXIV_HUB] if self.CHEMRXIV_HUB else []

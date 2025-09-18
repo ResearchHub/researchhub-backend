@@ -4,8 +4,9 @@ Base mapper class for transforming source data to domain models.
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 
+from hub.models import Hub
 from institution.models import Institution
 from paper.models import Paper
 from paper.related_models.authorship_model import Authorship
@@ -72,6 +73,17 @@ class BaseMapper(ABC):
         Returns:
             List of Authorship instances (not saved to database).
             These connect authors to the paper with position and institution data.
+        """
+        pass
+
+    @abstractmethod
+    def map_to_hubs(self, paper: Paper, record: Dict[str, Any]) -> List[Hub]:
+        """
+        Map source record to Hub (tag) model instances for a given paper.
+
+        Args:
+            paper: The Paper instance to create tags for
+            record: Source record containing tag data
         """
         pass
 

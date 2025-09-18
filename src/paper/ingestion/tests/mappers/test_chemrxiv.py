@@ -6,11 +6,11 @@ from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
 
+from hub.models import Hub
 from institution.models import Institution
 from paper.ingestion.mappers.chemrxiv import ChemRxivMapper
 from paper.models import Paper
 from paper.related_models.authorship_model import Authorship
-from user.related_models.author_institution import AuthorInstitution
 from user.related_models.author_model import Author
 
 
@@ -722,3 +722,44 @@ class TestChemRxivMapper(TestCase):
         self.assertEqual(authorships[0].author_position, "first")
         # Second author with ORCID is at index 2 (last), so position is "last"
         self.assertEqual(authorships[1].author_position, "last")
+
+    def test_map_to_hubs(self):
+        """
+        Test map_to_hubs returns the bioRxiv hub (initially).
+        """
+        # Arrange
+        hub, _ = Hub.objects.get_or_create(
+            slug="biorxiv",
+            defaults={
+                "name": "BioRxiv",
+                "namespace": Hub.Namespace.JOURNAL,
+            },
+        )
+        mapper = ChemRxivMapper()
+        mapper.CHEMRXIV_HUB = hub
+        paper = mapper.map_to_paper(self.sample_record)
+
+        # Act
+        hubs = mapper.map_to_hubs(paper, self.sample_record)
+
+        # Assert
+        self.assertEqual(len(hubs), 1)
+        self.assertEqual(hubs[0], hub)
+        self.assertEqual(hubs[0].slug, "biorxiv")
+        self.assertEqual(hubs[0].namespace, Hub.Namespace.JOURNAL)
+
+    def test_map_to_hubs_without_existing_hub(self):
+        """
+        Test map_to_hubs returns empty list when bioRxiv hub doesn't exist.
+        """
+        # Arrange
+        mapper = ChemRxivMapper()
+        mapper.CHEMRXIV_HUB = None
+        paper = mapper.map_to_paper(self.sample_record)
+
+        # Act
+        hubs = mapper.map_to_hubs(paper, self.sample_record)
+
+        # Assert
+        self.assertEqual(len(hubs), 0)
+        self.assertEqual(hubs, [])
