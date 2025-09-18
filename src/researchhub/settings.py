@@ -870,3 +870,8 @@ ENDAOMENT_ACCOUNT_ID = os.environ.get("ENDAOMENT_ACCOUNT_ID", keys.ENDAOMENT_ACC
 RESEARCHHUB_JOURNAL_ID = os.environ.get(
     "RESEARCHHUB_JOURNAL_ID", keys.RESEARCHHUB_JOURNAL_ID
 )
+
+# Paper ingestion from prerint servers
+PAPER_INGESTION_ENABLED = (
+    os.environ.get("PAPER_INGESTION_ENABLED", "false").lower() == "true"
+)
