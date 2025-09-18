@@ -2723,7 +2723,7 @@ requires-dist = [
     { name = "requests-mock", specifier = ">=1.12.1,<2.0.0" },
     { name = "responses", specifier = "==0.21.0" },
     { name = "sentry-sdk", specifier = "==1.45.1" },
-    { name = "sift", specifier = ">=5.6.1,<6.0.0" },
+    { name = "sift", specifier = ">=6.0.0" },
     { name = "stripe", specifier = ">=11.2.0,<12.0.0" },
     { name = "web3", extras = ["tester"], specifier = "==7.10.0" },
 ]
@@ -2916,13 +2916,12 @@ sdist = { url = "https://files.pythonhosted.org/packages/9e/bd/3704a8c3e0942d711
 
 [[package]]
 name = "sift"
-version = "5.6.1"
+version = "6.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "requests" },
-    { name = "six" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6b/a3/1a45bfbf57a8e383871c1c10d3c122cba722b56b8f1a24afe1d7497ce216/Sift-5.6.1.tar.gz", hash = "sha256:611589dcd75cfb733051475b8ceb23a675d034d2876b0b88c064126de0349a99", size = 13925, upload-time = "2024-10-08T11:13:37.998Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/70/49/ae8416c852e4126c82a77f2dc5880a565cbe367cc7a7179f49ddcd1b290d/Sift-6.0.0.tar.gz", hash = "sha256:f0ff06b96b0fed0acdb4377e820cf07e79be763d1b9d7193f152f2aa174c40fa", size = 12301, upload-time = "2025-05-05T23:59:35.487Z" }
 
 [[package]]
 name = "six"
