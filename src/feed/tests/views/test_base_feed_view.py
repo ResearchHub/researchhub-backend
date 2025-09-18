@@ -17,37 +17,37 @@ class FeedViewMixinTests(TestCase):
                 {},
                 False,
                 None,
-                "feed:latest:all:all:none:1-20",
+                "feed:latest:all:all:none:1-20:all",
             ),
             (
                 {"source": "researchhub"},
                 False,
                 None,
-                "feed:latest:all:researchhub:none:1-20",
+                "feed:latest:all:researchhub:none:1-20:all",
             ),
             (
                 {"feed_view": "following"},
                 True,
                 123,
-                "feed:following:all:all:123:1-20",
+                "feed:following:all:all:123:1-20:all",
             ),
             (
                 {"hub_slug": "science"},
                 False,
                 None,
-                "feed:latest:science:all:none:1-20",
+                "feed:latest:science:all:none:1-20:all",
             ),
             (
                 {"feed_view": "popular"},
                 True,
                 123,
-                "feed:popular:all:all:none:1-20",
+                "feed:popular:all:all:none:1-20:all",
             ),
             (
                 {"page": "3", "page_size": "50"},
                 False,
                 None,
-                "feed:latest:all:all:none:3-50",
+                "feed:latest:all:all:none:3-50:all",
             ),
             (
                 {
@@ -58,7 +58,7 @@ class FeedViewMixinTests(TestCase):
                 },
                 True,
                 456,
-                "feed:following:computer-science:all:456:2-30",
+                "feed:following:computer-science:all:456:2-30:all",
             ),
         ]
 
