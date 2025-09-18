@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from celery import group
+from django.conf import settings
 from django.utils import timezone
 
 from paper.ingestion.clients.arxiv import ArXivClient, ArXivConfig
@@ -220,6 +221,11 @@ def fetch_all_papers() -> Dict[str, Any]:
     Orchestrator task that triggers parallel fetching from all sources.
     Entry point for scheduling.
     """
+    # Check if paper ingestion is enabled
+    if not getattr(settings, "PAPER_INGESTION_ENABLED", False):
+        logger.info("Paper ingestion is disabled in settings. Skipping.")
+        return {}
+
     sources = ["arxiv", "biorxiv", "chemrxiv"]
 
     # Create a group of parallel tasks
