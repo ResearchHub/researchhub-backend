@@ -1,7 +1,7 @@
 from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from paper.ingestion.exceptions import FetchError, RetryExhaustedError
@@ -346,6 +346,7 @@ class TestPaperIngestionPipeline(TestCase):
         self.assertEqual(status.errors[0]["type"], "fetch_error")
 
 
+@override_settings(PAPER_INGESTION_ENABLED=True)
 class TestPaperIngestionTasks(TestCase):
     """
     Test cases for Celery tasks.
@@ -381,6 +382,17 @@ class TestPaperIngestionTasks(TestCase):
 
         self.assertEqual(result["source"], "arxiv")
         self.assertEqual(result["total_fetched"], 10)
+
+    @override_settings(PAPER_INGESTION_ENABLED=False)
+    def test_fetch_all_papers_disabled(self):
+        """
+        Test fetch_all_papers when ingestion is disabled.
+        """
+        # Act
+        result = fetch_all_papers()
+
+        # Assert
+        self.assertEqual(result, {})
 
     @patch("paper.ingestion.pipeline.group")
     def test_fetch_all_papers(self, mock_group):
