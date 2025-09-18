@@ -1,99 +1,94 @@
 """
-Mapper for external category systems (arXiv, bioRxiv) to hubs.
+Mapper for external category systems (arXiv, bioRxiv, ChemRxiv, MedRxiv) to hubs.
 """
 
 import logging
+from typing import List
 
-from hub.models import Hub, HubCategory
+from hub.models import Hub
 
 from .arxiv_mappings import ARXIV_MAPPINGS
 from .biorxiv_mappings import BIORXIV_MAPPINGS
 from .chemrxiv_mappings import CHEMRXIV_MAPPINGS
-from .hub_mapping import HubMapping
 from .medrxiv_mappings import MEDRXIV_MAPPINGS
 
 logger = logging.getLogger(__name__)
 
 
 class ExternalCategoryMapper:
-    """Maps external categories from arXiv and bioRxiv to Hub entities."""
+    """Maps external categories from preprint servers to Hub entities."""
+
+    # Mapping sources
+    MAPPINGS = {
+        "arxiv": ARXIV_MAPPINGS,
+        "biorxiv": BIORXIV_MAPPINGS,
+        "medrxiv": MEDRXIV_MAPPINGS,
+        "chemrxiv": CHEMRXIV_MAPPINGS,
+    }
 
     @classmethod
-    def map(cls, external_category: str, source: str = "arxiv") -> HubMapping:
+    def map(cls, source_category: str, source: str = "arxiv") -> List[Hub]:
         """
-        Map an external category to HubCategory and Hub entities.
+        Map an external category to a list of Hub entities.
 
         Args:
-            external_category: The external category string (e.g., "cs.AI")
+            source_category: The external category string (e.g., "cs.AI")
             source: The source - "arxiv", "biorxiv", "medrxiv", or "chemrxiv"
 
         Returns:
-            HubMapping containing the HubCategory and/or subcategory hub.
-            May return partial mapping if some entities are not found.
+            List of Hub entities that correspond to this external category.
         """
         # Normalize the category
-        normalized = external_category.strip().lower()
+        _source_category = source_category.strip().lower()
 
-        # Get the appropriate mapping based on source
-        if source == "arxiv":
-            mappings = ARXIV_MAPPINGS
-        elif source == "biorxiv":
-            mappings = BIORXIV_MAPPINGS
-        elif source == "medrxiv":
-            mappings = MEDRXIV_MAPPINGS
-        elif source == "chemrxiv":
-            mappings = CHEMRXIV_MAPPINGS
-        else:
-            logger.warning(f"Unknown source: {source}. Using arxiv.")
-            mappings = ARXIV_MAPPINGS
-
-        # Look up the hub names from our mapping
-        if normalized not in mappings:
-            logger.warning(
-                f"No mapping defined for {source} category: {external_category}"
-            )
-            return HubMapping()
-
-        category_name, subcategory_name = mappings[normalized]
-
-        # Get HubCategory from database
-        hub_category = None
-        try:
-            hub_category = HubCategory.objects.get(category_name__iexact=category_name)
-        except HubCategory.DoesNotExist:
-            logger.warning(
-                "HubCategory not found in database: %s (for %s)",
-                category_name,
-                external_category,
-            )
-
-        # Get subcategory hub if specified
-        subcategory_hub = None
-        if subcategory_name and hub_category:
-            try:
-                subcategory_hub = Hub.objects.get(
-                    name__iexact=subcategory_name,
-                    namespace="subcategory",
-                    category=hub_category,
+        # Get the appropriate mapping
+        mappings = cls._get_mappings_for_source(source)
+        if _source_category not in mappings:
+            if _source_category:  # Incoming category is not mapped
+                logger.warning(
+                    f"No mapping defined for {source} category: {source_category}"
                 )
+            return []
+
+        # Get hub names and convert to Hub objects
+        hub_names = mappings[_source_category]
+        return cls._get_hubs_from_names(hub_names, source_category)
+
+    @classmethod
+    def _get_mappings_for_source(cls, source: str):
+        """Get the appropriate mapping dictionary for the given source."""
+        if source not in cls.MAPPINGS:
+            logger.warning(f"Unknown source: {source}. Using arxiv.")
+            return cls.MAPPINGS["arxiv"]
+        return cls.MAPPINGS[source]
+
+    @classmethod
+    def _get_hubs_from_names(cls, hub_names: tuple, source_category: str) -> List[Hub]:
+        """Convert hub names to Hub objects."""
+        hubs = []
+
+        for hub_name in hub_names:
+            if not hub_name:  # Skip None/empty values
+                continue
+
+            try:
+                hub = Hub.objects.get(name__iexact=hub_name)
+                hubs.append(hub)
             except Hub.DoesNotExist:
                 logger.warning(
-                    "Subcategory hub not found in database: %s (for %s)",
-                    subcategory_name,
-                    external_category,
+                    "Hub not found in database: %s (for %s)",
+                    hub_name,
+                    source_category,
                 )
             except Hub.MultipleObjectsReturned:
                 logger.warning(
-                    "Multiple subcategory hubs found: %s (for %s)",
-                    subcategory_name,
-                    external_category,
+                    "Multiple hubs found with name: %s (for %s)",
+                    hub_name,
+                    source_category,
                 )
                 # Get the first one
-                subcategory_hub = Hub.objects.filter(
-                    name__iexact=subcategory_name,
-                    namespace="subcategory",
-                    category=hub_category,
-                ).first()
+                hub = Hub.objects.filter(name__iexact=hub_name).first()
+                if hub:
+                    hubs.append(hub)
 
-        # Create the mapping
-        return HubMapping(hub_category, subcategory_hub)
+        return hubs
