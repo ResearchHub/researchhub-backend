@@ -214,7 +214,7 @@ class ArXivMapper(BaseMapper):
             oa_status="gold",  # Gold open access for preprints
             # External metadata
             external_metadata={
-                "arxiv_id": arxiv_id,
+                "external_id": arxiv_id,
             },
             # Status flags
             retrieved_from_external_source=True,

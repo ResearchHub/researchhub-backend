@@ -216,7 +216,7 @@ class TestChemRxivMapper(TestCase):
 
         # Check external metadata - should only have chemrxiv_id
         self.assertEqual(
-            paper.external_metadata["chemrxiv_id"], "68c17d313e708a764924e728"
+            paper.external_metadata["external_id"], "68c17d313e708a764924e728"
         )
         self.assertEqual(len(paper.external_metadata), 1)
 
@@ -748,7 +748,7 @@ class TestChemRxivMapper(TestCase):
         self.assertEqual(hubs[0].slug, "biorxiv")
         self.assertEqual(hubs[0].namespace, Hub.Namespace.JOURNAL)
 
-    @patch.object(ChemRxivMapper, 'chemrxiv_hub', new_callable=PropertyMock)
+    @patch.object(ChemRxivMapper, "chemrxiv_hub", new_callable=PropertyMock)
     def test_map_to_hubs_without_existing_hub(self, mock_chemrxiv_hub):
         """
         Test map_to_hubs returns empty list when ChemRxiv hub doesn't exist.
