@@ -124,7 +124,7 @@ class TestArXivMapper(TestCase):
         )
 
         # Check external metadata - should only have arxiv_id
-        self.assertEqual(paper.external_metadata["arxiv_id"], "2509.08827v1")
+        self.assertEqual(paper.external_metadata["external_id"], "2509.08827v1")
         self.assertEqual(len(paper.external_metadata), 1)
 
         # Check flags
@@ -138,7 +138,7 @@ class TestArXivMapper(TestCase):
         # Check DOI formatting for second entry
         self.assertEqual(paper.doi, "10.48550/arXiv.2509.08817")
         # Verify only arxiv_id is in metadata
-        self.assertEqual(paper.external_metadata["arxiv_id"], "2509.08817v1")
+        self.assertEqual(paper.external_metadata["external_id"], "2509.08817v1")
         self.assertEqual(len(paper.external_metadata), 1)
 
     def test_parse_xml_entry(self):
@@ -394,7 +394,7 @@ class TestArXivMapper(TestCase):
         self.assertEqual(hubs[0].slug, "arxiv")
         self.assertEqual(hubs[0].namespace, Hub.Namespace.JOURNAL)
 
-    @patch.object(ArXivMapper, 'arxiv_hub', new_callable=PropertyMock)
+    @patch.object(ArXivMapper, "arxiv_hub", new_callable=PropertyMock)
     def test_map_to_hubs_without_existing_hub(self, mock_arxiv_hub):
         """
         Test map_to_hubs returns empty list when arXiv hub doesn't exist.
