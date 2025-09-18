@@ -58,8 +58,8 @@ class ExternalCategoryMapper:
     def _get_mappings_for_source(cls, source: str):
         """Get the appropriate mapping dictionary for the given source."""
         if source not in cls.MAPPINGS:
-            logger.warning(f"Unknown source: {source}. Using arxiv.")
-            return cls.MAPPINGS["arxiv"]
+            logger.warning(f"Unknown source: {source}. No mappings available.")
+            return {}
         return cls.MAPPINGS[source]
 
     @classmethod

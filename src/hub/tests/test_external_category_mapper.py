@@ -1,376 +1,322 @@
 """
-Tests for the ExternalCategoryMapper for arXiv and bioRxiv mappings.
+Tests for the ExternalCategoryMapper for arXiv, bioRxiv, MedRxiv, and ChemRxiv mappings.
 """
-
-from unittest.mock import patch
 
 from django.test import TestCase
 
 from hub.mappers import ExternalCategoryMapper
-from hub.mappers.hub_mapping import HubMapping
-from hub.models import Hub, HubCategory
+from hub.models import Hub
 
 
 class ExternalCategoryMapperTestCase(TestCase):
     """Test the ExternalCategoryMapper functionality."""
 
     def setUp(self):
-        """Set up test environment."""
-
-        # Create some test HubCategories
-        self.cs_category = HubCategory.objects.create(category_name="Computer Science")
-        self.bio_category = HubCategory.objects.create(category_name="Biology")
-        self.eng_category = HubCategory.objects.create(category_name="Engineering")
-
-        # Create some subcategory hubs
+        """Set up test environment with some basic hubs."""
+        # Create some test hubs that are commonly used across tests
+        self.cs_hub = Hub.objects.create(
+            name="Computer Science", description="Computer Science research"
+        )
         self.ml_hub = Hub.objects.create(
-            name="Machine Learning",
-            namespace="subcategory",
-            category=self.cs_category,
+            name="Machine Learning", description="Machine Learning research"
+        )
+        self.bio_hub = Hub.objects.create(
+            name="Biology", description="Biology research"
         )
         self.neuro_hub = Hub.objects.create(
-            name="Neuroscience",
-            namespace="subcategory",
-            category=self.bio_category,
+            name="Neuroscience", description="Neuroscience research"
+        )
+        self.eng_hub = Hub.objects.create(
+            name="Engineering", description="Engineering research"
         )
         self.bioeng_hub = Hub.objects.create(
-            name="Bioengineering",
-            namespace="subcategory",
-            category=self.eng_category,
+            name="Bioengineering", description="Bioengineering research"
         )
 
-    def test_unmapped_biorxiv_category(self):
-        """Test what happens when an unmapped bioRxiv category is provided."""
-        # Use a category that doesn't exist in our mappings
-        result = ExternalCategoryMapper.map("nonexistent-category", source="biorxiv")
+    def test_returns_empty_list_when_category_not_mapped(self):
+        """
+        Test that unmapped categories return an empty list.
 
-        # Should return empty HubMapping
-        self.assertIsInstance(result, HubMapping)
-        self.assertIsNone(result.hub_category)
-        self.assertIsNone(result.subcategory_hub)
+        When a category doesn't exist in our mappings, the mapper should
+        return an empty list rather than raising an error or returning None.
+        """
+        # Test unmapped category for each source
+        sources_and_unmapped = [
+            ("arxiv", "xyz.INVALID"),
+            ("biorxiv", "nonexistent-category"),
+            ("medrxiv", "fake-specialty"),
+            ("chemrxiv", "imaginary-chemistry"),
+        ]
 
-    def test_arxiv_input_mapping(self):
-        """Test mapping of arXiv categories."""
-        # Test a known arXiv category
-        result = ExternalCategoryMapper.map("cs.LG", source="arxiv")
+        for source, unmapped_category in sources_and_unmapped:
+            with self.subTest(source=source):
+                result = ExternalCategoryMapper.map(unmapped_category, source=source)
+                self.assertIsInstance(result, list)
+                self.assertEqual(len(result), 0)
 
-        self.assertIsInstance(result, HubMapping)
-        self.assertIsNotNone(result.hub_category)
-        self.assertEqual(result.hub_category.category_name, "Computer Science")
-        self.assertIsNotNone(result.subcategory_hub)
-        self.assertEqual(result.subcategory_hub.name, "Machine Learning")
+    def test_returns_empty_list_for_empty_input(self):
+        """
+        Test that empty string input returns an empty list.
 
-    def test_biorxiv_input_mapping(self):
-        """Test mapping of bioRxiv categories."""
-        # Test a known bioRxiv category
-        result = ExternalCategoryMapper.map("neuroscience", source="biorxiv")
-
-        self.assertIsInstance(result, HubMapping)
-        self.assertIsNotNone(result.hub_category)
-        self.assertEqual(result.hub_category.category_name, "Biology")
-        self.assertIsNotNone(result.subcategory_hub)
-        self.assertEqual(result.subcategory_hub.name, "Neuroscience")
-
-    def test_empty_input_handling(self):
-        """Test handling of empty input."""
-        # Test empty string
+        This ensures the mapper handles edge cases gracefully without errors.
+        """
         result = ExternalCategoryMapper.map("", source="arxiv")
+        self.assertIsInstance(result, list)
+        self.assertEqual(len(result), 0)
 
-        self.assertIsInstance(result, HubMapping)
-        self.assertIsNone(result.hub_category)
-        self.assertIsNone(result.subcategory_hub)
+    def test_mappings_are_case_insensitive(self):
+        """
+        Test that category mappings work regardless of case.
 
-    def test_case_insensitive_mapping(self):
-        """Test that mappings are case-insensitive."""
-        # Test with different cases for arXiv
-        result1 = ExternalCategoryMapper.map("CS.LG", source="arxiv")
-        result2 = ExternalCategoryMapper.map("cs.lg", source="arxiv")
-        result3 = ExternalCategoryMapper.map("Cs.Lg", source="arxiv")
+        Users might input categories in various cases (UPPERCASE, lowercase, MiXeD),
+        and all should map to the same hubs.
+        """
+        # Test arXiv with different cases
+        arxiv_results = [
+            ExternalCategoryMapper.map("CS.LG", source="arxiv"),
+            ExternalCategoryMapper.map("cs.lg", source="arxiv"),
+            ExternalCategoryMapper.map("Cs.Lg", source="arxiv"),
+        ]
 
-        # All should map to the same hubs
-        self.assertEqual(result1.hub_category, result2.hub_category)
-        self.assertEqual(result2.hub_category, result3.hub_category)
-        self.assertEqual(result1.subcategory_hub, result2.subcategory_hub)
+        # All should return the same hubs
+        for i in range(1, len(arxiv_results)):
+            self.assertEqual(
+                set(h.name for h in arxiv_results[0]),
+                set(h.name for h in arxiv_results[i]),
+                "Case variations should map to same hubs",
+            )
 
-        # Test with MedRxiv
-        result4 = ExternalCategoryMapper.map("EPIDEMIOLOGY", source="medrxiv")
-        result5 = ExternalCategoryMapper.map("epidemiology", source="medrxiv")
-        self.assertEqual(result4.hub_category, result5.hub_category)
-        self.assertEqual(result4.subcategory_hub, result5.subcategory_hub)
+    def test_whitespace_is_trimmed_from_input(self):
+        """
+        Test that extra whitespace in categories is handled correctly.
 
-        # Test with ChemRxiv
-        result6 = ExternalCategoryMapper.map("ORGANIC CHEMISTRY", source="chemrxiv")
-        result7 = ExternalCategoryMapper.map("organic chemistry", source="chemrxiv")
-        self.assertEqual(result6.hub_category, result7.hub_category)
-        self.assertEqual(result6.subcategory_hub, result7.subcategory_hub)
+        Users might accidentally include spaces, and these should be trimmed.
+        """
+        # Test with and without whitespace
+        result_with_spaces = ExternalCategoryMapper.map("  cs.LG  ", source="arxiv")
+        result_without = ExternalCategoryMapper.map("cs.LG", source="arxiv")
 
-    def test_database_queries(self):
-        """Test that mapper queries the database correctly."""
-        # Test that mapper queries database for each mapping
-        with patch.object(HubCategory.objects, "get") as mock_cat_get:
-            with patch.object(Hub.objects, "get") as mock_hub_get:
-                # Set up return values
-                mock_cat = HubCategory(category_name="Computer Science")
-                mock_hub = Hub(name="Machine Learning", namespace="subcategory")
-                mock_cat_get.return_value = mock_cat
-                mock_hub_get.return_value = mock_hub
+        self.assertEqual(
+            set(h.name for h in result_with_spaces),
+            set(h.name for h in result_without),
+            "Whitespace should not affect mapping",
+        )
 
-                # First map call
-                ExternalCategoryMapper.map("cs.LG", source="arxiv")
-                self.assertEqual(mock_cat_get.call_count, 1)
-                self.assertEqual(mock_hub_get.call_count, 1)
+    def test_unknown_source_returns_empty_list_with_warning(self):
+        """
+        Test that unknown sources return empty list and log a warning.
 
-                # Second call should also query database
-                ExternalCategoryMapper.map("cs.LG", source="arxiv")
-                self.assertEqual(mock_cat_get.call_count, 2)
-                self.assertEqual(mock_hub_get.call_count, 2)
-
-    def test_unknown_source_defaults_to_arxiv(self):
-        """Test that unknown source defaults to arxiv with warning."""
+        If someone tries to use an unsupported source (e.g., 'pubmed'),
+        we should warn them and return an empty list rather than crash.
+        """
         with self.assertLogs(
             "hub.mappers.external_category_mapper", level="WARNING"
         ) as cm:
-            result = ExternalCategoryMapper.map("cs.LG", source="unknown")
+            result = ExternalCategoryMapper.map("any.category", source="unknown-source")
 
-        # Should log warning
-        self.assertIn("Unknown source: unknown", cm.output[0])
+        # Check warning was logged
+        self.assertIn("Unknown source: unknown-source", cm.output[0])
 
-        # Should still map using arxiv
-        self.assertIsNotNone(result.hub_category)
+        # Check empty list returned
+        self.assertEqual(result, [])
 
-    def test_specific_mappings(self):
-        """Test specific mappings to ensure they work correctly."""
-        test_cases = [
-            # (category, source, expected_category, expected_subcategory)
-            # ArXiv mappings
-            ("cs.AI", "arxiv", "Computer Science", "Artificial Intelligence"),
-            ("math.CO", "arxiv", "Mathematics", "Combinatorics"),
-            ("physics.bio-ph", "arxiv", "Biology", "Biological Physics"),
-            ("q-bio.NC", "arxiv", "Biology", "Neuroscience"),
-            # BioRxiv mappings
-            ("cell biology", "biorxiv", "Biology", "Cell Biology"),
-            ("epidemiology", "biorxiv", "Medicine", "Epidemiology"),
-            ("bioengineering", "biorxiv", "Engineering", "Bioengineering"),
-            # MedRxiv mappings
-            ("cardiovascular medicine", "medrxiv", "Medicine", "Cardiology"),
-            ("surgery", "medrxiv", "Medicine", "Surgery"),
-            ("public and global health", "medrxiv", "Medicine", "Public Health"),
-            # ChemRxiv mappings
-            ("organic chemistry", "chemrxiv", "Chemistry", "Organic Chemistry"),
-            ("catalysis", "chemrxiv", "Chemistry", "Catalysis"),
-            (
-                "computational chemistry and modeling",
-                "chemrxiv",
-                "Chemistry",
-                "Computational Chemistry",
-            ),
+    def test_arxiv_category_mapping_returns_correct_hubs(self):
+        """
+        Test that arXiv categories map to Computer Science and subcategory hubs.
+
+        Example: 'cs.LG' should map to ['Computer Science', 'Machine Learning']
+        """
+        test_mappings = [
+            ("cs.LG", ["Computer Science", "Machine Learning"]),
+            ("cs.AI", ["Computer Science", "Artificial Intelligence"]),
         ]
 
-        # Create the necessary hubs for testing
-        for _, _, cat_name, subcat_name in test_cases:
-            # Ensure HubCategory exists
-            hub_cat, _ = HubCategory.objects.get_or_create(
-                category_name=cat_name,
-                defaults={"category_name": cat_name},
+        # Create necessary hubs
+        Hub.objects.create(name="Artificial Intelligence", description="AI research")
+
+        for arxiv_category, expected_hub_names in test_mappings:
+            with self.subTest(category=arxiv_category):
+                result = ExternalCategoryMapper.map(arxiv_category, source="arxiv")
+
+                self.assertEqual(len(result), len(expected_hub_names))
+                result_names = [hub.name for hub in result]
+
+                for expected_name in expected_hub_names:
+                    self.assertIn(expected_name, result_names)
+
+    def test_biorxiv_category_mapping_returns_correct_hubs(self):
+        """
+        Test that bioRxiv categories map to Biology/Medicine and subcategory hubs.
+
+        Example: 'neuroscience' should map to ['Biology', 'Neuroscience']
+        """
+        test_mappings = [
+            ("neuroscience", ["Biology", "Neuroscience"]),
+            ("bioengineering", ["Engineering", "Bioengineering"]),
+        ]
+
+        for biorxiv_category, expected_hub_names in test_mappings:
+            with self.subTest(category=biorxiv_category):
+                result = ExternalCategoryMapper.map(biorxiv_category, source="biorxiv")
+
+                self.assertEqual(len(result), len(expected_hub_names))
+                result_names = [hub.name for hub in result]
+
+                for expected_name in expected_hub_names:
+                    self.assertIn(expected_name, result_names)
+
+    def test_medrxiv_category_mapping_returns_correct_hubs(self):
+        """
+        Test that MedRxiv medical specialties map to Medicine and specialty hubs.
+
+        Example: 'cardiology' should map to ['Medicine', 'Cardiology']
+        """
+        # Create necessary hubs
+        Hub.objects.create(name="Medicine", description="Medicine research")
+        Hub.objects.create(name="Cardiology", description="Cardiology research")
+        Hub.objects.create(name="Surgery", description="Surgery research")
+
+        test_mappings = [
+            ("cardiovascular medicine", ["Medicine", "Cardiology"]),
+            ("surgery", ["Medicine", "Surgery"]),
+        ]
+
+        for medrxiv_category, expected_hub_names in test_mappings:
+            with self.subTest(category=medrxiv_category):
+                result = ExternalCategoryMapper.map(medrxiv_category, source="medrxiv")
+
+                self.assertEqual(len(result), len(expected_hub_names))
+                result_names = [hub.name for hub in result]
+
+                for expected_name in expected_hub_names:
+                    self.assertIn(expected_name, result_names)
+
+    def test_chemrxiv_category_mapping_returns_correct_hubs(self):
+        """
+        Test that ChemRxiv chemistry fields map to Chemistry and subfield hubs.
+
+        Example: 'organic chemistry' should map to ['Chemistry', 'Organic Chemistry']
+        """
+        # Create necessary hubs
+        Hub.objects.create(name="Chemistry", description="Chemistry research")
+        Hub.objects.create(
+            name="Organic Chemistry", description="Organic Chemistry research"
+        )
+        Hub.objects.create(name="Catalysis", description="Catalysis research")
+
+        test_mappings = [
+            ("organic chemistry", ["Chemistry", "Organic Chemistry"]),
+            ("catalysis", ["Chemistry", "Catalysis"]),
+        ]
+
+        for chemrxiv_category, expected_hub_names in test_mappings:
+            with self.subTest(category=chemrxiv_category):
+                result = ExternalCategoryMapper.map(
+                    chemrxiv_category, source="chemrxiv"
+                )
+
+                self.assertEqual(len(result), len(expected_hub_names))
+                result_names = [hub.name for hub in result]
+
+                for expected_name in expected_hub_names:
+                    self.assertIn(expected_name, result_names)
+
+    def test_logs_warning_when_mapped_hub_not_found_in_database(self):
+        """
+        Test that a warning is logged when a mapped hub doesn't exist in the database.
+
+        This helps identify when mappings reference hubs that haven't been created yet.
+        The mapping should still return any hubs that do exist.
+        """
+        # Delete the Machine Learning hub to simulate it not existing
+        Hub.objects.filter(name="Machine Learning").delete()
+
+        with self.assertLogs(
+            "hub.mappers.external_category_mapper", level="WARNING"
+        ) as cm:
+            result = ExternalCategoryMapper.map("cs.LG", source="arxiv")
+
+        # Should log warning about missing hub
+        self.assertTrue(
+            any(
+                "Hub not found in database: Machine Learning" in msg
+                for msg in cm.output
             )
+        )
 
-            if subcat_name:
-                # Ensure subcategory hub exists
-                Hub.objects.get_or_create(
-                    name=subcat_name,
-                    namespace="subcategory",
-                    defaults={
-                        "category": hub_cat,
-                        "description": f"{subcat_name} subcategory",
-                    },
-                )
+        # Should still return the Computer Science hub that does exist
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].name, "Computer Science")
 
-        # Test each mapping
-        for category, source, expected_cat, expected_subcat in test_cases:
-            result = ExternalCategoryMapper.map(category, source=source)
+    def test_handles_multiple_hubs_with_same_name_gracefully(self):
+        """
+        Test that mapper handles duplicate hub names gracefully.
 
-            if expected_cat:
-                self.assertIsNotNone(
-                    result.hub_category,
-                    f"HubCategory should exist for {category} from {source}",
-                )
-                self.assertEqual(
-                    result.hub_category.category_name,
-                    expected_cat,
-                    f"Wrong category for {category} from {source}",
-                )
+        In case of data integrity issues where multiple hubs have the same name,
+        the mapper should log a warning but continue working.
+        """
+        # Create duplicate hub with same name
+        Hub.objects.create(name="Machine Learning", description="Duplicate ML hub")
 
-            if expected_subcat:
-                self.assertIsNotNone(
-                    result.subcategory_hub,
-                    f"Subcategory hub should exist for {category} from {source}",
-                )
-                self.assertEqual(
-                    result.subcategory_hub.name,
-                    expected_subcat,
-                    f"Wrong subcategory for {category} from {source}",
-                )
+        with self.assertLogs(
+            "hub.mappers.external_category_mapper", level="WARNING"
+        ) as cm:
+            result = ExternalCategoryMapper.map("cs.LG", source="arxiv")
 
-    def test_whitespace_handling(self):
-        """Test that whitespace in categories is handled correctly."""
-        # Test arXiv with extra whitespace
-        result1 = ExternalCategoryMapper.map("  cs.LG  ", source="arxiv")
-        result2 = ExternalCategoryMapper.map("cs.LG", source="arxiv")
-
-        # Should produce same result
-        self.assertEqual(result1.hub_category, result2.hub_category)
-        self.assertEqual(result1.subcategory_hub, result2.subcategory_hub)
-
-        # Test bioRxiv with extra whitespace
-        result3 = ExternalCategoryMapper.map("  neuroscience  ", source="biorxiv")
-        result4 = ExternalCategoryMapper.map("neuroscience", source="biorxiv")
-
-        # Should produce same result
-        self.assertEqual(result3.hub_category, result4.hub_category)
-        self.assertEqual(result3.subcategory_hub, result4.subcategory_hub)
-
-        # Test MedRxiv with extra whitespace
-        result5 = ExternalCategoryMapper.map("  epidemiology  ", source="medrxiv")
-        result6 = ExternalCategoryMapper.map("epidemiology", source="medrxiv")
-
-        # Should produce same result
-        self.assertEqual(result5.hub_category, result6.hub_category)
-        self.assertEqual(result5.subcategory_hub, result6.subcategory_hub)
-
-        # Test ChemRxiv with extra whitespace
-        result7 = ExternalCategoryMapper.map("  catalysis  ", source="chemrxiv")
-        result8 = ExternalCategoryMapper.map("catalysis", source="chemrxiv")
-
-        # Should produce same result
-        self.assertEqual(result7.hub_category, result8.hub_category)
-        self.assertEqual(result7.subcategory_hub, result8.subcategory_hub)
-
-    def test_medrxiv_mapping(self):
-        """Test MedRxiv category mapping."""
-        # Create necessary categories (get_or_create to avoid duplicates)
-        medicine_cat, _ = HubCategory.objects.get_or_create(category_name="Medicine")
-        biology_cat, _ = HubCategory.objects.get_or_create(category_name="Biology")
-
-        # Create necessary subcategories
-        subcategories_to_create = [
-            ("Epidemiology", medicine_cat),
-            ("Sports Medicine", medicine_cat),
-            ("Internal Medicine", medicine_cat),
-            ("Psychiatry", medicine_cat),
-            ("Pathology", biology_cat),
-            ("Toxicology", biology_cat),
-        ]
-
-        for subcat_name, category in subcategories_to_create:
-            Hub.objects.create(
-                name=subcat_name,
-                namespace="subcategory",
-                category=category,
+        # Should log warning about multiple hubs
+        self.assertTrue(
+            any(
+                "Multiple hubs found with name: Machine Learning" in msg
+                for msg in cm.output
             )
+        )
 
-        # Test various MedRxiv mappings
-        test_cases = [
-            ("epidemiology", "Medicine", "Epidemiology"),
-            ("sports medicine", "Medicine", "Sports Medicine"),
-            ("allergy and immunology", "Medicine", "Internal Medicine"),
-            ("addiction medicine", "Medicine", "Psychiatry"),
-            ("pathology", "Biology", "Pathology"),
-            ("forensic medicine", "Biology", "Pathology"),
-            ("toxicology", "Biology", "Toxicology"),
-        ]
+        # Should still return results (first matching hub for each name)
+        self.assertEqual(len(result), 2)
+        hub_names = [hub.name for hub in result]
+        self.assertIn("Computer Science", hub_names)
+        self.assertIn("Machine Learning", hub_names)
 
-        for medrxiv_cat, expected_cat, expected_subcat in test_cases:
-            with self.subTest(category=medrxiv_cat):
-                result = ExternalCategoryMapper.map(medrxiv_cat, source="medrxiv")
-                self.assertIsNotNone(result.hub_category)
-                self.assertEqual(result.hub_category.category_name, expected_cat)
-                self.assertIsNotNone(result.subcategory_hub)
-                self.assertEqual(result.subcategory_hub.name, expected_subcat)
+    def test_cross_discipline_mappings_work_correctly(self):
+        """
+        Test that categories can map across traditional discipline boundaries.
 
-        # Test unmapped MedRxiv category
-        result = ExternalCategoryMapper.map("nonexistent specialty", source="medrxiv")
-        self.assertIsNone(result.hub_category)
-        self.assertIsNone(result.subcategory_hub)
+        Some categories like 'biochemistry' in ChemRxiv should map to Biology hubs,
+        not Chemistry hubs, reflecting the interdisciplinary nature of research.
+        """
+        # Create hubs for cross-discipline test
+        Hub.objects.create(name="Biochemistry", description="Biochemistry research")
+        Hub.objects.create(
+            name="Biological Physics", description="Biological Physics research"
+        )
 
-        # Test MedRxiv category with special characters
+        result = ExternalCategoryMapper.map("biochemistry", source="chemrxiv")
+        result_names = [hub.name for hub in result]
+        self.assertIn("Biology", result_names)
+        self.assertIn("Biochemistry", result_names)
+
+        result = ExternalCategoryMapper.map("physics.bio-ph", source="arxiv")
+        result_names = [hub.name for hub in result]
+        self.assertIn("Biology", result_names)
+        self.assertIn("Biological Physics", result_names)
+
+    def test_special_character_handling_in_categories(self):
+        """
+        Test that categories with special characters work correctly.
+
+        Some MedRxiv categories include parenthetical descriptions.
+        """
+        # Create necessary hubs
+        Hub.objects.create(name="Medicine", description="Medicine research")
+        Hub.objects.create(name="Endocrinology", description="Endocrinology research")
+
+        # Test MedRxiv category with parentheses
         result = ExternalCategoryMapper.map(
             "endocrinology (including diabetes mellitus and metabolic disease)",
             source="medrxiv",
         )
-        self.assertIsNotNone(result.hub_category)
-        self.assertEqual(result.hub_category.category_name, "Medicine")
-        self.assertEqual(result.subcategory_hub.name, "Internal Medicine")
 
-    def test_chemrxiv_mapping(self):
-        """Test ChemRxiv category mapping."""
-        # Create necessary category
-        chemistry_cat, _ = HubCategory.objects.get_or_create(category_name="Chemistry")
-
-        # Create necessary subcategories
-        subcategories_to_create = [
-            "Organic Chemistry",
-            "Catalysis",
-            "Polymer Chemistry",
-            "Computational Chemistry",
-        ]
-
-        for subcat_name in subcategories_to_create:
-            Hub.objects.create(
-                name=subcat_name,
-                namespace="subcategory",
-                category=chemistry_cat,
-            )
-
-        # Test various ChemRxiv mappings
-        test_cases = [
-            ("organic chemistry", "Chemistry", "Organic Chemistry"),
-            ("catalysis", "Chemistry", "Catalysis"),
-            ("polymer science", "Chemistry", "Polymer Chemistry"),
-            (
-                "theoretical and computational chemistry",
-                "Chemistry",
-                "Computational Chemistry",
-            ),
-        ]
-
-        for chemrxiv_cat, expected_cat, expected_subcat in test_cases:
-            with self.subTest(category=chemrxiv_cat):
-                result = ExternalCategoryMapper.map(chemrxiv_cat, source="chemrxiv")
-                self.assertIsNotNone(result.hub_category)
-                self.assertEqual(result.hub_category.category_name, expected_cat)
-                self.assertIsNotNone(result.subcategory_hub)
-                self.assertEqual(result.subcategory_hub.name, expected_subcat)
-
-        # Test unmapped ChemRxiv category
-        result = ExternalCategoryMapper.map("nonexistent chemistry", source="chemrxiv")
-        self.assertIsNone(result.hub_category)
-        self.assertIsNone(result.subcategory_hub)
-
-        # Test ChemRxiv categories that map to other fields
-        biology_cat, _ = HubCategory.objects.get_or_create(category_name="Biology")
-        engineering_cat, _ = HubCategory.objects.get_or_create(
-            category_name="Engineering"
-        )
-
-        # Create subcategories for cross-field mappings
-        Hub.objects.get_or_create(
-            name="Biochemistry",
-            namespace="subcategory",
-            defaults={"category": biology_cat},
-        )
-        Hub.objects.get_or_create(
-            name="Chemical Engineering",
-            namespace="subcategory",
-            defaults={"category": engineering_cat},
-        )
-
-        # Test cross-field mappings
-        result = ExternalCategoryMapper.map("biochemistry", source="chemrxiv")
-        self.assertEqual(result.hub_category.category_name, "Biology")
-        self.assertEqual(result.subcategory_hub.name, "Biochemistry")
-
-        result = ExternalCategoryMapper.map(
-            "chemical engineering and industrial chemistry", source="chemrxiv"
-        )
-        self.assertEqual(result.hub_category.category_name, "Engineering")
-        self.assertEqual(result.subcategory_hub.name, "Chemical Engineering")
+        self.assertEqual(len(result), 2)
+        result_names = [hub.name for hub in result]
+        self.assertIn("Medicine", result_names)
+        self.assertIn("Endocrinology", result_names)

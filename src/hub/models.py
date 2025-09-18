@@ -42,7 +42,6 @@ class Hub(models.Model):
         """
 
         JOURNAL = "journal", _("Journal")
-        SUBCATEGORY = "subcategory", _("Subcategory")
 
     UNLOCK_AFTER = 14
 
