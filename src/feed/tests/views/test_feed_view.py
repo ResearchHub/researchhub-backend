@@ -723,7 +723,7 @@ class FeedViewSetTests(TestCase):
         self.assertEqual(len(response.data["results"]), 3)
 
     def test_following_feed_with_hot_score_sorting(self):
-        """Test that following feed can be sorted by hot_score"""
+        """Test that following feed can be sorted by hot_score and only shows papers/posts"""
         # Arrange
         # Create papers with different hot_scores in followed hub
         high_score_paper = Paper.objects.create(
@@ -737,6 +737,34 @@ class FeedViewSetTests(TestCase):
             paper_publish_date=timezone.now(),
         )
         low_score_paper.hubs.add(self.hub)
+
+        # Create a comment in the followed hub (should be excluded with hot_score sorting)
+        comment_thread = RhCommentThreadModel.objects.create(
+            thread_type=rh_comment_thread_types.GENERIC_COMMENT,
+            content_type=self.paper_content_type,
+            object_id=self.paper.id,
+            created_by=self.user,
+        )
+        comment = RhCommentModel.objects.create(
+            thread=comment_thread,
+            comment_content_json={"ops": [{"insert": "Test comment"}]},
+            comment_content_type="QUILL_EDITOR",
+            created_by=self.user,
+        )
+        comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
+
+        # Create feed entry for the comment with high hot_score
+        comment_entry = FeedEntry.objects.create(
+            user=self.user,
+            action="PUBLISH",
+            action_date=timezone.now(),
+            content_type=comment_content_type,
+            object_id=comment.id,
+            unified_document=self.paper.unified_document,
+            hot_score=2000,  # Higher than papers
+            metrics={"votes": 1000, "comments": 100},
+        )
+        comment_entry.hubs.add(self.hub)
 
         # Create feed entries with different hot_scores
         high_score_entry = FeedEntry.objects.create(
@@ -786,6 +814,15 @@ class FeedViewSetTests(TestCase):
         # Should only see content from followed hub
         self.assertGreater(len(results), 0)
 
+        # Verify that only papers and posts are included (no comments)
+        for item in results:
+            self.assertIn(
+                item["content_type"],
+                ["PAPER", "POST"],
+                f"Following feed with hot_score should only show papers and posts, "
+                f"but found {item['content_type']}",
+            )
+
         # Verify items are sorted by hot_score (descending)
         hot_scores = []
         for i, item in enumerate(results):
@@ -796,6 +833,12 @@ class FeedViewSetTests(TestCase):
             if content_type == "PAPER":
                 entry = FeedEntry.objects.filter(
                     object_id=content_id, content_type=self.paper_content_type
+                ).first()
+                if entry:
+                    hot_scores.append(entry.hot_score)
+            elif content_type == "POST":
+                entry = FeedEntry.objects.filter(
+                    object_id=content_id, content_type=self.post_content_type
                 ).first()
                 if entry:
                     hot_scores.append(entry.hot_score)
@@ -818,7 +861,7 @@ class FeedViewSetTests(TestCase):
             self.assertEqual(response2.headers.get("RH-Cache"), "hit (auth)")
 
     def test_following_feed_default_sorting(self):
-        """Test that following feed defaults to latest sorting when sort_by is not specified"""
+        """Test that following feed defaults to latest sorting when not specified"""
         url = reverse("feed-list")
 
         # Act - Get following feed without sort_by parameter
