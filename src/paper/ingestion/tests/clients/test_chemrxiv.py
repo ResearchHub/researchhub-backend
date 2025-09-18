@@ -155,6 +155,8 @@ class TestChemRxivClient(TestCase):
         self.assertIn("limit", params)
         self.assertIn("skip", params)  # Uses skip, not offset
         self.assertIn("sort", params)
+        self.assertIn("searchDateFrom", params)
+        self.assertIn("searchDateTo", params)
 
     @patch("requests.Session.get")
     def test_fetch_recent_with_dates(self, mock_get):
@@ -181,6 +183,14 @@ class TestChemRxivClient(TestCase):
 
         self.assertEqual(len(papers), 1)
         self.assertEqual(papers[0]["id"], "123")
+
+        # Verify query string parameters
+        call_args = mock_get.call_args
+        params = call_args[1]["params"]
+        self.assertIn("searchDateFrom", params)
+        self.assertEqual(params["searchDateFrom"], "2025-01-01")
+        self.assertIn("searchDateTo", params)
+        self.assertEqual(params["searchDateTo"], "2025-01-07")
 
     @patch("requests.Session.get")
     def test_fetch_recent_pagination(self, mock_get):
