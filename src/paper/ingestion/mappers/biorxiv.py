@@ -22,9 +22,18 @@ logger = logging.getLogger(__name__)
 class BioRxivMapper(BaseMapper):
     """Maps BioRxiv paper records to ResearchHub Paper model format."""
 
-    BIOARXIV_HUB = Hub.objects.filter(
-        slug="biorxiv", namespace=Hub.Namespace.JOURNAL
-    ).first()
+    _biorxiv_hub = None
+
+    @property
+    def bioarxiv_hub(self):
+        """
+        Lazy load the BioRxiv hub.
+        """
+        if self._biorxiv_hub is None:
+            self._biorxiv_hub = Hub.objects.filter(
+                slug="biorxiv", namespace=Hub.Namespace.JOURNAL
+            ).first()
+        return self._biorxiv_hub
 
     def validate(self, record: Dict[str, Any]) -> bool:
         """
@@ -273,4 +282,4 @@ class BioRxivMapper(BaseMapper):
 
         Initially, this only returns the preprint server hub.
         """
-        return [self.BIOARXIV_HUB] if self.BIOARXIV_HUB else []
+        return [self.bioarxiv_hub] if self.bioarxiv_hub else []

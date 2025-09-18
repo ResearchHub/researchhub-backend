@@ -5,7 +5,7 @@ Tests for ArXiv mapper.
 import os
 import xml.etree.ElementTree as ET
 from unittest import TestCase
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
 from hub.models import Hub
 from paper.ingestion.mappers.arxiv import ArXivMapper
@@ -379,10 +379,10 @@ class TestArXivMapper(TestCase):
             defaults={
                 "name": "ArXiv",
                 "namespace": Hub.Namespace.JOURNAL,
-            }
+            },
         )
         mapper = ArXivMapper()
-        mapper.ARXIV_HUB = hub
+        mapper._arxiv_hub = hub
         paper = mapper.map_to_paper(self.sample_record)
 
         # Act
@@ -394,13 +394,14 @@ class TestArXivMapper(TestCase):
         self.assertEqual(hubs[0].slug, "arxiv")
         self.assertEqual(hubs[0].namespace, Hub.Namespace.JOURNAL)
 
-    def test_map_to_hubs_without_existing_hub(self):
+    @patch.object(ArXivMapper, 'arxiv_hub', new_callable=PropertyMock)
+    def test_map_to_hubs_without_existing_hub(self, mock_arxiv_hub):
         """
         Test map_to_hubs returns empty list when arXiv hub doesn't exist.
         """
         # Arrange
+        mock_arxiv_hub.return_value = None
         mapper = ArXivMapper()
-        mapper.ARXIV_HUB = None
         paper = mapper.map_to_paper(self.sample_record)
 
         # Act

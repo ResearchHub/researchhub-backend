@@ -2,6 +2,8 @@
 Tests for BioRxiv mapper.
 """
 
+from unittest.mock import PropertyMock, patch
+
 from django.test import TestCase
 
 from hub.models import Hub
@@ -205,7 +207,7 @@ class TestBioRxivMapper(TestCase):
             },
         )
         mapper = BioRxivMapper()
-        mapper.BIOARXIV_HUB = hub
+        mapper._biorxiv_hub = hub
         paper = mapper.map_to_paper(self.sample_record)
 
         # Act
@@ -217,13 +219,14 @@ class TestBioRxivMapper(TestCase):
         self.assertEqual(hubs[0].slug, "biorxiv")
         self.assertEqual(hubs[0].namespace, Hub.Namespace.JOURNAL)
 
-    def test_map_to_hubs_without_existing_hub(self):
+    @patch.object(BioRxivMapper, 'bioarxiv_hub', new_callable=PropertyMock)
+    def test_map_to_hubs_without_existing_hub(self, mock_bioarxiv_hub):
         """
         Test map_to_hubs returns empty list when bioRxiv hub doesn't exist.
         """
         # Arrange
+        mock_bioarxiv_hub.return_value = None
         mapper = BioRxivMapper()
-        mapper.BIOARXIV_HUB = None
         paper = mapper.map_to_paper(self.sample_record)
 
         # Act

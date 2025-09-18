@@ -28,9 +28,18 @@ class ArXivMapper(BaseMapper):
     ARXIV_NS = "{http://arxiv.org/schemas/atom}"
     OPENSEARCH_NS = "{http://a9.com/-/spec/opensearch/1.1/}"
 
-    ARXIV_HUB = Hub.objects.filter(
-        slug="arxiv", namespace=Hub.Namespace.JOURNAL
-    ).first()
+    _arxiv_hub = None
+
+    @property
+    def arxiv_hub(self) -> Optional[Hub]:
+        """
+        Lazy load the ArXiv hub.
+        """
+        if self._arxiv_hub is None:
+            self._arxiv_hub = Hub.objects.filter(
+                slug="arxiv", namespace=Hub.Namespace.JOURNAL
+            ).first()
+        return self._arxiv_hub
 
     def _parse_xml_entry(self, raw_xml: str) -> Dict[str, Any]:
         """
@@ -447,4 +456,4 @@ class ArXivMapper(BaseMapper):
         Initially, this only returns the preprint server hub.
         """
 
-        return [self.ARXIV_HUB] if self.ARXIV_HUB else []
+        return [self.arxiv_hub] if self.arxiv_hub else []

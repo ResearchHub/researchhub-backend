@@ -22,9 +22,18 @@ logger = logging.getLogger(__name__)
 class ChemRxivMapper(BaseMapper):
     """Maps ChemRxiv paper records to ResearchHub Paper model format."""
 
-    CHEMRXIV_HUB = Hub.objects.filter(
-        slug="chemrxiv", namespace=Hub.Namespace.JOURNAL
-    ).first()
+    _chemrxiv_hub = None
+
+    @property
+    def chemrxiv_hub(self):
+        """
+        Lazy load the ChemRxiv hub.
+        """
+        if self._chemrxiv_hub is None:
+            self._chemrxiv_hub = Hub.objects.filter(
+                slug="chemrxiv", namespace=Hub.Namespace.JOURNAL
+            ).first()
+        return self._chemrxiv_hub
 
     def validate(self, record: Dict[str, Any]) -> bool:
         """
@@ -394,4 +403,4 @@ class ChemRxivMapper(BaseMapper):
 
         Initially, this only returns the preprint server hub.
         """
-        return [self.CHEMRXIV_HUB] if self.CHEMRXIV_HUB else []
+        return [self.chemrxiv_hub] if self.chemrxiv_hub else []

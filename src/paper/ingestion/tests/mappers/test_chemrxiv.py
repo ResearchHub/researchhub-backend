@@ -2,7 +2,7 @@
 Tests for ChemRxiv mapper.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
 from django.test import TestCase
 
@@ -736,7 +736,7 @@ class TestChemRxivMapper(TestCase):
             },
         )
         mapper = ChemRxivMapper()
-        mapper.CHEMRXIV_HUB = hub
+        mapper._chemrxiv_hub = hub
         paper = mapper.map_to_paper(self.sample_record)
 
         # Act
@@ -748,13 +748,14 @@ class TestChemRxivMapper(TestCase):
         self.assertEqual(hubs[0].slug, "biorxiv")
         self.assertEqual(hubs[0].namespace, Hub.Namespace.JOURNAL)
 
-    def test_map_to_hubs_without_existing_hub(self):
+    @patch.object(ChemRxivMapper, 'chemrxiv_hub', new_callable=PropertyMock)
+    def test_map_to_hubs_without_existing_hub(self, mock_chemrxiv_hub):
         """
-        Test map_to_hubs returns empty list when bioRxiv hub doesn't exist.
+        Test map_to_hubs returns empty list when ChemRxiv hub doesn't exist.
         """
         # Arrange
+        mock_chemrxiv_hub.return_value = None
         mapper = ChemRxivMapper()
-        mapper.CHEMRXIV_HUB = None
         paper = mapper.map_to_paper(self.sample_record)
 
         # Act
