@@ -196,9 +196,15 @@ class PaperSerializer(ContentObjectSerializer):
 
         researchhub_journal = None
         for hub in journal_hubs:
-            if int(hub.id) == int(settings.RESEARCHHUB_JOURNAL_ID):
-                researchhub_journal = hub
-                break
+            try:
+                if settings.RESEARCHHUB_JOURNAL_ID and int(hub.id) == int(
+                    settings.RESEARCHHUB_JOURNAL_ID
+                ):
+                    researchhub_journal = hub
+                    break
+            except (ValueError, TypeError):
+                # Skip if RESEARCHHUB_JOURNAL_ID is not a valid integer
+                continue
 
         # Use ResearchHub Journal if found, otherwise use the first journal
         journal_hub = researchhub_journal or journal_hubs[0]

@@ -223,6 +223,7 @@ INSTALLED_APPS = [
     "allauth.account",
     "allauth.socialaccount",
     "allauth.socialaccount.providers.google",
+    "allauth.socialaccount.providers.orcid",
     "rest_framework.authtoken",
     "dj_rest_auth",
     "dj_rest_auth.registration",
@@ -870,3 +871,11 @@ ENDAOMENT_ACCOUNT_ID = os.environ.get("ENDAOMENT_ACCOUNT_ID", keys.ENDAOMENT_ACC
 RESEARCHHUB_JOURNAL_ID = os.environ.get(
     "RESEARCHHUB_JOURNAL_ID", keys.RESEARCHHUB_JOURNAL_ID
 )
+
+# ORCID OAuth
+ORCID_CLIENT_ID = os.environ.get("ORCID_CLIENT_ID", keys.ORCID_CLIENT_ID)
+ORCID_CLIENT_SECRET = os.environ.get("ORCID_CLIENT_SECRET", keys.ORCID_CLIENT_SECRET)
+ORCID_REDIRECT_URL = os.environ.get(
+    "ORCID_REDIRECT_URL", getattr(keys, "ORCID_REDIRECT_URL", None)
+)
+ORCID_BASE_URL = os.environ.get("ORCID_BASE_URL", "https://orcid.org")
