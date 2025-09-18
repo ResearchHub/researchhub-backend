@@ -279,7 +279,7 @@ class TestPaperIngestionPipeline(TestCase):
 
         # Assert
         # Verify log was created
-        log = PaperFetchLog.objects.filter(source="ARXIV").first()
+        log = PaperFetchLog.objects.filter(source="ARXIV").order_by("-id").first()
         self.assertIsNotNone(log)
         self.assertEqual(log.status, PaperFetchLog.SUCCESS)
         self.assertEqual(log.total_papers_processed, 100)
@@ -302,7 +302,7 @@ class TestPaperIngestionPipeline(TestCase):
 
         # Assert
         # Verify log was created
-        log = PaperFetchLog.objects.filter(source="BIORXIV").first()
+        log = PaperFetchLog.objects.filter(source="BIORXIV").order_by("-id").first()
         self.assertIsNotNone(log)
         self.assertEqual(log.status, PaperFetchLog.FAILED)
         self.assertEqual(log.total_papers_processed, 0)
