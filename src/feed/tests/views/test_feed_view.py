@@ -721,3 +721,168 @@ class FeedViewSetTests(TestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 3)
+
+    def test_following_feed_with_hot_score_sorting(self):
+        """Test that following feed can be sorted by hot_score and only shows papers/posts"""
+        # Arrange
+        # Create papers with different hot_scores in followed hub
+        high_score_paper = Paper.objects.create(
+            title="High Score Paper",
+            paper_publish_date=timezone.now(),
+        )
+        high_score_paper.hubs.add(self.hub)
+
+        low_score_paper = Paper.objects.create(
+            title="Low Score Paper",
+            paper_publish_date=timezone.now(),
+        )
+        low_score_paper.hubs.add(self.hub)
+
+        # Create a comment in the followed hub (should be excluded with hot_score sorting)
+        comment_thread = RhCommentThreadModel.objects.create(
+            thread_type=rh_comment_thread_types.GENERIC_COMMENT,
+            content_type=self.paper_content_type,
+            object_id=self.paper.id,
+            created_by=self.user,
+        )
+        comment = RhCommentModel.objects.create(
+            thread=comment_thread,
+            comment_content_json={"ops": [{"insert": "Test comment"}]},
+            comment_content_type="QUILL_EDITOR",
+            created_by=self.user,
+        )
+        comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
+
+        # Create feed entry for the comment with high hot_score
+        comment_entry = FeedEntry.objects.create(
+            user=self.user,
+            action="PUBLISH",
+            action_date=timezone.now(),
+            content_type=comment_content_type,
+            object_id=comment.id,
+            unified_document=self.paper.unified_document,
+            hot_score=2000,  # Higher than papers
+            metrics={"votes": 1000, "comments": 100},
+        )
+        comment_entry.hubs.add(self.hub)
+
+        # Create feed entries with different hot_scores
+        high_score_entry = FeedEntry.objects.create(
+            user=self.user,
+            action="PUBLISH",
+            action_date=timezone.now(),
+            content_type=self.paper_content_type,
+            object_id=high_score_paper.id,
+            unified_document=high_score_paper.unified_document,
+            hot_score=1000,
+            metrics={"votes": 500, "comments": 50},
+        )
+        high_score_entry.hubs.add(self.hub)
+
+        low_score_entry = FeedEntry.objects.create(
+            user=self.user,
+            action="PUBLISH",
+            action_date=timezone.now(),
+            content_type=self.paper_content_type,
+            object_id=low_score_paper.id,
+            unified_document=low_score_paper.unified_document,
+            hot_score=10,
+            metrics={"votes": 5, "comments": 1},
+        )
+        low_score_entry.hubs.add(self.hub)
+
+        # Update the existing feed entry to have a medium hot_score
+        self.feed_entry.hot_score = 100
+        self.feed_entry.save()
+
+        # Refresh materialized views
+        FeedEntryLatest.refresh()
+        FeedEntryPopular.refresh()
+        cache.clear()
+
+        url = reverse("feed-list")
+
+        # Act - Get following feed with hot_score sorting
+        response = self.client.get(
+            url, {"feed_view": "following", "sort_by": "hot_score"}
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.data["results"]
+
+        # Should only see content from followed hub
+        self.assertGreater(len(results), 0)
+
+        # Verify that only papers and posts are included (no comments)
+        for item in results:
+            self.assertIn(
+                item["content_type"],
+                ["PAPER", "POST"],
+                f"Following feed with hot_score should only show papers and posts, "
+                f"but found {item['content_type']}",
+            )
+
+        # Verify items are sorted by hot_score (descending)
+        hot_scores = []
+        for i, item in enumerate(results):
+            # Get the corresponding feed entry to check hot_score
+            content_id = item["content_object"]["id"]
+            content_type = item["content_type"]
+
+            if content_type == "PAPER":
+                entry = FeedEntry.objects.filter(
+                    object_id=content_id, content_type=self.paper_content_type
+                ).first()
+                if entry:
+                    hot_scores.append(entry.hot_score)
+            elif content_type == "POST":
+                entry = FeedEntry.objects.filter(
+                    object_id=content_id, content_type=self.post_content_type
+                ).first()
+                if entry:
+                    hot_scores.append(entry.hot_score)
+
+        # Check that hot_scores are in descending order
+        for i in range(len(hot_scores) - 1):
+            self.assertGreaterEqual(
+                hot_scores[i],
+                hot_scores[i + 1],
+                f"Feed items not sorted by hot_score: {hot_scores}",
+            )
+
+        # Ensure cache key includes sort_by parameter
+        cache_key = response.headers.get("RH-Cache")
+        if cache_key == "miss":
+            # Make another request to test cache hit
+            response2 = self.client.get(
+                url, {"feed_view": "following", "sort_by": "hot_score"}
+            )
+            self.assertEqual(response2.headers.get("RH-Cache"), "hit (auth)")
+
+    def test_following_feed_default_sorting(self):
+        """Test that following feed defaults to latest sorting when not specified"""
+        url = reverse("feed-list")
+
+        # Act - Get following feed without sort_by parameter
+        response = self.client.get(url, {"feed_view": "following"})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should use FeedEntryLatest by default
+        # Verify by checking that entries are sorted by action_date
+        results = response.data["results"]
+        if len(results) > 1:
+            dates = []
+            for item in results:
+                if "action_date" in item:
+                    dates.append(item["action_date"])
+
+            # Check that dates are in descending order
+            for i in range(len(dates) - 1):
+                self.assertGreaterEqual(
+                    dates[i],
+                    dates[i + 1],
+                    "Feed items not sorted by action_date when using default sort",
+                )
