@@ -8,6 +8,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from hub.models import Hub
 from institution.models import Institution
 from paper.models import Paper
 from paper.related_models.authorship_model import Authorship
@@ -20,6 +21,19 @@ logger = logging.getLogger(__name__)
 
 class BioRxivMapper(BaseMapper):
     """Maps BioRxiv paper records to ResearchHub Paper model format."""
+
+    _biorxiv_hub = None
+
+    @property
+    def bioarxiv_hub(self):
+        """
+        Lazy load the BioRxiv hub.
+        """
+        if self._biorxiv_hub is None:
+            self._biorxiv_hub = Hub.objects.filter(
+                slug="biorxiv", namespace=Hub.Namespace.JOURNAL
+            ).first()
+        return self._biorxiv_hub
 
     def validate(self, record: Dict[str, Any]) -> bool:
         """
@@ -261,3 +275,11 @@ class BioRxivMapper(BaseMapper):
         """
         # Return empty list - we don't create authorships without proper author IDs
         return []
+
+    def map_to_hubs(self, paper: Paper, record: Dict[str, Any]) -> List[Hub]:
+        """
+        Map BioRxiv record to Hub (tag) model instances.
+
+        Initially, this only returns the preprint server hub.
+        """
+        return [self.bioarxiv_hub] if self.bioarxiv_hub else []

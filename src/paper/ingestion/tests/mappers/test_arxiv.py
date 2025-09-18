@@ -5,8 +5,9 @@ Tests for ArXiv mapper.
 import os
 import xml.etree.ElementTree as ET
 from unittest import TestCase
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
+from hub.models import Hub
 from paper.ingestion.mappers.arxiv import ArXivMapper
 from paper.models import Paper
 
@@ -367,3 +368,45 @@ class TestArXivMapper(TestCase):
             paper.pdf_url,
             "http://arxiv.org/pdf/2509.10432v1.pdf",  # NOSONAR - Ignore http
         )
+
+    def test_map_to_hubs(self):
+        """
+        Test map_to_hubs returns the arXiv hub (initially).
+        """
+        # Arrange
+        hub, _ = Hub.objects.get_or_create(
+            slug="arxiv",
+            defaults={
+                "name": "ArXiv",
+                "namespace": Hub.Namespace.JOURNAL,
+            },
+        )
+        mapper = ArXivMapper()
+        mapper._arxiv_hub = hub
+        paper = mapper.map_to_paper(self.sample_record)
+
+        # Act
+        hubs = mapper.map_to_hubs(paper, self.sample_record)
+
+        # Assert
+        self.assertEqual(len(hubs), 1)
+        self.assertEqual(hubs[0], hub)
+        self.assertEqual(hubs[0].slug, "arxiv")
+        self.assertEqual(hubs[0].namespace, Hub.Namespace.JOURNAL)
+
+    @patch.object(ArXivMapper, 'arxiv_hub', new_callable=PropertyMock)
+    def test_map_to_hubs_without_existing_hub(self, mock_arxiv_hub):
+        """
+        Test map_to_hubs returns empty list when arXiv hub doesn't exist.
+        """
+        # Arrange
+        mock_arxiv_hub.return_value = None
+        mapper = ArXivMapper()
+        paper = mapper.map_to_paper(self.sample_record)
+
+        # Act
+        hubs = mapper.map_to_hubs(paper, self.sample_record)
+
+        # Assert
+        self.assertEqual(len(hubs), 0)
+        self.assertEqual(hubs, [])

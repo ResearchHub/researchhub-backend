@@ -102,11 +102,19 @@ class TestPaperIngestionService(TestCase):
         mock_saved_paper = Mock(spec=Paper)
         mock_saved_paper.id = 1
         mock_saved_paper.title = "Test Paper"
+
+        mock_unified_document = Mock()
+        mock_hubs = Mock()
+        mock_hubs.add = Mock()
+        mock_unified_document.hubs = mock_hubs
+        mock_saved_paper.unified_document = mock_unified_document
+
         mock_save_paper.return_value = mock_saved_paper
 
         mock_mapper = Mock()
         mock_mapper.validate.return_value = True
         mock_mapper.map_to_paper.return_value = mock_paper
+        mock_mapper.map_to_hubs.return_value = []
         mock_get_mapper.return_value = mock_mapper
 
         raw_response = [{"id": "test123", "title": "Test Paper"}]
@@ -264,11 +272,19 @@ class TestPaperIngestionService(TestCase):
             mock_paper1.doi = None
             mock_paper1.save = Mock()
 
+            mock_unified_document = Mock()
+            mock_hubs = Mock()
+            mock_hubs.add = Mock()
+            mock_unified_document.hubs = mock_hubs
+            mock_paper1.unified_document = mock_unified_document
+
             mock_mapper.map_to_paper.side_effect = [
                 mock_paper1,
                 None,  # Won't be called due to validation failure
                 None,  # Returns None, triggering "Mapper returned None" error
             ]
+
+            mock_mapper.map_to_hubs.return_value = []
 
             mock_get_mapper.return_value = mock_mapper
 

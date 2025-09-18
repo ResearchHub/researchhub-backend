@@ -262,6 +262,11 @@ class PaperIngestionService:
                 if save_to_db:
                     paper = self._save_paper(paper, update_existing)
 
+                    # Create hubs
+                    hubs = mapper.map_to_hubs(paper, record)
+                    if hubs:
+                        paper.unified_document.hubs.add(*hubs)
+
                     # Create authors and institutions after paper is saved
                     if paper and paper.id:
                         try:

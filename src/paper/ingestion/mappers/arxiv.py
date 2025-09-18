@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from hub.models import Hub
 from institution.models import Institution
 from paper.models import Paper
 from paper.related_models.authorship_model import Authorship
@@ -26,6 +27,19 @@ class ArXivMapper(BaseMapper):
     ATOM_NS = "{http://www.w3.org/2005/Atom}"
     ARXIV_NS = "{http://arxiv.org/schemas/atom}"
     OPENSEARCH_NS = "{http://a9.com/-/spec/opensearch/1.1/}"
+
+    _arxiv_hub = None
+
+    @property
+    def arxiv_hub(self) -> Optional[Hub]:
+        """
+        Lazy load the ArXiv hub.
+        """
+        if self._arxiv_hub is None:
+            self._arxiv_hub = Hub.objects.filter(
+                slug="arxiv", namespace=Hub.Namespace.JOURNAL
+            ).first()
+        return self._arxiv_hub
 
     def _parse_xml_entry(self, raw_xml: str) -> Dict[str, Any]:
         """
@@ -434,3 +448,12 @@ class ArXivMapper(BaseMapper):
         """
         # Return empty list - we don't create authorships without proper author IDs
         return []
+
+    def map_to_hubs(self, paper: Paper, record: Dict[str, Any]) -> List[Hub]:
+        """
+        Map arXiv record to Hub (tag) model instances.
+
+        Initially, this only returns the preprint server hub.
+        """
+
+        return [self.arxiv_hub] if self.arxiv_hub else []
