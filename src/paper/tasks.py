@@ -71,7 +71,6 @@ def download_pdf(paper_id, retry=0):
             paper.file.save(filename, pdf)
             paper.save(update_fields=["file"])
             paper.extract_pdf_preview(use_celery=True)
-            paper.set_paper_completeness()
             paper.compress_and_linearize_file()
             return True
         except Exception as e:

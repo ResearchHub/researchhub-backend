@@ -376,7 +376,6 @@ class PaperSerializer(BasePaperSerializer):
         read_only_fields = [
             "authors",
             "citations",
-            "completeness",
             "csl_item",
             "discussion_count",
             "external_source",
@@ -464,8 +463,6 @@ class PaperSerializer(BasePaperSerializer):
                     sentry.log_error(
                         e,
                     )
-
-                paper.set_paper_completeness()
 
                 paper.pdf_license = paper.get_license(save=False)
 
@@ -559,8 +556,6 @@ class PaperSerializer(BasePaperSerializer):
                 if pdf_license:
                     paper.pdf_license = pdf_license
                     paper.save(update_fields=["pdf_license"])
-
-                paper.set_paper_completeness()
 
                 if file:
                     self._add_file(paper, file)
