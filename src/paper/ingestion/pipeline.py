@@ -290,6 +290,15 @@ def fetch_papers_from_source(
                     max_retries=3,
                 )
             )
+        elif source == "medrxiv":
+            clients["medrxiv"] = BioRxivClient(
+                BioRxivConfig(
+                    rate_limit=1.0,
+                    page_size=100,
+                    request_timeout=60.0,
+                    max_retries=3,
+                )
+            )
         else:
             raise ValueError(f"Unknown source: {source}")
 
