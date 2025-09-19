@@ -388,7 +388,6 @@ class PaperSerializer(BasePaperSerializer):
             "retrieved_from_external_source",
             "score",
             "slug",
-            "tagline",
             "unified_document_id",
             "unified_document",
             "user_flag",
