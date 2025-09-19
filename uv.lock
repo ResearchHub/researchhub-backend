@@ -1517,15 +1517,6 @@ wheels = [
 ]
 
 [[package]]
-name = "iso8601"
-version = "1.0.2"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/28/97/d2d3d96952c77e7593e0f4a634656fb384f7282327f7fef74b726b3b4c1c/iso8601-1.0.2.tar.gz", hash = "sha256:27f503220e6845d9db954fb212b95b0362d8b7e6c1b2326a87061c3de93594b1", size = 12653, upload-time = "2021-11-23T14:21:57.141Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/df/e5/589bc81d410139ec4e4f37d9af5a50987566abf6d087b3c4fbed708109a9/iso8601-1.0.2-py3-none-any.whl", hash = "sha256:d7bc01b1c2a43b259570bb307f057abc578786ea734ba2b87b836c5efc5bd443", size = 9669, upload-time = "2021-11-23T14:21:56.046Z" },
-]
-
-[[package]]
 name = "jinja2"
 version = "3.1.6"
 source = { registry = "https://pypi.org/simple" }
@@ -2642,7 +2633,6 @@ dependencies = [
     { name = "habanero" },
     { name = "html5lib" },
     { name = "humanize" },
-    { name = "iso8601" },
     { name = "lxml" },
     { name = "mailchimp-marketing" },
     { name = "manubot" },
@@ -2708,7 +2698,6 @@ requires-dist = [
     { name = "habanero", specifier = "==1.0.0" },
     { name = "html5lib", specifier = "==1.1" },
     { name = "humanize", specifier = ">=4.12.2,<5.0.0" },
-    { name = "iso8601", specifier = "==1.0.2" },
     { name = "lxml", specifier = ">=6.0.1" },
     { name = "mailchimp-marketing", specifier = ">=3.0.72,<4.0.0" },
     { name = "manubot", specifier = "==0.5.3" },

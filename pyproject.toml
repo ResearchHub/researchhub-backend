@@ -41,7 +41,6 @@ dependencies = [
     "google-api-python-client==1.12.1",
     "habanero==1.0.0",
     "html5lib==1.1",
-    "iso8601==1.0.2",
     "lxml>=6.0.1",
     "mailchimp-marketing>=3.0.72,<4.0.0",
     "manubot==0.5.3",

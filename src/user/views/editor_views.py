@@ -1,10 +1,8 @@
-from datetime import datetime
-
-import iso8601
 from django.contrib.contenttypes.models import ContentType
 from django.core.paginator import Paginator
 from django.db.models import Count
 from django.db.models.query_utils import Q
+from django.utils.dateparse import parse_datetime
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -58,8 +56,8 @@ def get_hub_active_contributors(request):
 
     start_date_string = start_date[:-6]
     end_date_string = end_date[:-6]
-    end_date = iso8601.parse_date(end_date_string)
-    start_date = iso8601.parse_date(start_date_string)
+    end_date = parse_datetime(end_date_string)
+    start_date = parse_datetime(start_date_string)
 
     current_active_contributors = {}
     previous_active_contributors = {}
