@@ -13,7 +13,8 @@ class ExternalCategoryMapperTestCase(TestCase):
 
     def setUp(self):
         """Set up test environment with some basic hubs."""
-        # Create some test hubs that are commonly used across tests
+        # Create some test hubs with proper slugs
+        # The Hub model's save() method will auto-generate slugs from names
         self.cs_hub = Hub.objects.create(
             name="Computer Science", description="Computer Science research"
         )
@@ -54,53 +55,33 @@ class ExternalCategoryMapperTestCase(TestCase):
                 self.assertIsInstance(result, list)
                 self.assertEqual(len(result), 0)
 
-    def test_returns_empty_list_for_empty_input(self):
+    def test_category_normalization(self):
         """
-        Test that empty string input returns an empty list.
+        Test that category input is properly normalized (case-insensitive and whitespace-trimmed).
 
-        This ensures the mapper handles edge cases gracefully without errors.
+        Users might input categories in various cases with extra whitespace.
         """
-        result = ExternalCategoryMapper.map("", source="arxiv")
-        self.assertIsInstance(result, list)
-        self.assertEqual(len(result), 0)
+        # Test different variations that should all map to the same result
+        variations = [
+            "CS.LG",
+            "cs.lg",
+            "Cs.Lg",
+            "  cs.LG  ",
+            "\tCS.LG\n",
+        ]
 
-    def test_mappings_are_case_insensitive(self):
-        """
-        Test that category mappings work regardless of case.
-
-        Users might input categories in various cases (UPPERCASE, lowercase, MiXeD),
-        and all should map to the same hubs.
-        """
-        # Test arXiv with different cases
-        arxiv_results = [
-            ExternalCategoryMapper.map("CS.LG", source="arxiv"),
-            ExternalCategoryMapper.map("cs.lg", source="arxiv"),
-            ExternalCategoryMapper.map("Cs.Lg", source="arxiv"),
+        results = [
+            ExternalCategoryMapper.map(var, source="arxiv") for var in variations
         ]
 
         # All should return the same hubs
-        for i in range(1, len(arxiv_results)):
+        base_result = set(h.name for h in results[0])
+        for i in range(1, len(results)):
             self.assertEqual(
-                set(h.name for h in arxiv_results[0]),
-                set(h.name for h in arxiv_results[i]),
-                "Case variations should map to same hubs",
+                base_result,
+                set(h.name for h in results[i]),
+                f"Variation '{variations[i]}' should map to same hubs as '{variations[0]}'",
             )
-
-    def test_whitespace_is_trimmed_from_input(self):
-        """
-        Test that extra whitespace in categories is handled correctly.
-
-        Users might accidentally include spaces, and these should be trimmed.
-        """
-        # Test with and without whitespace
-        result_with_spaces = ExternalCategoryMapper.map("  cs.LG  ", source="arxiv")
-        result_without = ExternalCategoryMapper.map("cs.LG", source="arxiv")
-
-        self.assertEqual(
-            set(h.name for h in result_with_spaces),
-            set(h.name for h in result_without),
-            "Whitespace should not affect mapping",
-        )
 
     def test_unknown_source_returns_empty_list_with_warning(self):
         """
@@ -229,7 +210,7 @@ class ExternalCategoryMapperTestCase(TestCase):
         The mapping should still return any hubs that do exist.
         """
         # Delete the Machine Learning hub to simulate it not existing
-        Hub.objects.filter(name="Machine Learning").delete()
+        Hub.objects.filter(slug="machine-learning").delete()
 
         with self.assertLogs(
             "hub.mappers.external_category_mapper", level="WARNING"
@@ -239,7 +220,7 @@ class ExternalCategoryMapperTestCase(TestCase):
         # Should log warning about missing hub
         self.assertTrue(
             any(
-                "Hub not found in database: Machine Learning" in msg
+                "Hub not found in database: machine-learning" in msg
                 for msg in cm.output
             )
         )
@@ -247,35 +228,6 @@ class ExternalCategoryMapperTestCase(TestCase):
         # Should still return the Computer Science hub that does exist
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0].name, "Computer Science")
-
-    def test_handles_multiple_hubs_with_same_name_gracefully(self):
-        """
-        Test that mapper handles duplicate hub names gracefully.
-
-        In case of data integrity issues where multiple hubs have the same name,
-        the mapper should log a warning but continue working.
-        """
-        # Create duplicate hub with same name
-        Hub.objects.create(name="Machine Learning", description="Duplicate ML hub")
-
-        with self.assertLogs(
-            "hub.mappers.external_category_mapper", level="WARNING"
-        ) as cm:
-            result = ExternalCategoryMapper.map("cs.LG", source="arxiv")
-
-        # Should log warning about multiple hubs
-        self.assertTrue(
-            any(
-                "Multiple hubs found with name: Machine Learning" in msg
-                for msg in cm.output
-            )
-        )
-
-        # Should still return results (first matching hub for each name)
-        self.assertEqual(len(result), 2)
-        hub_names = [hub.name for hub in result]
-        self.assertIn("Computer Science", hub_names)
-        self.assertIn("Machine Learning", hub_names)
 
     def test_cross_discipline_mappings_work_correctly(self):
         """
@@ -290,11 +242,13 @@ class ExternalCategoryMapperTestCase(TestCase):
             name="Biological Physics", description="Biological Physics research"
         )
 
+        # Test ChemRxiv biochemistry -> Biology
         result = ExternalCategoryMapper.map("biochemistry", source="chemrxiv")
         result_names = [hub.name for hub in result]
         self.assertIn("Biology", result_names)
         self.assertIn("Biochemistry", result_names)
 
+        # Test arXiv physics.bio-ph -> Biology
         result = ExternalCategoryMapper.map("physics.bio-ph", source="arxiv")
         result_names = [hub.name for hub in result]
         self.assertIn("Biology", result_names)

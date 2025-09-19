@@ -42,7 +42,11 @@ class ExternalCategoryMapper:
         _source_category = source_category.strip().lower()
 
         # Get the appropriate mapping
-        mappings = cls._get_mappings_for_source(source)
+        if source not in cls.MAPPINGS:
+            logger.warning(f"Unknown source: {source}. No mappings available.")
+            return []
+
+        mappings = cls.MAPPINGS[source]
         if _source_category not in mappings:
             if _source_category:  # Incoming category is not mapped
                 logger.warning(
@@ -50,45 +54,27 @@ class ExternalCategoryMapper:
                 )
             return []
 
-        # Get hub names and convert to Hub objects
-        hub_names = mappings[_source_category]
-        return cls._get_hubs_from_names(hub_names, source_category)
+        # Get hub slugs and convert to Hub objects
+        hub_slugs = mappings[_source_category]
+        return cls._get_hubs_from_slugs(hub_slugs, source_category)
 
     @classmethod
-    def _get_mappings_for_source(cls, source: str):
-        """Get the appropriate mapping dictionary for the given source."""
-        if source not in cls.MAPPINGS:
-            logger.warning(f"Unknown source: {source}. No mappings available.")
-            return {}
-        return cls.MAPPINGS[source]
-
-    @classmethod
-    def _get_hubs_from_names(cls, hub_names: tuple, source_category: str) -> List[Hub]:
-        """Convert hub names to Hub objects."""
+    def _get_hubs_from_slugs(cls, hub_slugs: tuple, source_category: str) -> List[Hub]:
+        """Convert hub slugs to Hub objects."""
         hubs = []
 
-        for hub_name in hub_names:
-            if not hub_name:  # Skip None/empty values
+        for hub_slug in hub_slugs:
+            if not hub_slug:  # Skip None/empty values
                 continue
 
             try:
-                hub = Hub.objects.get(name__iexact=hub_name)
+                hub = Hub.objects.get(slug=hub_slug)
                 hubs.append(hub)
             except Hub.DoesNotExist:
                 logger.warning(
                     "Hub not found in database: %s (for %s)",
-                    hub_name,
+                    hub_slug,
                     source_category,
                 )
-            except Hub.MultipleObjectsReturned:
-                logger.warning(
-                    "Multiple hubs found with name: %s (for %s)",
-                    hub_name,
-                    source_category,
-                )
-                # Get the first one
-                hub = Hub.objects.filter(name__iexact=hub_name).first()
-                if hub:
-                    hubs.append(hub)
 
         return hubs

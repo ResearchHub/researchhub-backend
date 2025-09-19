@@ -107,19 +107,19 @@ class SeedHubsFromMappingsTestCase(TestCase):
         # Run the seed command
         call_command("seed_hubs_from_mappings", "--source", "medrxiv")
 
-        # Collect all unique hub names from the mappings
-        expected_hub_names = set()
-        for first_name, second_name in MEDRXIV_MAPPINGS.values():
-            if first_name:
-                expected_hub_names.add(first_name.lower())
-            if second_name:
-                expected_hub_names.add(second_name.lower())
+        # Collect all unique hub slugs from the mappings
+        expected_hub_slugs = set()
+        for first_slug, second_slug in MEDRXIV_MAPPINGS.values():
+            if first_slug:
+                expected_hub_slugs.add(first_slug)
+            if second_slug:
+                expected_hub_slugs.add(second_slug)
 
-        # Check that all expected hubs exist (case-insensitive)
-        for hub_name in expected_hub_names:
-            exists = Hub.objects.filter(name__iexact=hub_name).exists()
+        # Check that all expected hubs exist by slug
+        for hub_slug in expected_hub_slugs:
+            exists = Hub.objects.filter(slug=hub_slug).exists()
             self.assertTrue(
-                exists, f"Hub '{hub_name}' from MedRxiv mappings should exist"
+                exists, f"Hub with slug '{hub_slug}' from MedRxiv mappings should exist"
             )
 
     def test_specific_source_only_creates_its_hubs(self):
