@@ -154,9 +154,9 @@ class ArXivClient(BaseClient):
         if since is None:
             since = until - timedelta(days=7)
 
-        # Format dates for ArXiv query (YYYYMMDD format)
-        since_str = since.strftime("%Y%m%d")
-        until_str = until.strftime("%Y%m%d")
+        # Format dates for ArXiv query (YYYYMMDDHHMM format)
+        since_str = since.strftime("%Y%m%d%H%M")
+        until_str = until.strftime("%Y%m%d%H%M")
 
         # Build search query with date range using submittedDate
         search_query = f"submittedDate:[{since_str} TO {until_str}]"

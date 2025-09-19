@@ -118,7 +118,9 @@ class TestArXivClient(TestCase):
         # Verify query was constructed correctly
         first_call_args = mock_fetch.call_args_list[0]
         params = first_call_args[0][1]  # Get params from first call
-        self.assertEqual(params["search_query"], "submittedDate:[20250101 TO 20250107]")
+        self.assertEqual(
+            params["search_query"], "submittedDate:[202501010000 TO 202501070000]"
+        )
 
     def _create_test_response(self, start_idx, count, total=None):
         """Helper to create test XML responses."""
