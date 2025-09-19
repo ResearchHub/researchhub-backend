@@ -16,7 +16,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             "--source",
-            choices=["arxiv", "biorxiv", "chemrxiv", "all"],
+            choices=["arxiv", "biorxiv", "chemrxiv", "medrxiv", "all"],
             default="all",
             help="Source to fetch papers from (default: all)",
         )

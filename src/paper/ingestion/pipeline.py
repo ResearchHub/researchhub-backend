@@ -227,7 +227,7 @@ def fetch_all_papers() -> Dict[str, Any]:
         logger.info("Paper ingestion is disabled in settings. Skipping.")
         return {}
 
-    sources = ["arxiv", "biorxiv", "chemrxiv"]
+    sources = ["arxiv", "biorxiv", "chemrxiv", "medrxiv"]
 
     # Create a group of parallel tasks
     job = group(fetch_papers_from_source.s(source) for source in sources)
@@ -286,6 +286,15 @@ def fetch_papers_from_source(
                 ChemRxivConfig(
                     rate_limit=0.5,
                     page_size=50,
+                    request_timeout=60.0,
+                    max_retries=3,
+                )
+            )
+        elif source == "medrxiv":
+            clients["medrxiv"] = BioRxivClient(
+                BioRxivConfig(
+                    rate_limit=1.0,
+                    page_size=100,
                     request_timeout=60.0,
                     max_retries=3,
                 )
