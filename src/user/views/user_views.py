@@ -43,7 +43,6 @@ from user.serializers import (
     AuthorSerializer,
     MajorSerializer,
     UniversitySerializer,
-    UserActions,
     UserEditableSerializer,
     UserSerializer,
 )
@@ -390,14 +389,6 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         )
 
         return self.get_paginated_response(serializer.data)
-
-    @action(
-        detail=True, methods=[RequestMethods.GET], permission_classes=[IsAuthenticated]
-    )
-    def actions(self, request, pk=None):
-        user_actions = UserActions(user=request.user)
-        page = self.paginate_queryset(user_actions.serialized)
-        return self.get_paginated_response(page)
 
     @action(detail=True, methods=[RequestMethods.GET], permission_classes=[AllowAny])
     def bounties(self, request, pk=None):
