@@ -178,12 +178,15 @@ class FeedViewMixin:
         source = request.query_params.get("source")
         source_part = f"{source}" if source else "all"
 
+        ordering = request.query_params.get("ordering", None)
+        order_part = f"{ordering}" if ordering else "none"
         filtering = request.query_params.get("filtering", None)
         filter_part = f"{filtering}" if filtering else "all"
 
         return (
             f"{feed_type_part}feed:{feed_view}:{hub_part}:{source_part}:"
-            f"{user_part}:{pagination_part}{status_part}{sort_part}:{filter_part}"
+            f"{user_part}:{pagination_part}{status_part}{sort_part}:"
+            f"{order_part}:{filter_part}"
         )
 
     def get_followed_hub_ids(self):
