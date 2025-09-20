@@ -203,3 +203,19 @@ class FeedViewMixin:
             object_id__in=doc_ids,
             created_by=created_by,
         )
+
+    def get_hubs(self, doc_type):
+        """
+        Get hubs for documents of a specific type, using caching.
+        """
+
+        hub_data = list(
+            Hub.objects.filter(
+                related_documents__document_type=doc_type,
+                is_removed=False,
+            )
+            .values("id", "name", "slug")
+            .distinct()
+        )
+
+        return hub_data
