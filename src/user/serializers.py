@@ -1,5 +1,3 @@
-import logging
-
 import dj_rest_auth.registration.serializers as rest_auth_serializers
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
@@ -12,7 +10,6 @@ from rest_framework.serializers import (
     SerializerMethodField,
 )
 
-from discussion.models import Vote
 from hub.models import Hub
 from hub.serializers import DynamicHubSerializer, HubSerializer, SimpleHubSerializer
 from institution.serializers import DynamicInstitutionSerializer
@@ -708,145 +705,6 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
 
     def get_is_verified(self, user):
         return user.is_verified
-
-
-class UserActions:
-    def __init__(self, data=None, user=None, **kwargs):
-        assert (data is not None) or (user is not None), f"Arguments data"
-        f" and user_id can not both be None"
-
-        self.user = None
-        if user and user.is_authenticated:
-            self.user = user
-
-        self.all = data
-        if data is None:
-            self.all = self.get_actions()
-
-        self.serialized = []
-        self._group_and_serialize_actions()
-
-    def get_actions(self):
-        if self.user:
-            return self.user.actions.all()
-        else:
-            return Action.objects.all()
-
-    def _group_and_serialize_actions(self):
-        # TODO: Refactor to clean this up
-        from researchhub_document.serializers import (
-            ResearchhubUnifiedDocumentSerializer,
-        )
-
-        for action in self.all:
-            item = action.item
-            if not item:
-                continue
-
-            creator = self._get_serialized_creator(item)
-
-            data = {
-                "created_by": creator,
-                "content_type": str(action.content_type),
-                "created_date": str(action.created_date),
-            }
-
-            if isinstance(item, Paper):
-                pass
-            elif isinstance(item, Vote):
-                item = item.item
-                if isinstance(item, Paper):
-                    data["content_type"] += "_paper"
-            elif isinstance(item, Purchase):
-                recipient = action.user
-                data["amount"] = item.amount
-                data["recipient"] = {
-                    "name": recipient.full_name(),
-                    "author_id": recipient.author_profile.id,
-                }
-                data["sender"] = item.user.full_name()
-                data["support_type"] = item.content_type.model
-            elif isinstance(item, ResearchhubPost):
-                data["post_title"] = item.title
-            elif isinstance(item, Bounty):
-                item = item.item
-            elif isinstance(item, Verdict):
-                item = item.flag.item
-            else:
-                raise TypeError(f"Instance of type {type(item)} is not supported")
-
-            is_removed = False
-            paper = None
-            post = None
-            if isinstance(item, Paper):
-                paper = item
-            else:
-                try:
-                    if isinstance(item, Purchase):
-                        purchase_item = item.item
-                        if isinstance(purchase_item, Paper):
-                            paper = purchase_item
-                        elif isinstance(purchase_item, ResearchhubPost):
-                            post = purchase_item
-                        else:
-                            paper = purchase_item.paper
-                    else:
-                        paper = item.paper
-                except Exception as e:
-                    logging.warning(str(e))
-
-            if paper:
-                data["paper_id"] = paper.id
-                data["paper_title"] = paper.title
-                data["paper_official_title"] = paper.paper_title
-                data["slug"] = paper.slug
-
-                if paper.is_removed:
-                    is_removed = True
-
-            if post:
-                data["post_id"] = post.id
-                data["post_title"] = post.title
-                data["slug"] = post.slug
-
-            if isinstance(item, Paper):
-                data["tip"] = item.tagline
-
-            if not isinstance(item, Purchase):
-                data["user_flag"] = None
-                if self.user:
-                    user_flag = item.flags.filter(created_by=self.user).first()
-                    if user_flag:
-                        if isinstance(item, Paper):
-                            data["user_flag"] = UserActions.paper_flag_serializer(
-                                user_flag
-                            ).data  # noqa: E501
-                        else:
-                            data["user_flag"] = UserActions.flag_serializer(
-                                user_flag
-                            ).data  # noqa: E501
-
-            if hasattr(item, "unified_document"):
-                unified_document = item.unified_document
-                data["unified_document"] = ResearchhubUnifiedDocumentSerializer(
-                    unified_document
-                ).data
-
-            if not is_removed:
-                self.serialized.append(data)
-
-    def _get_serialized_creator(self, item):
-        if isinstance(item, Paper):
-            creator = item.uploaded_by
-        elif isinstance(item, User):
-            creator = item
-        elif isinstance(item, Purchase):
-            creator = item.user
-        else:
-            creator = item.created_by
-        if creator is not None:
-            return UserSerializer(creator).data
-        return None
 
 
 class DynamicActionSerializer(DynamicModelFieldSerializer):

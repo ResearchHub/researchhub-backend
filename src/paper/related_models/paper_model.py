@@ -117,7 +117,6 @@ class Paper(AbstractGenericReactionModel):
 
     # User generated
     title = models.CharField(max_length=1024)  # User generated title
-    tagline = models.CharField(max_length=255, default=None, null=True, blank=True)
     uploaded_by = models.ForeignKey(
         "user.User",
         related_name="papers",
