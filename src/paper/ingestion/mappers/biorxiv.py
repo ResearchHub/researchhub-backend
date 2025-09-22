@@ -96,7 +96,7 @@ class BioRxivMapper(BaseMapper):
             # Authors (JSON field)
             raw_authors=raw_authors,
             # License and access
-            pdf_license=record.get("license"),
+            pdf_license=self._parse_license(record.get("license")),
             is_open_access=True,  # BioRxiv is open access
             oa_status="gold",  # Gold open access for preprints
             # Status flags
@@ -109,6 +109,22 @@ class BioRxivMapper(BaseMapper):
             paper.url = self._compute_html_url(doi, version)
 
         return paper
+
+    def _parse_license(self, license_str: Optional[str]) -> Optional[str]:
+        """
+        Parse license string to standard format.
+
+        Args:
+            license_str: License string from BioRxiv
+
+        Returns:
+            Standardized license string or None
+        """
+        if not license_str:
+            return None
+
+        # Currently just return lowercased, hyphenated version
+        return license_str.lower().replace("_", "-").strip()
 
     def _parse_date(self, date_str: Optional[str]) -> Optional[str]:
         """
