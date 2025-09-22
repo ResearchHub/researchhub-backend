@@ -748,7 +748,7 @@ class TestChemRxivMapper(TestCase):
         self.assertEqual(hubs[0].slug, "biorxiv")
         self.assertEqual(hubs[0].namespace, Hub.Namespace.JOURNAL)
 
-    @patch.object(ChemRxivMapper, 'chemrxiv_hub', new_callable=PropertyMock)
+    @patch.object(ChemRxivMapper, "chemrxiv_hub", new_callable=PropertyMock)
     def test_map_to_hubs_without_existing_hub(self, mock_chemrxiv_hub):
         """
         Test map_to_hubs returns empty list when ChemRxiv hub doesn't exist.
@@ -764,3 +764,23 @@ class TestChemRxivMapper(TestCase):
         # Assert
         self.assertEqual(len(hubs), 0)
         self.assertEqual(hubs, [])
+
+    def test_parse_license(self):
+        """
+        Test license parsing from BioRxiv license strings.
+        """
+        # Arrange
+        test_cases = {
+            "CC BY 4.0": "cc-by-4.0",
+            "CC BY NC 4.0": "cc-by-nc-4.0",
+            "CC BY NC ND 4.0": "cc-by-nc-nd-4.0",
+            "": None,
+            None: None,
+        }
+
+        for given, expected in test_cases.items():
+            with self.subTest(given=given, expected=expected):
+                # Act
+                result = self.mapper._parse_license(given)
+                # Assert
+                self.assertEqual(result, expected)

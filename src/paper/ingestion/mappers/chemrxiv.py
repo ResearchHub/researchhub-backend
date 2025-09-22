@@ -369,6 +369,25 @@ class ChemRxivMapper(BaseMapper):
 
         return authorships
 
+    def _parse_license(self, license_str: Optional[str]) -> Optional[str]:
+        """
+        Parse license string to standard format.
+
+        Note: Licenses used by ChemRxiv can be queried via their API:
+        https://chemrxiv.org/engage/chemrxiv/public-api/v1/licenses
+
+        Args:
+            license_str: License string from ChemRxiv
+
+        Returns:
+            Standardized license string or None
+        """
+        if not license_str:
+            return None
+
+        # Currently just return lowercased, hyphenated version
+        return license_str.lower().replace(" ", "-").strip()
+
     def _extract_license(self, license_obj: Optional[Dict[str, Any]]) -> Optional[str]:
         """
         Extract license name.
