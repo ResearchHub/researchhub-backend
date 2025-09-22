@@ -15,6 +15,10 @@ from rest_framework.permissions import (
 )
 from rest_framework.response import Response
 
+from hub.mappers.arxiv_mappings import ARXIV_MAPPINGS
+from hub.mappers.biorxiv_mappings import BIORXIV_MAPPINGS
+from hub.mappers.chemrxiv_mappings import CHEMRXIV_MAPPINGS
+from hub.mappers.medrxiv_mappings import MEDRXIV_MAPPINGS
 from mailing_list.models import EmailRecipient, HubSubscription
 from paper.models import Paper
 from paper.utils import get_cache_key
@@ -467,6 +471,71 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
             },
             status=200,
         )
+
+    @action(detail=False, methods=[GET], permission_classes=[AllowAny])
+    def by_category(self, request):
+        """
+        Returns all subcategory hubs with their parent category.
+        Example: "neuroscience" hub will have category="Biology"
+        """
+
+        cache_key = get_cache_key("hubs", "by_category")
+        cached_data = cache.get(cache_key)
+
+        if cached_data:
+            return Response(cached_data, status=200)
+
+        subcategory_to_category_map = self._build_subcategory_mapping()
+
+        # Get subcategory hubs
+        subcategory_slugs = list(subcategory_to_category_map.keys())
+        hubs = Hub.objects.filter(slug__in=subcategory_slugs, is_removed=False)
+
+        # Convert category slugs to names
+        category_names = dict(
+            Hub.objects.filter(
+                slug__in=set(subcategory_to_category_map.values())
+            ).values_list("slug", "name")
+        )
+
+        # Create final mapping: subcategory slug -> category name
+        hub_category_mapping = {}
+        for subcategory_slug, category_slug in subcategory_to_category_map.items():
+            # Use the category's name if found, otherwise fallback to slug
+            category_name = category_names.get(
+                category_slug, f"Unknown ({category_slug})"
+            )
+            hub_category_mapping[subcategory_slug] = category_name
+
+        # Serialize with category mapping
+        context = self.get_serializer_context()
+        context["hub_category_mapping"] = hub_category_mapping
+
+        serializer = self.get_serializer(hubs, many=True, context=context)
+        data = serializer.data
+
+        # Cache for 24 hours
+        cache.set(cache_key, data, timeout=60 * 60 * 24)
+
+        return Response(data, status=200)
+
+    def _build_subcategory_mapping(self):
+        """Build mapping of subcategory slug -> category slug from all sources."""
+
+        mapping = {}
+        all_mappings = [
+            ARXIV_MAPPINGS,
+            BIORXIV_MAPPINGS,
+            CHEMRXIV_MAPPINGS,
+            MEDRXIV_MAPPINGS,
+        ]
+
+        for source in all_mappings:
+            for category_slug, subcategory_slug in source.values():
+                if category_slug and subcategory_slug:
+                    mapping[subcategory_slug] = category_slug
+
+        return mapping
 
 
 class HubCategoryViewSet(viewsets.ModelViewSet):
