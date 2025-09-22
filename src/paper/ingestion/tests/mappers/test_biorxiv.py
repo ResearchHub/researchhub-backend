@@ -98,7 +98,7 @@ class TestBioRxivMapper(TestCase):
         self.assertEqual(paper.paper_title, paper.title)
         self.assertEqual(paper.external_source, "biorxiv")
         self.assertTrue(paper.retrieved_from_external_source)
-        self.assertEqual(paper.pdf_license, "cc_no")
+        self.assertEqual(paper.pdf_license, "cc-no")
         self.assertTrue(paper.is_open_access)
         self.assertEqual(paper.oa_status, "gold")
 
@@ -219,7 +219,7 @@ class TestBioRxivMapper(TestCase):
         self.assertEqual(hubs[0].slug, "biorxiv")
         self.assertEqual(hubs[0].namespace, Hub.Namespace.JOURNAL)
 
-    @patch.object(BioRxivMapper, 'bioarxiv_hub', new_callable=PropertyMock)
+    @patch.object(BioRxivMapper, "bioarxiv_hub", new_callable=PropertyMock)
     def test_map_to_hubs_without_existing_hub(self, mock_bioarxiv_hub):
         """
         Test map_to_hubs returns empty list when bioRxiv hub doesn't exist.
@@ -235,3 +235,29 @@ class TestBioRxivMapper(TestCase):
         # Assert
         self.assertEqual(len(hubs), 0)
         self.assertEqual(hubs, [])
+
+    def test_parse_license(self):
+        """
+        Test license parsing from BioRxiv license strings.
+        """
+        # Arrange
+        test_cases = {
+            "cc_by": "cc-by",
+            "cc_by_sa": "cc-by-sa",
+            "cc_by_nd": "cc-by-nd",
+            "cc_by_nc": "cc-by-nc",
+            "cc_by_nc_sa": "cc-by-nc-sa",
+            "cc_by_nc_nd": "cc-by-nc-nd",
+            "cc_no": "cc-no",
+            "cc0": "cc0",
+            "cc0_ng": "cc0-ng",
+            "": None,
+            None: None,
+        }
+
+        for given, expected in test_cases.items():
+            with self.subTest(given=given, expected=expected):
+                # Act
+                result = self.mapper._parse_license(given)
+                # Assert
+                self.assertEqual(result, expected)
