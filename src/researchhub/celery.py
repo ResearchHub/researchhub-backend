@@ -186,13 +186,4 @@ app.conf.beat_schedule = {
             "queue": QUEUE_PULL_PAPERS,
         },
     },
-    # Testing tasks for paper ingestion
-    "test_biorxiv-paper-pull": {
-        "task": "paper.ingestion.tasks.pull_biorxiv_papers",
-        "schedule": crontab(hour="*/2", minute=0),
-        "options": {
-            "priority": 3,
-            "queue": QUEUE_PULL_PAPERS,
-        },
-    },
 }
