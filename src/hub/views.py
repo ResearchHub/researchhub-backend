@@ -475,7 +475,7 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
     @action(detail=False, methods=[GET], permission_classes=[AllowAny])
     def by_category(self, request):
         """
-        Returns all subcategory hubs with their parent category.
+        Returns all subcategory hubs with their parent category from mappings.
         Example: "neuroscience" hub will have category="Biology"
         """
 
@@ -514,7 +514,6 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         serializer = self.get_serializer(hubs, many=True, context=context)
         data = serializer.data
 
-        # Cache for 24 hours
         cache.set(cache_key, data, timeout=60 * 60 * 24)
 
         return Response(data, status=200)
