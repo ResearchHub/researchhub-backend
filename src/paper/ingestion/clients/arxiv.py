@@ -158,8 +158,8 @@ class ArXivClient(BaseClient):
         since_str = since.strftime("%Y%m%d%H%M")
         until_str = until.strftime("%Y%m%d%H%M")
 
-        # Build search query with date range using submittedDate
-        search_query = f"submittedDate:[{since_str} TO {until_str}]"
+        # Build search query with date range using lastUpdatedDate
+        search_query = f"lastUpdatedDate:[{since_str} TO {until_str}]"
 
         all_papers = []
         start = 0
