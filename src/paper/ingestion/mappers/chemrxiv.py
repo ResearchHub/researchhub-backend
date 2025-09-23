@@ -110,7 +110,7 @@ class ChemRxivMapper(BaseMapper):
             is_open_access=True,  # ChemRxiv is open access
             oa_status="gold",  # Gold open access for preprints
             external_metadata={
-                "chemrxiv_id": chemrxiv_id,
+                "external_id": chemrxiv_id,
             },
             retrieved_from_external_source=True,
         )

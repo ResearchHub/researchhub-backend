@@ -216,7 +216,7 @@ class TestChemRxivMapper(TestCase):
 
         # Check external metadata - should only have chemrxiv_id
         self.assertEqual(
-            paper.external_metadata["chemrxiv_id"], "68c17d313e708a764924e728"
+            paper.external_metadata["external_id"], "68c17d313e708a764924e728"
         )
         self.assertEqual(len(paper.external_metadata), 1)
 
