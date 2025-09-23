@@ -88,6 +88,10 @@ class ChemRxivMapper(BaseMapper):
         # Determine the best date to use
         paper_date = self._get_best_date(record)
 
+        # Extract and parse license
+        license_str = self._extract_license(record.get("license"))
+        pdf_license = self._parse_license(license_str)
+
         # Create Paper instance
         paper = Paper(
             # Core identifiers
@@ -102,7 +106,7 @@ class ChemRxivMapper(BaseMapper):
             # Authors (JSON field)
             raw_authors=raw_authors,
             # License and access
-            pdf_license=self._extract_license(record.get("license")),
+            pdf_license=pdf_license,
             is_open_access=True,  # ChemRxiv is open access
             oa_status="gold",  # Gold open access for preprints
             external_metadata={
