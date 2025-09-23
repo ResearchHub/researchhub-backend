@@ -8,12 +8,19 @@ This is done for three reasons:
 3. Older feed entries are not in the feed table.
 """
 
+from urllib.parse import parse_qs, unquote_plus
+
 from django.core.cache import cache
 from django.db.models import (
+    Avg,
     BooleanField,
     Case,
+    Count,
     DecimalField,
+    Exists,
     F,
+    FloatField,
+    OuterRef,
     Sum,
     Value,
     When,
@@ -25,9 +32,11 @@ from rest_framework.viewsets import ModelViewSet
 from feed.models import FeedEntry
 from feed.serializers import FundingFeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
+from organizations.models import NonprofitFundraiseLink
 from purchase.related_models.fundraise_model import Fundraise
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from user.related_models.user_verification_model import UserVerification
 
 from ..serializers import PostSerializer, serialize_feed_metrics
 from .common import FeedPagination
@@ -42,22 +51,126 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
     Query Parameters:
     - fundraise_status: Filter by fundraise status
       Options:
-        - OPEN: Only show posts with open fundraises
-        - CLOSED: Only show posts with completed fundraises
+        * OPEN: Only show posts with open fundraises
+        * CLOSED: Only show posts with completed fundraises
+
     - grant_id: Filter by grant applications
       (show only posts that applied to specific grant)
     - created_by: Filter by user ID who created the funding post
     - ordering: Sort order when grant_id is provided
       Options:
-        - newest (default): Sort by creation date (newest first)
-        - hot_score: Sort by hot score (most popular first)
-        - upvotes: Sort by score (most upvoted first)
-        - amount_raised: Sort by amount raised (highest first)
+        * newest (default): Sort by creation date (newest first)
+        * hot_score: Sort by hot score (most popular first)
+        * upvotes: Sort by score (most upvoted first)
+        * amount_raised: Sort by amount raised (highest first)
+        * expiring: Sort by end date (soonest first)
+        * goal_percent: Sort by percent of goal reached (highest first)
+
+    - filtering: More granular control, represented as URL encoded parameters
+      Options:
+        * hub_ids: Comma-separated list of hub IDs to filter posts by associated topics
+        * min_upvotes: Minimum number of upvotes to be included
+        * min_score: Minimum score to be included
+        * verified_authors_only: If set to true, only include verified authors
+        * tax_deductible: If set to true, only include posts with tax-deductible fundraises
     """
 
     serializer_class = PostSerializer
     permission_classes = []
     pagination_class = FeedPagination
+
+    def _filtering(self, queryset):
+        filtering = self.request.query_params.get("filtering", None)
+        if filtering:
+            unquoted = unquote_plus(filtering)
+            if unquoted:
+                params = parse_qs(unquoted)
+                hub_ids = params.get("hub_ids", None)
+                min_upvotes = params.get("min_upvotes", None)
+                min_score = params.get("min_score", None)
+                verified_authors_only = params.get("verified_authors_only", None)
+                tax_deductible = params.get("tax_deductible", None)
+
+                queryset = self._filtering_by_hub_ids(queryset, hub_ids)
+                queryset = self._filtering_by_min_upvotes(queryset, min_upvotes)
+                queryset = self._filtering_by_min_score(queryset, min_score)
+                queryset = self._filtering_by_verified_authors_only(
+                    queryset, verified_authors_only
+                )
+                queryset = self._filtering_by_tax_deductible(queryset, tax_deductible)
+        return queryset
+
+    def _filtering_by_hub_ids(self, queryset, hub_ids):
+        if hub_ids:
+            try:
+                hub_ids = [int(hub_id) for hub_id in hub_ids[0].split(",")]
+                queryset = queryset.filter(unified_document__hubs__id__in=hub_ids)
+            except ValueError:
+                pass
+        return queryset
+
+    def _filtering_by_min_upvotes(self, queryset, min_upvotes):
+        if min_upvotes:
+            try:
+                min_upvotes = int(min_upvotes[0])
+                if min_upvotes > 0:
+                    queryset = queryset.annotate(num_votes=Count("votes")).filter(
+                        num_votes__gte=min_upvotes
+                    )
+            except ValueError:
+                pass
+        return queryset
+
+    def _filtering_by_min_score(self, queryset, min_score):
+        if min_score:
+            try:
+                min_score = int(min_score[0])
+                if min_score > 0:
+                    queryset = queryset.annotate(
+                        avg_review_score=Avg("unified_document__reviews__score")
+                    ).filter(avg_review_score__gte=min_score)
+            except ValueError:
+                pass
+        return queryset
+
+    def _filtering_by_verified_authors_only(self, queryset, verified_authors_only):
+        if verified_authors_only and verified_authors_only[0].lower() == "true":
+            try:
+                queryset = queryset.filter(
+                    created_by__userverification__status=(
+                        UserVerification.Status.APPROVED
+                    ),
+                )
+            except ValueError:
+                pass
+        return queryset
+
+    def _filtering_by_tax_deductible(self, queryset, tax_deductible):
+        if tax_deductible and tax_deductible[0].lower() == "true":
+            try:
+                nonprofit_links_exist = NonprofitFundraiseLink.objects.filter(
+                    fundraise__unified_document=OuterRef("unified_document_id")
+                )
+                queryset = queryset.annotate(
+                    is_tax_deductible=Exists(nonprofit_links_exist)
+                ).filter(is_tax_deductible=True)
+            except ValueError:
+                pass
+        return queryset
+
+    def _ordering(self, queryset):
+        ordering = self.request.query_params.get("ordering")
+        if ordering == "amount_raised":
+            queryset = self._order_by_amount_raised(queryset)
+        elif ordering == "newest":
+            queryset = queryset.order_by("-created_date")
+        elif ordering == "expiring":
+            queryset = queryset.order_by("unified_document__fundraises__end_date")
+        elif ordering == "upvotes":
+            queryset = queryset.order_by("-score")
+        elif ordering == "goal_percent":
+            queryset = self._order_by_goal_percent(queryset)
+        return queryset
 
     def _order_by_amount_raised(self, queryset):
         return queryset.annotate(
@@ -68,6 +181,26 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
                 output_field=DecimalField(),
             )
         ).order_by("-amount_raised")
+
+    def _order_by_goal_percent(self, queryset):
+        # TODO: jmargulis: Consider addressing the difference between RSC and USD in
+        # escrow and goal_amount. It is possible that the rate between RSC and USD
+        # changes drastically during the fundraise period
+        return queryset.annotate(
+            goal_percent=Case(
+                When(
+                    unified_document__fundraises__goal_amount=0,
+                    then=Value(0.0),
+                ),
+                default=Coalesce(
+                    Sum("unified_document__fundraises__escrow__amount_holding")
+                    + Sum("unified_document__fundraises__escrow__amount_paid"),
+                    0,
+                )
+                / F("unified_document__fundraises__goal_amount"),
+                output_field=FloatField(),
+            )
+        ).order_by("-goal_percent")
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -125,7 +258,8 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
     def get_queryset(self):
         """
         Filter to only include posts that are preregistrations.
-        Additionally filter by fundraise status, grant applications, and/or created_by if specified.
+        Additionally filter by fundraise status, grant applications,
+        and/or created_by if specified, and filtering parameters.
         """
         fundraise_status = self.request.query_params.get("fundraise_status", None)
         grant_id = self.request.query_params.get("grant_id", None)
@@ -136,6 +270,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
             .select_related(
                 "created_by",
                 "created_by__author_profile",
+                "created_by__userverification",
                 "unified_document",
             )
             .prefetch_related(
@@ -211,8 +346,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
                 ).desc(),
             )
 
-        ordering = self.request.query_params.get("ordering")
-        if ordering == "amount_raised":
-            queryset = self._order_by_amount_raised(queryset)
+        queryset = self._filtering(queryset)
+        queryset = self._ordering(queryset)
 
         return queryset
