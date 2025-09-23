@@ -202,7 +202,7 @@ class TestChemRxivMapper(TestCase):
         self.assertEqual(paper.oa_status, "gold")
 
         # Check license
-        self.assertEqual(paper.pdf_license, "CC BY NC ND 4.0")
+        self.assertEqual(paper.pdf_license, "cc-by-nc-nd-4.0")
 
         # Check URLs
         self.assertEqual(
