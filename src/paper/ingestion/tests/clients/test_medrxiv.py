@@ -149,26 +149,6 @@ class TestMedRxivClient(TestCase):
         mock_fetch.assert_any_call("/details/medrxiv/2025-01-01/2025-01-01/0/json")
 
     @patch.object(MedRxivClient, "fetch_with_retry")
-    def test_fetch_recent_with_explicit_server(self, mock_fetch):
-        """Test that explicit server parameter overrides default."""
-        # Mock response
-        mock_fetch.side_effect = [
-            {"messages": [], "collection": []},
-        ]
-
-        # Fetch papers with explicit biorxiv server
-        papers = self.client.fetch_recent(
-            since=datetime(2025, 1, 1),
-            until=datetime(2025, 1, 1),
-            server="biorxiv",  # Explicitly use biorxiv
-        )
-
-        # Verify endpoint was called with biorxiv server (not medrxiv)
-        mock_fetch.assert_called_once_with(
-            "/details/biorxiv/2025-01-01/2025-01-01/0/json"
-        )
-
-    @patch.object(MedRxivClient, "fetch_with_retry")
     def test_fetch_recent_pagination(self, mock_fetch):
         """Test pagination handling in fetch_recent."""
         # First page response

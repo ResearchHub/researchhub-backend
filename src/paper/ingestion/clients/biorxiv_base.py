@@ -109,7 +109,6 @@ class BioRxivBaseClient(BaseClient):
         self,
         since: Optional[datetime] = None,
         until: Optional[datetime] = None,
-        server: Optional[str] = None,
         cursor: int = 0,
         format: str = "json",
         **kwargs,
@@ -120,7 +119,6 @@ class BioRxivBaseClient(BaseClient):
         Args:
             since: Start date (defaults to 7 days ago)
             until: End date (defaults to today)
-            server: "biorxiv" or "medrxiv" (uses class default if None)
             cursor: Pagination cursor (default: 0)
             format: Response format (default: "json")
             **kwargs: Additional parameters
@@ -142,16 +140,10 @@ class BioRxivBaseClient(BaseClient):
         current_cursor = cursor
 
         while True:
-            # Use the server specified or fall back to class default
-            if server is None:
-                server = self.default_server
-
             # BioRxiv API endpoint format:
             # /details/{server}/{interval}/{cursor}/{format}
             # interval is a date range like "2025-01-01/2025-01-31"
-            endpoint = (
-                f"/details/{server}/{since_str}/{until_str}/{current_cursor}/{format}"
-            )
+            endpoint = f"/details/{self.default_server}/{since_str}/{until_str}/{current_cursor}/{format}"
 
             logger.info(f"Fetching from {endpoint}")
 
@@ -187,7 +179,7 @@ class BioRxivBaseClient(BaseClient):
                 break
 
         logger.info(
-            f"Fetched {len(all_papers)} papers from {server} "
+            f"Fetched {len(all_papers)} papers from {self.default_server} "
             f"between {since_str} and {until_str}"
         )
         return all_papers
