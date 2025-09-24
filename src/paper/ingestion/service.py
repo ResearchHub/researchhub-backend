@@ -31,6 +31,7 @@ class IngestionSource(Enum):
     ARXIV = "arxiv"
     BIORXIV = "biorxiv"
     CHEMRXIV = "chemrxiv"
+    MEDRXIV = "medrxiv"
 
 
 class PaperIngestionService:

@@ -7,6 +7,7 @@ from django.core.management.base import BaseCommand
 from paper.ingestion.clients.arxiv import ArXivClient, ArXivConfig
 from paper.ingestion.clients.biorxiv import BioRxivClient, BioRxivConfig
 from paper.ingestion.clients.chemrxiv import ChemRxivClient, ChemRxivConfig
+from paper.ingestion.clients.medrxiv import MedRxivClient, MedRxivConfig
 from paper.ingestion.pipeline import PaperIngestionPipeline
 
 
@@ -72,6 +73,16 @@ class Command(BaseCommand):
                 ChemRxivConfig(
                     rate_limit=0.5,
                     page_size=50,
+                    request_timeout=60.0,
+                    max_retries=3,
+                )
+            )
+
+        if source in ["medrxiv", "all"]:
+            clients["medrxiv"] = MedRxivClient(
+                MedRxivConfig(
+                    rate_limit=1.0,
+                    page_size=100,
                     request_timeout=60.0,
                     max_retries=3,
                 )
