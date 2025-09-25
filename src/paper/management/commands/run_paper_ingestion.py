@@ -2,7 +2,10 @@
 Command for running the paper ingestion pipeline.
 """
 
-from django.core.management.base import BaseCommand
+from datetime import datetime
+
+from django.core.management.base import BaseCommand, CommandError
+from django.utils.dateparse import parse_date
 
 from paper.ingestion.clients.arxiv import ArXivClient, ArXivConfig
 from paper.ingestion.clients.biorxiv import BioRxivClient, BioRxivConfig
@@ -20,9 +23,44 @@ class Command(BaseCommand):
             default="all",
             help="Source to fetch papers from (default: all)",
         )
+        parser.add_argument(
+            "--since",
+            type=str,
+            help="Start date for fetching papers (format: YYYY-MM-DD)",
+        )
+        parser.add_argument(
+            "--until",
+            type=str,
+            help="End date for fetching papers (format: YYYY-MM-DD)",
+        )
 
     def handle(self, *args, **options):
         source = options["source"]
+        since_str = options.get("since")
+        until_str = options.get("until")
+
+        # Parse date parameters
+        since_dt = None
+        until_dt = None
+
+        if since_str:
+            since_date = parse_date(since_str)
+            if since_date:
+                # Use start of day
+                since_dt = datetime.combine(since_date, datetime.min.time())
+            else:
+                raise CommandError(f"Invalid date format for 'since': {since_str}.")
+
+        if until_str:
+            until_date = parse_date(until_str)
+            if until_date:
+                # Use end of day
+                until_dt = datetime.combine(until_date, datetime.max.time())
+            else:
+                raise CommandError(f"Invalid date format for 'until': {until_str}.")
+
+        if since_dt and until_dt and since_dt >= until_dt:
+            raise CommandError("'since' date must be before 'until' date")
 
         clients = self._get_clients(source)
 
@@ -30,9 +68,21 @@ class Command(BaseCommand):
 
         sources = list(clients.keys()) if source == "all" else [source]
 
-        self.stdout.write(f"Starting ingestion for: {', '.join(sources)}")
+        date_range_msg = ""
+        if since_dt:
+            date_range_msg += f" from {since_dt}"
+        if until_dt:
+            date_range_msg += f" until {until_dt}"
 
-        results = pipeline.run_ingestion(sources=sources)
+        self.stdout.write(
+            f"Starting ingestion for: {', '.join(sources)}{date_range_msg}"
+        )
+
+        results = pipeline.run_ingestion(
+            sources=sources,
+            since=since_dt,
+            until=until_dt,
+        )
 
         for src, status in results.items():
             self.stdout.write(f"\n{src}:")
