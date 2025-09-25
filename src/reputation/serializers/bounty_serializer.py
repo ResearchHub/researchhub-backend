@@ -8,6 +8,7 @@ from reputation.serializers.escrow_serializer import DynamicEscrowSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
 from user.serializers import DynamicUserSerializer
+from user.related_models.user_model import FOUNDATION_EMAIL
 from utils import sentry
 from utils.http import get_user_from_request
 
@@ -181,6 +182,8 @@ class DynamicBountySolutionSerializer(DynamicModelFieldSerializer):
     content_type = serializers.SerializerMethodField()
     item = serializers.SerializerMethodField()
     created_by = serializers.SerializerMethodField()
+    awarded_by = serializers.SerializerMethodField()
+    is_foundation_awarded = serializers.SerializerMethodField()
 
     class Meta:
         model = BountySolution
@@ -226,3 +229,16 @@ class DynamicBountySolutionSerializer(DynamicModelFieldSerializer):
         if serializer is not None:
             return serializer.data
         return None
+
+    def get_awarded_by(self, solution):
+        if not solution.awarded_by:
+            return None
+        context = self.context
+        _context_fields = context.get("rep_dbss_get_awarded_by", {})
+        serializer = DynamicUserSerializer(
+            solution.awarded_by, context=context, **_context_fields
+        )
+        return serializer.data
+
+    def get_is_foundation_awarded(self, solution):
+        return solution.awarded_by and solution.awarded_by.is_official_account

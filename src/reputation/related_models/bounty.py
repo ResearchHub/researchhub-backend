@@ -292,6 +292,14 @@ class BountySolution(DefaultModel):
     created_by = models.ForeignKey(
         "user.User", on_delete=models.CASCADE, related_name="solutions"
     )
+    awarded_by = models.ForeignKey(
+        "user.User", 
+        on_delete=models.SET_NULL, 
+        null=True,
+        blank=True,
+        related_name="awarded_solutions",
+        help_text="User who awarded this bounty solution"
+    )
     content_type = models.ForeignKey(
         ContentType, on_delete=models.CASCADE, related_name="bounty_solution"
     )

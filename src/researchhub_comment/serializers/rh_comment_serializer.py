@@ -33,6 +33,7 @@ class RhCommentSerializer(GenericReactionSerializer):
 
     children_count = SerializerMethodField()
     children = SerializerMethodField()
+    awarded_bounty_solution = SerializerMethodField()
 
     def get_children_count(self, comment):
         return comment.children_count
@@ -42,6 +43,24 @@ class RhCommentSerializer(GenericReactionSerializer):
             instance=rh_comment.children,
             many=True,
         ).data
+    
+    def get_awarded_bounty_solution(self, comment):
+        from reputation.models import BountySolution
+        
+        solution = BountySolution.objects.filter(
+            object_id=comment.id,
+            content_type__model='rhcommentmodel',
+            status=BountySolution.Status.AWARDED
+        ).select_related('awarded_by').first()
+        
+        if not solution:
+            return None
+            
+        return {
+            'id': solution.id,
+            'awarded_amount': solution.awarded_amount,
+            'is_foundation_awarded': solution.awarded_by and solution.awarded_by.is_official_account
+        }
 
 
 class DynamicRhCommentSerializer(
@@ -50,6 +69,7 @@ class DynamicRhCommentSerializer(
     DynamicModelFieldSerializer,
 ):
     awarded_bounty_amount = SerializerMethodField()
+    awarded_bounty_solution = SerializerMethodField()
     created_by = SerializerMethodField()
     thread = SerializerMethodField()
     children_count = SerializerMethodField()
@@ -218,6 +238,27 @@ class DynamicRhCommentSerializer(
             )
 
         return amount_awarded
+
+    def get_awarded_bounty_solution(self, comment):
+        from reputation.models import BountySolution
+        from reputation.serializers import DynamicBountySolutionSerializer
+        
+        solution = BountySolution.objects.filter(
+            object_id=comment.id,
+            content_type__model='rhcommentmodel',
+            status=BountySolution.Status.AWARDED
+        ).select_related('awarded_by').first()
+        
+        if not solution:
+            return None
+            
+        context = self.context
+        serializer = DynamicBountySolutionSerializer(
+            solution,
+            context=context,
+            _include_fields=['id', 'awarded_amount', 'is_foundation_awarded']
+        )
+        return serializer.data
 
     def get_user_vote(self, comment):
         vote = None
