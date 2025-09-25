@@ -6,6 +6,7 @@ from .arxiv import ArXivClient, ArXivConfig
 from .base import BaseClient, ClientConfig
 from .biorxiv import BioRxivClient, BioRxivConfig
 from .chemrxiv import ChemRxivClient, ChemRxivConfig
+from .medrxiv import MedRxivClient, MedRxivConfig
 
 __all__ = [
     "ArXivClient",
@@ -16,4 +17,6 @@ __all__ = [
     "ChemRxivClient",
     "ChemRxivConfig",
     "ClientConfig",
+    "MedRxivClient",
+    "MedRxivConfig",
 ]
