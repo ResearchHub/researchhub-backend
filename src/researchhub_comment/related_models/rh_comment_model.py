@@ -10,6 +10,7 @@ from django.db.models import (
     ForeignKey,
     JSONField,
     TextField,
+    FloatField,
 )
 
 from discussion.models import AbstractGenericReactionModel
@@ -98,6 +99,11 @@ class RhCommentModel(
         object_id_field="object_id",
         content_type_field="content_type",
         related_query_name="rh_comment",
+    )
+    ai_score = FloatField(
+        null=True,
+        blank=True,
+        help_text="AI-generated probability in [0,1]. Use -1 to indicate scoring error.",
     )
     reviews = GenericRelation("review.Review")
 
