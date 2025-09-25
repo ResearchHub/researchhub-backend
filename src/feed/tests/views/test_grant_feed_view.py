@@ -3,8 +3,11 @@ from decimal import Decimal
 
 import pytz
 from django.core.cache import cache
+from django.urls import reverse
+from rest_framework import status
 from rest_framework.test import APITestCase
 
+from hub.models import Hub
 from purchase.models import Grant, GrantApplication
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
@@ -12,6 +15,9 @@ from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from user.tests.helpers import create_random_authenticated_user
 
 
@@ -406,3 +412,286 @@ class GrantFeedViewTests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["results"]), 0)
+
+    def test_hubs_filter(self):
+        """Test filtering funding feed by hubs parameter"""
+        new_hub = Hub.objects.create(name="New Hub", slug="new-hub")
+        self.open_post.unified_document.hubs.add(new_hub)
+
+        # Test filtering by self.hub
+        url = reverse("grant_feed-list") + f"?hub_ids=[{new_hub.id}]"
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should only return posts associated with self.hub
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(
+            response.data["results"][0]["content_object"]["id"], self.open_post.id
+        )
+
+        # Test filtering with bad format (no brackets)
+        url = reverse("grant_feed-list") + f"?hub_ids={new_hub.id}"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should ignore the malformed hub_ids and return all posts
+        self.assertEqual(len(response.data["results"]), 3)
+
+    def test_grant_feed_order_by_newest(self):
+        """Test grant feed ordering by newest"""
+        new_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
+        _ = ResearchhubPost.objects.create(
+            title="Newest Grant",
+            created_by=self.user,
+            document_type=GRANT,
+            unified_document=new_doc,
+        )
+        # Create grants with different statuses
+        _ = Grant.objects.create(
+            created_by=self.moderator,
+            unified_document=new_doc,
+            amount=Decimal("50000.00"),
+            currency="USD",
+            organization="NSF",
+            description="Open research grant",
+            status=Grant.OPEN,
+            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
+        )
+
+        self.client.force_authenticate(self.user)
+        response = self.client.get("/api/grant_feed/?ordering=newest")
+
+        self.assertEqual(response.status_code, 200)
+        results = response.data["results"]
+
+        # First result should be the most recently created grant
+        first_result = results[0]
+        self.assertEqual(first_result["content_object"]["title"], "Newest Grant")
+
+    def test_grant_feed_order_by_amount(self):
+        """Test grant feed ordering by grant amount"""
+        largest_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
+        _ = ResearchhubPost.objects.create(
+            title="Largest Open Grant",
+            created_by=self.user,
+            document_type=GRANT,
+            unified_document=largest_doc,
+        )
+        # Create grants with different statuses
+        _ = Grant.objects.create(
+            created_by=self.moderator,
+            unified_document=largest_doc,
+            amount=Decimal("90000.00"),
+            currency="USD",
+            organization="NSF",
+            description="Open research grant",
+            status=Grant.OPEN,
+            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
+        )
+
+        medium_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
+        _ = ResearchhubPost.objects.create(
+            title="Medium Open Grant",
+            created_by=self.user,
+            document_type=GRANT,
+            unified_document=medium_doc,
+        )
+        # Create grants with different statuses
+        _ = Grant.objects.create(
+            created_by=self.moderator,
+            unified_document=medium_doc,
+            amount=Decimal("70000.00"),
+            currency="USD",
+            organization="NSF",
+            description="Open research grant",
+            status=Grant.OPEN,
+            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
+        )
+
+        self.client.force_authenticate(self.user)
+        response = self.client.get("/api/grant_feed/?ordering=grants__amount")
+
+        self.assertEqual(response.status_code, 200)
+        results = response.data["results"]
+
+        # First result should be the grant with the highest amount
+        first_result = results[0]
+        self.assertEqual(
+            first_result["content_object"]["grant"]["amount"]["usd"], 90000.0
+        )
+
+        second_result = results[1]
+        self.assertEqual(
+            second_result["content_object"]["grant"]["amount"]["usd"], 70000.0
+        )
+
+    def test_grant_feed_order_by_end_date(self):
+        """Test grant feed ordering by grant end date (soonest first)"""
+        soonest_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
+        _ = ResearchhubPost.objects.create(
+            title="Soonest Ending Grant",
+            created_by=self.user,
+            document_type=GRANT,
+            unified_document=soonest_doc,
+        )
+
+        _ = Grant.objects.create(
+            created_by=self.moderator,
+            unified_document=soonest_doc,
+            amount=Decimal("60000.00"),
+            currency="USD",
+            organization="NSF",
+            description="Open research grant",
+            status=Grant.OPEN,
+            end_date=datetime.now(pytz.UTC) + timedelta(days=10),
+        )
+
+        later_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
+        _ = ResearchhubPost.objects.create(
+            title="Later Ending Grant",
+            created_by=self.user,
+            document_type=GRANT,
+            unified_document=later_doc,
+        )
+
+        _ = Grant.objects.create(
+            created_by=self.moderator,
+            unified_document=later_doc,
+            amount=Decimal("60000.00"),
+            currency="USD",
+            organization="NSF",
+            description="Open research grant",
+            status=Grant.OPEN,
+            end_date=datetime.now(pytz.UTC) + timedelta(days=20),
+        )
+
+        self.client.force_authenticate(self.user)
+        response = self.client.get("/api/grant_feed/?ordering=end_date")
+
+        self.assertEqual(response.status_code, 200)
+        results = response.data["results"]
+
+        # First result should be the grant with the soonest end date
+        first_result = results[0]
+        self.assertEqual(
+            first_result["content_object"]["title"], "Soonest Ending Grant"
+        )
+
+        second_result = results[1]
+        self.assertEqual(second_result["content_object"]["title"], "Later Ending Grant")
+
+    def test_grant_feed_order_by_application_count(self):
+        """Test grant feed ordering by number of applications (most first)"""
+        # Create applicant users
+        applicant1 = create_random_authenticated_user("applicant1")
+        applicant2 = create_random_authenticated_user("applicant2")
+        applicant3 = create_random_authenticated_user("applicant3")
+
+        # Create preregistration posts for applications
+        preregistration1 = create_post(
+            created_by=applicant1,
+            document_type=PREREGISTRATION,
+            title="Preregistration 1",
+        )
+        preregistration2 = create_post(
+            created_by=applicant2,
+            document_type=PREREGISTRATION,
+            title="Preregistration 2",
+        )
+        preregistration3 = create_post(
+            created_by=applicant3,
+            document_type=PREREGISTRATION,
+            title="Preregistration 3",
+        )
+
+        # Create additional grants
+        grant1_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
+        grant1_post = ResearchhubPost.objects.create(
+            title="Grant with 2 Applications",
+            created_by=self.user,
+            document_type=GRANT,
+            unified_document=grant1_doc,
+        )
+        grant1 = Grant.objects.create(
+            created_by=self.moderator,
+            unified_document=grant1_post.unified_document,
+            amount=Decimal("50000.00"),
+            currency="USD",
+            organization="NSF",
+            description="Research grant 1",
+            status=Grant.OPEN,
+            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
+        )
+
+        grant2_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
+        grant2_post = ResearchhubPost.objects.create(
+            title="Grant with 1 Application",
+            created_by=self.user,
+            document_type=GRANT,
+            unified_document=grant2_doc,
+        )
+        grant2 = Grant.objects.create(
+            created_by=self.moderator,
+            unified_document=grant2_post.unified_document,
+            amount=Decimal("60000.00"),
+            currency="USD",
+            organization="NIH",
+            description="Research grant 2",
+            status=Grant.OPEN,
+            end_date=datetime.now(pytz.UTC) + timedelta(days=40),
+        )
+
+        # Create applications
+        GrantApplication.objects.create(
+            grant=grant1, preregistration_post=preregistration1, applicant=applicant1
+        )
+
+        GrantApplication.objects.create(
+            grant=grant1, preregistration_post=preregistration2, applicant=applicant2
+        )
+
+        GrantApplication.objects.create(
+            grant=grant2, preregistration_post=preregistration3, applicant=applicant3
+        )
+
+        self.client.force_authenticate(self.user)
+        response = self.client.get("/api/grant_feed/?ordering=application_count")
+
+        self.assertEqual(response.status_code, 200)
+        results = response.data["results"]
+
+        # First result should be the grant with the soonest end date
+        first_result = results[0]
+        self.assertEqual(
+            first_result["content_object"]["title"], "Grant with 2 Applications"
+        )
+
+        second_result = results[1]
+        self.assertEqual(
+            second_result["content_object"]["title"], "Grant with 1 Application"
+        )
+
+    def test_get_hubs(self):
+        """Test the get_hubs action to retrieve hubs with preregistration posts"""
+        new_hub = Hub.objects.create(name="New Hub", slug="new-hub")
+        self.open_post.unified_document.hubs.add(new_hub)
+
+        url = reverse("grant_feed-hubs")
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsInstance(response.data, list)
+
+        hub_ids = [hub["id"] for hub in response.data]
+        self.assertIn(new_hub.id, hub_ids)
+
+        newest_hub = Hub.objects.create(name="Newest Hub", slug="newest-hub")
+        newest_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
+        newest_doc.hubs.add(new_hub)
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        hub_ids = [hub["id"] for hub in response.data]
+
+        # if key working new hub should not be in list yet.
+        self.assertNotIn(newest_hub.id, hub_ids)
