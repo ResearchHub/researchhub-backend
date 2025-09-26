@@ -416,12 +416,13 @@ class PostSerializerTests(TestCase):
         context = FeedViewMixin().get_common_serializer_context()
 
         # Mock the RscExchangeRate.usd_to_rsc method to avoid database dependency
-        with patch.object(
-            RscExchangeRate, "usd_to_rsc", return_value=200.0
-        ), patch.object(
-            Fundraise,
-            "get_amount_raised",
-            side_effect=lambda currency: 50.0 if currency == USD else 100.0,
+        with (
+            patch.object(RscExchangeRate, "usd_to_rsc", return_value=200.0),
+            patch.object(
+                Fundraise,
+                "get_amount_raised",
+                side_effect=lambda currency: 50.0 if currency == USD else 100.0,
+            ),
         ):
             # Serialize the post with the context
             serializer = PostSerializer(preregistration_post, context=context)
@@ -1295,6 +1296,241 @@ class FeedEntrySerializerTests(TestCase):
         self.user = create_random_default_user("feed_creator")
 
         return None
+
+    @patch(
+        "researchhub_document.related_models.researchhub_unified_document_model"
+        ".ResearchhubUnifiedDocument.get_primary_hub"
+    )
+    def test_serializes_paper_feed_entry_with_unified_document_id(
+        self, mock_get_primary_hub
+    ):
+        """Test that paper feed entries include unified_document_id in content_object"""
+        paper = create_paper(uploaded_by=self.user)
+        paper.score = 42
+        paper.discussion_count = 15
+        paper.save()
+
+        hub = create_hub("Test Hub")
+        mock_get_primary_hub.return_value = hub
+
+        # Mock the get_review_details method to return test review metrics
+        review_metrics = {"avg": 4.5, "count": 3}
+        with patch.object(
+            paper.unified_document, "get_review_details", return_value=review_metrics
+        ):
+            feed_entry = FeedEntry.objects.create(
+                content_type=ContentType.objects.get_for_model(Paper),
+                object_id=paper.id,
+                item=paper,
+                created_date=paper.created_date,
+                action="PUBLISH",
+                action_date=paper.paper_publish_date,
+                metrics={"votes": 42, "comments": 15, "review_metrics": review_metrics},
+                user=self.user,
+                unified_document=paper.unified_document,
+            )
+
+            serializer = FeedEntrySerializer(feed_entry)
+            data = serializer.data
+
+            # Verify basic feed entry fields
+            self.assertIn("id", data)
+            self.assertIn("content_type", data)
+            self.assertEqual(data["content_type"], "PAPER")
+            self.assertIn("content_object", data)
+
+            # Verify unified_document_id is included in content_object
+            paper_data = data["content_object"]
+            self.assertIn("unified_document_id", paper_data)
+            self.assertEqual(
+                paper_data["unified_document_id"], paper.unified_document.id
+            )
+
+            mock_get_primary_hub.assert_called()
+
+    @patch(
+        "researchhub_document.related_models.researchhub_unified_document_model."
+        "ResearchhubUnifiedDocument.get_primary_hub"
+    )
+    def test_serializes_post_feed_entry_with_unified_document_id(
+        self, mock_get_primary_hub
+    ):
+        """Test that post feed entries include unified_document_id in content_object"""
+        # Create a hub
+        hub = create_hub("Test Hub")
+        mock_get_primary_hub.return_value = hub
+
+        # Create a post with metrics
+        unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.POSTS,
+        )
+
+        post = ResearchhubPost.objects.create(
+            title="Test Post",
+            created_by=self.user,
+            document_type=document_type.POSTS,
+            renderable_text="This is a test post",
+            unified_document=unified_document,
+            score=25,
+            discussion_count=8,
+        )
+
+        # Create a feed entry for the post
+        post_feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=post.id,
+            item=post,
+            created_date=post.created_date,
+            action="PUBLISH",
+            action_date=post.created_date,
+            metrics={"votes": 25, "comments": 8},
+            user=self.user,
+            unified_document=post.unified_document,
+        )
+
+        # Serialize the feed entry
+        serializer = FeedEntrySerializer(post_feed_entry)
+        data = serializer.data
+
+        # Verify basic feed entry fields
+        self.assertIn("id", data)
+        self.assertIn("content_type", data)
+        self.assertEqual(data["content_type"], "RESEARCHHUBPOST")
+        self.assertIn("content_object", data)
+
+        # Verify unified_document_id is included in content_object
+        post_data = data["content_object"]
+        self.assertIn("unified_document_id", post_data)
+        self.assertEqual(post_data["unified_document_id"], post.unified_document.id)
+
+    @patch(
+        "researchhub_document.related_models.researchhub_unified_document_model."
+        "ResearchhubUnifiedDocument.get_primary_hub"
+    )
+    def test_serializes_comment_feed_entry_with_unified_document_id(
+        self, mock_get_primary_hub
+    ):
+        """Test that comment feed entries include unified_document_id in paper/post fields"""
+        # Create a paper and unified document
+        paper = create_paper(uploaded_by=self.user)
+        hub = create_hub("Test Hub")
+        mock_get_primary_hub.return_value = hub
+
+        # Create a comment thread and comment
+        thread = RhCommentThreadModel.objects.create(
+            thread_type=rh_comment_thread_types.GENERIC_COMMENT,
+            object_id=paper.id,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(Paper),
+        )
+
+        comment = RhCommentModel.objects.create(
+            thread=thread,
+            created_by=self.user,
+            comment_content_type=QUILL_EDITOR,
+        )
+
+        # Create a feed entry for the comment
+        comment_feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=comment.id,
+            item=comment,
+            created_date=comment.created_date,
+            action="PUBLISH",
+            action_date=comment.created_date,
+            metrics={"votes": 15},
+            user=self.user,
+            unified_document=paper.unified_document,
+        )
+
+        # Serialize the feed entry
+        serializer = FeedEntrySerializer(comment_feed_entry)
+        data = serializer.data
+
+        # Verify basic feed entry fields
+        self.assertIn("id", data)
+        self.assertIn("content_type", data)
+        self.assertEqual(data["content_type"], "RHCOMMENTMODEL")
+        self.assertIn("content_object", data)
+
+        # Verify unified_document_id is included in paper field of comment
+        comment_data = data["content_object"]
+        self.assertIn("paper", comment_data)
+        paper_data = comment_data["paper"]
+        self.assertIn("unified_document_id", paper_data)
+        self.assertEqual(paper_data["unified_document_id"], paper.unified_document.id)
+
+        mock_get_primary_hub.assert_called()
+
+    @patch(
+        "researchhub_document.related_models.researchhub_unified_document_model."
+        "ResearchhubUnifiedDocument.get_primary_hub"
+    )
+    def test_serializes_comment_feed_entry_with_post_unified_document_id(
+        self, mock_get_primary_hub
+    ):
+        """Test that comment feed entries include unified_document_id in post field when comment is on a post"""
+        # Create a post and unified document
+        hub = create_hub("Test Hub")
+        mock_get_primary_hub.return_value = hub
+
+        unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.DISCUSSION,
+        )
+
+        post = ResearchhubPost.objects.create(
+            title="Test Post",
+            created_by=self.user,
+            document_type=document_type.DISCUSSION,
+            renderable_text="This is a test post",
+            unified_document=unified_document,
+        )
+
+        # Create a comment thread and comment on the post
+        thread = RhCommentThreadModel.objects.create(
+            thread_type=rh_comment_thread_types.GENERIC_COMMENT,
+            object_id=post.id,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+        )
+
+        comment = RhCommentModel.objects.create(
+            thread=thread,
+            created_by=self.user,
+            comment_content_type=QUILL_EDITOR,
+        )
+
+        # Create a feed entry for the comment
+        comment_feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=comment.id,
+            item=comment,
+            created_date=comment.created_date,
+            action="PUBLISH",
+            action_date=comment.created_date,
+            metrics={"votes": 15},
+            user=self.user,
+            unified_document=post.unified_document,
+        )
+
+        # Serialize the feed entry
+        serializer = FeedEntrySerializer(comment_feed_entry)
+        data = serializer.data
+
+        # Verify basic feed entry fields
+        self.assertIn("id", data)
+        self.assertIn("content_type", data)
+        self.assertEqual(data["content_type"], "RHCOMMENTMODEL")
+        self.assertIn("content_object", data)
+
+        # Verify unified_document_id is included in post field of comment
+        comment_data = data["content_object"]
+        self.assertIn("post", comment_data)
+        post_data = comment_data["post"]
+        self.assertIn("unified_document_id", post_data)
+        self.assertEqual(post_data["unified_document_id"], post.unified_document.id)
+
+        mock_get_primary_hub.assert_called()
 
     @patch(
         "researchhub_document.related_models.researchhub_unified_document_model"
