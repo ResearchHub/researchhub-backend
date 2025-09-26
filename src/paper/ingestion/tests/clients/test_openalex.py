@@ -60,7 +60,48 @@ class TestOpenAlexClient(TestCase):
 
         # Act
         client = OpenAlexClient(config)
+        
+        # Assert
         self.assertEqual(client.headers["User-Agent"], "mailto:test@example.com")
+
+    def test_config_with_api_key(self):
+        """
+        Test OpenAlex config with API key.
+        """
+        # Arrange
+        config = OpenAlexConfig(api_key="test-api-key-123")
+
+        # Act
+        client = OpenAlexClient(config)
+        
+        # Assert
+        self.assertEqual(client.api_key, "test-api-key-123")
+        # API key should not be in headers
+        self.assertNotIn("Authorization", client.headers)
+
+    def test_fetch_includes_api_key_in_params(self):
+        """
+        Test that fetch method includes API key in query parameters.
+        """
+        # Arrange
+        config = OpenAlexConfig(api_key="test-api-key-123", email="test@example.com")
+        client = OpenAlexClient(config)
+        
+        with patch("requests.Session.get") as mock_get:
+            mock_response = MagicMock()
+            mock_response.json.return_value = self.sample_list_response
+            mock_response.raise_for_status.return_value = None
+            mock_get.return_value = mock_response
+
+            # Act
+            client.fetch("/works", {"filter": "is_oa:true"})
+
+            # Assert
+            mock_get.assert_called_once()
+            call_args = mock_get.call_args
+            params = call_args[1]["params"]
+            self.assertEqual(params["api_key"], "test-api-key-123")
+            self.assertEqual(params["filter"], "is_oa:true")
 
     def test_parse_list_response(self):
         """

@@ -44,6 +44,7 @@ class OpenAlexClient(BaseClient):
             config = OpenAlexConfig()
         super().__init__(config)
         self.session = requests.Session()
+        self.api_key = config.api_key
 
         self.headers = {"Accept": "application/json"}
         if config.email:
@@ -69,6 +70,12 @@ class OpenAlexClient(BaseClient):
             TimeoutError: If request times out
         """
         url = f"{self.config.base_url}{endpoint}"
+
+        if params is None:
+            params = {}
+        # Add API key, if available
+        if self.api_key:
+            params["api_key"] = self.api_key
 
         try:
             response = self.session.get(
