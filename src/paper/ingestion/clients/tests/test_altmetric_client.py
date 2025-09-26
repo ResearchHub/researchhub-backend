@@ -1,12 +1,13 @@
+from unittest import TestCase
 from unittest.mock import Mock, patch
 
 from paper.ingestion.clients.altmetric import AltmetricClient
 
 
-class TestAltmetricClient:
+class TestAltmetricClient(TestCase):
     """Test suite for the AltmetricClient."""
 
-    def setup_method(self):
+    def setUp(self):
         """Set up test client."""
         self.client = AltmetricClient()
 
@@ -21,7 +22,7 @@ class TestAltmetricClient:
         ]
 
         for input_doi, expected in test_cases:
-            assert self.client._clean_doi(input_doi) == expected
+            self.assertEqual(self.client._clean_doi(input_doi), expected)
 
     @patch("paper.ingestion.clients.altmetric.retryable_requests_session")
     def test_fetch_by_doi_success(self, mock_session):
@@ -40,9 +41,9 @@ class TestAltmetricClient:
 
         result = self.client.fetch_by_doi("10.1038/nature12373")
 
-        assert result is not None
-        assert result["score"] == 35.25
-        assert result["doi"] == "10.1038/nature12373"
+        self.assertIsNotNone(result)
+        self.assertAlmostEqual(result["score"], 35.25)
+        self.assertEqual(result["doi"], "10.1038/nature12373")
 
         # Verify the correct URL was called
         mock_session_instance.get.assert_called_once_with(
@@ -63,7 +64,7 @@ class TestAltmetricClient:
 
         result = self.client.fetch_by_doi("10.1038/nonexistent")
 
-        assert result is None
+        self.assertIsNone(result)
 
     @patch("paper.ingestion.clients.altmetric.retryable_requests_session")
     def test_fetch_by_doi_rate_limited(self, mock_session):
@@ -78,16 +79,16 @@ class TestAltmetricClient:
 
         result = self.client.fetch_by_doi("10.1038/nature12373")
 
-        assert result is None
+        self.assertIsNone(result)
         mock_response.raise_for_status.assert_called_once()
 
     def test_fetch_empty_doi(self):
         """Test fetch with empty DOI."""
         result = self.client.fetch_by_doi("")
-        assert result is None
+        self.assertIsNone(result)
 
         result = self.client.fetch_by_doi(None)
-        assert result is None
+        self.assertIsNone(result)
 
     @patch("paper.ingestion.clients.altmetric.retryable_requests_session")
     def test_fetch_network_error(self, mock_session):
@@ -97,4 +98,4 @@ class TestAltmetricClient:
         mock_session.return_value.__enter__.return_value = mock_session_instance
 
         result = self.client.fetch_by_doi("10.1038/nature12373")
-        assert result is None
+        self.assertIsNone(result)
