@@ -1241,6 +1241,7 @@ class SimpleHubSerializerTests(TestCase):
         serializer = SimpleHubSerializer(self.hub)
         data = serializer.data
 
+        self.assertEqual(data["id"], self.hub.id)
         self.assertEqual(data["name"], self.hub.name)
         self.assertEqual(data["slug"], self.hub.slug)
 

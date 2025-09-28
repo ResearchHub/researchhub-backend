@@ -78,7 +78,7 @@ class SimpleHubSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Hub
-        fields = ["name", "slug"]
+        fields = ["id", "name", "slug"]
 
 
 class SimpleReviewSerializer(serializers.ModelSerializer):
