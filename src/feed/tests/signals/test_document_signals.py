@@ -32,6 +32,7 @@ class DocumentSignalsTests(TestCase):
         )
         self.assertEqual(len(feed_entries), 1)
         self.assertEqual(feed_entries[0].hubs.count(), 2)
+        self.assertEqual(feed_entries[0].user, paper.uploaded_by)
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     def test_feed_entries_are_deleted_when_all_hubs_are_removed_from_paper(self):
@@ -129,6 +130,7 @@ class DocumentSignalsTests(TestCase):
         )
         self.assertEqual(len(feed_entries), 1)
         self.assertEqual(feed_entries[0].hubs.count(), 2)
+        self.assertEqual(feed_entries[0].user, post.created_by)
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     def test_feed_entries_are_deleted_when_all_hubs_are_removed_from_post(self):
