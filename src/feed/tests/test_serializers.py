@@ -1297,21 +1297,12 @@ class FeedEntrySerializerTests(TestCase):
 
         return None
 
-    @patch(
-        "researchhub_document.related_models.researchhub_unified_document_model"
-        ".ResearchhubUnifiedDocument.get_primary_hub"
-    )
-    def test_serializes_paper_feed_entry_with_unified_document_id(
-        self, mock_get_primary_hub
-    ):
+    def test_serializes_paper_feed_entry_with_unified_document_id(self):
         """Test that paper feed entries include unified_document_id in content_object"""
         paper = create_paper(uploaded_by=self.user)
         paper.score = 42
         paper.discussion_count = 15
         paper.save()
-
-        hub = create_hub("Test Hub")
-        mock_get_primary_hub.return_value = hub
 
         # Mock the get_review_details method to return test review metrics
         review_metrics = {"avg": 4.5, "count": 3}
@@ -1346,20 +1337,8 @@ class FeedEntrySerializerTests(TestCase):
                 paper_data["unified_document_id"], paper.unified_document.id
             )
 
-            mock_get_primary_hub.assert_called()
-
-    @patch(
-        "researchhub_document.related_models.researchhub_unified_document_model."
-        "ResearchhubUnifiedDocument.get_primary_hub"
-    )
-    def test_serializes_post_feed_entry_with_unified_document_id(
-        self, mock_get_primary_hub
-    ):
+    def test_serializes_post_feed_entry_with_unified_document_id(self):
         """Test that post feed entries include unified_document_id in content_object"""
-        # Create a hub
-        hub = create_hub("Test Hub")
-        mock_get_primary_hub.return_value = hub
-
         # Create a post with metrics
         unified_document = ResearchhubUnifiedDocument.objects.create(
             document_type=document_type.POSTS,
@@ -1403,18 +1382,10 @@ class FeedEntrySerializerTests(TestCase):
         self.assertIn("unified_document_id", post_data)
         self.assertEqual(post_data["unified_document_id"], post.unified_document.id)
 
-    @patch(
-        "researchhub_document.related_models.researchhub_unified_document_model."
-        "ResearchhubUnifiedDocument.get_primary_hub"
-    )
-    def test_serializes_comment_feed_entry_with_unified_document_id(
-        self, mock_get_primary_hub
-    ):
+    def test_serializes_comment_feed_entry_with_unified_document_id(self):
         """Test that comment feed entries include unified_document_id in paper/post fields"""
         # Create a paper and unified document
         paper = create_paper(uploaded_by=self.user)
-        hub = create_hub("Test Hub")
-        mock_get_primary_hub.return_value = hub
 
         # Create a comment thread and comment
         thread = RhCommentThreadModel.objects.create(
@@ -1460,20 +1431,9 @@ class FeedEntrySerializerTests(TestCase):
         self.assertIn("unified_document_id", paper_data)
         self.assertEqual(paper_data["unified_document_id"], paper.unified_document.id)
 
-        mock_get_primary_hub.assert_called()
-
-    @patch(
-        "researchhub_document.related_models.researchhub_unified_document_model."
-        "ResearchhubUnifiedDocument.get_primary_hub"
-    )
-    def test_serializes_comment_feed_entry_with_post_unified_document_id(
-        self, mock_get_primary_hub
-    ):
+    def test_serializes_comment_feed_entry_with_post_unified_document_id(self):
         """Test that comment feed entries include unified_document_id in post field when comment is on a post"""
         # Create a post and unified document
-        hub = create_hub("Test Hub")
-        mock_get_primary_hub.return_value = hub
-
         unified_document = ResearchhubUnifiedDocument.objects.create(
             document_type=document_type.DISCUSSION,
         )
@@ -1529,8 +1489,6 @@ class FeedEntrySerializerTests(TestCase):
         post_data = comment_data["post"]
         self.assertIn("unified_document_id", post_data)
         self.assertEqual(post_data["unified_document_id"], post.unified_document.id)
-
-        mock_get_primary_hub.assert_called()
 
     @patch(
         "researchhub_document.related_models.researchhub_unified_document_model"

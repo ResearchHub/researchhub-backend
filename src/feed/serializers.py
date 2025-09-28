@@ -634,7 +634,7 @@ def serialize_feed_metrics(item, item_content_type):
     return metrics
 
 
-def serialize_feed_item(feed_item, item_content_type, unified_document=None):
+def serialize_feed_item(feed_item, item_content_type):
     """
     Serialize an item to JSON based on its content type.
 
