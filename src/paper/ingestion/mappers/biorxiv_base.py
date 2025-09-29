@@ -29,6 +29,16 @@ class BioRxivBaseMapper(BaseMapper):
 
     _hub = None
 
+    def __init__(self, hub_mapper=None):
+        """
+        Constructor.
+
+        Args:
+            mapper: Hubs mapper instance.
+        """
+        super().__init__()
+        self.hub_mapper = hub_mapper
+
     @property
     def preprint_hub(self):
         """
@@ -305,7 +315,14 @@ class BioRxivBaseMapper(BaseMapper):
     def map_to_hubs(self, paper: Paper, record: Dict[str, Any]) -> List[Hub]:
         """
         Map BioRxiv/MedRxiv record to Hub (tag) model instances.
-
-        Initially, this only returns the preprint server hub.
         """
-        return [self.preprint_hub] if self.preprint_hub else []
+        hubs = []
+
+        if self.hub_mapper:
+            category = record.get("category", None)
+            hubs = self.hub_mapper.map(category, self.default_server)
+
+        if self.preprint_hub and self.preprint_hub not in hubs:
+            hubs.append(self.preprint_hub)
+
+        return hubs
