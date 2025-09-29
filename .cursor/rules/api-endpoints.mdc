@@ -269,8 +269,6 @@ health/
 ^api/ ^user/referral_rsc\.(?P<format>[a-z0-9]+)/?$ [name='user-referral-rsc']
 ^api/ ^user/reinstate/$ [name='user-reinstate']
 ^api/ ^user/reinstate\.(?P<format>[a-z0-9]+)/?$ [name='user-reinstate']
-^api/ ^user/sift_check_user_content/$ [name='user-sift-check-user-content']
-^api/ ^user/sift_check_user_content\.(?P<format>[a-z0-9]+)/?$ [name='user-sift-check-user-content']
 ^api/ ^user/update_balance_history_clicked/$ [name='user-update-balance-history-clicked']
 ^api/ ^user/update_balance_history_clicked\.(?P<format>[a-z0-9]+)/?$ [name='user-update-balance-history-clicked']
 ^api/ ^user/(?P<pk>[^/.]+)/$ [name='user-detail']
