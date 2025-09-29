@@ -128,11 +128,11 @@ class SocialLoginSerializer(serializers.Serializer):
 
         login_user = login.account.user
         attrs["user"] = login_user
-        tracked_login_w_events_api = events_api.track_login(
-            login_user, "$success", request
-        )
-        update_user_risk_score(login_user, tracked_login_w_events_api)
-        self.track_user_visit_after_login(attrs)
+        # tracked_login_w_events_api = events_api.track_login(
+        #     login_user, "$success", request
+        # )
+        # update_user_risk_score(login_user, tracked_login_w_events_api)
+        # self.track_user_visit_after_login(attrs)
         self.handle_referral(attrs)
         return attrs
 
