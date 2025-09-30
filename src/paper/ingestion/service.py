@@ -6,27 +6,18 @@ and handles the saving process with proper validation and error handling.
 """
 
 import logging
-from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 from django.db import transaction
 
 from institution.models import Institution
+from paper.ingestion.constants import IngestionSource
 from paper.ingestion.mappers import BaseMapper
 from paper.models import Paper
 from paper.related_models.authorship_model import Authorship
 from user.related_models.author_model import Author
 
 logger = logging.getLogger(__name__)
-
-
-class IngestionSource(Enum):
-    """Supported ingestion sources."""
-
-    ARXIV = "arxiv"
-    BIORXIV = "biorxiv"
-    CHEMRXIV = "chemrxiv"
-    MEDRXIV = "medrxiv"
 
 
 class PaperIngestionService:
