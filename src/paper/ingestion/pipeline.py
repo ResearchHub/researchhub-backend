@@ -64,6 +64,7 @@ class PaperIngestionPipeline:
         sources: Optional[List[str]] = None,
         since: Optional[datetime] = None,
         until: Optional[datetime] = None,
+        create_fetch_log: bool = True,
     ) -> Dict[str, IngestionStatus]:
         """
         Run the ingestion pipeline for specified sources.
@@ -72,6 +73,7 @@ class PaperIngestionPipeline:
             sources: List of source names to fetch from. Uses all enabled sources if none provided.
             since: Start date for fetching papers. Uses last successful fetch time if none provided.
             until: End date for fetching papers. Uses current time if none provided.
+            create_fetch_log: Whether to create PaperFetchLog entries. Defaults to True.
 
         Returns:
             Dictionary mapping source names to their ingestion status.
@@ -107,7 +109,8 @@ class PaperIngestionPipeline:
                 self._process_papers_in_batches(source, papers_data)
 
                 status.end_time = timezone.now()
-                self._log_fetch(source, status, success=True)
+                if create_fetch_log:
+                    self._log_fetch(source, status, success=True)
             except Exception as e:
                 status.end_time = timezone.now()
                 status.errors.append(
@@ -119,7 +122,8 @@ class PaperIngestionPipeline:
                 logger.error(f"Pipeline error for [{source}]: {e}")
                 log_error(e, message=f"Pipeline error for [{source}]")
                 # Log failure
-                self._log_fetch(source, status, success=False)
+                if create_fetch_log:
+                    self._log_fetch(source, status, success=False)
 
             results[source] = status
 
@@ -255,6 +259,7 @@ def fetch_papers_from_source(
     source: str,
     since: Optional[str] = None,
     until: Optional[str] = None,
+    create_fetch_log: bool = True,
 ) -> Dict[str, Any]:
     """
     Task for fetching papers from a specific source.
@@ -313,6 +318,7 @@ def fetch_papers_from_source(
             sources=[source],
             since=since_date,
             until=until_date,
+            create_fetch_log=create_fetch_log,
         )
 
         return results[source].to_dict()
