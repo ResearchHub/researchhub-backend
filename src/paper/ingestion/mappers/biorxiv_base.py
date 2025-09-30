@@ -37,7 +37,7 @@ class BioRxivBaseMapper(BaseMapper):
             mapper: Hubs mapper instance.
         """
         super().__init__()
-        self.hub_mapper = hub_mapper
+        self._hub_mapper = hub_mapper
 
     @property
     def preprint_hub(self):
@@ -318,9 +318,9 @@ class BioRxivBaseMapper(BaseMapper):
         """
         hubs = []
 
-        if self.hub_mapper:
+        if self._hub_mapper:
             category = record.get("category", None)
-            hubs = self.hub_mapper.map(category, self.default_server)
+            hubs = self._hub_mapper.map(category, self.default_server)
 
         if self.preprint_hub and self.preprint_hub not in hubs:
             hubs.append(self.preprint_hub)
