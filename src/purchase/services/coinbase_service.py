@@ -1,15 +1,22 @@
 import logging
+import re
+from functools import wraps
 from typing import Any, Dict, List, Optional
 
 import requests
 from cdp.auth.utils.jwt import JwtOptions, generate_jwt
 from django.conf import settings
+from django.http import JsonResponse
+from rest_framework import status
 
 logger = logging.getLogger(__name__)
 
 
 class CoinbaseService:
-    """Service for handling Coinbase operations including JWT token generation."""
+    """
+    Service for handling Coinbase operations including JWT token generation and CORS
+    security.
+    """
 
     def __init__(self):
         """Initialize CoinbaseService with API credentials from settings."""
@@ -18,6 +25,95 @@ class CoinbaseService:
 
         if not self.api_key_id or not self.api_key_secret:
             logger.warning("Coinbase API credentials not configured")
+
+    @staticmethod
+    def _get_approved_web_origins() -> List[str]:
+        return getattr(settings, "CORS_ORIGIN_WHITELIST", [])
+
+    @staticmethod
+    def _is_origin_allowed_by_regex(origin: str) -> bool:
+        allowed_regexes = getattr(settings, "CORS_ALLOWED_ORIGIN_REGEXES", [])
+        for regex_pattern in allowed_regexes:
+            if re.match(regex_pattern, origin):
+                return True
+        return False
+
+    @staticmethod
+    def _is_origin_approved(origin: str) -> bool:
+        if not origin:
+            return False
+
+        approved_origins = CoinbaseService._get_approved_web_origins()
+        if origin in approved_origins:
+            return True
+
+        return CoinbaseService._is_origin_allowed_by_regex(origin)
+
+    @staticmethod
+    def _create_cors_preflight_response(origin: str) -> JsonResponse:
+        response = JsonResponse({"detail": "CORS preflight check passed"})
+        response["Access-Control-Allow-Origin"] = origin
+        response["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        response["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        return response
+
+    @staticmethod
+    def _create_forbidden_response(message: str) -> JsonResponse:
+        return JsonResponse({"error": message}, status=status.HTTP_403_FORBIDDEN)
+
+    @staticmethod
+    def _add_cors_headers_to_response(response, origin: str):
+        response["Access-Control-Allow-Origin"] = origin
+        return response
+
+    @staticmethod
+    def _handle_preflight_request(origin: str) -> JsonResponse:
+        if CoinbaseService._is_origin_approved(origin):
+            return CoinbaseService._create_cors_preflight_response(origin)
+
+        logger.warning("Unauthorized CORS preflight attempt from origin")
+        return CoinbaseService._create_forbidden_response("Origin not allowed")
+
+    @staticmethod
+    def _validate_post_request(origin: str) -> JsonResponse:
+        if not origin:
+            logger.warning("Request without origin header - blocked")
+            return CoinbaseService._create_forbidden_response("Origin header required")
+
+        if not CoinbaseService._is_origin_approved(origin):
+            logger.warning("Blocked unauthorized request from origin")
+            return CoinbaseService._create_forbidden_response("Origin not allowed")
+
+        return None
+
+    @staticmethod
+    def _finalize_response(response, origin: str):
+        if CoinbaseService._is_origin_approved(origin):
+            logger.info("Added CORS headers for approved origin")
+            return CoinbaseService._add_cors_headers_to_response(response, origin)
+
+        return response
+
+    @staticmethod
+    def secure_coinbase_cors(view_func):
+
+        @wraps(view_func)
+        def wrapper(self, request, *args, **kwargs):
+            origin = request.META.get("HTTP_ORIGIN", "")
+
+            if request.method == "OPTIONS":
+                return CoinbaseService._handle_preflight_request(origin)
+
+            if request.method == "POST":
+                forbidden_response = CoinbaseService._validate_post_request(origin)
+                if forbidden_response:
+                    return forbidden_response
+
+            response = view_func(self, request, *args, **kwargs)
+
+            return CoinbaseService._finalize_response(response, origin)
+
+        return wrapper
 
     def generate_jwt_token(
         self,

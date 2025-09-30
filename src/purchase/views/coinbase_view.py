@@ -6,7 +6,6 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from purchase.coinbase_cors_decorators import secure_coinbase_cors
 from purchase.serializers.coinbase_serializer import CoinbaseSerializer
 from purchase.services.coinbase_service import CoinbaseService
 from utils.http import get_client_ip
@@ -26,7 +25,7 @@ class CoinbaseViewSet(viewsets.ViewSet):
         self.coinbase_service = coinbase_service or CoinbaseService()
 
     @action(detail=False, methods=["post", "options"], url_path="create-onramp")
-    @secure_coinbase_cors
+    @CoinbaseService.secure_coinbase_cors
     def create_onramp(self, request):
         """
         Generate a Coinbase Onramp URL for the authenticated user.
