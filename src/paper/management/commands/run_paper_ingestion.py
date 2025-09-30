@@ -34,6 +34,12 @@ class Command(BaseCommand):
             type=str,
             help="End date for fetching papers (format: YYYY-MM-DD)",
         )
+        parser.add_argument(
+            "--create-fetch-log",
+            action="store_true",
+            default=False,
+            help="Create fetch log entries for tracking ingestion history",
+        )
 
     def handle(self, *args, **options):
         source = options["source"]
@@ -83,6 +89,7 @@ class Command(BaseCommand):
             sources=sources,
             since=since_dt,
             until=until_dt,
+            create_fetch_log=options.get("create_fetch_log", False),
         )
 
         for src, status in results.items():
