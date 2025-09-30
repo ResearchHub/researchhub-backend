@@ -18,6 +18,14 @@ class TestBioRxivMapper(TestCase):
         """Set up test fixtures."""
         self.mapper = BioRxivMapper()
 
+        self.biorxiv_hub, _ = Hub.objects.get_or_create(
+            slug="biorxiv",
+            defaults={
+                "name": "BioRxiv",
+                "namespace": Hub.Namespace.JOURNAL,
+            },
+        )
+
         # Sample BioRxiv record
         self.sample_record = {
             "title": "Persistent DNA methylation and downregulation",
@@ -204,17 +212,10 @@ class TestBioRxivMapper(TestCase):
             slug="neuroscience",
             defaults={"name": "Neuroscience"},
         )
-        biorxiv_hub, _ = Hub.objects.get_or_create(
-            slug="biorxiv",
-            defaults={
-                "name": "BioRxiv",
-                "namespace": Hub.Namespace.JOURNAL,
-            },
-        )
         mock_hub_mapper.map.return_value = [neuroscience_hub]
 
         mapper = BioRxivMapper(hub_mapper=mock_hub_mapper)
-        mapper._hub = biorxiv_hub
+        mapper._hub = self.biorxiv_hub
         paper = mapper.map_to_paper(self.sample_record)
 
         # Act
@@ -224,7 +225,7 @@ class TestBioRxivMapper(TestCase):
         mock_hub_mapper.map.assert_called_once_with("neuroscience", "biorxiv")
         self.assertEqual(len(hubs), 2)
         self.assertIn(neuroscience_hub, hubs)
-        self.assertIn(biorxiv_hub, hubs)
+        self.assertIn(self.biorxiv_hub, hubs)
 
     def test_map_to_hubs_without_hub_mapper(self):
         """
@@ -232,15 +233,8 @@ class TestBioRxivMapper(TestCase):
         i.e., only returning the journal hub.
         """
         # Arrange
-        biorxiv_hub, _ = Hub.objects.get_or_create(
-            slug="biorxiv",
-            defaults={
-                "name": "BioRxiv",
-                "namespace": Hub.Namespace.JOURNAL,
-            },
-        )
         mapper = BioRxivMapper(hub_mapper=None)
-        mapper._hub = biorxiv_hub
+        mapper._hub = self.biorxiv_hub
         paper = mapper.map_to_paper(self.sample_record)
 
         # Act
@@ -248,7 +242,7 @@ class TestBioRxivMapper(TestCase):
 
         # Assert
         self.assertEqual(len(hubs), 1)
-        self.assertEqual(hubs[0], biorxiv_hub)
+        self.assertEqual(hubs[0], self.biorxiv_hub)
 
     def test_map_to_hubs_no_duplicate_preprint_hub(self):
         """
@@ -256,22 +250,15 @@ class TestBioRxivMapper(TestCase):
         """
         # Arrange
         mock_hub_mapper = MagicMock()
-        biorxiv_hub, _ = Hub.objects.get_or_create(
-            slug="biorxiv",
-            defaults={
-                "name": "BioRxiv",
-                "namespace": Hub.Namespace.JOURNAL,
-            },
-        )
         neuroscience_hub, _ = Hub.objects.get_or_create(
             slug="neuroscience",
             defaults={"name": "Neuroscience"},
         )
         # hub_mapper returns both hubs including the biorxiv hub
-        mock_hub_mapper.map.return_value = [neuroscience_hub, biorxiv_hub]
+        mock_hub_mapper.map.return_value = [neuroscience_hub, self.biorxiv_hub]
 
         mapper = BioRxivMapper(hub_mapper=mock_hub_mapper)
-        mapper._hub = biorxiv_hub
+        mapper._hub = self.biorxiv_hub
         paper = mapper.map_to_paper(self.sample_record)
 
         # Act
@@ -280,9 +267,9 @@ class TestBioRxivMapper(TestCase):
         # Assert
         # Should only have 2 hubs, not duplicate the biorxiv hub
         self.assertEqual(len(hubs), 2)
-        self.assertEqual(hubs.count(biorxiv_hub), 1)  # Only appears once
+        self.assertEqual(hubs.count(self.biorxiv_hub), 1)  # Only appears once
         self.assertIn(neuroscience_hub, hubs)
-        self.assertIn(biorxiv_hub, hubs)
+        self.assertIn(self.biorxiv_hub, hubs)
 
     def test_parse_license(self):
         """
