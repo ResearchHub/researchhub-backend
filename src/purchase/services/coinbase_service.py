@@ -1,6 +1,4 @@
-import json
 import logging
-import os
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -11,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 class CoinbaseService:
-    """Service for handling Coinbase-related operations including JWT token generation."""
+    """Service for handling Coinbase operations including JWT token generation."""
 
     def __init__(self):
         """Initialize CoinbaseService with API credentials from settings."""
@@ -61,6 +59,7 @@ class CoinbaseService:
         self,
         addresses: List[Dict[str, Any]],
         assets: Optional[List[str]] = None,
+        client_ip: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Create a single use token for initializing an Onramp or Offramp session.
@@ -70,16 +69,22 @@ class CoinbaseService:
                 Example: [{"address": "0x123...", "blockchains": ["base", "ethereum"]}]
             assets: Optional list of asset tickers to restrict available assets
                 Example: ["BTC", "ETH", "USDC"]
+            client_ip: Client IP address for security verification
 
         Returns:
             Dict containing the session token and channel ID
 
         Raises:
-            ValueError: If API credentials are not configured
+            ValueError: If API credentials are not configured or client_ip is missing
             requests.RequestException: If API request fails
         """
         if not self.api_key_id or not self.api_key_secret:
             raise ValueError("Coinbase API credentials not configured")
+
+        if not client_ip:
+            raise ValueError(
+                "Client IP is required for Coinbase Onramp security compliance"
+            )
 
         # Prepare request details
         request_method = "POST"
@@ -97,6 +102,7 @@ class CoinbaseService:
         # Prepare request body
         request_body = {
             "addresses": addresses,
+            "clientIp": client_ip,  # Required for security compliance
         }
 
         if assets:
@@ -133,6 +139,7 @@ class CoinbaseService:
         preset_fiat_amount: Optional[int] = None,
         preset_crypto_amount: Optional[float] = None,
         default_asset: Optional[str] = None,
+        client_ip: Optional[str] = None,
     ) -> str:
         """
         Generate a complete Onramp URL with session token.
@@ -144,18 +151,21 @@ class CoinbaseService:
             preset_fiat_amount: Preset fiat amount in the currency
             preset_crypto_amount: Preset crypto amount
             default_asset: Default asset to preselect (e.g., "ETH", "USDC")
+            client_ip: Client IP address for security verification
+                (REQUIRED for compliance)
 
         Returns:
             Complete Onramp URL with session token
 
         Raises:
-            ValueError: If API credentials are not configured
+            ValueError: If API credentials are not configured or client_ip is missing
             requests.RequestException: If session token creation fails
         """
         # Create session token
         token_response = self.create_session_token(
             addresses=addresses,
             assets=assets,
+            client_ip=client_ip,
         )
 
         session_token = token_response.get("token")
