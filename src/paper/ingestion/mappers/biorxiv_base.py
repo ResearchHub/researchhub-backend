@@ -9,6 +9,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from hub.mappers.external_category_mapper import ExternalCategoryMapper
 from hub.models import Hub
 from institution.models import Institution
 from paper.models import Paper
@@ -28,6 +29,15 @@ class BioRxivBaseMapper(BaseMapper):
     hub_slug = "biorxiv"  # Hub slug for this preprint server
 
     _hub = None
+
+    def __init__(self, hub_mapper: ExternalCategoryMapper):
+        """
+        Constructor.
+
+        Args:
+            mapper: Hubs mapper instance.
+        """
+        super().__init__(hub_mapper)
 
     @property
     def preprint_hub(self):
@@ -305,7 +315,14 @@ class BioRxivBaseMapper(BaseMapper):
     def map_to_hubs(self, paper: Paper, record: Dict[str, Any]) -> List[Hub]:
         """
         Map BioRxiv/MedRxiv record to Hub (tag) model instances.
-
-        Initially, this only returns the preprint server hub.
         """
-        return [self.preprint_hub] if self.preprint_hub else []
+        hubs = []
+
+        if self._hub_mapper:
+            category = record.get("category", None)
+            hubs = self._hub_mapper.map(category, self.default_server)
+
+        if self.preprint_hub and self.preprint_hub not in hubs:
+            hubs.append(self.preprint_hub)
+
+        return hubs

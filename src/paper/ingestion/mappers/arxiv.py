@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from hub.mappers.external_category_mapper import ExternalCategoryMapper
 from hub.models import Hub
 from institution.models import Institution
 from paper.models import Paper
@@ -29,6 +30,15 @@ class ArXivMapper(BaseMapper):
     OPENSEARCH_NS = "{http://a9.com/-/spec/opensearch/1.1/}"
 
     _arxiv_hub = None
+
+    def __init__(self, hub_mapper: ExternalCategoryMapper):
+        """
+        Constructor.
+
+        Args:
+            hub_mapper: Hub mapper instance.
+        """
+        super().__init__(hub_mapper)
 
     @property
     def arxiv_hub(self) -> Optional[Hub]:
@@ -452,8 +462,16 @@ class ArXivMapper(BaseMapper):
     def map_to_hubs(self, paper: Paper, record: Dict[str, Any]) -> List[Hub]:
         """
         Map arXiv record to Hub (tag) model instances.
-
-        Initially, this only returns the preprint server hub.
         """
+        hubs = []
+        primary_category = record.get("primary_category")
 
-        return [self.arxiv_hub] if self.arxiv_hub else []
+        if self._hub_mapper and primary_category:
+            for hub in self._hub_mapper.map(primary_category, "arxiv"):
+                if hub and hub not in hubs:
+                    hubs.append(hub)
+
+        if self._arxiv_hub and self._arxiv_hub not in hubs:
+            hubs.append(self._arxiv_hub)
+
+        return hubs

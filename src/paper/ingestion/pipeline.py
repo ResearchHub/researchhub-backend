@@ -16,6 +16,7 @@ from paper.ingestion.clients.biorxiv import BioRxivClient, BioRxivConfig
 from paper.ingestion.clients.chemrxiv import ChemRxivClient, ChemRxivConfig
 from paper.ingestion.clients.medrxiv import MedRxivClient, MedRxivConfig
 from paper.ingestion.exceptions import FetchError, RetryExhaustedError
+from paper.ingestion.mappers.factory import MapperFactory
 from paper.ingestion.service import IngestionSource, PaperIngestionService
 from paper.models import PaperFetchLog
 from researchhub.celery import QUEUE_PULL_PAPERS, app
@@ -335,7 +336,8 @@ def process_batch_task(
     """
     Process a batch of papers and save them to the database.
     """
-    service = PaperIngestionService()
+    mappers = MapperFactory().create_mappers()
+    service = PaperIngestionService(mappers)
     successes, failures = service.ingest_papers(batch, IngestionSource(source))
 
     return {

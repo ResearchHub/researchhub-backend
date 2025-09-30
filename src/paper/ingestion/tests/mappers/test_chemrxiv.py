@@ -2,7 +2,7 @@
 Tests for ChemRxiv mapper.
 """
 
-from unittest.mock import MagicMock, PropertyMock, patch
+from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
 
@@ -19,7 +19,15 @@ class TestChemRxivMapper(TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.mapper = ChemRxivMapper()
+        self.mapper = ChemRxivMapper(hub_mapper=None)
+
+        self.chemrxiv_hub, _ = Hub.objects.get_or_create(
+            slug="chemrxiv",
+            defaults={
+                "name": "ChemRxiv",
+                "namespace": Hub.Namespace.JOURNAL,
+            },
+        )
 
         # Sample ChemRxiv API response data
         self.sample_record = {
@@ -725,18 +733,38 @@ class TestChemRxivMapper(TestCase):
 
     def test_map_to_hubs(self):
         """
-        Test map_to_hubs returns the bioRxiv hub (initially).
+        Test map_to_hubs returns expected hubs including chemrxiv hub.
         """
         # Arrange
-        hub, _ = Hub.objects.get_or_create(
-            slug="biorxiv",
-            defaults={
-                "name": "BioRxiv",
-                "namespace": Hub.Namespace.JOURNAL,
-            },
+        mock_hub_mapper = MagicMock()
+        chemistry_hub, _ = Hub.objects.get_or_create(
+            slug="chemistry",
+            defaults={"name": "Chemistry"},
         )
-        mapper = ChemRxivMapper()
-        mapper._chemrxiv_hub = hub
+        mock_hub_mapper.map.return_value = [chemistry_hub]
+
+        mapper = ChemRxivMapper(hub_mapper=mock_hub_mapper)
+        mapper._chemrxiv_hub = self.chemrxiv_hub
+        paper = mapper.map_to_paper(self.sample_record)
+
+        # Act
+        hubs = mapper.map_to_hubs(paper, self.sample_record)
+
+        # Assert
+        # Should be called twice (once for each category)
+        self.assertEqual(mock_hub_mapper.map.call_count, 2)
+        self.assertEqual(len(hubs), 2)
+        self.assertIn(chemistry_hub, hubs)
+        self.assertIn(self.chemrxiv_hub, hubs)
+
+    def test_map_to_hubs_without_hub_mapper(self):
+        """
+        Test map_to_hubs falls back to default behavior without hub_mapper,
+        i.e., only returning the journal hub.
+        """
+        # Arrange
+        mapper = ChemRxivMapper(hub_mapper=None)
+        mapper._chemrxiv_hub = self.chemrxiv_hub
         paper = mapper.map_to_paper(self.sample_record)
 
         # Act
@@ -744,26 +772,55 @@ class TestChemRxivMapper(TestCase):
 
         # Assert
         self.assertEqual(len(hubs), 1)
-        self.assertEqual(hubs[0], hub)
-        self.assertEqual(hubs[0].slug, "biorxiv")
-        self.assertEqual(hubs[0].namespace, Hub.Namespace.JOURNAL)
+        self.assertEqual(hubs[0], self.chemrxiv_hub)
 
-    @patch.object(ChemRxivMapper, "chemrxiv_hub", new_callable=PropertyMock)
-    def test_map_to_hubs_without_existing_hub(self, mock_chemrxiv_hub):
+    def test_map_to_hubs_no_duplicate_chemrxiv_hub(self):
         """
-        Test map_to_hubs returns empty list when ChemRxiv hub doesn't exist.
+        Test that chemrxiv hub is not duplicated if already returned by hub_mapper.
         """
         # Arrange
-        mock_chemrxiv_hub.return_value = None
-        mapper = ChemRxivMapper()
+        mock_hub_mapper = MagicMock()
+        chemistry_hub, _ = Hub.objects.get_or_create(
+            slug="chemistry",
+            defaults={"name": "Chemistry"},
+        )
+        # hub_mapper returns both hubs including the chemrxiv hub
+        mock_hub_mapper.map.return_value = [chemistry_hub, self.chemrxiv_hub]
+
+        mapper = ChemRxivMapper(hub_mapper=mock_hub_mapper)
+        mapper._chemrxiv_hub = self.chemrxiv_hub
         paper = mapper.map_to_paper(self.sample_record)
 
         # Act
         hubs = mapper.map_to_hubs(paper, self.sample_record)
 
         # Assert
-        self.assertEqual(len(hubs), 0)
-        self.assertEqual(hubs, [])
+        # Should only have 2 hubs, not duplicate the chemrxiv hub
+        self.assertEqual(len(hubs), 2)
+        self.assertEqual(hubs.count(self.chemrxiv_hub), 1)  # Only appears once
+        self.assertIn(chemistry_hub, hubs)
+        self.assertIn(self.chemrxiv_hub, hubs)
+
+    def test_map_to_hubs_without_categories(self):
+        """
+        Test map_to_hubs with record that has no categories field.
+        """
+        # Arrange
+        mock_hub_mapper = MagicMock()
+        mapper = ChemRxivMapper(hub_mapper=mock_hub_mapper)
+        mapper._chemrxiv_hub = self.chemrxiv_hub
+
+        record_no_categories = {**self.sample_record}
+        del record_no_categories["categories"]
+        paper = mapper.map_to_paper(record_no_categories)
+
+        # Act
+        hubs = mapper.map_to_hubs(paper, record_no_categories)
+
+        # Assert
+        mock_hub_mapper.map.assert_not_called()
+        self.assertEqual(len(hubs), 1)
+        self.assertEqual(hubs[0], self.chemrxiv_hub)
 
     def test_parse_license(self):
         """

@@ -2,7 +2,7 @@
 Tests for BioRxiv mapper.
 """
 
-from unittest.mock import PropertyMock, patch
+from unittest.mock import MagicMock
 
 from django.test import TestCase
 
@@ -16,7 +16,15 @@ class TestBioRxivMapper(TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.mapper = BioRxivMapper()
+        self.mapper = BioRxivMapper(hub_mapper=None)
+
+        self.biorxiv_hub, _ = Hub.objects.get_or_create(
+            slug="biorxiv",
+            defaults={
+                "name": "BioRxiv",
+                "namespace": Hub.Namespace.JOURNAL,
+            },
+        )
 
         # Sample BioRxiv record
         self.sample_record = {
@@ -196,18 +204,37 @@ class TestBioRxivMapper(TestCase):
 
     def test_map_to_hubs(self):
         """
-        Test map_to_hubs returns the bioRxiv hub (initially).
+        Test map_to_hubs returns expected hubs including preprint hub.
         """
         # Arrange
-        hub, _ = Hub.objects.get_or_create(
-            slug="biorxiv",
-            defaults={
-                "name": "BioRxiv",
-                "namespace": Hub.Namespace.JOURNAL,
-            },
+        mock_hub_mapper = MagicMock()
+        neuroscience_hub, _ = Hub.objects.get_or_create(
+            slug="neuroscience",
+            defaults={"name": "Neuroscience"},
         )
-        mapper = BioRxivMapper()
-        mapper._hub = hub
+        mock_hub_mapper.map.return_value = [neuroscience_hub]
+
+        mapper = BioRxivMapper(hub_mapper=mock_hub_mapper)
+        mapper._hub = self.biorxiv_hub
+        paper = mapper.map_to_paper(self.sample_record)
+
+        # Act
+        hubs = mapper.map_to_hubs(paper, self.sample_record)
+
+        # Assert
+        mock_hub_mapper.map.assert_called_once_with("neuroscience", "biorxiv")
+        self.assertEqual(len(hubs), 2)
+        self.assertIn(neuroscience_hub, hubs)
+        self.assertIn(self.biorxiv_hub, hubs)
+
+    def test_map_to_hubs_without_hub_mapper(self):
+        """
+        Test map_to_hubs falls back to default behavior without hub_mapper,
+        i.e., only returning the journal hub.
+        """
+        # Arrange
+        mapper = BioRxivMapper(hub_mapper=None)
+        mapper._hub = self.biorxiv_hub
         paper = mapper.map_to_paper(self.sample_record)
 
         # Act
@@ -215,26 +242,34 @@ class TestBioRxivMapper(TestCase):
 
         # Assert
         self.assertEqual(len(hubs), 1)
-        self.assertEqual(hubs[0], hub)
-        self.assertEqual(hubs[0].slug, "biorxiv")
-        self.assertEqual(hubs[0].namespace, Hub.Namespace.JOURNAL)
+        self.assertEqual(hubs[0], self.biorxiv_hub)
 
-    @patch.object(BioRxivMapper, "preprint_hub", new_callable=PropertyMock)
-    def test_map_to_hubs_without_existing_hub(self, mock_preprint_hub):
+    def test_map_to_hubs_no_duplicate_preprint_hub(self):
         """
-        Test map_to_hubs returns empty list when bioRxiv hub doesn't exist.
+        Test that preprint hub is not duplicated if already returned by hub_mapper.
         """
         # Arrange
-        mock_preprint_hub.return_value = None
-        mapper = BioRxivMapper()
+        mock_hub_mapper = MagicMock()
+        neuroscience_hub, _ = Hub.objects.get_or_create(
+            slug="neuroscience",
+            defaults={"name": "Neuroscience"},
+        )
+        # hub_mapper returns both hubs including the biorxiv hub
+        mock_hub_mapper.map.return_value = [neuroscience_hub, self.biorxiv_hub]
+
+        mapper = BioRxivMapper(hub_mapper=mock_hub_mapper)
+        mapper._hub = self.biorxiv_hub
         paper = mapper.map_to_paper(self.sample_record)
 
         # Act
         hubs = mapper.map_to_hubs(paper, self.sample_record)
 
         # Assert
-        self.assertEqual(len(hubs), 0)
-        self.assertEqual(hubs, [])
+        # Should only have 2 hubs, not duplicate the biorxiv hub
+        self.assertEqual(len(hubs), 2)
+        self.assertEqual(hubs.count(self.biorxiv_hub), 1)  # Only appears once
+        self.assertIn(neuroscience_hub, hubs)
+        self.assertIn(self.biorxiv_hub, hubs)
 
     def test_parse_license(self):
         """

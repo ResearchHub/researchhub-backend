@@ -8,6 +8,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from hub.mappers.external_category_mapper import ExternalCategoryMapper
 from hub.models import Hub
 from institution.models import Institution
 from paper.models import Paper
@@ -23,6 +24,15 @@ class ChemRxivMapper(BaseMapper):
     """Maps ChemRxiv paper records to ResearchHub Paper model format."""
 
     _chemrxiv_hub = None
+
+    def __init__(self, hub_mapper: ExternalCategoryMapper):
+        """
+        Constructor.
+
+        Args:
+            hub_mapper: Hub mapper instance.
+        """
+        super().__init__(hub_mapper)
 
     @property
     def chemrxiv_hub(self):
@@ -423,7 +433,20 @@ class ChemRxivMapper(BaseMapper):
     def map_to_hubs(self, paper: Paper, record: Dict[str, Any]) -> List[Hub]:
         """
         Map ChemRxiv record to Hub (tag) model instances.
-
-        Initially, this only returns the preprint server hub.
         """
-        return [self.chemrxiv_hub] if self.chemrxiv_hub else []
+        hubs = []
+
+        categories = record.get("categories", None)
+
+        if self._hub_mapper and categories:
+            for category in categories:
+                for hub in self._hub_mapper.map(
+                    source_category=category, source="chemrxiv"
+                ):
+                    if hub and hub not in hubs:
+                        hubs.append(hub)
+
+        if self._chemrxiv_hub and self._chemrxiv_hub not in hubs:
+            hubs.append(self._chemrxiv_hub)
+
+        return hubs
