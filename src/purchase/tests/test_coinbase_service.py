@@ -347,7 +347,7 @@ class CoinbaseSecurityComplianceTests(TestCase):
         call_args = mock_post.call_args
         request_body = call_args[1]["json"]
         self.assertEqual(request_body["clientIp"], "203.0.113.195")
- 
+
     @patch("purchase.views.coinbase_view.get_client_ip")
     def test_no_client_ip_returns_400(self, mock_get_ip):
         mock_get_ip.return_value = None
@@ -369,7 +369,7 @@ class CoinbaseSecurityComplianceTests(TestCase):
             format="json",
             HTTP_ORIGIN="https://malicious-site.com",
             HTTP_USER_AGENT="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            HTTP_X_FORWARDED_FOR="192.168.1.100",
+            HTTP_X_FORWARDED_FOR="8.8.8.8",
         )
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

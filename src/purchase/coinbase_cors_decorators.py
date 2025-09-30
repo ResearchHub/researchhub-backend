@@ -79,7 +79,7 @@ def handle_preflight_request(origin: str) -> JsonResponse:
     if is_origin_approved(origin):
         return create_cors_preflight_response(origin)
 
-    logger.warning(f"Unauthorized CORS preflight attempt from origin: {origin}")
+    logger.warning(f"Unauthorized CORS preflight attempt from origin")
     return create_forbidden_response("Origin not allowed")
 
 
@@ -89,7 +89,7 @@ def validate_post_request(origin: str) -> JsonResponse:
         return create_forbidden_response("Origin header required")
 
     if not is_origin_approved(origin):
-        logger.warning(f"Blocked unauthorized request from origin: {origin}")
+        logger.warning(f"Blocked unauthorized request from origin")
         return create_forbidden_response("Origin not allowed")
 
     return None
@@ -97,7 +97,7 @@ def validate_post_request(origin: str) -> JsonResponse:
 
 def finalize_response(response, origin: str):
     if is_origin_approved(origin):
-        logger.info(f"Added CORS headers for approved origin: {origin}")
+        logger.info(f"Added CORS headers for approved origin")
         return add_cors_headers_to_response(response, origin)
 
     return response
