@@ -1,12 +1,14 @@
 import os
 import uuid
-from unittest import TestCase
 from unittest.mock import MagicMock, Mock, patch
 
 import requests
-from django.test import override_settings
+from django.test import TestCase, override_settings
+from rest_framework import status
+from rest_framework.test import APIClient
 
 from purchase.services.coinbase_service import CoinbaseService
+from user.tests.helpers import create_user
 
 
 class TestCoinbaseService(TestCase):
@@ -291,3 +293,111 @@ class TestCoinbaseService(TestCase):
             )
 
         self.assertIn("Coinbase API credentials not configured", str(context.exception))
+
+
+@override_settings(
+    COINBASE_API_KEY_ID="test_key_id",
+    COINBASE_API_KEY_SECRET="test_key_secret",
+)
+class CoinbaseSecurityComplianceTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.user = create_user()
+        self.client.force_authenticate(user=self.user)
+        self.url = "/api/payment/coinbase/create-onramp/"
+        self.request_data = {
+            "addresses": [
+                {
+                    "address": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d3b6",
+                    "blockchains": ["base", "ethereum"],
+                }
+            ],
+            "assets": ["ETH", "USDC"],
+        }
+
+    @patch("purchase.services.coinbase_service.requests.post")
+    @patch("purchase.services.coinbase_service.generate_jwt")
+    def test_browser_request_success_with_cors_headers(
+        self, mock_generate_jwt, mock_post
+    ):
+        mock_generate_jwt.return_value = "test_jwt_token"
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "token": uuid.uuid4().hex,
+            "channelId": "test_channel",
+        }
+        mock_response.raise_for_status = Mock()
+        mock_post.return_value = mock_response
+
+        response = self.client.post(
+            self.url,
+            data=self.request_data,
+            format="json",
+            HTTP_ORIGIN="https://www.researchhub.com",
+            HTTP_USER_AGENT="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            HTTP_X_FORWARDED_FOR="203.0.113.195",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.get("Access-Control-Allow-Origin"), "https://www.researchhub.com"
+        )
+        self.assertNotEqual(response.get("Access-Control-Allow-Origin"), "*")
+
+        call_args = mock_post.call_args
+        request_body = call_args[1]["json"]
+        self.assertEqual(request_body["clientIp"], "203.0.113.195")
+
+    @patch("purchase.services.coinbase_service.CoinbaseService.generate_onramp_url")
+    def test_mobile_request_success_without_cors_headers(self, mock_service):
+        mock_service.return_value = (
+            "https://pay.coinbase.com/buy/select-asset?sessionToken=test"
+        )
+
+        response = self.client.post(
+            self.url,
+            data=self.request_data,
+            format="json",
+            HTTP_USER_AGENT="Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)",
+            HTTP_X_FORWARDED_FOR="192.168.1.100",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn("Access-Control-Allow-Origin", response)
+
+    @patch("purchase.views.coinbase_view.get_client_ip")
+    def test_no_client_ip_returns_400(self, mock_get_ip):
+        mock_get_ip.return_value = None
+
+        response = self.client.post(
+            self.url,
+            data=self.request_data,
+            format="json",
+            HTTP_ORIGIN="https://www.researchhub.com",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Unable to determine client IP", response.data["error"])
+
+    def test_unauthorized_origin_returns_403(self):
+        response = self.client.post(
+            self.url,
+            data=self.request_data,
+            format="json",
+            HTTP_ORIGIN="https://malicious-site.com",
+            HTTP_USER_AGENT="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            HTTP_X_FORWARDED_FOR="192.168.1.100",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_unauthenticated_request_returns_401(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.post(
+            self.url,
+            data=self.request_data,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

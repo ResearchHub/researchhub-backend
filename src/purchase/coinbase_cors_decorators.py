@@ -9,21 +9,25 @@ from rest_framework import status
 
 logger = logging.getLogger(__name__)
 
-MOBILE_APP_INDICATORS = [
-    "mobile app",
-    "researchhub-mobile",
-    "react-native",
-    "cordova",
-    "phonegap",
+MOBILE_BROWSER_INDICATORS = [
+    "mobile",
+    "android",
+    "iphone",
+    "ipad",
+    "ipod",
+    "blackberry",
+    "windows phone",
+    "opera mini",
+    "opera mobi",
 ]
 
 
-def is_mobile_app_request(request: HttpRequest) -> bool:
+def is_mobile_browser_request(request: HttpRequest) -> bool:
     origin = request.META.get("HTTP_ORIGIN", "")
     user_agent = request.META.get("HTTP_USER_AGENT", "").lower()
 
     return not origin or any(
-        indicator in user_agent for indicator in MOBILE_APP_INDICATORS
+        indicator in user_agent for indicator in MOBILE_BROWSER_INDICATORS
     )
 
 
@@ -60,7 +64,6 @@ def create_cors_preflight_response(origin: str) -> JsonResponse:
     response["Access-Control-Allow-Origin"] = origin
     response["Access-Control-Allow-Methods"] = "POST, OPTIONS"
     response["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-    response["Access-Control-Max-Age"] = "86400"
     return response
 
 
@@ -74,7 +77,6 @@ def create_forbidden_response(message: str) -> JsonResponse:
 
 def add_cors_headers_to_response(response, origin: str):
     response["Access-Control-Allow-Origin"] = origin
-    response["Access-Control-Allow-Credentials"] = "true"
     return response
 
 
@@ -82,7 +84,7 @@ def secure_coinbase_cors(view_func):
     @wraps(view_func)
     def wrapper(self, request, *args, **kwargs):
         origin = request.META.get("HTTP_ORIGIN", "")
-        is_mobile_request = is_mobile_app_request(request)
+        is_mobile_request = is_mobile_browser_request(request)
 
         if request.method == "OPTIONS":
             return handle_preflight_request(is_mobile_request, origin)

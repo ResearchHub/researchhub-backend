@@ -82,9 +82,7 @@ class CoinbaseService:
             raise ValueError("Coinbase API credentials not configured")
 
         if not client_ip:
-            raise ValueError(
-                "Client IP is required for Coinbase Onramp security compliance"
-            )
+            raise ValueError("Client IP is required.")
 
         # Prepare request details
         request_method = "POST"
