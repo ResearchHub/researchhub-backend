@@ -317,7 +317,7 @@ class CoinbaseSecurityComplianceTests(TestCase):
 
     @patch("purchase.services.coinbase_service.requests.post")
     @patch("purchase.services.coinbase_service.generate_jwt")
-    def test_browser_request_success_with_cors_headers(
+    def test_web_request_success_with_cors_headers_and_ip_extraction(
         self, mock_generate_jwt, mock_post
     ):
         mock_generate_jwt.return_value = "test_jwt_token"
@@ -347,24 +347,7 @@ class CoinbaseSecurityComplianceTests(TestCase):
         call_args = mock_post.call_args
         request_body = call_args[1]["json"]
         self.assertEqual(request_body["clientIp"], "203.0.113.195")
-
-    @patch("purchase.services.coinbase_service.CoinbaseService.generate_onramp_url")
-    def test_mobile_request_success_without_cors_headers(self, mock_service):
-        mock_service.return_value = (
-            "https://pay.coinbase.com/buy/select-asset?sessionToken=test"
-        )
-
-        response = self.client.post(
-            self.url,
-            data=self.request_data,
-            format="json",
-            HTTP_USER_AGENT="Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)",
-            HTTP_X_FORWARDED_FOR="192.168.1.100",
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertNotIn("Access-Control-Allow-Origin", response)
-
+ 
     @patch("purchase.views.coinbase_view.get_client_ip")
     def test_no_client_ip_returns_400(self, mock_get_ip):
         mock_get_ip.return_value = None

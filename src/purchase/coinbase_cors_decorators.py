@@ -4,31 +4,10 @@ from functools import wraps
 from typing import List
 
 from django.conf import settings
-from django.http import HttpRequest, JsonResponse
+from django.http import JsonResponse
 from rest_framework import status
 
 logger = logging.getLogger(__name__)
-
-MOBILE_BROWSER_INDICATORS = [
-    "mobile",
-    "android",
-    "iphone",
-    "ipad",
-    "ipod",
-    "blackberry",
-    "windows phone",
-    "opera mini",
-    "opera mobi",
-]
-
-
-def is_mobile_browser_request(request: HttpRequest) -> bool:
-    origin = request.META.get("HTTP_ORIGIN", "")
-    user_agent = request.META.get("HTTP_USER_AGENT", "").lower()
-
-    return not origin or any(
-        indicator in user_agent for indicator in MOBILE_BROWSER_INDICATORS
-    )
 
 
 def get_approved_web_origins() -> List[str]:
@@ -60,15 +39,11 @@ def is_origin_approved(origin: str) -> bool:
 
 
 def create_cors_preflight_response(origin: str) -> JsonResponse:
-    response = JsonResponse({"detail": "Web CORS preflight check passed"})
+    response = JsonResponse({"detail": "CORS preflight check passed"})
     response["Access-Control-Allow-Origin"] = origin
     response["Access-Control-Allow-Methods"] = "POST, OPTIONS"
     response["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
     return response
-
-
-def create_mobile_preflight_response() -> JsonResponse:
-    return JsonResponse({"detail": "Mobile preflight check passed"})
 
 
 def create_forbidden_response(message: str) -> JsonResponse:
@@ -84,58 +59,45 @@ def secure_coinbase_cors(view_func):
     @wraps(view_func)
     def wrapper(self, request, *args, **kwargs):
         origin = request.META.get("HTTP_ORIGIN", "")
-        is_mobile_request = is_mobile_browser_request(request)
 
         if request.method == "OPTIONS":
-            return handle_preflight_request(is_mobile_request, origin)
+            return handle_preflight_request(origin)
 
         if request.method == "POST":
-            forbidden_response = validate_post_request(is_mobile_request, origin)
+            forbidden_response = validate_post_request(origin)
             if forbidden_response:
                 return forbidden_response
 
         response = view_func(self, request, *args, **kwargs)
 
-        return finalize_response(response, is_mobile_request, origin)
+        return finalize_response(response, origin)
 
     return wrapper
 
 
-def handle_preflight_request(is_mobile_request: bool, origin: str) -> JsonResponse:
-    if is_mobile_request:
-        logger.info("Mobile app preflight request - no CORS headers returned")
-        return create_mobile_preflight_response()
-
+def handle_preflight_request(origin: str) -> JsonResponse:
     if is_origin_approved(origin):
         return create_cors_preflight_response(origin)
 
-    logger.warning(f"Unauthorized web CORS preflight attempt from origin: {origin}")
-    return create_forbidden_response("Origin not allowed for web clients")
+    logger.warning(f"Unauthorized CORS preflight attempt from origin: {origin}")
+    return create_forbidden_response("Origin not allowed")
 
 
-def validate_post_request(is_mobile_request: bool, origin: str) -> JsonResponse:
-    if is_mobile_request:
-        logger.info("Mobile app request - proceeding without CORS validation")
-        return None
-
+def validate_post_request(origin: str) -> JsonResponse:
     if not origin:
-        logger.warning("Web request without origin header - blocked")
-        return create_forbidden_response("Origin header required for web clients")
+        logger.warning("Request without origin header - blocked")
+        return create_forbidden_response("Origin header required")
 
     if not is_origin_approved(origin):
-        logger.warning(f"Blocked unauthorized web request from origin: {origin}")
-        return create_forbidden_response("Origin not allowed for web clients")
+        logger.warning(f"Blocked unauthorized request from origin: {origin}")
+        return create_forbidden_response("Origin not allowed")
 
     return None
 
 
-def finalize_response(response, is_mobile_request: bool, origin: str):
-    if is_mobile_request:
-        logger.info("Mobile app response - no CORS headers added (compliance)")
-        return response
-
+def finalize_response(response, origin: str):
     if is_origin_approved(origin):
-        logger.info(f"Added CORS headers for approved web origin: {origin}")
+        logger.info(f"Added CORS headers for approved origin: {origin}")
         return add_cors_headers_to_response(response, origin)
 
     return response
