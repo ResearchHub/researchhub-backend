@@ -18,7 +18,7 @@ class TestArXivMapper(TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.mapper = ArXivMapper()
+        self.mapper = ArXivMapper(hub_mapper=None)
 
         self.arxiv_hub, _ = Hub.objects.get_or_create(
             slug="arxiv",

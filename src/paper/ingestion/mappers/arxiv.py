@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from hub.mappers.external_category_mapper import ExternalCategoryMapper
 from hub.models import Hub
 from institution.models import Institution
 from paper.models import Paper
@@ -30,15 +31,14 @@ class ArXivMapper(BaseMapper):
 
     _arxiv_hub = None
 
-    def __init__(self, hub_mapper=None):
+    def __init__(self, hub_mapper: ExternalCategoryMapper):
         """
         Constructor.
 
         Args:
             hub_mapper: Hub mapper instance.
         """
-        super().__init__()
-        self._hub_mapper = hub_mapper
+        super().__init__(hub_mapper)
 
     @property
     def arxiv_hub(self) -> Optional[Hub]:

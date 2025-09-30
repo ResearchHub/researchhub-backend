@@ -16,7 +16,7 @@ class TestBioRxivMapper(TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.mapper = BioRxivMapper()
+        self.mapper = BioRxivMapper(hub_mapper=None)
 
         self.biorxiv_hub, _ = Hub.objects.get_or_create(
             slug="biorxiv",

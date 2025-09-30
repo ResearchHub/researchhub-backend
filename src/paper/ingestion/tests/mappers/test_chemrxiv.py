@@ -19,7 +19,7 @@ class TestChemRxivMapper(TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.mapper = ChemRxivMapper()
+        self.mapper = ChemRxivMapper(hub_mapper=None)
 
         self.chemrxiv_hub, _ = Hub.objects.get_or_create(
             slug="chemrxiv",
