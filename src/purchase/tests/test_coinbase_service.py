@@ -1,6 +1,5 @@
-import os
 import uuid
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import requests
 from django.test import TestCase, override_settings
@@ -10,14 +9,16 @@ from rest_framework.test import APIClient
 from purchase.services.coinbase_service import CoinbaseService
 from user.tests.helpers import create_user
 
+TEST_IP = "8.8.8.8"
 
+
+@override_settings(
+    COINBASE_API_KEY_ID="test_key_id",
+    COINBASE_API_KEY_SECRET="test_key_secret",
+)
 class TestCoinbaseService(TestCase):
     """Test cases for CoinbaseService."""
 
-    @override_settings(
-        COINBASE_API_KEY_ID="test_key_id",
-        COINBASE_API_KEY_SECRET="test_key_secret",
-    )
     def setUp(self):
         """Set up test environment."""
         self.service = CoinbaseService()
@@ -92,7 +93,9 @@ class TestCoinbaseService(TestCase):
         addresses = [{"address": "0x123456789", "blockchains": ["base", "ethereum"]}]
         assets = ["USDC", "ETH"]
 
-        result = self.service.create_session_token(addresses=addresses, assets=assets)
+        result = self.service.create_session_token(
+            addresses=addresses, assets=assets, client_ip=TEST_IP
+        )
 
         # Verify the result
         self.assertIn("token", result)
@@ -110,6 +113,7 @@ class TestCoinbaseService(TestCase):
             },
             json={
                 "addresses": addresses,
+                "clientIp": TEST_IP,
                 "assets": assets,
             },
             timeout=30,
@@ -131,7 +135,7 @@ class TestCoinbaseService(TestCase):
 
         addresses = [{"address": "0x987654321", "blockchains": ["base"]}]
 
-        result = self.service.create_session_token(addresses=addresses)
+        self.service.create_session_token(addresses=addresses, client_ip=TEST_IP)
 
         # Verify the request body doesn't include assets
         call_args = mock_post.call_args
@@ -146,7 +150,8 @@ class TestCoinbaseService(TestCase):
 
         with self.assertRaises(ValueError) as context:
             service.create_session_token(
-                addresses=[{"address": "0x123", "blockchains": ["base"]}]
+                addresses=[{"address": "0x123", "blockchains": ["base"]}],
+                client_ip=TEST_IP,
             )
 
         self.assertIn("Coinbase API credentials not configured", str(context.exception))
@@ -163,7 +168,7 @@ class TestCoinbaseService(TestCase):
         addresses = [{"address": "0x123456789", "blockchains": ["base"]}]
 
         with self.assertRaises(requests.RequestException):
-            self.service.create_session_token(addresses=addresses)
+            self.service.create_session_token(addresses=addresses, client_ip=TEST_IP)
 
     @patch("purchase.services.coinbase_service.requests.post")
     @patch("purchase.services.coinbase_service.generate_jwt")
@@ -181,7 +186,7 @@ class TestCoinbaseService(TestCase):
         addresses = [{"address": "0x123456789", "blockchains": ["base"]}]
 
         with self.assertRaises(requests.HTTPError):
-            self.service.create_session_token(addresses=addresses)
+            self.service.create_session_token(addresses=addresses, client_ip=TEST_IP)
 
     @patch("purchase.services.coinbase_service.requests.post")
     @patch("purchase.services.coinbase_service.generate_jwt")
@@ -206,6 +211,7 @@ class TestCoinbaseService(TestCase):
             default_network="base",
             preset_fiat_amount=100,
             default_asset="ETH",
+            client_ip=TEST_IP,
         )
 
         # Verify the URL format
@@ -231,7 +237,9 @@ class TestCoinbaseService(TestCase):
 
         addresses = [{"address": "0xDEF456", "blockchains": ["ethereum"]}]
 
-        result = self.service.generate_onramp_url(addresses=addresses)
+        result = self.service.generate_onramp_url(
+            addresses=addresses, client_ip=TEST_IP
+        )
 
         # Verify minimal URL format
         self.assertIn("https://pay.coinbase.com/buy/select-asset?sessionToken=", result)
@@ -255,6 +263,7 @@ class TestCoinbaseService(TestCase):
         result = self.service.generate_onramp_url(
             addresses=addresses,
             preset_crypto_amount=0.5,
+            client_ip=TEST_IP,
         )
 
         self.assertIn("presetCryptoAmount=0.5", result)
@@ -276,7 +285,7 @@ class TestCoinbaseService(TestCase):
         addresses = [{"address": "0x123", "blockchains": ["base"]}]
 
         with self.assertRaises(ValueError) as context:
-            self.service.generate_onramp_url(addresses=addresses)
+            self.service.generate_onramp_url(addresses=addresses, client_ip=TEST_IP)
 
         self.assertIn(
             "Failed to get session token from response", str(context.exception)
@@ -289,7 +298,8 @@ class TestCoinbaseService(TestCase):
 
         with self.assertRaises(ValueError) as context:
             service.generate_onramp_url(
-                addresses=[{"address": "0x123", "blockchains": ["base"]}]
+                addresses=[{"address": "0x123", "blockchains": ["base"]}],
+                client_ip=TEST_IP,
             )
 
         self.assertIn("Coinbase API credentials not configured", str(context.exception))
@@ -334,8 +344,10 @@ class CoinbaseSecurityComplianceTests(TestCase):
             data=self.request_data,
             format="json",
             HTTP_ORIGIN="https://www.researchhub.com",
-            HTTP_USER_AGENT="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            HTTP_X_FORWARDED_FOR="203.0.113.195",
+            HTTP_USER_AGENT=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            ),
+            HTTP_X_FORWARDED_FOR=TEST_IP,
         )
 
         self.assertEqual(
@@ -345,7 +357,7 @@ class CoinbaseSecurityComplianceTests(TestCase):
 
         call_args = mock_post.call_args
         request_body = call_args[1]["json"]
-        self.assertEqual(request_body["clientIp"], "203.0.113.195")
+        self.assertEqual(request_body["clientIp"], TEST_IP)
 
     @patch("purchase.views.coinbase_view.get_client_ip")
     def test_no_client_ip_returns_400(self, mock_get_ip):
@@ -366,9 +378,13 @@ class CoinbaseSecurityComplianceTests(TestCase):
             data=self.request_data,
             format="json",
             HTTP_ORIGIN="https://malicious-site.com",
-            HTTP_USER_AGENT="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            HTTP_X_FORWARDED_FOR="8.8.8.8",
+            HTTP_USER_AGENT=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            ),
+            HTTP_X_FORWARDED_FOR=TEST_IP,
         )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_unauthenticated_request_returns_401(self):
         self.client.force_authenticate(user=None)
@@ -378,3 +394,5 @@ class CoinbaseSecurityComplianceTests(TestCase):
             data=self.request_data,
             format="json",
         )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

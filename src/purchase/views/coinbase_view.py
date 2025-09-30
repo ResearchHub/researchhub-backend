@@ -72,7 +72,6 @@ class CoinbaseViewSet(viewsets.ViewSet):
                 {
                     "onramp_url": onramp_url,
                     "expires_in_seconds": 300,
-                    "test_ip": client_ip,  # 5 minutes
                 },
                 status=status.HTTP_200_OK,
             )
