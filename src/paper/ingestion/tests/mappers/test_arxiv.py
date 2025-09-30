@@ -4,8 +4,9 @@ Tests for ArXiv mapper.
 
 import os
 import xml.etree.ElementTree as ET
-from unittest import TestCase
-from unittest.mock import MagicMock, PropertyMock, patch
+from unittest.mock import MagicMock, patch
+
+from django.test import TestCase
 
 from hub.models import Hub
 from paper.ingestion.mappers.arxiv import ArXivMapper
@@ -18,6 +19,14 @@ class TestArXivMapper(TestCase):
     def setUp(self):
         """Set up test fixtures."""
         self.mapper = ArXivMapper()
+
+        self.arxiv_hub, _ = Hub.objects.get_or_create(
+            slug="arxiv",
+            defaults={
+                "name": "ArXiv",
+                "namespace": Hub.Namespace.JOURNAL,
+            },
+        )
 
         # Load fixture files
         fixtures_dir = os.path.join(
@@ -371,18 +380,38 @@ class TestArXivMapper(TestCase):
 
     def test_map_to_hubs(self):
         """
-        Test map_to_hubs returns the arXiv hub (initially).
+        Test map_to_hubs returns expected hubs including arxiv hub.
         """
         # Arrange
-        hub, _ = Hub.objects.get_or_create(
-            slug="arxiv",
-            defaults={
-                "name": "ArXiv",
-                "namespace": Hub.Namespace.JOURNAL,
-            },
+        mock_hub_mapper = MagicMock()
+        cs_hub, _ = Hub.objects.get_or_create(
+            slug="computer-science",
+            defaults={"name": "Computer Science"},
         )
-        mapper = ArXivMapper()
-        mapper._arxiv_hub = hub
+        mock_hub_mapper.map.return_value = [cs_hub]
+
+        mapper = ArXivMapper(hub_mapper=mock_hub_mapper)
+        mapper._arxiv_hub = self.arxiv_hub
+        paper = mapper.map_to_paper(self.sample_record)
+
+        # Act
+        hubs = mapper.map_to_hubs(paper, self.sample_record)
+
+        # Assert
+        # Should be called once for primary category
+        mock_hub_mapper.map.assert_called_once_with("cs.CL", "arxiv")
+        self.assertEqual(len(hubs), 2)
+        self.assertIn(cs_hub, hubs)
+        self.assertIn(self.arxiv_hub, hubs)
+
+    def test_map_to_hubs_without_hub_mapper(self):
+        """
+        Test map_to_hubs falls back to default behavior without hub_mapper,
+        i.e., only returning the journal hub.
+        """
+        # Arrange
+        mapper = ArXivMapper(hub_mapper=None)
+        mapper._arxiv_hub = self.arxiv_hub
         paper = mapper.map_to_paper(self.sample_record)
 
         # Act
@@ -390,23 +419,81 @@ class TestArXivMapper(TestCase):
 
         # Assert
         self.assertEqual(len(hubs), 1)
-        self.assertEqual(hubs[0], hub)
-        self.assertEqual(hubs[0].slug, "arxiv")
-        self.assertEqual(hubs[0].namespace, Hub.Namespace.JOURNAL)
+        self.assertEqual(hubs[0], self.arxiv_hub)
 
-    @patch.object(ArXivMapper, "arxiv_hub", new_callable=PropertyMock)
-    def test_map_to_hubs_without_existing_hub(self, mock_arxiv_hub):
+    def test_map_to_hubs_no_duplicate_arxiv_hub(self):
         """
-        Test map_to_hubs returns empty list when arXiv hub doesn't exist.
+        Test that arxiv hub is not duplicated if already returned by hub_mapper.
         """
         # Arrange
-        mock_arxiv_hub.return_value = None
-        mapper = ArXivMapper()
+        mock_hub_mapper = MagicMock()
+        cs_hub, _ = Hub.objects.get_or_create(
+            slug="computer-science",
+            defaults={"name": "Computer Science"},
+        )
+        # hub_mapper returns both hubs including the arxiv hub
+        mock_hub_mapper.map.return_value = [cs_hub, self.arxiv_hub]
+
+        mapper = ArXivMapper(hub_mapper=mock_hub_mapper)
+        mapper._arxiv_hub = self.arxiv_hub
         paper = mapper.map_to_paper(self.sample_record)
 
         # Act
         hubs = mapper.map_to_hubs(paper, self.sample_record)
 
         # Assert
-        self.assertEqual(len(hubs), 0)
-        self.assertEqual(hubs, [])
+        # Should only have 2 hubs, not duplicate the arxiv hub
+        self.assertEqual(len(hubs), 2)
+        self.assertEqual(hubs.count(self.arxiv_hub), 1)  # Only appears once
+        self.assertIn(cs_hub, hubs)
+        self.assertIn(self.arxiv_hub, hubs)
+
+    def test_map_to_hubs_without_primary_category(self):
+        """
+        Test map_to_hubs with record that has no primary_category field.
+        """
+        # Arrange
+        mock_hub_mapper = MagicMock()
+        mapper = ArXivMapper(hub_mapper=mock_hub_mapper)
+        mapper._arxiv_hub = self.arxiv_hub
+
+        # XML without primary_category
+        xml_no_primary = """<entry xmlns="http://www.w3.org/2005/Atom">
+    <id>http://arxiv.org/abs/2509.10432v1</id>
+    <title>Test Paper</title>
+    <summary>Test summary</summary>
+    <published>2025-09-12T17:38:46Z</published>
+    <author><name>Test Author</name></author>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+  </entry>"""
+
+        record_no_primary = {"raw_xml": xml_no_primary}
+        paper = mapper.map_to_paper(record_no_primary)
+
+        # Act
+        hubs = mapper.map_to_hubs(paper, record_no_primary)
+
+        # Assert
+        mock_hub_mapper.map.assert_not_called()
+        self.assertEqual(len(hubs), 1)
+        self.assertEqual(hubs[0], self.arxiv_hub)
+
+    def test_map_to_hubs_hub_mapper_returns_empty(self):
+        """
+        Test map_to_hubs when hub_mapper returns empty list.
+        """
+        # Arrange
+        mock_hub_mapper = MagicMock()
+        mock_hub_mapper.map.return_value = []
+
+        mapper = ArXivMapper(hub_mapper=mock_hub_mapper)
+        mapper._arxiv_hub = self.arxiv_hub
+        paper = mapper.map_to_paper(self.sample_record)
+
+        # Act
+        hubs = mapper.map_to_hubs(paper, self.sample_record)
+
+        # Assert
+        mock_hub_mapper.map.assert_called_once_with("cs.CL", "arxiv")
+        self.assertEqual(len(hubs), 1)
+        self.assertEqual(hubs[0], self.arxiv_hub)
