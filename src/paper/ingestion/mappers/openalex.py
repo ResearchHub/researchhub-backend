@@ -19,6 +19,10 @@ from .base import BaseMapper
 
 logger = logging.getLogger(__name__)
 
+# URL constants
+ORCID_ORG_DOMAIN = "orcid.org"
+ROR_ORG_DOMAIN = "ror.org"
+
 
 class OpenAlexMapper(BaseMapper):
     """Maps OpenAlex work records to ResearchHub Paper model format."""
@@ -273,8 +277,8 @@ class OpenAlexMapper(BaseMapper):
             orcid = author_info.get("orcid")
             if orcid:
                 # Extract just the ORCID ID without the URL
-                if "orcid.org/" in orcid:
-                    orcid = orcid.split("orcid.org/")[-1]
+                if f"{ORCID_ORG_DOMAIN}/" in orcid:
+                    orcid = orcid.split(f"{ORCID_ORG_DOMAIN}/")[-1]
                 author_dict["orcid"] = orcid
 
             # Add affiliations if available
@@ -351,8 +355,8 @@ class OpenAlexMapper(BaseMapper):
                 continue
 
             # Extract ORCID ID from URL
-            if "orcid.org/" in orcid:
-                orcid_id = orcid.split("orcid.org/")[-1]
+            if f"{ORCID_ORG_DOMAIN}/" in orcid:
+                orcid_id = orcid.split(f"{ORCID_ORG_DOMAIN}/")[-1]
             else:
                 orcid_id = orcid
 
@@ -403,8 +407,8 @@ class OpenAlexMapper(BaseMapper):
                     continue
 
                 # Extract ROR ID from URL
-                if "ror.org/" in ror_url:
-                    ror_id = ror_url.split("ror.org/")[-1]
+                if f"{ROR_ORG_DOMAIN}/" in ror_url:
+                    ror_id = ror_url.split(f"{ROR_ORG_DOMAIN}/")[-1]
                 else:
                     ror_id = ror_url
 
@@ -441,7 +445,7 @@ class OpenAlexMapper(BaseMapper):
         authorships = []
         authorships_list = record.get("authorships", [])
 
-        for idx, authorship_data in enumerate(authorships_list):
+        for authorship_data in authorships_list:
             author_info = authorship_data.get("author", {})
             orcid = author_info.get("orcid")
 
@@ -450,8 +454,8 @@ class OpenAlexMapper(BaseMapper):
                 continue
 
             # Extract ORCID ID
-            if "orcid.org/" in orcid:
-                orcid_id = orcid.split("orcid.org/")[-1]
+            if f"{ORCID_ORG_DOMAIN}/" in orcid:
+                orcid_id = orcid.split(f"{ORCID_ORG_DOMAIN}/")[-1]
             else:
                 orcid_id = orcid
 
@@ -475,8 +479,8 @@ class OpenAlexMapper(BaseMapper):
             for institution_info in authorship_data.get("institutions", []):
                 ror_url = institution_info.get("ror")
                 if ror_url:
-                    if "ror.org/" in ror_url:
-                        ror_id = ror_url.split("ror.org/")[-1]
+                    if f"{ROR_ORG_DOMAIN}/" in ror_url:
+                        ror_id = ror_url.split(f"{ROR_ORG_DOMAIN}/")[-1]
                     else:
                         ror_id = ror_url
                     institution_ror_ids.append(ror_id)
