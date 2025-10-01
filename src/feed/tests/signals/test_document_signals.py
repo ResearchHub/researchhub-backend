@@ -11,6 +11,9 @@ from user.related_models.user_model import User
 
 class DocumentSignalsTests(TestCase):
 
+    def setUp(self):
+        self.user = User.objects.create_user(username="testUser1")
+
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     def test_feed_entries_are_created_when_hubs_are_added_to_paper(self):
         """
@@ -19,7 +22,7 @@ class DocumentSignalsTests(TestCase):
         # Arrange
         hub1 = create_hub(name="testHub1")
         hub2 = create_hub(name="testHub2")
-        paper = create_paper(title="testPaper1")
+        paper = create_paper(title="testPaper1", uploaded_by=self.user)
 
         # Act
         paper.unified_document.hubs.add(hub1, hub2)
@@ -42,7 +45,7 @@ class DocumentSignalsTests(TestCase):
         # Arrange
         hub1 = create_hub(name="testHub1")
         hub2 = create_hub(name="testHub2")
-        paper = create_paper(title="testPaper1")
+        paper = create_paper(title="testPaper1", uploaded_by=self.user)
         paper.unified_document.hubs.add(hub1, hub2)
         paper.save()
 
@@ -68,7 +71,7 @@ class DocumentSignalsTests(TestCase):
         # Arrange
         hub1 = create_hub(name="testHub1")
         hub2 = create_hub(name="testHub2")
-        paper = create_paper(title="testPaper1")
+        paper = create_paper(title="testPaper1", uploaded_by=self.user)
         paper.unified_document.hubs.add(hub1, hub2)
         paper.save()
 
@@ -93,7 +96,7 @@ class DocumentSignalsTests(TestCase):
         # Arrange
         hub1 = create_hub(name="testHub1")
         hub2 = create_hub(name="testHub2")
-        paper = create_paper(title="testPaper1")
+        paper = create_paper(title="testPaper1", uploaded_by=self.user)
         paper.hubs.add(hub2)
 
         # Act
@@ -116,8 +119,7 @@ class DocumentSignalsTests(TestCase):
         # Arrange
         hub1 = create_hub(name="testHub1")
         hub2 = create_hub(name="testHub2")
-        user = User.objects.create_user(username="testUser1")
-        post = create_post(title="testPaper1", created_by=user)
+        post = create_post(title="testPaper1", created_by=self.user)
 
         # Act
         post.unified_document.hubs.add(hub1, hub2)
@@ -140,8 +142,7 @@ class DocumentSignalsTests(TestCase):
         # Arrange
         hub1 = create_hub(name="testHub1")
         hub2 = create_hub(name="testHub2")
-        user = User.objects.create_user(username="testUser1")
-        post = create_post(title="testPaper1", created_by=user)
+        post = create_post(title="testPaper1", created_by=self.user)
 
         # Act
         post.unified_document.hubs.remove(hub1, hub2)  # remove all hubs
@@ -165,8 +166,7 @@ class DocumentSignalsTests(TestCase):
         # Arrange
         hub1 = create_hub(name="testHub1")
         hub2 = create_hub(name="testHub2")
-        user = User.objects.create_user(username="testUser1")
-        post = create_post(title="testPaper1", created_by=user)
+        post = create_post(title="testPaper1", created_by=self.user)
         post.unified_document.hubs.add(hub1, hub2)
 
         # Act
@@ -188,7 +188,8 @@ class DocumentRemovalSignalsTests(TestCase):
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     def setUp(self):
         self.hub = create_hub(name="Test Hub")
-        self.paper = create_paper(title="Test Paper")
+        self.user = User.objects.create_user(username="testUser1")
+        self.paper = create_paper(title="Test Paper", uploaded_by=self.user)
         self.paper.paper_publish_date = timezone.now()
         self.paper.save()
 

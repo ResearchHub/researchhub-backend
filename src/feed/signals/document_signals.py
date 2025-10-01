@@ -50,9 +50,9 @@ def _create_document_feed_entries(instance, pk_set):
 
         # Get the user from the document
         user_id = None
-        if hasattr(item, "created_by"):
+        if hasattr(item, "created_by") and item.created_by:
             user_id = item.created_by.id
-        elif hasattr(item, "uploaded_by"):
+        elif hasattr(item, "uploaded_by") and item.uploaded_by:
             user_id = item.uploaded_by.id
 
         create_feed_entry.apply_async(
@@ -74,9 +74,9 @@ def _create_document_feed_entries(instance, pk_set):
 
             # Get the user from the document
             user_id = None
-            if hasattr(item, "created_by"):
+            if hasattr(item, "created_by") and item.created_by:
                 user_id = item.created_by.id
-            elif hasattr(item, "uploaded_by"):
+            elif hasattr(item, "uploaded_by") and item.uploaded_by:
                 user_id = item.uploaded_by.id
 
             create_feed_entry.apply_async(
