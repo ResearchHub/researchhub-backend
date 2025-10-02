@@ -176,21 +176,6 @@ class Hub(models.Model):
             & ~Q(namespace="journal")
         )
 
-    @classmethod
-    def create_or_update_hub_from_concept(cls, concept):
-        hub, _ = Hub.objects.get_or_create(
-            name__iexact=concept.display_name,
-            defaults={
-                "name": concept.display_name,
-            },
-        )
-
-        hub.concept_id = concept.id
-        hub.description = concept.description
-        hub.save()
-
-        return hub
-
     @property
     def paper_count_indexing(self):
         return self.get_paper_count()
