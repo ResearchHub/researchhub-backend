@@ -13,6 +13,11 @@ from search.documents.paper import PaperDocument
 from search.documents.person import PersonDocument
 from search.documents.post import PostDocument
 from search.documents.user import UserDocument
+
+try:
+    from search.services import OpenSearchService
+except ImportError:
+    OpenSearchService = None
 from utils.doi import DOI
 from utils.openalex import OpenAlex
 
@@ -22,6 +27,17 @@ logger = logging.getLogger(__name__)
 class SuggestView(APIView):
     permission_classes = [AllowAny]
     renderer_classes = [JSONRenderer]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._opensearch_service = None
+
+    @property
+    def opensearch_service(self):
+        """Lazy initialization of OpenSearch service."""
+        if self._opensearch_service is None and OpenSearchService is not None:
+            self._opensearch_service = OpenSearchService()
+        return self._opensearch_service
 
     # Default entity type weights to ensure fair representation
     DEFAULT_WEIGHTS = {
@@ -157,6 +173,21 @@ class SuggestView(APIView):
             "source": "researchhub",
             "openalex_id": source.get("openalex_id"),
             "_score": result.get("_score", 1.0),
+        }
+
+    def transform_opensearch_result(self, article):
+        """Transform OpenSearch Article to search result format."""
+        return {
+            "entity_type": "paper",
+            "id": article.id,
+            "doi": article.doi,
+            "display_name": article.title,
+            "abstract": article.abstract,
+            "authors": article.authors.split(", ") if article.authors else [],
+            "journal": article.journal,
+            "date_published": article.date,
+            "source": "opensearch",
+            "_score": article.score or 1.0,
         }
 
     def get(self, request):
@@ -391,6 +422,39 @@ class SuggestView(APIView):
                     ]
                 )
 
+                # Get OpenSearch results if service is available
+                if (
+                    self.opensearch_service
+                    and hasattr(self.opensearch_service, "is_available")
+                    and self.opensearch_service.is_available()
+                ):
+                    try:
+                        opensearch_hits = (
+                            self.opensearch_service.search_docs_with_embedding(
+                                query, limit_per_index
+                            )
+                        )
+                        opensearch_articles = (
+                            self.opensearch_service.transform_search_results(
+                                opensearch_hits
+                            )
+                        )
+                        opensearch_articles = (
+                            self.opensearch_service.deduplicate_articles(
+                                opensearch_articles
+                            )
+                        )
+
+                        # Transform OpenSearch results to match the expected format
+                        opensearch_results = [
+                            self.transform_opensearch_result(article)
+                            for article in opensearch_articles
+                        ]
+                        results.extend(opensearch_results)
+
+                    except Exception as e:
+                        logger.error(f"Error retrieving OpenSearch results: {str(e)}")
+
             # Get local Elasticsearch results
             search = Search(index=document._index._name)
             if hasattr(document, "_doc_type"):
@@ -457,6 +521,13 @@ class SuggestView(APIView):
                     reverse=True,
                 )
 
+                # Then OpenSearch results
+                os_results = sorted(
+                    [r for r in results if r["source"] == "opensearch"],
+                    key=lambda x: x.get("_score", 0),
+                    reverse=True,
+                )
+
                 # Deduplicate and combine
                 unique_results = []
 
@@ -474,6 +545,13 @@ class SuggestView(APIView):
                     if doi and doi not in seen_dois:
                         seen_dois.add(doi)
                         del result["normalized_doi"]
+                        unique_results.append(result)
+
+                # Then process OpenSearch results
+                for result in os_results:
+                    doi = result.get("doi")
+                    if doi and doi not in seen_dois:
+                        seen_dois.add(doi)
                         unique_results.append(result)
 
                 results_by_type["paper"] = unique_results
@@ -524,7 +602,7 @@ class SuggestView(APIView):
 
         # Combine and sort results
         all_results = []
-        for results in results_by_type.values():
+        for entity_type, results in results_by_type.items():
             all_results.extend(results)
 
         all_results = sorted(

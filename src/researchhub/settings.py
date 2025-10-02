@@ -875,3 +875,10 @@ RESEARCHHUB_JOURNAL_ID = os.environ.get(
 PAPER_INGESTION_ENABLED = (
     os.environ.get("PAPER_INGESTION_ENABLED", "false").lower() == "true"
 )
+
+# OpenSearch Configuration (for the new service)
+OPENSEARCH_AWS_HOST = os.environ.get("OPENSEARCH_AWS_HOST", "")
+OPENSEARCH_AWS_REGION = os.environ.get("AWS_REGION", "")
+OPENSEARCH_INDEX_NAME = os.environ.get("OPENSEARCH_INDEX_NAME", "")
+OPENSEARCH_DOC_INDEX = os.environ.get("OPENSEARCH_DOC_INDEX", "")
+OPENSEARCH_TOP_K = int(os.environ.get("OPENSEARCH_TOP_K", "10"))
