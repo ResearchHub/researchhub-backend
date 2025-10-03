@@ -123,6 +123,10 @@ We believe that by empowering scientists to independently fund, create, and publ
       ```shell
       python src/manage.py load_works_from_openalex --mode fetch --journal BIORXIV
       ```
+      - If you see `There are pending logs for this journal: {journal_name}` in the output, there are lingering journals that you can safely clear out. Run this command (replacing `{journal_name}`), then try again:
+        ```shell
+         python src/manage.py fail_fetch_logs {journal_name}
+        ```
 4. Populate Feed:
    1. Create entries from papers:
       ```shell

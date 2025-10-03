@@ -65,13 +65,16 @@ def process_author_batch(openalex, openalex_author_id, journal):
 
 def process_batch(openalex, journal):
     cursor = "*"
+
     pending_log = PaperFetchLog.objects.filter(
         source=PaperFetchLog.OPENALEX,
         status=PaperFetchLog.PENDING,
         journal=journal,
     ).exists()
+
     if pending_log:
-        print("There are pending logs for this journal")
+        print(f"There are pending logs for this journal: {journal}")
+
         return
 
     last_failed_log = (
