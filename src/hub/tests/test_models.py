@@ -1,7 +1,6 @@
 from django.test import TestCase
 
 from hub.models import Hub
-from tag.models import Concept
 from topic.models import Subfield
 
 
@@ -63,52 +62,6 @@ class HubModelsTests(TestCase):
         # Act & Assert
         with self.assertRaises(Hub.DoesNotExist):
             Hub.get_from_subfield(subfield)
-
-    def test_create_or_update_hub_from_concept(self):
-        # Arrange
-        concept = Concept.objects.create(
-            display_name="testConcept1",
-        )
-
-        # Act
-        actual = Hub.create_or_update_hub_from_concept(concept)
-
-        # Assert
-        expected = Hub.objects.get(concept=concept)
-        self.assertIsNotNone(expected)
-        self.assertEqual(actual, expected)
-
-    def test_create_or_update_hub_from_concept_when_hub_already_exists(self):
-        # Arrange
-        hub = Hub.objects.create(
-            name="testConcept1",
-        )
-
-        concept = Concept.objects.create(
-            display_name=hub.name,
-        )
-
-        # Act
-        actual = Hub.create_or_update_hub_from_concept(concept)
-
-        # Assert
-        self.assertEqual(actual, hub)
-
-    def test_create_or_update_hub_from_concept_with_different_cases(self):
-        # Arrange
-        hub = Hub.objects.create(
-            name="testConcept1",
-        )
-
-        concept = Concept.objects.create(
-            display_name="TESTCONCEPT1",
-        )
-
-        # Act
-        actual = Hub.create_or_update_hub_from_concept(concept)
-
-        # Assert
-        self.assertEqual(actual, hub)
 
     def test_slugify_new_hub(self):
         # Arrange
