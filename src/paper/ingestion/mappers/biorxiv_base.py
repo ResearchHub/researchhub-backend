@@ -28,7 +28,7 @@ class BioRxivBaseMapper(BaseMapper):
     default_server = "biorxiv"  # Default server name
     hub_slug = "biorxiv"  # Hub slug for this preprint server
 
-    _hub = None
+    _preprint_hub = None
 
     def __init__(self, hub_mapper: ExternalCategoryMapper):
         """
@@ -44,11 +44,11 @@ class BioRxivBaseMapper(BaseMapper):
         """
         Lazy load the preprint server hub.
         """
-        if self._hub is None:
-            self._hub = Hub.objects.filter(
+        if self._preprint_hub is None:
+            self._preprint_hub = Hub.objects.filter(
                 slug=self.hub_slug, namespace=Hub.Namespace.JOURNAL
             ).first()
-        return self._hub
+        return self._preprint_hub
 
     def validate(self, record: Dict[str, Any]) -> bool:
         """
