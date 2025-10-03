@@ -86,12 +86,19 @@ class Command(BaseCommand):
 
             # Update hot score for papers and posts
             if feed_entry.unified_document:
-                if options["use_old_hot_score_calculation"]:
-                    feed_entry.hot_score = feed_item.unified_document.hot_score
+                if feed_entry.item is None:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping feed entry {feed_entry.id}: referenced item no longer exists"
+                        )
+                    )
                 else:
-                    feed_entry.hot_score = calculate_hot_score_for_item(feed_entry)
+                    if options["use_old_hot_score_calculation"]:
+                        feed_entry.hot_score = feed_item.unified_document.hot_score
+                    else:
+                        feed_entry.hot_score = calculate_hot_score_for_item(feed_entry)
 
-                fields_to_update.append("hot_score")
+                    fields_to_update.append("hot_score")
 
             self.stdout.write(
                 f"Populating feed entry: {feed_entry.id} ({', '.join(fields_to_update)})"

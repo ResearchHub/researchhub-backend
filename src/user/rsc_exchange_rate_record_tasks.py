@@ -31,8 +31,11 @@ def rsc_exchange_rate_record_tasks():
             target_currency=USD,
         )
         return gecko_result
+
     except Exception as error:
         log_error(error)
+
+        return None
 
 
 def get_rsc_price_from_coin_gecko():
