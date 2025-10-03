@@ -159,30 +159,30 @@ We believe that by empowering scientists to independently fund, create, and publ
 
 ## Debugging
 
-- VSCode:
-  - Modify `.vscode/launch.json`:
-    ```json
-    {
-      "version": "0.2.0",
-      "configurations": [
-        {
-          "name": "Python: Django",
-          "type": "debugpy",
-          "request": "launch",
-          "program": "${workspaceFolder}/src/manage.py",
-          "args": ["runserver", "[::]:8000"],
-          "django": true,
-          "autoStartBrowser": false
-        }
-      ]
-    }
-    ```
-- PyCharm:
-  - Add a new `Django Server` run configuration:
-    - Name: `Debug` (or whatever you want)
-    - Host: `[::]`
-    - Port: `8000`
-    - Environment variables: `PYTHONUNBUFFERED=1;DJANGO_SETTINGS_MODULE=researchhub.settings`
+**VSCode**:
+- Modify `.vscode/launch.json`:
+  ```json
+  {
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Python: Django",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "${workspaceFolder}/src/manage.py",
+        "args": ["runserver", "[::]:8000"],
+        "django": true,
+        "autoStartBrowser": false
+      }
+    ]
+  }
+  ```
+**PyCharm**:
+- Add a new `Django Server` run configuration:
+  - Name: `Debug` (or whatever you want)
+  - Host: `[::]`
+  - Port: `8000`
+  - Environment variables: `PYTHONUNBUFFERED=1;DJANGO_SETTINGS_MODULE=researchhub.settings`
 
 ---
 
@@ -242,6 +242,36 @@ ResearchHub uses [Celery](https://github.com/celery/celery/) for background task
 - Dev Container's Django app
   - If it's running when repository changes are pulled, you'll need to restart the app for the changes to take effect
   - Rebuilding the Dev Container is only necessary when something changes that affects the image (uncommon), such as changes to the `Dockerfile`, `docker-compose.yml`, or `devcontainer.json`
+
+---
+
+## Troubleshooting
+
+**VSCode**:
+- Nothing yet!
+
+**PyCharm**:
+- If your Dev Container launches but doesn't activate any ports (you don't see port numbers listed next to the containers in `Docker`):
+  1. Stop and delete all containers, volumes, and images in `Docker`
+  2. Create or update `.devcontainer/docker-compose.local.yml`:
+     ```yaml
+     services:
+     postgres:
+       ports: ["5432:5432"]
+     redis:
+       ports: ["6379:6379"]
+     opensearch:
+       ports: ["9200:9200"]
+     opensearch-dashboards:
+       ports: ["5601:5601"]
+     app:
+        ports: ["8000:8000"]
+     ```
+  3. Manually initialize the `Docker` containers:
+     ```shell
+     docker compose -f .devcontainer/docker-compose.yml -f .devcontainer/docker-compose.local.yml up -d
+     ```
+  4. Open your IDE back up and try launching the Dev Container again
 
 ---
 
