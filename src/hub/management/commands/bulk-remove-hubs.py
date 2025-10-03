@@ -1,6 +1,9 @@
 """
-Remove all hubs with namespace='journal' and clean up all related references.
+Bulk remove hubs based on flexible filtering criteria and clean up all
+related references.
 """
+
+from datetime import datetime
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
@@ -22,8 +25,8 @@ from user.related_models.follow_model import Follow
 
 class Command(BaseCommand):
     help = (
-        "Remove all hubs with namespace='journal' and clean up "
-        "all related references in the database"
+        "Bulk remove hubs based on flexible filtering criteria "
+        "and clean up all related references in the database"
     )
 
     # Available removal steps
@@ -41,8 +44,8 @@ class Command(BaseCommand):
         "feed_entries",
     ]
 
-    # Slugs to skip (these hubs will not be removed)
-    SLUGS_TO_SKIP = {
+    # Default journal slugs to protect (only applies when --namespace journal)
+    DEFAULT_JOURNAL_EXCLUSIONS = {
         "reactions-weekly",
         "scientific-reports",
         "proceedings-of-the-national-academy-of-sciences",
@@ -140,13 +143,70 @@ class Command(BaseCommand):
     }
 
     def add_arguments(self, parser):
+        # Filter arguments
+        parser.add_argument(
+            "--namespace",
+            type=str,
+            help="Filter by namespace (e.g., 'journal')",
+        )
+        parser.add_argument(
+            "--hub-ids",
+            type=str,
+            help="Comma-separated list of hub IDs to remove (e.g., '123,456,789')",
+        )
+        parser.add_argument(
+            "--hub-ids-file",
+            type=str,
+            help=(
+                "Path to file containing hub IDs (one per line). "
+                "Lines starting with # are ignored."
+            ),
+        )
+        parser.add_argument(
+            "--name-contains",
+            type=str,
+            help="Filter by hubs whose name contains this string (case-insensitive)",
+        )
+        parser.add_argument(
+            "--created-before",
+            type=str,
+            help="Filter by hubs created before this date (YYYY-MM-DD)",
+        )
+        parser.add_argument(
+            "--created-after",
+            type=str,
+            help="Filter by hubs created after this date (YYYY-MM-DD)",
+        )
+
+        # Exclusion arguments
+        parser.add_argument(
+            "--skip-slugs",
+            type=str,
+            help=(
+                "Comma-separated list of hub slugs to skip. "
+                "Example: --skip-slugs 'nature,science,cell'"
+            ),
+        )
+        parser.add_argument(
+            "--exclude-ids",
+            type=str,
+            help="Comma-separated list of hub IDs to exclude from removal",
+        )
+        parser.add_argument(
+            "--no-journal-protections",
+            action="store_true",
+            help=(
+                "Disable default journal protections. By default, important "
+                "journal hubs are protected when using --namespace journal."
+            ),
+        )
+
+        # Action arguments
         parser.add_argument(
             "--dry-run",
             action="store_true",
             default=True,
-            help=(
-                "Show what would be removed without making " "changes (default: True)"
-            ),
+            help="Show what would be removed without making changes (default: True)",
         )
         parser.add_argument(
             "--no-dry-run",
@@ -171,36 +231,16 @@ class Command(BaseCommand):
                 "actions, feed_entries. If not specified, all steps will run."
             ),
         )
-        parser.add_argument(
-            "--skip-slugs",
-            type=str,
-            help=(
-                "Comma-separated list of additional hub slugs to skip "
-                "(in addition to the built-in exclusion list). "
-                "Example: --skip-slugs 'nature,science,cell'"
-            ),
-        )
 
     def handle(self, *args, **options):
         dry_run = not options.get("no_dry_run", False)
         hard_delete = options.get("hard_delete", False)
 
-        # Parse additional slugs to skip
-        skip_slugs_arg = options.get("skip_slugs")
-        additional_skip_slugs = set()
-        if skip_slugs_arg:
-            additional_skip_slugs = set(
-                slug.strip() for slug in skip_slugs_arg.split(",") if slug.strip()
-            )
-            self.stdout.write(
-                self.style.WARNING(
-                    f"Additional slugs to skip: "
-                    f"{', '.join(sorted(additional_skip_slugs))}"
-                )
-            )
+        # Build the queryset based on filters
+        hubs_to_remove = self._build_queryset(options)
 
-        # Combine built-in exclusion list with additional skip slugs
-        self.slugs_to_skip = self.SLUGS_TO_SKIP | additional_skip_slugs
+        if hubs_to_remove is None:
+            return  # Error already displayed
 
         # Parse steps argument
         steps_arg = options.get("steps")
@@ -227,28 +267,14 @@ class Command(BaseCommand):
         else:
             self.steps_to_run = set(self.AVAILABLE_STEPS)
 
-        self.stdout.write(
-            self.style.SUCCESS("Finding hubs with namespace='journal'...")
-        )
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"Exclusion list contains {len(self.slugs_to_skip)} slugs to skip"
-            )
-        )
-        self.stdout.write("")
-
-        # Find all hubs with namespace='journal'
-        journal_hubs = Hub.objects.filter(namespace="journal")
-        total_hubs = journal_hubs.count()
+        total_hubs = hubs_to_remove.count()
 
         if total_hubs == 0:
-            self.stdout.write(
-                self.style.SUCCESS("No hubs with namespace='journal' found!")
-            )
+            self.stdout.write(self.style.SUCCESS("No hubs found matching criteria!"))
             return
 
         self.stdout.write(
-            self.style.WARNING(f"Found {total_hubs} hubs with namespace='journal'\n")
+            self.style.WARNING(f"Found {total_hubs} hubs matching criteria\n")
         )
 
         if dry_run:
@@ -280,18 +306,19 @@ class Command(BaseCommand):
         total_actions_updated = 0
         total_feed_entries_updated = 0
 
-        # Process each journal hub
-        for hub in journal_hubs:
+        # Process each hub
+        for hub in hubs_to_remove:
             # Skip hubs in the exclusion list
             if hub.slug in self.slugs_to_skip:
                 self.stdout.write(
                     self.style.WARNING(
-                        f'Skipping hub: "{hub.name}" (ID: {hub.id}, slug: {hub.slug}) '
-                        f"- in exclusion list"
+                        f'Skipping hub: "{hub.name}" (ID: {hub.id}, '
+                        f"slug: {hub.slug}) - in exclusion list"
                     )
                 )
                 total_hubs_skipped += 1
                 continue
+
             self.stdout.write("=" * 80)
             self.stdout.write(
                 self.style.WARNING(f'\nProcessing Hub: "{hub.name}" (ID: {hub.id})\n')
@@ -319,7 +346,8 @@ class Command(BaseCommand):
                             if remaining_docs.exists():
                                 self.stdout.write(
                                     self.style.WARNING(
-                                        f"  ⚠ Force-clearing {remaining_docs.count()} "
+                                        f"  ⚠ Force-clearing "
+                                        f"{remaining_docs.count()} "
                                         f"remaining document associations"
                                     )
                                 )
@@ -379,10 +407,223 @@ class Command(BaseCommand):
                 # Continue with next hub
                 continue
 
+        self._display_summary(
+            dry_run,
+            total_hubs,
+            total_hubs_removed,
+            total_hubs_skipped,
+            total_documents_updated,
+            total_follows_deleted,
+            total_memberships_deleted,
+            total_flags_updated,
+            total_scores_deleted,
+            total_distributions_deleted,
+            total_featured_content_deleted,
+            total_citation_values_deleted,
+            total_algorithm_vars_deleted,
+            total_actions_updated,
+            total_feed_entries_updated,
+        )
+
+    def _build_queryset(self, options):
+        """Build queryset based on provided filter arguments"""
+        namespace = options.get("namespace")
+        hub_ids_arg = options.get("hub_ids")
+        hub_ids_file = options.get("hub_ids_file")
+        name_contains = options.get("name_contains")
+        created_before = options.get("created_before")
+        created_after = options.get("created_after")
+        skip_slugs_arg = options.get("skip_slugs")
+        exclude_ids_arg = options.get("exclude_ids")
+        no_journal_protections = options.get("no_journal_protections", False)
+
+        # Parse slugs to skip
+        self.slugs_to_skip = set()
+
+        # Add default journal protections if filtering by namespace='journal'
+        if namespace == "journal" and not no_journal_protections:
+            self.slugs_to_skip = self.DEFAULT_JOURNAL_EXCLUSIONS.copy()
+            self.stdout.write(
+                self.style.WARNING(
+                    f"Default journal protections enabled: "
+                    f"{len(self.slugs_to_skip)} slugs protected"
+                )
+            )
+            self.stdout.write(
+                self.style.WARNING("Use --no-journal-protections to disable")
+            )
+
+        # Add additional skip slugs
+        if skip_slugs_arg:
+            additional_skip_slugs = set(
+                slug.strip() for slug in skip_slugs_arg.split(",") if slug.strip()
+            )
+            self.slugs_to_skip |= additional_skip_slugs
+            self.stdout.write(
+                self.style.WARNING(
+                    f"Additional slugs to skip: "
+                    f"{', '.join(sorted(additional_skip_slugs))}"
+                )
+            )
+
+        # Start with all hubs
+        queryset = Hub.objects.all()
+
+        # Apply filters
+        filters_applied = []
+
+        if namespace:
+            queryset = queryset.filter(namespace=namespace)
+            filters_applied.append(f"namespace='{namespace}'")
+
+        if hub_ids_arg:
+            try:
+                hub_ids = [
+                    int(id.strip()) for id in hub_ids_arg.split(",") if id.strip()
+                ]
+                queryset = queryset.filter(id__in=hub_ids)
+                filters_applied.append(f"hub_ids (count: {len(hub_ids)})")
+            except ValueError:
+                self.stdout.write(
+                    self.style.ERROR(
+                        f"Invalid hub IDs: {hub_ids_arg}. "
+                        f"Must be comma-separated integers."
+                    )
+                )
+                return None
+
+        if hub_ids_file:
+            try:
+                hub_ids = self._read_hub_ids_from_file(hub_ids_file)
+                queryset = queryset.filter(id__in=hub_ids)
+                filters_applied.append(
+                    f"hub_ids from file '{hub_ids_file}' (count: {len(hub_ids)})"
+                )
+            except Exception as e:
+                self.stdout.write(
+                    self.style.ERROR(f"Error reading file {hub_ids_file}: {str(e)}")
+                )
+                return None
+
+        if name_contains:
+            queryset = queryset.filter(name__icontains=name_contains)
+            filters_applied.append(f"name contains '{name_contains}'")
+
+        if created_before:
+            try:
+                date = datetime.strptime(created_before, "%Y-%m-%d")
+                queryset = queryset.filter(created_date__lt=date)
+                filters_applied.append(f"created before {created_before}")
+            except ValueError:
+                self.stdout.write(
+                    self.style.ERROR(
+                        f"Invalid date format: {created_before}. Use YYYY-MM-DD"
+                    )
+                )
+                return None
+
+        if created_after:
+            try:
+                date = datetime.strptime(created_after, "%Y-%m-%d")
+                queryset = queryset.filter(created_date__gt=date)
+                filters_applied.append(f"created after {created_after}")
+            except ValueError:
+                self.stdout.write(
+                    self.style.ERROR(
+                        f"Invalid date format: {created_after}. Use YYYY-MM-DD"
+                    )
+                )
+                return None
+
+        # Apply exclusions
+        if exclude_ids_arg:
+            try:
+                exclude_ids = [
+                    int(id.strip()) for id in exclude_ids_arg.split(",") if id.strip()
+                ]
+                queryset = queryset.exclude(id__in=exclude_ids)
+                filters_applied.append(f"excluding IDs (count: {len(exclude_ids)})")
+            except ValueError:
+                self.stdout.write(
+                    self.style.ERROR(
+                        f"Invalid exclude IDs: {exclude_ids_arg}. "
+                        f"Must be comma-separated integers."
+                    )
+                )
+                return None
+
+        # Display applied filters
+        if filters_applied:
+            self.stdout.write(self.style.SUCCESS("Filters applied:"))
+            for filter_desc in filters_applied:
+                self.stdout.write(f"  - {filter_desc}")
+        else:
+            self.stdout.write(
+                self.style.ERROR(
+                    "ERROR: No filters specified! "
+                    "You must specify at least one filter to avoid "
+                    "accidentally removing all hubs."
+                )
+            )
+            self.stdout.write(
+                self.style.WARNING(
+                    "Use --namespace, --hub-ids, --hub-ids-file, "
+                    "--name-contains, or date filters."
+                )
+            )
+            return None
+
+        if self.slugs_to_skip:
+            self.stdout.write(
+                self.style.SUCCESS(f"Total slugs to skip: {len(self.slugs_to_skip)}")
+            )
+
+        self.stdout.write("")
+
+        return queryset.order_by("id")
+
+    def _read_hub_ids_from_file(self, filepath):
+        """Read hub IDs from a file (one per line, skip comments)"""
+        hub_ids = []
+        with open(filepath, "r") as f:
+            for line in f:
+                line = line.strip()
+                # Skip empty lines and comments
+                if not line or line.startswith("#"):
+                    continue
+                try:
+                    hub_ids.append(int(line))
+                except ValueError:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping invalid line in {filepath}: {line}"
+                        )
+                    )
+        return hub_ids
+
+    def _display_summary(
+        self,
+        dry_run,
+        total_hubs,
+        total_hubs_removed,
+        total_hubs_skipped,
+        total_documents_updated,
+        total_follows_deleted,
+        total_memberships_deleted,
+        total_flags_updated,
+        total_scores_deleted,
+        total_distributions_deleted,
+        total_featured_content_deleted,
+        total_citation_values_deleted,
+        total_algorithm_vars_deleted,
+        total_actions_updated,
+        total_feed_entries_updated,
+    ):
+        """Display summary statistics"""
         self.stdout.write("=" * 80)
         self.stdout.write("")
         self.stdout.write(
-            self.style.SUCCESS(f"Summary: Found {total_hubs} journal hubs")
+            self.style.SUCCESS(f"Summary: Found {total_hubs} hubs matching criteria")
         )
         if total_hubs_skipped > 0:
             self.stdout.write(
@@ -494,7 +735,8 @@ class Command(BaseCommand):
             )
             self.stdout.write(
                 self.style.SUCCESS(
-                    f"Deleted {total_featured_content_deleted} featured content entries"
+                    f"Deleted {total_featured_content_deleted} "
+                    f"featured content entries"
                 )
             )
             self.stdout.write(
