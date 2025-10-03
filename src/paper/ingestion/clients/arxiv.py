@@ -203,7 +203,7 @@ class ArXivClient(BaseClient):
                 papers = self.process_page(response)
 
                 if not papers:
-                    # Check if this is a spurious empty response (API bug)
+                    # Check if this is a spurious empty response
                     if start < total_results:
                         logger.warning(
                             f"ArXiv returned empty feed despite "
