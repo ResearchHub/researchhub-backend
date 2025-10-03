@@ -18,7 +18,7 @@ class TestArXivMapper(TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.mapper = ArXivMapper(hub_mapper=None)
+        self.mapper = ArXivMapper(None)
 
         self.arxiv_hub, _ = Hub.objects.get_or_create(
             slug="arxiv",
@@ -390,7 +390,7 @@ class TestArXivMapper(TestCase):
         )
         mock_hub_mapper.map.return_value = [cs_hub]
 
-        mapper = ArXivMapper(hub_mapper=mock_hub_mapper)
+        mapper = ArXivMapper(mock_hub_mapper)
         mapper._arxiv_hub = self.arxiv_hub
         paper = mapper.map_to_paper(self.sample_record)
 
@@ -410,7 +410,7 @@ class TestArXivMapper(TestCase):
         i.e., only returning the journal hub.
         """
         # Arrange
-        mapper = ArXivMapper(hub_mapper=None)
+        mapper = ArXivMapper(None)
         mapper._arxiv_hub = self.arxiv_hub
         paper = mapper.map_to_paper(self.sample_record)
 
@@ -434,7 +434,7 @@ class TestArXivMapper(TestCase):
         # hub_mapper returns both hubs including the arxiv hub
         mock_hub_mapper.map.return_value = [cs_hub, self.arxiv_hub]
 
-        mapper = ArXivMapper(hub_mapper=mock_hub_mapper)
+        mapper = ArXivMapper(mock_hub_mapper)
         mapper._arxiv_hub = self.arxiv_hub
         paper = mapper.map_to_paper(self.sample_record)
 
@@ -454,7 +454,7 @@ class TestArXivMapper(TestCase):
         """
         # Arrange
         mock_hub_mapper = MagicMock()
-        mapper = ArXivMapper(hub_mapper=mock_hub_mapper)
+        mapper = ArXivMapper(mock_hub_mapper)
         mapper._arxiv_hub = self.arxiv_hub
 
         # XML without primary_category
@@ -486,7 +486,7 @@ class TestArXivMapper(TestCase):
         mock_hub_mapper = MagicMock()
         mock_hub_mapper.map.return_value = []
 
-        mapper = ArXivMapper(hub_mapper=mock_hub_mapper)
+        mapper = ArXivMapper(mock_hub_mapper)
         mapper._arxiv_hub = self.arxiv_hub
         paper = mapper.map_to_paper(self.sample_record)
 
