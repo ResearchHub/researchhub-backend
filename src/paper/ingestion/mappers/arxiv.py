@@ -29,7 +29,7 @@ class ArXivMapper(BaseMapper):
     ARXIV_NS = "{http://arxiv.org/schemas/atom}"
     OPENSEARCH_NS = "{http://a9.com/-/spec/opensearch/1.1/}"
 
-    _arxiv_hub = None
+    _preprint_hub = None
 
     def __init__(self, hub_mapper: ExternalCategoryMapper):
         """
@@ -41,15 +41,15 @@ class ArXivMapper(BaseMapper):
         super().__init__(hub_mapper)
 
     @property
-    def arxiv_hub(self) -> Optional[Hub]:
+    def preprint_hub(self) -> Optional[Hub]:
         """
         Lazy load the ArXiv hub.
         """
-        if self._arxiv_hub is None:
-            self._arxiv_hub = Hub.objects.filter(
+        if self._preprint_hub is None:
+            self._preprint_hub = Hub.objects.filter(
                 slug="arxiv", namespace=Hub.Namespace.JOURNAL
             ).first()
-        return self._arxiv_hub
+        return self._preprint_hub
 
     def _parse_xml_entry(self, raw_xml: str) -> Dict[str, Any]:
         """
@@ -471,7 +471,7 @@ class ArXivMapper(BaseMapper):
                 if hub and hub not in hubs:
                     hubs.append(hub)
 
-        if self.arxiv_hub and self.arxiv_hub not in hubs:
-            hubs.append(self.arxiv_hub)
+        if self.preprint_hub and self.preprint_hub not in hubs:
+            hubs.append(self.preprint_hub)
 
         return hubs
