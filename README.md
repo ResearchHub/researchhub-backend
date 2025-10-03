@@ -75,18 +75,18 @@ We believe that by empowering scientists to independently fund, create, and publ
 
 ## Run the app
 
-- You can run the Dev Container's Django application one of two ways:
-  - Directly in your IDE via its respective `Run` tool
-  - Manually in the IDE's shell:
-    ```shell
-    cd src
-    python manage.py runserver
-    ```
-- The app will be available at http://localhost:8000
-  - Or http://127.0.0.1:8000, depending on your setup
-- Test that the app is running by adding any random string to the end of the URL (ex: http://localhost:8000/abc)
-  - If successful, you should see a `Page not found (404)` error page showing a list of the app's URL patterns
-- [Run Celery](#background-tasks) if you want to simulate background updates
+1. You can run the Dev Container's Django application one of two ways:
+   - Directly in your IDE via its respective `Run` tool
+   - Manually in the IDE's shell:
+     ```shell
+     cd src
+     python manage.py runserver
+     ```
+2. The app will be available at http://localhost:8000
+   - Or http://127.0.0.1:8000, depending on your setup
+3. Test that the app is running by adding any random string to the end of the URL (ex: http://localhost:8000/abc)
+   - If successful, you should see a `Page not found (404)` error page showing a list of the app's URL patterns
+4. [Run Celery](#background-tasks) if you want to simulate background updates
 
 ## Seed the Database
 
@@ -123,9 +123,9 @@ We believe that by empowering scientists to independently fund, create, and publ
       ```shell
       python src/manage.py load_works_from_openalex --mode fetch --journal BIORXIV
       ```
-      - If you see `There are pending logs for this journal: {journal_name}` in the output, there are lingering journals that you can safely clear out. Run this command (replacing `{journal_name}`), then try again:
+      - If you see `There are pending logs for this journal: BIORXIV` in the output, there are lingering journals that you can safely clear out. Run this command, then try again:
         ```shell
-         python src/manage.py fail_fetch_logs {journal_name}
+         python src/manage.py fail_fetch_logs BIORXIV
         ```
 4. Populate Feed:
    1. Create entries from papers:
