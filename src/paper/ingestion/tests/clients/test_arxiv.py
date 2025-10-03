@@ -167,6 +167,27 @@ class TestArXivClient(TestCase):
             mock_fetch.call_count, 2
         )  # Two pages (second page returns < page_size, so stops)
 
+    @patch.object(ArXivClient, "fetch_with_retry")
+    def test_fetch_recent_spurious_empty_responses(self, mock_fetch):
+        """Test handling of spurious empty responses from ArXiv API."""
+        # Simulate ArXiv bug: returns empty at offset 100 despite totalResults
+        first_page = self._create_test_response(0, 100, total=250)
+        # Empty response but totalResults indicates more papers exist
+        spurious_empty = self._create_test_response(0, 0, total=250)
+        # After skipping ahead, we get valid results again
+        third_page = self._create_test_response(200, 50)
+
+        mock_fetch.side_effect = [first_page, spurious_empty, third_page]
+
+        papers = self.client.fetch_recent(
+            since=datetime(2025, 1, 1), until=datetime(2025, 1, 2)
+        )
+
+        # Should have fetched papers from first and third pages
+        self.assertEqual(len(papers), 150)
+        # Should have made 3 calls (skipped through empty response)
+        self.assertEqual(mock_fetch.call_count, 3)
+
     def test_rate_limiter(self):
         """Test that rate limiter enforces delays between requests."""
         with patch("time.sleep") as mock_sleep:
