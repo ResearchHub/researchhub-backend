@@ -19,7 +19,7 @@ class TestChemRxivMapper(TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.mapper = ChemRxivMapper(hub_mapper=None)
+        self.mapper = ChemRxivMapper(None)
 
         self.chemrxiv_hub, _ = Hub.objects.get_or_create(
             slug="chemrxiv",
@@ -743,7 +743,7 @@ class TestChemRxivMapper(TestCase):
         )
         mock_hub_mapper.map.return_value = [chemistry_hub]
 
-        mapper = ChemRxivMapper(hub_mapper=mock_hub_mapper)
+        mapper = ChemRxivMapper(mock_hub_mapper)
         paper = mapper.map_to_paper(self.sample_record)
 
         # Act
@@ -762,7 +762,7 @@ class TestChemRxivMapper(TestCase):
         i.e., only returning the journal hub.
         """
         # Arrange
-        mapper = ChemRxivMapper(hub_mapper=None)
+        mapper = ChemRxivMapper(None)
         paper = mapper.map_to_paper(self.sample_record)
 
         # Act
@@ -785,7 +785,7 @@ class TestChemRxivMapper(TestCase):
         # hub_mapper returns both hubs including the chemrxiv hub
         mock_hub_mapper.map.return_value = [chemistry_hub, self.chemrxiv_hub]
 
-        mapper = ChemRxivMapper(hub_mapper=mock_hub_mapper)
+        mapper = ChemRxivMapper(mock_hub_mapper)
         paper = mapper.map_to_paper(self.sample_record)
 
         # Act
@@ -804,7 +804,7 @@ class TestChemRxivMapper(TestCase):
         """
         # Arrange
         mock_hub_mapper = MagicMock()
-        mapper = ChemRxivMapper(hub_mapper=mock_hub_mapper)
+        mapper = ChemRxivMapper(mock_hub_mapper)
 
         record_no_categories = {**self.sample_record}
         del record_no_categories["categories"]
