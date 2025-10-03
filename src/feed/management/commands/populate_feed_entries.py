@@ -1,4 +1,3 @@
-from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
 from django.db.models import Q
 
@@ -11,7 +10,7 @@ CHUNK_SIZE = 1000
 
 
 class Command(BaseCommand):
-    help = "Populates metrics for feed entries"
+    help = "Populates metrics for existing feed entries"
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -55,13 +54,15 @@ class Command(BaseCommand):
             empty_fields_filter = Q()
 
             if metrics_only:
-                print("Filtering entries with empty metrics")
+                self.stdout.write("Filtering entries with empty metrics")
                 empty_fields_filter = Q(metrics={})
             elif content_only:
-                print("Filtering entries with empty content")
+                self.stdout.write("Filtering entries with empty content")
                 empty_fields_filter = Q(content={})
             else:
-                print("Filtering entries with either empty metrics or empty content")
+                self.stdout.write(
+                    "Filtering entries with either empty metrics or empty content"
+                )
                 empty_fields_filter = Q(metrics={}) | Q(content={})
 
             queryset = queryset.filter(empty_fields_filter)
@@ -92,7 +93,8 @@ class Command(BaseCommand):
 
                 fields_to_update.append("hot_score")
 
-            print(
+            self.stdout.write(
                 f"Populating feed entry: {feed_entry.id} ({', '.join(fields_to_update)})"
             )
+
             feed_entry.save(update_fields=fields_to_update)
