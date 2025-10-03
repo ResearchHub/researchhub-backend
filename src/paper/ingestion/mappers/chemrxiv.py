@@ -446,7 +446,7 @@ class ChemRxivMapper(BaseMapper):
                     if hub and hub not in hubs:
                         hubs.append(hub)
 
-        if self._chemrxiv_hub and self._chemrxiv_hub not in hubs:
-            hubs.append(self._chemrxiv_hub)
+        if self.chemrxiv_hub and self.chemrxiv_hub not in hubs:
+            hubs.append(self.chemrxiv_hub)
 
         return hubs
