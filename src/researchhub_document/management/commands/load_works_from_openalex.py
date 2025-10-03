@@ -7,6 +7,7 @@ from paper.related_models.paper_model import Paper
 from user.related_models.author_model import Author
 from utils.openalex import OpenAlex
 
+
 # To pull papers from bioRxiv use journal param:
 # python manage.py load_works_from_openalex --mode backfill --journal biorxiv
 
@@ -140,7 +141,7 @@ class Command(BaseCommand):
             "--journal",
             default=None,
             type=str,
-            help="The paper respository journal ('biorxiv', 'arxiv', etc.) to pull from",
+            help="The paper repository journal ('biorxiv', 'arxiv', etc.) to pull from",
         )
         parser.add_argument(
             "--openalex_id",
@@ -170,37 +171,40 @@ class Command(BaseCommand):
         journal = kwargs["journal"]
         batch_size = 100
 
-        if mode == "backfill":
-            current_id = start_id
-            to_id = to_id or Paper.objects.all().order_by("-id").first().id
-            while True:
-                if current_id > to_id:
-                    break
+        try:
+            if mode == "backfill":
+                current_id = start_id
+                to_id = to_id or Paper.objects.all().order_by("-id").first().id
 
-                # Get next "chunk"
-                queryset = Paper.objects.filter(
-                    id__gte=current_id, id__lte=(current_id + batch_size - 1)
-                )
+                while True:
+                    if current_id > to_id:
+                        break
 
-                print(
-                    "processing papers from: ",
-                    current_id,
-                    " to: ",
-                    current_id + batch_size - 1,
-                    " count: ",
-                    queryset.count(),
-                )
+                    # Get next "chunk"
+                    queryset = Paper.objects.filter(
+                        id__gte=current_id, id__lte=(current_id + batch_size - 1)
+                    )
 
-                process_backfill_batch(queryset)
+                    self.stdout.write(
+                        f"processing papers from: {current_id}\nto: {current_id + batch_size - 1}\ncount: {queryset.count()}"
+                    )
 
-                # Update cursor
-                current_id += batch_size
-        elif mode == "fetch":
-            OA = OpenAlex()
+                    process_backfill_batch(queryset)
 
-            if openalex_id:
-                process_openalex_work(OA, openalex_id)
-            elif openalex_author_id:
-                process_author_batch(OA, openalex_author_id, journal)
-            else:
-                process_batch(OA, journal)
+                    # Update cursor
+                    current_id += batch_size
+
+            elif mode == "fetch":
+                OA = OpenAlex()
+
+                if openalex_id:
+                    process_openalex_work(OA, openalex_id)
+
+                elif openalex_author_id:
+                    process_author_batch(OA, openalex_author_id, journal)
+
+                else:
+                    process_batch(OA, journal)
+
+        except KeyboardInterrupt:
+            self.stdout.write(self.style.WARNING("Stopped by user"))

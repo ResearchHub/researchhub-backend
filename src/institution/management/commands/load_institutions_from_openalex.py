@@ -15,26 +15,27 @@ class Command(BaseCommand):
     def handle(self, *args, **kwargs):
         page = kwargs["page"]
         open_alex = OpenAlex()
-
         current_page = page
         cursor = "*"
-        while cursor:
-            print("Processing page", current_page)
-            institutions, cursor = open_alex.get_institutions(
-                page=1, next_cursor=cursor
-            )
 
-            for institution in institutions:
-                try:
-                    Institution.upsert_from_openalex(institution)
-                except Exception as e:
-                    print(
-                        "Failed to create institution:",
-                        institution["id"],
-                        "page:",
-                        current_page,
-                        "Exception:",
-                        e,
-                    )
+        try:
+            while cursor:
+                self.stdout.write(f"Processing page {current_page}")
 
-            current_page += 1
+                institutions, cursor = open_alex.get_institutions(
+                    page=1, next_cursor=cursor
+                )
+
+                for institution in institutions:
+                    try:
+                        Institution.upsert_from_openalex(institution)
+
+                    except Exception as e:
+                        self.stdout.write(
+                            f"Failed to create institution: {institution['id']}\nPage: {current_page}\n\nException:\n{e}"
+                        )
+
+                current_page += 1
+
+        except KeyboardInterrupt:
+            self.stdout.write(self.style.WARNING("Stopped by user"))

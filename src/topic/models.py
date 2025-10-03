@@ -1,9 +1,5 @@
-import datetime
-
-from dateutil import parser
 from django.contrib.postgres.fields import ArrayField
 from django.db import models
-from django.utils.timezone import get_current_timezone, is_aware, make_aware
 
 from hub.models import Hub
 from researchhub_document.related_models.researchhub_unified_document_model import (
@@ -128,6 +124,7 @@ class Topic(DefaultModel):
         null=True,
     )
 
+    @staticmethod
     def upsert_from_openalex(oa_topic):
         has_dates = oa_topic.get("updated_date") and oa_topic.get("created_date")
 
@@ -140,7 +137,7 @@ class Topic(DefaultModel):
         except Topic.DoesNotExist:
             pass
 
-        # if topic exists, determine if we need to update it
+        # If the topic exists, determine if we need to update it
         needs_update = False
         if topic and has_dates:
             needs_update = (not topic.openalex_updated_date) or (
@@ -218,11 +215,13 @@ class Topic(DefaultModel):
                 pass
 
             if not hub:
-                hub, created = Hub.objects.create(
+                hub = Hub.objects.create(
                     name=subfield.display_name,
                     subfield=subfield,
                     is_used_for_rep=True,
                 )
+
+                created = True
 
             if created:
                 print(
@@ -233,7 +232,6 @@ class Topic(DefaultModel):
                 hub.is_used_for_rep = True
                 hub.save()
         except Exception as e:
-            pass
             print(f"Error creating hub {subfield.display_name}: {e}")
 
         # Upsert topic

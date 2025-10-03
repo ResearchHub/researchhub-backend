@@ -119,16 +119,18 @@ def create_and_update_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
     papers_to_update = {}
 
     for work in works:
-        # When fetched in batch, OpneAlex will truncate authors beyond 100.
+        # When fetched in batch, OpenAlex will truncate authors beyond 100.
         # If this is the case, we need to fetch the full work
         # https://docs.openalex.org/api-entities/authors/limitations
         if work.get("is_authors_truncated", False):
             just_id = work.get("id").split("/")[-1]
             work = open_alex.get_work(just_id)
 
-        doi = work.get("doi")
+        doi = work.get("doi")  # Digital Object Identifier
+
         if doi is None:
-            print(f"No Doi for result: {work.get('id')}")
+            print(f"No DOI for result (safe to ignore): {work.get('id')}")
+
             continue
 
         existing_paper = existing_paper_map.get(doi)
