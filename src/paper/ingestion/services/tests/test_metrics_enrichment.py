@@ -1,0 +1,221 @@
+from datetime import timedelta
+from unittest.mock import Mock
+
+from django.test import TestCase
+from django.utils import timezone
+
+from paper.ingestion.clients.altmetric import AltmetricClient
+from paper.ingestion.mappers.altmetric import AltmetricMapper
+from paper.ingestion.services.metrics_enrichment import PaperMetricsEnrichmentService
+from paper.models import Paper
+
+
+class PaperMetricsEnrichmentServiceTests(TestCase):
+    def setUp(self):
+        self.paper = Paper.objects.create(
+            title="Paper with DOI",
+            doi="10.1038/news.2011.490",
+            created_date=timezone.now() - timedelta(days=3),
+        )
+
+        self.paper_without_doi = Paper.objects.create(
+            title="Paper without DOI",
+            created_date=timezone.now() - timedelta(days=2),
+        )
+
+        # Sample response
+        self.sample_altmetric_response = {
+            "altmetric_id": 241939,
+            "cited_by_fbwalls_count": 5,
+            "cited_by_tweeters_count": 138,
+            "score": 140.5,
+            "last_updated": 1334237127,
+        }
+
+        self.mapped_metrics = {
+            "altmetric_id": 241939,
+            "facebook_count": 5,
+            "twitter_count": 138,
+            "score": 140.5,
+        }
+
+    def test_get_recent_papers_with_dois(self):
+        """Test querying recent papers with DOIs."""
+        # Arrange
+        service = PaperMetricsEnrichmentService(AltmetricClient(), AltmetricMapper())
+
+        # Act
+        papers = service.get_recent_papers_with_dois(days=7)
+
+        # Assert
+        self.assertIn(self.paper.id, papers)
+        # Verify all returned values are integers (paper IDs)
+        self.assertTrue(all(isinstance(pid, int) for pid in papers))
+
+    def test_get_recent_papers_excludes_old_papers(self):
+        """Test that old papers are excluded."""
+        # Arrange
+        service = PaperMetricsEnrichmentService(AltmetricClient(), AltmetricMapper())
+        # Create old paper (will have auto_now_add set to now)
+        old_paper = Paper.objects.create(
+            title="Old Paper",
+            doi="10.1234/old",
+        )
+        # Update created_date to 30 days ago (bypasses auto_now_add)
+        old_date = timezone.now() - timedelta(days=30)
+        Paper.objects.filter(id=old_paper.id).update(created_date=old_date)
+        old_paper.refresh_from_db()
+
+        # Act
+        papers = service.get_recent_papers_with_dois(days=7)
+
+        # Assert
+        self.assertNotIn(
+            old_paper.id,
+            papers,
+            f"Old paper (created {old_paper.created_date}) should not be in papers from last 7 days",
+        )
+
+    def test_enrich_paper_with_altmetric_success(self):
+        """Test successful enrichment of a paper with Altmetric data."""
+        # Arrange
+        mock_client = Mock()
+        mock_client.fetch_by_doi.return_value = self.sample_altmetric_response
+
+        mock_mapper = Mock()
+        mock_mapper.map_metrics.return_value = self.mapped_metrics
+
+        service = PaperMetricsEnrichmentService(
+            altmetric_client=mock_client,
+            altmetric_mapper=mock_mapper,
+        )
+
+        # Act
+        result = service.enrich_paper_with_altmetric(self.paper)
+
+        # Assert
+        self.assertEqual(result.status, "success")
+        self.assertEqual(result.altmetric_score, 140.5)
+        self.assertEqual(result.metrics, self.mapped_metrics)
+
+        # Verify client and mapper were called
+        mock_client.fetch_by_doi.assert_called_once_with(self.paper.doi)
+        mock_mapper.map_metrics.assert_called_once_with(self.sample_altmetric_response)
+
+        # Verify paper was updated
+        self.paper.refresh_from_db()
+        self.assertIsNotNone(self.paper.external_metadata)
+        self.assertIn("metrics", self.paper.external_metadata)
+        self.assertEqual(self.paper.external_metadata["metrics"], self.mapped_metrics)
+
+    def test_enrich_paper_preserves_existing_metadata(self):
+        """Test that existing metadata is preserved."""
+        # Arrange
+        self.paper.external_metadata = {
+            "existing_key": "existing_value",
+            "nested": {"data": "preserved"},
+        }
+        self.paper.save()
+
+        mock_client = Mock()
+        mock_client.fetch_by_doi.return_value = self.sample_altmetric_response
+
+        mock_mapper = Mock()
+        mock_mapper.map_metrics.return_value = self.mapped_metrics
+
+        service = PaperMetricsEnrichmentService(
+            altmetric_client=mock_client,
+            altmetric_mapper=mock_mapper,
+        )
+
+        # Act
+        service.enrich_paper_with_altmetric(self.paper)
+
+        # Assert
+        self.paper.refresh_from_db()
+        self.assertEqual(self.paper.external_metadata["existing_key"], "existing_value")
+        self.assertEqual(self.paper.external_metadata["nested"]["data"], "preserved")
+        self.assertIn("metrics", self.paper.external_metadata)
+
+    def test_enrich_paper_no_doi(self):
+        """Test enrichment of paper without DOI."""
+        # Arrange
+        service = PaperMetricsEnrichmentService(AltmetricClient(), AltmetricMapper())
+
+        # Act
+        result = service.enrich_paper_with_altmetric(self.paper_without_doi)
+
+        # Assert
+        self.assertEqual(result.status, "skipped")
+        self.assertEqual(result.reason, "no_doi")
+
+    def test_enrich_paper_altmetric_not_found(self):
+        """Test enrichment when Altmetric data is not found."""
+        # Arrange
+        mock_client = Mock()
+        mock_client.fetch_by_doi.return_value = None
+
+        mock_mapper = Mock()
+
+        service = PaperMetricsEnrichmentService(mock_client, mock_mapper)
+
+        # Act
+        result = service.enrich_paper_with_altmetric(self.paper)
+
+        # Assert
+        self.assertEqual(result.status, "not_found")
+        self.assertEqual(result.reason, "no_altmetric_data")
+
+    def test_enrich_papers_batch(self):
+        """Test batch enrichment of multiple papers."""
+        # Arrange
+        paper2 = Paper.objects.create(
+            title="Paper 2",
+            doi="10.1234/paper2",
+            created_date=timezone.now() - timedelta(days=1),
+        )
+
+        mock_client = Mock()
+        mock_client.fetch_by_doi.side_effect = [
+            self.sample_altmetric_response,  # First paper succeeds
+            None,  # Second paper not found
+        ]
+
+        mock_mapper = Mock()
+        mock_mapper.map_metrics.return_value = self.mapped_metrics
+
+        service = PaperMetricsEnrichmentService(
+            altmetric_client=mock_client,
+            altmetric_mapper=mock_mapper,
+        )
+
+        paper_ids = [self.paper.id, paper2.id]
+
+        # Act
+        results = service.enrich_papers_batch(paper_ids)
+
+        # Assert
+        self.assertEqual(results.total, 2)
+        self.assertEqual(results.success_count, 1)
+        self.assertEqual(results.not_found_count, 1)
+        self.assertEqual(results.error_count, 0)
+
+    def test_enrich_papers_batch_handles_errors(self):
+        """Test batch enrichment handles errors gracefully."""
+        # Arrange
+        mock_client = Mock()
+        mock_client.fetch_by_doi.side_effect = Exception("D'oh!")
+
+        mock_mapper = Mock()
+
+        service = PaperMetricsEnrichmentService(mock_client, mock_mapper)
+
+        paper_ids = [self.paper.id]
+
+        # Act
+        results = service.enrich_papers_batch(paper_ids)
+
+        # Assert
+        self.assertEqual(results.error_count, 1)
+        self.assertEqual(results.success_count, 0)
+        self.assertEqual(results.success_count, 0)
