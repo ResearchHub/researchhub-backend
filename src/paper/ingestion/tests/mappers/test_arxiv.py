@@ -391,7 +391,6 @@ class TestArXivMapper(TestCase):
         mock_hub_mapper.map.return_value = [cs_hub]
 
         mapper = ArXivMapper(mock_hub_mapper)
-        mapper._arxiv_hub = self.arxiv_hub
         paper = mapper.map_to_paper(self.sample_record)
 
         # Act
@@ -411,7 +410,6 @@ class TestArXivMapper(TestCase):
         """
         # Arrange
         mapper = ArXivMapper(None)
-        mapper._arxiv_hub = self.arxiv_hub
         paper = mapper.map_to_paper(self.sample_record)
 
         # Act
@@ -435,7 +433,6 @@ class TestArXivMapper(TestCase):
         mock_hub_mapper.map.return_value = [cs_hub, self.arxiv_hub]
 
         mapper = ArXivMapper(mock_hub_mapper)
-        mapper._arxiv_hub = self.arxiv_hub
         paper = mapper.map_to_paper(self.sample_record)
 
         # Act
@@ -455,7 +452,6 @@ class TestArXivMapper(TestCase):
         # Arrange
         mock_hub_mapper = MagicMock()
         mapper = ArXivMapper(mock_hub_mapper)
-        mapper._arxiv_hub = self.arxiv_hub
 
         # XML without primary_category
         xml_no_primary = """<entry xmlns="http://www.w3.org/2005/Atom">
@@ -487,7 +483,6 @@ class TestArXivMapper(TestCase):
         mock_hub_mapper.map.return_value = []
 
         mapper = ArXivMapper(mock_hub_mapper)
-        mapper._arxiv_hub = self.arxiv_hub
         paper = mapper.map_to_paper(self.sample_record)
 
         # Act

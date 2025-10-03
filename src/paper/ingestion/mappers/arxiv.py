@@ -471,7 +471,7 @@ class ArXivMapper(BaseMapper):
                 if hub and hub not in hubs:
                     hubs.append(hub)
 
-        if self._arxiv_hub and self._arxiv_hub not in hubs:
-            hubs.append(self._arxiv_hub)
+        if self.arxiv_hub and self.arxiv_hub not in hubs:
+            hubs.append(self.arxiv_hub)
 
         return hubs
