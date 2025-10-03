@@ -56,3 +56,4 @@ CLAUDE.md
 
 # Python virtual environment
 .venv
+.devcontainer/docker-compose.local.yml
