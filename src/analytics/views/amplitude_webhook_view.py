@@ -19,12 +19,12 @@ class AmplitudeWebhookView(APIView):
 
     This endpoint:
     1. Receives all events from Amplitude
-    2. Processes and filters events relevant for ML/recommendations
+    2. Processes and filters events relevant for ML/internal metrics
     3. Assigns weights to different event types
     4. Prepares data for AWS Personalize
 
     Event Flow:
-    Amplitude -> Webhook -> EventProcessor -> AWS Personalize
+    Website -> Amplitude -> Webhook -> EventProcessor -> AWS Personalize
     """
 
     permission_classes = [AllowAny]
@@ -35,7 +35,6 @@ class AmplitudeWebhookView(APIView):
 
         Expected payload format from Amplitude:
         {
-            "api_key": "your_api_key",
             "event_type": "click",
             "user_id": "12345",
             "event_properties": {...},
@@ -47,9 +46,7 @@ class AmplitudeWebhookView(APIView):
             # Parse the payload
             payload = json.loads(request.body)
 
-            # Handle single event format
             if "events" in payload:
-                # Legacy format with events array
                 events = payload.get("events", [])
                 if not events:
                     return Response(
@@ -57,7 +54,6 @@ class AmplitudeWebhookView(APIView):
                         status=status.HTTP_400_BAD_REQUEST,
                     )
             else:
-                # Single event format - check if it's a valid event
                 if not payload.get("event_type"):
                     return Response(
                         {"message": "Invalid event format - missing event_type"},
@@ -65,7 +61,6 @@ class AmplitudeWebhookView(APIView):
                     )
                 events = [payload]
 
-            # Process events
             processor = EventProcessor()
             processed_count = 0
             skipped_count = 0

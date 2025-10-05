@@ -26,8 +26,9 @@ class EventProcessor:
         "vote_action": 2.0,  # User voting indicates strong preference
         "feed_item_clicked": 1.5,  # User actively engaged with content
         "proposal_funded": 3.0,  # Strongest signal - financial contribution
+        "bounty_created": 3.0,  # Strongest signal - financial contribution
         "comment_created": 2.5,  # High engagement - user took time to write
-        "peer_review_created": 2.8,  # Very high engagement - expert contribution
+        "peer_review_created": 3.0,  # Very high engagement - expert contribution
     }
 
     # Events that should be sent to AWS Personalize
@@ -94,7 +95,6 @@ class EventProcessor:
             event_props = event.get("event_properties", {})
             user_id = event_props.get("user_id")
 
-            # Handle flattened related_work format
             unified_doc_id = event_props.get("related_work.unified_document_id")
             content_type = event_props.get("related_work.content_type")
             related_id = event_props.get("related_work.id")
@@ -106,7 +106,6 @@ class EventProcessor:
             else:
                 item_id = None
 
-            # Use content_type from related_work, default to 'unknown' if not specified
             content_type = content_type or "unknown"
             timestamp = event.get("time", datetime.now().timestamp() * 1000)
 
@@ -121,7 +120,7 @@ class EventProcessor:
             #     return
 
             # Get weight for this event type
-            weight = self.EVENT_WEIGHTS.get(event_type, 1.0)
+            weight = self.get_event_weight(event_type, event_props)
 
             # Handle impression events differently
             if event_type in self.IMPRESSION_EVENTS:
@@ -160,6 +159,17 @@ class EventProcessor:
         Process an interaction event (click, upvote, etc.)
         """
         try:
+            # Transform to AWS Personalize format
+            aws_personalize_payload = self._transform_to_personalize_format(
+                event_type=event_type,
+                user_id=user_id,
+                item_id=item_id,
+                content_type=content_type,
+                weight=weight,
+                timestamp=timestamp,
+                event_props=event_props,
+            )
+
             # TODO: Store in database when implementing database storage
             # UserInteraction.objects.create(
             #     user_id=user_id,
@@ -179,6 +189,8 @@ class EventProcessor:
                     event_type=event_type,
                     weight=weight,
                     timestamp=timestamp,
+                    # Pass the transformed payload
+                    aws_payload=aws_personalize_payload,
                 )
 
             logger.debug(
@@ -207,7 +219,7 @@ class EventProcessor:
                 logger.warning(f"No items in impression event for user {user_id}")
                 return
 
-            weight = self.EVENT_WEIGHTS.get(event_type, 0.3)
+            # weight = self.EVENT_WEIGHTS.get(event_type, 0.3)
 
             # TODO: Store in database when implementing database storage
             # ImpressionEvent.objects.create(
@@ -234,14 +246,139 @@ class EventProcessor:
         except Exception as e:
             log_error(e, message=f"Failed to process impression event: {event_type}")
 
-    def get_event_weight(self, event_type: str) -> float:
+    def get_event_weight(self, event_type: str, event_props: Dict = None) -> float:
         """
-        Get the weight for a given event type.
+        Get the weight for a given event type with special logic for certain events.
 
         Args:
             event_type: Type of event
+            event_props: Event properties for special case logic
 
         Returns:
             float: Weight value
         """
-        return self.EVENT_WEIGHTS.get(event_type.lower(), 1.0)
+        base_weight = self.EVENT_WEIGHTS.get(event_type.lower(), 1.0)
+
+        if not event_props:
+            return base_weight
+
+        # Special logic for vote_action
+        if event_type.lower() == "vote_action":
+            vote_type = event_props.get("vote_type", "").upper()
+            if vote_type == "NEUTRAL":
+                # Neutral vote cancels out previous vote - return negative of upvote weight
+                return -self.EVENT_WEIGHTS.get("vote_action", 2.0)
+            elif vote_type == "UPVOTE":
+                # Regular vote weights
+                return base_weight
+            else:
+                # Unknown vote type, use base weight
+                return base_weight
+
+        # Special logic for comment_created
+        elif event_type.lower() == "comment_created":
+            comment_type = event_props.get("comment_type", "").lower()
+            if comment_type == "bounty":
+                # Bounty comments are as valuable as funding proposals
+                return self.EVENT_WEIGHTS.get("bounty_created", 3.0)
+            else:
+                # Regular comment weight
+                return base_weight
+
+        # Default case
+        return base_weight
+
+    def _transform_to_personalize_format(
+        self,
+        event_type: str,
+        user_id: str,
+        item_id: str,
+        content_type: str,
+        weight: float,
+        timestamp: float,
+        event_props: Dict,
+    ) -> Dict:
+        """
+        Transform Amplitude event to AWS Personalize payload format.
+
+        Args:
+            event_type: Type of event
+            user_id: User ID
+            item_id: Item ID
+            content_type: Content type
+            weight: Event weight
+            timestamp: Event timestamp
+            event_props: Original event properties
+
+        Returns:
+            Dict: AWS Personalize payload
+        """
+        # Base payload structure
+        base_payload = {
+            "userId": user_id,
+            "itemId": item_id,
+            "timestamp": timestamp,
+            "weight": weight,
+            "eventType": event_type,
+            "contentType": content_type,
+        }
+
+        # Add event-specific properties based on event type
+        if event_type == "feed_item_clicked":
+            return {
+                **base_payload,
+                "feedPosition": event_props.get("feed_position"),
+                "feedSource": event_props.get("feed_source"),
+                "feedTab": event_props.get("feed_tab"),
+                "relatedWork": self._extract_related_work(event_props),
+            }
+
+        elif event_type == "peer_review_created":
+            return {
+                **base_payload,
+                "score": event_props.get("score"),
+                "relatedWork": self._extract_related_work(event_props),
+            }
+
+        # Default case - return base payload
+        return base_payload
+
+    def _extract_related_work(self, event_props: Dict) -> Dict:
+        """
+        Extract related work information from event properties.
+
+        Args:
+            event_props: Event properties
+
+        Returns:
+            Dict: Related work information
+        """
+        return {
+            "id": event_props.get("related_work.id"),
+            "contentType": event_props.get("related_work.content_type"),
+            "unifiedDocumentId": event_props.get("related_work.unified_document_id"),
+            "primaryTopic": (
+                {
+                    "id": event_props.get("related_work.primary_topic.id"),
+                    "name": event_props.get("related_work.primary_topic.name"),
+                    "slug": event_props.get("related_work.primary_topic.slug"),
+                }
+                if event_props.get("related_work.primary_topic.id")
+                else None
+            ),
+            "topics": self._extract_topics(event_props),
+        }
+
+    def _extract_topics(self, event_props: Dict) -> list:
+        """
+        Extract topics array from event properties.
+
+        Args:
+            event_props: Event properties
+
+        Returns:
+            list: Topics array
+        """
+        # This would need to be implemented based on how topics are stored
+        # For now, return empty list as placeholder
+        return []

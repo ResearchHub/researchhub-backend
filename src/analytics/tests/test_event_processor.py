@@ -20,8 +20,9 @@ class EventProcessorTestCase(TestCase):
         self.assertEqual(self.processor.get_event_weight("vote_action"), 2.0)
         self.assertEqual(self.processor.get_event_weight("feed_item_clicked"), 1.5)
         self.assertEqual(self.processor.get_event_weight("proposal_funded"), 3.0)
+        self.assertEqual(self.processor.get_event_weight("bounty_created"), 3.0)
         self.assertEqual(self.processor.get_event_weight("comment_created"), 2.5)
-        self.assertEqual(self.processor.get_event_weight("peer_review_created"), 2.8)
+        self.assertEqual(self.processor.get_event_weight("peer_review_created"), 3.0)
 
     def test_should_process_ml_relevant_events(self):
         """Test that ML-relevant events are identified correctly."""
