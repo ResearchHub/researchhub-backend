@@ -13,35 +13,44 @@ from utils.openalex import OpenAlex
 
 
 def process_backfill_batch(queryset):
-    OA = OpenAlex()
+    open_alex = OpenAlex()
 
     oa_ids = []
+
     for paper in queryset.iterator():
-        if paper.open_alex_raw_json:
-            id_as_url = paper.open_alex_raw_json["id"]
-            just_id = id_as_url.split("/")[-1]
+        if not paper.open_alex_raw_json:
+            continue
 
-            oa_ids.append(just_id)
+        id_as_url = paper.open_alex_raw_json["id"]
+        just_id = id_as_url.split("/")[-1]
 
-    works, cursor = OA.get_works(openalex_ids=oa_ids)
+        oa_ids.append(just_id)
+
+    works, cursor = open_alex.get_works(openalex_ids=oa_ids)
+
     process_openalex_works(works)
 
 
 def process_openalex_work(openalex, openalex_id):
-    print("Fetching single work with id: " + openalex_id)
-    work = openalex.get_work(
-        openalex_id=openalex_id,
-    )
+    print(f"Fetching single work with id: {openalex_id}")
 
-    process_openalex_works([work])
+    process_openalex_works(
+        [
+            openalex.get_work(
+                openalex_id=openalex_id,
+            )
+        ]
+    )
 
 
 def process_author_batch(openalex, openalex_author_id, journal):
-    print("Fetching full author works for author: " + openalex_author_id)
+    print(f"Fetching full author works for author: {openalex_author_id}")
+
     cursor = "*"
 
     while cursor:
-        print("Processing cursor " + str(cursor))
+        print(f"Processing cursor {cursor}")
+
         works, cursor = openalex.get_works(
             source=journal,
             types=[
@@ -56,14 +65,18 @@ def process_author_batch(openalex, openalex_author_id, journal):
         process_openalex_works(works)
 
     if openalex_author_id:
-        print("Finished fetching all works for author: " + openalex_author_id)
-        full_openalex_id = "https://openalex.org/" + openalex_author_id
-        author = Author.objects.get(openalex_ids__contains=[full_openalex_id])
+        print(f"Finished fetching all works for author: {openalex_author_id}")
+
+        author = Author.objects.get(
+            openalex_ids__contains=[f"https://openalex.org/{openalex_author_id}"]
+        )
+
         author.last_full_fetch_from_openalex = timezone.now()
+
         author.save()
 
 
-def process_batch(openalex, journal):
+def process_batch(openalex, journal, page_limit=0, batch_size=100):
     cursor = "*"
 
     pending_log = PaperFetchLog.objects.filter(
@@ -86,6 +99,7 @@ def process_batch(openalex, journal):
         .order_by("-started_date")
         .first()
     )
+
     if last_failed_log:
         # Start from where we left off
         cursor = last_failed_log.next_cursor
@@ -99,9 +113,15 @@ def process_batch(openalex, journal):
         journal=journal,
     )
 
+    pages_processed = 0
     total_papers_processed = 0
+
     while cursor:
-        print("Processing cursor " + str(cursor))
+        if page_limit and pages_processed >= page_limit:
+            break
+
+        print(f"Processing cursor {cursor}")
+
         works, cursor = openalex.get_works(
             source=journal,
             types=[
@@ -110,17 +130,23 @@ def process_batch(openalex, journal):
                 "review",
             ],
             next_cursor=cursor,
+            batch_size=batch_size,
         )
 
         process_openalex_works(works)
 
         total_papers_processed += len(works)
+
+        pages_processed += 1
+
         fetch_log.total_papers_processed = total_papers_processed
         fetch_log.next_cursor = cursor
+
         fetch_log.save()
 
     fetch_log.status = PaperFetchLog.SUCCESS
     fetch_log.finished_date = timezone.now()
+
     fetch_log.save()
 
 
@@ -134,30 +160,31 @@ class Command(BaseCommand):
             type=int,
             help="Paper start id",
         )
+
         parser.add_argument(
             "--to_id",
-            default=None,
             type=int,
             help="Paper id to stop at",
         )
+
         parser.add_argument(
             "--journal",
-            default=None,
             type=str,
             help="The paper repository journal ('biorxiv', 'arxiv', etc.) to pull from",
         )
+
         parser.add_argument(
             "--openalex_id",
-            default=None,
             type=str,
             help="The OpenAlex ID to pull",
         )
+
         parser.add_argument(
             "--openalex_author_id",
-            default=None,
             type=str,
             help="The OpenAlex Author ID to pull",
         )
+
         parser.add_argument(
             "--mode",
             default="backfill",
@@ -165,49 +192,64 @@ class Command(BaseCommand):
             help="Either backfill existing docs or load new ones from OpenAlex via filters",
         )
 
-    def handle(self, *args, **kwargs):
-        start_id = kwargs["start_id"]
-        to_id = kwargs["to_id"]
-        openalex_id = kwargs["openalex_id"]
-        openalex_author_id = kwargs["openalex_author_id"]
-        mode = kwargs["mode"]
-        journal = kwargs["journal"]
-        batch_size = 100
+        parser.add_argument(
+            "--count",
+            type=int,
+            help="Limit the number of pages to process",
+        )
 
+        parser.add_argument(
+            "--batch",
+            default=100,
+            type=int,
+            help="Batch size (number of results) per page (default: 100)",
+        )
+
+    def handle(self, *args, **kwargs):
         try:
-            if mode == "backfill":
-                current_id = start_id
-                to_id = to_id or Paper.objects.all().order_by("-id").first().id
+            if kwargs["mode"] == "backfill":
+                current_id = kwargs["start_id"]
+
+                to_id = (
+                    kwargs["to_id"] or Paper.objects.all().order_by("-id").first().id
+                )
 
                 while True:
                     if current_id > to_id:
                         break
 
+                    next_id = current_id + kwargs["batch"] - 1
+
                     # Get next "chunk"
-                    queryset = Paper.objects.filter(
-                        id__gte=current_id, id__lte=(current_id + batch_size - 1)
-                    )
+                    queryset = Paper.objects.filter(id__gte=current_id, id__lte=next_id)
 
                     self.stdout.write(
-                        f"processing papers from: {current_id}\nto: {current_id + batch_size - 1}\ncount: {queryset.count()}"
+                        f"Processing papers from: {current_id}\nto: "
+                        f"{next_id}\ncount: {queryset.count()}"
                     )
 
                     process_backfill_batch(queryset)
 
-                    # Update cursor
-                    current_id += batch_size
+                    current_id += kwargs["batch"]
 
-            elif mode == "fetch":
-                OA = OpenAlex()
+            elif kwargs["mode"] == "fetch":
+                open_alex = OpenAlex()
 
-                if openalex_id:
-                    process_openalex_work(OA, openalex_id)
+                if kwargs["openalex_id"]:
+                    process_openalex_work(open_alex, kwargs["openalex_id"])
 
-                elif openalex_author_id:
-                    process_author_batch(OA, openalex_author_id, journal)
+                elif kwargs["openalex_author_id"]:
+                    process_author_batch(
+                        open_alex, kwargs["openalex_author_id"], kwargs["journal"]
+                    )
 
                 else:
-                    process_batch(OA, journal)
+                    process_batch(
+                        openalex=open_alex,
+                        journal=kwargs["journal"],
+                        page_limit=kwargs["count"],
+                        batch_size=kwargs["batch"],
+                    )
 
         except KeyboardInterrupt:
             self.stdout.write(self.style.WARNING("Stopped by user"))

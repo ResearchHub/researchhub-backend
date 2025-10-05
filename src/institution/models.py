@@ -129,15 +129,16 @@ class Institution(DefaultModel):
         # Normalize created, updated dates to format that is compatible with django
         oa_institution = OpenAlex.normalize_dates(oa_institution)
 
-        institution = None
         try:
             institution = Institution.objects.get(openalex_id=oa_institution["id"])
+
         except Institution.DoesNotExist:
-            pass
+            institution = None
 
         needs_update = False
+
         if institution and has_dates:
-            needs_update = (not institution.openalex_updated_date) or (
+            needs_update = not institution.openalex_updated_date or (
                 institution.openalex_updated_date < oa_institution["updated_date"]
             )
 
@@ -177,7 +178,10 @@ class Institution(DefaultModel):
         if needs_update:
             for key, value in mapped.items():
                 setattr(institution, key, value)
+
             institution.save()
+
         elif not institution:
             institution = Institution.objects.create(**mapped)
+
         return institution
