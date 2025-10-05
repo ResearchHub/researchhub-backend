@@ -55,7 +55,7 @@ We believe that by empowering scientists to independently fund, create, and publ
 
 ## Setup
 
-1. Copy the sample configuration files to `config_local` and adjust as needed:
+1. Copy the sample configuration files to `config_local`:
     ```shell
     cp db_config.sample.py src/config_local/db.py
     cp keys.sample.py src/config_local/keys.py
@@ -86,7 +86,7 @@ We believe that by empowering scientists to independently fund, create, and publ
    - Or http://127.0.0.1:8000, depending on your setup
 3. Test that the app is running by adding any random string to the end of the URL (ex: http://localhost:8000/abc)
    - If successful, you should see a `Page not found (404)` error page showing a list of the app's URL patterns
-4. [Run Celery](#background-tasks) if you want to simulate background updates
+4. _(Optional)_ [Run Celery](#background-tasks) if you want to simulate background updates
    - Not generally needed or recommended because it can slow things down and clash with seeded DB data, but it can be useful when needing to replicate specific production features
 
 ## Seed the Database
@@ -99,35 +99,10 @@ We believe that by empowering scientists to independently fund, create, and publ
    ```shell
    python src/manage.py setup
    ```
-3. Run each of the following commands and stop them (`ctrl+c`) after a short while (~10 pages should suffice, no need to pull all of it)
-   1. Load Institutions:
-      ```shell
-      python src/manage.py load_institutions_from_openalex
-      ```
-   2. Load Topics:
-      ```shell
-      python src/manage.py load_topics_from_openalex
-      ```
-      - If you see `duplicate key value violates unique constraint "hub_hub_pkey" … Key (id)=(N) already exists` in the output, your Postgres sequence for `hub_hub.id` may be out of sync. Run this in your DB console, then try again:
-        ```sql
-        SELECT setval(
-          pg_get_serial_sequence('"hub_hub"', 'id'),
-          COALESCE((SELECT MAX(id) FROM "hub_hub"), 1),
-          true
-        );
-        ```
-   3. Load Concepts: 
-      ```shell
-      python src/manage.py add_all_openalex_concepts
-      ```
-   4. Load Papers:
-      ```shell
-      python src/manage.py load_works_from_openalex --mode fetch --journal BIORXIV
-      ```
-      - If you see `There are pending logs for this journal: BIORXIV` in the output, there are lingering journals that you can safely clear out. Run this command, then try again:
-        ```shell
-         python src/manage.py fail_fetch_logs BIORXIV
-        ```
+3. Load data from OpenAlex (institutions, topics, concepts, papers):
+   ```shell
+   python src/manage.py seed_all_openalex
+   ```
 4. Add additional research topic hubs:
    ```shell
    python src/manage.py seed_hubs_from_mappings
@@ -136,58 +111,22 @@ We believe that by empowering scientists to independently fund, create, and publ
    ```shell
    python src/manage.py refresh_exchange_rate
    ```
-6. Populate research content (add `--count {n}` to each command if you need a specific number of entries):
-   1. Create discussions:
-      ```shell
-      python src/manage.py seed_discussions
-      ```
-   2. Create questions:
-      ```shell
-      python src/manage.py seed_questions
-      ```
-   3. Create hypotheses:
-      ```shell
-      python src/manage.py seed_hypotheses
-      ```
-   4. Create pre-registrations with fundraises:
-      ```shell
-      python src/manage.py seed_preregistrations_with_fundraises
-      ```
-   5. Create journal papers:
-      ```shell
-      python src/manage.py seed_journal_papers
-      ```
-   6. Create grants:
-      ```shell
-      python src/manage.py seed_grants
-      ```
-   7. Create bounties:
-      ```shell
-      python src/manage.py seed_bounties
-      ```
+6. Populate research content (discussions, questions, hypotheses, pre-registrations with fundraises, journal papers, grants, bounties):
+   ```shell
+   python src/manage.py seed_all_research_content
+   ```
 7. Populate feed:
-   1. Create entries from papers:
-      ```shell
-      python src/manage.py create_feed_entries
-      ```
-   2. Set a placeholder Journal ID using one of the journals that was seeded:
-      1. Get ID from seeded data:
-         ```shell
-         python src/manage.py shell -c "from hub.models import Hub; print(Hub.objects.filter(namespace='journal').values('id', 'name').first().get('id', 'None found'))"
-         ```
-      2. Set that ID as the value of `RESEARCHHUB_JOURNAL_ID` in `src/config_local/keys.py`
-   3. Update entries with data:
-      ```shell
-      python src/manage.py populate_feed_entries --all
-      ```
-   4. Refresh materialized feed views:
-      ```shell
-      python src/manage.py refresh_feed
-      ```
-   5. Reindex (for search, etc.):
-      ```shell
-      python src/manage.py opensearch index rebuild --force
-      ```
+   ```shell
+   python src/manage.py seed_all_feed
+   ```
+8. _(Optional, but recommended)_ Create a backup of the seeded data to easily restore it after running certain tests or other functions that wipe the DB:
+   ```shell
+   python src/manage.py manage_seeded_data_backup backup
+   ```
+   - To restore at a later time:
+     ```shell
+     python src/manage.py manage_seeded_data_backup restore
+     ```
 
 ## Debugging
 
@@ -265,7 +204,11 @@ ResearchHub uses [Celery](https://github.com/celery/celery/) for background task
   - Restart the app to see it reflected
 - ResearchHub uses [OpenSearch](https://github.com/opensearch-project/OpenSearch) for search and browse. To index entities (users, papers, etc...) at any time, run:
   ```shell
-  python manage.py opensearch index rebuild
+  python src/manage.py opensearch index rebuild
+  ```
+- Wipe the DB so you can [reseed](#seed-the-database) from scratch:
+  ```shell
+  python src/manage.py flush --noinput
   ```
 - Add new Python packages:
 
