@@ -57,3 +57,4 @@ CLAUDE.md
 # Python virtual environment
 .venv
 .devcontainer/docker-compose.local.yml
+.seeded_db_backup.json
