@@ -1,26 +1,5 @@
 # Quick Setup Guide - Amplitude Webhook & AWS Personalize
 
-## Overview
-
-This integration tracks user interactions from Amplitude and prepares data for AWS Personalize to generate personalized content recommendations.
-
-## File Structure
-
-```
-src/analytics/
-├── views/                           # All view endpoints
-│   ├── amplitude_webhook_view.py   # Receives events from Amplitude
-│   └── website_visits_view.py      # Existing website visits
-├── services/                       # Business logic services
-│   ├── event_processor.py         # Event processing & weighting
-│   └── personalize_service.py     # AWS Personalize integration
-├── tests/                          # Test suite
-│   ├── test_amplitude_webhook.py  # Webhook tests
-│   ├── test_event_processor.py    # Processor tests
-│   └── test_personalize_service.py # AWS service tests
-├── models.py                       # Database models (placeholder)
-└── README_PERSONALIZE.md           # Full documentation
-```
 
 ## Key Components
 
@@ -37,14 +16,6 @@ src/analytics/
 - Sends to AWS Personalize (when configured)
 - TODO: Database storage (future enhancement)
 
-**Event Weights**:
-- Fundraise/Donate: **3.0** (strongest positive)
-- Upvote/Share: **2.0**
-- Download: **1.5**
-- Click: **1.0**
-- Impressions: **0.3-0.7**
-- Downvote: **-1.0**
-- Flag: **-2.5** (strongest negative)
 
 ### 3. AWS Personalize Service (`services/personalize_service.py`)
 - Sends interaction events to AWS
