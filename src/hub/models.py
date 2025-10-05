@@ -106,11 +106,6 @@ class Hub(models.Model):
 
     class Meta:
         constraints = [
-            # Original case-sensitive constraint
-            # (keeps exact duplicates from being created)
-            models.UniqueConstraint(
-                fields=["name", "namespace"], name="unique_name_namespace"
-            ),
             # Case-insensitive unique constraint to prevent duplicates
             # with different cases. Example: Prevents "Nature", "nature",
             # "NATURE" from coexisting with same namespace
