@@ -32,7 +32,6 @@ src/analytics/
 
 ### 1. Webhook Endpoint (`/webhooks/amplitude/`)
 - Receives all events from Amplitude
-- HMAC-SHA256 signature validation (optional)
 - Processes multiple events in one request
 - Handles errors gracefully
 - Returns processing statistics
@@ -78,7 +77,7 @@ src/analytics/
 ### 1. Configure Amplitude
 - Add webhook destination in Amplitude dashboard
 - Set URL: `https://your-domain.com/webhooks/amplitude/`
-- Enable HMAC signature (optional but recommended)
+- Enable event forwarding
 
 ### 2. Set Environment Variables
 ```bash
@@ -147,7 +146,6 @@ This will enable:
 ✅ **Negative signals**: Downvote, flag, hide
 ✅ **Impression tracking**: Initial vs scroll impressions
 ✅ **AWS Personalize integration**: Ready
-✅ **Security**: HMAC-SHA256 signature validation
 ✅ **Error handling**: Comprehensive logging
 ✅ **Testing**: 50+ test cases
 ✅ **Documentation**: 3 detailed docs

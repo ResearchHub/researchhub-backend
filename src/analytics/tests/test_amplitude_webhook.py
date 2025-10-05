@@ -1,5 +1,5 @@
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from django.test import TestCase
 from django.urls import reverse
@@ -30,7 +30,7 @@ class AmplitudeWebhookTestCase(TestCase):
             self.url, data=json.dumps({}), content_type="application/json"
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("No events", response.data["message"])
+        self.assertIn("Invalid event format", response.data["message"])
 
     def test_webhook_rejects_invalid_json(self):
         """Test that the webhook rejects invalid JSON."""
@@ -40,18 +40,22 @@ class AmplitudeWebhookTestCase(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("Invalid JSON", response.data["message"])
 
-    @patch("analytics.services.event_processor.EventProcessor.process_event")
-    def test_webhook_processes_valid_events(self, mock_process):
-        """Test that the webhook processes valid events."""
+    @patch("django.conf.settings.DEVELOPMENT", False)
+    @patch(
+        "analytics.services.personalize_service.PersonalizeService.send_interaction_event"
+    )
+    def test_webhook_sends_to_personalize(self, mock_send):
+        """Test that the webhook sends events to AWS Personalize."""
+        mock_send.return_value = True
+
         payload = {
-            "events": [
-                {
-                    "event_type": "click",
-                    "user_id": str(self.user.id),
-                    "event_properties": {"item_id": "doc_123", "item_type": "paper"},
-                    "time": 1234567890000,
-                }
-            ]
+            "event_type": "vote_action",
+            "event_properties": {
+                "user_id": str(self.user.id),
+                "related_work.unified_document_id": "doc_123",
+                "related_work.content_type": "paper",
+            },
+            "time": 1234567890000,
         }
 
         response = self.client.post(
@@ -59,8 +63,13 @@ class AmplitudeWebhookTestCase(TestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["processed"], 1)
-        self.assertEqual(response.data["skipped"], 0)
+
+        # Verify AWS Personalize was called
+        mock_send.assert_called_once()
+        call_args = mock_send.call_args
+        self.assertEqual(call_args[1]["user_id"], str(self.user.id))
+        self.assertEqual(call_args[1]["item_id"], "doc_123")
+        self.assertEqual(call_args[1]["event_type"], "vote_action")
 
     @patch("analytics.services.event_processor.EventProcessor.should_process_event")
     def test_webhook_skips_irrelevant_events(self, mock_should_process):
@@ -68,13 +77,13 @@ class AmplitudeWebhookTestCase(TestCase):
         mock_should_process.return_value = False
 
         payload = {
-            "events": [
-                {
-                    "event_type": "page_view",  # Not ML-relevant
-                    "user_id": str(self.user.id),
-                    "time": 1234567890000,
-                }
-            ]
+            "event_type": "page_view",  # Not ML-relevant
+            "event_properties": {
+                "user_id": str(self.user.id),
+                "related_work.unified_document_id": "doc_123",
+                "related_work.content_type": "paper",
+            },
+            "time": 1234567890000,
         }
 
         response = self.client.post(
@@ -91,15 +100,21 @@ class AmplitudeWebhookTestCase(TestCase):
         payload = {
             "events": [
                 {
-                    "event_type": "click",
-                    "user_id": str(self.user.id),
-                    "event_properties": {"item_id": "doc_1"},
+                    "event_type": "vote_action",
+                    "event_properties": {
+                        "user_id": str(self.user.id),
+                        "related_work.unified_document_id": "doc_1",
+                        "related_work.content_type": "paper",
+                    },
                     "time": 1234567890000,
                 },
                 {
-                    "event_type": "upvote",
-                    "user_id": str(self.user.id),
-                    "event_properties": {"item_id": "doc_2"},
+                    "event_type": "comment_created",
+                    "event_properties": {
+                        "user_id": str(self.user.id),
+                        "related_work.content_type": "paper",
+                        "related_work.id": "123",
+                    },
                     "time": 1234567891000,
                 },
             ]
@@ -120,15 +135,21 @@ class AmplitudeWebhookTestCase(TestCase):
         payload = {
             "events": [
                 {
-                    "event_type": "click",
-                    "user_id": str(self.user.id),
-                    "event_properties": {"item_id": "doc_1"},
+                    "event_type": "vote_action",
+                    "event_properties": {
+                        "user_id": str(self.user.id),
+                        "related_work.unified_document_id": "doc_1",
+                        "related_work.content_type": "paper",
+                    },
                     "time": 1234567890000,
                 },
                 {
-                    "event_type": "upvote",
-                    "user_id": str(self.user.id),
-                    "event_properties": {"item_id": "doc_2"},
+                    "event_type": "comment_created",
+                    "event_properties": {
+                        "user_id": str(self.user.id),
+                        "related_work.unified_document_id": "doc_2",
+                        "related_work.content_type": "paper",
+                    },
                     "time": 1234567891000,
                 },
             ]

@@ -65,7 +65,7 @@ Receives all events from Amplitude via webhook.
 
 **Endpoint**: `POST /webhooks/amplitude/`
 
-**Authentication**: HMAC-SHA256 signature validation (optional)
+**Authentication**: No authentication required
 
 **Payload Example**:
 ```json
@@ -143,7 +143,7 @@ In Amplitude dashboard:
 1. Go to **Settings → Destinations**
 2. Add new destination → **Webhook**
 3. Set URL: `https://your-domain.com/webhooks/amplitude/`
-4. Enable HMAC signature (optional but recommended)
+4. Enable event forwarding
 5. Copy the webhook secret
 
 ### 2. Environment Variables
@@ -163,7 +163,7 @@ AWS_PERSONALIZE_SIMS_CAMPAIGN_ARN=arn:aws:personalize:region:account:campaign/si
 ### 3. Test the Webhook
 
 ```bash
-# Test locally (without signature)
+# Test locally
 curl -X POST http://localhost:8000/webhooks/amplitude/ \
   -H "Content-Type: application/json" \
   -d '{
@@ -314,7 +314,6 @@ python manage.py test analytics.tests.test_event_processor.EventProcessorTestCas
 ```bash
 curl -X POST http://localhost:8000/webhooks/amplitude/ \
   -H "Content-Type: application/json" \
-  -H "X-Amplitude-Signature: your_signature" \
   -d '{
     "events": [{
       "event_type": "click",
@@ -367,8 +366,7 @@ logger = logging.getLogger(__name__)
 
 1. Check Amplitude destination is enabled
 2. Verify webhook URL is correct and accessible
-3. Check server logs for signature validation errors
-4. Ensure `AMPLITUDE_WEBHOOK_SECRET` is set correctly (if using signature)
+3. Check server logs for processing errors
 
 ### Events Not Sent to Personalize
 

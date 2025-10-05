@@ -27,7 +27,6 @@ src/analytics/
 ### 1. Webhook Endpoint (`views/amplitude_webhook_view.py`)
 - **URL**: `/webhooks/amplitude/`
 - **Method**: POST
-- **Auth**: HMAC-SHA256 signature validation (optional)
 - Receives events from Amplitude
 - Processes and filters events
 - Handles errors gracefully
@@ -61,17 +60,14 @@ In Amplitude dashboard:
 1. Go to **Settings → Destinations**
 2. Add new destination → **Webhook**
 3. Set URL: `https://your-domain.com/webhooks/amplitude/`
-4. Enable HMAC signature (optional)
-5. Copy the webhook secret
+4. Enable event forwarding
+5. Save the webhook
 
 ### 2. Environment Variables
 
 Add to your environment:
 
 ```bash
-# Amplitude
-AMPLITUDE_WEBHOOK_SECRET=your_webhook_secret_here
-
 # AWS Personalize (optional)
 AWS_PERSONALIZE_TRACKING_ID=your_tracking_id
 AWS_PERSONALIZE_CAMPAIGN_ARN=arn:aws:personalize:region:account:campaign/name
@@ -203,9 +199,6 @@ if processor.should_process_event(event):
 - Check payload format matches expected structure
 - Ensure `events` array is present and not empty
 
-### Webhook returns 401
-- Verify `AMPLITUDE_WEBHOOK_SECRET` matches Amplitude configuration
-- Check that signature header is being sent
 
 ### Events not being processed
 - Check logs for errors
@@ -229,7 +222,6 @@ if processor.should_process_event(event):
 ✅ Negative signals: Downvote, flag, hide
 ✅ Impression tracking: Initial vs scroll impressions
 ✅ AWS Personalize integration ready
-✅ Security: HMAC-SHA256 signature validation
 ✅ Error handling: Comprehensive logging
 ✅ Testing: 50+ test cases
 ✅ Documentation: 3 detailed docs

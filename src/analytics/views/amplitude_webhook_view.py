@@ -1,9 +1,6 @@
-import hmac
 import json
 import logging
-from hashlib import sha256
 
-from django.conf import settings
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
@@ -22,10 +19,9 @@ class AmplitudeWebhookView(APIView):
 
     This endpoint:
     1. Receives all events from Amplitude
-    2. Validates the webhook signature
-    3. Processes and filters events relevant for ML/recommendations
-    4. Assigns weights to different event types
-    5. Prepares data for AWS Personalize
+    2. Processes and filters events relevant for ML/recommendations
+    3. Assigns weights to different event types
+    4. Prepares data for AWS Personalize
 
     Event Flow:
     Amplitude -> Webhook -> EventProcessor -> AWS Personalize
@@ -40,38 +36,34 @@ class AmplitudeWebhookView(APIView):
         Expected payload format from Amplitude:
         {
             "api_key": "your_api_key",
-            "events": [
-                {
-                    "event_type": "click",
-                    "user_id": "12345",
-                    "event_properties": {...},
-                    "user_properties": {...},
-                    "time": 1234567890000
-                }
-            ]
+            "event_type": "click",
+            "user_id": "12345",
+            "event_properties": {...},
+            "user_properties": {...},
+            "time": 1234567890000
         }
         """
         try:
-            # Validate signature if configured
-            if (
-                hasattr(settings, "AMPLITUDE_WEBHOOK_SECRET")
-                and settings.AMPLITUDE_WEBHOOK_SECRET
-            ):
-                if not self._validate_signature(request):
-                    logger.warning("Invalid Amplitude webhook signature")
-                    return Response(
-                        {"message": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED
-                    )
-
             # Parse the payload
             payload = json.loads(request.body)
-            events = payload.get("events", [])
 
-            if not events:
-                return Response(
-                    {"message": "No events in payload"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+            # Handle single event format
+            if "events" in payload:
+                # Legacy format with events array
+                events = payload.get("events", [])
+                if not events:
+                    return Response(
+                        {"message": "No events in payload"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            else:
+                # Single event format - check if it's a valid event
+                if not payload.get("event_type"):
+                    return Response(
+                        {"message": "Invalid event format - missing event_type"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                events = [payload]
 
             # Process events
             processor = EventProcessor()
@@ -96,7 +88,8 @@ class AmplitudeWebhookView(APIView):
                     continue
 
             logger.info(
-                f"Amplitude webhook processed: {processed_count} events, {skipped_count} skipped"
+                f"Amplitude webhook processed: {processed_count} events, "
+                f"{skipped_count} skipped"
             )
 
             return Response(
@@ -119,22 +112,3 @@ class AmplitudeWebhookView(APIView):
                 {"message": "Failed to process webhook"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-
-    def _validate_signature(self, request: Request) -> bool:
-        """
-        Validate the webhook signature from Amplitude.
-
-        Amplitude signs webhooks with HMAC-SHA256.
-        """
-        try:
-            signature = request.headers.get("X-Amplitude-Signature")
-            if not signature:
-                return False
-
-            secret = settings.AMPLITUDE_WEBHOOK_SECRET.encode("utf-8")
-            expected_signature = hmac.new(secret, request.body, sha256).hexdigest()
-
-            return hmac.compare_digest(signature, expected_signature)
-        except Exception as e:
-            log_error(e, message="Error validating Amplitude webhook signature")
-            return False
