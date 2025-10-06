@@ -155,3 +155,219 @@ class EventProcessorTestCase(TestCase):
         self.assertGreater(self.processor.get_event_weight("proposal_funded"), 0)
         self.assertGreater(self.processor.get_event_weight("comment_created"), 0)
         self.assertGreater(self.processor.get_event_weight("peer_review_created"), 0)
+
+    # NEW TESTS TO COVER MISSING LINES
+
+    def test_get_event_weight_with_special_vote_logic(self):
+        """Test special weight logic for vote_action events."""
+        # Test neutral vote (should return negative weight)
+        weight = self.processor.get_event_weight(
+            "vote_action", {"vote_type": "NEUTRAL"}
+        )
+        self.assertEqual(weight, -2.0)  # Negative of vote_action weight
+
+        # Test upvote (should return normal weight)
+        weight = self.processor.get_event_weight("vote_action", {"vote_type": "UPVOTE"})
+        self.assertEqual(weight, 2.0)
+
+        # Test unknown vote type (should return base weight)
+        weight = self.processor.get_event_weight(
+            "vote_action", {"vote_type": "UNKNOWN"}
+        )
+        self.assertEqual(weight, 2.0)
+
+    def test_get_event_weight_with_special_comment_logic(self):
+        """Test special weight logic for comment_created events."""
+        # Test bounty comment (should return bounty_created weight)
+        weight = self.processor.get_event_weight(
+            "comment_created", {"comment_type": "bounty"}
+        )
+        self.assertEqual(weight, 3.0)  # Same as bounty_created
+
+        # Test regular comment (should return normal weight)
+        weight = self.processor.get_event_weight(
+            "comment_created", {"comment_type": "GENERIC_COMMENT"}
+        )
+        self.assertEqual(weight, 2.5)
+
+        # Test missing comment_type (should return normal weight)
+        weight = self.processor.get_event_weight("comment_created", {})
+        self.assertEqual(weight, 2.5)
+
+        # Test empty comment_type (should return normal weight)
+        weight = self.processor.get_event_weight(
+            "comment_created", {"comment_type": ""}
+        )
+        self.assertEqual(weight, 2.5)
+
+        # Test None comment_type (should return normal weight)
+        weight = self.processor.get_event_weight(
+            "comment_created", {"comment_type": None}
+        )
+        self.assertEqual(weight, 2.5)
+
+    def test_get_event_weight_without_event_props(self):
+        """Test get_event_weight without event_props."""
+        weight = self.processor.get_event_weight("vote_action")
+        self.assertEqual(weight, 2.0)
+
+    def test_transform_to_personalize_format_feed_item_clicked(self):
+        """Test transformation for feed_item_clicked events."""
+        event_props = {
+            "user_id": "123",
+            "related_work.unified_document_id": "doc_123",
+            "related_work.content_type": "paper",
+            "feed_position": 1,
+            "feed_source": "home",
+            "feed_tab": "trending",
+        }
+
+        result = self.processor._transform_to_personalize_format(
+            event_type="feed_item_clicked",
+            user_id="123",
+            item_id="doc_123",
+            content_type="paper",
+            weight=1.5,
+            timestamp=1234567890000,
+            event_props=event_props,
+        )
+
+        self.assertEqual(result["userId"], "123")
+        self.assertEqual(result["itemId"], "doc_123")
+        self.assertEqual(result["eventType"], "feed_item_clicked")
+        self.assertEqual(result["feedPosition"], 1)
+        self.assertEqual(result["feedSource"], "home")
+        self.assertEqual(result["feedTab"], "trending")
+
+    def test_transform_to_personalize_format_peer_review_created(self):
+        """Test transformation for peer_review_created events."""
+        event_props = {
+            "user_id": "123",
+            "related_work.unified_document_id": "doc_123",
+            "related_work.content_type": "paper",
+            "score": 4.5,
+        }
+
+        result = self.processor._transform_to_personalize_format(
+            event_type="peer_review_created",
+            user_id="123",
+            item_id="doc_123",
+            content_type="paper",
+            weight=3.0,
+            timestamp=1234567890000,
+            event_props=event_props,
+        )
+
+        self.assertEqual(result["userId"], "123")
+        self.assertEqual(result["itemId"], "doc_123")
+        self.assertEqual(result["eventType"], "peer_review_created")
+        self.assertEqual(result["score"], 4.5)
+
+    def test_transform_to_personalize_format_default_case(self):
+        """Test transformation for default case (unknown event type)."""
+        event_props = {
+            "user_id": "123",
+            "related_work.unified_document_id": "doc_123",
+            "related_work.content_type": "paper",
+        }
+
+        result = self.processor._transform_to_personalize_format(
+            event_type="unknown_event",
+            user_id="123",
+            item_id="doc_123",
+            content_type="paper",
+            weight=1.0,
+            timestamp=1234567890000,
+            event_props=event_props,
+        )
+
+        self.assertEqual(result["userId"], "123")
+        self.assertEqual(result["itemId"], "doc_123")
+        self.assertEqual(result["eventType"], "unknown_event")
+
+    def test_extract_related_work(self):
+        """Test extraction of related work information."""
+        event_props = {
+            "related_work.id": "123",
+            "related_work.content_type": "paper",
+            "related_work.unified_document_id": "doc_123",
+            "related_work.primary_topic.id": "topic_1",
+            "related_work.primary_topic.name": "AI",
+            "related_work.primary_topic.slug": "ai",
+        }
+
+        result = self.processor._extract_related_work(event_props)
+
+        self.assertEqual(result["id"], "123")
+        self.assertEqual(result["contentType"], "paper")
+        self.assertEqual(result["unifiedDocumentId"], "doc_123")
+        self.assertEqual(result["primaryTopic"]["id"], "topic_1")
+        self.assertEqual(result["primaryTopic"]["name"], "AI")
+        self.assertEqual(result["primaryTopic"]["slug"], "ai")
+
+    def test_extract_related_work_without_primary_topic(self):
+        """Test extraction when primary topic is missing."""
+        event_props = {
+            "related_work.id": "123",
+            "related_work.content_type": "paper",
+        }
+
+        result = self.processor._extract_related_work(event_props)
+
+        self.assertEqual(result["id"], "123")
+        self.assertEqual(result["contentType"], "paper")
+        self.assertIsNone(result["primaryTopic"])
+
+    def test_extract_topics(self):
+        """Test extraction of topics array."""
+        event_props = {}
+        result = self.processor._extract_topics(event_props)
+        self.assertEqual(result, [])
+
+    @patch("django.conf.settings.DEVELOPMENT", False)
+    @patch(
+        "analytics.services.personalize_service.PersonalizeService.send_impression_data"
+    )
+    def test_process_impression_event_sends_to_personalize(self, mock_send):
+        """Test that processing an impression event sends to AWS Personalize."""
+        mock_send.return_value = True
+
+        event_props = {
+            "user_id": "123",
+            "items_shown": ["doc_1", "doc_2", "doc_3"],
+        }
+
+        self.processor._process_impression_event(
+            user_id="123",
+            event_type="scroll_impression",
+            event_props=event_props,
+            timestamp=1234567890000,
+        )
+
+        # Verify AWS Personalize was called
+        mock_send.assert_called_once()
+        call_args = mock_send.call_args
+        self.assertEqual(call_args[1]["user_id"], "123")
+        self.assertEqual(call_args[1]["items_shown"], ["doc_1", "doc_2", "doc_3"])
+        self.assertEqual(call_args[1]["timestamp"], 1234567890000)
+
+    @patch("django.conf.settings.DEVELOPMENT", True)
+    @patch(
+        "analytics.services.personalize_service.PersonalizeService.send_impression_data"
+    )
+    def test_process_impression_event_skips_in_development(self, mock_send):
+        """Test that impression events are not sent to Personalize in development."""
+        event_props = {
+            "user_id": "123",
+            "items_shown": ["doc_1", "doc_2", "doc_3"],
+        }
+
+        self.processor._process_impression_event(
+            user_id="123",
+            event_type="scroll_impression",
+            event_props=event_props,
+            timestamp=1234567890000,
+        )
+
+        # Verify AWS Personalize was NOT called in development
+        mock_send.assert_not_called()

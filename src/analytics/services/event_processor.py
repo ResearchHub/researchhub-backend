@@ -277,7 +277,8 @@ class EventProcessor:
 
         # Special logic for comment_created
         elif event_type.lower() == "comment_created":
-            comment_type = event_props.get("comment_type", "").lower()
+            comment_type = event_props.get("comment_type") or ""
+            comment_type = comment_type.lower() if comment_type else ""
             if comment_type == "bounty":
                 # Bounty comments are as valuable as funding proposals
                 return self.EVENT_WEIGHTS.get("bounty_created", 3.0)
