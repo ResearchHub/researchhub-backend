@@ -1,3 +1,4 @@
+import json
 import logging
 from dataclasses import dataclass
 from datetime import timedelta
@@ -170,6 +171,9 @@ class PaperMetricsEnrichmentService:
         if paper.external_metadata is None:
             paper.external_metadata = {}
 
-        paper.external_metadata["metrics"] = metrics
+        # Serialize and deserialize to ensure all values are JSON-safe
+        paper.external_metadata["metrics"] = json.loads(
+            json.dumps(metrics, default=str)
+        )
 
         paper.save(update_fields=["external_metadata"])
