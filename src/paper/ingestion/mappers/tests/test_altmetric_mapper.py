@@ -173,3 +173,38 @@ class AltmetricMapperTests(TestCase):
         expected_datetime = datetime.fromtimestamp(1334237127, tz=timezone.utc)
         self.assertEqual(result["last_updated"], expected_datetime)
         self.assertIsInstance(result["last_updated"], datetime)
+
+    def test_map_metrics_string_timestamp(self):
+        """
+        Test that string timestamps are properly converted.
+        Real-world case from DOI 10.1146/annurev-clinpsy-032813-153716.
+        """
+        # Arrange
+        response = {
+            "altmetric_id": 241939,
+            "last_updated": "1757512900",  # String instead of int
+        }
+
+        # Act
+        result = AltmetricMapper().map_metrics(response)
+
+        # Assert
+        expected_datetime = datetime.fromtimestamp(1757512900, tz=timezone.utc)
+        self.assertEqual(result["last_updated"], expected_datetime)
+        self.assertIsInstance(result["last_updated"], datetime)
+
+    def test_map_metrics_invalid_timestamp(self):
+        """
+        Test that invalid timestamps return None instead of crashing.
+        """
+        # Arrange
+        response = {
+            "altmetric_id": 241939,
+            "last_updated": "invalid",
+        }
+
+        # Act
+        result = AltmetricMapper().map_metrics(response)
+
+        # Assert
+        self.assertIsNone(result["last_updated"])
