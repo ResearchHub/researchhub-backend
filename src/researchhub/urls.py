@@ -55,7 +55,6 @@ from user.views import (
     sift_webhook_view,
 )
 from user.views.custom_verify_email_view import CustomVerifyEmailView
-from user_saved.views import UserSavedView
 
 router = routers.DefaultRouter()
 
@@ -347,7 +346,6 @@ urlpatterns = [
         purchase.views.CheckoutView.as_view(),
         name="payment_view",
     ),
-    path("user_saved/", UserSavedView.as_view(), name="user_saved"),
 ]
 
 if "silk" in settings.INSTALLED_APPS:
