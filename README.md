@@ -197,6 +197,11 @@ ResearchHub uses [Celery](https://github.com/celery/celery/) for background task
 
 ## Additional Commands
 
+- After updating Django models, update the DB schema:
+  ```shell
+  python src/manage.py makemigrations
+  python src/manage.py migrate
+  ```
 - Clear cache (useful when DB entries linger on the client even after they've been deleted):
   ```shell
   python src/manage.py shell -c "from django.core.cache import cache; cache.clear()"
