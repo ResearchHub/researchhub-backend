@@ -1,4 +1,3 @@
-import json
 import logging
 from dataclasses import dataclass
 from datetime import timedelta
@@ -95,10 +94,12 @@ class PaperOpenAlexEnrichmentService:
             raw_data = openalex_data.get("raw_data", {})
             license_info = self._extract_license_info(raw_data)
 
-            if not license_info["license"] and not license_info["license_url"]:
-                logger.info(
-                    f"No license information found in OpenAlex data for paper {paper.id}"
-                )
+            has_license = license_info["license"]
+            has_license_url = license_info["license_url"]
+            has_pdf_url = license_info["pdf_url"]
+
+            if not has_license and not has_license_url and not has_pdf_url:
+                logger.info(f"No license info found in OpenAlex for paper {paper.id}")
                 return EnrichmentResult(
                     status="not_found", reason="no_license_in_openalex"
                 )
@@ -175,36 +176,26 @@ class PaperOpenAlexEnrichmentService:
             raw_data: Raw OpenAlex work data
 
         Returns:
-            Dictionary with 'license' and 'license_url' keys
+            Dictionary with 'license', 'license_url', and 'pdf_url' keys
         """
-        license_info = {"license": None, "license_url": None}
+        license_info = {"license": None, "license_url": None, "pdf_url": None}
 
-        # Try to get license from best_oa_location first (most reliable)
-        best_oa_location = raw_data.get("best_oa_location", {})
-        if best_oa_location:
-            license_info["license"] = best_oa_location.get("license")
-            license_info["license_url"] = best_oa_location.get("license_id")
-
-        # Fall back to primary_location if best_oa_location doesn't have license
-        if not license_info["license"]:
-            primary_location = raw_data.get("primary_location", {})
-            if primary_location:
-                license_info["license"] = primary_location.get("license")
-                license_info["license_url"] = primary_location.get("license_id")
-
-        # Fall back to top-level license field if still not found
-        if not license_info["license"]:
-            license_info["license"] = raw_data.get("license")
+        # Use primary_location for preprints
+        primary_location = raw_data.get("primary_location", {})
+        if primary_location:
+            license_info["license"] = primary_location.get("license")
+            license_info["license_url"] = primary_location.get("license_id")
+            license_info["pdf_url"] = primary_location.get("pdf_url")
 
         return license_info
 
     def _update_paper_license(self, paper: Paper, license_info: Dict[str, Any]) -> None:
         """
-        Update paper's license fields.
+        Update paper's license fields and PDF URL.
 
         Args:
             paper: Paper instance to update
-            license_info: Dictionary with license and license_url
+            license_info: Dictionary with license, license_url, and pdf_url
         """
         update_fields = []
 
@@ -215,6 +206,10 @@ class PaperOpenAlexEnrichmentService:
         if license_info["license_url"]:
             paper.pdf_license_url = license_info["license_url"]
             update_fields.append("pdf_license_url")
+
+        if license_info["pdf_url"]:
+            paper.pdf_url = license_info["pdf_url"]
+            update_fields.append("pdf_url")
 
         if update_fields:
             paper.save(update_fields=update_fields)

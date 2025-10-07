@@ -67,7 +67,6 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
             "raw_data": {
                 "id": "https://openalex.org/W123456",
                 "title": "Test Paper",
-                "best_oa_location": {},
                 "primary_location": {},
             }
         }
@@ -78,17 +77,17 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         self.assertEqual(result.status, "not_found")
         self.assertEqual(result.reason, "no_license_in_openalex")
 
-    def test_enrich_paper_success_with_best_oa_location(self):
-        """Test successful enrichment with license from best_oa_location."""
+    def test_enrich_paper_success_with_primary_location_full(self):
+        """Test successful enrichment with all fields from primary_location."""
         openalex_data = {
             "raw_data": {
                 "id": "https://openalex.org/W123456",
                 "title": "Test Paper",
-                "best_oa_location": {
+                "primary_location": {
                     "license": "cc-by",
                     "license_id": "https://creativecommons.org/licenses/by/4.0",
+                    "pdf_url": "https://arxiv.org/pdf/2301.00001.pdf",
                 },
-                "primary_location": {},
             }
         }
         self.mock_openalex_client.fetch_by_doi.return_value = openalex_data
@@ -101,23 +100,22 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
             result.license_url, "https://creativecommons.org/licenses/by/4.0"
         )
 
-        # Verify paper was updated
+        # Verify paper was updated with all fields
         self.paper.refresh_from_db()
         self.assertEqual(self.paper.pdf_license, "cc-by")
         self.assertEqual(
             self.paper.pdf_license_url, "https://creativecommons.org/licenses/by/4.0"
         )
+        self.assertEqual(self.paper.pdf_url, "https://arxiv.org/pdf/2301.00001.pdf")
 
-    def test_enrich_paper_success_with_primary_location(self):
-        """Test successful enrichment with license from primary_location."""
+    def test_enrich_paper_success_with_pdf_url_only(self):
+        """Test successful enrichment with only PDF URL from primary_location."""
         openalex_data = {
             "raw_data": {
                 "id": "https://openalex.org/W123456",
                 "title": "Test Paper",
-                "best_oa_location": {},
                 "primary_location": {
-                    "license": "cc-by-nc",
-                    "license_id": "https://creativecommons.org/licenses/by-nc/4.0",
+                    "pdf_url": "https://arxiv.org/pdf/2301.00001.pdf",
                 },
             }
         }
@@ -126,27 +124,20 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         result = self.service.enrich_paper_with_openalex(self.paper)
 
         self.assertEqual(result.status, "success")
-        self.assertEqual(result.license, "cc-by-nc")
-        self.assertEqual(
-            result.license_url, "https://creativecommons.org/licenses/by-nc/4.0"
-        )
 
-        # Verify paper was updated
+        # Verify paper was updated with PDF URL
         self.paper.refresh_from_db()
-        self.assertEqual(self.paper.pdf_license, "cc-by-nc")
-        self.assertEqual(
-            self.paper.pdf_license_url, "https://creativecommons.org/licenses/by-nc/4.0"
-        )
+        self.assertEqual(self.paper.pdf_url, "https://arxiv.org/pdf/2301.00001.pdf")
 
-    def test_enrich_paper_success_with_top_level_license(self):
-        """Test successful enrichment with license from top-level field."""
+    def test_enrich_paper_success_with_license_only(self):
+        """Test successful enrichment with only license from primary_location."""
         openalex_data = {
             "raw_data": {
                 "id": "https://openalex.org/W123456",
                 "title": "Test Paper",
-                "license": "cc-by-sa",
-                "best_oa_location": {},
-                "primary_location": {},
+                "primary_location": {
+                    "license": "cc-by-sa",
+                },
             }
         }
         self.mock_openalex_client.fetch_by_doi.return_value = openalex_data
@@ -167,10 +158,9 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
             "raw_data": {
                 "id": "https://openalex.org/W123456",
                 "title": "Test Paper",
-                "best_oa_location": {
+                "primary_location": {
                     "license_id": "https://creativecommons.org/licenses/by/4.0",
                 },
-                "primary_location": {},
             }
         }
         self.mock_openalex_client.fetch_by_doi.return_value = openalex_data
@@ -212,11 +202,10 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
 
         openalex_data = {
             "raw_data": {
-                "best_oa_location": {
+                "primary_location": {
                     "license": "cc-by",
                     "license_id": "https://creativecommons.org/licenses/by/4.0",
                 },
-                "primary_location": {},
             }
         }
         self.mock_openalex_client.fetch_by_doi.return_value = openalex_data
@@ -244,8 +233,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
             if doi == "10.1234/test1":
                 return {
                     "raw_data": {
-                        "best_oa_location": {"license": "cc-by"},
-                        "primary_location": {},
+                        "primary_location": {"license": "cc-by"},
                     }
                 }
             else:
@@ -287,65 +275,45 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         self.assertEqual(result.not_found_count, 0)
         self.assertEqual(result.error_count, 1)
 
-    def test_extract_license_info_priority(self):
-        """Test that license extraction follows correct priority."""
-        # best_oa_location should take priority over primary_location and top-level
+    def test_extract_license_info_from_primary_location(self):
+        """Test that license extraction uses primary_location."""
         raw_data = {
-            "license": "cc-by",  # Lowest priority
             "primary_location": {
-                "license": "cc-by-nc",  # Medium priority
-            },
-            "best_oa_location": {
-                "license": "cc-by-sa",  # Highest priority
-                "license_id": "https://creativecommons.org/licenses/by-sa/4.0",
+                "license": "cc-by",
+                "license_id": "https://creativecommons.org/licenses/by/4.0",
+                "pdf_url": "https://arxiv.org/pdf/2301.00001.pdf",
             },
         }
 
         license_info = self.service._extract_license_info(raw_data)
 
-        self.assertEqual(license_info["license"], "cc-by-sa")
+        self.assertEqual(license_info["license"], "cc-by")
         self.assertEqual(
             license_info["license_url"],
-            "https://creativecommons.org/licenses/by-sa/4.0",
+            "https://creativecommons.org/licenses/by/4.0",
         )
-
-    def test_extract_license_info_fallback_to_primary(self):
-        """Test that license extraction falls back to primary_location."""
-        raw_data = {
-            "license": "cc-by",  # Lowest priority
-            "best_oa_location": {},  # Empty
-            "primary_location": {
-                "license": "cc-by-nc",
-                "license_id": "https://creativecommons.org/licenses/by-nc/4.0",
-            },
-        }
-
-        license_info = self.service._extract_license_info(raw_data)
-
-        self.assertEqual(license_info["license"], "cc-by-nc")
         self.assertEqual(
-            license_info["license_url"],
-            "https://creativecommons.org/licenses/by-nc/4.0",
+            license_info["pdf_url"], "https://arxiv.org/pdf/2301.00001.pdf"
         )
 
-    def test_extract_license_info_fallback_to_top_level(self):
-        """Test that license extraction falls back to top-level field."""
+    def test_extract_license_info_empty_primary_location(self):
+        """Test that extraction returns None values when primary_location is empty."""
         raw_data = {
-            "license": "cc-by-nd",
-            "best_oa_location": {},
             "primary_location": {},
         }
 
         license_info = self.service._extract_license_info(raw_data)
 
-        self.assertEqual(license_info["license"], "cc-by-nd")
+        self.assertIsNone(license_info["license"])
         self.assertIsNone(license_info["license_url"])
+        self.assertIsNone(license_info["pdf_url"])
 
-    def test_update_paper_license_both_fields(self):
-        """Test updating both license fields."""
+    def test_update_paper_license_all_fields(self):
+        """Test updating all license and PDF fields."""
         license_info = {
             "license": "cc-by",
             "license_url": "https://creativecommons.org/licenses/by/4.0",
+            "pdf_url": "https://arxiv.org/pdf/2301.00001.pdf",
         }
 
         self.service._update_paper_license(self.paper, license_info)
@@ -355,10 +323,11 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         self.assertEqual(
             self.paper.pdf_license_url, "https://creativecommons.org/licenses/by/4.0"
         )
+        self.assertEqual(self.paper.pdf_url, "https://arxiv.org/pdf/2301.00001.pdf")
 
     def test_update_paper_license_only_license(self):
         """Test updating only license field."""
-        license_info = {"license": "cc-by-nc", "license_url": None}
+        license_info = {"license": "cc-by-nc", "license_url": None, "pdf_url": None}
 
         self.service._update_paper_license(self.paper, license_info)
 
@@ -370,6 +339,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         license_info = {
             "license": None,
             "license_url": "https://creativecommons.org/licenses/by/4.0",
+            "pdf_url": None,
         }
 
         self.service._update_paper_license(self.paper, license_info)
@@ -378,3 +348,16 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         self.assertEqual(
             self.paper.pdf_license_url, "https://creativecommons.org/licenses/by/4.0"
         )
+
+    def test_update_paper_pdf_url_only(self):
+        """Test updating only PDF URL field."""
+        license_info = {
+            "license": None,
+            "license_url": None,
+            "pdf_url": "https://arxiv.org/pdf/2301.00001.pdf",
+        }
+
+        self.service._update_paper_license(self.paper, license_info)
+
+        self.paper.refresh_from_db()
+        self.assertEqual(self.paper.pdf_url, "https://arxiv.org/pdf/2301.00001.pdf")
