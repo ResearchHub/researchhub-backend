@@ -83,8 +83,6 @@ router.register(r"author", author_views.AuthorViewSet, basename="author")
 
 router.register(r"hub", hub.views.HubViewSet, basename="hub")
 
-router.register(r"hub_category", hub.views.HubCategoryViewSet, basename="hub_category")
-
 router.register(r"university", user.views.UniversityViewSet, basename="university")
 
 router.register(r"major", user.views.MajorViewSet, basename="major")

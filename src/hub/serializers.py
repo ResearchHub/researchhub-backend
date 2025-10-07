@@ -9,7 +9,7 @@ from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.serializers import DynamicPermissionSerializer
 from utils.sentry import log_error
 
-from .models import Hub, HubCategory
+from .models import Hub
 
 
 class SimpleHubSerializer(ModelSerializer):
@@ -52,11 +52,9 @@ class SimpleHubSerializer(ModelSerializer):
 
 class HubSerializer(ModelSerializer):
     editor_permission_groups = SerializerMethodField()
-    category = SerializerMethodField()
 
     class Meta:
         fields = [
-            "category",
             "description",
             "discussion_count",
             "editor_permission_groups",
@@ -71,20 +69,8 @@ class HubSerializer(ModelSerializer):
             "namespace",
             "is_used_for_rep",
         ]
-        read_only_fields = ["editor_permission_groups", "category"]
+        read_only_fields = ["editor_permission_groups"]
         model = Hub
-
-    def get_category(self, obj):
-        # Check if we have category mapping in context
-        hub_category_mapping = self.context.get("hub_category_mapping", {})
-        if hub_category_mapping and obj.slug in hub_category_mapping:
-            return hub_category_mapping[obj.slug]
-        # Otherwise return the DB category if it exists
-        return (
-            obj.category.category_name
-            if hasattr(obj, "category") and obj.category
-            else None
-        )
 
     def get_editor_permission_groups(self, hub_instance):
         context = self.context
@@ -96,12 +82,6 @@ class HubSerializer(ModelSerializer):
             context=context,
             many=True,
         ).data
-
-
-class HubCategorySerializer(ModelSerializer):
-    class Meta:
-        fields = ["id", "category_name"]
-        model = HubCategory
 
 
 class HubContributionSerializer(ModelSerializer):
