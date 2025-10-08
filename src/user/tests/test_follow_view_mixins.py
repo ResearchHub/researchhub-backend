@@ -315,7 +315,7 @@ class FollowViewActionMixinTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertFalse(response.data["following"])
 
-    @patch("user.views.follow_view_mixins.invalidate_feed_cache_for_user")
+    @patch("feed.views.feed_view_mixin.FeedViewMixin.invalidate_feed_cache_for_user")
     def test_follow_hub_invalidates_cache(self, mock_invalidate):
         """Test that following a hub invalidates the user's feed cache."""
         response = self.client.post(f"/api/hub/{self.hub.id}/follow/")
@@ -324,7 +324,7 @@ class FollowViewActionMixinTests(APITestCase):
         # Verify cache invalidation was called with the user's ID
         mock_invalidate.assert_called_once_with(self.user.id)
 
-    @patch("user.views.follow_view_mixins.invalidate_feed_cache_for_user")
+    @patch("feed.views.feed_view_mixin.FeedViewMixin.invalidate_feed_cache_for_user")
     def test_follow_user_invalidates_cache(self, mock_invalidate):
         """Test that following a user invalidates the follower's feed cache."""
         response = self.client.post(f"/api/user/{self.target_user.id}/follow/")
@@ -333,7 +333,7 @@ class FollowViewActionMixinTests(APITestCase):
         # Verify cache invalidation was called with the follower's ID
         mock_invalidate.assert_called_once_with(self.user.id)
 
-    @patch("user.views.follow_view_mixins.invalidate_feed_cache_for_user")
+    @patch("feed.views.feed_view_mixin.FeedViewMixin.invalidate_feed_cache_for_user")
     def test_follow_paper_invalidates_cache(self, mock_invalidate):
         """Test that following a paper invalidates the user's feed cache."""
         response = self.client.post(f"/api/paper/{self.paper.id}/follow/")
@@ -342,7 +342,7 @@ class FollowViewActionMixinTests(APITestCase):
         # Verify cache invalidation was called with the user's ID
         mock_invalidate.assert_called_once_with(self.user.id)
 
-    @patch("user.views.follow_view_mixins.invalidate_feed_cache_for_user")
+    @patch("feed.views.feed_view_mixin.FeedViewMixin.invalidate_feed_cache_for_user")
     def test_follow_author_invalidates_cache(self, mock_invalidate):
         """Test that following an author invalidates the user's feed cache."""
         author = Author.objects.create(
@@ -357,7 +357,7 @@ class FollowViewActionMixinTests(APITestCase):
         # Verify cache invalidation was called with the user's ID
         mock_invalidate.assert_called_once_with(self.user.id)
 
-    @patch("user.views.follow_view_mixins.invalidate_feed_cache_for_user")
+    @patch("feed.views.feed_view_mixin.FeedViewMixin.invalidate_feed_cache_for_user")
     def test_unfollow_hub_invalidates_cache(self, mock_invalidate):
         """Test that unfollowing a hub invalidates the user's feed cache."""
         # Create follow first
@@ -373,7 +373,7 @@ class FollowViewActionMixinTests(APITestCase):
         # Verify cache invalidation was called with the user's ID
         mock_invalidate.assert_called_once_with(self.user.id)
 
-    @patch("user.views.follow_view_mixins.invalidate_feed_cache_for_user")
+    @patch("feed.views.feed_view_mixin.FeedViewMixin.invalidate_feed_cache_for_user")
     def test_unfollow_user_invalidates_cache(self, mock_invalidate):
         """Test that unfollowing a user invalidates the unfollower's feed cache."""
         # Create follow first
@@ -389,7 +389,7 @@ class FollowViewActionMixinTests(APITestCase):
         # Verify cache invalidation was called with the unfollower's ID
         mock_invalidate.assert_called_once_with(self.user.id)
 
-    @patch("user.views.follow_view_mixins.invalidate_feed_cache_for_user")
+    @patch("feed.views.feed_view_mixin.FeedViewMixin.invalidate_feed_cache_for_user")
     def test_unfollow_not_following_does_not_invalidate_cache(self, mock_invalidate):
         """Test that unfollowing when not following doesn't invalidate cache."""
         response = self.client.delete(f"/api/user/{self.target_user.id}/unfollow/")
