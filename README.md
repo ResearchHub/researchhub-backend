@@ -128,6 +128,34 @@ We believe that by empowering scientists to independently fund, create, and publ
      python src/manage.py manage_seeded_data_backup restore
      ```
 
+## Create a new Django app
+
+1. Create default app structure (will be created at `src/{app_name}/`):
+   ```shell
+   cd src
+   python manage.py startapp {app_name}
+   ```
+2. You might also want to add these additional files, depending on the needs of the app:
+   - `src/{app_name}/serializers.py`
+   - `src/{app_name}/managers.py`
+   - `src/{app_name}/permissions.py`
+3. Add to `INSTALLED_APPS` in `src/researchhub/settings.py`:
+   ```python
+   INSTALLED_APPS = [
+       # ... existing apps ...
+       {app_name},
+   ]
+   ```
+4. Add URL routing in `src/researchhub/urls.py`:
+   ```python
+   from {app_name}.views import {view_set}
+   ...
+   router.register(r"{app_name}", {view_set}, basename="{app_name}")
+   ```
+   - For more complex routing, search for examples of `@action` in view sets
+
+---
+
 ## Debugging
 
 **VSCode**:
