@@ -8,7 +8,7 @@ from django.test import TestCase
 
 from institution.models import Institution
 from paper.ingestion.constants import IngestionSource
-from paper.ingestion.services.ingestion_service import PaperIngestionService
+from paper.ingestion.services import PaperIngestionService
 from paper.models import Paper
 from paper.related_models.authorship_model import Authorship
 from user.related_models.author_model import Author
@@ -98,7 +98,7 @@ class TestPaperIngestionService(TestCase):
         self.assertEqual(len(failures), 0)
         self.assertEqual(papers[0], mock_paper)
 
-    @patch("paper.ingestion.service.PaperIngestionService._save_paper")
+    @patch("paper.ingestion.services.PaperIngestionService._save_paper")
     def test_ingest_papers_with_save(self, mock_save_paper):
         """Test ingestion with database save."""
         mock_paper = Mock(spec=Paper)
@@ -183,7 +183,7 @@ class TestPaperIngestionService(TestCase):
         mock_paper.save.assert_not_called()
         self.assertEqual(result, existing_paper)
 
-    @patch("paper.ingestion.service.PaperIngestionService._update_paper")
+    @patch("paper.ingestion.services.PaperIngestionService._update_paper")
     @patch("paper.models.Paper.objects.filter")
     def test_save_paper_existing_with_update(self, mock_filter, mock_update):
         """Test updating an existing paper."""
@@ -229,7 +229,7 @@ class TestPaperIngestionService(TestCase):
         existing_paper.save.assert_called_once()
         self.assertEqual(result, existing_paper)
 
-    @patch("paper.ingestion.service.PaperIngestionService.ingest_papers")
+    @patch("paper.ingestion.services.PaperIngestionService.ingest_papers")
     def test_ingest_single_paper_success(self, mock_ingest_papers):
         """Test ingesting a single paper successfully."""
         mock_paper = Mock(spec=Paper)
@@ -247,7 +247,7 @@ class TestPaperIngestionService(TestCase):
             update_existing=False,
         )
 
-    @patch("paper.ingestion.service.PaperIngestionService.ingest_papers")
+    @patch("paper.ingestion.services.PaperIngestionService.ingest_papers")
     def test_ingest_single_paper_failure(self, mock_ingest_papers):
         """Test handling failure when ingesting a single paper."""
         mock_ingest_papers.return_value = (
