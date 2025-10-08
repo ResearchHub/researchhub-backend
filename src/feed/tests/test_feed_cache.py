@@ -1,5 +1,5 @@
 """
-Tests for feed cache invalidation utilities.
+Tests for feed cache invalidation.
 """
 
 from unittest.mock import patch
@@ -7,7 +7,7 @@ from unittest.mock import patch
 from django.core.cache import cache
 from django.test import TestCase
 
-from feed.utils.cache import invalidate_feed_cache_for_user
+from feed.views.feed_view_mixin import FeedViewMixin
 
 
 class CacheInvalidationTests(TestCase):
@@ -41,7 +41,7 @@ class CacheInvalidationTests(TestCase):
             self.assertIsNotNone(cache.get(key))
 
         # Invalidate caches
-        invalidate_feed_cache_for_user(self.user_id)
+        FeedViewMixin.invalidate_feed_cache_for_user(self.user_id)
 
         # Verify caches are cleared
         for key in cache_keys:
@@ -61,7 +61,7 @@ class CacheInvalidationTests(TestCase):
             cache.set(key, {"test": "data"})
 
         # Invalidate caches
-        invalidate_feed_cache_for_user(self.user_id)
+        FeedViewMixin.invalidate_feed_cache_for_user(self.user_id)
 
         # Verify caches are cleared
         for key in cache_keys:
@@ -81,7 +81,7 @@ class CacheInvalidationTests(TestCase):
             cache.set(key, {"test": "data"})
 
         # Invalidate caches
-        invalidate_feed_cache_for_user(self.user_id)
+        FeedViewMixin.invalidate_feed_cache_for_user(self.user_id)
 
         # Verify caches are cleared
         for key in cache_keys:
@@ -99,7 +99,7 @@ class CacheInvalidationTests(TestCase):
         cache.set(other_user_cache_key, {"other": "data"})
 
         # Invalidate only for self.user_id
-        invalidate_feed_cache_for_user(self.user_id)
+        FeedViewMixin.invalidate_feed_cache_for_user(self.user_id)
 
         # Verify only target user's cache is cleared
         self.assertIsNone(cache.get(user_cache_key))
@@ -116,7 +116,7 @@ class CacheInvalidationTests(TestCase):
         cache.set(user_cache_key, {"user": "data"})
 
         # Invalidate user cache
-        invalidate_feed_cache_for_user(self.user_id)
+        FeedViewMixin.invalidate_feed_cache_for_user(self.user_id)
 
         # Verify popular cache is not affected
         self.assertIsNotNone(cache.get(popular_cache_key))
@@ -127,14 +127,14 @@ class CacheInvalidationTests(TestCase):
         """Test that invalidation works even when no caches exist."""
         # This should not raise any errors
         try:
-            invalidate_feed_cache_for_user(self.user_id)
+            FeedViewMixin.invalidate_feed_cache_for_user(self.user_id)
         except Exception as e:
             self.fail(f"invalidate_feed_cache_for_user raised {e} unexpectedly")
 
-    @patch("feed.utils.cache.cache")
+    @patch("feed.views.feed_view_mixin.cache")
     def test_invalidate_feed_cache_calls_delete_for_expected_keys(self, mock_cache):
         """Test that cache.delete is called for all expected cache keys."""
-        invalidate_feed_cache_for_user(self.user_id)
+        FeedViewMixin.invalidate_feed_cache_for_user(self.user_id)
 
         # Verify that cache.delete was called multiple times
         self.assertGreater(mock_cache.delete.call_count, 0)
