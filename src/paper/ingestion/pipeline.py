@@ -17,7 +17,8 @@ from paper.ingestion.clients.chemrxiv import ChemRxivClient, ChemRxivConfig
 from paper.ingestion.clients.medrxiv import MedRxivClient, MedRxivConfig
 from paper.ingestion.exceptions import FetchError, RetryExhaustedError
 from paper.ingestion.mappers.factory import MapperFactory
-from paper.ingestion.service import IngestionSource, PaperIngestionService
+from paper.ingestion.services.ingestion_service import PaperIngestionService
+from paper.ingestion.constants import IngestionSource
 from paper.models import PaperFetchLog
 from researchhub.celery import QUEUE_PULL_PAPERS, app
 from utils.sentry import log_error
@@ -349,6 +350,9 @@ def process_batch_task(
     return {
         "source": source,
         "batch_size": len(batch),
+        "created": len(successes),
+        "errors": len(failures),
+    }
         "created": len(successes),
         "errors": len(failures),
     }
