@@ -200,6 +200,7 @@ HEALTH_CHECK_TOKEN = os.environ.get("HEALTH_CHECK_TOKEN", keys.HEALTH_CHECK_TOKE
 INSTALLED_APPS = [
     # Daphne needs to be first
     "daphne",
+
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -209,15 +210,20 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "django.contrib.humanize",
     "django_filters",
+
     # https://github.com/django-extensions/django-extensions
     "django_extensions",
+
     # CORS
     "corsheaders",
+
     # Postgres
     "django.contrib.postgres",
+
     # Rest framework
     "rest_framework",
     "rest_framework_api_key",
+
     # Authentication
     "allauth",
     "allauth.account",
@@ -226,32 +232,45 @@ INSTALLED_APPS = [
     "rest_framework.authtoken",
     "dj_rest_auth",
     "dj_rest_auth.registration",
+
     # Storage
     "storages",
+
     # Search
     "django_opensearch_dsl",
+
     # Emails
     "django_ses",
     "django_inlinecss",
+
     # Channels
     "channels",
+
     # Django Celery Results
     "django_celery_results",
+
     # MJML
     "mjml",
+
+    # Health checks
+    "health_check",
+    "health_check.db",
+    "health_check.cache",
+
     # Custom apps
     "analytics",
     "discussion",
-    "feed",
-    "institution",
-    "topic",
     "ethereum",
+    "feed",
     "hub",
+    "institution",
     "invite",
     "mailing_list",
+    "new_feature_release",
     "note",
     "notification",
     "oauth",
+    "organizations",
     "paper",
     "purchase",
     "referral",
@@ -261,16 +280,12 @@ INSTALLED_APPS = [
     "researchhub_comment",
     "researchhub_document",
     "researchhub_access_group",
+    "review",
     "search",
     "tag",
+    "topic",
     "user",
-    "new_feature_release",
-    "review",
-    "organizations",
-    # Health checks
-    "health_check",
-    "health_check.db",
-    "health_check.cache",
+    "user_lists",
 ]
 
 SITE_ID = 1

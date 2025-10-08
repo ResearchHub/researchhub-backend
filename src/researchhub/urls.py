@@ -55,6 +55,7 @@ from user.views import (
     sift_webhook_view,
 )
 from user.views.custom_verify_email_view import CustomVerifyEmailView
+from user_lists.views import ListItemViewSet, ListViewSet
 
 router = routers.DefaultRouter()
 
@@ -135,6 +136,10 @@ router.register(r"deposit", reputation.views.DepositViewSet)
 router.register(r"bounty", reputation.views.BountyViewSet)
 
 router.register(r"moderator", moderator_view.ModeratorView, basename="moderator")
+
+router.register(r"list", ListViewSet, basename="list")
+
+router.register(r"list_item", ListItemViewSet, basename="list_item")
 
 router.register(
     r"author_claim_case",

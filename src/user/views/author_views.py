@@ -2,6 +2,7 @@ from celery import chain
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db.models import Q, Sum
+from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -18,6 +19,7 @@ from paper.openalex_tasks import pull_openalex_author_works_batch
 from paper.related_models.authorship_model import Authorship
 from paper.serializers import DynamicPaperSerializer
 from paper.utils import PAPER_SCORE_Q_ANNOTATION
+from paper.views import PaperViewSet
 from reputation.models import Bounty, BountySolution, Contribution
 from reputation.serializers import DynamicContributionSerializer
 from researchhub.settings import TESTING
@@ -45,6 +47,8 @@ from user.serializers import (
 from user.tasks import invalidate_author_profile_caches
 from user.utils import AuthorClaimException, claim_openalex_author_profile
 from user.views.follow_view_mixins import FollowViewActionMixin
+from user_lists.models import List
+from user_lists.serializers import ListSerializer
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 
@@ -236,8 +240,6 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         methods=["get"],
     )
     def get_authored_papers(self, request, pk=None):
-        from paper.views import PaperViewSet
-
         author = self.get_object()
         prefetch_lookups = PaperViewSet.prefetch_lookups(self)
         authored_papers = (
@@ -792,14 +794,14 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
 
         if not documents:
             # We want to only return a few documents for the overview section
-            NUM_DOCUMENTS_TO_FETCH = 4
+            num_documents_to_fetch = 4
 
             # Fetch the authored papers and order by citations
             authored_doc_ids = list(
                 Authorship.objects.filter(author=author)
                 .order_by("-paper__citations")
                 .values_list("paper__unified_document_id", flat=True)[
-                    :NUM_DOCUMENTS_TO_FETCH
+                    :num_documents_to_fetch
                 ]
             )
 
@@ -1126,3 +1128,79 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
             context=context,
         )
         return Response(serializer.data, status=200)
+
+    @action(detail=True, methods=["get"], url_path="lists")
+    def lists(self, request, pk=None):
+        """GET /author/{author_id}/lists"""
+
+        user = self.get_object().user
+        order = request.query_params.get("order")
+        qs = List.objects.for_user(user).prefetch_related("items")
+        is_owner = request.user.is_authenticated and request.user.id == user.id
+
+        if order:
+            if order not in {
+                "name",
+                "-name",
+                "created_date",
+                "-created_date",
+                "updated_date",
+                "-updated_date",
+            }:
+                return Response(
+                    {"error": "Invalid order parameter."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if order != "name":  # Default
+                qs = qs.order_by(order)
+
+        if not is_owner:
+            qs = qs.filter(is_public=True)
+
+        page = self.paginate_queryset(qs)
+        ser = ListSerializer(page or qs, many=True, context={"request": request})
+
+        return (
+            self.get_paginated_response(ser.data)
+            if page is not None
+            else Response(ser.data)
+        )
+
+    @action(detail=True, methods=["get"], url_path=r"list/<int:list_id>")
+    def list_detail(self, request, pk=None, list_id=None):
+        """GET /author/{author_id}/list/{list_id}"""
+
+        user = self.get_object().user
+        is_owner = request.user.is_authenticated and request.user.id == user.id
+
+        list_obj = get_object_or_404(
+            List,
+            id=list_id,
+            created_by=user,
+            is_removed=False,
+        )
+
+        items_order = request.query_params.get("items_order")
+
+        if items_order:
+            if items_order not in {"created_date", "-created_date"}:
+                return Response(
+                    {"error": "Invalid items_order parameter."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if items_order != "-created_date":  # Default
+                list_obj = list_obj.items.order_by(items_order)
+
+        if not is_owner and not list_obj.is_public:
+            return Response(
+                {"error": "This list is private."}, status=status.HTTP_403_FORBIDDEN
+            )
+
+        return Response(
+            ListSerializer(
+                list_obj,
+                context={"request": request},
+            ).data
+        )
