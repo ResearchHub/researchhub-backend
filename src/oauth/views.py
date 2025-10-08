@@ -36,7 +36,6 @@ from researchhub.settings import (
 )
 from utils import sentry
 from utils.http import RequestMethods
-from utils.siftscience import events_api
 from utils.throttles import captcha_unlock
 
 

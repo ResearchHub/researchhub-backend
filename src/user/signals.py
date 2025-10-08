@@ -20,7 +20,6 @@ from user.constants.organization_constants import PERSONAL
 from user.models import Action, Author, Organization, User
 from utils.message import send_email_message
 from utils.sentry import log_error
-from utils.siftscience import decisions_api, events_api
 
 
 @receiver(pre_save, sender=Organization, dispatch_uid="add_organization_slug")

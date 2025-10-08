@@ -11,7 +11,6 @@ from oauth.exceptions import LoginError
 from oauth.helpers import complete_social_login
 from user.models import User
 from utils import sentry
-from utils.siftscience import events_api, update_user_risk_score
 
 
 class SocialLoginSerializer(serializers.Serializer):

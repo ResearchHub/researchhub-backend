@@ -3,7 +3,6 @@ from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 from allauth.socialaccount.providers.google.provider import GoogleProvider
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 
-from utils.siftscience import events_api, update_user_risk_score
 
 
 class SocialAccountAdapter(DefaultSocialAccountAdapter):

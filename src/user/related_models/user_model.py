@@ -18,7 +18,6 @@ from researchhub_access_group.constants import (
 )
 from user.tasks import update_elastic_registry
 from utils.message import send_email_message
-from utils.siftscience import decisions_api
 from utils.throttles import UserSustainedRateThrottle
 
 FOUNDATION_EMAIL = "main@researchhub.foundation"
@@ -92,7 +91,6 @@ class User(AbstractUser):
     referral_code = models.CharField(max_length=36, default=uuid.uuid4, unique=True)
     reputation = models.IntegerField(default=100)
     should_display_rsc_balance_home = models.BooleanField(default=True)
-    sift_risk_score = models.FloatField(null=True, blank=True)
     spam_updated_date = models.DateTimeField(null=True)
     suspended_updated_date = models.DateTimeField(null=True)
     updated_date = models.DateTimeField(auto_now=True)

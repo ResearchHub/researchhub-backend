@@ -53,7 +53,6 @@ from utils.http import POST, check_url_contains_pdf
 from utils.openalex import OpenAlex
 from utils.permissions import CreateOrUpdateIfAllowed, HasAPIKey, PostOnly
 from utils.sentry import log_error
-from utils.siftscience import SIFT_PAPER, decisions_api, events_api, sift_track
 from utils.throttles import THROTTLE_CLASSES
 
 
@@ -124,7 +123,6 @@ class PaperViewSet(
             return queryset
 
     @track_event
-    @sift_track(SIFT_PAPER)
     def create(self, request, *args, **kwargs):
         try:
             doi = request.data.get("doi", "")
@@ -832,7 +830,6 @@ class PaperViewSet(
         # Temporarily disabling endpoint
         return Response(status=200)
 
-    @sift_track(SIFT_PAPER, is_update=True)
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
 

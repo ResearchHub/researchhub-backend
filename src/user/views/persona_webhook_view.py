@@ -11,7 +11,6 @@ from rest_framework.views import APIView
 
 from notification.models import Notification
 from user.models import User, UserVerification
-from utils.siftscience import events_api, update_user_risk_score
 
 logger = logging.getLogger(__name__)
 

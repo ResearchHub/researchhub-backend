@@ -80,17 +80,12 @@ class PersonaWebhookViewTests(TestCase):
             digest, "0fd4586aa5cb67c098a920ed55906fb2669a2bb21c6ed2de58e4f5cfb79814c7"
         )
 
-    @mock.patch("utils.siftscience.update_user_risk_score")
-    @mock.patch("utils.siftscience.events_api.track_account")
     @mock.patch("notification.models.Notification.send_notification")
     @override_settings(PERSONA_WEBHOOK_SECRET=webhook_secret)
-    def test_post_webhook(
-        self, send_notification_mock, track_account_mock, update_risk_score_mock
-    ):
+    def test_post_webhook(self, send_notification_mock):
         # arrange
         user = User.objects.create(first_name="firstName1", last_name="lastName1")
 
-        track_account_mock.return_value = {"score": 0.5}  # Mock Sift response
 
         # replace the reference-id placeholder in the body with the Id of the
         # created user and recomputes the digest:
@@ -130,17 +125,12 @@ class PersonaWebhookViewTests(TestCase):
         self.assertEqual(notification.item, user_verification)
         send_notification_mock.assert_called_once()
 
-    @mock.patch("utils.siftscience.update_user_risk_score")
-    @mock.patch("utils.siftscience.events_api.track_account")
     @mock.patch("notification.models.Notification.send_notification")
     @override_settings(PERSONA_WEBHOOK_SECRET=webhook_secret)
-    def test_post_webhook_declined_status(
-        self, send_notification_mock, track_account_mock, update_risk_score_mock
-    ):
+    def test_post_webhook_declined_status(self, send_notification_mock):
         # arrange
         user = User.objects.create(first_name="firstName1", last_name="lastName1")
 
-        track_account_mock.return_value = {"score": 0.5}  # Mock Sift response
 
         # replace the reference-id placeholder in the body with the Id of the
         # created user and recomputes the digest:
@@ -180,8 +170,6 @@ class PersonaWebhookViewTests(TestCase):
         self.assertEqual(notification.item, user_verification)
         send_notification_mock.assert_called_once()
 
-    @mock.patch("utils.siftscience.update_user_risk_score")
-    @mock.patch("utils.siftscience.events_api.track_account")
     @mock.patch("notification.models.Notification.send_notification")
     @override_settings(PERSONA_WEBHOOK_SECRET=webhook_secret)
     def test_post_webhook_failed_status(
@@ -190,7 +178,6 @@ class PersonaWebhookViewTests(TestCase):
         # arrange
         user = User.objects.create(first_name="firstName1", last_name="lastName1")
 
-        track_account_mock.return_value = {"score": 0.5}  # Mock Sift response
 
         # replace the reference-id placeholder in the body with the Id of the
         # created user and recomputes the digest:
@@ -230,8 +217,6 @@ class PersonaWebhookViewTests(TestCase):
         self.assertEqual(notification.item, user_verification)
         send_notification_mock.assert_called_once()
 
-    @mock.patch("utils.siftscience.update_user_risk_score")
-    @mock.patch("utils.siftscience.events_api.track_account")
     @mock.patch("notification.models.Notification.send_notification")
     @override_settings(PERSONA_WEBHOOK_SECRET=webhook_secret)
     def test_post_webhook_marked_for_review_status(
@@ -240,7 +225,6 @@ class PersonaWebhookViewTests(TestCase):
         # arrange
         user = User.objects.create(first_name="firstName1", last_name="lastName1")
 
-        track_account_mock.return_value = {"score": 0.5}  # Mock Sift response
 
         # replace the reference-id placeholder in the body with the Id of the
         # created user and recomputes the digest:

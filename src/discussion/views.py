@@ -37,13 +37,6 @@ from user.models import User
 from utils.models import SoftDeletableModel
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.sentry import log_error
-from utils.siftscience import (
-    SIFT_VOTE,
-    decisions_api,
-    events_api,
-    sift_track,
-    update_user_risk_score,
-)
 
 
 def censor(requestor, item):
@@ -285,23 +278,6 @@ class ReactionViewActionMixin:
             serializer.data, status=status.HTTP_201_CREATED, headers=headers
         )
 
-    def sift_track_create_content_comment(
-        self, request, response, model, is_thread=False
-    ):
-        item = model.objects.get(pk=response.data["id"])
-        tracked_comment = events_api.track_content_comment(
-            item.created_by, item, request, is_thread=is_thread
-        )
-        update_user_risk_score(item.created_by, tracked_comment)
-
-    def sift_track_update_content_comment(
-        self, request, response, model, is_thread=False
-    ):
-        item = model.objects.get(pk=response.data["id"])
-        tracked_comment = events_api.track_content_comment(
-            item.created_by, item, request, is_thread=is_thread, update=True
-        )
-        update_user_risk_score(item.created_by, tracked_comment)
 
 
 def retrieve_endorsement(user, item):
@@ -528,7 +504,6 @@ def create_automated_bounty(item):
             item.save(update_fields=["automated_bounty_created"])
 
 
-@sift_track(SIFT_VOTE)
 def update_or_create_vote(request, user, item, vote_type):
     """UPDATE VOTE"""
     vote = retrieve_vote(user, item)
