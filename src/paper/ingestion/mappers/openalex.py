@@ -525,3 +525,24 @@ class OpenAlexMapper(BaseMapper):
                             hubs.append(hub)
 
         return hubs
+
+    def extract_license_info(self, record: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Extract license information from OpenAlex record.
+
+        Args:
+            record: OpenAlex work record
+
+        Returns:
+            Dictionary with 'license', 'license_url', and 'pdf_url' keys
+        """
+        license_info = {"license": None, "license_url": None, "pdf_url": None}
+
+        # Use primary_location for preprints
+        primary_location = record.get("primary_location", {})
+        if primary_location:
+            license_info["license"] = primary_location.get("license")
+            license_info["license_url"] = primary_location.get("license_id")
+            license_info["pdf_url"] = primary_location.get("pdf_url")
+
+        return license_info

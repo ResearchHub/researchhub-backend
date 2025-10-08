@@ -325,3 +325,77 @@ class TestOpenAlexMapper(TestCase):
 
         # Assert
         self.assertTrue(mock_hub_mapper.map.called)
+
+    def test_extract_license_info_full(self):
+        """
+        Test extracting license info with all fields from primary_location.
+        """
+        # Arrange
+        record = {
+            "primary_location": {
+                "license": "cc-by",
+                "license_id": "https://creativecommons.org/licenses/by/4.0",
+                "pdf_url": "https://arxiv.org/pdf/2301.00001.pdf",
+            }
+        }
+
+        # Act
+        license_info = self.mapper.extract_license_info(record)
+
+        # Assert
+        self.assertEqual(license_info["license"], "cc-by")
+        self.assertEqual(
+            license_info["license_url"], "https://creativecommons.org/licenses/by/4.0"
+        )
+        self.assertEqual(
+            license_info["pdf_url"], "https://arxiv.org/pdf/2301.00001.pdf"
+        )
+
+    def test_extract_license_info_partial(self):
+        """
+        Test extracting license info with only some fields from primary_location.
+        """
+        # Arrange
+        record = {
+            "primary_location": {
+                "license": "cc-by-sa",
+            }
+        }
+
+        # Act
+        license_info = self.mapper.extract_license_info(record)
+
+        # Assert
+        self.assertEqual(license_info["license"], "cc-by-sa")
+        self.assertIsNone(license_info["license_url"])
+        self.assertIsNone(license_info["pdf_url"])
+
+    def test_extract_license_info_empty_primary_location(self):
+        """
+        Test extracting license info when primary_location is empty.
+        """
+        # Arrange
+        record = {"primary_location": {}}
+
+        # Act
+        license_info = self.mapper.extract_license_info(record)
+
+        # Assert
+        self.assertIsNone(license_info["license"])
+        self.assertIsNone(license_info["license_url"])
+        self.assertIsNone(license_info["pdf_url"])
+
+    def test_extract_license_info_no_primary_location(self):
+        """
+        Test extracting license info when primary_location is missing.
+        """
+        # Arrange
+        record = {}
+
+        # Act
+        license_info = self.mapper.extract_license_info(record)
+
+        # Assert
+        self.assertIsNone(license_info["license"])
+        self.assertIsNone(license_info["license_url"])
+        self.assertIsNone(license_info["pdf_url"])

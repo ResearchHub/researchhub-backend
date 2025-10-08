@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 from django.utils import timezone
 
 from paper.ingestion.clients.openalex import OpenAlexClient
+from paper.ingestion.mappers.openalex import OpenAlexMapper
 from paper.models import Paper
 
 logger = logging.getLogger(__name__)
@@ -39,14 +40,18 @@ class PaperOpenAlexEnrichmentService:
     the corresponding papers in the database.
     """
 
-    def __init__(self, openalex_client: OpenAlexClient):
+    def __init__(
+        self, openalex_client: OpenAlexClient, openalex_mapper: OpenAlexMapper
+    ):
         """
         Constructor.
 
         Args:
             openalex_client: Client for fetching OpenAlex data
+            openalex_mapper: Mapper for extracting data from OpenAlex records
         """
         self.openalex_client = openalex_client
+        self.openalex_mapper = openalex_mapper
 
     def get_recent_papers_with_dois(self, days: int) -> List[int]:
         """
@@ -92,7 +97,7 @@ class PaperOpenAlexEnrichmentService:
 
             # Extract license information from the raw data
             raw_data = openalex_data.get("raw_data", {})
-            license_info = self._extract_license_info(raw_data)
+            license_info = self.openalex_mapper.extract_license_info(raw_data)
 
             has_license = license_info["license"]
             has_license_url = license_info["license_url"]
@@ -167,27 +172,6 @@ class PaperOpenAlexEnrichmentService:
             not_found_count=not_found_count,
             error_count=error_count,
         )
-
-    def _extract_license_info(self, raw_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Extract license information from OpenAlex raw data.
-
-        Args:
-            raw_data: Raw OpenAlex work data
-
-        Returns:
-            Dictionary with 'license', 'license_url', and 'pdf_url' keys
-        """
-        license_info = {"license": None, "license_url": None, "pdf_url": None}
-
-        # Use primary_location for preprints
-        primary_location = raw_data.get("primary_location", {})
-        if primary_location:
-            license_info["license"] = primary_location.get("license")
-            license_info["license_url"] = primary_location.get("license_id")
-            license_info["pdf_url"] = primary_location.get("pdf_url")
-
-        return license_info
 
     def _update_paper_license(self, paper: Paper, license_info: Dict[str, Any]) -> None:
         """

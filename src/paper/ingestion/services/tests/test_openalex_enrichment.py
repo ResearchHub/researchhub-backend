@@ -16,7 +16,10 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
     def setUp(self):
         """Set up test fixtures."""
         self.mock_openalex_client = Mock()
-        self.service = PaperOpenAlexEnrichmentService(self.mock_openalex_client)
+        self.mock_openalex_mapper = Mock()
+        self.service = PaperOpenAlexEnrichmentService(
+            self.mock_openalex_client, self.mock_openalex_mapper
+        )
 
         # Create test paper with DOI
         self.paper = create_paper(title="Test Paper")
@@ -71,6 +74,11 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
             }
         }
         self.mock_openalex_client.fetch_by_doi.return_value = openalex_data
+        self.mock_openalex_mapper.extract_license_info.return_value = {
+            "license": None,
+            "license_url": None,
+            "pdf_url": None,
+        }
 
         result = self.service.enrich_paper_with_openalex(self.paper)
 
@@ -91,6 +99,11 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
             }
         }
         self.mock_openalex_client.fetch_by_doi.return_value = openalex_data
+        self.mock_openalex_mapper.extract_license_info.return_value = {
+            "license": "cc-by",
+            "license_url": "https://creativecommons.org/licenses/by/4.0",
+            "pdf_url": "https://arxiv.org/pdf/2301.00001.pdf",
+        }
 
         result = self.service.enrich_paper_with_openalex(self.paper)
 
@@ -120,6 +133,11 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
             }
         }
         self.mock_openalex_client.fetch_by_doi.return_value = openalex_data
+        self.mock_openalex_mapper.extract_license_info.return_value = {
+            "license": None,
+            "license_url": None,
+            "pdf_url": "https://arxiv.org/pdf/2301.00001.pdf",
+        }
 
         result = self.service.enrich_paper_with_openalex(self.paper)
 
@@ -141,6 +159,11 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
             }
         }
         self.mock_openalex_client.fetch_by_doi.return_value = openalex_data
+        self.mock_openalex_mapper.extract_license_info.return_value = {
+            "license": "cc-by-sa",
+            "license_url": None,
+            "pdf_url": None,
+        }
 
         result = self.service.enrich_paper_with_openalex(self.paper)
 
@@ -164,6 +187,11 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
             }
         }
         self.mock_openalex_client.fetch_by_doi.return_value = openalex_data
+        self.mock_openalex_mapper.extract_license_info.return_value = {
+            "license": None,
+            "license_url": "https://creativecommons.org/licenses/by/4.0",
+            "pdf_url": None,
+        }
 
         result = self.service.enrich_paper_with_openalex(self.paper)
 
@@ -209,6 +237,11 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
             }
         }
         self.mock_openalex_client.fetch_by_doi.return_value = openalex_data
+        self.mock_openalex_mapper.extract_license_info.return_value = {
+            "license": "cc-by",
+            "license_url": "https://creativecommons.org/licenses/by/4.0",
+            "pdf_url": None,
+        }
 
         result = self.service.enrich_papers_batch([paper1.id, paper2.id])
 
@@ -240,6 +273,11 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
                 return None  # Not found
 
         self.mock_openalex_client.fetch_by_doi.side_effect = mock_fetch
+        self.mock_openalex_mapper.extract_license_info.return_value = {
+            "license": "cc-by",
+            "license_url": None,
+            "pdf_url": None,
+        }
 
         result = self.service.enrich_papers_batch([paper1.id, paper2.id, paper3.id])
 
@@ -274,39 +312,6 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         self.assertEqual(result.success_count, 0)
         self.assertEqual(result.not_found_count, 0)
         self.assertEqual(result.error_count, 1)
-
-    def test_extract_license_info_from_primary_location(self):
-        """Test that license extraction uses primary_location."""
-        raw_data = {
-            "primary_location": {
-                "license": "cc-by",
-                "license_id": "https://creativecommons.org/licenses/by/4.0",
-                "pdf_url": "https://arxiv.org/pdf/2301.00001.pdf",
-            },
-        }
-
-        license_info = self.service._extract_license_info(raw_data)
-
-        self.assertEqual(license_info["license"], "cc-by")
-        self.assertEqual(
-            license_info["license_url"],
-            "https://creativecommons.org/licenses/by/4.0",
-        )
-        self.assertEqual(
-            license_info["pdf_url"], "https://arxiv.org/pdf/2301.00001.pdf"
-        )
-
-    def test_extract_license_info_empty_primary_location(self):
-        """Test that extraction returns None values when primary_location is empty."""
-        raw_data = {
-            "primary_location": {},
-        }
-
-        license_info = self.service._extract_license_info(raw_data)
-
-        self.assertIsNone(license_info["license"])
-        self.assertIsNone(license_info["license_url"])
-        self.assertIsNone(license_info["pdf_url"])
 
     def test_update_paper_license_all_fields(self):
         """Test updating all license and PDF fields."""
