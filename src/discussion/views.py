@@ -42,11 +42,6 @@ from utils.sentry import log_error
 def censor(requestor, item):
     content_id = f"{type(item).__name__}_{item.id}"
     content_creator = item.created_by
-    if not requestor == content_creator:
-        events_api.track_flag_content(content_creator, content_id, requestor.id)
-        decisions_api.apply_bad_content_decision(
-            content_creator, content_id, "MANUAL_REVIEW", requestor
-        )
 
     if isinstance(item, SoftDeletableModel):
         item.delete(soft=True)
@@ -120,8 +115,6 @@ class ReactionViewActionMixin:
         try:
             _, flag_data = create_flag(user, item, reason, reason_choice, reason_memo)
 
-            content_id = f"{type(item).__name__}_{item.id}"
-            events_api.track_flag_content(item.created_by, content_id, user.id)
             return Response(flag_data, status=201)
         except (IntegrityError, ValidationError):
             return Response(

@@ -861,14 +861,6 @@ class PaperViewSet(
         content_id = f"{type(paper).__name__}_{paper_id}"
         user = request.user
         content_creator = paper.uploaded_by
-        if content_creator:
-            events_api.track_flag_content(content_creator, content_id, user.id)
-            decisions_api.apply_bad_content_decision(
-                content_creator, content_id, "MANUAL_REVIEW", user
-            )
-            decisions_api.apply_bad_user_decision(
-                content_creator, "MANUAL_REVIEW", user
-            )
 
         Contribution.objects.filter(unified_document=unified_doc).delete()
         paper.is_removed = True
@@ -915,11 +907,6 @@ class PaperViewSet(
         content_id = f"{type(paper).__name__}_{paper_id}"
         user = request.user
         content_creator = paper.uploaded_by
-        events_api.track_flag_content(content_creator, content_id, user.id)
-        decisions_api.apply_bad_content_decision(
-            content_creator, content_id, "MANUAL_REVIEW", user
-        )
-        decisions_api.apply_bad_user_decision(content_creator, "MANUAL_REVIEW", user)
 
         return Response(self.get_serializer(instance=paper).data, status=200)
 

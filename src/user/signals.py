@@ -53,16 +53,6 @@ def create_action(sender, instance, created, **kwargs):
         else:
             if sender == RhCommentModel:
                 thread = instance
-                if thread.is_removed:
-                    content_id = f"{type(thread).__name__}_{thread.id}"
-                    decisions_api.apply_bad_content_decision(
-                        thread.created_by, content_id
-                    )
-                    events_api.track_flag_content(
-                        thread.created_by,
-                        content_id,
-                        1,
-                    )
             user = instance.created_by
 
         vote_types = [Vote]

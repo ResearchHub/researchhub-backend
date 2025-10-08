@@ -174,9 +174,6 @@ class User(AbstractUser):
             self.suspended_updated_date = timezone.now()
             self.save(update_fields=["is_suspended", "suspended_updated_date"])
 
-        if is_suspended:
-            source = "MANUAL_REVIEW" if is_manual else "AUTOMATED_RULE"
-            decisions_api.apply_bad_user_decision(self, source)
 
     def get_balance_qs(self):
         user_balance = self.balances.all()

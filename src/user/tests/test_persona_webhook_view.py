@@ -172,9 +172,7 @@ class PersonaWebhookViewTests(TestCase):
 
     @mock.patch("notification.models.Notification.send_notification")
     @override_settings(PERSONA_WEBHOOK_SECRET=webhook_secret)
-    def test_post_webhook_failed_status(
-        self, send_notification_mock, track_account_mock, update_risk_score_mock
-    ):
+    def test_post_webhook_failed_status(self, send_notification_mock):
         # arrange
         user = User.objects.create(first_name="firstName1", last_name="lastName1")
 
@@ -219,9 +217,7 @@ class PersonaWebhookViewTests(TestCase):
 
     @mock.patch("notification.models.Notification.send_notification")
     @override_settings(PERSONA_WEBHOOK_SECRET=webhook_secret)
-    def test_post_webhook_marked_for_review_status(
-        self, send_notification_mock, track_account_mock, update_risk_score_mock
-    ):
+    def test_post_webhook_marked_for_review_status(self, send_notification_mock):
         # arrange
         user = User.objects.create(first_name="firstName1", last_name="lastName1")
 
