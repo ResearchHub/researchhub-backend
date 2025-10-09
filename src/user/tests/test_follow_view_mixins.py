@@ -1,4 +1,7 @@
+from unittest.mock import patch
+
 from django.contrib.contenttypes.models import ContentType
+from django.core.cache import cache
 from rest_framework import status
 from rest_framework.test import APITestCase
 from rest_framework.viewsets import ModelViewSet
@@ -311,3 +314,126 @@ class FollowViewActionMixinTests(APITestCase):
         response = self.client.get(f"/api/author/{self.author.id}/is_following/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertFalse(response.data["following"])
+
+    @patch("feed.views.feed_view_mixin.FeedViewMixin.invalidate_feed_cache_for_user")
+    def test_follow_hub_invalidates_cache(self, mock_invalidate):
+        """Test that following a hub invalidates the user's feed cache."""
+        response = self.client.post(f"/api/hub/{self.hub.id}/follow/")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Verify cache invalidation was called with the user's ID
+        mock_invalidate.assert_called_once_with(self.user.id)
+
+    @patch("feed.views.feed_view_mixin.FeedViewMixin.invalidate_feed_cache_for_user")
+    def test_follow_user_invalidates_cache(self, mock_invalidate):
+        """Test that following a user invalidates the follower's feed cache."""
+        response = self.client.post(f"/api/user/{self.target_user.id}/follow/")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Verify cache invalidation was called with the follower's ID
+        mock_invalidate.assert_called_once_with(self.user.id)
+
+    @patch("feed.views.feed_view_mixin.FeedViewMixin.invalidate_feed_cache_for_user")
+    def test_follow_paper_invalidates_cache(self, mock_invalidate):
+        """Test that following a paper invalidates the user's feed cache."""
+        response = self.client.post(f"/api/paper/{self.paper.id}/follow/")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Verify cache invalidation was called with the user's ID
+        mock_invalidate.assert_called_once_with(self.user.id)
+
+    @patch("feed.views.feed_view_mixin.FeedViewMixin.invalidate_feed_cache_for_user")
+    def test_follow_author_invalidates_cache(self, mock_invalidate):
+        """Test that following an author invalidates the user's feed cache."""
+        author = Author.objects.create(
+            first_name="Test",
+            last_name="Author",
+            created_source=Author.SOURCE_RESEARCHHUB,
+        )
+
+        response = self.client.post(f"/api/author/{author.id}/follow/")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Verify cache invalidation was called with the user's ID
+        mock_invalidate.assert_called_once_with(self.user.id)
+
+    @patch("feed.views.feed_view_mixin.FeedViewMixin.invalidate_feed_cache_for_user")
+    def test_unfollow_hub_invalidates_cache(self, mock_invalidate):
+        """Test that unfollowing a hub invalidates the user's feed cache."""
+        # Create follow first
+        Follow.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(Hub),
+            object_id=self.hub.id,
+        )
+
+        response = self.client.delete(f"/api/hub/{self.hub.id}/unfollow/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify cache invalidation was called with the user's ID
+        mock_invalidate.assert_called_once_with(self.user.id)
+
+    @patch("feed.views.feed_view_mixin.FeedViewMixin.invalidate_feed_cache_for_user")
+    def test_unfollow_user_invalidates_cache(self, mock_invalidate):
+        """Test that unfollowing a user invalidates the unfollower's feed cache."""
+        # Create follow first
+        Follow.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(User),
+            object_id=self.target_user.id,
+        )
+
+        response = self.client.delete(f"/api/user/{self.target_user.id}/unfollow/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify cache invalidation was called with the unfollower's ID
+        mock_invalidate.assert_called_once_with(self.user.id)
+
+    @patch("feed.views.feed_view_mixin.FeedViewMixin.invalidate_feed_cache_for_user")
+    def test_unfollow_not_following_does_not_invalidate_cache(self, mock_invalidate):
+        """Test that unfollowing when not following doesn't invalidate cache."""
+        response = self.client.delete(f"/api/user/{self.target_user.id}/unfollow/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["msg"], "Not following")
+
+        # Cache should not be invalidated since user wasn't following
+        mock_invalidate.assert_not_called()
+
+    def test_follow_hub_actually_invalidates_cache(self):
+        """Integration test: verify cache is actually cleared when following a hub."""
+        # Set up a cache entry for the user's feed
+        cache_key = f"feed:following:all:all:{self.user.id}:1-20"
+        cache.set(cache_key, {"test": "data"})
+
+        # Verify cache is set
+        self.assertIsNotNone(cache.get(cache_key))
+
+        # Follow a hub
+        response = self.client.post(f"/api/hub/{self.hub.id}/follow/")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Verify cache is cleared
+        self.assertIsNone(cache.get(cache_key))
+
+    def test_unfollow_hub_actually_invalidates_cache(self):
+        """Integration test: verify cache is actually cleared when unfollowing a hub."""
+        # Create follow first
+        Follow.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(Hub),
+            object_id=self.hub.id,
+        )
+
+        # Set up a cache entry for the user's feed
+        cache_key = f"feed:following:all:all:{self.user.id}:1-20"
+        cache.set(cache_key, {"test": "data"})
+
+        # Verify cache is set
+        self.assertIsNotNone(cache.get(cache_key))
+
+        # Unfollow the hub
+        response = self.client.delete(f"/api/hub/{self.hub.id}/unfollow/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify cache is cleared
+        self.assertIsNone(cache.get(cache_key))

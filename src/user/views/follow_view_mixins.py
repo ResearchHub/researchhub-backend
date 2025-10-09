@@ -5,6 +5,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from feed.views.feed_view_mixin import FeedViewMixin
 from user.related_models.follow_model import Follow
 from user.serializers import FollowSerializer
 from utils.permissions import CreateOrUpdateIfAllowed
@@ -51,6 +52,11 @@ class FollowViewActionMixin:
             serialized_data = FollowSerializer(
                 follow, context={"request": request}
             ).data
+
+            # Invalidate feed cache when unfollowing anything (hub, user, author, etc.)
+            # as it affects what content appears in the user's "following" feed
+            FeedViewMixin.invalidate_feed_cache_for_user(user.id)
+
             follow.delete()
             return Response(serialized_data, status=status.HTTP_200_OK)
         except Follow.DoesNotExist:
@@ -94,6 +100,11 @@ def create_follow(user, item):
         user=user, content_type=get_content_type_for_model(item), object_id=item.id
     )
     follow.save()
+
+    # Invalidate feed cache when following anything (hub, user, author, etc.)
+    # as it affects what content appears in the user's "following" feed
+    FeedViewMixin.invalidate_feed_cache_for_user(user.id)
+
     return follow
 
 
