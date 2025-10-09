@@ -109,7 +109,7 @@ class EventProcessor:
             content_type = content_type or "unknown"
             timestamp = event.get("time", datetime.now().timestamp() * 1000)
 
-            # PERFORMANCE CONCERN: User loading commented out to avoid DB query per event
+            # PERFORMANCE CONCERN: User loading commented out to avoid DB query
             # This could be costly with thousands of events. AWS Personalize will handle
             # invalid user IDs gracefully, so we skip user validation for performance.
             # Uncomment below if user validation is needed for debugging:
@@ -194,7 +194,8 @@ class EventProcessor:
                 )
 
             logger.debug(
-                f"Processed interaction: {event_type} for user {user_id} on item {item_id} (type: {content_type})"
+                f"Processed interaction: {event_type} for user {user_id} "
+                f"on item {item_id} (type: {content_type})"
             )
 
         except Exception as e:
@@ -240,7 +241,8 @@ class EventProcessor:
                 )
 
             logger.debug(
-                f"Processed impression: {event_type} for user {user_id} with {len(items_shown)} items"
+                f"Processed impression: {event_type} for user {user_id} "
+                f"with {len(items_shown)} items"
             )
 
         except Exception as e:
@@ -266,7 +268,7 @@ class EventProcessor:
         if event_type.lower() == "vote_action":
             vote_type = event_props.get("vote_type", "").upper()
             if vote_type == "NEUTRAL":
-                # Neutral vote cancels out previous vote - return negative of upvote weight
+                # Neutral vote cancels out previous vote - return negative weight
                 return -self.EVENT_WEIGHTS.get("vote_action", 2.0)
             elif vote_type == "UPVOTE":
                 # Regular vote weights

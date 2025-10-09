@@ -125,12 +125,15 @@ class EventProcessorTestCase(TestCase):
 
         self.processor.process_event(event)
 
-        # Verify AWS Personalize was called
+        # Verify AWS Personalize was called with correct parameters
         mock_send.assert_called_once()
         call_args = mock_send.call_args
         self.assertEqual(call_args[1]["user_id"], str(self.user.id))
         self.assertEqual(call_args[1]["item_id"], "doc_123")
         self.assertEqual(call_args[1]["event_type"], "vote_action")
+        # Verify the properties parameter is passed (not aws_payload)
+        self.assertIn("properties", call_args[1])
+        self.assertIsInstance(call_args[1]["properties"], dict)
 
     def test_process_event_handles_nonexistent_user(self):
         """Test that processing handles nonexistent user gracefully."""
@@ -212,7 +215,7 @@ class EventProcessorTestCase(TestCase):
         self.assertEqual(weight, 2.0)
 
     def test_transform_to_personalize_format_feed_item_clicked(self):
-        """Test transformation for feed_item_clicked events."""
+        """Test transformation for feed_item_clicked events matches AWS schema."""
         event_props = {
             "user_id": "123",
             "related_work.unified_document_id": "doc_123",
@@ -220,6 +223,7 @@ class EventProcessorTestCase(TestCase):
             "feed_position": 1,
             "feed_source": "home",
             "feed_tab": "trending",
+            "device_type": "desktop",
         }
 
         result = self.processor._transform_to_personalize_format(
@@ -232,20 +236,24 @@ class EventProcessorTestCase(TestCase):
             event_props=event_props,
         )
 
-        self.assertEqual(result["userId"], "123")
-        self.assertEqual(result["itemId"], "doc_123")
-        self.assertEqual(result["eventType"], "feed_item_clicked")
-        self.assertEqual(result["feedPosition"], 1)
-        self.assertEqual(result["feedSource"], "home")
-        self.assertEqual(result["feedTab"], "trending")
+        # Check AWS Personalize schema compliance
+        self.assertEqual(result["USER_ID"], "123")
+        self.assertEqual(result["ITEM_ID"], "doc_123")
+        self.assertEqual(result["EVENT_TYPE"], "feed_item_clicked")
+        self.assertEqual(result["EVENT_VALUE"], 1.5)
+        self.assertEqual(result["DEVICE"], "desktop")
+        self.assertEqual(result["TIMESTAMP"], 1234567890000)
+        self.assertIsNone(result["IMPRESSION"])
+        self.assertIsNone(result["RECOMMENDATION_ID"])
 
     def test_transform_to_personalize_format_peer_review_created(self):
-        """Test transformation for peer_review_created events."""
+        """Test transformation for peer_review_created events matches AWS schema."""
         event_props = {
             "user_id": "123",
             "related_work.unified_document_id": "doc_123",
             "related_work.content_type": "paper",
             "score": 4.5,
+            "device_type": "desktop",
         }
 
         result = self.processor._transform_to_personalize_format(
@@ -258,17 +266,23 @@ class EventProcessorTestCase(TestCase):
             event_props=event_props,
         )
 
-        self.assertEqual(result["userId"], "123")
-        self.assertEqual(result["itemId"], "doc_123")
-        self.assertEqual(result["eventType"], "peer_review_created")
-        self.assertEqual(result["score"], 4.5)
+        # Check AWS Personalize schema compliance
+        self.assertEqual(result["USER_ID"], "123")
+        self.assertEqual(result["ITEM_ID"], "doc_123")
+        self.assertEqual(result["EVENT_TYPE"], "peer_review_created")
+        self.assertEqual(result["EVENT_VALUE"], 3.0)
+        self.assertEqual(result["DEVICE"], "desktop")
+        self.assertEqual(result["TIMESTAMP"], 1234567890000)
+        self.assertIsNone(result["IMPRESSION"])
+        self.assertIsNone(result["RECOMMENDATION_ID"])
 
     def test_transform_to_personalize_format_default_case(self):
-        """Test transformation for default case (unknown event type)."""
+        """Test transformation for default case matches AWS Personalize schema."""
         event_props = {
             "user_id": "123",
             "related_work.unified_document_id": "doc_123",
             "related_work.content_type": "paper",
+            "device_type": "mobile",
         }
 
         result = self.processor._transform_to_personalize_format(
@@ -281,9 +295,15 @@ class EventProcessorTestCase(TestCase):
             event_props=event_props,
         )
 
-        self.assertEqual(result["userId"], "123")
-        self.assertEqual(result["itemId"], "doc_123")
-        self.assertEqual(result["eventType"], "unknown_event")
+        # Check AWS Personalize schema compliance
+        self.assertEqual(result["USER_ID"], "123")
+        self.assertEqual(result["ITEM_ID"], "doc_123")
+        self.assertEqual(result["EVENT_TYPE"], "unknown_event")
+        self.assertEqual(result["EVENT_VALUE"], 1.0)
+        self.assertEqual(result["DEVICE"], "mobile")
+        self.assertEqual(result["TIMESTAMP"], 1234567890000)
+        self.assertIsNone(result["IMPRESSION"])
+        self.assertIsNone(result["RECOMMENDATION_ID"])
 
     @patch("django.conf.settings.DEVELOPMENT", False)
     @patch(

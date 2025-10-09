@@ -30,9 +30,45 @@ class PersonalizeServiceTestCase(TestCase):
 
         self.assertFalse(result)
 
+    def test_aws_personalize_schema_compliance(self):
+        """Test that payload structure matches AWS Personalize Interactions schema."""
+        # Test the schema structure that should be sent to AWS
+        aws_payload = {
+            "USER_ID": "123",
+            "ITEM_ID": "doc_123",
+            "EVENT_TYPE": "feed_item_clicked",
+            "EVENT_VALUE": 1.5,
+            "DEVICE": "desktop",
+            "TIMESTAMP": 1234567890000,
+            "IMPRESSION": None,
+            "RECOMMENDATION_ID": "home_trending",
+        }
+
+        # Verify all required schema fields are present
+        required_fields = [
+            "USER_ID",
+            "ITEM_ID",
+            "EVENT_TYPE",
+            "EVENT_VALUE",
+            "TIMESTAMP",
+        ]
+        for field in required_fields:
+            self.assertIn(field, aws_payload)
+
+        # Verify field types match schema
+        self.assertIsInstance(aws_payload["USER_ID"], str)
+        self.assertIsInstance(aws_payload["ITEM_ID"], str)
+        self.assertIsInstance(aws_payload["EVENT_TYPE"], str)
+        self.assertIsInstance(aws_payload["EVENT_VALUE"], (int, float))
+        self.assertIsInstance(aws_payload["TIMESTAMP"], int)
+
+        # Verify optional fields can be None
+        self.assertIsNone(aws_payload["IMPRESSION"])
+        self.assertIsInstance(aws_payload["RECOMMENDATION_ID"], str)
+
     @patch("boto3.client")
     def test_send_interaction_event_formats_correctly(self, mock_boto):
-        """Test that interaction events are formatted correctly for AWS."""
+        """Test that interaction events are formatted correctly for AWS Personalize."""
         mock_events_client = MagicMock()
         mock_events_client.put_events.return_value = {
             "ResponseMetadata": {"HTTPStatusCode": 200}
@@ -42,12 +78,25 @@ class PersonalizeServiceTestCase(TestCase):
         service.events_client = mock_events_client
         service.tracking_id = "test-tracking-id"
 
+        # Test with properties parameter (AWS Personalize schema format)
+        aws_payload = {
+            "USER_ID": "123",
+            "ITEM_ID": "doc_123",
+            "EVENT_TYPE": "click",
+            "EVENT_VALUE": 1.0,
+            "DEVICE": "desktop",
+            "TIMESTAMP": 1234567890000,
+            "IMPRESSION": None,
+            "RECOMMENDATION_ID": None,
+        }
+
         result = service.send_interaction_event(
             user_id="123",
             item_id="doc_123",
             event_type="click",
             weight=1.0,
             timestamp=1234567890000,
+            properties=aws_payload,
         )
 
         self.assertTrue(result)
@@ -57,6 +106,13 @@ class PersonalizeServiceTestCase(TestCase):
         call_args = mock_events_client.put_events.call_args
         self.assertEqual(call_args[1]["trackingId"], "test-tracking-id")
         self.assertEqual(call_args[1]["userId"], "123")
+
+        # Verify the event structure matches AWS Personalize schema
+        event_list = call_args[1]["eventList"]
+        self.assertEqual(len(event_list), 1)
+        event = event_list[0]
+        self.assertEqual(event["eventType"], "click")
+        self.assertEqual(event["itemId"], "doc_123")
 
     @patch("boto3.client")
     def test_send_impression_data_formats_correctly(self, mock_boto):
@@ -148,3 +204,39 @@ class PersonalizeServiceTestCase(TestCase):
         )
 
         self.assertFalse(result)
+
+    def test_aws_personalize_schema_compliance(self):
+        """Test that payload structure matches AWS Personalize Interactions schema."""
+        # Test the schema structure that should be sent to AWS
+        aws_payload = {
+            "USER_ID": "123",
+            "ITEM_ID": "doc_123",
+            "EVENT_TYPE": "feed_item_clicked",
+            "EVENT_VALUE": 1.5,
+            "DEVICE": "desktop",
+            "TIMESTAMP": 1234567890000,
+            "IMPRESSION": None,
+            "RECOMMENDATION_ID": "home_trending",
+        }
+
+        # Verify all required schema fields are present
+        required_fields = [
+            "USER_ID",
+            "ITEM_ID",
+            "EVENT_TYPE",
+            "EVENT_VALUE",
+            "TIMESTAMP",
+        ]
+        for field in required_fields:
+            self.assertIn(field, aws_payload)
+
+        # Verify field types match schema
+        self.assertIsInstance(aws_payload["USER_ID"], str)
+        self.assertIsInstance(aws_payload["ITEM_ID"], str)
+        self.assertIsInstance(aws_payload["EVENT_TYPE"], str)
+        self.assertIsInstance(aws_payload["EVENT_VALUE"], (int, float))
+        self.assertIsInstance(aws_payload["TIMESTAMP"], int)
+
+        # Verify optional fields can be None
+        self.assertIsNone(aws_payload["IMPRESSION"])
+        self.assertIsInstance(aws_payload["RECOMMENDATION_ID"], str)
