@@ -39,7 +39,7 @@ from utils.permissions import CreateOrUpdateIfAllowed
 from utils.sentry import log_error
 
 
-def censor(requestor, item):
+def censor(item):
     if isinstance(item, SoftDeletableModel):
         item.delete(soft=True)
     else:
@@ -152,7 +152,7 @@ class ReactionViewActionMixin:
         item = self.get_object()
 
         with transaction.atomic():
-            censor(request.user, item)
+            censor(item)
             return Response(
                 self.get_serializer(instance=item, _include_fields=("id",)).data,
                 status=200,

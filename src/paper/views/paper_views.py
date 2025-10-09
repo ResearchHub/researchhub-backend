@@ -893,7 +893,6 @@ class PaperViewSet(
     )
     def censor_pdf(self, request, pk=None):
         paper = self.get_object()
-        paper_id = paper.id
         paper.file = None
         paper.url = None
         paper.pdf_url = None
