@@ -110,8 +110,6 @@ class PersonaWebhookView(APIView):
 
         self._create_notification(user_verification)
 
-        user = User.objects.get(id=user_verification.user_id)
-
     def _create_notification(self, user_verification: UserVerification):
         user = User.objects.get(id=user_verification.user_id)
         notification = Notification.objects.create(

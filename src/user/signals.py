@@ -51,8 +51,6 @@ def create_action(sender, instance, created, **kwargs):
         if sender == Paper or sender == PaperSubmission:
             user = instance.uploaded_by
         else:
-            if sender == RhCommentModel:
-                thread = instance
             user = instance.created_by
 
         vote_types = [Vote]

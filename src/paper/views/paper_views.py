@@ -858,10 +858,6 @@ class PaperViewSet(
         cache_key = get_cache_key("paper", paper_id)
         cache.delete(cache_key)
 
-        content_id = f"{type(paper).__name__}_{paper_id}"
-        user = request.user
-        content_creator = paper.uploaded_by
-
         Contribution.objects.filter(unified_document=unified_doc).delete()
         paper.is_removed = True
         paper.save()
@@ -903,10 +899,6 @@ class PaperViewSet(
         paper.pdf_url = None
         paper.figures.all().delete()
         paper.save()
-
-        content_id = f"{type(paper).__name__}_{paper_id}"
-        user = request.user
-        content_creator = paper.uploaded_by
 
         return Response(self.get_serializer(instance=paper).data, status=200)
 

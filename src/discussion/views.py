@@ -40,9 +40,6 @@ from utils.sentry import log_error
 
 
 def censor(requestor, item):
-    content_id = f"{type(item).__name__}_{item.id}"
-    content_creator = item.created_by
-
     if isinstance(item, SoftDeletableModel):
         item.delete(soft=True)
     else:
