@@ -473,52 +473,6 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         )
 
     @action(detail=False, methods=[GET], permission_classes=[AllowAny])
-    def by_category(self, request):
-        """
-        Returns all subcategory hubs with their parent category from mappings.
-        Example: "neuroscience" hub will have category="Biology"
-        """
-
-        cache_key = get_cache_key("hubs", "by_category")
-        cached_data = cache.get(cache_key)
-
-        if cached_data:
-            return Response(cached_data, status=200)
-
-        subcategory_to_category_map = self._build_subcategory_mapping()
-
-        # Get subcategory hubs
-        subcategory_slugs = list(subcategory_to_category_map.keys())
-        hubs = Hub.objects.filter(slug__in=subcategory_slugs, is_removed=False)
-
-        # Convert category slugs to names
-        category_names = dict(
-            Hub.objects.filter(
-                slug__in=set(subcategory_to_category_map.values())
-            ).values_list("slug", "name")
-        )
-
-        # Create final mapping: subcategory slug -> category name
-        hub_category_mapping = {}
-        for subcategory_slug, category_slug in subcategory_to_category_map.items():
-            # Use the category's name if found, otherwise fallback to slug
-            category_name = category_names.get(
-                category_slug, f"Unknown ({category_slug})"
-            )
-            hub_category_mapping[subcategory_slug] = category_name
-
-        # Serialize with category mapping
-        context = self.get_serializer_context()
-        context["hub_category_mapping"] = hub_category_mapping
-
-        serializer = self.get_serializer(hubs, many=True, context=context)
-        data = serializer.data
-
-        cache.set(cache_key, data, timeout=60 * 60 * 24)
-
-        return Response(data, status=200)
-
-    @action(detail=False, methods=[GET], permission_classes=[AllowAny])
     def primary_only(self, request):
         """
         Returns a list of all unique hubs (both categories and subcategories)
