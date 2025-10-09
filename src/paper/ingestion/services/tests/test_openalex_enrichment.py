@@ -74,16 +74,18 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
             }
         }
         self.mock_openalex_client.fetch_by_doi.return_value = openalex_data
-        self.mock_openalex_mapper.extract_license_info.return_value = {
-            "license": None,
-            "license_url": None,
-            "pdf_url": None,
-        }
+
+        # Mock the mapped paper with no license data
+        mock_mapped_paper = Mock()
+        mock_mapped_paper.pdf_license = None
+        mock_mapped_paper.pdf_url = None
+        mock_mapped_paper.pdf_license_url = None
+        self.mock_openalex_mapper.map_to_paper.return_value = mock_mapped_paper
 
         result = self.service.enrich_paper_with_openalex(self.paper)
 
         self.assertEqual(result.status, "not_found")
-        self.assertEqual(result.reason, "no_license_in_openalex")
+        self.assertEqual(result.reason, "incomplete_license_data")
 
     def test_enrich_paper_success_with_primary_location_full(self):
         """Test successful enrichment with all fields from primary_location."""
@@ -99,11 +101,15 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
             }
         }
         self.mock_openalex_client.fetch_by_doi.return_value = openalex_data
-        self.mock_openalex_mapper.extract_license_info.return_value = {
-            "license": "cc-by",
-            "license_url": "https://creativecommons.org/licenses/by/4.0",
-            "pdf_url": "https://arxiv.org/pdf/2301.00001.pdf",
-        }
+
+        # Mock the mapped paper with all license data
+        mock_mapped_paper = Mock()
+        mock_mapped_paper.pdf_license = "cc-by"
+        mock_mapped_paper.pdf_license_url = (
+            "https://creativecommons.org/licenses/by/4.0"
+        )
+        mock_mapped_paper.pdf_url = "https://arxiv.org/pdf/2301.00001.pdf"
+        self.mock_openalex_mapper.map_to_paper.return_value = mock_mapped_paper
 
         result = self.service.enrich_paper_with_openalex(self.paper)
 
@@ -121,8 +127,8 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         )
         self.assertEqual(self.paper.pdf_url, "https://arxiv.org/pdf/2301.00001.pdf")
 
-    def test_enrich_paper_success_with_pdf_url_only(self):
-        """Test successful enrichment with only PDF URL from primary_location."""
+    def test_enrich_paper_incomplete_data_pdf_url_only(self):
+        """Test enrichment fails when only PDF URL is available (missing license)."""
         openalex_data = {
             "raw_data": {
                 "id": "https://openalex.org/W123456",
@@ -133,22 +139,21 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
             }
         }
         self.mock_openalex_client.fetch_by_doi.return_value = openalex_data
-        self.mock_openalex_mapper.extract_license_info.return_value = {
-            "license": None,
-            "license_url": None,
-            "pdf_url": "https://arxiv.org/pdf/2301.00001.pdf",
-        }
+
+        # Mock the mapped paper with only pdf_url
+        mock_mapped_paper = Mock()
+        mock_mapped_paper.pdf_license = None
+        mock_mapped_paper.pdf_license_url = None
+        mock_mapped_paper.pdf_url = "https://arxiv.org/pdf/2301.00001.pdf"
+        self.mock_openalex_mapper.map_to_paper.return_value = mock_mapped_paper
 
         result = self.service.enrich_paper_with_openalex(self.paper)
 
-        self.assertEqual(result.status, "success")
+        self.assertEqual(result.status, "not_found")
+        self.assertEqual(result.reason, "incomplete_license_data")
 
-        # Verify paper was updated with PDF URL
-        self.paper.refresh_from_db()
-        self.assertEqual(self.paper.pdf_url, "https://arxiv.org/pdf/2301.00001.pdf")
-
-    def test_enrich_paper_success_with_license_only(self):
-        """Test successful enrichment with only license from primary_location."""
+    def test_enrich_paper_incomplete_data_license_only(self):
+        """Test enrichment fails when only license is available (missing pdf_url)."""
         openalex_data = {
             "raw_data": {
                 "id": "https://openalex.org/W123456",
@@ -159,53 +164,18 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
             }
         }
         self.mock_openalex_client.fetch_by_doi.return_value = openalex_data
-        self.mock_openalex_mapper.extract_license_info.return_value = {
-            "license": "cc-by-sa",
-            "license_url": None,
-            "pdf_url": None,
-        }
+
+        # Mock the mapped paper with only license
+        mock_mapped_paper = Mock()
+        mock_mapped_paper.pdf_license = "cc-by-sa"
+        mock_mapped_paper.pdf_license_url = None
+        mock_mapped_paper.pdf_url = None
+        self.mock_openalex_mapper.map_to_paper.return_value = mock_mapped_paper
 
         result = self.service.enrich_paper_with_openalex(self.paper)
 
-        self.assertEqual(result.status, "success")
-        self.assertEqual(result.license, "cc-by-sa")
-        self.assertIsNone(result.license_url)
-
-        # Verify paper was updated
-        self.paper.refresh_from_db()
-        self.assertEqual(self.paper.pdf_license, "cc-by-sa")
-
-    def test_enrich_paper_success_only_license_url(self):
-        """Test successful enrichment with only license URL."""
-        openalex_data = {
-            "raw_data": {
-                "id": "https://openalex.org/W123456",
-                "title": "Test Paper",
-                "primary_location": {
-                    "license_id": "https://creativecommons.org/licenses/by/4.0",
-                },
-            }
-        }
-        self.mock_openalex_client.fetch_by_doi.return_value = openalex_data
-        self.mock_openalex_mapper.extract_license_info.return_value = {
-            "license": None,
-            "license_url": "https://creativecommons.org/licenses/by/4.0",
-            "pdf_url": None,
-        }
-
-        result = self.service.enrich_paper_with_openalex(self.paper)
-
-        self.assertEqual(result.status, "success")
-        self.assertIsNone(result.license)
-        self.assertEqual(
-            result.license_url, "https://creativecommons.org/licenses/by/4.0"
-        )
-
-        # Verify paper was updated
-        self.paper.refresh_from_db()
-        self.assertEqual(
-            self.paper.pdf_license_url, "https://creativecommons.org/licenses/by/4.0"
-        )
+        self.assertEqual(result.status, "not_found")
+        self.assertEqual(result.reason, "incomplete_license_data")
 
     def test_enrich_paper_error_handling(self):
         """Test error handling during enrichment."""
@@ -233,15 +203,20 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
                 "primary_location": {
                     "license": "cc-by",
                     "license_id": "https://creativecommons.org/licenses/by/4.0",
+                    "pdf_url": "https://arxiv.org/pdf/2301.00001.pdf",
                 },
             }
         }
         self.mock_openalex_client.fetch_by_doi.return_value = openalex_data
-        self.mock_openalex_mapper.extract_license_info.return_value = {
-            "license": "cc-by",
-            "license_url": "https://creativecommons.org/licenses/by/4.0",
-            "pdf_url": None,
-        }
+
+        # Mock the mapped paper with complete license data
+        mock_mapped_paper = Mock()
+        mock_mapped_paper.pdf_license = "cc-by"
+        mock_mapped_paper.pdf_license_url = (
+            "https://creativecommons.org/licenses/by/4.0"
+        )
+        mock_mapped_paper.pdf_url = "https://arxiv.org/pdf/2301.00001.pdf"
+        self.mock_openalex_mapper.map_to_paper.return_value = mock_mapped_paper
 
         result = self.service.enrich_papers_batch([paper1.id, paper2.id])
 
@@ -266,18 +241,23 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
             if doi == "10.1234/test1":
                 return {
                     "raw_data": {
-                        "primary_location": {"license": "cc-by"},
+                        "primary_location": {
+                            "license": "cc-by",
+                            "pdf_url": "https://arxiv.org/pdf/2301.00001.pdf",
+                        },
                     }
                 }
             else:
                 return None  # Not found
 
         self.mock_openalex_client.fetch_by_doi.side_effect = mock_fetch
-        self.mock_openalex_mapper.extract_license_info.return_value = {
-            "license": "cc-by",
-            "license_url": None,
-            "pdf_url": None,
-        }
+
+        # Mock the mapped paper with complete license data
+        mock_mapped_paper = Mock()
+        mock_mapped_paper.pdf_license = "cc-by"
+        mock_mapped_paper.pdf_license_url = None
+        mock_mapped_paper.pdf_url = "https://arxiv.org/pdf/2301.00001.pdf"
+        self.mock_openalex_mapper.map_to_paper.return_value = mock_mapped_paper
 
         result = self.service.enrich_papers_batch([paper1.id, paper2.id, paper3.id])
 
@@ -313,56 +293,38 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         self.assertEqual(result.not_found_count, 0)
         self.assertEqual(result.error_count, 1)
 
-    def test_update_paper_license_all_fields(self):
-        """Test updating all license and PDF fields."""
-        license_info = {
-            "license": "cc-by",
-            "license_url": "https://creativecommons.org/licenses/by/4.0",
-            "pdf_url": "https://arxiv.org/pdf/2301.00001.pdf",
+    def test_enrich_paper_already_has_data(self):
+        """Test enrichment skips papers that already have license data."""
+        # Set up paper with existing license data
+        self.paper.pdf_license = "existing-license"
+        self.paper.pdf_url = "https://existing.com/pdf.pdf"
+        self.paper.save()
+
+        openalex_data = {
+            "raw_data": {
+                "id": "https://openalex.org/W123456",
+                "title": "Test Paper",
+                "primary_location": {
+                    "license": "cc-by",
+                    "pdf_url": "https://arxiv.org/pdf/2301.00001.pdf",
+                },
+            }
         }
+        self.mock_openalex_client.fetch_by_doi.return_value = openalex_data
 
-        self.service._update_paper_license(self.paper, license_info)
+        # Mock the mapped paper
+        mock_mapped_paper = Mock()
+        mock_mapped_paper.pdf_license = "cc-by"
+        mock_mapped_paper.pdf_license_url = None
+        mock_mapped_paper.pdf_url = "https://arxiv.org/pdf/2301.00001.pdf"
+        self.mock_openalex_mapper.map_to_paper.return_value = mock_mapped_paper
 
+        result = self.service.enrich_paper_with_openalex(self.paper)
+
+        self.assertEqual(result.status, "skipped")
+        self.assertEqual(result.reason, "already_has_data")
+
+        # Verify existing data wasn't changed
         self.paper.refresh_from_db()
-        self.assertEqual(self.paper.pdf_license, "cc-by")
-        self.assertEqual(
-            self.paper.pdf_license_url, "https://creativecommons.org/licenses/by/4.0"
-        )
-        self.assertEqual(self.paper.pdf_url, "https://arxiv.org/pdf/2301.00001.pdf")
-
-    def test_update_paper_license_only_license(self):
-        """Test updating only license field."""
-        license_info = {"license": "cc-by-nc", "license_url": None, "pdf_url": None}
-
-        self.service._update_paper_license(self.paper, license_info)
-
-        self.paper.refresh_from_db()
-        self.assertEqual(self.paper.pdf_license, "cc-by-nc")
-
-    def test_update_paper_license_only_url(self):
-        """Test updating only license URL field."""
-        license_info = {
-            "license": None,
-            "license_url": "https://creativecommons.org/licenses/by/4.0",
-            "pdf_url": None,
-        }
-
-        self.service._update_paper_license(self.paper, license_info)
-
-        self.paper.refresh_from_db()
-        self.assertEqual(
-            self.paper.pdf_license_url, "https://creativecommons.org/licenses/by/4.0"
-        )
-
-    def test_update_paper_pdf_url_only(self):
-        """Test updating only PDF URL field."""
-        license_info = {
-            "license": None,
-            "license_url": None,
-            "pdf_url": "https://arxiv.org/pdf/2301.00001.pdf",
-        }
-
-        self.service._update_paper_license(self.paper, license_info)
-
-        self.paper.refresh_from_db()
-        self.assertEqual(self.paper.pdf_url, "https://arxiv.org/pdf/2301.00001.pdf")
+        self.assertEqual(self.paper.pdf_license, "existing-license")
+        self.assertEqual(self.paper.pdf_url, "https://existing.com/pdf.pdf")

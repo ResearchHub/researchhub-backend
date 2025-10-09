@@ -98,12 +98,20 @@ class OpenAlexMapper(BaseMapper):
         primary_location = record.get("primary_location", {})
         best_oa_location = record.get("best_oa_location", {})
 
-        # PDF URL
+        # Extract license information (includes pdf_url)
+        license_info = self.extract_license_info(record)
+
+        # PDF URL - use license_info first, then fallback to best_oa_location
         pdf_url = (
-            best_oa_location.get("pdf_url")
+            license_info.get("pdf_url")
+            or best_oa_location.get("pdf_url")
             or primary_location.get("pdf_url")
             or oa_info.get("oa_url")
         )
+
+        # License information
+        pdf_license = license_info.get("license")
+        pdf_license_url = license_info.get("license_url")
 
         # Landing page URL
         landing_page_url = best_oa_location.get(
@@ -132,6 +140,8 @@ class OpenAlexMapper(BaseMapper):
             # License and access
             is_open_access=is_oa,
             oa_status=oa_status if is_oa else None,
+            pdf_license=pdf_license,
+            pdf_license_url=pdf_license_url,
             # Language
             language=record.get("language"),
             # External metadata
