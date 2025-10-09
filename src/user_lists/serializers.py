@@ -1,21 +1,29 @@
 from rest_framework import serializers
 
-from user_lists.models import List, ListItem, ListItemDocumentContentType
+from user_lists.models import List, ListItem
 
 
 class ListItemSerializer(serializers.ModelSerializer):
+    document_type = serializers.CharField(
+        source="unified_document.document_type", read_only=True
+    )
+
     class Meta:
         model = ListItem
-
-        # TODO: is {unified_document_id + document_content_type} the way to load the right content on the FE?
-        read_only_fields = ("id", "created_date")
-
-        extra_kwargs = {
-            "parent_list": {"write_only": True},
-            "document_content_type": {"write_only": True},
-        }
-
+        read_only_fields = ("id", "created_date", "document_type")
+        extra_kwargs = {"parent_list": {"write_only": True}}
         fields = ("unified_document",) + read_only_fields + tuple(extra_kwargs.keys())
+
+    def validate_unified_document(self, unified_document):
+        supported_types = ["PAPER", "GRANT", "PREREGISTRATION"]
+
+        if unified_document.document_type not in supported_types:
+            raise serializers.ValidationError(
+                f"Document type '{unified_document.document_type}' cannot be saved "
+                f"to lists. Supported types: {', '.join(supported_types)}"
+            )
+
+        return unified_document
 
     def validate(self, attrs):
         parent_list = attrs.get("parent_list")
@@ -38,19 +46,6 @@ class ListItemSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "You can only modify your own list items."
             )
-
-        document_content_type = attrs.get("document_content_type")
-
-        if document_content_type:
-            document_content_type = document_content_type.lower().strip()
-
-            if document_content_type not in ListItemDocumentContentType.values:
-                raise serializers.ValidationError(
-                    f"Invalid document_content_type, expected one of:"
-                    f"\n{', '.join(ListItemDocumentContentType.values)}"
-                )
-
-            attrs["document_content_type"] = document_content_type
 
         return super().validate(attrs)
 
