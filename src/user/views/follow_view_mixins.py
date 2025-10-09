@@ -30,9 +30,10 @@ class FollowViewActionMixin:
         user = request.user
 
         try:
-            follow = create_follow(user, item)
-            serializer = FollowSerializer(follow, context={"request": request})
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            with transaction.atomic():
+                follow = create_follow(user, item)
+                serializer = FollowSerializer(follow, context={"request": request})
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
         except IntegrityError:
             follow = retrieve_follow(user, item)
             serializer = FollowSerializer(follow, context={"request": request})
