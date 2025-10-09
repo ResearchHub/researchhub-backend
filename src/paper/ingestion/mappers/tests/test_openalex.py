@@ -23,7 +23,10 @@ class TestOpenAlexMapper(TestCase):
 
         # Load fixture files
         fixtures_dir = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), "clients", "fixtures"
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            "clients",
+            "tests",
+            "fixtures",
         )
 
         # Read the sample response JSON
