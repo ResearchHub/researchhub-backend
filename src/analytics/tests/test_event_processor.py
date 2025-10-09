@@ -285,45 +285,6 @@ class EventProcessorTestCase(TestCase):
         self.assertEqual(result["itemId"], "doc_123")
         self.assertEqual(result["eventType"], "unknown_event")
 
-    def test_extract_related_work(self):
-        """Test extraction of related work information."""
-        event_props = {
-            "related_work.id": "123",
-            "related_work.content_type": "paper",
-            "related_work.unified_document_id": "doc_123",
-            "related_work.primary_topic.id": "topic_1",
-            "related_work.primary_topic.name": "AI",
-            "related_work.primary_topic.slug": "ai",
-        }
-
-        result = self.processor._extract_related_work(event_props)
-
-        self.assertEqual(result["id"], "123")
-        self.assertEqual(result["contentType"], "paper")
-        self.assertEqual(result["unifiedDocumentId"], "doc_123")
-        self.assertEqual(result["primaryTopic"]["id"], "topic_1")
-        self.assertEqual(result["primaryTopic"]["name"], "AI")
-        self.assertEqual(result["primaryTopic"]["slug"], "ai")
-
-    def test_extract_related_work_without_primary_topic(self):
-        """Test extraction when primary topic is missing."""
-        event_props = {
-            "related_work.id": "123",
-            "related_work.content_type": "paper",
-        }
-
-        result = self.processor._extract_related_work(event_props)
-
-        self.assertEqual(result["id"], "123")
-        self.assertEqual(result["contentType"], "paper")
-        self.assertIsNone(result["primaryTopic"])
-
-    def test_extract_topics(self):
-        """Test extraction of topics array."""
-        event_props = {}
-        result = self.processor._extract_topics(event_props)
-        self.assertEqual(result, [])
-
     @patch("django.conf.settings.DEVELOPMENT", False)
     @patch(
         "analytics.services.personalize_service.PersonalizeService.send_impression_data"

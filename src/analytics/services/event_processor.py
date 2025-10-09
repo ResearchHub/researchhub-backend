@@ -190,7 +190,7 @@ class EventProcessor:
                     weight=weight,
                     timestamp=timestamp,
                     # Pass the transformed payload
-                    aws_payload=aws_personalize_payload,
+                    properties=aws_personalize_payload,
                 )
 
             logger.debug(
@@ -312,74 +312,28 @@ class EventProcessor:
             event_props: Original event properties
 
         Returns:
-            Dict: AWS Personalize payload
+            Dict: AWS Personalize payload matching the Interactions schema
         """
-        # Base payload structure
+        # Base payload structure matching AWS Personalize Interactions schema
         base_payload = {
-            "userId": user_id,
-            "itemId": item_id,
-            "timestamp": timestamp,
-            "weight": weight,
-            "eventType": event_type,
-            "contentType": content_type,
+            "USER_ID": user_id,
+            "ITEM_ID": item_id,
+            "EVENT_TYPE": event_type,
+            "EVENT_VALUE": weight,
+            "TIMESTAMP": int(timestamp),
+            "IMPRESSION": None,
+            "RECOMMENDATION_ID": None,
         }
+
+        # Add device information if available
+        device = event_props.get("device_type")
+        if device:
+            base_payload["DEVICE"] = device
 
         # Add event-specific properties based on event type
-        if event_type == "feed_item_clicked":
-            return {
-                **base_payload,
-                "feedPosition": event_props.get("feed_position"),
-                "feedSource": event_props.get("feed_source"),
-                "feedTab": event_props.get("feed_tab"),
-                "relatedWork": self._extract_related_work(event_props),
-            }
+        # if event_type == "feed_item_clicked":
+        # feed_position = event_props.get("feed_position")
+        # if feed_position is not None:
+        #     base_payload["EVENT_VALUE"] = float(feed_position)
 
-        elif event_type == "peer_review_created":
-            return {
-                **base_payload,
-                "score": event_props.get("score"),
-                "relatedWork": self._extract_related_work(event_props),
-            }
-
-        # Default case - return base payload
         return base_payload
-
-    def _extract_related_work(self, event_props: Dict) -> Dict:
-        """
-        Extract related work information from event properties.
-
-        Args:
-            event_props: Event properties
-
-        Returns:
-            Dict: Related work information
-        """
-        return {
-            "id": event_props.get("related_work.id"),
-            "contentType": event_props.get("related_work.content_type"),
-            "unifiedDocumentId": event_props.get("related_work.unified_document_id"),
-            "primaryTopic": (
-                {
-                    "id": event_props.get("related_work.primary_topic.id"),
-                    "name": event_props.get("related_work.primary_topic.name"),
-                    "slug": event_props.get("related_work.primary_topic.slug"),
-                }
-                if event_props.get("related_work.primary_topic.id")
-                else None
-            ),
-            "topics": self._extract_topics(event_props),
-        }
-
-    def _extract_topics(self, event_props: Dict) -> list:
-        """
-        Extract topics array from event properties.
-
-        Args:
-            event_props: Event properties
-
-        Returns:
-            list: Topics array
-        """
-        # This would need to be implemented based on how topics are stored
-        # For now, return empty list as placeholder
-        return []
