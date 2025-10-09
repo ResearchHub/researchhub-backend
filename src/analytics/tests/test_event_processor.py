@@ -131,7 +131,6 @@ class EventProcessorTestCase(TestCase):
         self.assertEqual(call_args[1]["user_id"], str(self.user.id))
         self.assertEqual(call_args[1]["item_id"], "doc_123")
         self.assertEqual(call_args[1]["event_type"], "vote_action")
-        # Verify the properties parameter is passed (not aws_payload)
         self.assertIn("properties", call_args[1])
         self.assertIsInstance(call_args[1]["properties"], dict)
 
