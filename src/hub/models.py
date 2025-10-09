@@ -14,24 +14,6 @@ from researchhub_access_group.models import Permission
 HELP_TEXT_IS_REMOVED = "Hides the hub because it is not allowed."
 
 
-def get_default_hub_category():
-    """Get or create a default value for the hub categories"""
-
-    return HubCategory.objects.get_or_create(category_name="Other")[0]
-
-
-class HubCategory(models.Model):
-    """A grouping of hubs, organized by category"""
-
-    def __str__(self):
-        return self.category_name
-
-    def __int__(self):
-        return self.id
-
-    category_name = models.CharField(max_length=1024, unique=True)
-
-
 class Hub(models.Model):
     """A grouping of papers, organized by subject"""
 
@@ -67,9 +49,6 @@ class Hub(models.Model):
             Note this is different from HubMembership (subscribers)",
         related_name="hub",
         related_query_name="hub_source",
-    )
-    category = models.ForeignKey(
-        HubCategory, on_delete=models.CASCADE, default=get_default_hub_category
     )
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
