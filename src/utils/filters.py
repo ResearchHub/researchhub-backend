@@ -188,16 +188,8 @@ class QualityScoringMixin:
             ),
         )
 
-    def _annotate_top_score(self, qs):
-        """
-        Annotate with simple score as primary, quality factors as tiebreaker.
-        Primary: upvotes - downvotes (with removed penalty)
-        Tiebreaker: tips, reputation, verified boost
-        """
-        # First get all the quality score annotations
-        qs = self._annotate_best_score(qs)
-
-        # Add primary score for TOP (simple score + removed penalty)
+    def _annotate_top_score(self, qs):  
+        qs = self._annotate_best_score(qs) 
         return qs.annotate(
             top_primary_score=Cast(F("score") + F("removed_penalty"), FloatField()),
         )
