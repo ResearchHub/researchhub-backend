@@ -49,7 +49,9 @@ class Command(BaseCommand):
                     paper.open_alex_raw_json = data.get("open_alex_raw_json")
                     needs_update = True
                 if data.get("paper_publish_date") and not paper.paper_publish_date:
-                    paper.paper_publish_date = parse(data.get("paper_publish_date"))
+                    paper.paper_publish_date = parse(
+                        data.get("paper_publish_date")
+                    ).date()
                     needs_update = True
 
                 # If this paper needs an update, add it to the list

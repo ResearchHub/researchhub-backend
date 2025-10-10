@@ -125,7 +125,7 @@ class Paper(AbstractGenericReactionModel):
     paper_title = models.CharField(  # Official paper title
         max_length=1024, default=None, null=True, blank=True
     )
-    paper_publish_date = models.DateTimeField(null=True, blank=True)
+    paper_publish_date = models.DateField(null=True, blank=True)
     raw_authors = JSONField(blank=True, null=True)
     abstract = models.TextField(default=None, null=True, blank=True)
     abstract_src = models.FileField(
