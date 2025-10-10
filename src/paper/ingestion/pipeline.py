@@ -15,9 +15,10 @@ from paper.ingestion.clients.arxiv import ArXivClient, ArXivConfig
 from paper.ingestion.clients.biorxiv import BioRxivClient, BioRxivConfig
 from paper.ingestion.clients.chemrxiv import ChemRxivClient, ChemRxivConfig
 from paper.ingestion.clients.medrxiv import MedRxivClient, MedRxivConfig
+from paper.ingestion.constants import IngestionSource
 from paper.ingestion.exceptions import FetchError, RetryExhaustedError
 from paper.ingestion.mappers.factory import MapperFactory
-from paper.ingestion.service import IngestionSource, PaperIngestionService
+from paper.ingestion.services import PaperIngestionService
 from paper.models import PaperFetchLog
 from researchhub.celery import QUEUE_PULL_PAPERS, app
 from utils.sentry import log_error

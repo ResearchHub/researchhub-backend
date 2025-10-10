@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from paper.ingestion.clients.altmetric import AltmetricClient
 from paper.ingestion.mappers.altmetric import AltmetricMapper
-from paper.ingestion.services.metrics_enrichment import PaperMetricsEnrichmentService
+from paper.ingestion.services import PaperMetricsEnrichmentService
 from paper.models import Paper
 
 
