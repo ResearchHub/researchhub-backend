@@ -58,47 +58,6 @@ class BountySignalsTests(TestCase):
             object_id=self.comment.id,
         )
 
-        # Create feed entries for our test
-        paper_content_type = ContentType.objects.get_for_model(self.paper)
-        post_content_type = ContentType.objects.get_for_model(self.post)
-        comment_content_type = ContentType.objects.get_for_model(self.comment)
-
-        # Paper feed entry
-        self.paper_feed_entry = FeedEntry.objects.create(
-            content_type=paper_content_type,
-            object_id=self.paper.id,
-            action=FeedEntry.PUBLISH,
-            action_date=self.paper.created_date,
-            user=self.user,
-            unified_document=self.paper.unified_document,
-            content={},
-            metrics={},
-        )
-
-        # Post feed entry
-        self.post_feed_entry = FeedEntry.objects.create(
-            content_type=post_content_type,
-            object_id=self.post.id,
-            action=FeedEntry.PUBLISH,
-            action_date=self.post.created_date,
-            user=self.user,
-            unified_document=self.post.unified_document,
-            content={},
-            metrics={},
-        )
-
-        # Comment feed entry
-        self.comment_feed_entry = FeedEntry.objects.create(
-            content_type=comment_content_type,
-            object_id=self.comment.id,
-            action=FeedEntry.PUBLISH,
-            action_date=self.comment.created_date,
-            user=self.user,
-            unified_document=self.paper.unified_document,
-            content={},
-            metrics={},
-        )
-
     @patch("feed.signals.bounty_signals.refresh_feed_entries_for_objects")
     @patch("feed.signals.bounty_signals.transaction")
     def test_bounty_create_updates_paper_feed_entries(
