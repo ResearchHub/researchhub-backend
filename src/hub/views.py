@@ -479,11 +479,11 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         that appear in the mappings, deduplicated, sorted by paper_count descending.
         """
 
-        # cache_key = get_cache_key("hubs", "primary_only")
-        # cached_data = cache.get(cache_key)
+        cache_key = get_cache_key("hubs", "primary_only")
+        cached_data = cache.get(cache_key)
 
-        # if cached_data:
-        #     return Response(cached_data, status=200)
+        if cached_data:
+            return Response(cached_data, status=200)
 
         # Extract all unique hub slugs (both category and subcategory) from mappings
         all_hub_slugs = set()
@@ -512,7 +512,7 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         # Return with count and results format
         response_data = {"count": primary_hubs.count(), "results": serializer.data}
 
-        # cache.set(cache_key, response_data, timeout=60 * 60 * 24)
+        cache.set(cache_key, response_data, timeout=60 * 60 * 24)
 
         return Response(response_data, status=200)
 
