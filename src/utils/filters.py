@@ -142,7 +142,7 @@ class OrFilter(filters.CharFilter):
 
 
 class QualityScoringMixin:
-    def _annotate_score(self, qs):
+    def _annotate_best_score(self, qs):
         is_verified = Q(
             created_by__userverification__status=(UserVerification.Status.APPROVED)
         )
@@ -186,4 +186,18 @@ class QualityScoringMixin:
                 + F("removed_penalty"),
                 FloatField(),
             ),
+        )
+
+    def _annotate_top_score(self, qs):
+        """
+        Annotate with simple score as primary, quality factors as tiebreaker.
+        Primary: upvotes - downvotes (with removed penalty)
+        Tiebreaker: tips, reputation, verified boost
+        """
+        # First get all the quality score annotations
+        qs = self._annotate_best_score(qs)
+
+        # Add primary score for TOP (simple score + removed penalty)
+        return qs.annotate(
+            top_primary_score=Cast(F("score") + F("removed_penalty"), FloatField()),
         )

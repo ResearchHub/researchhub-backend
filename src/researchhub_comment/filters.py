@@ -197,7 +197,7 @@ class RHCommentFilter(QualityScoringMixin, filters.FilterSet):
             qs = qs.annotate(
                 accepted_answer=Cast("is_accepted_answer", output_field=IntegerField())
             )
-            qs = self._annotate_score(qs)
+            qs = self._annotate_best_score(qs)
             keys = self._get_ordering_keys(
                 [
                     "bounty_sum",
@@ -208,12 +208,12 @@ class RHCommentFilter(QualityScoringMixin, filters.FilterSet):
             )
             qs = qs.order_by(*keys)
         elif value == TOP:
-            qs = self._annotate_score(qs)
-            keys = self._get_ordering_keys(["quality_score"])
+            qs = self._annotate_top_score(qs)
+            keys = self._get_ordering_keys(["top_primary_score", "quality_score"])
             qs = qs.order_by(*keys)
         elif value == BOUNTY:
             qs = self._annotate_bounty_sum(qs).filter(bounty_sum__gt=0)
-            qs = self._annotate_score(qs)
+            qs = self._annotate_best_score(qs)
             keys = self._get_ordering_keys(
                 [
                     "bounty_sum",
