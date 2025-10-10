@@ -60,7 +60,6 @@ class ModeratorUserSerializer(ModelSerializer):
             "is_suspended",
             "verification",
             "created_date",
-            "sift_risk_score",
         ]
 
     def get_verification(self, user):
@@ -94,7 +93,6 @@ class AuthorSerializer(ModelSerializer):
     reputation = SerializerMethodField()
     reputation_v2 = SerializerMethodField()
     reputation_list = SerializerMethodField()
-    sift_link = SerializerMethodField()
     total_score = SerializerMethodField()
     university = UniversitySerializer(required=False)
     wallet = SerializerMethodField()
@@ -115,7 +113,6 @@ class AuthorSerializer(ModelSerializer):
             "reputation_v2",
             "reputation_list",
             "suspended_status",
-            "sift_link",
             "total_score",
             "university",
             "wallet",
@@ -184,15 +181,6 @@ class AuthorSerializer(ModelSerializer):
         except Exception:
             pass
 
-    def get_sift_link(self, author):
-        user = author.user
-        if user:
-            user_id = user.id
-            sift_link = (
-                f"https://console.sift.com/users/{user_id}?abuse_type=content_abuse"
-            )
-            return sift_link
-        return None
 
     def get_num_posts(self, author):
         user = author.user
@@ -536,7 +524,6 @@ class UserEditableSerializer(ModelSerializer):
             "username",
             "clicked_on_balance_date",
             "suspended_updated_date",
-            "sift_risk_score",
             "last_login",
             "date_joined",
         ]
@@ -969,7 +956,6 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
             "is_verified": user.is_verified,
             "is_suspended": user.is_suspended,
             "probable_spammer": user.probable_spammer,
-            "sift_url": f"https://console.sift.com/users/{user.id}?abuse_type=content_abuse",
         }
 
     def get_summary_stats(self, author):

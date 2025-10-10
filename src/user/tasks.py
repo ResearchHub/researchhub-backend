@@ -40,7 +40,7 @@ def handle_spam_user_task(user_id, requestor=None):
             if requestor:
                 from discussion.views import censor
 
-                censor(requestor, comment)
+                censor(comment)
                 comment.refresh_related_discussion_count()
 
         user.actions.update(display=False, is_removed=True)

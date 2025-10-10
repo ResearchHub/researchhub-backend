@@ -20,7 +20,6 @@ from user.constants.organization_constants import PERSONAL
 from user.models import Action, Author, Organization, User
 from utils.message import send_email_message
 from utils.sentry import log_error
-from utils.siftscience import decisions_api, events_api
 
 
 @receiver(pre_save, sender=Organization, dispatch_uid="add_organization_slug")
@@ -52,18 +51,6 @@ def create_action(sender, instance, created, **kwargs):
         if sender == Paper or sender == PaperSubmission:
             user = instance.uploaded_by
         else:
-            if sender == RhCommentModel:
-                thread = instance
-                if thread.is_removed:
-                    content_id = f"{type(thread).__name__}_{thread.id}"
-                    decisions_api.apply_bad_content_decision(
-                        thread.created_by, content_id
-                    )
-                    events_api.track_flag_content(
-                        thread.created_by,
-                        content_id,
-                        1,
-                    )
             user = instance.created_by
 
         vote_types = [Vote]

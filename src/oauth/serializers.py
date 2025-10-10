@@ -11,7 +11,6 @@ from oauth.exceptions import LoginError
 from oauth.helpers import complete_social_login
 from user.models import User
 from utils import sentry
-from utils.siftscience import events_api, update_user_risk_score
 
 
 class SocialLoginSerializer(serializers.Serializer):
@@ -128,10 +127,6 @@ class SocialLoginSerializer(serializers.Serializer):
 
         login_user = login.account.user
         attrs["user"] = login_user
-        # tracked_login_w_events_api = events_api.track_login(
-        #     login_user, "$success", request
-        # )
-        # update_user_risk_score(login_user, tracked_login_w_events_api)
         # self.track_user_visit_after_login(attrs)
         self.handle_referral(attrs)
         return attrs
@@ -164,9 +159,6 @@ class SocialLoginSerializer(serializers.Serializer):
             complete_social_login(request, social_login)
         except NoReverseMatch as e:
             if "account_inactive" in str(e):
-                login_user = social_login.account.user
-                tracked_login = events_api.track_login(login_user, "$failure", request)
-                update_user_risk_score(login_user, tracked_login)
                 raise LoginError(None, "Account is suspended")
         except Exception as e:
             error = LoginError(e, "Login failed")

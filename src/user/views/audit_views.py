@@ -430,7 +430,7 @@ class AuditViewSet(viewsets.GenericViewSet):
             flag_item = flag.item
             if isinstance(flag_item, RhCommentModel):
                 remove_bounties(flag_item)
-            censor_response = censor(flag.verdict.created_by, flag_item)
+            censor_response = censor(flag_item)
 
             if isinstance(flag_item, RhCommentModel):
                 flag_item.refresh_related_discussion_count()
