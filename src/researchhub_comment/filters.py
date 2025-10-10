@@ -15,6 +15,7 @@ from researchhub_comment.constants.rh_comment_thread_types import (
     SUMMARY,
 )
 from researchhub_comment.models import RhCommentModel
+from utils.filters import QualityScoringMixin
 from utils.http import GET
 
 BEST = "BEST"
@@ -49,7 +50,7 @@ FILTER_CHOICES = (
 )
 
 
-class RHCommentFilter(filters.FilterSet):
+class RHCommentFilter(QualityScoringMixin, filters.FilterSet):
     created_date__gte = DateTimeFilter(
         field_name="created_date",
         lookup_expr="gte",
@@ -196,24 +197,27 @@ class RHCommentFilter(filters.FilterSet):
             qs = qs.annotate(
                 accepted_answer=Cast("is_accepted_answer", output_field=IntegerField())
             )
+            qs = self._annotate_score(qs)
             keys = self._get_ordering_keys(
                 [
                     "bounty_sum",
                     "accepted_answer",
-                    "score",
+                    "quality_score",
                     "created_date",
                 ]
             )
             qs = qs.order_by(*keys)
         elif value == TOP:
-            keys = self._get_ordering_keys(["score"])
+            qs = self._annotate_score(qs)
+            keys = self._get_ordering_keys(["quality_score"])
             qs = qs.order_by(*keys)
         elif value == BOUNTY:
             qs = self._annotate_bounty_sum(qs).filter(bounty_sum__gt=0)
+            qs = self._annotate_score(qs)
             keys = self._get_ordering_keys(
                 [
                     "bounty_sum",
-                    "score",
+                    "quality_score",
                     "created_date",
                 ]
             )

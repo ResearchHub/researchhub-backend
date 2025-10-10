@@ -1,5 +1,10 @@
-from django.db.models import Q
+from django.db.models import Case, Count, DecimalField, F, FloatField, Q, Sum, When
+from django.db.models.functions import Cast, Coalesce, Ln
 from django_filters import rest_framework as filters
+
+from discussion.models import Vote
+from purchase.models import Purchase
+from user.related_models.user_verification_model import UserVerification
 
 FIELD_LOOKUPS = (
     "exact",
@@ -134,3 +139,51 @@ class OrFilter(filters.CharFilter):
                 f = f | Q(**or_expr)
 
         return qs.filter(f)
+
+
+class QualityScoringMixin:
+    def _annotate_score(self, qs):
+        is_verified = Q(
+            created_by__userverification__status=(UserVerification.Status.APPROVED)
+        )
+        is_quality_vote = Q(
+            votes__created_by__is_suspended=False,
+            votes__created_by__probable_spammer=False,
+        )
+
+        upvotes = Count(
+            "votes", filter=is_quality_vote & Q(votes__vote_type=Vote.UPVOTE)
+        )
+        downvotes = Count(
+            "votes", filter=is_quality_vote & Q(votes__vote_type=Vote.DOWNVOTE)
+        )
+        tips = Coalesce(
+            Sum(
+                Cast(
+                    "purchases__amount",
+                    DecimalField(max_digits=19, decimal_places=10),
+                ),
+                filter=Q(purchases__paid_status=Purchase.PAID),
+            ),
+            0,
+            output_field=DecimalField(max_digits=19, decimal_places=10),
+        )
+        verified_boost = Case(
+            When(is_verified, then=2.0), default=1.0, output_field=FloatField()
+        )
+        removed_penalty = Case(When(is_removed=True, then=-10000), default=0)
+
+        return qs.annotate(
+            upvotes=upvotes,
+            downvotes=downvotes,
+            tips=tips,
+            verified_boost=verified_boost,
+            removed_penalty=removed_penalty,
+            quality_score=Cast(
+                (F("upvotes") - F("downvotes")) * F("verified_boost")
+                + F("tips") / 10.0
+                + Ln(F("created_by__reputation") + 1)
+                + F("removed_penalty"),
+                FloatField(),
+            ),
+        )
