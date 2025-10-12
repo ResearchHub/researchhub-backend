@@ -86,6 +86,10 @@ class PersonalizeCSVBuilder:
                 from analytics.services.personalize_mappers import peer_review_mapper
 
                 mappers.append(peer_review_mapper.PeerReviewMapper())
+            elif mapper_class_name == "CommentMapper":
+                from analytics.services.personalize_mappers import comment_mapper
+
+                mappers.append(comment_mapper.CommentMapper())
             # Future mappers can be added here with elif statements
             # elif mapper_class_name == "PaperViewMapper":
             #     from analytics.services.personalize_mappers.paper_view_mapper import (
