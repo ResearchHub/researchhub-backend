@@ -1,34 +1,34 @@
 """
-Mapper for Bounty creation events.
+Mapper for Bounty contribution events.
 
-Handles mapping of Bounty records to Personalize interactions.
+Handles mapping of child Bounty records (contributions to existing bounties)
+to Personalize interactions.
 """
 
 from typing import Dict, List
 
-from analytics.services.personalize_constants import BOUNTY_CREATED, EVENT_WEIGHTS
+from analytics.services.personalize_constants import BOUNTY_CONTRIBUTED, EVENT_WEIGHTS
 from analytics.services.personalize_mappers.base import BaseEventMapper
 from analytics.services.personalize_utils import datetime_to_epoch_seconds
 from reputation.related_models.bounty import Bounty
 
 
-class BountyMapper(BaseEventMapper):
-    """Mapper for bounty creation events."""
+class BountyContributionMapper(BaseEventMapper):
+    """Mapper for bounty contribution events (child bounties)."""
 
     @property
     def event_type_name(self) -> str:
-        return "bounty"
+        return "bounty_contribution"
 
     def get_queryset(self, start_date=None, end_date=None):
         """
-        Get bounties queryset with optional date filters.
+        Get bounty contributions (child bounties) with optional date filters.
 
-        Only includes MAIN bounties (parent__isnull=True).
-        Excludes contributions to existing bounties.
+        Only includes bounties with parent__isnull=False.
         """
         queryset = Bounty.objects.select_related(
-            "created_by", "unified_document"
-        ).filter(parent__isnull=True)
+            "created_by", "unified_document", "parent"
+        ).filter(parent__isnull=False)
 
         if start_date:
             queryset = queryset.filter(created_date__gte=start_date)
@@ -39,10 +39,10 @@ class BountyMapper(BaseEventMapper):
 
     def map_to_interactions(self, bounty: Bounty) -> List[Dict]:
         """
-        Map a Bounty to ONE BOUNTY_CREATED interaction.
+        Map a Bounty contribution to ONE BOUNTY_CONTRIBUTED interaction.
 
         Args:
-            bounty: Bounty instance
+            bounty: Bounty instance (child bounty)
 
         Returns:
             List containing single interaction dictionary
@@ -60,12 +60,12 @@ class BountyMapper(BaseEventMapper):
         user_id = str(bounty.created_by.id)
         item_id = str(bounty.unified_document.id)
 
-        # Create BOUNTY_CREATED interaction
+        # Create BOUNTY_CONTRIBUTED interaction
         interaction = {
             "USER_ID": user_id,
             "ITEM_ID": item_id,
-            "EVENT_TYPE": BOUNTY_CREATED,
-            "EVENT_VALUE": EVENT_WEIGHTS[BOUNTY_CREATED],
+            "EVENT_TYPE": BOUNTY_CONTRIBUTED,
+            "EVENT_VALUE": EVENT_WEIGHTS[BOUNTY_CONTRIBUTED],
             "DEVICE": None,
             "TIMESTAMP": datetime_to_epoch_seconds(bounty.created_date),
             "IMPRESSION": None,

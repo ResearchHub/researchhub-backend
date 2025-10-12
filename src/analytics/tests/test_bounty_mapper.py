@@ -38,9 +38,9 @@ class TestBountyMapper(TestCase):
         mapper = BountyMapper()
         self.assertEqual(mapper.event_type_name, "bounty")
 
-    def test_get_queryset_returns_all_bounties(self):
-        """Test that queryset includes all bounties."""
-        # Create multiple bounties
+    def test_get_queryset_returns_main_bounties_only(self):
+        """Test that queryset includes only main bounties (no parent)."""
+        # Create multiple main bounties
         bounty1 = Bounty.objects.create(
             created_by=self.user,
             escrow=self.escrow,
@@ -63,11 +63,38 @@ class TestBountyMapper(TestCase):
         mapper = BountyMapper()
         queryset = mapper.get_queryset()
 
-        # Should return all bounties
+        # Should return all main bounties
         self.assertEqual(queryset.count(), 2)
         bounty_ids = list(queryset.values_list("id", flat=True))
         self.assertIn(bounty1.id, bounty_ids)
         self.assertIn(bounty2.id, bounty_ids)
+
+    def test_get_queryset_excludes_child_bounties(self):
+        """Test that child bounties (contributions) are excluded."""
+        # Create main bounty
+        main_bounty = Bounty.objects.create(
+            created_by=self.user,
+            escrow=self.escrow,
+            unified_document=self.unified_doc,
+            amount=100,
+        )
+
+        # Create child bounty (contribution)
+        user2 = User.objects.create(username="contributor", email="contrib@example.com")
+        Bounty.objects.create(
+            created_by=user2,
+            escrow=self.escrow,
+            unified_document=self.unified_doc,
+            amount=50,
+            parent=main_bounty,
+        )
+
+        mapper = BountyMapper()
+        queryset = mapper.get_queryset()
+
+        # Should only include main bounty, not child
+        self.assertEqual(queryset.count(), 1)
+        self.assertEqual(queryset.first().id, main_bounty.id)
 
     def test_get_queryset_with_date_filters(self):
         """Test queryset filtering by date range."""
