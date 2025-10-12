@@ -18,8 +18,10 @@ from django.utils import timezone
 
 from analytics.services.personalize_constants import INTERACTION_CSV_HEADERS
 from paper.models import Paper
+from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
+from purchase.related_models.purchase_model import Purchase
 from reputation.related_models.bounty import Bounty, BountySolution
 from reputation.related_models.escrow import Escrow
 from researchhub_document.related_models.constants.document_type import (
@@ -740,3 +742,83 @@ class TestExportPersonalizeCommand(TestCase):
             self.assertIn("Total records processed: 1", output)
             self.assertIn("Interactions exported: 1", output)
             self.assertIn("rfp_application:", output)
+
+    def test_export_with_proposal_funding_events(self):
+        """Test exporting PROPOSAL_FUNDED events."""
+        # Create proposal unified document
+        proposal_unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+
+        # Create proposal post
+        ResearchhubPost.objects.create(
+            created_by=self.user,
+            unified_document=proposal_unified_doc,
+            document_type=PREREGISTRATION,
+            title="Test Proposal",
+        )
+
+        # Create escrow
+        escrow = Escrow.objects.create(
+            created_by=self.user,
+            hold_type=Escrow.FUNDRAISE,
+            content_type=ContentType.objects.get_for_model(Fundraise),
+        )
+
+        # Create fundraise
+        fundraise = Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=proposal_unified_doc,
+            escrow=escrow,
+            goal_amount=10000,
+        )
+
+        # Create contributor
+        contributor = User.objects.create(
+            username="contributor", email="contributor@example.com"
+        )
+
+        # Create fundraise contribution purchase
+        Purchase.objects.create(
+            user=contributor,
+            content_type=ContentType.objects.get_for_model(Fundraise),
+            object_id=fundraise.id,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            purchase_method=Purchase.OFF_CHAIN,
+            amount="100",
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = os.path.join(tmpdir, "test_output.csv")
+            out = StringIO()
+
+            call_command(
+                "export_personalize_interactions",
+                output_path=output_path,
+                event_types=["proposal_funding"],
+                stdout=out,
+            )
+
+            # Read and validate CSV
+            with open(output_path, "r", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                rows = list(reader)
+
+            # Check headers
+            self.assertEqual(rows[0], INTERACTION_CSV_HEADERS)
+
+            # Check we have 1 PROPOSAL_FUNDED event
+            self.assertEqual(len(rows), 2)  # header + 1 interaction
+
+            # Validate funding row
+            funding_row = rows[1]
+            self.assertEqual(funding_row[0], str(contributor.id))  # USER_ID
+            self.assertEqual(funding_row[1], str(proposal_unified_doc.id))  # ITEM_ID
+            self.assertEqual(funding_row[2], "PROPOSAL_FUNDED")  # EVENT_TYPE
+            self.assertEqual(funding_row[3], "3.0")  # EVENT_VALUE
+
+            # Check output statistics
+            output = out.getvalue()
+            self.assertIn("Total records processed: 1", output)
+            self.assertIn("Interactions exported: 1", output)
+            self.assertIn("proposal_funding:", output)

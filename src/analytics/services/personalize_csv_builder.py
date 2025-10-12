@@ -76,6 +76,12 @@ class PersonalizeCSVBuilder:
                 from analytics.services.personalize_mappers import proposal_mapper
 
                 mappers.append(proposal_mapper.ProposalMapper())
+            elif mapper_class_name == "ProposalFundingMapper":
+                from analytics.services.personalize_mappers import (
+                    proposal_funding_mapper,
+                )
+
+                mappers.append(proposal_funding_mapper.ProposalFundingMapper())
             # Future mappers can be added here with elif statements
             # elif mapper_class_name == "PaperViewMapper":
             #     from analytics.services.personalize_mappers.paper_view_mapper import (
