@@ -66,6 +66,12 @@ class PersonalizeCSVBuilder:
                 from analytics.services.personalize_mappers import rfp_mapper
 
                 mappers.append(rfp_mapper.RfpMapper())
+            elif mapper_class_name == "RfpApplicationMapper":
+                from analytics.services.personalize_mappers import (
+                    rfp_application_mapper,
+                )
+
+                mappers.append(rfp_application_mapper.RfpApplicationMapper())
             elif mapper_class_name == "ProposalMapper":
                 from analytics.services.personalize_mappers import proposal_mapper
 

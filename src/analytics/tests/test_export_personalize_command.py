@@ -18,6 +18,8 @@ from django.utils import timezone
 
 from analytics.services.personalize_constants import INTERACTION_CSV_HEADERS
 from paper.models import Paper
+from purchase.related_models.grant_application_model import GrantApplication
+from purchase.related_models.grant_model import Grant
 from reputation.related_models.bounty import Bounty, BountySolution
 from reputation.related_models.escrow import Escrow
 from researchhub_document.related_models.constants.document_type import (
@@ -655,3 +657,86 @@ class TestExportPersonalizeCommand(TestCase):
             self.assertIn("Interactions exported: 2", output)
             self.assertIn("bounty:", output)
             self.assertIn("bounty_contribution:", output)
+
+    def test_export_with_rfp_application_events(self):
+        """Test exporting RFP_APPLIED events."""
+        # Create grant unified document
+        grant_unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=GRANT
+        )
+
+        # Create grant post
+        ResearchhubPost.objects.create(
+            created_by=self.user,
+            unified_document=grant_unified_doc,
+            document_type=GRANT,
+            title="Test Grant",
+        )
+
+        # Create grant
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_unified_doc,
+            amount=10000,
+            description="Test grant description",
+        )
+
+        # Create applicant
+        applicant = User.objects.create(
+            username="applicant", email="applicant@example.com"
+        )
+
+        # Create preregistration unified document
+        prereg_unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+
+        # Create preregistration post
+        prereg_post = ResearchhubPost.objects.create(
+            created_by=applicant,
+            unified_document=prereg_unified_doc,
+            document_type=PREREGISTRATION,
+            title="Test Preregistration",
+        )
+
+        # Create grant application
+        GrantApplication.objects.create(
+            grant=grant,
+            preregistration_post=prereg_post,
+            applicant=applicant,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = os.path.join(tmpdir, "test_output.csv")
+            out = StringIO()
+
+            call_command(
+                "export_personalize_interactions",
+                output_path=output_path,
+                event_types=["rfp_application"],
+                stdout=out,
+            )
+
+            # Read and validate CSV
+            with open(output_path, "r", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                rows = list(reader)
+
+            # Check headers
+            self.assertEqual(rows[0], INTERACTION_CSV_HEADERS)
+
+            # Check we have 1 RFP_APPLIED event
+            self.assertEqual(len(rows), 2)  # header + 1 interaction
+
+            # Validate application row
+            app_row = rows[1]
+            self.assertEqual(app_row[0], str(applicant.id))  # USER_ID
+            self.assertEqual(app_row[1], str(grant_unified_doc.id))  # ITEM_ID
+            self.assertEqual(app_row[2], "RFP_APPLIED")  # EVENT_TYPE
+            self.assertEqual(app_row[3], "3.0")  # EVENT_VALUE
+
+            # Check output statistics
+            output = out.getvalue()
+            self.assertIn("Total records processed: 1", output)
+            self.assertIn("Interactions exported: 1", output)
+            self.assertIn("rfp_application:", output)
