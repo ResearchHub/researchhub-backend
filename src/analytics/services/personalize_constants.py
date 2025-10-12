@@ -11,6 +11,7 @@ BOUNTY_SOLUTION_AWARDED = "BOUNTY_SOLUTION_AWARDED"
 BOUNTY_CREATED = "BOUNTY_CREATED"
 BOUNTY_CONTRIBUTED = "BOUNTY_CONTRIBUTED"
 RFP_CREATED = "RFP_CREATED"
+RFP_APPLIED = "RFP_APPLIED"
 PROPOSAL_CREATED = "PROPOSAL_CREATED"
 
 # Event Weights (values for Personalize)
@@ -21,6 +22,7 @@ EVENT_WEIGHTS = {
     BOUNTY_CREATED: 3.0,
     BOUNTY_CONTRIBUTED: 2.0,
     RFP_CREATED: 3.0,
+    RFP_APPLIED: 3.0,
     PROPOSAL_CREATED: 3.0,
 }
 
@@ -46,6 +48,11 @@ EVENT_TYPE_CONFIGS = {
         "enabled": True,
         "mapper_class": "RfpMapper",
         "description": "Request for Proposal (Grant) creation events",
+    },
+    "rfp_application": {
+        "enabled": True,
+        "mapper_class": "RfpApplicationMapper",
+        "description": "Grant application (RFP application) events",
     },
     "proposal": {
         "enabled": True,
