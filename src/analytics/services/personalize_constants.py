@@ -14,6 +14,7 @@ RFP_CREATED = "RFP_CREATED"
 RFP_APPLIED = "RFP_APPLIED"
 PROPOSAL_CREATED = "PROPOSAL_CREATED"
 PROPOSAL_FUNDED = "PROPOSAL_FUNDED"
+PEER_REVIEW_CREATED = "PEER_REVIEW_CREATED"
 
 # Event Weights (values for Personalize)
 # These values represent the importance/weight of each event type
@@ -26,6 +27,7 @@ EVENT_WEIGHTS = {
     RFP_APPLIED: 3.0,
     PROPOSAL_CREATED: 3.0,
     PROPOSAL_FUNDED: 3.0,
+    PEER_REVIEW_CREATED: 2.5,
 }
 
 # Event Type Configurations
@@ -65,6 +67,11 @@ EVENT_TYPE_CONFIGS = {
         "enabled": True,
         "mapper_class": "ProposalFundingMapper",
         "description": "Proposal funding events (fundraise contributions)",
+    },
+    "peer_review": {
+        "enabled": True,
+        "mapper_class": "PeerReviewMapper",
+        "description": "Peer review creation events",
     },
     # Future event types can be added here:
     # "paper_view": {
