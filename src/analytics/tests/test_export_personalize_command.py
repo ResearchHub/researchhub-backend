@@ -556,3 +556,102 @@ class TestExportPersonalizeCommand(TestCase):
             self.assertIn("Total records processed: 1", output)
             self.assertIn("Interactions exported: 1", output)
             self.assertIn("bounty:", output)
+
+    def test_export_with_bounty_contribution_events(self):
+        """Test exporting BOUNTY_CONTRIBUTED events."""
+        # Create a contributor user
+        contributor = User.objects.create(
+            username="contributor", email="contributor@example.com"
+        )
+
+        # Create a child bounty (contribution)
+        Bounty.objects.create(
+            created_by=contributor,
+            escrow=self.bounty.escrow,
+            unified_document=self.unified_doc,
+            amount=50,
+            parent=self.bounty,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = os.path.join(tmpdir, "test_output.csv")
+            out = StringIO()
+
+            call_command(
+                "export_personalize_interactions",
+                output_path=output_path,
+                event_types=["bounty_contribution"],
+                stdout=out,
+            )
+
+            # Read and validate CSV
+            with open(output_path, "r", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                rows = list(reader)
+
+            # Check headers
+            self.assertEqual(rows[0], INTERACTION_CSV_HEADERS)
+
+            # Check we have 1 BOUNTY_CONTRIBUTED event
+            self.assertEqual(len(rows), 2)  # header + 1 interaction
+
+            # Validate contribution row
+            contribution_row = rows[1]
+            self.assertEqual(contribution_row[0], str(contributor.id))  # USER_ID
+            self.assertEqual(contribution_row[1], str(self.unified_doc.id))  # ITEM_ID
+            self.assertEqual(contribution_row[2], "BOUNTY_CONTRIBUTED")  # EVENT_TYPE
+            self.assertEqual(contribution_row[3], "2.0")  # EVENT_VALUE
+
+            # Check output statistics
+            output = out.getvalue()
+            self.assertIn("Total records processed: 1", output)
+            self.assertIn("Interactions exported: 1", output)
+            self.assertIn("bounty_contribution:", output)
+
+    def test_export_separates_main_bounties_from_contributions(self):
+        """Test that main bounties and contributions are tracked separately."""
+        # Create a contributor user
+        contributor = User.objects.create(
+            username="contributor", email="contributor@example.com"
+        )
+
+        # Main bounty already exists from setUp
+        # Create a child bounty (contribution)
+        Bounty.objects.create(
+            created_by=contributor,
+            escrow=self.bounty.escrow,
+            unified_document=self.unified_doc,
+            amount=50,
+            parent=self.bounty,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = os.path.join(tmpdir, "test_output.csv")
+            out = StringIO()
+
+            call_command(
+                "export_personalize_interactions",
+                output_path=output_path,
+                event_types=["bounty", "bounty_contribution"],
+                stdout=out,
+            )
+
+            # Read and validate CSV
+            with open(output_path, "r", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                rows = list(reader)
+
+            # Should have 2 interactions: 1 BOUNTY_CREATED + 1 BOUNTY_CONTRIBUTED
+            self.assertEqual(len(rows), 3)  # header + 2 interactions
+
+            # Extract event types
+            event_types = [row[2] for row in rows[1:]]
+            self.assertIn("BOUNTY_CREATED", event_types)
+            self.assertIn("BOUNTY_CONTRIBUTED", event_types)
+
+            # Check output statistics
+            output = out.getvalue()
+            self.assertIn("Total records processed: 2", output)
+            self.assertIn("Interactions exported: 2", output)
+            self.assertIn("bounty:", output)
+            self.assertIn("bounty_contribution:", output)
