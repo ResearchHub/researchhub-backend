@@ -518,3 +518,41 @@ class TestExportPersonalizeCommand(TestCase):
             self.assertIn("bounty_solution:", output)
             self.assertIn("rfp:", output)
             self.assertIn("proposal:", output)
+
+    def test_export_with_bounty_created_events(self):
+        """Test exporting BOUNTY_CREATED events."""
+        # The bounty already exists from setUp
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = os.path.join(tmpdir, "test_output.csv")
+            out = StringIO()
+
+            call_command(
+                "export_personalize_interactions",
+                output_path=output_path,
+                event_types=["bounty"],
+                stdout=out,
+            )
+
+            # Read and validate CSV
+            with open(output_path, "r", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                rows = list(reader)
+
+            # Check headers
+            self.assertEqual(rows[0], INTERACTION_CSV_HEADERS)
+
+            # Check we have 1 BOUNTY_CREATED event
+            self.assertEqual(len(rows), 2)  # header + 1 interaction
+
+            # Validate BOUNTY row
+            bounty_row = rows[1]
+            self.assertEqual(bounty_row[0], str(self.user.id))  # USER_ID
+            self.assertEqual(bounty_row[1], str(self.unified_doc.id))  # ITEM_ID
+            self.assertEqual(bounty_row[2], "BOUNTY_CREATED")  # EVENT_TYPE
+            self.assertEqual(bounty_row[3], "3.0")  # EVENT_VALUE
+
+            # Check output statistics
+            output = out.getvalue()
+            self.assertIn("Total records processed: 1", output)
+            self.assertIn("Interactions exported: 1", output)
+            self.assertIn("bounty:", output)
