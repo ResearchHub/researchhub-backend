@@ -16,6 +16,7 @@ PROPOSAL_CREATED = "PROPOSAL_CREATED"
 PROPOSAL_FUNDED = "PROPOSAL_FUNDED"
 PEER_REVIEW_CREATED = "PEER_REVIEW_CREATED"
 COMMENT_CREATED = "COMMENT_CREATED"
+ITEM_UPVOTED = "ITEM_UPVOTED"
 
 # Event Weights (values for Personalize)
 # These values represent the importance/weight of each event type
@@ -30,6 +31,7 @@ EVENT_WEIGHTS = {
     PROPOSAL_FUNDED: 3.0,
     PEER_REVIEW_CREATED: 2.5,
     COMMENT_CREATED: 1.5,
+    ITEM_UPVOTED: 1.0,
 }
 
 # Event Type Configurations
@@ -81,6 +83,11 @@ EVENT_TYPE_CONFIGS = {
         "description": (
             "Comment creation events (GENERIC_COMMENT only, excludes bounties)"
         ),
+    },
+    "upvote": {
+        "enabled": True,
+        "mapper_class": "UpvoteMapper",
+        "description": "Item upvote events (papers, posts, comments)",
     },
     # Future event types can be added here:
     # "paper_view": {

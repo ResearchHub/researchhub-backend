@@ -17,6 +17,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from analytics.services.personalize_constants import INTERACTION_CSV_HEADERS
+from discussion.models import Vote
 from paper.models import Paper
 from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.grant_application_model import GrantApplication
@@ -987,6 +988,210 @@ class TestExportPersonalizeCommand(TestCase):
 
             # Should only have 1 comment (the one WITHOUT bounty)
             self.assertEqual(len(rows), 2)  # header + 1 interaction
+
+            # Verify output
+            output = out.getvalue()
+            self.assertIn("Total records processed: 1", output)
+            self.assertIn("Interactions exported: 1", output)
+
+    def test_export_with_upvote_events(self):
+        """Test exporting ITEM_UPVOTED events."""
+        # Create upvote on paper
+        Vote.objects.create(
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=self.paper.id,
+            created_by=self.user,
+            vote_type=Vote.UPVOTE,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = os.path.join(tmpdir, "test_output.csv")
+            out = StringIO()
+
+            call_command(
+                "export_personalize_interactions",
+                output_path=output_path,
+                event_types=["upvote"],
+                stdout=out,
+            )
+
+            # Read and validate CSV
+            with open(output_path, "r", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                rows = list(reader)
+
+            # Check headers
+            self.assertEqual(rows[0], INTERACTION_CSV_HEADERS)
+
+            # Check we have 1 ITEM_UPVOTED event
+            self.assertEqual(len(rows), 2)  # header + 1 interaction
+
+            # Validate upvote row
+            upvote_row = rows[1]
+            self.assertEqual(upvote_row[0], str(self.user.id))  # USER_ID
+            self.assertEqual(upvote_row[1], str(self.unified_doc.id))  # ITEM_ID
+            self.assertEqual(upvote_row[2], "ITEM_UPVOTED")  # EVENT_TYPE
+            self.assertEqual(upvote_row[3], "1.0")  # EVENT_VALUE
+
+            # Check output statistics
+            output = out.getvalue()
+            self.assertIn("Total records processed: 1", output)
+            self.assertIn("Interactions exported: 1", output)
+            self.assertIn("upvote:", output)
+
+    def test_export_excludes_neutral_and_downvotes(self):
+        """Test that NEUTRAL and DOWNVOTE votes are NOT exported."""
+        # Create UPVOTE (should be included)
+        Vote.objects.create(
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=self.paper.id,
+            created_by=self.user,
+            vote_type=Vote.UPVOTE,
+        )
+
+        # Create NEUTRAL vote (should be excluded)
+        user2 = User.objects.create(username="user2", email="user2@example.com")
+        Vote.objects.create(
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=self.paper.id,
+            created_by=user2,
+            vote_type=Vote.NEUTRAL,
+        )
+
+        # Create DOWNVOTE (should be excluded)
+        user3 = User.objects.create(username="user3", email="user3@example.com")
+        Vote.objects.create(
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=self.paper.id,
+            created_by=user3,
+            vote_type=Vote.DOWNVOTE,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = os.path.join(tmpdir, "test_output.csv")
+            out = StringIO()
+
+            call_command(
+                "export_personalize_interactions",
+                output_path=output_path,
+                event_types=["upvote"],
+                stdout=out,
+            )
+
+            # Read and validate CSV
+            with open(output_path, "r", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                rows = list(reader)
+
+            # Should only have 1 upvote (NEUTRAL and DOWNVOTE excluded)
+            self.assertEqual(len(rows), 2)  # header + 1 interaction
+
+            # Verify output
+            output = out.getvalue()
+            self.assertIn("Total records processed: 1", output)
+            self.assertIn("Interactions exported: 1", output)
+
+    def test_export_comment_upvote_uses_correct_unified_doc(self):
+        """
+        Test that comment upvotes use the correct unified document.
+        CRITICAL: Comment upvotes should map to the document being commented on,
+        not a separate unified doc for the comment itself.
+        """
+        # Create comment thread for paper
+        thread = RhCommentThreadModel.objects.create(
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=self.paper.id,
+            thread_type=GENERIC_COMMENT,
+        )
+
+        # Create comment
+        comment = RhCommentModel.objects.create(
+            thread=thread,
+            created_by=self.user,
+            comment_type=GENERIC_COMMENT,
+            comment_content_json={"ops": [{"insert": "Test comment"}]},
+        )
+
+        # Create upvote on comment
+        Vote.objects.create(
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=comment.id,
+            created_by=self.user,
+            vote_type=Vote.UPVOTE,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = os.path.join(tmpdir, "test_output.csv")
+            out = StringIO()
+
+            call_command(
+                "export_personalize_interactions",
+                output_path=output_path,
+                event_types=["upvote"],
+                stdout=out,
+            )
+
+            # Read and validate CSV
+            with open(output_path, "r", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                rows = list(reader)
+
+            # Check we have 1 upvote event
+            self.assertEqual(len(rows), 2)  # header + 1 interaction
+
+            # Validate upvote row uses paper's unified doc
+            upvote_row = rows[1]
+            self.assertEqual(upvote_row[0], str(self.user.id))  # USER_ID
+            # CRITICAL: Should be paper's unified doc, not comment's
+            self.assertEqual(upvote_row[1], str(self.unified_doc.id))  # ITEM_ID
+            self.assertEqual(upvote_row[2], "ITEM_UPVOTED")  # EVENT_TYPE
+            self.assertEqual(upvote_row[3], "1.0")  # EVENT_VALUE
+
+    def test_export_excludes_self_votes(self):
+        """Test that self-votes are excluded from export."""
+        # User upvotes their own paper (should be excluded)
+        Vote.objects.create(
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=self.paper.id,
+            created_by=self.user,  # Same user who uploaded paper
+            vote_type=Vote.UPVOTE,
+        )
+
+        # Another user upvotes the paper (should be included)
+        other_user = User.objects.create(
+            username="otheruser", email="other@example.com"
+        )
+        Vote.objects.create(
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=self.paper.id,
+            created_by=other_user,  # Different user
+            vote_type=Vote.UPVOTE,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = os.path.join(tmpdir, "test_output.csv")
+            out = StringIO()
+
+            call_command(
+                "export_personalize_interactions",
+                output_path=output_path,
+                event_types=["upvote"],
+                stdout=out,
+            )
+
+            # Read and validate CSV
+            with open(output_path, "r", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                rows = list(reader)
+
+            # Should only have 1 vote (from other_user, self-vote excluded)
+            self.assertEqual(len(rows), 2)  # header + 1 interaction
+
+            # Validate it's the other user's vote
+            upvote_row = rows[1]
+            self.assertEqual(upvote_row[0], str(other_user.id))  # USER_ID
+            self.assertEqual(upvote_row[1], str(self.unified_doc.id))  # ITEM_ID
+            self.assertEqual(upvote_row[2], "ITEM_UPVOTED")  # EVENT_TYPE
 
             # Verify output
             output = out.getvalue()
