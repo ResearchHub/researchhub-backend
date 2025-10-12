@@ -52,6 +52,10 @@ class PersonalizeCSVBuilder:
                 )
 
                 mappers.append(bounty_solution_mapper.BountySolutionMapper())
+            elif mapper_class_name == "BountyMapper":
+                from analytics.services.personalize_mappers import bounty_mapper
+
+                mappers.append(bounty_mapper.BountyMapper())
             elif mapper_class_name == "RfpMapper":
                 from analytics.services.personalize_mappers import rfp_mapper
 

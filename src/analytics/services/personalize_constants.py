@@ -8,6 +8,7 @@ used for exporting interaction data to AWS Personalize.
 # Event Types
 BOUNTY_SOLUTION_SUBMITTED = "BOUNTY_SOLUTION_SUBMITTED"
 BOUNTY_SOLUTION_AWARDED = "BOUNTY_SOLUTION_AWARDED"
+BOUNTY_CREATED = "BOUNTY_CREATED"
 RFP_CREATED = "RFP_CREATED"
 PROPOSAL_CREATED = "PROPOSAL_CREATED"
 
@@ -16,6 +17,7 @@ PROPOSAL_CREATED = "PROPOSAL_CREATED"
 EVENT_WEIGHTS = {
     BOUNTY_SOLUTION_SUBMITTED: 2.0,
     BOUNTY_SOLUTION_AWARDED: 3.0,
+    BOUNTY_CREATED: 3.0,
     RFP_CREATED: 3.0,
     PROPOSAL_CREATED: 3.0,
 }
@@ -27,6 +29,11 @@ EVENT_TYPE_CONFIGS = {
         "enabled": True,
         "mapper_class": "BountySolutionMapper",
         "description": "Bounty solution submissions and awards",
+    },
+    "bounty": {
+        "enabled": True,
+        "mapper_class": "BountyMapper",
+        "description": "Bounty creation events",
     },
     "rfp": {
         "enabled": True,
