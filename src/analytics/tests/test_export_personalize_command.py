@@ -24,6 +24,11 @@ from purchase.related_models.grant_model import Grant
 from purchase.related_models.purchase_model import Purchase
 from reputation.related_models.bounty import Bounty, BountySolution
 from reputation.related_models.escrow import Escrow
+from researchhub_comment.constants.rh_comment_thread_types import GENERIC_COMMENT
+from researchhub_comment.related_models.rh_comment_model import RhCommentModel
+from researchhub_comment.related_models.rh_comment_thread_model import (
+    RhCommentThreadModel,
+)
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
@@ -872,3 +877,118 @@ class TestExportPersonalizeCommand(TestCase):
             self.assertIn("Total records processed: 1", output)
             self.assertIn("Interactions exported: 1", output)
             self.assertIn("peer_review:", output)
+
+    def test_export_with_comment_events(self):
+        """Test exporting COMMENT_CREATED events."""
+        # Create comment thread
+        thread = RhCommentThreadModel.objects.create(
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=self.paper.id,
+            thread_type=GENERIC_COMMENT,
+        )
+
+        # Create GENERIC_COMMENT (without bounty)
+        RhCommentModel.objects.create(
+            thread=thread,
+            created_by=self.user,
+            comment_type=GENERIC_COMMENT,
+            comment_content_json={"ops": [{"insert": "Test comment"}]},
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = os.path.join(tmpdir, "test_output.csv")
+            out = StringIO()
+
+            call_command(
+                "export_personalize_interactions",
+                output_path=output_path,
+                event_types=["comment"],
+                stdout=out,
+            )
+
+            # Read and validate CSV
+            with open(output_path, "r", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                rows = list(reader)
+
+            # Check headers
+            self.assertEqual(rows[0], INTERACTION_CSV_HEADERS)
+
+            # Check we have 1 COMMENT_CREATED event
+            self.assertEqual(len(rows), 2)  # header + 1 interaction
+
+            # Validate comment row
+            comment_row = rows[1]
+            self.assertEqual(comment_row[0], str(self.user.id))  # USER_ID
+            self.assertEqual(comment_row[1], str(self.unified_doc.id))  # ITEM_ID
+            self.assertEqual(comment_row[2], "COMMENT_CREATED")  # EVENT_TYPE
+            self.assertEqual(comment_row[3], "1.5")  # EVENT_VALUE
+
+            # Check output statistics
+            output = out.getvalue()
+            self.assertIn("Total records processed: 1", output)
+            self.assertIn("Interactions exported: 1", output)
+            self.assertIn("comment:", output)
+
+    def test_export_excludes_bounty_comments(self):
+        """Test that comments with bounties are NOT exported."""
+        # Create comment thread
+        thread = RhCommentThreadModel.objects.create(
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=self.paper.id,
+            thread_type=GENERIC_COMMENT,
+        )
+
+        # Create comment with bounty
+        comment_with_bounty = RhCommentModel.objects.create(
+            thread=thread,
+            created_by=self.user,
+            comment_type=GENERIC_COMMENT,
+            comment_content_json={"ops": [{"insert": "Comment with bounty"}]},
+        )
+
+        # Attach bounty to comment
+        escrow = Escrow.objects.create(
+            created_by=self.user,
+            hold_type=Escrow.BOUNTY,
+        )
+        Bounty.objects.create(
+            created_by=self.user,
+            escrow=escrow,
+            unified_document=self.unified_doc,
+            item_content_type=ContentType.objects.get_for_model(RhCommentModel),
+            item_object_id=comment_with_bounty.id,
+            amount=100,
+        )
+
+        # Create regular comment without bounty
+        RhCommentModel.objects.create(
+            thread=thread,
+            created_by=self.user,
+            comment_type=GENERIC_COMMENT,
+            comment_content_json={"ops": [{"insert": "Regular comment"}]},
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = os.path.join(tmpdir, "test_output.csv")
+            out = StringIO()
+
+            call_command(
+                "export_personalize_interactions",
+                output_path=output_path,
+                event_types=["comment"],
+                stdout=out,
+            )
+
+            # Read and validate CSV
+            with open(output_path, "r", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                rows = list(reader)
+
+            # Should only have 1 comment (the one WITHOUT bounty)
+            self.assertEqual(len(rows), 2)  # header + 1 interaction
+
+            # Verify output
+            output = out.getvalue()
+            self.assertIn("Total records processed: 1", output)
+            self.assertIn("Interactions exported: 1", output)
