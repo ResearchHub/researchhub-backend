@@ -32,6 +32,7 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from review.models.review_model import Review
 from user.models import User
 
 
@@ -822,3 +823,52 @@ class TestExportPersonalizeCommand(TestCase):
             self.assertIn("Total records processed: 1", output)
             self.assertIn("Interactions exported: 1", output)
             self.assertIn("proposal_funding:", output)
+
+    def test_export_with_peer_review_events(self):
+        """Test exporting PEER_REVIEW_CREATED events."""
+        # Create review unified document
+        review_unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER"
+        )
+
+        # Create peer review
+        Review.objects.create(
+            created_by=self.user,
+            unified_document=review_unified_doc,
+            score=8.5,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = os.path.join(tmpdir, "test_output.csv")
+            out = StringIO()
+
+            call_command(
+                "export_personalize_interactions",
+                output_path=output_path,
+                event_types=["peer_review"],
+                stdout=out,
+            )
+
+            # Read and validate CSV
+            with open(output_path, "r", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                rows = list(reader)
+
+            # Check headers
+            self.assertEqual(rows[0], INTERACTION_CSV_HEADERS)
+
+            # Check we have 1 PEER_REVIEW_CREATED event
+            self.assertEqual(len(rows), 2)  # header + 1 interaction
+
+            # Validate review row
+            review_row = rows[1]
+            self.assertEqual(review_row[0], str(self.user.id))  # USER_ID
+            self.assertEqual(review_row[1], str(review_unified_doc.id))  # ITEM_ID
+            self.assertEqual(review_row[2], "PEER_REVIEW_CREATED")  # EVENT_TYPE
+            self.assertEqual(review_row[3], "2.5")  # EVENT_VALUE
+
+            # Check output statistics
+            output = out.getvalue()
+            self.assertIn("Total records processed: 1", output)
+            self.assertIn("Interactions exported: 1", output)
+            self.assertIn("peer_review:", output)
