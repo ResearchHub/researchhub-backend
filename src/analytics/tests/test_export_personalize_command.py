@@ -1197,3 +1197,100 @@ class TestExportPersonalizeCommand(TestCase):
             output = out.getvalue()
             self.assertIn("Total records processed: 1", output)
             self.assertIn("Interactions exported: 1", output)
+
+    def test_export_with_preprint_events(self):
+        """Test exporting PREPRINT_SUBMITTED events."""
+        # Create user-submitted preprint
+        Paper.objects.create(
+            title="Test Preprint",
+            unified_document=self.unified_doc,
+            uploaded_by=self.user,
+            retrieved_from_external_source=False,
+            work_type="preprint",
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = os.path.join(tmpdir, "test_output.csv")
+            out = StringIO()
+
+            call_command(
+                "export_personalize_interactions",
+                output_path=output_path,
+                event_types=["preprint"],
+                stdout=out,
+            )
+
+            # Read and validate CSV
+            with open(output_path, "r", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                rows = list(reader)
+
+            # Check headers
+            self.assertEqual(rows[0], INTERACTION_CSV_HEADERS)
+
+            # Check we have 1 PREPRINT_SUBMITTED event
+            self.assertEqual(len(rows), 2)  # header + 1 interaction
+
+            # Validate preprint row
+            preprint_row = rows[1]
+            self.assertEqual(preprint_row[0], str(self.user.id))  # USER_ID
+            self.assertEqual(preprint_row[1], str(self.unified_doc.id))  # ITEM_ID
+            self.assertEqual(preprint_row[2], "PREPRINT_SUBMITTED")  # EVENT_TYPE
+            self.assertEqual(preprint_row[3], "2.0")  # EVENT_VALUE
+
+            # Check output statistics
+            output = out.getvalue()
+            self.assertIn("Total records processed: 1", output)
+            self.assertIn("Interactions exported: 1", output)
+            self.assertIn("preprint:", output)
+
+    def test_export_excludes_external_source_papers(self):
+        """Test that papers from external sources are NOT exported."""
+        # Create user-submitted preprint (should be included)
+        Paper.objects.create(
+            title="User Preprint",
+            unified_document=self.unified_doc,
+            uploaded_by=self.user,
+            retrieved_from_external_source=False,
+            work_type="preprint",
+        )
+
+        # Create external source paper (should be excluded)
+        unified_doc2 = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
+        Paper.objects.create(
+            title="External Paper",
+            unified_document=unified_doc2,
+            uploaded_by=self.user,
+            retrieved_from_external_source=True,  # External source
+            work_type="preprint",
+            external_source="arXiv",
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = os.path.join(tmpdir, "test_output.csv")
+            out = StringIO()
+
+            call_command(
+                "export_personalize_interactions",
+                output_path=output_path,
+                event_types=["preprint"],
+                stdout=out,
+            )
+
+            # Read and validate CSV
+            with open(output_path, "r", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                rows = list(reader)
+
+            # Should only have 1 preprint (external source excluded)
+            self.assertEqual(len(rows), 2)  # header + 1 interaction
+
+            # Verify it's the user-submitted paper
+            preprint_row = rows[1]
+            self.assertEqual(preprint_row[0], str(self.user.id))  # USER_ID
+            self.assertEqual(preprint_row[1], str(self.unified_doc.id))  # ITEM_ID
+
+            # Verify output
+            output = out.getvalue()
+            self.assertIn("Total records processed: 1", output)
+            self.assertIn("Interactions exported: 1", output)

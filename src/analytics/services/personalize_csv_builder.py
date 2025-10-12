@@ -94,6 +94,10 @@ class PersonalizeCSVBuilder:
                 from analytics.services.personalize_mappers import upvote_mapper
 
                 mappers.append(upvote_mapper.UpvoteMapper())
+            elif mapper_class_name == "PreprintMapper":
+                from analytics.services.personalize_mappers import preprint_mapper
+
+                mappers.append(preprint_mapper.PreprintMapper())
             # Future mappers can be added here with elif statements
             # elif mapper_class_name == "PaperViewMapper":
             #     from analytics.services.personalize_mappers.paper_view_mapper import (

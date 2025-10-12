@@ -17,6 +17,7 @@ PROPOSAL_FUNDED = "PROPOSAL_FUNDED"
 PEER_REVIEW_CREATED = "PEER_REVIEW_CREATED"
 COMMENT_CREATED = "COMMENT_CREATED"
 ITEM_UPVOTED = "ITEM_UPVOTED"
+PREPRINT_SUBMITTED = "PREPRINT_SUBMITTED"
 
 # Event Weights (values for Personalize)
 # These values represent the importance/weight of each event type
@@ -32,6 +33,7 @@ EVENT_WEIGHTS = {
     PEER_REVIEW_CREATED: 2.5,
     COMMENT_CREATED: 1.5,
     ITEM_UPVOTED: 1.0,
+    PREPRINT_SUBMITTED: 2.0,
 }
 
 # Event Type Configurations
@@ -88,6 +90,11 @@ EVENT_TYPE_CONFIGS = {
         "enabled": True,
         "mapper_class": "UpvoteMapper",
         "description": "Item upvote events (papers, posts, comments)",
+    },
+    "preprint": {
+        "enabled": True,
+        "mapper_class": "PreprintMapper",
+        "description": "Preprint submission events (user-uploaded papers)",
     },
     # Future event types can be added here:
     # "paper_view": {
