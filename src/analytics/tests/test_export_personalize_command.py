@@ -20,6 +20,8 @@ from analytics.services.personalize_constants import INTERACTION_CSV_HEADERS
 from paper.models import Paper
 from reputation.related_models.bounty import Bounty, BountySolution
 from reputation.related_models.escrow import Escrow
+from researchhub_document.related_models.constants.document_type import GRANT
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -294,3 +296,106 @@ class TestExportPersonalizeCommand(TestCase):
             output = out.getvalue()
             self.assertIn("Solutions skipped (no unified doc): 1", output)
             self.assertIn("Interactions exported: 0", output)
+
+    def test_export_with_rfp_events(self):
+        """Test exporting RFP (Grant) creation events."""
+        # Create a grant unified document
+        grant_unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=GRANT
+        )
+
+        # Create a grant post
+        ResearchhubPost.objects.create(
+            title="Test Grant",
+            document_type=GRANT,
+            unified_document=grant_unified_doc,
+            created_by=self.user,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = os.path.join(tmpdir, "test_output.csv")
+            out = StringIO()
+
+            call_command(
+                "export_personalize_interactions",
+                output_path=output_path,
+                event_types=["rfp"],
+                stdout=out,
+            )
+
+            # Read and validate CSV
+            with open(output_path, "r", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                rows = list(reader)
+
+            # Check headers
+            self.assertEqual(rows[0], INTERACTION_CSV_HEADERS)
+
+            # Check we have 1 RFP_CREATED event
+            self.assertEqual(len(rows), 2)  # header + 1 interaction
+
+            # Validate RFP row
+            rfp_row = rows[1]
+            self.assertEqual(rfp_row[0], str(self.user.id))  # USER_ID
+            self.assertEqual(rfp_row[1], str(grant_unified_doc.id))  # ITEM_ID
+            self.assertEqual(rfp_row[2], "RFP_CREATED")  # EVENT_TYPE
+            self.assertEqual(rfp_row[3], "3.0")  # EVENT_VALUE
+
+            # Check output statistics
+            output = out.getvalue()
+            self.assertIn("Total records processed: 1", output)
+            self.assertIn("Interactions exported: 1", output)
+            self.assertIn("rfp:", output)
+
+    def test_export_with_multiple_event_types(self):
+        """Test exporting both bounty solutions and RFPs together."""
+        # Create bounty solution
+        BountySolution.objects.create(
+            bounty=self.bounty,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=self.paper.id,
+            status=BountySolution.Status.AWARDED,
+        )
+
+        # Create grant
+        grant_unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=GRANT
+        )
+        ResearchhubPost.objects.create(
+            title="Test Grant",
+            document_type=GRANT,
+            unified_document=grant_unified_doc,
+            created_by=self.user,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = os.path.join(tmpdir, "test_output.csv")
+            out = StringIO()
+
+            call_command(
+                "export_personalize_interactions",
+                output_path=output_path,
+                event_types=["bounty_solution", "rfp"],
+                stdout=out,
+            )
+
+            # Read and validate CSV
+            with open(output_path, "r", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                rows = list(reader)
+
+            # Should have 2 interactions (1 AWARDED + 1 RFP_CREATED)
+            self.assertEqual(len(rows), 3)  # header + 2 interactions
+
+            # Check event types present
+            event_types = [row[2] for row in rows[1:]]
+            self.assertIn("BOUNTY_SOLUTION_AWARDED", event_types)
+            self.assertIn("RFP_CREATED", event_types)
+
+            # Check output statistics
+            output = out.getvalue()
+            self.assertIn("Total records processed: 2", output)
+            self.assertIn("Interactions exported: 2", output)
+            self.assertIn("bounty_solution:", output)
+            self.assertIn("rfp:", output)
