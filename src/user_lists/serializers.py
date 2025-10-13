@@ -1,5 +1,8 @@
 from rest_framework import serializers
 
+from researchhub_document.serializers.researchhub_unified_document_serializer import (
+    ResearchhubUnifiedDocumentSerializer,
+)
 from user_lists.models import List, ListItem
 
 
@@ -13,6 +16,24 @@ class ListItemSerializer(serializers.ModelSerializer):
         read_only_fields = ("id", "created_date", "document_type")
         extra_kwargs = {"parent_list": {"write_only": True}}
         fields = ("unified_document",) + read_only_fields + tuple(extra_kwargs.keys())
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+
+        # Replace the unified_document ID with the full nested object
+        # (have to use this approach instead of nested serializer so
+        #  we can still write a unified document ID on create/update)
+        if instance.unified_document:
+            unified_doc_data = ResearchhubUnifiedDocumentSerializer(
+                instance.unified_document, context=self.context
+            ).data
+
+            # Add the ID field manually since it's not included in the serializer
+            unified_doc_data["id"] = instance.unified_document.id
+
+            data["unified_document"] = unified_doc_data
+
+        return data
 
     def validate_unified_document(self, unified_document):
         supported_types = ["PAPER", "GRANT", "PREREGISTRATION"]
@@ -55,8 +76,8 @@ class ListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = List
-        read_only_fields = ("id", "created_date", "updated_date")
-        fields = ("name", "items") + read_only_fields
+        read_only_fields = ("id", "created_date", "updated_date", "items")
+        fields = ("name",) + read_only_fields
 
     def validate(self, attrs):
         if (
