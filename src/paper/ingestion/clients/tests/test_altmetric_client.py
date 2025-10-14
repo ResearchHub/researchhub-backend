@@ -225,9 +225,9 @@ class TestAltmetricClient(TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result["arxiv_id"], "2301.12345v1")
 
-        # Verify the URL includes the version
+        # Verify the URL does not include the version suffix
         mock_session_instance.get.assert_called_once_with(
-            "https://api.altmetric.com/v1/arxiv/2301.12345v1",
+            "https://api.altmetric.com/v1/arxiv/2301.12345",
             headers=self.client.headers,
             timeout=self.client.timeout,
         )

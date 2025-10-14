@@ -83,18 +83,26 @@ class AltmetricClient:
             )
             return None
 
-    def fetch_by_arxiv_id(self, arxiv_id: str) -> Optional[Dict]:
+    def fetch_by_arxiv_id(
+        self, arxiv_id: str, strip_version: bool = True
+    ) -> Optional[Dict]:
         """
         Fetch Altmetric data for a given arXiv ID.
 
         Args:
             arxiv_id: The arXiv ID of the paper to fetch data for
+            strip_version: Whether to strip version suffix (e.g., v1) from arXiv ID
         Returns:
             Dict containing Altmetric data if found, None otherwise
         """
         if not arxiv_id:
             logger.debug("No arXiv ID provided to fetch Altmetric data")
             return None
+
+        # Altmetric does not recognize versioned arXiv IDs,
+        # so strip version if present (default behavior):
+        if strip_version:
+            arxiv_id = arxiv_id.rsplit("v", 1)[0]
 
         return self._fetch_by_id(arxiv_id, id_type=IdType.ARXIV)
 
