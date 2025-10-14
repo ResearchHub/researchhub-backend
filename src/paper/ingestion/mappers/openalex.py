@@ -403,11 +403,16 @@ class OpenAlexMapper(BaseMapper):
 
                 seen_ror_ids.add(ror_id)
 
+                # Extract OpenAlex ID
+                openalex_id = self._extract_openalex_id(institution_info.get("id", ""))
+
                 # Create Institution instance
                 institution = Institution(
                     display_name=institution_info.get("display_name", ""),
                     ror_id=ror_id,
                     country_code=institution_info.get("country_code"),
+                    openalex_id=openalex_id if openalex_id else "",
+                    type=institution_info.get("type", ""),
                 )
 
                 institutions.append(institution)

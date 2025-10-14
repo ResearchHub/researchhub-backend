@@ -266,45 +266,32 @@ class PaperOpenAlexEnrichmentService:
                 continue
 
             try:
-                # Try to find existing institution by ROR ID
-                existing_institution = Institution.objects.filter(
-                    ror_id=institution_instance.ror_id
-                ).first()
+                # Prepare fields to update/create
+                defaults = {}
 
-                if existing_institution:
-                    # Update existing institution with new data
-                    updated = False
-                    if (
-                        institution_instance.display_name
-                        and institution_instance.display_name
-                        != existing_institution.display_name
-                    ):
-                        existing_institution.display_name = (
-                            institution_instance.display_name
-                        )
-                        updated = True
+                if institution_instance.display_name:
+                    defaults["display_name"] = institution_instance.display_name
 
-                    if (
-                        institution_instance.country_code
-                        and institution_instance.country_code
-                        != existing_institution.country_code
-                    ):
-                        existing_institution.country_code = (
-                            institution_instance.country_code
-                        )
-                        updated = True
+                if institution_instance.country_code:
+                    defaults["country_code"] = institution_instance.country_code
 
-                    if updated:
-                        existing_institution.save()
-                        institutions_updated += 1
-                else:
-                    # Create new institution - need to set required fields
-                    # openalex_id and type are required but not in mapper
-                    # For now, skip creation if we don't have full data
-                    logger.info(
-                        f"Skipping institution creation for {institution_instance.ror_id} "
-                        f"- requires full OpenAlex data fetch"
+                if institution_instance.openalex_id:
+                    defaults["openalex_id"] = institution_instance.openalex_id
+
+                if institution_instance.type:
+                    defaults["type"] = institution_instance.type
+
+                # Use update_or_create to handle both creation and updates
+                # This will create if ror_id doesn't exist, or update if it does
+                if defaults:
+                    _, created = Institution.objects.update_or_create(
+                        ror_id=institution_instance.ror_id, defaults=defaults
                     )
+
+                    if created:
+                        institutions_created += 1
+                    else:
+                        institutions_updated += 1
 
             except Exception as e:
                 logger.error(
