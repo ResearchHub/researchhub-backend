@@ -44,6 +44,15 @@ class UserVerification(models.Model):
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        indexes = [
+            # Index for verified user boost in quality score
+            models.Index(
+                fields=["status"],
+                name="userverification_status_idx",
+            ),
+        ]
+
     @property
     def is_verified(self) -> bool:
         """

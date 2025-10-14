@@ -118,6 +118,11 @@ class User(AbstractUser):
                 name="user_active_spam_idx",
                 condition=Q(is_active=True, is_suspended=False, probable_spammer=False),
             ),
+            # Index for quality score vote filtering
+            models.Index(
+                fields=["is_suspended", "probable_spammer"],
+                name="user_quality_filter_idx",
+            ),
         ]
 
     def save(self, *args, **kwargs):

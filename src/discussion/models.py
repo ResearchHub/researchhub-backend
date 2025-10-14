@@ -1,5 +1,6 @@
 from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
+from django.db import models
 from django.db.models import (
     CASCADE,
     CharField,
@@ -46,6 +47,12 @@ class Vote(DefaultModel):
             UniqueConstraint(
                 fields=["content_type", "object_id", "created_by"], name="unique_vote"
             )
+        ]
+        indexes = [
+            models.Index(
+                fields=["content_type", "object_id", "vote_type"],
+                name="vote_content_type_idx",
+            ),
         ]
 
     def __str__(self):

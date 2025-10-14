@@ -64,6 +64,11 @@ class Purchase(PaidStatusModelMixin):
                 fields=["user", "paid_status", "purchase_type"],
                 name="purchase_usr_status_type_idx",
             ),
+            # Index for generic foreign key lookups (used in quality score)
+            models.Index(
+                fields=["content_type", "object_id", "paid_status"],
+                name="purchase_content_paid_idx",
+            ),
         ]
 
     def hash(self):
