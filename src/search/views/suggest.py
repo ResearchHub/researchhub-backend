@@ -267,19 +267,23 @@ class SuggestView(APIView):
                         results.append(result)
 
             # 2. Get OpenAlex results for the DOI
-            openalex = OpenAlex()
-            openalex_response = openalex.autocomplete_works(doi_query)
-            for oa_result in openalex_response.get("results", []):
-                if not oa_result.get("external_id"):
-                    continue
+            try:
+                openalex = OpenAlex()
+                openalex_response = openalex.autocomplete_works(doi_query)
+                for oa_result in openalex_response.get("results", []):
+                    if not oa_result.get("external_id"):
+                        continue
 
-                result = self.transform_openalex_result(oa_result)
-                normalized_doi = result.get("normalized_doi")
-                if normalized_doi and normalized_doi not in seen_dois:
-                    seen_dois.add(normalized_doi)
-                    if "normalized_doi" in result:
-                        del result["normalized_doi"]
-                    results.append(result)
+                    result = self.transform_openalex_result(oa_result)
+                    normalized_doi = result.get("normalized_doi")
+                    if normalized_doi and normalized_doi not in seen_dois:
+                        seen_dois.add(normalized_doi)
+                        if "normalized_doi" in result:
+                            del result["normalized_doi"]
+                        results.append(result)
+            except Exception as e:
+                # Log the error but continue with local results
+                logger.warning(f"OpenAlex request failed in DOI search: {str(e)}")
 
             # 3. Search in posts index (if posts could have DOIs)
             post_document = self.INDEX_MAP["post"]["document"]
@@ -381,15 +385,23 @@ class SuggestView(APIView):
 
             # Get OpenAlex results if enabled for this index
             if index_config.get("external_search", False):
-                openalex = OpenAlex()
-                openalex_response = openalex.autocomplete_works(query)
-                results.extend(
-                    [
-                        self.transform_openalex_result(result)
-                        for result in openalex_response.get("results", [])
-                        if result.get("external_id")  # Only include results with DOI
-                    ]
-                )
+                try:
+                    openalex = OpenAlex()
+                    openalex_response = openalex.autocomplete_works(query)
+                    results.extend(
+                        [
+                            self.transform_openalex_result(result)
+                            for result in openalex_response.get("results", [])
+                            if result.get(
+                                "external_id"
+                            )  # Only include results with DOI
+                        ]
+                    )
+                except Exception as e:
+                    # Log the error but continue with local Elasticsearch results
+                    logger.warning(
+                        f"OpenAlex request failed for index '{index}': {str(e)}"
+                    )
 
             # Get local Elasticsearch results
             search = Search(index=document._index._name)

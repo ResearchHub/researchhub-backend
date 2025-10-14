@@ -437,3 +437,174 @@ class FollowViewActionMixinTests(APITestCase):
 
         # Verify cache is cleared
         self.assertIsNone(cache.get(cache_key))
+
+    def test_follow_multiple_follows_multiple_hubs(self):
+        # Create multiple hubs
+        hub1 = Hub.objects.create(name="Hub 1", description="First hub")
+        hub2 = Hub.objects.create(name="Hub 2", description="Second hub")
+        hub3 = Hub.objects.create(name="Hub 3", description="Third hub")
+
+        # Follow multiple hubs
+        response = self.client.post(
+            "/api/hub/follow_multiple/",
+            {"ids": [hub1.id, hub2.id, hub3.id]},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["followed"]), 3)
+        self.assertEqual(len(response.data["already_following"]), 0)
+        self.assertEqual(len(response.data["not_found"]), 0)
+
+        # Verify follows were created
+        self.assertTrue(
+            Follow.objects.filter(
+                user=self.user,
+                content_type=ContentType.objects.get_for_model(Hub),
+                object_id=hub1.id,
+            ).exists()
+        )
+        self.assertTrue(
+            Follow.objects.filter(
+                user=self.user,
+                content_type=ContentType.objects.get_for_model(Hub),
+                object_id=hub2.id,
+            ).exists()
+        )
+        self.assertTrue(
+            Follow.objects.filter(
+                user=self.user,
+                content_type=ContentType.objects.get_for_model(Hub),
+                object_id=hub3.id,
+            ).exists()
+        )
+
+    def test_unfollow_multiple_unfollows_multiple_hubs(self):
+        # Create multiple hubs and follow them
+        hub1 = Hub.objects.create(name="Hub 1", description="First hub")
+        hub2 = Hub.objects.create(name="Hub 2", description="Second hub")
+        hub3 = Hub.objects.create(name="Hub 3", description="Third hub")
+
+        Follow.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(Hub),
+            object_id=hub1.id,
+        )
+        Follow.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(Hub),
+            object_id=hub2.id,
+        )
+        Follow.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(Hub),
+            object_id=hub3.id,
+        )
+
+        # Unfollow multiple hubs
+        response = self.client.post(
+            "/api/hub/unfollow_multiple/",
+            {"ids": [hub1.id, hub2.id, hub3.id]},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["unfollowed"]), 3)
+        self.assertEqual(len(response.data["not_following"]), 0)
+        self.assertEqual(len(response.data["not_found"]), 0)
+
+        # Verify follows were deleted
+        self.assertFalse(
+            Follow.objects.filter(
+                user=self.user,
+                content_type=ContentType.objects.get_for_model(Hub),
+                object_id=hub1.id,
+            ).exists()
+        )
+        self.assertFalse(
+            Follow.objects.filter(
+                user=self.user,
+                content_type=ContentType.objects.get_for_model(Hub),
+                object_id=hub2.id,
+            ).exists()
+        )
+        self.assertFalse(
+            Follow.objects.filter(
+                user=self.user,
+                content_type=ContentType.objects.get_for_model(Hub),
+                object_id=hub3.id,
+            ).exists()
+        )
+
+    def test_follow_multiple_skips_not_found_hub_gracefully(self):
+        # Create one valid hub
+        hub1 = Hub.objects.create(name="Hub 1", description="First hub")
+
+        # Try to follow with a mix of valid and invalid IDs
+        invalid_id = 99999
+        response = self.client.post(
+            "/api/hub/follow_multiple/",
+            {"ids": [hub1.id, invalid_id]},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["followed"]), 1)
+        self.assertEqual(len(response.data["already_following"]), 0)
+        self.assertEqual(len(response.data["not_found"]), 1)
+        self.assertIn(invalid_id, response.data["not_found"])
+
+        # Verify only the valid hub was followed
+        self.assertTrue(
+            Follow.objects.filter(
+                user=self.user,
+                content_type=ContentType.objects.get_for_model(Hub),
+                object_id=hub1.id,
+            ).exists()
+        )
+
+    def test_follow_multiple_marks_already_following(self):
+        # Create multiple hubs
+        hub1 = Hub.objects.create(name="Hub 1", description="First hub")
+        hub2 = Hub.objects.create(name="Hub 2", description="Second hub")
+        hub3 = Hub.objects.create(name="Hub 3", description="Third hub")
+
+        # Already follow hub2
+        Follow.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(Hub),
+            object_id=hub2.id,
+        )
+
+        # Try to follow all three hubs
+        response = self.client.post(
+            "/api/hub/follow_multiple/",
+            {"ids": [hub1.id, hub2.id, hub3.id]},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["followed"]), 2)
+        self.assertEqual(len(response.data["already_following"]), 1)
+        self.assertEqual(len(response.data["not_found"]), 0)
+
+        # Verify hub2 is in already_following
+        already_following_ids = [
+            item["id"] for item in response.data["already_following"]
+        ]
+        self.assertIn(hub2.id, already_following_ids)
+
+        # Verify hub1 and hub3 are in followed
+        followed_ids = [item["id"] for item in response.data["followed"]]
+        self.assertIn(hub1.id, followed_ids)
+        self.assertIn(hub3.id, followed_ids)
+
+        # Verify all three hubs are now followed
+        self.assertEqual(
+            Follow.objects.filter(
+                user=self.user,
+                content_type=ContentType.objects.get_for_model(Hub),
+                object_id__in=[hub1.id, hub2.id, hub3.id],
+            ).count(),
+            3,
+        )
