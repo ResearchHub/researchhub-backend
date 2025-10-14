@@ -217,11 +217,22 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
         return instance.get_boost_amount()
 
     def get_purchases(self, post):
-        from purchase.serializers import PurchaseSerializer
+        from purchase.serializers import DynamicPurchaseSerializer
 
-        context = {**self.context, "exclude_source": True}
-        purchases = post.purchases.filter(purchase_type=Purchase.BOOST).select_related("user")
-        return PurchaseSerializer(purchases, many=True, context=context).data
+        context = self.context
+        _context_fields = {
+            "_include_fields": ["id", "amount", "user", "created_date", "updated_date"]
+        }
+        purchases = post.purchases.filter(purchase_type=Purchase.BOOST).select_related(
+            "user", "user__author_profile"
+        )
+        serializer = DynamicPurchaseSerializer(
+            purchases,
+            many=True,
+            context=context,
+            **_context_fields,
+        )
+        return serializer.data
 
 
 class DynamicPostSerializer(DynamicModelFieldSerializer):
