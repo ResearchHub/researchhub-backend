@@ -94,25 +94,8 @@ class OpenAlexMapper(BaseMapper):
         is_oa = oa_info.get("is_oa", False)
         oa_status = oa_info.get("oa_status")
 
-        # Location information for URLs
-        primary_location = record.get("primary_location", {})
-        best_oa_location = record.get("best_oa_location", {})
-
-        # PDF URL
-        pdf_url = (
-            best_oa_location.get("pdf_url")
-            or primary_location.get("pdf_url")
-            or oa_info.get("oa_url")
-        )
-
-        # Landing page URL
-        landing_page_url = best_oa_location.get(
-            "landing_page_url"
-        ) or primary_location.get("landing_page_url")
-
-        # Publication source and journal name
-        source_info = primary_location.get("source", {})
-        journal_name = source_info.get("display_name")
+        # Extract license information (includes pdf_url)
+        license_info = self._extract_license_info(record)
 
         # Create Paper instance
         paper = Paper(
@@ -132,6 +115,8 @@ class OpenAlexMapper(BaseMapper):
             # License and access
             is_open_access=is_oa,
             oa_status=oa_status if is_oa else None,
+            pdf_license=license_info.get("license"),
+            pdf_license_url=license_info.get("license_url"),
             # Language
             language=record.get("language"),
             # External metadata
@@ -139,14 +124,14 @@ class OpenAlexMapper(BaseMapper):
                 "cited_by_count": record.get("cited_by_count"),
             },
             # URLs
-            url=landing_page_url,
-            pdf_url=pdf_url,
+            url=license_info.get("landing_page_url"),
+            pdf_url=license_info.get("pdf_url"),
             retrieved_from_external_source=True,
         )
 
         # Add journal name if available
-        if journal_name:
-            paper.external_metadata["journal_name"] = journal_name
+        if license_info.get("journal_name"):
+            paper.external_metadata["journal_name"] = license_info["journal_name"]
 
         return paper
 
@@ -525,3 +510,28 @@ class OpenAlexMapper(BaseMapper):
                             hubs.append(hub)
 
         return hubs
+
+    def _extract_license_info(self, record: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Extract license information from OpenAlex record.
+
+        Args:
+            record: OpenAlex work record
+
+        Returns:
+            Dictionary with 'license', 'license_url', and 'pdf_url' keys
+        """
+        license_info = {"license": None, "license_url": None, "pdf_url": None}
+
+        # Use primary_location for preprints
+        primary_location = record.get("primary_location", {})
+        if primary_location:
+            license_info["license"] = primary_location.get("license")
+            license_info["license_url"] = primary_location.get("license_id")
+            license_info["pdf_url"] = primary_location.get("pdf_url")
+            license_info["landing_page_url"] = primary_location.get("landing_page_url")
+            license_info["journal_name"] = primary_location.get("source", {}).get(
+                "display_name"
+            )
+
+        return license_info

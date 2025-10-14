@@ -1,11 +1,12 @@
 import logging
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from django.utils import timezone
 
 from paper.ingestion.clients.openalex import OpenAlexClient
+from paper.ingestion.mappers.openalex import OpenAlexMapper
 from paper.models import Paper
 
 logger = logging.getLogger(__name__)
@@ -39,14 +40,18 @@ class PaperOpenAlexEnrichmentService:
     the corresponding papers in the database.
     """
 
-    def __init__(self, openalex_client: OpenAlexClient):
+    def __init__(
+        self, openalex_client: OpenAlexClient, openalex_mapper: OpenAlexMapper
+    ):
         """
         Constructor.
 
         Args:
             openalex_client: Client for fetching OpenAlex data
+            openalex_mapper: Mapper for extracting data from OpenAlex records
         """
         self.openalex_client = openalex_client
+        self.openalex_mapper = openalex_mapper
 
     def get_recent_papers_with_dois(self, days: int) -> List[int]:
         """
@@ -90,22 +95,38 @@ class PaperOpenAlexEnrichmentService:
                 )
                 return EnrichmentResult(status="not_found", reason="no_openalex_data")
 
-            # Extract license information from the raw data
+            # Map the OpenAlex data to a Paper instance to extract all fields
             raw_data = openalex_data.get("raw_data", {})
-            license_info = self._extract_license_info(raw_data)
+            mapped_paper = self.openalex_mapper.map_to_paper(raw_data)
 
-            has_license = license_info["license"]
-            has_license_url = license_info["license_url"]
-            has_pdf_url = license_info["pdf_url"]
-
-            if not has_license and not has_license_url and not has_pdf_url:
-                logger.info(f"No license info found in OpenAlex for paper {paper.id}")
+            if not mapped_paper.pdf_url or not mapped_paper.pdf_license:
+                logger.info(
+                    f"Missing required license data in OpenAlex for paper {paper.id} "
+                    f"(has_pdf_url={bool(mapped_paper.pdf_url)}, has_license={bool(mapped_paper.pdf_license)})"
+                )
                 return EnrichmentResult(
-                    status="not_found", reason="no_license_in_openalex"
+                    status="not_found", reason="incomplete_license_data"
                 )
 
-            # Update paper's license fields
-            self._update_paper_license(paper, license_info)
+            # Only update if both required fields are missing (all-or-nothing)
+            if paper.pdf_url and paper.pdf_license:
+                logger.info(
+                    f"Paper {paper.id} already has license data, skipping enrichment"
+                )
+                return EnrichmentResult(status="skipped", reason="already_has_data")
+
+            update_fields = ["pdf_url", "pdf_license"]
+
+            paper.pdf_license = mapped_paper.pdf_license
+
+            paper.pdf_url = mapped_paper.pdf_url
+
+            # pdf_license_url is optional
+            if mapped_paper.pdf_license_url:
+                paper.pdf_license_url = mapped_paper.pdf_license_url
+                update_fields.append("pdf_license_url")
+
+            paper.save(update_fields=update_fields)
 
             logger.info(
                 f"Successfully enriched paper {paper.id} with OpenAlex license data"
@@ -113,8 +134,8 @@ class PaperOpenAlexEnrichmentService:
 
             return EnrichmentResult(
                 status="success",
-                license=license_info["license"],
-                license_url=license_info["license_url"],
+                license=paper.pdf_license,
+                license_url=paper.pdf_license_url,
             )
 
         except Exception as e:
@@ -167,49 +188,3 @@ class PaperOpenAlexEnrichmentService:
             not_found_count=not_found_count,
             error_count=error_count,
         )
-
-    def _extract_license_info(self, raw_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Extract license information from OpenAlex raw data.
-
-        Args:
-            raw_data: Raw OpenAlex work data
-
-        Returns:
-            Dictionary with 'license', 'license_url', and 'pdf_url' keys
-        """
-        license_info = {"license": None, "license_url": None, "pdf_url": None}
-
-        # Use primary_location for preprints
-        primary_location = raw_data.get("primary_location", {})
-        if primary_location:
-            license_info["license"] = primary_location.get("license")
-            license_info["license_url"] = primary_location.get("license_id")
-            license_info["pdf_url"] = primary_location.get("pdf_url")
-
-        return license_info
-
-    def _update_paper_license(self, paper: Paper, license_info: Dict[str, Any]) -> None:
-        """
-        Update paper's license fields and PDF URL.
-
-        Args:
-            paper: Paper instance to update
-            license_info: Dictionary with license, license_url, and pdf_url
-        """
-        update_fields = []
-
-        if license_info["license"]:
-            paper.pdf_license = license_info["license"]
-            update_fields.append("pdf_license")
-
-        if license_info["license_url"]:
-            paper.pdf_license_url = license_info["license_url"]
-            update_fields.append("pdf_license_url")
-
-        if license_info["pdf_url"]:
-            paper.pdf_url = license_info["pdf_url"]
-            update_fields.append("pdf_url")
-
-        if update_fields:
-            paper.save(update_fields=update_fields)
