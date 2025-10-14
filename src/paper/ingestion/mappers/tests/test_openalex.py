@@ -343,7 +343,7 @@ class TestOpenAlexMapper(TestCase):
         }
 
         # Act
-        license_info = self.mapper.extract_license_info(record)
+        license_info = self.mapper._extract_license_info(record)
 
         # Assert
         self.assertEqual(license_info["license"], "cc-by")
@@ -366,7 +366,7 @@ class TestOpenAlexMapper(TestCase):
         }
 
         # Act
-        license_info = self.mapper.extract_license_info(record)
+        license_info = self.mapper._extract_license_info(record)
 
         # Assert
         self.assertEqual(license_info["license"], "cc-by-sa")
@@ -381,7 +381,7 @@ class TestOpenAlexMapper(TestCase):
         record = {"primary_location": {}}
 
         # Act
-        license_info = self.mapper.extract_license_info(record)
+        license_info = self.mapper._extract_license_info(record)
 
         # Assert
         self.assertIsNone(license_info["license"])
@@ -396,7 +396,7 @@ class TestOpenAlexMapper(TestCase):
         record = {}
 
         # Act
-        license_info = self.mapper.extract_license_info(record)
+        license_info = self.mapper._extract_license_info(record)
 
         # Assert
         self.assertIsNone(license_info["license"])
