@@ -3,11 +3,15 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import List, Optional
 
+from django.db import transaction
 from django.utils import timezone
 
+from institution.models import Institution
 from paper.ingestion.clients.openalex import OpenAlexClient
 from paper.ingestion.mappers.openalex import OpenAlexMapper
 from paper.models import Paper
+from paper.related_models.authorship_model import Authorship
+from user.related_models.author_model import Author
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +24,11 @@ class EnrichmentResult:
     license: Optional[str] = None
     license_url: Optional[str] = None
     reason: Optional[str] = None
+    authors_created: int = 0
+    authors_updated: int = 0
+    institutions_created: int = 0
+    institutions_updated: int = 0
+    authorships_created: int = 0
 
 
 @dataclass
@@ -30,6 +39,11 @@ class BatchEnrichmentResult:
     success_count: int
     not_found_count: int
     error_count: int
+    total_authors_created: int = 0
+    total_authors_updated: int = 0
+    total_institutions_created: int = 0
+    total_institutions_updated: int = 0
+    total_authorships_created: int = 0
 
 
 class PaperOpenAlexEnrichmentService:
@@ -73,7 +87,8 @@ class PaperOpenAlexEnrichmentService:
 
     def enrich_paper_with_openalex(self, paper: Paper) -> EnrichmentResult:
         """
-        Fetch OpenAlex data for the given paper and update its license fields.
+        Fetch OpenAlex data for the given paper and update its license fields,
+        authors, institutions, and authorships.
 
         Args:
             paper: Paper instance to enrich
@@ -99,43 +114,71 @@ class PaperOpenAlexEnrichmentService:
             raw_data = openalex_data.get("raw_data", {})
             mapped_paper = self.openalex_mapper.map_to_paper(raw_data)
 
-            if not mapped_paper.pdf_url or not mapped_paper.pdf_license:
-                logger.info(
-                    f"Missing required license data in OpenAlex for paper {paper.id} "
-                    f"(has_pdf_url={bool(mapped_paper.pdf_url)}, has_license={bool(mapped_paper.pdf_license)})"
+            # Track statistics
+            authors_created = 0
+            authors_updated = 0
+            institutions_created = 0
+            institutions_updated = 0
+            authorships_created = 0
+
+            # Process in a transaction
+            with transaction.atomic():
+                # Process license data if available and not already present
+                license_updated = False
+                if mapped_paper.pdf_url and mapped_paper.pdf_license:
+                    # Only update if both required fields are missing (all-or-nothing)
+                    if not (paper.pdf_url and paper.pdf_license):
+                        update_fields = ["pdf_url", "pdf_license"]
+
+                        paper.pdf_license = mapped_paper.pdf_license
+                        paper.pdf_url = mapped_paper.pdf_url
+
+                        # pdf_license_url is optional
+                        if mapped_paper.pdf_license_url:
+                            paper.pdf_license_url = mapped_paper.pdf_license_url
+                            update_fields.append("pdf_license_url")
+
+                        paper.save(update_fields=update_fields)
+                        license_updated = True
+                        logger.info(f"Updated license data for paper {paper.id}")
+                    else:
+                        logger.debug(
+                            f"Paper {paper.id} already has license data, skipping license update"
+                        )
+                else:
+                    logger.debug(
+                        f"Missing license data in OpenAlex for paper {paper.id} "
+                        f"(has_pdf_url={bool(mapped_paper.pdf_url)}, has_license={bool(mapped_paper.pdf_license)})"
+                    )
+
+                # Always process authors, institutions, and authorships
+                authors_created, authors_updated = self.process_authors(
+                    paper, openalex_data
                 )
-                return EnrichmentResult(
-                    status="not_found", reason="incomplete_license_data"
+
+                institutions_created, institutions_updated = self.process_institutions(
+                    paper, openalex_data
                 )
 
-            # Only update if both required fields are missing (all-or-nothing)
-            if paper.pdf_url and paper.pdf_license:
-                logger.info(
-                    f"Paper {paper.id} already has license data, skipping enrichment"
-                )
-                return EnrichmentResult(status="skipped", reason="already_has_data")
-
-            update_fields = ["pdf_url", "pdf_license"]
-
-            paper.pdf_license = mapped_paper.pdf_license
-
-            paper.pdf_url = mapped_paper.pdf_url
-
-            # pdf_license_url is optional
-            if mapped_paper.pdf_license_url:
-                paper.pdf_license_url = mapped_paper.pdf_license_url
-                update_fields.append("pdf_license_url")
-
-            paper.save(update_fields=update_fields)
+                authorships_created = self.process_authorships(paper, openalex_data)
 
             logger.info(
-                f"Successfully enriched paper {paper.id} with OpenAlex license data"
+                f"Successfully enriched paper {paper.id}: "
+                f"license_updated={license_updated}, "
+                f"{authors_created} authors created, {authors_updated} authors updated, "
+                f"{institutions_created} institutions created, {institutions_updated} institutions updated, "
+                f"{authorships_created} authorships created"
             )
 
             return EnrichmentResult(
                 status="success",
                 license=paper.pdf_license,
                 license_url=paper.pdf_license_url,
+                authors_created=authors_created,
+                authors_updated=authors_updated,
+                institutions_created=institutions_created,
+                institutions_updated=institutions_updated,
+                authorships_created=authorships_created,
             )
 
         except Exception as e:
@@ -145,9 +188,203 @@ class PaperOpenAlexEnrichmentService:
             )
             return EnrichmentResult(status="error", reason=str(e))
 
+    def process_authors(self, paper: Paper, openalex_data: dict) -> tuple[int, int]:
+        """
+        Process authors from OpenAlex data and create/update Author records.
+
+        Args:
+            paper: Paper instance
+            openalex_data: OpenAlex work record
+
+        Returns:
+            Tuple of (authors_created, authors_updated)
+        """
+        authors_created = 0
+        authors_updated = 0
+
+        raw_data = openalex_data.get("raw_data", {})
+        author_instances = self.openalex_mapper.map_to_authors(raw_data)
+
+        for author_instance in author_instances:
+            if not author_instance.orcid_id:
+                continue
+
+            try:
+                # Try to find existing author by ORCID
+                existing_author = Author.objects.filter(
+                    orcid_id=author_instance.orcid_id
+                ).first()
+
+                if existing_author:
+                    # Update existing author with new OpenAlex IDs
+                    updated = False
+                    for openalex_id in author_instance.openalex_ids:
+                        if (
+                            openalex_id
+                            and openalex_id not in existing_author.openalex_ids
+                        ):
+                            existing_author.openalex_ids.append(openalex_id)
+                            updated = True
+
+                    if updated:
+                        existing_author.save(update_fields=["openalex_ids"])
+                        authors_updated += 1
+                else:
+                    # Create new author
+                    author_instance.save()
+                    authors_created += 1
+
+            except Exception as e:
+                logger.error(
+                    f"Error processing author for paper {paper.id}: {str(e)}",
+                    exc_info=True,
+                )
+
+        return authors_created, authors_updated
+
+    def process_institutions(
+        self, paper: Paper, openalex_data: dict
+    ) -> tuple[int, int]:
+        """
+        Process institutions from OpenAlex data and create/update Institution records.
+
+        Args:
+            paper: Paper instance
+            openalex_data: OpenAlex work record
+
+        Returns:
+            Tuple of (institutions_created, institutions_updated)
+        """
+        institutions_created = 0
+        institutions_updated = 0
+
+        raw_data = openalex_data.get("raw_data", {})
+        institution_instances = self.openalex_mapper.map_to_institutions(raw_data)
+
+        for institution_instance in institution_instances:
+            if not institution_instance.ror_id:
+                continue
+
+            try:
+                # Try to find existing institution by ROR ID
+                existing_institution = Institution.objects.filter(
+                    ror_id=institution_instance.ror_id
+                ).first()
+
+                if existing_institution:
+                    # Update existing institution with new data
+                    updated = False
+                    if (
+                        institution_instance.display_name
+                        and institution_instance.display_name
+                        != existing_institution.display_name
+                    ):
+                        existing_institution.display_name = (
+                            institution_instance.display_name
+                        )
+                        updated = True
+
+                    if (
+                        institution_instance.country_code
+                        and institution_instance.country_code
+                        != existing_institution.country_code
+                    ):
+                        existing_institution.country_code = (
+                            institution_instance.country_code
+                        )
+                        updated = True
+
+                    if updated:
+                        existing_institution.save()
+                        institutions_updated += 1
+                else:
+                    # Create new institution - need to set required fields
+                    # openalex_id and type are required but not in mapper
+                    # For now, skip creation if we don't have full data
+                    logger.info(
+                        f"Skipping institution creation for {institution_instance.ror_id} "
+                        f"- requires full OpenAlex data fetch"
+                    )
+
+            except Exception as e:
+                logger.error(
+                    f"Error processing institution for paper {paper.id}: {str(e)}",
+                    exc_info=True,
+                )
+
+        return institutions_created, institutions_updated
+
+    def process_authorships(self, paper: Paper, openalex_data: dict) -> int:
+        """
+        Process authorships from OpenAlex data and create Authorship records.
+
+        Args:
+            paper: Paper instance
+            openalex_data: OpenAlex work record
+
+        Returns:
+            Number of authorships created
+        """
+        authorships_created = 0
+
+        raw_data = openalex_data.get("raw_data", {})
+        authorship_instances = self.openalex_mapper.map_to_authorships(paper, raw_data)
+
+        for authorship_instance in authorship_instances:
+            try:
+                # Get the author by ORCID
+                orcid_id = getattr(authorship_instance, "_orcid_id", None)
+                if not orcid_id:
+                    continue
+
+                author = Author.objects.filter(orcid_id=orcid_id).first()
+                if not author:
+                    logger.warning(
+                        f"Author with ORCID {orcid_id} not found for paper {paper.id}"
+                    )
+                    continue
+
+                # Set the author on the authorship
+                authorship_instance.author = author
+
+                # Check if authorship already exists
+                existing_authorship = Authorship.objects.filter(
+                    paper=paper, author=author
+                ).first()
+
+                if existing_authorship:
+                    logger.debug(
+                        f"Authorship already exists for paper {paper.id} and author {author.id}"
+                    )
+                    continue
+
+                # Save the authorship
+                authorship_instance.save()
+
+                # Link institutions if available
+                institution_ror_ids = getattr(
+                    authorship_instance, "_institution_ror_ids", []
+                )
+                if institution_ror_ids:
+                    institutions = Institution.objects.filter(
+                        ror_id__in=institution_ror_ids
+                    )
+                    authorship_instance.institutions.set(institutions)
+
+                authorships_created += 1
+
+            except Exception as e:
+                logger.error(
+                    f"Error processing authorship for paper {paper.id}: {str(e)}",
+                    exc_info=True,
+                )
+
+        return authorships_created
+
     def enrich_papers_batch(self, paper_ids: List[int]) -> BatchEnrichmentResult:
         """
-        Enrich multiple papers with OpenAlex data.
+        Enrich multiple papers with OpenAlex data, including license info,
+        authors, institutions, and authorships.
 
         Args:
             paper_ids: List of paper IDs to enrich
@@ -159,6 +396,11 @@ class PaperOpenAlexEnrichmentService:
         success_count = 0
         not_found_count = 0
         error_count = 0
+        total_authors_created = 0
+        total_authors_updated = 0
+        total_institutions_created = 0
+        total_institutions_updated = 0
+        total_authorships_created = 0
 
         for paper_id in paper_ids:
             try:
@@ -167,6 +409,11 @@ class PaperOpenAlexEnrichmentService:
 
                 if result.status == "success":
                     success_count += 1
+                    total_authors_created += result.authors_created
+                    total_authors_updated += result.authors_updated
+                    total_institutions_created += result.institutions_created
+                    total_institutions_updated += result.institutions_updated
+                    total_authorships_created += result.authorships_created
                 elif result.status in ["not_found", "skipped"]:
                     not_found_count += 1
                 else:
@@ -187,4 +434,9 @@ class PaperOpenAlexEnrichmentService:
             success_count=success_count,
             not_found_count=not_found_count,
             error_count=error_count,
+            total_authors_created=total_authors_created,
+            total_authors_updated=total_authors_updated,
+            total_institutions_created=total_institutions_created,
+            total_institutions_updated=total_institutions_updated,
+            total_authorships_created=total_authorships_created,
         )
