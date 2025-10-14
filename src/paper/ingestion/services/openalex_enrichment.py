@@ -106,7 +106,8 @@ class PaperOpenAlexEnrichmentService:
 
             if not openalex_data:
                 logger.info(
-                    f"No OpenAlex data found for paper {paper.id} (DOI: {paper.doi})"
+                    f"No OpenAlex data found for paper {paper.id} "
+                    f"(DOI: {paper.doi})"
                 )
                 return EnrichmentResult(status="not_found", reason="no_openalex_data")
 
@@ -143,12 +144,14 @@ class PaperOpenAlexEnrichmentService:
                         logger.info(f"Updated license data for paper {paper.id}")
                     else:
                         logger.debug(
-                            f"Paper {paper.id} already has license data, skipping license update"
+                            f"Paper {paper.id} already has license data, "
+                            f"skipping license update"
                         )
                 else:
                     logger.debug(
                         f"Missing license data in OpenAlex for paper {paper.id} "
-                        f"(has_pdf_url={bool(mapped_paper.pdf_url)}, has_license={bool(mapped_paper.pdf_license)})"
+                        f"(has_pdf_url={bool(mapped_paper.pdf_url)}, "
+                        f"has_license={bool(mapped_paper.pdf_license)})"
                     )
 
                 # Always process authors, institutions, and authorships
@@ -165,8 +168,10 @@ class PaperOpenAlexEnrichmentService:
             logger.info(
                 f"Successfully enriched paper {paper.id}: "
                 f"license_updated={license_updated}, "
-                f"{authors_created} authors created, {authors_updated} authors updated, "
-                f"{institutions_created} institutions created, {institutions_updated} institutions updated, "
+                f"{authors_created} authors created, "
+                f"{authors_updated} authors updated, "
+                f"{institutions_created} institutions created, "
+                f"{institutions_updated} institutions updated, "
                 f"{authorships_created} authorships created"
             )
 
@@ -210,29 +215,34 @@ class PaperOpenAlexEnrichmentService:
                 continue
 
             try:
-                # Try to find existing author by ORCID
-                existing_author = Author.objects.filter(
-                    orcid_id=author_instance.orcid_id
-                ).first()
+                # Prepare defaults for creation
+                defaults = {
+                    "first_name": author_instance.first_name,
+                    "last_name": author_instance.last_name,
+                    "openalex_ids": author_instance.openalex_ids,
+                    "created_source": getattr(
+                        author_instance, "created_source", Author.SOURCE_OPENALEX
+                    ),
+                }
 
-                if existing_author:
-                    # Update existing author with new OpenAlex IDs
+                # Use get_or_create to handle both creation and lookup
+                author, created = Author.objects.get_or_create(
+                    orcid_id=author_instance.orcid_id, defaults=defaults
+                )
+
+                if created:
+                    authors_created += 1
+                else:
+                    # Merge new OpenAlex IDs with existing ones
                     updated = False
                     for openalex_id in author_instance.openalex_ids:
-                        if (
-                            openalex_id
-                            and openalex_id not in existing_author.openalex_ids
-                        ):
-                            existing_author.openalex_ids.append(openalex_id)
+                        if openalex_id and openalex_id not in author.openalex_ids:
+                            author.openalex_ids.append(openalex_id)
                             updated = True
 
                     if updated:
-                        existing_author.save(update_fields=["openalex_ids"])
+                        author.save(update_fields=["openalex_ids"])
                         authors_updated += 1
-                else:
-                    # Create new author
-                    author_instance.save()
-                    authors_created += 1
 
             except Exception as e:
                 logger.error(
@@ -267,19 +277,12 @@ class PaperOpenAlexEnrichmentService:
 
             try:
                 # Prepare fields to update/create
-                defaults = {}
-
-                if institution_instance.display_name:
-                    defaults["display_name"] = institution_instance.display_name
-
-                if institution_instance.country_code:
-                    defaults["country_code"] = institution_instance.country_code
-
-                if institution_instance.openalex_id:
-                    defaults["openalex_id"] = institution_instance.openalex_id
-
-                if institution_instance.type:
-                    defaults["type"] = institution_instance.type
+                defaults = {
+                    "display_name": institution_instance.display_name,
+                    "country_code": institution_instance.country_code,
+                    "openalex_id": institution_instance.openalex_id,
+                    "type": institution_instance.type,
+                }
 
                 # Use update_or_create to handle both creation and updates
                 # This will create if ror_id doesn't exist, or update if it does
@@ -341,7 +344,8 @@ class PaperOpenAlexEnrichmentService:
 
                 if existing_authorship:
                     logger.debug(
-                        f"Authorship already exists for paper {paper.id} and author {author.id}"
+                        f"Authorship already exists for paper {paper.id} "
+                        f"and author {author.id}"
                     )
                     continue
 

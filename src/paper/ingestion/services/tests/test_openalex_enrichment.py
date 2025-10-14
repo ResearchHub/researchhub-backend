@@ -473,7 +473,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         mock_author.openalex_ids = ["A123456"]
         mock_author.first_name = "Jane"
         mock_author.last_name = "Smith"
-        mock_author.save = Mock()
+        mock_author.created_source = Author.SOURCE_OPENALEX
 
         self.mock_openalex_mapper.map_to_authors.return_value = [mock_author]
 
@@ -483,7 +483,12 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
 
         self.assertEqual(authors_created, 1)
         self.assertEqual(authors_updated, 0)
-        mock_author.save.assert_called_once()
+
+        # Verify the author was created in the database
+        author = Author.objects.get(orcid_id="0000-0002-3456-7890")
+        self.assertEqual(author.first_name, "Jane")
+        self.assertEqual(author.last_name, "Smith")
+        self.assertEqual(author.openalex_ids, ["A123456"])
 
     def test_batch_enrichment_with_authors(self):
         """Test batch enrichment always includes authors and institutions."""
