@@ -166,6 +166,108 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         self.assertEqual(result.status, "not_found")
         self.assertEqual(result.reason, "no_altmetric_data")
 
+    def test_enrich_paper_with_arxiv_id_success(self):
+        """
+        Test successful enrichment using arXiv ID.
+        """
+        # Arrange
+        arxiv_paper = Paper.objects.create(
+            title="arXiv Paper",
+            doi="10.48550/arXiv.2101.12345",
+            external_source="arxiv",
+            external_metadata={"external_id": "2101.12345"},
+            created_date=timezone.now() - timedelta(days=1),
+        )
+
+        mock_client = Mock()
+        mock_client.fetch_by_arxiv_id.return_value = self.sample_altmetric_response
+
+        mock_mapper = Mock()
+        mock_mapper.map_metrics.return_value = self.mapped_metrics
+
+        service = PaperMetricsEnrichmentService(
+            altmetric_client=mock_client,
+            altmetric_mapper=mock_mapper,
+        )
+
+        # Act
+        result = service.enrich_paper_with_altmetric(arxiv_paper)
+
+        # Assert
+        self.assertEqual(result.status, "success")
+        self.assertEqual(result.altmetric_score, 140.5)
+        self.assertEqual(result.metrics, self.mapped_metrics)
+
+        # Verify client was called with arXiv ID, not DOI
+        mock_client.fetch_by_arxiv_id.assert_called_once_with("2101.12345")
+        mock_client.fetch_by_doi.assert_not_called()
+        mock_mapper.map_metrics.assert_called_once_with(self.sample_altmetric_response)
+
+        # Verify paper was updated
+        arxiv_paper.refresh_from_db()
+        self.assertIsNotNone(arxiv_paper.external_metadata)
+        self.assertIsInstance(arxiv_paper.external_metadata, dict)
+        self.assertIn("metrics", arxiv_paper.external_metadata)
+        self.assertEqual(arxiv_paper.external_metadata["metrics"], self.mapped_metrics)
+
+    def test_enrich_paper_arxiv_missing_arxiv_id(self):
+        """
+        Test enrichment of arXiv paper without arXiv ID is skipped.
+        """
+        # Arrange
+        arxiv_paper = Paper.objects.create(
+            title="arXiv paper without ID",
+            doi="10.48550/arXiv.2101.12345",
+            external_source="arxiv",
+            external_metadata={},  # No external_id
+            created_date=timezone.now() - timedelta(days=1),
+        )
+
+        mock_client = Mock()
+        mock_mapper = Mock()
+
+        service = PaperMetricsEnrichmentService(mock_client, mock_mapper)
+
+        # Act
+        result = service.enrich_paper_with_altmetric(arxiv_paper)
+
+        # Assert
+        self.assertEqual(result.status, "skipped")
+        self.assertEqual(result.reason, "no_arxiv_id")
+
+        # Verify no API calls were made
+        mock_client.fetch_by_arxiv_id.assert_not_called()
+        mock_client.fetch_by_doi.assert_not_called()
+
+    def test_enrich_paper_arxiv_null_metadata(self):
+        """
+        Test enrichment of arXiv paper with null external_metadata is skipped.
+        """
+        # Arrange
+        arxiv_paper = Paper.objects.create(
+            title="arXiv Paper with null metadata",
+            doi="10.48550/arXiv.2101.12345",
+            external_source="arxiv",
+            external_metadata=None,
+            created_date=timezone.now() - timedelta(days=1),
+        )
+
+        mock_client = Mock()
+        mock_mapper = Mock()
+
+        service = PaperMetricsEnrichmentService(mock_client, mock_mapper)
+
+        # Act
+        result = service.enrich_paper_with_altmetric(arxiv_paper)
+
+        # Assert
+        self.assertEqual(result.status, "skipped")
+        self.assertEqual(result.reason, "no_arxiv_id")
+
+        # Verify no API calls were made
+        mock_client.fetch_by_arxiv_id.assert_not_called()
+        mock_client.fetch_by_doi.assert_not_called()
+
     def test_enrich_papers_batch(self):
         """Test batch enrichment of multiple papers."""
         # Arrange
