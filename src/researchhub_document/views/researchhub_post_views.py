@@ -35,7 +35,6 @@ from user.models import User
 from user.related_models.author_model import Author
 from utils.doi import DOI
 from utils.sentry import log_error
-from utils.siftscience import SIFT_POST, sift_track
 from utils.throttles import THROTTLE_CLASSES
 
 MIN_POST_TITLE_LENGTH = 20
@@ -92,7 +91,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 return False
         return True
 
-    @sift_track(SIFT_POST)
     def create_researchhub_post(self, request):
         data = request.data
         authors = data.get("authors", [])
@@ -316,7 +314,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             log_error(exception)
             return Response({"error": str(exception)}, status=400)
 
-    @sift_track(SIFT_POST, is_update=True)
     def update_existing_researchhub_posts(self, request):
         try:
             data = request.data
