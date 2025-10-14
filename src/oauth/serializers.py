@@ -169,9 +169,7 @@ class SocialLoginSerializer(serializers.Serializer):
                 update_user_risk_score(login_user, tracked_login)
                 raise LoginError(None, "Account is suspended")
         except Exception as e:
-            error = LoginError(e, "Login failed")
-            sentry.log_info(error, error=e)
-            sentry.log_error(error, base_error=e)
+            sentry.log_error(e, message="Social login failed")
             raise serializers.ValidationError(_("Incorrect value"))
 
         return social_login
