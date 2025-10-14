@@ -2633,7 +2633,6 @@ dependencies = [
     { name = "requests-mock" },
     { name = "responses" },
     { name = "sentry-sdk" },
-    { name = "sift" },
     { name = "stripe" },
     { name = "web3", extra = ["tester"] },
 ]
@@ -2697,7 +2696,6 @@ requires-dist = [
     { name = "requests-mock", specifier = ">=1.12.1,<2.0.0" },
     { name = "responses", specifier = "==0.21.0" },
     { name = "sentry-sdk", specifier = "==1.45.1" },
-    { name = "sift", specifier = ">=5.6.1,<6.0.0" },
     { name = "stripe", specifier = ">=11.2.0,<12.0.0" },
     { name = "web3", extras = ["tester"], specifier = "==7.10.0" },
 ]
@@ -2887,16 +2885,6 @@ name = "sgmllib3k"
 version = "1.0.0"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/9e/bd/3704a8c3e0942d711c1299ebf7b9091930adae6675d7c8f476a7ce48653c/sgmllib3k-1.0.0.tar.gz", hash = "sha256:7868fb1c8bfa764c1ac563d3cf369c381d1325d36124933a726f29fcdaa812e9", size = 5750, upload-time = "2010-08-24T14:33:52.445Z" }
-
-[[package]]
-name = "sift"
-version = "5.6.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "requests" },
-    { name = "six" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/6b/a3/1a45bfbf57a8e383871c1c10d3c122cba722b56b8f1a24afe1d7497ce216/Sift-5.6.1.tar.gz", hash = "sha256:611589dcd75cfb733051475b8ceb23a675d034d2876b0b88c064126de0349a99", size = 13925, upload-time = "2024-10-08T11:13:37.998Z" }
 
 [[package]]
 name = "six"
