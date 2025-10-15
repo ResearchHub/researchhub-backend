@@ -25,6 +25,7 @@ class PersonalizeItemCSVBuilder:
         output_path: str,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
+        item_ids: Optional[set] = None,
     ) -> Dict[str, int]:
         """
         Build CSV file of items for AWS Personalize.
@@ -33,12 +34,14 @@ class PersonalizeItemCSVBuilder:
             output_path: Path where the CSV file will be written
             start_date: Optional filter for documents created after this date
             end_date: Optional filter for documents created before this date
+            item_ids: Optional set of item IDs to filter by (from interactions)
 
         Returns:
             Dictionary with statistics:
             - total_items: Total number of items exported
             - papers: Number of paper items
             - posts: Number of post items
+            - filtered_by_interactions: Boolean indicating if filtering was applied
         """
         # Ensure output directory exists
         output_dir = os.path.dirname(output_path)
@@ -46,7 +49,7 @@ class PersonalizeItemCSVBuilder:
             os.makedirs(output_dir)
 
         # Get queryset
-        queryset = self.mapper.get_queryset(start_date, end_date)
+        queryset = self.mapper.get_queryset(start_date, end_date, item_ids)
         total_count = queryset.count()
 
         # Initialize statistics
@@ -55,6 +58,7 @@ class PersonalizeItemCSVBuilder:
             "papers": 0,
             "posts": 0,
             "by_type": {},
+            "filtered_by_interactions": item_ids is not None,
         }
 
         # Write CSV

@@ -5,8 +5,10 @@ Functions for text cleaning, hub mapping, author extraction,
 and metrics aggregation.
 """
 
+import csv
+import os
 import re
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Max
@@ -129,10 +131,34 @@ def get_author_ids(unified_doc, document) -> Optional[str]:
     author_ids = []
 
     try:
-        # Papers have many-to-many authors
-        if hasattr(document, "authors"):
-            author_ids = [str(author.id) for author in document.authors.all()]
-        # Posts have created_by with author_profile
+        # For GRANT documents, use the grant's contacts (check this FIRST)
+        if unified_doc.document_type == "GRANT":
+            grant = unified_doc.grants.first()
+            if grant:
+                # Get all contact users from grant_contacts table
+                for contact_user in grant.contacts.all():
+                    if hasattr(contact_user, "author_profile"):
+                        author_profile = contact_user.author_profile
+                        if author_profile:
+                            author_ids.append(str(author_profile.id))
+        # Papers - try multiple sources with fallback
+        elif hasattr(document, "authorships"):
+            # OPTION 1: Use authorships (matches API)
+            authorships = document.authorships.select_related("author").filter(
+                author__claimed=True
+            )
+            if authorships.exists():
+                author_ids = [str(a.author.id) for a in authorships]
+            else:
+                # OPTION 2: Try many-to-many authors
+                if hasattr(document, "authors"):
+                    claimed_authors = document.authors.filter(claimed=True)
+                    if claimed_authors.exists():
+                        author_ids = [str(a.id) for a in claimed_authors]
+                    else:
+                        # OPTION 3: Fall back to raw_authors JSON
+                        author_ids = _extract_author_ids_from_raw(document)
+        # Other posts have created_by with author_profile
         elif hasattr(document, "created_by") and document.created_by:
             if hasattr(document.created_by, "author_profile"):
                 author_profile = document.created_by.author_profile
@@ -142,6 +168,59 @@ def get_author_ids(unified_doc, document) -> Optional[str]:
         pass
 
     return ",".join(author_ids) if author_ids else None
+
+
+def _extract_author_ids_from_raw(paper) -> List[str]:
+    """
+    Extract author IDs from paper.raw_authors JSON field.
+    Matches authors by ORCID ID first, then falls back to OpenAlex ID.
+
+    Args:
+        paper: Paper instance with raw_authors JSON field
+
+    Returns:
+        List of author ID strings (only claimed authors)
+    """
+    from user.related_models.author_model import Author
+
+    author_ids = []
+
+    if not paper.raw_authors or not isinstance(paper.raw_authors, list):
+        return author_ids
+
+    for raw_author in paper.raw_authors:
+        author = None
+
+        # OPTION 1: Try matching by ORCID ID (most reliable)
+        orcid = raw_author.get("orcid")
+        if orcid:
+            try:
+                # Try matching with the full ORCID (as stored in DB)
+                author = Author.objects.filter(orcid_id=orcid).first()
+
+                # If not found, try extracting just the ID part
+                if not author and "orcid.org/" in orcid:
+                    orcid_id = orcid.split("orcid.org/")[-1]
+                    author = Author.objects.filter(orcid_id=orcid_id).first()
+            except Exception:
+                pass
+
+        # OPTION 2: Fall back to OpenAlex ID if ORCID didn't match
+        if not author:
+            open_alex_id = raw_author.get("open_alex_id")
+            if open_alex_id:
+                try:
+                    author = Author.objects.filter(
+                        openalex_ids__contains=[open_alex_id]
+                    ).first()
+                except Exception:
+                    pass
+
+        # Add author ID if found and claimed
+        if author and author.claimed:
+            author_ids.append(str(author.id))
+
+    return author_ids
 
 
 def get_bounty_metrics(unified_doc) -> Dict[str, Optional[float]]:
@@ -211,16 +290,12 @@ def get_proposal_metrics(unified_doc) -> Dict[str, Optional[float]]:
     }
 
     try:
-        # Get open fundraises
-        open_fundraises = unified_doc.fundraises.filter(status="OPEN")
+        # Get any fundraise (regardless of status - OPEN, CLOSED, or COMPLETED)
+        fundraise = unified_doc.fundraises.first()
 
-        if open_fundraises.exists():
-            fundraise = open_fundraises.first()
-
-            # Get amount raised
-            amount = fundraise.get_amount_raised()
-            if amount:
-                result["PROPOSAL_AMOUNT"] = float(amount)
+        if fundraise:
+            # Get goal amount (total target, not amount raised)
+            result["PROPOSAL_AMOUNT"] = float(fundraise.goal_amount)
 
             # Get expiration date
             if fundraise.end_date:
@@ -253,6 +328,8 @@ def get_rfp_metrics(unified_doc) -> Dict[str, Optional[float]]:
     """
     Get RFP (Request for Proposal) metrics for a unified document.
 
+    RFP = Grant. Query the Grant model directly.
+
     Args:
         unified_doc: ResearchhubUnifiedDocument instance
 
@@ -267,29 +344,22 @@ def get_rfp_metrics(unified_doc) -> Dict[str, Optional[float]]:
     }
 
     try:
-        # Get open fundraises (RFPs also use fundraise model)
-        open_fundraises = unified_doc.fundraises.filter(status="OPEN")
+        # Get any grant (regardless of status - OPEN, CLOSED, or COMPLETED)
+        grant = unified_doc.grants.first()
 
-        if open_fundraises.exists():
-            fundraise = open_fundraises.first()
+        if grant:
+            # Grant amount (total RFP budget)
+            result["REQUEST_FOR_PROPOSAL_AMOUNT"] = float(grant.amount)
 
-            # Get amount raised
-            amount = fundraise.get_amount_raised()
-            if amount:
-                result["REQUEST_FOR_PROPOSAL_AMOUNT"] = float(amount)
-
-            # Get expiration date
-            if fundraise.end_date:
+            # Grant application deadline
+            if grant.end_date:
                 result["REQUEST_FOR_PROPOSAL_EXPIRES_AT"] = datetime_to_epoch_seconds(
-                    fundraise.end_date
+                    grant.end_date
                 )
 
-        # Count grant applications
-        applicant_count = GrantApplication.objects.filter(
-            unified_document=unified_doc
-        ).count()
-
-        result["REQUEST_FOR_PROPOSAL_NUM_OF_APPLICANTS"] = applicant_count
+            # Count applications for this grant
+            applicant_count = GrantApplication.objects.filter(grant=grant).count()
+            result["REQUEST_FOR_PROPOSAL_NUM_OF_APPLICANTS"] = applicant_count
 
     except Exception:
         pass
@@ -327,3 +397,38 @@ def get_last_comment_timestamp(unified_doc) -> Optional[int]:
         pass
 
     return None
+
+
+def load_item_ids_from_interactions(interactions_path: str) -> Set[int]:
+    """
+    Load unique item IDs from interactions CSV or cache file.
+
+    Args:
+        interactions_path: Path to interactions.csv or .item_ids.cache
+
+    Returns:
+        Set of unified document IDs as integers
+
+    Raises:
+        FileNotFoundError: If neither cache nor CSV file exists
+    """
+    # Check for cache file first (faster)
+    cache_path = interactions_path.replace(".csv", ".item_ids.cache")
+
+    if os.path.exists(cache_path):
+        with open(cache_path, "r", encoding="utf-8") as f:
+            return {int(line.strip()) for line in f if line.strip()}
+
+    # Fall back to parsing CSV
+    if interactions_path.endswith(".csv") and os.path.exists(interactions_path):
+        item_ids = set()
+        with open(interactions_path, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row.get("ITEM_ID"):
+                    item_ids.add(int(row["ITEM_ID"]))
+        return item_ids
+
+    raise FileNotFoundError(
+        f"No interactions file found at {interactions_path} or {cache_path}"
+    )

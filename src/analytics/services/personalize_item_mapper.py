@@ -52,7 +52,10 @@ class ItemMapper:
     """Maps ResearchhubUnifiedDocument instances to CSV item rows."""
 
     def get_queryset(
-        self, start_date: Optional[str] = None, end_date: Optional[str] = None
+        self,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        item_ids: Optional[set] = None,
     ) -> QuerySet:
         """
         Get queryset of unified documents for export.
@@ -62,10 +65,12 @@ class ItemMapper:
         - Not excluded document types (NOTE, HYPOTHESIS)
         - Not excluded from feed
         - Optional date range filter
+        - Optional filter by specific item IDs (from interactions)
 
         Args:
             start_date: Filter documents created after this date
             end_date: Filter documents created before this date
+            item_ids: Set of item IDs to filter by (if provided)
 
         Returns:
             QuerySet of ResearchhubUnifiedDocument
@@ -78,6 +83,8 @@ class ItemMapper:
                 "hubs",
                 "related_bounties",
                 "fundraises",
+                "grants__contacts__author_profile",
+                "paper__authorships__author",
             )
             .filter(
                 is_removed=False,
@@ -85,6 +92,9 @@ class ItemMapper:
             .exclude(document_type__in=EXCLUDED_DOCUMENT_TYPES)
             .exclude(document_filter__is_excluded_in_feed=True)
         )
+
+        if item_ids:
+            queryset = queryset.filter(id__in=item_ids)
 
         if start_date:
             queryset = queryset.filter(created_date__gte=start_date)
@@ -187,12 +197,12 @@ class ItemMapper:
         # Get hub names for concatenation
         hub_names = unified_doc.get_hub_names()
 
-        # TEXT field: cleaned abstract
-        row[TEXT] = clean_text_for_csv(abstract)
+        # TITLE field: just the title
+        row[TITLE] = clean_text_for_csv(title)
 
-        # TITLE field: title + abstract + hubs
-        title_concat = f"{title} {abstract} {hub_names}"
-        row[TITLE] = clean_text_for_csv(title_concat)
+        # TEXT field: title + abstract + hubs
+        text_concat = f"{title} {abstract} {hub_names}"
+        row[TEXT] = clean_text_for_csv(text_concat)
 
         # Citation count
         row[CITATION_COUNT_TOTAL] = paper.citations
@@ -219,9 +229,9 @@ class ItemMapper:
         # Get hub names for concatenation
         hub_names = unified_doc.get_hub_names()
 
-        # TEXT field: cleaned renderable text
-        row[TEXT] = clean_text_for_csv(renderable_text)
+        # TITLE field: just the title
+        row[TITLE] = clean_text_for_csv(title)
 
-        # TITLE field: title + text + hubs
-        title_concat = f"{title} {renderable_text} {hub_names}"
-        row[TITLE] = clean_text_for_csv(title_concat)
+        # TEXT field: title + renderable_text + hubs
+        text_concat = f"{title} {renderable_text} {hub_names}"
+        row[TEXT] = clean_text_for_csv(text_concat)

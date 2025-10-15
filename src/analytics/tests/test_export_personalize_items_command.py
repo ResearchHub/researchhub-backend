@@ -16,7 +16,7 @@ from django.utils import timezone
 
 from hub.models import Hub
 from paper.models import Paper
-from purchase.models import Fundraise, GrantApplication
+from purchase.models import Fundraise, Grant, GrantApplication
 from reputation.models import Bounty, BountySolution, Escrow
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
@@ -286,7 +286,7 @@ class ExportPersonalizeItemsCommandTest(TestCase):
             self.assertEqual(len(rows), 1)
             row = rows[0]
 
-            self.assertNotEqual(row["PROPOSAL_AMOUNT"], "")
+            self.assertEqual(row["PROPOSAL_AMOUNT"], "1000.0")
             self.assertNotEqual(row["PROPOSAL_EXPIRES_AT"], "")
 
     def test_command_exports_rfp_metrics(self):
@@ -301,8 +301,19 @@ class ExportPersonalizeItemsCommandTest(TestCase):
             unified_document=unified_doc,
         )
 
+        # Create grant
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=unified_doc,
+            amount=5000.00,
+            currency="USD",
+            description="Test grant for RFP",
+            status=Grant.OPEN,
+            end_date=timezone.now() + timedelta(days=60),
+        )
+
         # Create grant application
-        GrantApplication.objects.create(user=self.user, unified_document=unified_doc)
+        GrantApplication.objects.create(grant=grant, user=self.user)
 
         # Run command
         call_command("export_personalize_items", "--output", self.output_path)
@@ -315,6 +326,8 @@ class ExportPersonalizeItemsCommandTest(TestCase):
             self.assertEqual(len(rows), 1)
             row = rows[0]
 
+            self.assertEqual(row["REQUEST_FOR_PROPOSAL_AMOUNT"], "5000.0")
+            self.assertNotEqual(row["REQUEST_FOR_PROPOSAL_EXPIRES_AT"], "")
             self.assertEqual(row["REQUEST_FOR_PROPOSAL_NUM_OF_APPLICANTS"], "1")
 
     def test_command_exports_last_comment_timestamp(self):
@@ -396,3 +409,66 @@ class ExportPersonalizeItemsCommandTest(TestCase):
 
             for header in expected_headers:
                 self.assertIn(header, headers)
+
+    def test_command_exports_grant_with_contacts(self):
+        """Test that grants are exported with contact author IDs."""
+        # Create contact users
+        contact_user1 = User.objects.create(
+            email="contact1@example.com", username="contact1"
+        )
+        contact_user2 = User.objects.create(
+            email="contact2@example.com", username="contact2"
+        )
+
+        # Create grant
+        unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="GRANT", score=5
+        )
+        unified_doc.hubs.add(self.hub)
+
+        # Create the post for the grant
+        ResearchhubPost.objects.create(
+            title="Test Grant",
+            document_type="GRANT",
+            created_by=self.user,
+            unified_document=unified_doc,
+        )
+
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=unified_doc,
+            amount=50000.00,
+            currency="USD",
+            organization="Test Foundation",
+            description="Test grant with contacts",
+            status=Grant.OPEN,
+        )
+
+        # Add contacts
+        grant.contacts.add(contact_user1, contact_user2)
+
+        # Run command
+        out = StringIO()
+        call_command(
+            "export_personalize_items", "--output", self.output_path, stdout=out
+        )
+
+        # Check CSV file
+        with open(self.output_path, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+            self.assertEqual(len(rows), 1)
+            row = rows[0]
+
+            # Should include contact author IDs
+            author_ids = row["AUTHOR_IDS"]
+            self.assertIsNotNone(author_ids)
+            self.assertNotEqual(author_ids, "")
+
+            # Verify contact users' author profiles are present
+            self.assertIn(str(contact_user1.author_profile.id), author_ids)
+            self.assertIn(str(contact_user2.author_profile.id), author_ids)
+
+            # Verify creator is NOT included (only contacts)
+            self.assertNotIn(str(self.user.author_profile.id), author_ids)
