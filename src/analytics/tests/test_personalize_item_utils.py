@@ -18,10 +18,11 @@ from analytics.services.personalize_item_utils import (
     get_last_comment_timestamp,
     get_proposal_metrics,
     get_rfp_metrics,
+    load_item_ids_from_interactions,
 )
 from hub.models import Hub
 from paper.models import Paper
-from purchase.models import Fundraise, GrantApplication
+from purchase.models import Fundraise, Grant, GrantApplication
 from reputation.models import Bounty, BountySolution, Escrow
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
@@ -135,17 +136,198 @@ class GetAuthorIDsTest(TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result, str(self.user.author_profile.id))
 
-    def test_get_author_ids_no_author(self):
-        """Test getting author IDs when there are none."""
-        unified_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type="DISCUSSION"
+    def test_get_author_ids_for_grant(self):
+        """Test getting author IDs for a GRANT document from grant's contacts."""
+        unified_doc = ResearchhubUnifiedDocument.objects.create(document_type="GRANT")
+
+        # Create a post for the grant (but post's created_by should be ignored)
+        different_user = User.objects.create(
+            email="different@example.com", username="differentuser"
+        )
+        post = ResearchhubPost.objects.create(
+            title="Test Grant",
+            document_type="GRANT",
+            created_by=different_user,
+            unified_document=unified_doc,
+        )
+
+        # Create additional contact users
+        contact_user1 = User.objects.create(
+            email="contact1@example.com", username="contact1"
+        )
+        contact_user2 = User.objects.create(
+            email="contact2@example.com", username="contact2"
+        )
+
+        # Create grant with the main user as creator
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=unified_doc,
+            amount=5000.00,
+            currency="USD",
+            description="Test grant",
+            status=Grant.OPEN,
+        )
+
+        # Add contacts to the grant
+        grant.contacts.add(contact_user1, contact_user2)
+
+        result = get_author_ids(unified_doc, post)
+
+        # Should return the grant contacts' author profile IDs, not post's created_by
+        self.assertIsNotNone(result)
+        author_ids = result.split(",")
+        self.assertEqual(len(author_ids), 2)
+        self.assertIn(str(contact_user1.author_profile.id), author_ids)
+        self.assertIn(str(contact_user2.author_profile.id), author_ids)
+
+    def test_get_author_ids_for_grant_no_contacts(self):
+        """Test getting author IDs for a GRANT document with no contacts."""
+        unified_doc = ResearchhubUnifiedDocument.objects.create(document_type="GRANT")
+
+        # Need to create a user for the post's created_by
+        post_user = User.objects.create(
+            email="postuser@example.com", username="postuser"
         )
 
         post = ResearchhubPost.objects.create(
-            title="Test Post", created_by=None, unified_document=unified_doc
+            title="Test Grant",
+            document_type="GRANT",
+            created_by=post_user,
+            unified_document=unified_doc,
+        )
+
+        # Create grant with no contacts
+        Grant.objects.create(
+            created_by=self.user,
+            unified_document=unified_doc,
+            amount=5000.00,
+            currency="USD",
+            description="Test grant",
+            status=Grant.OPEN,
         )
 
         result = get_author_ids(unified_doc, post)
+
+        # Should return None when no contacts are set
+        self.assertIsNone(result)
+
+    def test_get_author_ids_for_paper_with_raw_authors_orcid(self):
+        """Test getting author IDs for a paper using raw_authors with ORCID matching."""
+        from user.related_models.author_model import Author
+
+        unified_doc = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
+
+        # Create an author with ORCID
+        author = Author.objects.create(
+            first_name="John",
+            last_name="Doe",
+            claimed=True,
+            orcid_id="https://orcid.org/0000-0001-2345-6789",
+        )
+
+        # Create paper with raw_authors (no authorships or authors)
+        paper = Paper.objects.create(
+            title="Test Paper",
+            uploaded_by=self.user,
+            unified_document=unified_doc,
+            raw_authors=[
+                {
+                    "orcid": "https://orcid.org/0000-0001-2345-6789",
+                    "first_name": "John",
+                    "last_name": "Doe",
+                    "open_alex_id": "https://openalex.org/A123456",
+                }
+            ],
+        )
+
+        result = get_author_ids(unified_doc, paper)
+
+        # Should extract author ID from raw_authors using ORCID
+        self.assertIsNotNone(result)
+        self.assertEqual(result, str(author.id))
+
+    def test_get_author_ids_for_paper_with_raw_authors_openalex(self):
+        """Test getting author IDs using raw_authors with OpenAlex ID."""
+        from user.related_models.author_model import Author
+
+        unified_doc = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
+
+        # Create an author with OpenAlex ID (no ORCID)
+        author = Author.objects.create(
+            first_name="Jane",
+            last_name="Smith",
+            claimed=True,
+            openalex_ids=["https://openalex.org/A987654"],
+        )
+
+        # Create paper with raw_authors (no ORCID)
+        paper = Paper.objects.create(
+            title="Test Paper",
+            uploaded_by=self.user,
+            unified_document=unified_doc,
+            raw_authors=[
+                {
+                    "orcid": None,
+                    "first_name": "Jane",
+                    "last_name": "Smith",
+                    "open_alex_id": "https://openalex.org/A987654",
+                }
+            ],
+        )
+
+        result = get_author_ids(unified_doc, paper)
+
+        # Should extract author ID from raw_authors using OpenAlex ID
+        self.assertIsNotNone(result)
+        self.assertEqual(result, str(author.id))
+
+    def test_get_author_ids_for_paper_filters_unclaimed_from_raw_authors(self):
+        """Test that unclaimed authors are filtered out when using raw_authors."""
+        from user.related_models.author_model import Author
+
+        unified_doc = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
+
+        # Create an unclaimed author
+        Author.objects.create(
+            first_name="Unclaimed",
+            last_name="Author",
+            claimed=False,
+            orcid_id="https://orcid.org/0000-0001-1111-1111",
+        )
+
+        # Create paper with raw_authors
+        paper = Paper.objects.create(
+            title="Test Paper",
+            uploaded_by=self.user,
+            unified_document=unified_doc,
+            raw_authors=[
+                {
+                    "orcid": "https://orcid.org/0000-0001-1111-1111",
+                    "first_name": "Unclaimed",
+                    "last_name": "Author",
+                }
+            ],
+        )
+
+        result = get_author_ids(unified_doc, paper)
+
+        # Should return None since author is unclaimed
+        self.assertIsNone(result)
+
+    def test_get_author_ids_no_author(self):
+        """Test getting author IDs when there are none."""
+        unified_doc = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
+
+        # Create paper with no authors, authorships, or raw_authors
+        paper = Paper.objects.create(
+            title="Test Paper",
+            uploaded_by=self.user,
+            unified_document=unified_doc,
+            raw_authors=None,
+        )
+
+        result = get_author_ids(unified_doc, paper)
         self.assertIsNone(result)
 
 
@@ -243,7 +425,40 @@ class GetProposalMetricsTest(TestCase):
 
         metrics = get_proposal_metrics(self.unified_doc)
 
-        self.assertIsNotNone(metrics["PROPOSAL_AMOUNT"])
+        self.assertEqual(metrics["PROPOSAL_AMOUNT"], 1000.0)
+        self.assertIsNotNone(metrics["PROPOSAL_EXPIRES_AT"])
+        self.assertEqual(metrics["PROPOSAL_NUM_OF_FUNDERS"], 0)
+
+    def test_get_proposal_metrics_with_closed_fundraise(self):
+        """Test getting proposal metrics with a closed fundraise."""
+        # Create escrow for fundraise
+        fundraise_ct = ContentType.objects.get_for_model(Fundraise)
+        escrow = Escrow.objects.create(
+            created_by=self.user,
+            hold_type=Escrow.FUNDRAISE,
+            amount_holding=500,
+            content_type=fundraise_ct,
+        )
+
+        # Create CLOSED fundraise
+        end_date = timezone.now() + timedelta(days=30)
+        fundraise = Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=self.unified_doc,
+            escrow=escrow,
+            status=Fundraise.CLOSED,
+            goal_amount=2000,
+            end_date=end_date,
+        )
+
+        # Link escrow to fundraise
+        escrow.object_id = fundraise.id
+        escrow.save()
+
+        metrics = get_proposal_metrics(self.unified_doc)
+
+        # Should still get metrics even though status is CLOSED
+        self.assertEqual(metrics["PROPOSAL_AMOUNT"], 2000.0)
         self.assertIsNotNone(metrics["PROPOSAL_EXPIRES_AT"])
         self.assertEqual(metrics["PROPOSAL_NUM_OF_FUNDERS"], 0)
 
@@ -276,13 +491,48 @@ class GetRFPMetricsTest(TestCase):
 
     def test_get_rfp_metrics_with_applications(self):
         """Test getting RFP metrics with grant applications."""
-        # Create grant application
-        GrantApplication.objects.create(
-            user=self.user, unified_document=self.unified_doc
+        # Create grant
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=self.unified_doc,
+            amount=10000.00,
+            currency="USD",
+            description="Test grant",
+            status=Grant.OPEN,
+            end_date=timezone.now() + timedelta(days=30),
         )
+
+        # Create grant applications
+        GrantApplication.objects.create(grant=grant, user=self.user)
+        GrantApplication.objects.create(grant=grant, user=self.user)
 
         metrics = get_rfp_metrics(self.unified_doc)
 
+        self.assertEqual(metrics["REQUEST_FOR_PROPOSAL_AMOUNT"], 10000.00)
+        self.assertIsNotNone(metrics["REQUEST_FOR_PROPOSAL_EXPIRES_AT"])
+        self.assertEqual(metrics["REQUEST_FOR_PROPOSAL_NUM_OF_APPLICANTS"], 2)
+
+    def test_get_rfp_metrics_with_closed_grant(self):
+        """Test getting RFP metrics with a closed grant."""
+        # Create CLOSED grant
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=self.unified_doc,
+            amount=7500.00,
+            currency="USD",
+            description="Test closed grant",
+            status=Grant.CLOSED,
+            end_date=timezone.now() + timedelta(days=15),
+        )
+
+        # Create grant application
+        GrantApplication.objects.create(grant=grant, user=self.user)
+
+        metrics = get_rfp_metrics(self.unified_doc)
+
+        # Should still get metrics even though status is CLOSED
+        self.assertEqual(metrics["REQUEST_FOR_PROPOSAL_AMOUNT"], 7500.00)
+        self.assertIsNotNone(metrics["REQUEST_FOR_PROPOSAL_EXPIRES_AT"])
         self.assertEqual(metrics["REQUEST_FOR_PROPOSAL_NUM_OF_APPLICANTS"], 1)
 
     def test_get_rfp_metrics_no_applications(self):
@@ -336,3 +586,85 @@ class GetLastCommentTimestampTest(TestCase):
         """Test getting last comment timestamp when there are no comments."""
         timestamp = get_last_comment_timestamp(self.unified_doc)
         self.assertIsNone(timestamp)
+
+
+class LoadItemIdsFromInteractionsTest(TestCase):
+    """Test loading item IDs from interactions."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        import os
+        import tempfile
+
+        # Create temporary directory for test files
+        self.test_dir = tempfile.mkdtemp()
+        self.interactions_path = os.path.join(self.test_dir, "interactions.csv")
+        self.cache_path = self.interactions_path.replace(".csv", ".item_ids.cache")
+
+    def tearDown(self):
+        """Clean up test files."""
+        import shutil
+
+        if hasattr(self, "test_dir"):
+            shutil.rmtree(self.test_dir, ignore_errors=True)
+
+    def test_load_from_cache_file(self):
+        """Test loading item IDs from cache file."""
+        # Write cache file
+        with open(self.cache_path, "w", encoding="utf-8") as f:
+            f.write("1\n2\n3\n5\n10\n")
+
+        item_ids = load_item_ids_from_interactions(self.interactions_path)
+
+        self.assertEqual(item_ids, {1, 2, 3, 5, 10})
+
+    def test_load_from_csv_file(self):
+        """Test loading item IDs from CSV file when cache doesn't exist."""
+        import csv
+
+        # Write interactions CSV
+        with open(self.interactions_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=["USER_ID", "ITEM_ID", "TIMESTAMP"])
+            writer.writeheader()
+            writer.writerow({"USER_ID": "1", "ITEM_ID": "10", "TIMESTAMP": "123456"})
+            writer.writerow({"USER_ID": "2", "ITEM_ID": "20", "TIMESTAMP": "123457"})
+            writer.writerow({"USER_ID": "1", "ITEM_ID": "10", "TIMESTAMP": "123458"})
+            writer.writerow({"USER_ID": "3", "ITEM_ID": "30", "TIMESTAMP": "123459"})
+
+        item_ids = load_item_ids_from_interactions(self.interactions_path)
+
+        # Should deduplicate - only unique IDs
+        self.assertEqual(item_ids, {10, 20, 30})
+
+    def test_load_prefers_cache_over_csv(self):
+        """Test that cache file is preferred over CSV."""
+        import csv
+
+        # Write both cache and CSV with different data
+        with open(self.cache_path, "w", encoding="utf-8") as f:
+            f.write("100\n200\n")
+
+        with open(self.interactions_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=["USER_ID", "ITEM_ID", "TIMESTAMP"])
+            writer.writeheader()
+            writer.writerow({"USER_ID": "1", "ITEM_ID": "999", "TIMESTAMP": "123456"})
+
+        item_ids = load_item_ids_from_interactions(self.interactions_path)
+
+        # Should use cache file data
+        self.assertEqual(item_ids, {100, 200})
+
+    def test_load_file_not_found(self):
+        """Test error when neither cache nor CSV exists."""
+        with self.assertRaises(FileNotFoundError):
+            load_item_ids_from_interactions(self.interactions_path)
+
+    def test_load_handles_empty_lines(self):
+        """Test that empty lines in cache are skipped."""
+        # Write cache with empty lines
+        with open(self.cache_path, "w", encoding="utf-8") as f:
+            f.write("1\n\n2\n  \n3\n")
+
+        item_ids = load_item_ids_from_interactions(self.interactions_path)
+
+        self.assertEqual(item_ids, {1, 2, 3})

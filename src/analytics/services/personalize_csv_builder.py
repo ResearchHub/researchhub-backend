@@ -134,13 +134,21 @@ class PersonalizeCSVBuilder:
             "by_event_type": {},
         }
 
+        # Track unique item IDs for cache file
+        seen_item_ids = set()
+
         with open(output_path, "w", newline="", encoding="utf-8") as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(INTERACTION_CSV_HEADERS)
 
             for mapper in self.mappers:
                 event_stats = self._process_mapper(
-                    mapper, writer, start_date, end_date, progress_callback
+                    mapper,
+                    writer,
+                    start_date,
+                    end_date,
+                    progress_callback,
+                    seen_item_ids,
                 )
 
                 stats["total_records"] += event_stats["records_processed"]
@@ -149,9 +157,15 @@ class PersonalizeCSVBuilder:
                 stats["records_skipped"] += event_stats["records_skipped"]
                 stats["by_event_type"][mapper.event_type_name] = event_stats
 
+        # Write item IDs cache file
+        self._write_item_ids_cache(output_path, seen_item_ids)
+        stats["unique_items"] = len(seen_item_ids)
+
         return stats
 
-    def _process_mapper(self, mapper, writer, start_date, end_date, progress_callback):
+    def _process_mapper(
+        self, mapper, writer, start_date, end_date, progress_callback, seen_item_ids
+    ):
         """Process a single mapper's records."""
         stats = {
             "records_processed": 0,
@@ -174,6 +188,10 @@ class PersonalizeCSVBuilder:
                 writer.writerow(row)
                 stats["interactions_exported"] += 1
 
+                # Track item ID for cache
+                if interaction.get("ITEM_ID"):
+                    seen_item_ids.add(str(interaction["ITEM_ID"]))
+
             if progress_callback:
                 progress_callback(
                     stats["records_processed"],
@@ -182,3 +200,16 @@ class PersonalizeCSVBuilder:
                 )
 
         return stats
+
+    def _write_item_ids_cache(self, output_path: str, item_ids: set):
+        """
+        Write unique item IDs to cache file.
+
+        Args:
+            output_path: Path to the interactions CSV file
+            item_ids: Set of unique item IDs to write
+        """
+        cache_path = output_path.replace(".csv", ".item_ids.cache")
+        with open(cache_path, "w", encoding="utf-8") as f:
+            for item_id in sorted(item_ids, key=lambda x: int(x)):
+                f.write(f"{item_id}\n")
