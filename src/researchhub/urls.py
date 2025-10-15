@@ -52,7 +52,6 @@ from user.views import (
     editor_views,
     moderator_view,
     persona_webhook_view,
-    sift_webhook_view,
 )
 from user.views.custom_verify_email_view import CustomVerifyEmailView
 from user_lists.views import ListItemViewSet, ListViewSet
@@ -335,11 +334,6 @@ urlpatterns = [
         "webhooks/persona/",
         persona_webhook_view.PersonaWebhookView.as_view(),
         name="persona_webhook",
-    ),
-    path(
-        "webhooks/sift/",
-        sift_webhook_view.SiftWebhookView.as_view(),
-        name="sift_webhook",
     ),
     path(
         "webhooks/stripe/",

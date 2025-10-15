@@ -1,3 +1,5 @@
+import logging
+
 from django.apps import apps
 from django.core.cache import cache
 from django_opensearch_dsl.registries import registry
@@ -5,10 +7,10 @@ from django_opensearch_dsl.registries import registry
 from discussion.models import Vote
 from paper.models import Paper
 from researchhub.celery import QUEUE_ELASTIC_SEARCH, app
-from researchhub.settings import APP_ENV
 from user.editor_payout_tasks import editor_daily_payout_task
 from user.rsc_exchange_rate_record_tasks import rsc_exchange_rate_record_tasks
-from utils.sentry import log_info
+
+logger = logging.getLogger(__name__)
 
 
 @app.task
@@ -38,7 +40,7 @@ def handle_spam_user_task(user_id, requestor=None):
             if requestor:
                 from discussion.views import censor
 
-                censor(requestor, comment)
+                censor(comment)
                 comment.refresh_related_discussion_count()
 
         user.actions.update(display=False, is_removed=True)
@@ -96,17 +98,15 @@ def update_elastic_registry(user_id):
 
 @app.task
 def execute_editor_daily_payout_task():
-    log_info(f"{APP_ENV}-running payout")
     result = editor_daily_payout_task()
-    log_info(f"{APP_ENV}-running payout result: {str(result)}")
+    logger.info(f"Completed editor_daily_payout_task with result: {str(result)}")
     return result
 
 
 @app.task
 def execute_rsc_exchange_rate_record_tasks():
-    log_info(f"{APP_ENV}-running rsc_exchange_rate_record_tasks")
     result = rsc_exchange_rate_record_tasks()
-    log_info(f"{APP_ENV}-running rsc_exchange_rate_record_tasks result: {str(result)}")
+    logger.info(f"Completed rsc_exchange_rate_record_tasks with result: {str(result)}")
 
 
 @app.task

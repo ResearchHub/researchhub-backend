@@ -12,7 +12,8 @@ from django.db.models.functions import Lower
 
 from discussion.models import Flag
 from feed.models import FeedEntry
-from hub.models import Hub
+from hub.models import Hub, HubMembership
+from reputation.related_models.distribution import Distribution
 from reputation.related_models.paper_reward import HubCitationValue
 from reputation.related_models.score import AlgorithmVariables, Score
 from researchhub_document.related_models.featured_content_model import FeaturedContent
@@ -28,6 +29,21 @@ class Command(BaseCommand):
         "Identify and optionally consolidate duplicate hubs "
         "based on case-insensitive name matching"
     )
+
+    # Available consolidation steps
+    AVAILABLE_STEPS = [
+        "documents",
+        "follows",
+        "memberships",
+        "flags",
+        "scores",
+        "distributions",
+        "featured_content",
+        "citation_values",
+        "algorithm_vars",
+        "actions",
+        "feed_entries",
+    ]
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -60,11 +76,77 @@ class Command(BaseCommand):
                 "(useful for fixing partial consolidations)"
             ),
         )
+        parser.add_argument(
+            "--hard-delete",
+            action="store_true",
+            help=(
+                "Permanently delete duplicate hubs instead of soft delete. "
+                "By default, hubs are soft deleted (is_removed=True). "
+                "WARNING: This permanently removes hubs from the database!"
+            ),
+        )
+        parser.add_argument(
+            "--steps",
+            type=str,
+            help=(
+                "Comma-separated list of steps to run. "
+                "Available: documents, follows, memberships, flags, scores, "
+                "distributions, featured_content, citation_values, algorithm_vars, "
+                "actions, feed_entries. If not specified, all steps will run."
+            ),
+        )
 
     def handle(self, *args, **options):
         consolidate = options.get("consolidate", False)
         dry_run = not options.get("no_dry_run", False)
         include_removed = options.get("include_removed", False)
+        hard_delete = options.get("hard_delete", False)
+
+        # Auto-enable consolidation when hard-delete is specified
+        if hard_delete and not consolidate:
+            consolidate = True
+            self.stdout.write(
+                self.style.WARNING(
+                    "Auto-enabling --consolidate mode (hard-delete specified)"
+                )
+            )
+
+        # Parse steps argument
+        steps_arg = options.get("steps")
+        if steps_arg:
+            # Auto-enable consolidation when steps are specified
+            if not consolidate:
+                consolidate = True
+                self.stdout.write(
+                    self.style.WARNING(
+                        "Auto-enabling --consolidate mode (steps specified)"
+                    )
+                )
+
+            self.steps_to_run = set(
+                step.strip() for step in steps_arg.split(",") if step.strip()
+            )
+            # Validate steps
+            invalid_steps = self.steps_to_run - set(self.AVAILABLE_STEPS)
+            if invalid_steps:
+                self.stdout.write(
+                    self.style.ERROR(
+                        f"Invalid steps: {', '.join(invalid_steps)}. "
+                        f"Available: {', '.join(self.AVAILABLE_STEPS)}"
+                    )
+                )
+                return
+            self.stdout.write(
+                self.style.WARNING(
+                    f"Running only selected steps: "
+                    f"{', '.join(sorted(self.steps_to_run))}"
+                )
+            )
+        else:
+            self.steps_to_run = set(self.AVAILABLE_STEPS)
+
+        # Store hard_delete as instance variable for use in consolidation methods
+        self.hard_delete = hard_delete
 
         self.stdout.write(self.style.SUCCESS("Finding duplicate hubs..."))
         if include_removed:
@@ -100,18 +182,30 @@ class Command(BaseCommand):
         if consolidate:
             if dry_run:
                 self.stdout.write(
-                    self.style.WARNING("DRY RUN MODE - No changes will be made\n")
+                    self.style.WARNING(
+                        "=" * 80 + "\n"
+                        "DRY RUN MODE - No changes will be made\n"
+                        "To apply changes, add --no-dry-run flag\n" + "=" * 80 + "\n"
+                    )
                 )
             else:
+                mode_msg = "⚠️  LIVE MODE - Changes WILL be applied to the database! ⚠️\n"
+                if hard_delete:
+                    mode_msg += (
+                        "🗑️  HARD DELETE enabled - "
+                        "Hubs will be PERMANENTLY deleted! 🗑️\n"
+                    )
                 self.stdout.write(
-                    self.style.ERROR("CONSOLIDATION MODE - Changes will be applied!\n")
+                    self.style.ERROR("=" * 80 + "\n" + mode_msg + "=" * 80 + "\n")
                 )
 
         total_consolidated = 0
         total_documents_updated = 0
         total_follows_updated = 0
+        total_memberships_updated = 0
         total_flags_updated = 0
         total_scores_updated = 0
+        total_distributions_updated = 0
         total_featured_content_updated = 0
         total_citation_values_updated = 0
         total_algorithm_vars_updated = 0
@@ -165,8 +259,10 @@ class Command(BaseCommand):
                 total_consolidated += result["hubs_consolidated"]
                 total_documents_updated += result["documents_updated"]
                 total_follows_updated += result["follows_updated"]
+                total_memberships_updated += result["memberships_updated"]
                 total_flags_updated += result["flags_updated"]
                 total_scores_updated += result["scores_updated"]
+                total_distributions_updated += result["distributions_updated"]
                 total_featured_content_updated += result["featured_content_updated"]
                 total_citation_values_updated += result["citation_values_updated"]
                 total_algorithm_vars_updated += result["algorithm_vars_updated"]
@@ -205,6 +301,12 @@ class Command(BaseCommand):
                 )
                 self.stdout.write(
                     self.style.WARNING(
+                        f"DRY RUN: Would update {total_memberships_updated} "
+                        f"hub memberships"
+                    )
+                )
+                self.stdout.write(
+                    self.style.WARNING(
                         f"DRY RUN: Would update {total_flags_updated} flag associations"
                     )
                 )
@@ -212,6 +314,12 @@ class Command(BaseCommand):
                     self.style.WARNING(
                         f"DRY RUN: Would consolidate {total_scores_updated} "
                         f"reputation scores"
+                    )
+                )
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"DRY RUN: Would update {total_distributions_updated} "
+                        f"reputation distributions"
                     )
                 )
                 self.stdout.write(
@@ -267,12 +375,23 @@ class Command(BaseCommand):
                 )
                 self.stdout.write(
                     self.style.SUCCESS(
+                        f"Updated {total_memberships_updated} hub memberships"
+                    )
+                )
+                self.stdout.write(
+                    self.style.SUCCESS(
                         f"Updated {total_flags_updated} flag associations"
                     )
                 )
                 self.stdout.write(
                     self.style.SUCCESS(
                         f"Consolidated {total_scores_updated} reputation scores"
+                    )
+                )
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f"Updated {total_distributions_updated} "
+                        f"reputation distributions"
                     )
                 )
                 self.stdout.write(
@@ -331,13 +450,39 @@ class Command(BaseCommand):
         return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     def _find_primary_hub(self, hubs):
-        """Find the primary hub - one without a number suffix in slug"""
-        # First, try to find a hub with slug that doesn't end with -\d+
+        """
+        Find the primary hub using the following priority:
+        1. Hub with the most documents (related_documents count)
+        2. Hub without a number suffix in slug
+        3. Oldest hub by creation date
+        """
+        # Annotate each hub with its document count
+        hubs_with_counts = []
         for hub in hubs:
-            if hub.slug and not re.search(r"-\d+$", hub.slug):
-                return hub
+            doc_count = hub.related_documents.count()
+            hubs_with_counts.append((hub, doc_count))
 
-        # If all have number suffixes, use the oldest one
+        # Sort by document count (descending), then by whether it has no suffix
+        hubs_with_counts.sort(
+            key=lambda x: (
+                -x[1],  # Most documents first (negative for descending)
+                # No suffix preferred
+                not bool(re.search(r"-\d+$", x[0].slug)) if x[0].slug else False,
+                x[0].created_date,  # Oldest first as tiebreaker
+            ),
+            reverse=False,
+        )
+
+        if hubs_with_counts:
+            primary_hub = hubs_with_counts[0][0]
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"  Selected primary hub based on: "
+                    f"{hubs_with_counts[0][1]} documents"
+                )
+            )
+            return primary_hub
+
         return hubs.order_by("created_date").first()
 
     def _consolidate_group(self, hubs_in_group, primary_hub, dry_run):
@@ -345,8 +490,10 @@ class Command(BaseCommand):
         hubs_consolidated = 0
         documents_updated = 0
         follows_updated = 0
+        memberships_updated = 0
         flags_updated = 0
         scores_updated = 0
+        distributions_updated = 0
         featured_content_updated = 0
         citation_values_updated = 0
         algorithm_vars_updated = 0
@@ -375,8 +522,10 @@ class Command(BaseCommand):
                 # Accumulate results
                 documents_updated += result["documents"]
                 follows_updated += result["follows"]
+                memberships_updated += result["memberships"]
                 flags_updated += result["flags"]
                 scores_updated += result["scores"]
+                distributions_updated += result["distributions"]
                 featured_content_updated += result["featured_content"]
                 citation_values_updated += result["citation_values"]
                 algorithm_vars_updated += result["algorithm_vars"]
@@ -408,8 +557,10 @@ class Command(BaseCommand):
             "hubs_consolidated": hubs_consolidated,
             "documents_updated": documents_updated,
             "follows_updated": follows_updated,
+            "memberships_updated": memberships_updated,
             "flags_updated": flags_updated,
             "scores_updated": scores_updated,
+            "distributions_updated": distributions_updated,
             "featured_content_updated": featured_content_updated,
             "citation_values_updated": citation_values_updated,
             "algorithm_vars_updated": algorithm_vars_updated,
@@ -428,46 +579,93 @@ class Command(BaseCommand):
         Returns a dictionary with counts of each type of consolidation.
         """
         # Step 1: Consolidate document associations
-        doc_count = self._consolidate_documents(duplicate_hub, primary_hub, dry_run)
+        doc_count = 0
+        if "documents" in self.steps_to_run:
+            doc_count = self._consolidate_documents(duplicate_hub, primary_hub, dry_run)
 
         # Step 2: Consolidate follow relationships
-        follow_count = self._consolidate_follows(duplicate_hub, primary_hub, dry_run)
+        follow_count = 0
+        if "follows" in self.steps_to_run:
+            follow_count = self._consolidate_follows(
+                duplicate_hub, primary_hub, dry_run
+            )
 
-        # Step 3: Consolidate flag associations
-        flag_count = self._consolidate_flags(duplicate_hub, primary_hub, dry_run)
+        # Step 3: Consolidate hub memberships
+        membership_count = 0
+        if "memberships" in self.steps_to_run:
+            membership_count = self._consolidate_memberships(
+                duplicate_hub, primary_hub, dry_run
+            )
 
-        # Step 4: Consolidate reputation scores
-        score_count = self._consolidate_scores(duplicate_hub, primary_hub, dry_run)
+        # Step 4: Consolidate flag associations
+        flag_count = 0
+        if "flags" in self.steps_to_run:
+            flag_count = self._consolidate_flags(duplicate_hub, primary_hub, dry_run)
 
-        # Step 5: Consolidate featured content
-        featured_count = self._consolidate_featured_content(
-            duplicate_hub, primary_hub, dry_run
-        )
+        # Step 5: Consolidate reputation scores
+        score_count = 0
+        if "scores" in self.steps_to_run:
+            score_count = self._consolidate_scores(duplicate_hub, primary_hub, dry_run)
 
-        # Step 6: Consolidate hub citation values
-        citation_count = self._consolidate_citation_values(
-            duplicate_hub, primary_hub, dry_run
-        )
+        # Step 6: Consolidate reputation distributions
+        distribution_count = 0
+        if "distributions" in self.steps_to_run:
+            distribution_count = self._consolidate_distributions(
+                duplicate_hub, primary_hub, dry_run
+            )
 
-        # Step 7: Consolidate algorithm variables
-        algo_count = self._consolidate_algorithm_vars(
-            duplicate_hub, primary_hub, dry_run
-        )
+        # Step 7: Consolidate featured content
+        featured_count = 0
+        if "featured_content" in self.steps_to_run:
+            featured_count = self._consolidate_featured_content(
+                duplicate_hub, primary_hub, dry_run
+            )
 
-        # Step 8: Consolidate user actions
-        action_count = self._consolidate_actions(duplicate_hub, primary_hub, dry_run)
+        # Step 8: Consolidate hub citation values
+        citation_count = 0
+        if "citation_values" in self.steps_to_run:
+            citation_count = self._consolidate_citation_values(
+                duplicate_hub, primary_hub, dry_run
+            )
 
-        # Step 9: Consolidate feed entries
-        feed_count = self._consolidate_feed_entries(duplicate_hub, primary_hub, dry_run)
+        # Step 9: Consolidate algorithm variables
+        algo_count = 0
+        if "algorithm_vars" in self.steps_to_run:
+            algo_count = self._consolidate_algorithm_vars(
+                duplicate_hub, primary_hub, dry_run
+            )
 
-        # Step 10: Mark duplicate hub as removed
-        self._mark_hub_as_removed(duplicate_hub, dry_run)
+        # Step 10: Consolidate user actions
+        action_count = 0
+        if "actions" in self.steps_to_run:
+            action_count = self._consolidate_actions(
+                duplicate_hub, primary_hub, dry_run
+            )
+
+        # Step 11: Consolidate feed entries
+        feed_count = 0
+        if "feed_entries" in self.steps_to_run:
+            feed_count = self._consolidate_feed_entries(
+                duplicate_hub, primary_hub, dry_run
+            )
+
+        # Step 12: Mark duplicate hub as removed (only if running all steps)
+        if self.steps_to_run == set(self.AVAILABLE_STEPS):
+            self._mark_hub_as_removed(duplicate_hub, dry_run)
+        else:
+            self.stdout.write(
+                self.style.WARNING(
+                    "  ⚠ Skipping hub removal (running selective steps only)"
+                )
+            )
 
         return {
             "documents": doc_count,
             "follows": follow_count,
+            "memberships": membership_count,
             "flags": flag_count,
             "scores": score_count,
+            "distributions": distribution_count,
             "featured_content": featured_count,
             "citation_values": citation_count,
             "algorithm_vars": algo_count,
@@ -540,6 +738,42 @@ class Command(BaseCommand):
 
         return follow_count
 
+    def _consolidate_memberships(self, duplicate_hub, primary_hub, dry_run):
+        """
+        Consolidate hub memberships from duplicate hub to primary hub.
+
+        If a user already has a membership with the primary hub, delete the
+        duplicate membership. Otherwise, update the duplicate membership to
+        point to the primary hub.
+
+        Returns the number of memberships updated.
+        """
+        duplicate_memberships = HubMembership.objects.filter(hub=duplicate_hub)
+
+        membership_count = duplicate_memberships.count()
+
+        if membership_count > 0:
+            self.stdout.write(
+                f"  → Consolidating {membership_count} memberships from hub "
+                f"{duplicate_hub.id} ({duplicate_hub.slug})"
+            )
+
+            if not dry_run:
+                for duplicate_membership in duplicate_memberships:
+                    primary_membership = HubMembership.objects.filter(
+                        user=duplicate_membership.user, hub=primary_hub
+                    ).first()
+
+                    if primary_membership:
+                        # User already has membership with primary, delete duplicate
+                        duplicate_membership.delete()
+                    else:
+                        # Update duplicate membership to point to primary
+                        duplicate_membership.hub = primary_hub
+                        duplicate_membership.save()
+
+        return membership_count
+
     def _consolidate_flags(self, duplicate_hub, primary_hub, dry_run):
         """
         Consolidate flag associations from duplicate hub to primary hub.
@@ -609,6 +843,33 @@ class Command(BaseCommand):
                         dup_score.save()
 
         return score_count
+
+    def _consolidate_distributions(self, duplicate_hub, primary_hub, dry_run):
+        """
+        Consolidate reputation distributions from duplicate hub to primary hub.
+
+        Distributions can be associated with multiple hubs. This ensures all
+        distributions associated with the duplicate hub are also associated
+        with the primary hub.
+
+        Returns the number of distributions updated.
+        """
+        distributions = Distribution.objects.filter(hubs=duplicate_hub).distinct()
+
+        distribution_count = distributions.count()
+
+        if distribution_count > 0:
+            self.stdout.write(
+                f"  → Consolidating hub {duplicate_hub.id} "
+                f"({duplicate_hub.slug}): {distribution_count} distributions"
+            )
+
+            if not dry_run:
+                for distribution in distributions:
+                    distribution.hubs.add(primary_hub)
+                    distribution.hubs.remove(duplicate_hub)
+
+        return distribution_count
 
     def _consolidate_featured_content(self, duplicate_hub, primary_hub, dry_run):
         """
@@ -732,10 +993,25 @@ class Command(BaseCommand):
 
     def _mark_hub_as_removed(self, duplicate_hub, dry_run):
         """
-        Mark a duplicate hub as removed (soft delete).
+        Mark a duplicate hub as removed (soft delete) or permanently delete it.
 
         Logs whether the hub is safe to remove or has dependencies.
+        Also force-clears any remaining many-to-many relationships.
         """
+        # Force-clear any remaining many-to-many relationships before removal
+        if not dry_run:
+            # Ensure all documents are removed
+            remaining_docs = duplicate_hub.related_documents.all()
+            if remaining_docs.exists():
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"  ⚠ Force-clearing {remaining_docs.count()} remaining "
+                        f"document associations"
+                    )
+                )
+                for doc in remaining_docs:
+                    doc.hubs.remove(duplicate_hub)
+
         subscribers_count = duplicate_hub.subscribers.count()
         has_permissions = duplicate_hub.permissions.exists()
         doc_count = duplicate_hub.related_documents.count()
@@ -749,11 +1025,29 @@ class Command(BaseCommand):
             self.stdout.write(
                 self.style.WARNING(
                     f"  ⚠ Hub {duplicate_hub.id} ({duplicate_hub.slug}) has "
-                    f"subscribers ({subscribers_count}) or permissions - "
+                    f"subscribers ({subscribers_count}) or permissions or "
+                    f"documents ({doc_count}) - "
                     f"marking as removed but keeping data"
                 )
             )
 
         if not dry_run:
-            duplicate_hub.is_removed = True
-            duplicate_hub.save()
+            if self.hard_delete:
+                # Permanently delete the hub
+                duplicate_hub.delete()
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f"  🗑️  Hub {duplicate_hub.id} ({duplicate_hub.slug}) "
+                        f"permanently deleted"
+                    )
+                )
+            else:
+                # Soft delete: mark as removed
+                duplicate_hub.is_removed = True
+                duplicate_hub.save()
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f"  ✓ Hub {duplicate_hub.id} ({duplicate_hub.slug}) "
+                        f"marked as removed"
+                    )
+                )

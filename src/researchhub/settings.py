@@ -603,10 +603,6 @@ EMAIL_WHITELIST = [
     for email in os.environ.get("EMAIL_WHITELIST", keys.EMAIL_WHITELIST).split(",")
 ]
 
-SIFT_MODERATION_WHITELIST = [
-    user_id.strip()
-    for user_id in os.environ.get("SIFT_MODERATION_WHITELIST", "").split(",")
-]
 
 # Persona
 PERSONA_WEBHOOK_SECRET = os.environ.get(
@@ -802,12 +798,6 @@ MORALIS_API_KEY = os.environ.get("MORALIS_API_KEY", keys.MORALIS_API_KEY)
 RECAPTCHA_VERIFY_URL = "https://www.google.com/recaptcha/api/siteverify"
 RECAPTCHA_SECRET_KEY = os.environ.get("RECAPTCHA_SECRET_KEY", keys.RECAPTCHA_SECRET_KEY)
 
-# Sift Science
-SIFT_ACCOUNT_ID = os.environ.get("SIFT_ACCOUNT_ID", keys.SIFT_ACCOUNT_ID)
-SIFT_REST_API_KEY = os.environ.get("SIFT_REST_API_KEY", keys.SIFT_REST_API_KEY)
-SIFT_WEBHOOK_SECRET_KEY = os.environ.get(
-    "SIFT_WEBHOOK_SECRET_KEY", keys.SIFT_WEBHOOK_SECRET_KEY
-)
 
 # Amplitude
 AMPLITUDE_API_KEY = os.environ.get("AMPLITUDE_API_KEY", keys.AMPLITUDE_API_KEY)

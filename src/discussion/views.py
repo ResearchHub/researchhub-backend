@@ -37,24 +37,9 @@ from user.models import User
 from utils.models import SoftDeletableModel
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.sentry import log_error
-from utils.siftscience import (
-    SIFT_VOTE,
-    decisions_api,
-    events_api,
-    sift_track,
-    update_user_risk_score,
-)
 
 
-def censor(requestor, item):
-    content_id = f"{type(item).__name__}_{item.id}"
-    content_creator = item.created_by
-    if not requestor == content_creator:
-        events_api.track_flag_content(content_creator, content_id, requestor.id)
-        decisions_api.apply_bad_content_decision(
-            content_creator, content_id, "MANUAL_REVIEW", requestor
-        )
-
+def censor(item):
     if isinstance(item, SoftDeletableModel):
         item.delete(soft=True)
     else:
@@ -127,8 +112,6 @@ class ReactionViewActionMixin:
         try:
             _, flag_data = create_flag(user, item, reason, reason_choice, reason_memo)
 
-            content_id = f"{type(item).__name__}_{item.id}"
-            events_api.track_flag_content(item.created_by, content_id, user.id)
             return Response(flag_data, status=201)
         except (IntegrityError, ValidationError):
             return Response(
@@ -169,7 +152,7 @@ class ReactionViewActionMixin:
         item = self.get_object()
 
         with transaction.atomic():
-            censor(request.user, item)
+            censor(item)
             return Response(
                 self.get_serializer(instance=item, _include_fields=("id",)).data,
                 status=200,
@@ -285,23 +268,6 @@ class ReactionViewActionMixin:
             serializer.data, status=status.HTTP_201_CREATED, headers=headers
         )
 
-    def sift_track_create_content_comment(
-        self, request, response, model, is_thread=False
-    ):
-        item = model.objects.get(pk=response.data["id"])
-        tracked_comment = events_api.track_content_comment(
-            item.created_by, item, request, is_thread=is_thread
-        )
-        update_user_risk_score(item.created_by, tracked_comment)
-
-    def sift_track_update_content_comment(
-        self, request, response, model, is_thread=False
-    ):
-        item = model.objects.get(pk=response.data["id"])
-        tracked_comment = events_api.track_content_comment(
-            item.created_by, item, request, is_thread=is_thread, update=True
-        )
-        update_user_risk_score(item.created_by, tracked_comment)
 
 
 def retrieve_endorsement(user, item):
@@ -528,7 +494,6 @@ def create_automated_bounty(item):
             item.save(update_fields=["automated_bounty_created"])
 
 
-@sift_track(SIFT_VOTE)
 def update_or_create_vote(request, user, item, vote_type):
     """UPDATE VOTE"""
     vote = retrieve_vote(user, item)
