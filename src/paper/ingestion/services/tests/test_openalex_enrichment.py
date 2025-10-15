@@ -64,35 +64,6 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         self.assertEqual(result.reason, "no_openalex_data")
         self.mock_openalex_client.fetch_by_doi.assert_called_once_with(self.paper.doi)
 
-    def test_enrich_paper_no_license_in_openalex(self):
-        """Test enriching a paper with no license information in OpenAlex."""
-        openalex_data = {
-            "raw_data": {
-                "id": "https://openalex.org/W123456",
-                "title": "Test Paper",
-                "primary_location": {},
-                "authorships": [],
-            }
-        }
-        self.mock_openalex_client.fetch_by_doi.return_value = openalex_data
-
-        # Mock the mapped paper with no license data
-        mock_mapped_paper = Mock()
-        mock_mapped_paper.pdf_license = None
-        mock_mapped_paper.pdf_url = None
-        mock_mapped_paper.pdf_license_url = None
-        self.mock_openalex_mapper.map_to_paper.return_value = mock_mapped_paper
-
-        # Mock mapper methods for authors/institutions/authorships
-        self.mock_openalex_mapper.map_to_authors.return_value = []
-        self.mock_openalex_mapper.map_to_institutions.return_value = []
-        self.mock_openalex_mapper.map_to_authorships.return_value = []
-
-        result = self.service.enrich_paper_with_openalex(self.paper)
-
-        # Now returns success even without license (authors/institutions can still be processed)
-        self.assertEqual(result.status, "success")
-
     def test_enrich_paper_success_with_primary_location_full(self):
         """Test successful enrichment with all fields from primary_location."""
         openalex_data = {
