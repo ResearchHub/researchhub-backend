@@ -1,5 +1,3 @@
-from django.db.models import Case, Value, When
-from django.db.models.functions import Coalesce
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
 from hub.serializers import SimpleHubSerializer
@@ -107,10 +105,7 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
             bounties_qs = (
                 unified_doc.related_bounties
                 .filter(**_filter_fields)
-                .order_by(
-                    Case(When(status="OPEN", then=Value(0)), default=Value(1)),
-                    Coalesce("expiration_date", Value(None))
-                )
+                .order_by_open_and_expiration()
             )
             
             serializer = DynamicBountySerializer(

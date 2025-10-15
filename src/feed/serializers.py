@@ -1,8 +1,6 @@
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import default_storage
-from django.db.models import Case, Value, When
-from django.db.models.functions import Coalesce
 from rest_framework import serializers
 
 from hub.models import Hub
@@ -126,10 +124,7 @@ class ContentObjectSerializer(serializers.Serializer):
             bounties = (
                 obj.unified_document.related_bounties
                 .filter(parent__isnull=True)
-                .order_by(
-                    Case(When(status="OPEN", then=Value(0)), default=Value(1)),
-                    Coalesce("expiration_date", Value(None))
-                )
+                .order_by_open_and_expiration()
             )
 
             if not bounties.exists():

@@ -7,7 +7,6 @@ from django.contrib.admin.options import get_content_type_for_model
 from django.core.files.base import ContentFile
 from django.db import IntegrityError, transaction
 from django.db.models import Case, IntegerField, Value, When
-from django.db.models.functions import Coalesce
 from django.http import QueryDict
 
 import utils.sentry as sentry
@@ -820,10 +819,7 @@ class DynamicPaperSerializer(
             paper.unified_document.related_bounties
             .select_related(*_select_related_fields)
             .prefetch_related(*_prefetch_related_fields)
-            .order_by(
-                Case(When(status="OPEN", then=Value(0)), default=Value(1)),
-                Coalesce("expiration_date", Value(None))
-            )
+            .order_by_open_and_expiration()
         )
         serializer = DynamicBountySerializer(
             bounties,

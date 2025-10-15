@@ -187,12 +187,88 @@ class TestRhCommentThreadModel(TestCase):
         # Get aggregates
         aggregates = RhCommentThreadModel.objects.get_discussion_aggregates(self.paper)
 
-        # Assert bounty_count is 2 (only top-level comments with bounties)
+        # Assert bounty_count is 2 (only top-level comments with OPEN bounties)
         self.assertEqual(aggregates["bounty_count"], 2)
         # Assert conversation_count now uses discussion_count (only non-bounty GENERIC_COMMENT)
         # comment1 and comment2 have bounties, comment3 doesn't, nested_comment has bounty
         # So only comment3 and its non-bounty children count = 1
         self.assertEqual(aggregates["conversation_count"], 1)
+
+    def test_bounty_count_excludes_non_open_bounties(self):
+        """Test that bounty_count only counts comments with OPEN status bounties"""
+        unified_document = ResearchhubUnifiedDocument.objects.create()
+        self.paper.unified_document = unified_document
+        self.paper.save()
+
+        escrow = Escrow.objects.create(
+            created_by=self.user,
+            hold_type=Escrow.BOUNTY,
+            amount_holding=1000,
+            object_id=self.paper.id,
+            content_type=self.content_type,
+        )
+
+        comment1 = RhCommentModel.objects.create(
+            thread=self.generic_thread,
+            comment_content_json={"ops": [{"insert": "Comment with open bounty"}]},
+            comment_type=GENERIC_COMMENT,
+            created_by=self.user,
+        )
+        comment2 = RhCommentModel.objects.create(
+            thread=self.generic_thread,
+            comment_content_json={"ops": [{"insert": "Comment with closed bounty"}]},
+            comment_type=GENERIC_COMMENT,
+            created_by=self.user,
+        )
+        comment3 = RhCommentModel.objects.create(
+            thread=self.generic_thread,
+            comment_content_json={"ops": [{"insert": "Comment with expired bounty"}]},
+            comment_type=GENERIC_COMMENT,
+            created_by=self.user,
+        )
+        comment4 = RhCommentModel.objects.create(
+            thread=self.generic_thread,
+            comment_content_json={"ops": [{"insert": "Comment with cancelled bounty"}]},
+            comment_type=GENERIC_COMMENT,
+            created_by=self.user,
+        )
+
+        Bounty.objects.create(
+            created_by=self.user,
+            escrow=escrow,
+            item=comment1,
+            unified_document=unified_document,
+            amount=100,
+            status=Bounty.OPEN,
+        )
+        Bounty.objects.create(
+            created_by=self.user,
+            escrow=escrow,
+            item=comment2,
+            unified_document=unified_document,
+            amount=200,
+            status=Bounty.CLOSED,
+        )
+        Bounty.objects.create(
+            created_by=self.user,
+            escrow=escrow,
+            item=comment3,
+            unified_document=unified_document,
+            amount=150,
+            status=Bounty.EXPIRED,
+        )
+        Bounty.objects.create(
+            created_by=self.user,
+            escrow=escrow,
+            item=comment4,
+            unified_document=unified_document,
+            amount=250,
+            status=Bounty.CANCELLED,
+        )
+
+        aggregates = RhCommentThreadModel.objects.get_discussion_aggregates(self.paper)
+
+        self.assertEqual(aggregates["bounty_count"], 1)
 
     def test_get_discussion_aggregates_conversation_count(self):
         """Test conversation_count correctly counts generic comments without bounties"""
