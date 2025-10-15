@@ -442,6 +442,9 @@ class OpenAlexMapper(BaseMapper):
 
             # Only create authorships for authors with OpenAlex IDs
             if not openalex_author_id:
+                logger.warning(
+                    f"Skipping authorship without OpenAlex ID: {author_info}"
+                )
                 continue
 
             raw_author_name = authorship_data.get(
