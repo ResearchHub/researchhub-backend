@@ -5,7 +5,6 @@ from typing import Any, Optional
 from django.contrib.contenttypes.models import ContentType
 
 import utils.locking as lock
-from feed.hot_score import calculate_hot_score_for_item
 from feed.models import FeedEntry
 from feed.serializers import serialize_feed_item, serialize_feed_metrics
 from researchhub.celery import app
@@ -172,6 +171,10 @@ def refresh_feed_hot_scores():
 
 
 def _refresh_feed_hot_scores():
+    """
+    Refresh both v1 (deprecated) and v2 (new) hot scores.
+    This allows A/B testing between the two algorithms.
+    """
     start_time = time.time()
     count = 0
     batch_size = 1000
@@ -181,29 +184,31 @@ def _refresh_feed_hot_scores():
     for offset in range(0, total_entries, batch_size):
         entries_to_update = []
 
-        # Process a batch of entries, skipping entries with hot_score <= 10
+        # Process a batch of entries
         batch = list(
-            FeedEntry.objects.filter(hot_score__gt=10).prefetch_related("item")[
-                offset : (offset + batch_size)
-            ]
+            FeedEntry.objects.prefetch_related("item")[offset : (offset + batch_size)]
         )
 
-        # Calculate hot scores for each entry in the batch
+        # Calculate both hot scores for each entry in the batch
         for feed_entry in batch:
             if feed_entry.item:
-                feed_entry.hot_score = calculate_hot_score_for_item(feed_entry)
+                # Calculate both v1 and v2 scores
+                feed_entry.hot_score = feed_entry.calculate_hot_score()
+                feed_entry.hot_score_v2 = feed_entry.calculate_hot_score_v2()
                 entries_to_update.append(feed_entry)
 
-        # Bulk update entries with new hot scores
+        # Bulk update entries with both hot scores
         if entries_to_update:
             from django.db import connection
 
             with connection.cursor() as cursor:
                 batch_params = [
-                    (entry.hot_score, entry.id) for entry in entries_to_update
+                    (entry.hot_score, entry.hot_score_v2, entry.id)
+                    for entry in entries_to_update
                 ]
                 cursor.executemany(
-                    "UPDATE feed_feedentry SET hot_score = %s WHERE id = %s",
+                    "UPDATE feed_feedentry SET hot_score = %s, "
+                    "hot_score_v2 = %s WHERE id = %s",
                     batch_params,
                 )
 
@@ -211,5 +216,37 @@ def _refresh_feed_hot_scores():
         logger.info(f"Processed {count} of {total_entries} feed entries")
 
     duration = time.time() - start_time
-    logger.info(f"Refreshed feed hot scores in {duration:.2f}s")
-    sentry.log_info(f"Refreshed feed hot scores in {duration:.2f}s")
+    logger.info(f"Refreshed both v1 and v2 hot scores in {duration:.2f}s")
+    sentry.log_info(f"Refreshed both v1 and v2 hot scores in {duration:.2f}s")
+
+
+@app.task
+def refresh_popular_feed_entries():
+    import time
+
+    from rest_framework.request import Request
+    from rest_framework.test import APIRequestFactory
+
+    start = time.time()
+    logger.info("Refreshing popular feed entries...")
+
+    factory = APIRequestFactory()
+    django_request = factory.get(
+        "/api/feed/",
+        {
+            "feed_view": "popular",
+        },
+        HTTP_HOST="localhost",
+    )
+
+    drf_request = Request(django_request)
+
+    viewset = FeedViewSet()
+    viewset.setup(drf_request, None)
+    viewset.format_kwarg = None
+
+    # Call the list() method
+    viewset.list(drf_request)
+
+    duration = time.time() - start
+    logger.info(f"Popular feed entries refreshed ({duration:.2f}s)")
