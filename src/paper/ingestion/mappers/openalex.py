@@ -379,7 +379,7 @@ class OpenAlexMapper(BaseMapper):
             Only creates institutions with ROR IDs to enable deduplication.
         """
         institutions = []
-        seen_ror_ids = set()
+        seen_oa_ids = set()
         authorships_list = record.get("authorships", [])
 
         for authorship_data in authorships_list:
@@ -397,14 +397,13 @@ class OpenAlexMapper(BaseMapper):
                 else:
                     ror_id = ror_url
 
+                openalex_id = self._extract_openalex_id(institution_info.get("id", ""))
+
                 # Skip if already processed
-                if ror_id in seen_ror_ids:
+                if openalex_id in seen_oa_ids:
                     continue
 
-                seen_ror_ids.add(ror_id)
-
-                # Extract OpenAlex ID
-                openalex_id = self._extract_openalex_id(institution_info.get("id", ""))
+                seen_oa_ids.add(openalex_id)
 
                 # Create Institution instance
                 institution = Institution(
