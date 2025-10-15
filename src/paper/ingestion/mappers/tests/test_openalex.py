@@ -275,8 +275,8 @@ class TestOpenAlexMapper(TestCase):
         self.assertEqual(first_authorship.paper, paper)
         self.assertIsNotNone(first_authorship.raw_author_name)
         self.assertIsNotNone(first_authorship.author_position)
-        self.assertTrue(hasattr(first_authorship, "_orcid_id"))
-        self.assertIsNotNone(first_authorship._orcid_id)
+        self.assertTrue(hasattr(first_authorship, "_author_openalex_id"))
+        self.assertIsNotNone(first_authorship._author_openalex_id)
 
     def test_map_batch(self):
         """

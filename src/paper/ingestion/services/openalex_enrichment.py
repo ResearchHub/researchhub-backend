@@ -272,17 +272,14 @@ class PaperOpenAlexEnrichmentService:
                     "type": institution_instance.type,
                 }
 
-                # Use update_or_create to handle both creation and updates
-                # This will create if ror_id doesn't exist, or update if it does
-                if defaults:
-                    _, created = Institution.objects.update_or_create(
-                        openalex_id=institution_instance.openalex_id, defaults=defaults
-                    )
+                _, created = Institution.objects.update_or_create(
+                    openalex_id=institution_instance.openalex_id, defaults=defaults
+                )
 
-                    if created:
-                        institutions_created += 1
-                    else:
-                        institutions_updated += 1
+                if created:
+                    institutions_created += 1
+                else:
+                    institutions_updated += 1
 
             except Exception as e:
                 logger.error(
@@ -310,15 +307,19 @@ class PaperOpenAlexEnrichmentService:
 
         for authorship_instance in authorship_instances:
             try:
-                # Get the author by ORCID
-                orcid_id = getattr(authorship_instance, "_orcid_id", None)
-                if not orcid_id:
+                # Get the author by OpenAlex ID
+                author_openalex_id = getattr(
+                    authorship_instance, "_author_openalex_id", None
+                )
+                if not author_openalex_id:
                     continue
 
-                author = Author.objects.filter(orcid_id=orcid_id).first()
+                author = Author.objects.filter(
+                    openalex_ids__contains=[author_openalex_id]
+                ).first()
                 if not author:
                     logger.warning(
-                        f"Author with ORCID {orcid_id} not found for paper {paper.id}"
+                        f"Author with OpenAlex ID {author_openalex_id} not found for paper {paper.id}"
                     )
                     continue
 

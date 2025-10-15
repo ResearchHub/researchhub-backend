@@ -436,17 +436,13 @@ class OpenAlexMapper(BaseMapper):
 
         for authorship_data in authorships_list:
             author_info = authorship_data.get("author", {})
-            orcid = author_info.get("orcid")
 
-            # Only create authorships for authors with ORCID IDs
-            if not orcid:
+            # Extract OpenAlex author ID
+            openalex_author_id = self._extract_openalex_id(author_info.get("id", ""))
+
+            # Only create authorships for authors with OpenAlex IDs
+            if not openalex_author_id:
                 continue
-
-            # Extract ORCID ID
-            if f"{ORCID_ORG_DOMAIN}/" in orcid:
-                orcid_id = orcid.split(f"{ORCID_ORG_DOMAIN}/")[-1]
-            else:
-                orcid_id = orcid
 
             raw_author_name = authorship_data.get(
                 "raw_author_name", author_info.get("display_name", "")
@@ -460,8 +456,8 @@ class OpenAlexMapper(BaseMapper):
                 is_corresponding=authorship_data.get("is_corresponding", False),
             )
 
-            # Store author ORCID for later linking
-            authorship._orcid_id = orcid_id
+            # Store author OpenAlex ID for later linking
+            authorship._author_openalex_id = openalex_author_id
 
             # Store institution OpenAlex IDs for later linking
             institution_openalex_ids = []

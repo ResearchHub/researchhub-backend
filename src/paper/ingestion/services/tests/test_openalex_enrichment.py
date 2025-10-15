@@ -403,7 +403,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         mock_authorship.author_position = "first"
         mock_authorship.raw_author_name = "John Doe"
         mock_authorship.is_corresponding = True
-        mock_authorship._orcid_id = "0000-0001-2345-6789"
+        mock_authorship._author_openalex_id = "A123456"
         mock_authorship._institution_openalex_ids = ["I123456"]
         mock_authorship.save = Mock()
         mock_authorship.institutions = Mock()
