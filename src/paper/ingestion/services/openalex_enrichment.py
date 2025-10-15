@@ -211,9 +211,6 @@ class PaperOpenAlexEnrichmentService:
         author_instances = self.openalex_mapper.map_to_authors(raw_data)
 
         for author_instance in author_instances:
-            if not author_instance.orcid_id:
-                continue
-
             try:
                 # Prepare defaults for creation
                 defaults = {
