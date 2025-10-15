@@ -1,4 +1,6 @@
 from django.core.files.storage import default_storage
+from django.db.models import Case, Value, When
+from django.db.models.functions import Coalesce
 from rest_framework.serializers import (
     CharField,
     ModelSerializer,
@@ -255,12 +257,15 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
         _context_fields = context.get("doc_dps_get_bounties", {})
         _select_related_fields = context.get("doc_dps_get_bounties_select", [])
         _prefetch_related_fields = context.get("doc_dps_get_bounties_prefetch", [])
+        
         bounties = (
-            post.unified_document.related_bounties.select_related(
-                *_select_related_fields
-            )
+            post.unified_document.related_bounties
+            .select_related(*_select_related_fields)
             .prefetch_related(*_prefetch_related_fields)
-            .all()
+            .order_by(
+                Case(When(status="OPEN", then=Value(0)), default=Value(1)),
+                Coalesce("expiration_date", Value(None))
+            )
         )
         serializer = DynamicBountySerializer(
             bounties,

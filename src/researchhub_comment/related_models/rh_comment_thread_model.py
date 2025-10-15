@@ -60,27 +60,24 @@ class RhCommentThreadQuerySet(models.QuerySet):
             is_removed=False,
         ).count()
 
-        # Single aggregate query for other counts
         aggregator = self.aggregate(
-            # Review count - reviews without bounties (top-level only)
             review_count=Count(
                 "rh_comments",
                 filter=Q(
                     rh_comments__comment_type__in=[PEER_REVIEW, COMMUNITY_REVIEW],
                     rh_comments__bounties__isnull=True,
                     rh_comments__is_removed=False,
-                    rh_comments__parent__isnull=True,  # Only count top-level comments
+                    rh_comments__parent__isnull=True,
                 ),
             ),
-            # Bounty count - count comments that have at least one bounty attached
             bounty_count=Count(
                 "rh_comments",
                 distinct=True,
                 filter=Q(
                     rh_comments__bounties__isnull=False,
                     rh_comments__is_removed=False,
-                    rh_comments__parent__isnull=True,  # Only count top-level comments
-                ),
+                    rh_comments__parent__isnull=True,
+                ) & ~Q(rh_comments__bounties__status="EXPIRED"),
             ),
         )
 
