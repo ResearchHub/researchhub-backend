@@ -4,6 +4,7 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
 
 from feed.hot_score import calculate_hot_score_for_item
+from feed.hot_score_DEPRECATED import calculate_hot_score_for_item_DEPRECATED
 from hub.models import Hub
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -36,7 +37,13 @@ class FeedEntry(DefaultModel):
 
     hot_score = models.IntegerField(
         default=0,
-        help_text="Feed ranking score.",
+        help_text="Feed ranking score (v1 - DEPRECATED).",
+    )
+
+    hot_score_v2 = models.IntegerField(
+        default=0,
+        help_text="New hot score algorithm (v2)",
+        db_index=True,
     )
 
     metrics = models.JSONField(
@@ -114,6 +121,11 @@ class FeedEntry(DefaultModel):
         ]
 
     def calculate_hot_score(self):
+        """Calculate hot score using DEPRECATED algorithm."""
+        return calculate_hot_score_for_item_DEPRECATED(self)
+
+    def calculate_hot_score_v2(self):
+        """Calculate hot score using new v2 algorithm."""
         return calculate_hot_score_for_item(self)
 
 
