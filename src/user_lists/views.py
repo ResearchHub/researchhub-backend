@@ -1,4 +1,5 @@
 from django.db.models import Case, CharField, Prefetch, Value, When
+from django.db.models.functions import Lower
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -63,9 +64,10 @@ class ListViewSet(_ListBaseViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            if order != "name":  # Default ordering
-                qs = qs.order_by(order)
+        if not order:
+            order = "name"
 
+        qs = qs.order_by(Lower(order) if "name" in order else order)
         page = self.paginate_queryset(qs)
         ser = self.get_serializer(page or qs, many=True)
 
@@ -107,17 +109,19 @@ class ListViewSet(_ListBaseViewSet):
         Create a queryset ordered by document title based on the document type.
         """
 
-        title_expression = Case(
-            When(
-                unified_document__document_type="PAPER",
-                then="unified_document__paper__title",
-            ),
-            When(
-                unified_document__document_type__in=["GRANT", "PREREGISTRATION"],
-                then="unified_document__posts__title",
-            ),
-            default=Value(""),
-            output_field=CharField(),
+        title_expression = Lower(
+            Case(
+                When(
+                    unified_document__document_type="PAPER",
+                    then="unified_document__paper__title",
+                ),
+                When(
+                    unified_document__document_type__in=["GRANT", "PREREGISTRATION"],
+                    then="unified_document__posts__title",
+                ),
+                default=Value(""),
+                output_field=CharField(),
+            )
         )
 
         order_field = title_expression.desc() if descending else title_expression.asc()
