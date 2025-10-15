@@ -24,9 +24,9 @@ class Command(BaseCommand):
             else:
                 self.stdout.write(f"Running {command}...")
 
-                name, *args = command.split()
+                name, *cmd_args = command.split()
 
-                call_command(name, *args)
+                call_command(name, *cmd_args)
 
     def _set_journal_id(self):
         self.stdout.write(f"Setting placeholder Journal ID...")

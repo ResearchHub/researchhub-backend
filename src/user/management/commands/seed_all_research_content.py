@@ -7,7 +7,10 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            "--skip", nargs="*", default=[], help="Commands to skip (ex: --skip bounties grants)"
+            "--skip",
+            nargs="*",
+            default=[],
+            help="Commands to skip (ex: --skip bounties grants)",
         )
 
     def handle(self, *args, **options):
@@ -27,6 +30,6 @@ class Command(BaseCommand):
 
             self.stdout.write(f"Running {command}...")
 
-            name, *args = command.split()
+            name, *cmd_args = command.split()
 
-            call_command(name, *args)
+            call_command(name, *cmd_args)
