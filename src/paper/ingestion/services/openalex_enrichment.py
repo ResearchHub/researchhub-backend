@@ -219,30 +219,20 @@ class PaperOpenAlexEnrichmentService:
                 defaults = {
                     "first_name": author_instance.first_name,
                     "last_name": author_instance.last_name,
-                    "openalex_ids": author_instance.openalex_ids,
+                    "orcid_id": author_instance.orcid_id,
                     "created_source": getattr(
                         author_instance, "created_source", Author.SOURCE_OPENALEX
                     ),
                 }
 
-                # Use get_or_create to handle both creation and lookup
-                author, created = Author.objects.get_or_create(
-                    orcid_id=author_instance.orcid_id, defaults=defaults
+                _, created = Author.objects.update_or_create(
+                    openalex_ids=author_instance.openalex_ids, defaults=defaults
                 )
 
                 if created:
                     authors_created += 1
                 else:
-                    # Merge new OpenAlex IDs with existing ones
-                    updated = False
-                    for openalex_id in author_instance.openalex_ids:
-                        if openalex_id and openalex_id not in author.openalex_ids:
-                            author.openalex_ids.append(openalex_id)
-                            updated = True
-
-                    if updated:
-                        author.save(update_fields=["openalex_ids"])
-                        authors_updated += 1
+                    authors_updated += 1
 
             except Exception as e:
                 logger.error(
@@ -281,6 +271,7 @@ class PaperOpenAlexEnrichmentService:
                     "display_name": institution_instance.display_name,
                     "country_code": institution_instance.country_code,
                     "openalex_id": institution_instance.openalex_id,
+                    "ror_id": institution_instance.ror_id,
                     "type": institution_instance.type,
                 }
 
@@ -288,7 +279,7 @@ class PaperOpenAlexEnrichmentService:
                 # This will create if ror_id doesn't exist, or update if it does
                 if defaults:
                     _, created = Institution.objects.update_or_create(
-                        ror_id=institution_instance.ror_id, defaults=defaults
+                        openalex_id=institution_instance.openalex_id, defaults=defaults
                     )
 
                     if created:
@@ -353,12 +344,12 @@ class PaperOpenAlexEnrichmentService:
                 authorship_instance.save()
 
                 # Link institutions if available
-                institution_ror_ids = getattr(
-                    authorship_instance, "_institution_ror_ids", []
+                institution_openalex_ids = getattr(
+                    authorship_instance, "_institution_openalex_ids", []
                 )
-                if institution_ror_ids:
+                if institution_openalex_ids:
                     institutions = Institution.objects.filter(
-                        ror_id__in=institution_ror_ids
+                        openalex_id__in=institution_openalex_ids
                     )
                     authorship_instance.institutions.set(institutions)
 

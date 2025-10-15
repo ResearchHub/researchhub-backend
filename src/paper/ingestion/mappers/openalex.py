@@ -464,19 +464,15 @@ class OpenAlexMapper(BaseMapper):
             # Store author ORCID for later linking
             authorship._orcid_id = orcid_id
 
-            # Store institution ROR IDs for later linking
-            institution_ror_ids = []
+            # Store institution OpenAlex IDs for later linking
+            institution_openalex_ids = []
             for institution_info in authorship_data.get("institutions", []):
-                ror_url = institution_info.get("ror")
-                if ror_url:
-                    if f"{ROR_ORG_DOMAIN}/" in ror_url:
-                        ror_id = ror_url.split(f"{ROR_ORG_DOMAIN}/")[-1]
-                    else:
-                        ror_id = ror_url
-                    institution_ror_ids.append(ror_id)
+                openalex_id = self._extract_openalex_id(institution_info.get("id", ""))
+                if openalex_id:
+                    institution_openalex_ids.append(openalex_id)
 
-            if institution_ror_ids:
-                authorship._institution_ror_ids = institution_ror_ids
+            if institution_openalex_ids:
+                authorship._institution_openalex_ids = institution_openalex_ids
 
             authorships.append(authorship)
 

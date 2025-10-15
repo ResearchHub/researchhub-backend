@@ -404,7 +404,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         mock_authorship.raw_author_name = "John Doe"
         mock_authorship.is_corresponding = True
         mock_authorship._orcid_id = "0000-0001-2345-6789"
-        mock_authorship._institution_ror_ids = ["abc123"]
+        mock_authorship._institution_openalex_ids = ["I123456"]
         mock_authorship.save = Mock()
         mock_authorship.institutions = Mock()
 
