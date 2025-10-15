@@ -13,7 +13,7 @@ from rest_framework.viewsets import ModelViewSet
 from feed.views.feed_view_mixin import FeedViewMixin
 from hub.models import Hub
 
-from ..models import FeedEntryLatest, FeedEntryPopular
+from ..models import FeedEntry
 from ..serializers import FeedEntrySerializer
 from .common import FeedPagination
 
@@ -82,13 +82,16 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
         source = self.request.query_params.get("source", "all")
         sort_by = self.request.query_params.get("sort_by", "latest")
 
-        # Use FeedEntryPopular for hot_score sorting, regardless of feed_view
+        # Use FeedEntry for all queries, sorted by hot_score or action_date
+        queryset = FeedEntry.objects.all()
+
+        # Apply sorting based on feed_view and sort_by
         if feed_view == "popular" or (
             feed_view == "following" and sort_by == "hot_score"
         ):
-            queryset = FeedEntryPopular.objects.all()
+            queryset = queryset.order_by("-hot_score")
         else:
-            queryset = FeedEntryLatest.objects.all()
+            queryset = queryset.order_by("-action_date")
 
         queryset = queryset.select_related(
             "content_type",
