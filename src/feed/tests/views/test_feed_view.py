@@ -857,7 +857,6 @@ class FeedViewSetTests(TestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        # Should use FeedEntryLatest by default
         # Verify by checking that entries are sorted by action_date
         results = response.data["results"]
         if len(results) > 1:
