@@ -207,7 +207,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
                 elif ordering == "newest":
                     queryset = self._apply_status_priority_ordering(queryset, "-created_date")
                 else:
-                    queryset = self._apply_status_priority_ordering(queryset, "-unified_document__fundraises__end_date")
+                    queryset = self._order_by_deadline_with_status_priority(queryset)
             elif fundraise_status.upper() == "CLOSED":
                 queryset = queryset.filter(
                     unified_document__fundraises__status=Fundraise.COMPLETED
