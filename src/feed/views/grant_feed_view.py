@@ -5,7 +5,7 @@ and research grant postings.
 """
 
 from django.core.cache import cache
-from django.db.models import Case, DecimalField, IntegerField, Max, Sum, Value, When
+from django.db.models import Case, DecimalField, IntegerField, Min, Sum, Value, When
 from django.db.models.functions import Coalesce
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -54,6 +54,7 @@ class GrantFeedViewSet(FeedOrderingMixin, FeedViewMixin, ModelViewSet):
         """
         Override to handle grant-specific ordering.
         Uses pre-computed status_priority annotation (0=OPEN, 1=CLOSED/COMPLETED).
+        Min aggregation ensures posts with any open grant are prioritized.
         """
         if ordering == "hot_score":
             return queryset.order_by(status_field, "-unified_document__hot_score", "id")
@@ -81,7 +82,7 @@ class GrantFeedViewSet(FeedOrderingMixin, FeedViewMixin, ModelViewSet):
         organization = request.query_params.get("organization", "")
         ordering = request.query_params.get("ordering", "")
 
-        grant_params = f"-status:{status}-org:{organization}-ordering:{ordering}-v2"
+        grant_params = f"-status:{status}-org:{organization}-ordering:{ordering}-v3"
         return base_key + grant_params
 
     def list(self, request, *args, **kwargs):
@@ -156,7 +157,7 @@ class GrantFeedViewSet(FeedOrderingMixin, FeedViewMixin, ModelViewSet):
             .filter(document_type=GRANT)
             .filter(unified_document__is_removed=False)
             .annotate(
-                status_priority=Max(
+                status_priority=Min(
                     Case(
                         When(unified_document__grants__status=Grant.OPEN, then=Value(0)),
                         default=Value(1),
