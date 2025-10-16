@@ -27,18 +27,34 @@ class ItemMapperTest(TestCase):
 
     def test_get_queryset_filters_removed_documents(self):
         """Test that removed documents are filtered out."""
-        # Create removed document
-        ResearchhubUnifiedDocument.objects.create(
-            document_type="PAPER", is_removed=True
+        # Create a document with paper, then soft-delete it
+        removed_doc = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
+        Paper.objects.create(
+            title="Removed Paper",
+            uploaded_by=self.user,
+            unified_document=removed_doc,
+            retrieved_from_external_source=False,
         )
+        # Perform soft deletion
+        removed_doc.is_removed = True
+        removed_doc.save()
 
-        # Create non-removed document
-        ResearchhubUnifiedDocument.objects.create(
-            document_type="PAPER", is_removed=False
+        # Create non-removed document with paper
+        active_doc = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
+        Paper.objects.create(
+            title="Active Paper",
+            uploaded_by=self.user,
+            unified_document=active_doc,
+            retrieved_from_external_source=False,
         )
 
         queryset = self.mapper.get_queryset()
+
+        # Only active document should be returned
         self.assertEqual(queryset.count(), 1)
+        returned_ids = list(queryset.values_list("id", flat=True))
+        self.assertIn(active_doc.id, returned_ids)
+        self.assertNotIn(removed_doc.id, returned_ids)
 
     def test_get_queryset_excludes_note_type(self):
         """Test that NOTE document type is excluded."""
@@ -48,8 +64,14 @@ class ItemMapperTest(TestCase):
         )
 
         # Create PAPER document
-        ResearchhubUnifiedDocument.objects.create(
+        paper_doc = ResearchhubUnifiedDocument.objects.create(
             document_type="PAPER", is_removed=False
+        )
+        Paper.objects.create(
+            title="Test Paper",
+            uploaded_by=self.user,
+            unified_document=paper_doc,
+            retrieved_from_external_source=False,
         )
 
         queryset = self.mapper.get_queryset()
@@ -67,6 +89,12 @@ class ItemMapperTest(TestCase):
         )
         old_doc.created_date = old_date
         old_doc.save()
+        Paper.objects.create(
+            title="Old Paper",
+            uploaded_by=self.user,
+            unified_document=old_doc,
+            retrieved_from_external_source=False,
+        )
 
         # Create recent document
         recent_date = timezone.now() - timedelta(days=1)
@@ -75,6 +103,12 @@ class ItemMapperTest(TestCase):
         )
         recent_doc.created_date = recent_date
         recent_doc.save()
+        Paper.objects.create(
+            title="Recent Paper",
+            uploaded_by=self.user,
+            unified_document=recent_doc,
+            retrieved_from_external_source=False,
+        )
 
         # Filter by start date
         start_date = timezone.now() - timedelta(days=50)
@@ -83,20 +117,142 @@ class ItemMapperTest(TestCase):
         self.assertEqual(queryset.count(), 1)
         self.assertEqual(queryset.first().id, recent_doc.id)
 
+    def test_get_queryset_includes_native_papers(self):
+        """Test that native (user-submitted) papers are always included."""
+        native_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER", is_removed=False
+        )
+        Paper.objects.create(
+            title="Native Paper",
+            uploaded_by=self.user,
+            unified_document=native_doc,
+            retrieved_from_external_source=False,
+        )
+
+        queryset = self.mapper.get_queryset()
+        self.assertEqual(queryset.count(), 1)
+        self.assertEqual(queryset.first().id, native_doc.id)
+
+    def test_get_queryset_excludes_external_papers_without_item_ids(self):
+        """Test that external papers are excluded when no item_ids provided."""
+        # Create external paper
+        external_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER", is_removed=False
+        )
+        Paper.objects.create(
+            title="External Paper",
+            uploaded_by=self.user,
+            unified_document=external_doc,
+            retrieved_from_external_source=True,
+        )
+
+        queryset = self.mapper.get_queryset()
+        self.assertEqual(queryset.count(), 0)
+
+    def test_get_queryset_includes_external_papers_when_in_item_ids(self):
+        """Test that external papers are included when their ID is in item_ids."""
+        # Create external paper
+        external_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER", is_removed=False
+        )
+        Paper.objects.create(
+            title="External Paper",
+            uploaded_by=self.user,
+            unified_document=external_doc,
+            retrieved_from_external_source=True,
+        )
+
+        # Query with item_ids (simulating interaction export)
+        queryset = self.mapper.get_queryset(item_ids={external_doc.id})
+        self.assertEqual(queryset.count(), 1)
+        self.assertEqual(queryset.first().id, external_doc.id)
+
+    def test_get_queryset_with_item_ids_filters_correctly(self):
+        """Test that item_ids filter works for mixed content types."""
+        # Create native paper
+        native_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER", is_removed=False
+        )
+        Paper.objects.create(
+            title="Native Paper",
+            uploaded_by=self.user,
+            unified_document=native_doc,
+            retrieved_from_external_source=False,
+        )
+
+        # Create external paper
+        external_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER", is_removed=False
+        )
+        Paper.objects.create(
+            title="External Paper",
+            uploaded_by=self.user,
+            unified_document=external_doc,
+            retrieved_from_external_source=True,
+        )
+
+        # Create post
+        post_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="DISCUSSION", is_removed=False
+        )
+        ResearchhubPost.objects.create(
+            title="Test Post",
+            document_type="DISCUSSION",
+            created_by=self.user,
+            unified_document=post_doc,
+        )
+
+        # Query with specific item_ids
+        queryset = self.mapper.get_queryset(item_ids={native_doc.id, post_doc.id})
+        self.assertEqual(queryset.count(), 2)
+        ids = set(queryset.values_list("id", flat=True))
+        self.assertEqual(ids, {native_doc.id, post_doc.id})
+
+    def test_get_queryset_includes_all_posts(self):
+        """Test that all post types are included regardless of interactions."""
+        # Create GRANT post
+        grant_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="GRANT", is_removed=False
+        )
+        ResearchhubPost.objects.create(
+            title="Test Grant",
+            document_type="GRANT",
+            created_by=self.user,
+            unified_document=grant_doc,
+        )
+
+        # Create DISCUSSION post
+        discussion_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="DISCUSSION", is_removed=False
+        )
+        ResearchhubPost.objects.create(
+            title="Test Discussion",
+            document_type="DISCUSSION",
+            created_by=self.user,
+            unified_document=discussion_doc,
+        )
+
+        queryset = self.mapper.get_queryset()
+        self.assertEqual(queryset.count(), 2)
+
     def test_map_to_item_row_paper(self):
         """Test mapping a paper document to a row."""
+        from analytics.services.personalize_item_utils import datetime_to_epoch_seconds
+
         unified_doc = ResearchhubUnifiedDocument.objects.create(
             document_type="PAPER", score=10
         )
         unified_doc.hubs.add(self.hub)
 
-        Paper.objects.create(
+        paper_publish_date = timezone.now() - timedelta(days=30)
+        paper = Paper.objects.create(
             title="Test Paper",
             paper_title="Official Test Paper",
             abstract="This is a test abstract.",
             uploaded_by=self.user,
             unified_document=unified_doc,
             citations=5,
+            paper_publish_date=paper_publish_date,
         )
 
         row = self.mapper.map_to_item_row(unified_doc)
@@ -106,6 +262,11 @@ class ItemMapperTest(TestCase):
         self.assertEqual(row["ITEM_TYPE"], "PAPER")
         self.assertEqual(row["SCORE"], 10)
         self.assertIsNotNone(row["CREATION_TIMESTAMP"])
+        # For papers, should use paper_publish_date instead of created_date
+        self.assertEqual(
+            row["CREATION_TIMESTAMP"],
+            datetime_to_epoch_seconds(paper.paper_publish_date),
+        )
 
         # Check paper-specific fields
         self.assertIsNotNone(row["TEXT"])  # Should have cleaned abstract
@@ -114,6 +275,8 @@ class ItemMapperTest(TestCase):
 
     def test_map_to_item_row_post(self):
         """Test mapping a post document to a row."""
+        from analytics.services.personalize_item_utils import datetime_to_epoch_seconds
+
         unified_doc = ResearchhubUnifiedDocument.objects.create(
             document_type="DISCUSSION", score=15
         )
@@ -133,6 +296,11 @@ class ItemMapperTest(TestCase):
         self.assertEqual(row["ITEM_ID"], str(unified_doc.id))
         self.assertEqual(row["ITEM_TYPE"], "DISCUSSION")
         self.assertEqual(row["SCORE"], 15)
+        # For posts, should use unified_doc.created_date
+        self.assertEqual(
+            row["CREATION_TIMESTAMP"],
+            datetime_to_epoch_seconds(unified_doc.created_date),
+        )
 
         # Check post-specific fields
         self.assertIsNotNone(row["TEXT"])  # Should have cleaned renderable_text
@@ -175,6 +343,29 @@ class ItemMapperTest(TestCase):
         # Check social metrics
         self.assertEqual(row["BLUESKY_COUNT_TOTAL"], 10)
         self.assertEqual(row["TWEET_COUNT_TOTAL"], 25)
+
+    def test_map_to_item_row_paper_without_publish_date(self):
+        """Test that papers without paper_publish_date fall back to created_date."""
+        from analytics.services.personalize_item_utils import datetime_to_epoch_seconds
+
+        unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER", score=10
+        )
+
+        Paper.objects.create(
+            title="Test Paper",
+            uploaded_by=self.user,
+            unified_document=unified_doc,
+            paper_publish_date=None,  # Explicitly None
+        )
+
+        row = self.mapper.map_to_item_row(unified_doc)
+
+        # Should fall back to unified_doc.created_date
+        self.assertEqual(
+            row["CREATION_TIMESTAMP"],
+            datetime_to_epoch_seconds(unified_doc.created_date),
+        )
 
     def test_map_to_item_row_grant(self):
         """Test mapping a grant (RFP) document."""

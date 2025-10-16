@@ -6,7 +6,7 @@ Maps unified documents to CSV rows with all metadata fields.
 
 from typing import Dict, Optional
 
-from django.db.models import QuerySet
+from django.db.models import Q, QuerySet
 
 from analytics.services.personalize_item_constants import (
     AUTHOR_IDS,
@@ -64,6 +64,8 @@ class ItemMapper:
         - Not removed
         - Not excluded document types (NOTE, HYPOTHESIS)
         - Not excluded from feed
+        - For papers: Include native papers OR papers with interactions
+        - For posts: Include all
         - Optional date range filter
         - Optional filter by specific item IDs (from interactions)
 
@@ -93,8 +95,22 @@ class ItemMapper:
             .exclude(document_filter__is_excluded_in_feed=True)
         )
 
+        # Apply paper filtering logic:
+        # - Include all native papers (user-submitted preprints)
+        # - Include all non-paper documents (posts like GRANT, DISCUSSION, etc.)
+        # - External papers: only if they're in item_ids (have interactions)
         if item_ids:
+            # If item_ids provided (from interaction export), filter by those
             queryset = queryset.filter(id__in=item_ids)
+        else:
+            # Otherwise, include native papers and all posts
+            native_paper = Q(
+                document_type="PAPER",
+                paper__retrieved_from_external_source=False,
+            )
+            non_paper = ~Q(document_type="PAPER")
+
+            queryset = queryset.filter(native_paper | non_paper)
 
         if start_date:
             queryset = queryset.filter(created_date__gte=start_date)
@@ -128,7 +144,18 @@ class ItemMapper:
         # Common fields for all document types
         row[ITEM_ID] = str(unified_doc.id)
         row[ITEM_TYPE] = unified_doc.document_type
-        row[CREATION_TIMESTAMP] = datetime_to_epoch_seconds(unified_doc.created_date)
+
+        # For papers, use paper_publish_date instead of created_date
+        if (
+            unified_doc.document_type == "PAPER"
+            and hasattr(document, "paper_publish_date")
+            and document.paper_publish_date
+        ):
+            timestamp = datetime_to_epoch_seconds(document.paper_publish_date)
+        else:
+            timestamp = datetime_to_epoch_seconds(unified_doc.created_date)
+        row[CREATION_TIMESTAMP] = timestamp
+
         row[SCORE] = unified_doc.score
 
         # Hub mapping
