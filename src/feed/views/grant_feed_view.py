@@ -59,7 +59,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         page = request.query_params.get("page", "1")
         page_num = int(page)
         cache_key = self.get_cache_key(request, "grants")
-        use_cache = page_num < 4 and not request.query_params.get("_test")
+        use_cache = page_num < 4
 
         if use_cache:
             # try to get cached response
@@ -129,20 +129,14 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         if status:
             status_upper = status.upper()
             if status_upper in [Grant.OPEN, Grant.CLOSED, Grant.COMPLETED]:
+                queryset = queryset.filter(
+                    unified_document__grants__status=status_upper
+                )
+
                 if status_upper == Grant.OPEN:
-                    queryset = queryset.filter(
-                        unified_document__grants__status__in=[Grant.OPEN, Grant.CLOSED, Grant.COMPLETED]
-                    ).order_by(
-                        Case(
-                            When(unified_document__grants__status=Grant.OPEN, then=Value(0)),
-                            default=Value(1),
-                        ),
-                        "-unified_document__grants__end_date"
-                    )
+                    queryset = queryset.order_by("unified_document__grants__end_date")
                 else:
-                    queryset = queryset.filter(
-                        unified_document__grants__status=status_upper
-                    ).order_by("-unified_document__grants__end_date")
+                    queryset = queryset.order_by("-unified_document__grants__end_date")
 
         # Filter by organization if specified
         if organization:
@@ -151,28 +145,12 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             )
 
         if not status:
-            # For ALL tab: Sort by status (OPEN first), then by appropriate date order
-            queryset = queryset.annotate(
-                # Create a flag to identify OPEN grants
-                is_open=Case(
-                    When(
-                        unified_document__grants__status=Grant.OPEN,
-                        then=Value(True),
-                    ),
-                    default=Value(False),
-                    output_field=BooleanField(),
-                ),
-            ).order_by(
-                "-is_open",
-                # For OPEN (is_open=True): Sort by closest (earliest) end_date first
+            queryset = queryset.order_by(
                 Case(
-                    When(is_open=True, then=F("unified_document__grants__end_date")),
+                    When(unified_document__grants__status=Grant.OPEN, then=Value(0)),
+                    default=Value(1),
                 ),
-                # For CLOSED/COMPLETED (is_open=False): Sort by most recent (latest) end_date first
-                Case(
-                    When(is_open=False, then=F("unified_document__grants__end_date")),
-                    default=None,
-                ).desc(),
+                "-unified_document__grants__end_date"
             )
 
         return queryset
