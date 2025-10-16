@@ -44,12 +44,21 @@ class Command(BaseCommand):
                 "(exports only items with interactions)"
             ),
         )
+        parser.add_argument(
+            "--since",
+            type=str,
+            help=(
+                "Include all papers created since this date (YYYY-MM-DD format). "
+                "Existing filtering still applies to older papers."
+            ),
+        )
 
     def handle(self, *args, **options):
         start_date = options.get("start_date")
         end_date = options.get("end_date")
         output_path = options.get("output")
         interactions_path = options.get("filter_by_interactions")
+        since_date = options.get("since")
 
         # Validate and parse dates if provided
         if start_date:
@@ -67,6 +76,15 @@ class Command(BaseCommand):
             except ValueError:
                 self.stdout.write(
                     self.style.ERROR("Invalid end-date format. Use YYYY-MM-DD.")
+                )
+                return
+
+        if since_date:
+            try:
+                since_date = datetime.strptime(since_date, "%Y-%m-%d")
+            except ValueError:
+                self.stdout.write(
+                    self.style.ERROR("Invalid since format. Use YYYY-MM-DD.")
                 )
                 return
 
@@ -93,6 +111,11 @@ class Command(BaseCommand):
             self.stdout.write(f'Start date: {start_date.strftime("%Y-%m-%d")}')
         if end_date:
             self.stdout.write(f'End date: {end_date.strftime("%Y-%m-%d")}')
+        if since_date:
+            self.stdout.write(
+                f'Since date: {since_date.strftime("%Y-%m-%d")} '
+                f"(all papers created on or after this date will be included)"
+            )
         if item_ids:
             self.stdout.write(f"Filtering by {len(item_ids)} items from interactions")
 
@@ -103,6 +126,7 @@ class Command(BaseCommand):
             start_date=start_date,
             end_date=end_date,
             item_ids=item_ids,
+            since_date=since_date,
         )
 
         # Display statistics
