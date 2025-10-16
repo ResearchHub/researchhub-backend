@@ -5,8 +5,9 @@ and research grant postings.
 """
 
 from django.core.cache import cache
-from django.db.models import Case, DecimalField, IntegerField, Min, OuterRef, Subquery, Sum, Value, When
+from django.db.models import Case, DecimalField, IntegerField, Min, OuterRef, Q, Subquery, Sum, Value, When
 from django.db.models.functions import Coalesce
+from django.utils import timezone
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
@@ -53,8 +54,8 @@ class GrantFeedViewSet(FeedOrderingMixin, FeedViewMixin, ModelViewSet):
     def apply_ordering(self, queryset, ordering, status_field, end_date_field):
         """
         Override to handle grant-specific ordering.
-        Uses status_priority from subquery (0=OPEN, 1=CLOSED/COMPLETED).
-        Subquery ensures accurate status determination for posts with multiple grants.
+        Uses status_priority from subquery (0=OPEN+not expired, 1=expired/closed).
+        Considers both status field and end_date to determine if grant is truly active.
         """
         if ordering == "hot_score":
             return queryset.order_by(status_field, "-unified_document__hot_score", "id")
@@ -82,7 +83,7 @@ class GrantFeedViewSet(FeedOrderingMixin, FeedViewMixin, ModelViewSet):
         organization = request.query_params.get("organization", "")
         ordering = request.query_params.get("ordering", "")
 
-        grant_params = f"-status:{status}-org:{organization}-ordering:{ordering}-v4"
+        grant_params = f"-status:{status}-org:{organization}-ordering:{ordering}-v5"
         return base_key + grant_params
 
     def list(self, request, *args, **kwargs):
@@ -142,11 +143,15 @@ class GrantFeedViewSet(FeedOrderingMixin, FeedViewMixin, ModelViewSet):
         status = self.request.query_params.get("status", None)
         organization = self.request.query_params.get("organization", None)
 
+        now = timezone.now()
         grant_status_subquery = Grant.objects.filter(
             unified_document_id=OuterRef("unified_document_id")
         ).annotate(
             priority=Case(
-                When(status=Grant.OPEN, then=Value(0)),
+                When(
+                    Q(status=Grant.OPEN) & (Q(end_date__isnull=True) | Q(end_date__gt=now)),
+                    then=Value(0)
+                ),
                 default=Value(1),
                 output_field=IntegerField()
             )
