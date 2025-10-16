@@ -40,26 +40,9 @@ QUEUE_HUBS = "hubs"
 
 app.conf.beat_schedule = {
     # Feed
-    "feed-refresh": {
-        "task": "feed.tasks.refresh_feed",
-        "schedule": crontab(minute="*/15"),
-        "options": {
-            "expires": 14 * 60,
-            "priority": 1,
-            "queue": QUEUE_CACHES,
-        },
-    },
     "feed-refresh-hot-scores": {
         "task": "feed.tasks.refresh_feed_hot_scores",
         "schedule": crontab(hour="*/8", minute=20),
-        "options": {
-            "priority": 1,
-            "queue": QUEUE_CACHES,
-        },
-    },
-    "refresh_popular_feed_entries": {
-        "task": "feed.tasks.refresh_popular_feed_entries",
-        "schedule": crontab(minute="*/1"),
         "options": {
             "priority": 1,
             "queue": QUEUE_CACHES,
