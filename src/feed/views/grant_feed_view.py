@@ -11,6 +11,7 @@ from rest_framework.viewsets import ModelViewSet
 
 from feed.models import FeedEntry
 from feed.serializers import GrantFeedEntrySerializer
+from feed.views.feed_ordering_mixin import FeedOrderingMixin
 from feed.views.feed_view_mixin import FeedViewMixin
 from purchase.related_models.grant_model import Grant
 from researchhub_document.related_models.constants.document_type import GRANT
@@ -20,7 +21,7 @@ from ..serializers import PostSerializer, serialize_feed_metrics
 from .common import FeedPagination
 
 
-class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
+class GrantFeedViewSet(FeedOrderingMixin, FeedViewMixin, ModelViewSet):
     """
     ViewSet for accessing entries specifically related to grant documents.
     This provides a dedicated endpoint for clients to fetch and display grant
@@ -33,11 +34,20 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         - CLOSED: Only show posts with closed grants
         - COMPLETED: Only show posts with completed grants
     - organization: Filter by granting organization name (partial match)
+    - ordering: Sort order
+      Options:
+        - newest (default): Sort by creation date (newest first)
+        - hot_score: Sort by trending score (most engaging content)
+        - upvotes: Sort by score (most upvoted first)
+        - amount_raised: Sort by amount raised (highest first)
     """
 
     serializer_class = PostSerializer
     permission_classes = []
     pagination_class = FeedPagination
+
+    def _get_open_status(self):
+        return Grant.OPEN
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -58,8 +68,10 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
     def list(self, request, *args, **kwargs):
         page = request.query_params.get("page", "1")
         page_num = int(page)
+        status = request.query_params.get("status", None)
+        organization = request.query_params.get("organization", None)
         cache_key = self.get_cache_key(request, "grants")
-        use_cache = page_num < 4
+        use_cache = page_num < 4 and status is None and organization is None
 
         if use_cache:
             # try to get cached response
@@ -132,11 +144,14 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
                 queryset = queryset.filter(
                     unified_document__grants__status=status_upper
                 )
-
-                if status_upper == Grant.OPEN:
-                    queryset = queryset.order_by("unified_document__grants__end_date")
-                else:
-                    queryset = queryset.order_by("-unified_document__grants__end_date")
+                
+                ordering = self.request.query_params.get("ordering")
+                queryset = self.apply_ordering(
+                    queryset,
+                    ordering,
+                    "unified_document__grants__status",
+                    "unified_document__grants__end_date"
+                )
 
         # Filter by organization if specified
         if organization:
@@ -145,12 +160,10 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             )
 
         if not status:
-            queryset = queryset.order_by(
-                Case(
-                    When(unified_document__grants__status=Grant.OPEN, then=Value(0)),
-                    default=Value(1),
-                ),
-                "-unified_document__grants__end_date"
+            queryset = self._order_by_deadline_with_status_priority(
+                queryset,
+                "unified_document__grants__status",
+                "unified_document__grants__end_date"
             )
 
         return queryset

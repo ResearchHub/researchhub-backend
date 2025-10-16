@@ -134,7 +134,7 @@ class StatusPrioritySortingTests(TestCase):
         self.assertLess(post_ids.index(open_post.id), post_ids.index(closed_post.id))
 
     def test_proposals_tab_open_before_closed_default_ordering(self):
-        """Proposals tab: OPEN before CLOSED with default (end_date) ordering"""
+        """Proposals tab: OPEN before CLOSED with default (newest) ordering"""
         open_recent = self._create_fundraise_post(
             "Open Recent", Fundraise.OPEN, 5
         )
@@ -179,22 +179,19 @@ class StatusPrioritySortingTests(TestCase):
         self.assertIn(closed_post.id, post_ids)
         self.assertLess(post_ids.index(open_post.id), post_ids.index(closed_post.id))
 
-    def test_multiple_open_sorted_by_urgency(self):
-        """Within OPEN fundraises, sort by closest deadline first"""
-        urgent = self._create_fundraise_post("Urgent", Fundraise.OPEN, 2)
-        later = self._create_fundraise_post("Later", Fundraise.OPEN, 30)
-        closed = self._create_fundraise_post("Closed", Fundraise.COMPLETED, -10)
+    def test_upvotes_ordering_open_before_closed(self):
+        """Test upvotes ordering maintains OPEN before CLOSED status priority"""
+        open_post = self._create_fundraise_post("Open Upvoted", Fundraise.OPEN, 10)
+        closed_post = self._create_fundraise_post("Closed Upvoted", Fundraise.COMPLETED, -5)
 
         response = self.client.get(
-            reverse("funding_feed-list") + "?fundraise_status=OPEN"
+            reverse("funding_feed-list") + "?fundraise_status=OPEN&ordering=upvotes"
         )
 
         post_ids = self._get_post_ids(response)
-        self.assertIn(urgent.id, post_ids)
-        self.assertIn(later.id, post_ids)
-        self.assertIn(closed.id, post_ids)
-        self.assertLess(post_ids.index(urgent.id), post_ids.index(later.id))
-        self.assertLess(post_ids.index(later.id), post_ids.index(closed.id))
+        self.assertIn(open_post.id, post_ids)
+        self.assertIn(closed_post.id, post_ids)
+        self.assertLess(post_ids.index(open_post.id), post_ids.index(closed_post.id))
 
     def test_multiple_closed_sorted_by_recent_first(self):
         """Within CLOSED fundraises, sort by most recent deadline first"""

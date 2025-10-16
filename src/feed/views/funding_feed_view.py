@@ -24,6 +24,7 @@ from rest_framework.viewsets import ModelViewSet
 
 from feed.models import FeedEntry
 from feed.serializers import FundingFeedEntrySerializer
+from feed.views.feed_ordering_mixin import FeedOrderingMixin
 from feed.views.feed_view_mixin import FeedViewMixin
 from purchase.related_models.fundraise_model import Fundraise
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
@@ -33,7 +34,7 @@ from ..serializers import PostSerializer, serialize_feed_metrics
 from .common import FeedPagination
 
 
-class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
+class FundingFeedViewSet(FeedOrderingMixin, FeedViewMixin, ModelViewSet):
     """
     ViewSet for accessing entries specifically related to preregistration documents.
     This provides a dedicated endpoint for clients to fetch and display preregistration
@@ -47,10 +48,10 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
     - grant_id: Filter by grant applications
       (show only posts that applied to specific grant)
     - created_by: Filter by user ID who created the funding post
-    - ordering: Sort order when grant_id is provided
+    - ordering: Sort order
       Options:
         - newest (default): Sort by creation date (newest first)
-        - hot_score: Sort by hot score (most popular first)
+        - hot_score: Sort by trending score (most engaging content)
         - upvotes: Sort by score (most upvoted first)
         - amount_raised: Sort by amount raised (highest first)
     """
@@ -59,38 +60,8 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
     permission_classes = []
     pagination_class = FeedPagination
 
-    def _apply_status_priority_ordering(self, queryset, *order_fields):
-        return queryset.order_by(
-            Case(
-                When(unified_document__fundraises__status=Fundraise.OPEN, then=Value(0)),
-                default=Value(1),
-            ),
-            *order_fields
-        )
-    
-    def _order_by_deadline_with_status_priority(self, queryset):
-        return self._apply_status_priority_ordering(
-            queryset,
-            Case(
-                When(unified_document__fundraises__status=Fundraise.OPEN, then=F("unified_document__fundraises__end_date")),
-                default=Value(None),
-            ),
-            Case(
-                When(unified_document__fundraises__status=Fundraise.OPEN, then=Value(None)),
-                default=F("unified_document__fundraises__end_date"),
-            ).desc()
-        )
-    
-    def _order_by_amount_raised(self, queryset):
-        queryset = queryset.annotate(
-            amount_raised=Coalesce(
-                Sum("unified_document__fundraises__escrow__amount_holding")
-                + Sum("unified_document__fundraises__escrow__amount_paid"),
-                0,
-                output_field=DecimalField(),
-            )
-        )
-        return self._apply_status_priority_ordering(queryset, "-amount_raised")
+    def _get_open_status(self):
+        return Fundraise.OPEN
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -102,8 +73,10 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         page_num = int(page)
         grant_id = request.query_params.get("grant_id", None)
         created_by = request.query_params.get("created_by", None)
+        fundraise_status = request.query_params.get("fundraise_status", None)
+        ordering = request.query_params.get("ordering", None)
         cache_key = self.get_cache_key(request, "funding")
-        use_cache = page_num < 4 and grant_id is None and created_by is None
+        use_cache = page_num < 4 and grant_id is None and created_by is None and fundraise_status is None and ordering is None
 
         if use_cache:
             # try to get cached response
@@ -178,17 +151,12 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
             queryset = queryset.filter(grant_applications__grant_id=grant_id)
 
             ordering = self.request.query_params.get("ordering")
-            if ordering == "hot_score":
-                queryset = self._apply_status_priority_ordering(queryset, "-unified_document__hot_score")
-            elif ordering == "upvotes":
-                queryset = self._apply_status_priority_ordering(queryset, "-score")
-            elif ordering == "amount_raised":
-                queryset = self._order_by_amount_raised(queryset)
-            elif ordering == "newest":
-                queryset = self._apply_status_priority_ordering(queryset, "-created_date")
-            else:
-                queryset = self._order_by_deadline_with_status_priority(queryset)
-
+            queryset = self.apply_ordering(
+                queryset,
+                ordering,
+                "unified_document__fundraises__status",
+                "unified_document__fundraises__end_date"
+            )
             return queryset
 
         if fundraise_status:
@@ -198,22 +166,22 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
                 )
                 
                 ordering = self.request.query_params.get("ordering")
-                if ordering == "amount_raised":
-                    queryset = self._order_by_amount_raised(queryset)
-                elif ordering == "hot_score":
-                    queryset = self._apply_status_priority_ordering(queryset, "-unified_document__hot_score")
-                elif ordering == "upvotes":
-                    queryset = self._apply_status_priority_ordering(queryset, "-score")
-                elif ordering == "newest":
-                    queryset = self._apply_status_priority_ordering(queryset, "-created_date")
-                else:
-                    queryset = self._order_by_deadline_with_status_priority(queryset)
+                queryset = self.apply_ordering(
+                    queryset,
+                    ordering,
+                    "unified_document__fundraises__status",
+                    "unified_document__fundraises__end_date"
+                )
             elif fundraise_status.upper() == "CLOSED":
                 queryset = queryset.filter(
                     unified_document__fundraises__status=Fundraise.COMPLETED
                 )
                 queryset = queryset.order_by("-unified_document__fundraises__end_date")
         else:
-            queryset = self._order_by_deadline_with_status_priority(queryset)
+            queryset = self._order_by_deadline_with_status_priority(
+                queryset,
+                "unified_document__fundraises__status",
+                "unified_document__fundraises__end_date"
+            )
 
         return queryset
