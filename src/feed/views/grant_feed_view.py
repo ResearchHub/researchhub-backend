@@ -5,7 +5,8 @@ and research grant postings.
 """
 
 from django.core.cache import cache
-from django.db.models import BooleanField, Case, F, Value, When
+from django.db.models import DecimalField, Max, Sum
+from django.db.models.functions import Coalesce
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
@@ -48,6 +49,16 @@ class GrantFeedViewSet(FeedOrderingMixin, FeedViewMixin, ModelViewSet):
 
     def _get_open_status(self):
         return Grant.OPEN
+
+    def apply_ordering(self, queryset, ordering, status_field, end_date_field):
+        """Override to use grant amount instead of fundraise escrows for amount_raised."""
+        if ordering == "amount_raised":
+            queryset = queryset.annotate(
+                grant_amount=Coalesce(Sum("unified_document__grants__amount"), 0, output_field=DecimalField())
+            )
+            return self._apply_status_priority_ordering(queryset, status_field, "-grant_amount")
+        
+        return super().apply_ordering(queryset, ordering, status_field, end_date_field)
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -136,10 +147,10 @@ class GrantFeedViewSet(FeedOrderingMixin, FeedViewMixin, ModelViewSet):
             )
             .filter(document_type=GRANT)
             .filter(unified_document__is_removed=False)
+            .annotate(grant_status=Max("unified_document__grants__status"))
         )
 
-        # Common field paths for ordering
-        status_field = "unified_document__grants__status"
+        status_field = "grant_status"
         end_date_field = "unified_document__grants__end_date"
         ordering = self.request.query_params.get("ordering")
         
