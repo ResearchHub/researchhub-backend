@@ -10,12 +10,17 @@ The algorithm prioritizes content based on:
 5. Upvotes (community engagement)
 6. Comments (discussion activity)
 7. Recency (time decay with polynomial function)
+8. Temporal urgency (boosts for new content and approaching deadlines)
 
 Hot Score Formula:
-    hot_score = ((engagement_score * content_multiplier) /
+    hot_score = ((engagement_score * freshness_multiplier) /
                  (age_in_hours + base_hours)^gravity) * 100
 
 Where engagement_score is a weighted sum of logarithmic-scaled signals.
+
+Temporal urgency handling:
+- New content boost: 4.5x → 1.0x for ResearchHub posts over first 48 hours
+- Expiring content urgency: Surfaces grants/preregistrations with approaching deadlines
 
 Note: Scores are scaled by 100 and converted to integers to preserve precision
 while allowing meaningful differentiation between items during sorting.
@@ -78,15 +83,23 @@ HOT_SCORE_CONFIG = {
         "gravity": 1.8,  # higher = faster decay
         "base_hours": 20,  # Softens decay for very new content
     },
-    # Content type multipliers favor platform-native content
-    "content_multipliers": {
-        "researchhubpost": 1.5,  # Boost ResearchHub-native content
-        "paper": 1.0,  # External papers at baseline
-    },
-    # Special document type handling
-    "document_types": {
-        "grant_urgency_days": 7,  # Grant deadline urgency
-        "preregistration_urgency_days": 7,  # Preregistration urgency
+    # Temporal urgency configuration
+    # Handles time-sensitive boosts for both new and expiring content
+    "temporal_urgency": {
+        # Boost new content before it accumulates engagement signals
+        "new_content_boost": {
+            "enabled": True,
+            "cutoff_hours": 48,  # Boost decays to 1x at this point
+            "initial_multipliers": {
+                "researchhubpost": 4.5,  # 4.5x boost for new posts
+                "paper": 1.0,  # No boost for papers (they have altmetric advantage)
+            },
+        },
+        # Surface content with approaching deadlines
+        "expiring_content_urgency": {
+            "grant_urgency_days": 7,  # Grant deadline urgency window
+            "preregistration_urgency_days": 7,  # Preregistration deadline urgency
+        },
     },
 }
 
@@ -313,8 +326,10 @@ def get_age_hours(item):
             if unified_doc and hasattr(unified_doc, "grants"):
                 grant = unified_doc.grants.first()
                 if grant and grant.end_date:
-                    config = HOT_SCORE_CONFIG["document_types"]
-                    urgency_days = config["grant_urgency_days"]
+                    urgency_config = HOT_SCORE_CONFIG["temporal_urgency"][
+                        "expiring_content_urgency"
+                    ]
+                    urgency_days = urgency_config["grant_urgency_days"]
                     time_to_deadline = grant.end_date - now
                     is_urgent = (
                         timedelta(0) < time_to_deadline < timedelta(days=urgency_days)
@@ -331,8 +346,10 @@ def get_age_hours(item):
             if unified_doc and hasattr(unified_doc, "fundraises"):
                 fundraise = unified_doc.fundraises.filter(status="OPEN").first()
                 if fundraise and fundraise.end_date:
-                    config = HOT_SCORE_CONFIG["document_types"]
-                    urgency_days = config["preregistration_urgency_days"]
+                    urgency_config = HOT_SCORE_CONFIG["temporal_urgency"][
+                        "expiring_content_urgency"
+                    ]
+                    urgency_days = urgency_config["preregistration_urgency_days"]
                     time_to_deadline = fundraise.end_date - now
                     is_urgent = (
                         timedelta(0) < time_to_deadline < timedelta(days=urgency_days)
@@ -349,22 +366,56 @@ def get_age_hours(item):
     return max(0, age.total_seconds() / 3600)
 
 
-def get_content_type_multiplier(item):
+def get_freshness_multiplier(item, age_hours):
     """
-    Get content type multiplier to favor ResearchHub-native content.
+    Calculate time-decaying freshness boost for new content.
+
+    Provides a strong boost for brand new content that linearly decays
+    to 1x (no boost) over the configured cutoff period.
+
+    Formula:
+        multiplier = 1 + (initial_boost - 1) * (1 - age_hours / cutoff_hours)
+        clamped to [1.0, initial_boost]
 
     Args:
         item: The content item (Paper or ResearchhubPost)
+        age_hours: Age of the content in hours
 
     Returns:
-        float: Multiplier (e.g., 1.2 for Posts, 1.0 for Papers)
+        float: Freshness multiplier (e.g., 3.0 for brand new post, 1.0 after 48h)
     """
-    if isinstance(item, ResearchhubPost):
-        return HOT_SCORE_CONFIG["content_multipliers"]["researchhubpost"]
-    elif isinstance(item, Paper):
-        return HOT_SCORE_CONFIG["content_multipliers"]["paper"]
+    config = HOT_SCORE_CONFIG["temporal_urgency"]["new_content_boost"]
 
-    return 1.0  # Default
+    # Check if freshness boost is enabled
+    if not config.get("enabled", False):
+        return 1.0
+
+    # Get the appropriate initial multiplier based on content type
+    initial_multipliers = config.get("initial_multipliers", {})
+    if isinstance(item, ResearchhubPost):
+        initial_boost = initial_multipliers.get("researchhubpost", 1.0)
+    elif isinstance(item, Paper):
+        initial_boost = initial_multipliers.get("paper", 1.0)
+    else:
+        initial_boost = 1.0
+
+    # If no boost configured, return 1.0
+    if initial_boost <= 1.0:
+        return 1.0
+
+    cutoff_hours = config.get("cutoff_hours", 48)
+
+    # If age exceeds cutoff, no boost
+    if age_hours >= cutoff_hours:
+        return 1.0
+
+    # Calculate linear decay from initial_boost to 1.0
+    # Formula: 1 + (initial_boost - 1) * (1 - age_hours / cutoff_hours)
+    decay_factor = 1.0 - (age_hours / cutoff_hours)
+    multiplier = 1.0 + (initial_boost - 1.0) * decay_factor
+
+    # Ensure multiplier is in valid range [1.0, initial_boost]
+    return max(1.0, min(initial_boost, multiplier))
 
 
 def get_fundraise_amount(item):
@@ -474,7 +525,7 @@ def calculate_hot_score(feed_entry, content_type_name):
     Calculate hot score using HN-style algorithm with prioritized signals.
 
     Formula:
-        hot_score = ((engagement_score * content_multiplier) /
+        hot_score = ((engagement_score * freshness_multiplier) /
                     (age_hours + base_hours)^gravity) * 100
 
     Where engagement_score is weighted sum of:
@@ -484,6 +535,11 @@ def calculate_hot_score(feed_entry, content_type_name):
         4. Peer reviews
         5. Upvotes
         6. Comments
+
+    The freshness_multiplier gives new content (especially ResearchHub posts) a
+    strong time-decaying boost (4.5x → 1.0x over 48 hours) that helps new posts
+    appear in trending feed before accumulating engagement signals. After 48 hours,
+    all content competes on equal footing based purely on engagement and time decay.
 
     The final score is scaled by 100 and converted to an integer to preserve
     precision while allowing meaningful differentiation between items.
@@ -533,8 +589,8 @@ def calculate_hot_score(feed_entry, content_type_name):
         # Age in hours
         age_hours = get_age_hours(item)
 
-        # Content type multiplier
-        content_multiplier = get_content_type_multiplier(item)
+        # Freshness multiplier (time-decaying boost for new content)
+        freshness_multiplier = get_freshness_multiplier(item, age_hours)
 
         # ====================================================================
         # 2. Calculate engagement score using logarithmic scaling
@@ -588,8 +644,8 @@ def calculate_hot_score(feed_entry, content_type_name):
             + comment_component
         )
 
-        # Apply content type multiplier (favor ResearchHub content)
-        engagement_score *= content_multiplier
+        # Apply freshness multiplier (boost new content)
+        engagement_score *= freshness_multiplier
 
         # ====================================================================
         # 3. Apply HN-style time decay
