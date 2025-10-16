@@ -66,6 +66,54 @@ class Command(BaseCommand):
             type=int,
             help="Debug a specific unified document by ID",
         )
+        # Simulation parameters (default 0 = use actual values)
+        parser.add_argument(
+            "--sim-upvotes",
+            type=int,
+            default=0,
+            help="Simulate upvote count (0 = use actual)",
+        )
+        parser.add_argument(
+            "--sim-comments",
+            type=int,
+            default=0,
+            help="Simulate comment count (0 = use actual)",
+        )
+        parser.add_argument(
+            "--sim-tips",
+            type=float,
+            default=0,
+            help="Simulate tip amount (0 = use actual)",
+        )
+        parser.add_argument(
+            "--sim-bounty",
+            type=float,
+            default=0,
+            help="Simulate bounty amount (0 = use actual)",
+        )
+        parser.add_argument(
+            "--sim-urgent-bounty",
+            action="store_true",
+            help="Simulate urgent bounty flag",
+        )
+        parser.add_argument(
+            "--sim-peer-reviews",
+            type=int,
+            default=0,
+            help="Simulate peer review count (0 = use actual)",
+        )
+        parser.add_argument(
+            "--sim-altmetric",
+            type=float,
+            default=0,
+            help="Simulate altmetric score (0 = use actual)",
+        )
+        parser.add_argument(
+            "--sim-age-hours",
+            type=float,
+            default=0,
+            help="Simulate age in hours (0 = use actual)",
+        )
 
     def handle(self, *args, **options):
         limit = options["limit"]
@@ -74,9 +122,21 @@ class Command(BaseCommand):
         csv_file = options["csv"]
         unified_document_id = options.get("unified_document_id")
 
+        # Build simulation parameters dict
+        sim_params = {
+            "upvotes": options.get("sim_upvotes", 0),
+            "comments": options.get("sim_comments", 0),
+            "tips": options.get("sim_tips", 0),
+            "bounty": options.get("sim_bounty", 0),
+            "urgent_bounty": options.get("sim_urgent_bounty", False),
+            "peer_reviews": options.get("sim_peer_reviews", 0),
+            "altmetric": options.get("sim_altmetric", 0),
+            "age_hours": options.get("sim_age_hours", 0),
+        }
+
         # Special handling for specific unified document debugging
         if unified_document_id:
-            self._debug_unified_document(unified_document_id)
+            self._debug_unified_document(unified_document_id, sim_params)
             return
 
         self.stdout.write(self.style.SUCCESS("Testing Hot Score Algorithm"))
@@ -175,6 +235,119 @@ class Command(BaseCommand):
 
         config = HOT_SCORE_CONFIG["signals"]
 
+        altmetric_component = (
+            math.log(altmetric + 1, config["altmetric"]["log_base"])
+            * config["altmetric"]["weight"]
+        )
+
+        bounty_multiplier = (
+            config["bounty"]["urgency_multiplier"] if has_urgent_bounty else 1.0
+        )
+        bounty_component = (
+            math.log(bounty_amount + 1, config["bounty"]["log_base"])
+            * config["bounty"]["weight"]
+            * bounty_multiplier
+        )
+
+        tip_component = (
+            math.log(tip_amount + 1, config["tip"]["log_base"])
+            * config["tip"]["weight"]
+        )
+
+        peer_review_component = (
+            math.log(peer_review_count + 1, config["peer_review"]["log_base"])
+            * config["peer_review"]["weight"]
+        )
+
+        upvote_component = (
+            math.log(upvote_count + 1, config["upvote"]["log_base"])
+            * config["upvote"]["weight"]
+        )
+
+        comment_component = (
+            math.log(comment_count + 1, config["comment"]["log_base"])
+            * config["comment"]["weight"]
+        )
+
+        engagement_score = (
+            altmetric_component
+            + bounty_component
+            + tip_component
+            + peer_review_component
+            + upvote_component
+            + comment_component
+        ) * content_multiplier
+
+        decay_config = HOT_SCORE_CONFIG["time_decay"]
+        denominator = math.pow(
+            age_hours + decay_config["base_hours"], decay_config["gravity"]
+        )
+
+        return {
+            "altmetric": {
+                "raw": altmetric,
+                "component": altmetric_component,
+            },
+            "bounty": {
+                "raw": bounty_amount,
+                "urgent": has_urgent_bounty,
+                "component": bounty_component,
+            },
+            "tip": {"raw": tip_amount, "component": tip_component},
+            "peer_review": {
+                "raw": peer_review_count,
+                "component": peer_review_component,
+            },
+            "upvote": {"raw": upvote_count, "component": upvote_component},
+            "comment": {"raw": comment_count, "component": comment_component},
+            "age_hours": age_hours,
+            "content_multiplier": content_multiplier,
+            "engagement_score": engagement_score,
+            "time_denominator": denominator,
+        }
+
+    def _get_components_with_simulation(
+        self, item, unified_doc, feed_entry, sim_params
+    ):
+        """Get detailed component breakdown with optional simulated values."""
+        import math
+
+        config = HOT_SCORE_CONFIG["signals"]
+
+        # Gather actual signals
+        altmetric = get_altmetric_score(item)
+        bounty_amount, has_urgent_bounty = get_total_bounty_amount(unified_doc)
+        tip_amount = get_total_tip_amount(unified_doc, item)
+        fundraise_amount = get_fundraise_amount(item)
+        if fundraise_amount > 0:
+            tip_amount += fundraise_amount
+
+        peer_review_count = get_peer_review_count(unified_doc)
+        upvote_count = get_total_upvotes(item, unified_doc)
+        comment_count = get_comment_count(item, unified_doc)
+        age_hours = get_age_hours(item)
+        content_multiplier = get_content_type_multiplier(item)
+
+        # Override with simulation parameters if provided
+        if sim_params:
+            if sim_params.get("altmetric", 0) > 0:
+                altmetric = sim_params["altmetric"]
+            if sim_params.get("bounty", 0) > 0:
+                bounty_amount = sim_params["bounty"]
+            if sim_params.get("urgent_bounty", False):
+                has_urgent_bounty = True
+            if sim_params.get("tips", 0) > 0:
+                tip_amount = sim_params["tips"]
+            if sim_params.get("peer_reviews", 0) > 0:
+                peer_review_count = sim_params["peer_reviews"]
+            if sim_params.get("upvotes", 0) > 0:
+                upvote_count = sim_params["upvotes"]
+            if sim_params.get("comments", 0) > 0:
+                comment_count = sim_params["comments"]
+            if sim_params.get("age_hours", 0) > 0:
+                age_hours = sim_params["age_hours"]
+
+        # Calculate component scores (same logic as calculate_hot_score)
         altmetric_component = (
             math.log(altmetric + 1, config["altmetric"]["log_base"])
             * config["altmetric"]["weight"]
@@ -411,15 +584,30 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(f"Exported to {csv_file}"))
 
-    def _debug_unified_document(self, unified_document_id):
+    def _debug_unified_document(self, unified_document_id, sim_params=None):
         """Debug a specific unified document with detailed breakdown."""
         from researchhub_document.related_models.researchhub_unified_document_model import (  # noqa: E501
             ResearchhubUnifiedDocument,
         )
 
-        self.stdout.write(
-            self.style.SUCCESS(f"Debugging Unified Document ID: {unified_document_id}")
+        # Check if any simulation parameters are active
+        has_simulation = sim_params and any(
+            [
+                sim_params.get("upvotes", 0) > 0,
+                sim_params.get("comments", 0) > 0,
+                sim_params.get("tips", 0) > 0,
+                sim_params.get("bounty", 0) > 0,
+                sim_params.get("urgent_bounty", False),
+                sim_params.get("peer_reviews", 0) > 0,
+                sim_params.get("altmetric", 0) > 0,
+                sim_params.get("age_hours", 0) > 0,
+            ]
         )
+
+        title_text = f"Debugging Unified Document ID: {unified_document_id}"
+        if has_simulation:
+            title_text += " (WITH SIMULATION)"
+        self.stdout.write(self.style.SUCCESS(title_text))
         self.stdout.write("=" * 80)
         self.stdout.write("")
 
@@ -508,19 +696,101 @@ class Command(BaseCommand):
         self.stdout.write("")
 
         # Get and display component breakdown
-        self.stdout.write(self.style.SUCCESS("Component Breakdown (V2):"))
-        self.stdout.write("")
+        if has_simulation:
+            # Show both actual and simulated breakdowns
+            self.stdout.write(self.style.SUCCESS("ACTUAL Component Breakdown (V2):"))
+            self.stdout.write("")
 
-        try:
-            components = self._get_components(item, unified_doc, feed_entry)
-            self._display_detailed_components(components)
-        except Exception as e:
-            self.stdout.write(
-                self.style.ERROR(f"Error getting component breakdown: {e}")
-            )
-            import traceback
+            try:
+                actual_components = self._get_components(item, unified_doc, feed_entry)
+                self._display_detailed_components(actual_components)
+            except Exception as e:
+                self.stdout.write(
+                    self.style.ERROR(f"Error getting actual component breakdown: {e}")
+                )
+                import traceback
 
-            self.stdout.write(traceback.format_exc())
+                self.stdout.write(traceback.format_exc())
+
+            # Show simulation parameters being used
+            self.stdout.write("")
+            self.stdout.write(self.style.SUCCESS("SIMULATION Parameters:"))
+            self.stdout.write("")
+            sim_active = []
+            if sim_params.get("upvotes", 0) > 0:
+                sim_active.append(f"  Upvotes:      {sim_params['upvotes']}")
+            if sim_params.get("comments", 0) > 0:
+                sim_active.append(f"  Comments:     {sim_params['comments']}")
+            if sim_params.get("tips", 0) > 0:
+                sim_active.append(f"  Tips:         {sim_params['tips']}")
+            if sim_params.get("bounty", 0) > 0:
+                sim_active.append(f"  Bounty:       {sim_params['bounty']}")
+            if sim_params.get("urgent_bounty", False):
+                sim_active.append("  Urgent Bounty: ENABLED")
+            if sim_params.get("peer_reviews", 0) > 0:
+                sim_active.append(f"  Peer Reviews: {sim_params['peer_reviews']}")
+            if sim_params.get("altmetric", 0) > 0:
+                sim_active.append(f"  Altmetric:    {sim_params['altmetric']}")
+            if sim_params.get("age_hours", 0) > 0:
+                sim_active.append(f"  Age (hours):  {sim_params['age_hours']}")
+
+            for line in sim_active:
+                self.stdout.write(line)
+            self.stdout.write("")
+
+            # Show simulated breakdown
+            self.stdout.write(self.style.SUCCESS("SIMULATED Component Breakdown (V2):"))
+            self.stdout.write("")
+
+            try:
+                sim_components = self._get_components_with_simulation(
+                    item, unified_doc, feed_entry, sim_params
+                )
+                self._display_detailed_components(sim_components)
+
+                # Calculate and display simulated score
+                sim_score = self._calculate_score_from_components(sim_components)
+                actual_score = self._calculate_score_from_components(actual_components)
+
+                # Show comparison
+                self.stdout.write("")
+                self.stdout.write(self.style.SUCCESS("COMPARISON:"))
+                self.stdout.write("")
+                diff = sim_score - actual_score
+                diff_pct = (diff / actual_score * 100) if actual_score > 0 else 0
+                self.stdout.write(f"  Actual Score:    {actual_score:>8.0f}")
+                self.stdout.write(f"  Simulated Score: {sim_score:>8.0f}")
+                self.stdout.write(f"  Difference:      {diff:>8.0f} ({diff_pct:+.1f}%)")
+            except Exception as e:
+                self.stdout.write(
+                    self.style.ERROR(
+                        f"Error getting simulated component breakdown: {e}"
+                    )
+                )
+                import traceback
+
+                self.stdout.write(traceback.format_exc())
+        else:
+            # No simulation, show actual breakdown only
+            self.stdout.write(self.style.SUCCESS("Component Breakdown (V2):"))
+            self.stdout.write("")
+
+            try:
+                components = self._get_components(item, unified_doc, feed_entry)
+                self._display_detailed_components(components)
+            except Exception as e:
+                self.stdout.write(
+                    self.style.ERROR(f"Error getting component breakdown: {e}")
+                )
+                import traceback
+
+                self.stdout.write(traceback.format_exc())
+
+    def _calculate_score_from_components(self, components):
+        """Calculate final hot score from component breakdown."""
+        raw_score = components["engagement_score"] / components["time_denominator"]
+        scaled_score = raw_score * 100
+        return max(0, int(scaled_score))
 
     def _display_detailed_components(self, components):
         """Display detailed component breakdown for debugging."""
