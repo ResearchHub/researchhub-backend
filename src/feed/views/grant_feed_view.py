@@ -5,7 +5,7 @@ and research grant postings.
 """
 
 from django.core.cache import cache
-from django.db.models import DecimalField, Max, Sum
+from django.db.models import Case, DecimalField, IntegerField, Max, Sum, Value, When
 from django.db.models.functions import Coalesce
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -51,14 +51,21 @@ class GrantFeedViewSet(FeedOrderingMixin, FeedViewMixin, ModelViewSet):
         return Grant.OPEN
 
     def apply_ordering(self, queryset, ordering, status_field, end_date_field):
-        """Override to use grant amount instead of fundraise escrows for amount_raised."""
-        if ordering == "amount_raised":
+        """
+        Override to handle grant-specific ordering.
+        Uses pre-computed status_priority annotation (0=OPEN, 1=CLOSED/COMPLETED).
+        """
+        if ordering == "hot_score":
+            return queryset.order_by(status_field, "-unified_document__hot_score", "id")
+        elif ordering == "upvotes":
+            return queryset.order_by(status_field, "-score", "id")
+        elif ordering == "amount_raised":
             queryset = queryset.annotate(
                 grant_amount=Coalesce(Sum("unified_document__grants__amount"), 0, output_field=DecimalField())
             )
-            return self._apply_status_priority_ordering(queryset, status_field, "-grant_amount")
-        
-        return super().apply_ordering(queryset, ordering, status_field, end_date_field)
+            return queryset.order_by(status_field, "-grant_amount", "id")
+        else:  # newest (default)
+            return queryset.order_by(status_field, "-created_date", "id")
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -147,10 +154,18 @@ class GrantFeedViewSet(FeedOrderingMixin, FeedViewMixin, ModelViewSet):
             )
             .filter(document_type=GRANT)
             .filter(unified_document__is_removed=False)
-            .annotate(grant_status=Max("unified_document__grants__status"))
+            .annotate(
+                status_priority=Max(
+                    Case(
+                        When(unified_document__grants__status=Grant.OPEN, then=Value(0)),
+                        default=Value(1),
+                        output_field=IntegerField()
+                    )
+                )
+            )
         )
 
-        status_field = "grant_status"
+        status_field = "status_priority"
         end_date_field = "unified_document__grants__end_date"
         ordering = self.request.query_params.get("ordering")
         
