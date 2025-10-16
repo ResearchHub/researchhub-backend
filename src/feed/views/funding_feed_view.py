@@ -146,42 +146,35 @@ class FundingFeedViewSet(FeedOrderingMixin, FeedViewMixin, ModelViewSet):
         if created_by:
             queryset = queryset.filter(created_by__id=created_by)
 
+        # Common field paths for ordering
+        status_field = "unified_document__fundraises__status"
+        end_date_field = "unified_document__fundraises__end_date"
+        ordering = self.request.query_params.get("ordering")
+        
         # Filter by grant applications if grant_id is provided
         if grant_id:
             queryset = queryset.filter(grant_applications__grant_id=grant_id)
+            return self.apply_ordering(queryset, ordering, status_field, end_date_field)
 
-            ordering = self.request.query_params.get("ordering")
-            queryset = self.apply_ordering(
-                queryset,
-                ordering,
-                "unified_document__fundraises__status",
-                "unified_document__fundraises__end_date"
-            )
-            return queryset
-
+        # Apply filters and ordering based on fundraise_status
         if fundraise_status:
             if fundraise_status.upper() == "OPEN":
                 queryset = queryset.filter(
                     unified_document__fundraises__status__in=[Fundraise.OPEN, Fundraise.COMPLETED]
                 )
-                
-                ordering = self.request.query_params.get("ordering")
-                queryset = self.apply_ordering(
-                    queryset,
-                    ordering,
-                    "unified_document__fundraises__status",
-                    "unified_document__fundraises__end_date"
-                )
+                queryset = self.apply_ordering(queryset, ordering, status_field, end_date_field)
             elif fundraise_status.upper() == "CLOSED":
                 queryset = queryset.filter(
                     unified_document__fundraises__status=Fundraise.COMPLETED
                 )
-                queryset = queryset.order_by("-unified_document__fundraises__end_date")
+                # CLOSED defaults to end_date sorting when no ordering specified
+                queryset = self.apply_ordering(
+                    queryset, 
+                    ordering, 
+                    status_field, 
+                    end_date_field
+                ) if ordering else queryset.order_by(f"-{end_date_field}")
         else:
-            queryset = self._order_by_deadline_with_status_priority(
-                queryset,
-                "unified_document__fundraises__status",
-                "unified_document__fundraises__end_date"
-            )
+            queryset = self.apply_ordering(queryset, ordering, status_field, end_date_field)
 
         return queryset

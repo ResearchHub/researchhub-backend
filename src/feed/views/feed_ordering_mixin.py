@@ -30,26 +30,6 @@ class FeedOrderingMixin:
             *order_fields
         )
     
-    def _order_by_deadline_with_status_priority(self, queryset, status_field, end_date_field):
-        """
-        Order by deadline with different directions for OPEN vs CLOSED items.
-        OPEN: ascending (closest deadline first)
-        CLOSED: descending (most recent first)
-        """
-        open_status = self._get_open_status()
-        return self._apply_status_priority_ordering(
-            queryset,
-            status_field,
-            Case(
-                When(**{status_field: open_status}, then=F(end_date_field)),
-                default=Value(None),
-            ),
-            Case(
-                When(**{status_field: open_status}, then=Value(None)),
-                default=F(end_date_field),
-            ).desc()
-        )
-    
     def _order_by_amount_raised(self, queryset, status_field):
         """Order by amount raised with status priority."""
         queryset = queryset.annotate(

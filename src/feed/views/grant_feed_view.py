@@ -137,21 +137,16 @@ class GrantFeedViewSet(FeedOrderingMixin, FeedViewMixin, ModelViewSet):
             .filter(unified_document__is_removed=False)
         )
 
+        # Common field paths for ordering
+        status_field = "unified_document__grants__status"
+        end_date_field = "unified_document__grants__end_date"
+        ordering = self.request.query_params.get("ordering")
+        
         # Filter by status if specified
         if status:
             status_upper = status.upper()
             if status_upper in [Grant.OPEN, Grant.CLOSED, Grant.COMPLETED]:
-                queryset = queryset.filter(
-                    unified_document__grants__status=status_upper
-                )
-                
-                ordering = self.request.query_params.get("ordering")
-                queryset = self.apply_ordering(
-                    queryset,
-                    ordering,
-                    "unified_document__grants__status",
-                    "unified_document__grants__end_date"
-                )
+                queryset = queryset.filter(unified_document__grants__status=status_upper)
 
         # Filter by organization if specified
         if organization:
@@ -159,11 +154,7 @@ class GrantFeedViewSet(FeedOrderingMixin, FeedViewMixin, ModelViewSet):
                 unified_document__grants__organization__icontains=organization
             )
 
-        if not status:
-            queryset = self._order_by_deadline_with_status_priority(
-                queryset,
-                "unified_document__grants__status",
-                "unified_document__grants__end_date"
-            )
+        # Apply ordering
+        queryset = self.apply_ordering(queryset, ordering, status_field, end_date_field)
 
         return queryset
