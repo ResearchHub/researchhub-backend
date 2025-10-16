@@ -70,8 +70,9 @@ class GrantFeedViewSet(FeedOrderingMixin, FeedViewMixin, ModelViewSet):
         page_num = int(page)
         status = request.query_params.get("status", None)
         organization = request.query_params.get("organization", None)
+        ordering = request.query_params.get("ordering", None)
         cache_key = self.get_cache_key(request, "grants")
-        use_cache = page_num < 4 and status is None and organization is None
+        use_cache = page_num < 4 and status is None and organization is None and ordering is None
 
         if use_cache:
             # try to get cached response
@@ -154,7 +155,8 @@ class GrantFeedViewSet(FeedOrderingMixin, FeedViewMixin, ModelViewSet):
                 unified_document__grants__organization__icontains=organization
             )
 
-        # Apply ordering
         queryset = self.apply_ordering(queryset, ordering, status_field, end_date_field)
+        
+        queryset = queryset.distinct()
 
         return queryset

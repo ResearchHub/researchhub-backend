@@ -27,7 +27,8 @@ class FeedOrderingMixin:
                 When(**{status_field: open_status}, then=Value(0)),
                 default=Value(1),
             ),
-            *order_fields
+            *order_fields,
+            'id'  # Final tie-breaker for consistent ordering
         )
     
     def _order_by_amount_raised(self, queryset, status_field):
