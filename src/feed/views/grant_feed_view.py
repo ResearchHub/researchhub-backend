@@ -129,17 +129,20 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         if status:
             status_upper = status.upper()
             if status_upper in [Grant.OPEN, Grant.CLOSED, Grant.COMPLETED]:
-                queryset = queryset.filter(
-                    unified_document__grants__status=status_upper
-                )
-
-                # Order based on status
                 if status_upper == Grant.OPEN:
-                    # Order by end_date ascending (closest deadline first)
-                    queryset = queryset.order_by("unified_document__grants__end_date")
+                    queryset = queryset.filter(
+                        unified_document__grants__status__in=[Grant.OPEN, Grant.CLOSED, Grant.COMPLETED]
+                    ).order_by(
+                        Case(
+                            When(unified_document__grants__status=Grant.OPEN, then=Value(0)),
+                            default=Value(1),
+                        ),
+                        "-unified_document__grants__end_date"
+                    )
                 else:
-                    # Order by end date descending (most recent deadlines first)
-                    queryset = queryset.order_by("-unified_document__grants__end_date")
+                    queryset = queryset.filter(
+                        unified_document__grants__status=status_upper
+                    ).order_by("-unified_document__grants__end_date")
 
         # Filter by organization if specified
         if organization:
