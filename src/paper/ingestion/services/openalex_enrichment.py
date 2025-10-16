@@ -6,6 +6,7 @@ from typing import List, Optional
 from django.db import transaction
 from django.utils import timezone
 
+from hub.models import Hub
 from institution.models import Institution
 from paper.ingestion.clients.openalex import OpenAlexClient
 from paper.ingestion.mappers.openalex import OpenAlexMapper
@@ -29,6 +30,7 @@ class EnrichmentResult:
     institutions_created: int = 0
     institutions_updated: int = 0
     authorships_created: int = 0
+    hubs_created: int = 0
 
 
 @dataclass
@@ -44,6 +46,7 @@ class BatchEnrichmentResult:
     total_institutions_created: int = 0
     total_institutions_updated: int = 0
     total_authorships_created: int = 0
+    total_hubs_created: int = 0
 
 
 class PaperOpenAlexEnrichmentService:
@@ -121,6 +124,7 @@ class PaperOpenAlexEnrichmentService:
             institutions_created = 0
             institutions_updated = 0
             authorships_created = 0
+            hubs_created = 0
 
             # Process in a transaction
             with transaction.atomic():
@@ -165,6 +169,8 @@ class PaperOpenAlexEnrichmentService:
 
                 authorships_created = self.process_authorships(paper, openalex_data)
 
+                hubs_created = self.process_hubs(paper, openalex_data)
+
             logger.info(
                 f"Successfully enriched paper {paper.id}: "
                 f"license_updated={license_updated}, "
@@ -172,7 +178,8 @@ class PaperOpenAlexEnrichmentService:
                 f"{authors_updated} authors updated, "
                 f"{institutions_created} institutions created, "
                 f"{institutions_updated} institutions updated, "
-                f"{authorships_created} authorships created"
+                f"{authorships_created} authorships created, "
+                f"{hubs_created} hubs created"
             )
 
             return EnrichmentResult(
@@ -184,6 +191,7 @@ class PaperOpenAlexEnrichmentService:
                 institutions_created=institutions_created,
                 institutions_updated=institutions_updated,
                 authorships_created=authorships_created,
+                hubs_created=hubs_created,
             )
 
         except Exception as e:
@@ -361,6 +369,38 @@ class PaperOpenAlexEnrichmentService:
 
         return authorships_created
 
+    def process_hubs(self, paper: Paper, openalex_data: dict) -> int:
+        """
+        Process hubs from OpenAlex data and create Hub records.
+
+        Args:
+            paper: Paper instance
+            openalex_data: OpenAlex work record
+
+        Returns:
+            Number of hubs created
+        """
+        hubs_created = 0
+
+        raw_data = openalex_data.get("raw_data", {})
+        hubs = self.openalex_mapper.map_to_hubs(paper, raw_data)
+
+        for hub in hubs:
+            try:
+                hub, created = Hub.objects.get_or_create(name=hub.name)
+                if created:
+                    hubs_created += 1
+
+                paper.unified_document.hubs.add(hub)
+
+            except Exception as e:
+                logger.error(
+                    f"Error processing hub for paper {paper.id}: {str(e)}",
+                    exc_info=True,
+                )
+
+        return hubs_created
+
     def enrich_papers_batch(self, paper_ids: List[int]) -> BatchEnrichmentResult:
         """
         Enrich multiple papers with OpenAlex data, including license info,
@@ -381,6 +421,7 @@ class PaperOpenAlexEnrichmentService:
         total_institutions_created = 0
         total_institutions_updated = 0
         total_authorships_created = 0
+        total_hubs_created = 0
 
         for paper_id in paper_ids:
             try:
@@ -394,6 +435,7 @@ class PaperOpenAlexEnrichmentService:
                     total_institutions_created += result.institutions_created
                     total_institutions_updated += result.institutions_updated
                     total_authorships_created += result.authorships_created
+                    total_hubs_created += result.hubs_created
                 elif result.status in ["not_found", "skipped"]:
                     not_found_count += 1
                 else:
@@ -419,4 +461,5 @@ class PaperOpenAlexEnrichmentService:
             total_institutions_created=total_institutions_created,
             total_institutions_updated=total_institutions_updated,
             total_authorships_created=total_authorships_created,
+            total_hubs_created=total_hubs_created,
         )

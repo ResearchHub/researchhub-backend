@@ -93,6 +93,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         self.mock_openalex_mapper.map_to_authors.return_value = []
         self.mock_openalex_mapper.map_to_institutions.return_value = []
         self.mock_openalex_mapper.map_to_authorships.return_value = []
+        self.mock_openalex_mapper.map_to_hubs.return_value = []
 
         result = self.service.enrich_paper_with_openalex(self.paper)
 
@@ -135,6 +136,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         self.mock_openalex_mapper.map_to_authors.return_value = []
         self.mock_openalex_mapper.map_to_institutions.return_value = []
         self.mock_openalex_mapper.map_to_authorships.return_value = []
+        self.mock_openalex_mapper.map_to_hubs.return_value = []
 
         result = self.service.enrich_paper_with_openalex(self.paper)
 
@@ -166,6 +168,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         self.mock_openalex_mapper.map_to_authors.return_value = []
         self.mock_openalex_mapper.map_to_institutions.return_value = []
         self.mock_openalex_mapper.map_to_authorships.return_value = []
+        self.mock_openalex_mapper.map_to_hubs.return_value = []
 
         result = self.service.enrich_paper_with_openalex(self.paper)
 
@@ -218,6 +221,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         self.mock_openalex_mapper.map_to_authors.return_value = []
         self.mock_openalex_mapper.map_to_institutions.return_value = []
         self.mock_openalex_mapper.map_to_authorships.return_value = []
+        self.mock_openalex_mapper.map_to_hubs.return_value = []
 
         result = self.service.enrich_papers_batch([paper1.id, paper2.id])
 
@@ -265,6 +269,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         self.mock_openalex_mapper.map_to_authors.return_value = []
         self.mock_openalex_mapper.map_to_institutions.return_value = []
         self.mock_openalex_mapper.map_to_authorships.return_value = []
+        self.mock_openalex_mapper.map_to_hubs.return_value = []
 
         result = self.service.enrich_papers_batch([paper1.id, paper2.id, paper3.id])
 
@@ -331,6 +336,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         self.mock_openalex_mapper.map_to_authors.return_value = []
         self.mock_openalex_mapper.map_to_institutions.return_value = []
         self.mock_openalex_mapper.map_to_authorships.return_value = []
+        self.mock_openalex_mapper.map_to_hubs.return_value = []
 
         result = self.service.enrich_paper_with_openalex(self.paper)
 
@@ -411,6 +417,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         self.mock_openalex_mapper.map_to_authors.return_value = [mock_author]
         self.mock_openalex_mapper.map_to_institutions.return_value = [mock_institution]
         self.mock_openalex_mapper.map_to_authorships.return_value = [mock_authorship]
+        self.mock_openalex_mapper.map_to_hubs.return_value = []
 
         result = self.service.enrich_paper_with_openalex(self.paper)
 
@@ -485,6 +492,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         self.mock_openalex_mapper.map_to_authors.return_value = []
         self.mock_openalex_mapper.map_to_institutions.return_value = []
         self.mock_openalex_mapper.map_to_authorships.return_value = []
+        self.mock_openalex_mapper.map_to_hubs.return_value = []
 
         result = self.service.enrich_papers_batch([paper.id])
 
