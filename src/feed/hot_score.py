@@ -51,36 +51,36 @@ HOT_SCORE_CONFIG = {
             "log_base": math.e,  # Natural log for smooth scaling
         },
         "bounty": {
-            "weight": 80.0,  # Second priority - financial incentive
+            "weight": 80.0,
             "log_base": math.e,
             "urgency_multiplier": 1.5,  # Boost for new/expiring
             "urgency_hours": 24,
         },
         "tip": {
-            "weight": 60.0,  # Third priority - community support
+            "weight": 60.0,
             "log_base": math.e,
         },
         "peer_review": {
-            "weight": 50.0,  # Fourth priority - expert review
+            "weight": 50.0,
             "log_base": math.e,
         },
         "upvote": {
-            "weight": 40.0,  # Fifth priority - community approval
+            "weight": 40.0,
             "log_base": math.e,
         },
         "comment": {
-            "weight": 20.0,  # Sixth priority - discussion activity
+            "weight": 20.0,
             "log_base": math.e,
         },
     },
     # Time decay parameters control content prominence over time
     "time_decay": {
-        "gravity": 1.8,  # HN uses 1.8 - higher = faster decay
-        "base_hours": 2,  # Softens decay for very new content
+        "gravity": 1.8,  # higher = faster decay
+        "base_hours": 20,  # Softens decay for very new content
     },
     # Content type multipliers favor platform-native content
     "content_multipliers": {
-        "researchhubpost": 1.2,  # Boost ResearchHub-native content
+        "researchhubpost": 1.5,  # Boost ResearchHub-native content
         "paper": 1.0,  # External papers at baseline
     },
     # Special document type handling
