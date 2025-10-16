@@ -79,8 +79,9 @@ class GrantFeedViewSet(FeedOrderingMixin, FeedViewMixin, ModelViewSet):
         # Add grant-specific parameters to cache key
         status = request.query_params.get("status", "")
         organization = request.query_params.get("organization", "")
+        ordering = request.query_params.get("ordering", "")
 
-        grant_params = f"-status:{status}-org:{organization}"
+        grant_params = f"-status:{status}-org:{organization}-ordering:{ordering}-v2"
         return base_key + grant_params
 
     def list(self, request, *args, **kwargs):
