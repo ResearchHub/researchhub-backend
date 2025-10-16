@@ -21,7 +21,7 @@ from feed.hot_score import (
     get_age_hours,
     get_altmetric_score,
     get_comment_count,
-    get_content_type_multiplier,
+    get_freshness_multiplier,
     get_fundraise_amount,
     get_peer_review_count,
     get_total_bounty_amount,
@@ -228,7 +228,7 @@ class Command(BaseCommand):
         comment_count = get_comment_count(item, unified_doc)
 
         age_hours = get_age_hours(item)
-        content_multiplier = get_content_type_multiplier(item)
+        freshness_multiplier = get_freshness_multiplier(item, age_hours)
 
         # Calculate component scores (same logic as calculate_hot_score)
         import math
@@ -276,7 +276,7 @@ class Command(BaseCommand):
             + peer_review_component
             + upvote_component
             + comment_component
-        ) * content_multiplier
+        ) * freshness_multiplier
 
         decay_config = HOT_SCORE_CONFIG["time_decay"]
         denominator = math.pow(
@@ -301,7 +301,7 @@ class Command(BaseCommand):
             "upvote": {"raw": upvote_count, "component": upvote_component},
             "comment": {"raw": comment_count, "component": comment_component},
             "age_hours": age_hours,
-            "content_multiplier": content_multiplier,
+            "freshness_multiplier": freshness_multiplier,
             "engagement_score": engagement_score,
             "time_denominator": denominator,
         }
@@ -326,7 +326,6 @@ class Command(BaseCommand):
         upvote_count = get_total_upvotes(item, unified_doc)
         comment_count = get_comment_count(item, unified_doc)
         age_hours = get_age_hours(item)
-        content_multiplier = get_content_type_multiplier(item)
 
         # Override with simulation parameters if provided
         if sim_params:
@@ -346,6 +345,9 @@ class Command(BaseCommand):
                 comment_count = sim_params["comments"]
             if sim_params.get("age_hours", 0) > 0:
                 age_hours = sim_params["age_hours"]
+
+        # Calculate freshness multiplier after overrides (depends on age_hours)
+        freshness_multiplier = get_freshness_multiplier(item, age_hours)
 
         # Calculate component scores (same logic as calculate_hot_score)
         altmetric_component = (
@@ -389,7 +391,7 @@ class Command(BaseCommand):
             + peer_review_component
             + upvote_component
             + comment_component
-        ) * content_multiplier
+        ) * freshness_multiplier
 
         decay_config = HOT_SCORE_CONFIG["time_decay"]
         denominator = math.pow(
@@ -414,7 +416,7 @@ class Command(BaseCommand):
             "upvote": {"raw": upvote_count, "component": upvote_component},
             "comment": {"raw": comment_count, "component": comment_component},
             "age_hours": age_hours,
-            "content_multiplier": content_multiplier,
+            "freshness_multiplier": freshness_multiplier,
             "engagement_score": engagement_score,
             "time_denominator": denominator,
         }
@@ -487,7 +489,8 @@ class Command(BaseCommand):
             f"→ {components['comment']['component']:>8.2f}"
         )
         self.stdout.write(f"    Age (hours):  {components['age_hours']:>8.1f}")
-        self.stdout.write(f"    Multiplier:   {components['content_multiplier']:>8.2f}")
+        freshness = components["freshness_multiplier"]
+        self.stdout.write(f"    Multiplier:   {freshness:>8.2f}")
         self.stdout.write(f"    Engagement:   {components['engagement_score']:>8.2f}")
         self.stdout.write(f"    Time Decay:   {components['time_denominator']:>8.2f}")
 
@@ -526,7 +529,7 @@ class Command(BaseCommand):
                     "Comment Raw",
                     "Comment Component",
                     "Age Hours",
-                    "Content Multiplier",
+                    "Freshness Multiplier",
                     "Engagement Score",
                     "Time Denominator",
                 ]
@@ -576,7 +579,7 @@ class Command(BaseCommand):
                         comp["comment"]["raw"],
                         comp["comment"]["component"],
                         comp["age_hours"],
-                        comp["content_multiplier"],
+                        comp["freshness_multiplier"],
                         comp["engagement_score"],
                         comp["time_denominator"],
                     ]
@@ -833,7 +836,7 @@ class Command(BaseCommand):
         self.stdout.write("  Time Decay:")
         self.stdout.write(f"    Age (hours):      {components['age_hours']:>8.1f}")
         self.stdout.write(
-            f"    Content Mult:     {components['content_multiplier']:>8.2f}"
+            f"    Freshness Mult:   {components['freshness_multiplier']:>8.2f}"
         )
         self.stdout.write("")
 
