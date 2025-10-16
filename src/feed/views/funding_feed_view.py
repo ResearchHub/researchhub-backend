@@ -155,25 +155,44 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
             queryset = queryset.filter(grant_applications__grant_id=grant_id)
 
             # Add custom sorting for grant applications
-            ordering = self.request.query_params.get("ordering", "-created_date")
+            ordering = self.request.query_params.get("ordering", "deadline")
             if ordering == "hot_score":
                 queryset = queryset.order_by("-unified_document__hot_score")
             elif ordering == "upvotes":
                 queryset = queryset.order_by("-score")
             elif ordering == "amount_raised":
                 queryset = self._order_by_amount_raised(queryset)
-            else:  # newest (default)
+            elif ordering == "newest":
                 queryset = queryset.order_by("-created_date")
+            else:  # deadline (default)
+                queryset = queryset.order_by(
+                    Case(
+                        When(unified_document__fundraises__status=Fundraise.OPEN, then=Value(0)),
+                        default=Value(1),
+                    ),
+                    Case(
+                        When(unified_document__fundraises__status=Fundraise.OPEN, then=F("unified_document__fundraises__end_date")),
+                        default=Value(None),
+                    ),
+                    Case(
+                        When(unified_document__fundraises__status=Fundraise.OPEN, then=Value(None)),
+                        default=F("unified_document__fundraises__end_date"),
+                    ).desc(),
+                )
 
             return queryset
 
         if fundraise_status:
             if fundraise_status.upper() == "OPEN":
                 queryset = queryset.filter(
-                    unified_document__fundraises__status=Fundraise.OPEN
+                    unified_document__fundraises__status__in=[Fundraise.OPEN, Fundraise.COMPLETED]
+                ).order_by(
+                    Case(
+                        When(unified_document__fundraises__status=Fundraise.OPEN, then=Value(0)),
+                        default=Value(1),
+                    ),
+                    "-unified_document__fundraises__end_date"
                 )
-                # Order by end_date ascending (closest deadline first)
-                queryset = queryset.order_by("unified_document__fundraises__end_date")
             elif fundraise_status.upper() == "CLOSED":
                 queryset = queryset.filter(
                     unified_document__fundraises__status=Fundraise.COMPLETED
