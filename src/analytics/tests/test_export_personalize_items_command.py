@@ -495,3 +495,94 @@ class ExportPersonalizeItemsCommandTest(TestCase):
 
             # Verify creator is NOT included (only contacts)
             self.assertNotIn(str(self.user.author_profile.id), author_ids)
+
+    def test_command_with_since_parameter(self):
+        """Test --since includes papers since date plus filtered older papers."""
+        from datetime import datetime
+
+        recent_date = datetime(2024, 1, 1)
+        old_date = datetime(2023, 1, 1)
+
+        # Create old external paper (should be excluded)
+        old_external_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER"
+        )
+        old_paper = Paper.objects.create(
+            title="Old External Paper",
+            uploaded_by=self.user,
+            unified_document=old_external_doc,
+            retrieved_from_external_source=True,
+        )
+        Paper.objects.filter(id=old_paper.id).update(created_date=old_date)
+
+        # Create recent external paper (should be included)
+        recent_external_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER"
+        )
+        recent_external_doc.hubs.add(self.hub)
+        recent_paper = Paper.objects.create(
+            title="Recent External Paper",
+            uploaded_by=self.user,
+            unified_document=recent_external_doc,
+            retrieved_from_external_source=True,
+        )
+        Paper.objects.filter(id=recent_paper.id).update(created_date=recent_date)
+
+        # Create old native paper (should be included - always include native)
+        old_native_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER"
+        )
+        old_native_doc.hubs.add(self.hub)
+        old_native_paper = Paper.objects.create(
+            title="Old Native Paper",
+            uploaded_by=self.user,
+            unified_document=old_native_doc,
+            retrieved_from_external_source=False,
+        )
+        Paper.objects.filter(id=old_native_paper.id).update(created_date=old_date)
+
+        # Create a post (should be included)
+        post_doc = ResearchhubUnifiedDocument.objects.create(document_type="DISCUSSION")
+        post_doc.hubs.add(self.hub)
+        ResearchhubPost.objects.create(
+            title="Test Post",
+            document_type="DISCUSSION",
+            created_by=self.user,
+            unified_document=post_doc,
+        )
+
+        # Run command with --since parameter
+        out = StringIO()
+        call_command(
+            "export_personalize_items",
+            "--output",
+            self.output_path,
+            "--since",
+            "2024-01-01",
+            stdout=out,
+        )
+
+        # Check CSV file
+        with open(self.output_path, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+            # Should have 3 items: recent external, old native, post
+            self.assertEqual(len(rows), 3)
+
+            item_ids = [row["ITEM_ID"] for row in rows]
+            # Recent external paper should be included
+            self.assertIn(str(recent_external_doc.id), item_ids)
+            # Old native paper should be included
+            self.assertIn(str(old_native_doc.id), item_ids)
+            # Post should be included
+            self.assertIn(str(post_doc.id), item_ids)
+            # Old external paper should NOT be included
+            self.assertNotIn(str(old_external_doc.id), item_ids)
+
+        # Verify output message
+        output = out.getvalue()
+        self.assertIn("Since date: 2024-01-01", output)
+        self.assertIn(
+            "all papers created on or after this date will be included", output
+        )

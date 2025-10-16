@@ -56,6 +56,7 @@ class ItemMapper:
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         item_ids: Optional[set] = None,
+        since_date: Optional[str] = None,
     ) -> QuerySet:
         """
         Get queryset of unified documents for export.
@@ -65,6 +66,7 @@ class ItemMapper:
         - Not excluded document types (NOTE, HYPOTHESIS)
         - Not excluded from feed
         - For papers: Include native papers OR papers with interactions
+                     OR papers since date
         - For posts: Include all
         - Optional date range filter
         - Optional filter by specific item IDs (from interactions)
@@ -73,6 +75,8 @@ class ItemMapper:
             start_date: Filter documents created after this date
             end_date: Filter documents created before this date
             item_ids: Set of item IDs to filter by (if provided)
+            since_date: Include all papers created on/after this date
+                       (overrides filtering)
 
         Returns:
             QuerySet of ResearchhubUnifiedDocument
@@ -80,6 +84,7 @@ class ItemMapper:
         queryset = (
             ResearchhubUnifiedDocument.objects.select_related(
                 "document_filter",
+                "paper",
             )
             .prefetch_related(
                 "hubs",
@@ -95,29 +100,53 @@ class ItemMapper:
             .exclude(document_filter__is_excluded_in_feed=True)
         )
 
-        # Apply paper filtering logic:
-        # - Include all native papers (user-submitted preprints)
-        # - Include all non-paper documents (posts like GRANT, DISCUSSION, etc.)
-        # - External papers: only if they're in item_ids (have interactions)
-        if item_ids:
-            # If item_ids provided (from interaction export), filter by those
-            queryset = queryset.filter(id__in=item_ids)
-        else:
-            # Otherwise, include native papers and all posts
-            native_paper = Q(
+        # Apply paper filtering logic
+        if since_date:
+            # Include all papers since date OR papers matching existing filters
+            papers_since_date = Q(
                 document_type="PAPER",
-                paper__retrieved_from_external_source=False,
+                paper__created_date__gte=since_date,
             )
-            non_paper = ~Q(document_type="PAPER")
 
-            queryset = queryset.filter(native_paper | non_paper)
+            if item_ids:
+                # Papers: since date OR in item_ids
+                papers_filter = papers_since_date | Q(
+                    id__in=item_ids, document_type="PAPER"
+                )
+            else:
+                # Papers: since date OR native papers
+                papers_filter = papers_since_date | Q(
+                    document_type="PAPER",
+                    paper__retrieved_from_external_source=False,
+                )
+
+            # Include all posts
+            non_paper = ~Q(document_type="PAPER")
+            queryset = queryset.filter(papers_filter | non_paper)
+        else:
+            # Existing logic unchanged
+            # - Include all native papers (user-submitted preprints)
+            # - Include all non-paper documents (posts like GRANT, DISCUSSION, etc.)
+            # - External papers: only if they're in item_ids (have interactions)
+            if item_ids:
+                # If item_ids provided (from interaction export), filter by those
+                queryset = queryset.filter(id__in=item_ids)
+            else:
+                # Otherwise, include native papers and all posts
+                native_paper = Q(
+                    document_type="PAPER",
+                    paper__retrieved_from_external_source=False,
+                )
+                non_paper = ~Q(document_type="PAPER")
+
+                queryset = queryset.filter(native_paper | non_paper)
 
         if start_date:
             queryset = queryset.filter(created_date__gte=start_date)
         if end_date:
             queryset = queryset.filter(created_date__lte=end_date)
 
-        return queryset.order_by("id")
+        return queryset.distinct().order_by("id")
 
     def map_to_item_row(self, unified_doc) -> Dict[str, Optional[str]]:
         """

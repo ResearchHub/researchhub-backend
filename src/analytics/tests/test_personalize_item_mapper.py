@@ -408,3 +408,147 @@ class ItemMapperTest(TestCase):
         self.assertIn("PROPOSAL_AMOUNT", row)
         self.assertIn("PROPOSAL_EXPIRES_AT", row)
         self.assertIn("PROPOSAL_NUM_OF_FUNDERS", row)
+
+    def test_get_queryset_with_since_date_includes_all_recent_papers(self):
+        """Test that all papers >= since_date are included (external and native)."""
+        from datetime import datetime
+
+        recent_date = datetime(2024, 1, 1)
+        old_date = datetime(2023, 1, 1)
+
+        # Create old external paper (should be excluded)
+        old_external_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER"
+        )
+        old_paper = Paper.objects.create(
+            title="Old External Paper",
+            uploaded_by=self.user,
+            unified_document=old_external_doc,
+            retrieved_from_external_source=True,
+        )
+        # Update created_date after creation
+        # (auto_now_add prevents setting it during create)
+        Paper.objects.filter(id=old_paper.id).update(created_date=old_date)
+
+        # Create recent external paper (should be included)
+        recent_external_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER"
+        )
+        recent_paper = Paper.objects.create(
+            title="Recent External Paper",
+            uploaded_by=self.user,
+            unified_document=recent_external_doc,
+            retrieved_from_external_source=True,
+        )
+        Paper.objects.filter(id=recent_paper.id).update(created_date=recent_date)
+
+        # Create old native paper (should be included - always include native)
+        old_native_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER"
+        )
+        old_native_paper = Paper.objects.create(
+            title="Old Native Paper",
+            uploaded_by=self.user,
+            unified_document=old_native_doc,
+            retrieved_from_external_source=False,
+        )
+        Paper.objects.filter(id=old_native_paper.id).update(created_date=old_date)
+
+        queryset = self.mapper.get_queryset(since_date=recent_date)
+        returned_ids = list(queryset.values_list("id", flat=True))
+
+        # Recent external paper should be included
+        self.assertIn(recent_external_doc.id, returned_ids)
+        # Old native paper should be included (always include native)
+        self.assertIn(old_native_doc.id, returned_ids)
+        # Old external paper should NOT be included
+        self.assertNotIn(old_external_doc.id, returned_ids)
+
+    def test_get_queryset_with_since_date_and_item_ids(self):
+        """Test that papers since date OR in item_ids are included."""
+        from datetime import datetime
+
+        recent_date = datetime(2024, 1, 1)
+        old_date = datetime(2023, 1, 1)
+
+        # Create old external paper with interaction (should be included)
+        old_with_interaction_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER"
+        )
+        old_with_int_paper = Paper.objects.create(
+            title="Old Paper With Interaction",
+            uploaded_by=self.user,
+            unified_document=old_with_interaction_doc,
+            retrieved_from_external_source=True,
+        )
+        Paper.objects.filter(id=old_with_int_paper.id).update(created_date=old_date)
+
+        # Create old external paper without interaction (should be excluded)
+        old_no_interaction_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER"
+        )
+        old_no_int_paper = Paper.objects.create(
+            title="Old Paper No Interaction",
+            uploaded_by=self.user,
+            unified_document=old_no_interaction_doc,
+            retrieved_from_external_source=True,
+        )
+        Paper.objects.filter(id=old_no_int_paper.id).update(created_date=old_date)
+
+        # Create recent external paper (should be included)
+        recent_doc = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
+        recent_paper_2 = Paper.objects.create(
+            title="Recent External Paper",
+            uploaded_by=self.user,
+            unified_document=recent_doc,
+            retrieved_from_external_source=True,
+        )
+        Paper.objects.filter(id=recent_paper_2.id).update(created_date=recent_date)
+
+        # Query with since_date and item_ids
+        item_ids = {old_with_interaction_doc.id}
+        queryset = self.mapper.get_queryset(since_date=recent_date, item_ids=item_ids)
+        returned_ids = list(queryset.values_list("id", flat=True))
+
+        # Recent paper should be included (since date)
+        self.assertIn(recent_doc.id, returned_ids)
+        # Old paper with interaction should be included (in item_ids)
+        self.assertIn(old_with_interaction_doc.id, returned_ids)
+        # Old paper without interaction should NOT be included
+        self.assertNotIn(old_no_interaction_doc.id, returned_ids)
+
+    def test_get_queryset_with_since_date_excludes_old_external_papers(self):
+        """Test that old external papers without interactions are excluded."""
+        from datetime import datetime
+
+        recent_date = datetime(2024, 1, 1)
+        old_date = datetime(2023, 1, 1)
+
+        # Create old external paper
+        old_external_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER"
+        )
+        old_ext_paper = Paper.objects.create(
+            title="Old External Paper",
+            uploaded_by=self.user,
+            unified_document=old_external_doc,
+            retrieved_from_external_source=True,
+        )
+        Paper.objects.filter(id=old_ext_paper.id).update(created_date=old_date)
+
+        # Create a post (should always be included)
+        post_doc = ResearchhubUnifiedDocument.objects.create(document_type="DISCUSSION")
+        ResearchhubPost.objects.create(
+            title="Test Post",
+            document_type="DISCUSSION",
+            created_by=self.user,
+            unified_document=post_doc,
+        )
+
+        queryset = self.mapper.get_queryset(since_date=recent_date)
+        returned_ids = list(queryset.values_list("id", flat=True))
+
+        # Old external paper should NOT be included
+        self.assertNotIn(old_external_doc.id, returned_ids)
+        # Post should be included (posts always included)
+        self.assertIn(post_doc.id, returned_ids)
