@@ -13,7 +13,6 @@ from rest_framework.viewsets import ModelViewSet
 
 from feed.models import FeedEntry
 from feed.serializers import GrantFeedEntrySerializer
-from feed.views.feed_ordering_mixin import FeedOrderingMixin
 from feed.views.feed_view_mixin import FeedViewMixin
 from purchase.related_models.grant_model import Grant
 from researchhub_document.related_models.constants.document_type import GRANT
@@ -23,7 +22,7 @@ from ..serializers import PostSerializer, serialize_feed_metrics
 from .common import FeedPagination
 
 
-class GrantFeedViewSet(FeedOrderingMixin, FeedViewMixin, ModelViewSet):
+class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
     """
     ViewSet for accessing entries specifically related to grant documents.
     This provides a dedicated endpoint for clients to fetch and display grant
@@ -48,26 +47,23 @@ class GrantFeedViewSet(FeedOrderingMixin, FeedViewMixin, ModelViewSet):
     permission_classes = []
     pagination_class = FeedPagination
 
-    def _get_open_status(self):
-        return Grant.OPEN
-
-    def apply_ordering(self, queryset, ordering, status_field, end_date_field):
-        """
-        Override to handle grant-specific ordering.
-        Uses status_priority from Exists subquery (0=OPEN+not expired, 1=expired/closed).
-        Considers both status field and end_date to determine if grant is truly active.
-        """
-        if ordering == "hot_score":
-            return queryset.order_by(status_field, "-unified_document__hot_score", "id")
-        elif ordering == "upvotes":
-            return queryset.order_by(status_field, "-score", "id")
-        elif ordering == "amount_raised":
+    def _apply_ordering(self, queryset, ordering):
+        """Apply ordering with status priority for grants."""
+        order_fields = {
+            "hot_score": ["-unified_document__hot_score"],
+            "upvotes": ["-score"],
+            "amount_raised": None,
+        }.get(ordering, ["-created_date"])
+        
+        if ordering == "amount_raised":
             queryset = queryset.annotate(
-                grant_amount=Coalesce(Sum("unified_document__grants__amount"), 0, output_field=DecimalField())
+                grant_amount=Coalesce(
+                    Sum("unified_document__grants__amount"), 0, output_field=DecimalField()
+                )
             )
-            return queryset.order_by(status_field, "-grant_amount", "id")
-        else:  # newest (default)
-            return queryset.order_by(status_field, "-created_date", "id")
+            order_fields = ["-grant_amount"]
+        
+        return queryset.order_by("status_priority", *order_fields, "id")
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -75,16 +71,13 @@ class GrantFeedViewSet(FeedOrderingMixin, FeedViewMixin, ModelViewSet):
         return context
 
     def get_cache_key(self, request, feed_type=""):
-        """Override to include grant-specific query parameters in cache key"""
         base_key = super().get_cache_key(request, feed_type)
-
-        # Add grant-specific parameters to cache key
-        status = request.query_params.get("status", "")
-        organization = request.query_params.get("organization", "")
-        ordering = request.query_params.get("ordering", "")
-
-        grant_params = f"-status:{status}-org:{organization}-ordering:{ordering}-v9"
-        return base_key + grant_params
+        params = [
+            request.query_params.get("status", ""),
+            request.query_params.get("organization", ""),
+            request.query_params.get("ordering", "")
+        ]
+        return f"{base_key}-{':'.join(params)}-v10"
 
     def list(self, request, *args, **kwargs):
         page = request.query_params.get("page", "1")
@@ -136,64 +129,41 @@ class GrantFeedViewSet(FeedOrderingMixin, FeedViewMixin, ModelViewSet):
         return Response(response_data)
 
     def get_queryset(self):
-        """
-        Filter to only include posts that are grants.
-        Additionally filter by grant status or organization if specified.
-        """
-        status = self.request.query_params.get("status", None)
-        organization = self.request.query_params.get("organization", None)
+        """Filter to posts with grants, prioritizing active ones."""
+        status = self.request.query_params.get("status")
+        organization = self.request.query_params.get("organization")
+        ordering = self.request.query_params.get("ordering")
 
-        now = timezone.now()
+        queryset = self._build_base_queryset()
         
-        # Subquery to check if post has an active (OPEN and not expired) grant
-        has_active_grant = Grant.objects.filter(
+        if status and status.upper() in [Grant.OPEN, Grant.CLOSED, Grant.COMPLETED]:
+            queryset = queryset.filter(unified_document__grants__status=status.upper())
+        
+        if organization:
+            queryset = queryset.filter(unified_document__grants__organization__icontains=organization)
+        
+        return self._apply_ordering(queryset, ordering).distinct()
+
+    def _build_base_queryset(self):
+        """Build base queryset with status_priority annotation."""
+        now = timezone.now()
+        has_active = Grant.objects.filter(
             unified_document_id=OuterRef("unified_document_id"),
             status=Grant.OPEN,
+        ).filter(Q(end_date__isnull=True) | Q(end_date__gt=now))
+        
+        return ResearchhubPost.objects.select_related(
+            "created_by", "created_by__author_profile", "unified_document"
+        ).prefetch_related(
+            "unified_document__hubs",
+            "unified_document__grants",
+            "unified_document__grants__applications__applicant__author_profile"
         ).filter(
-            Q(end_date__isnull=True) | Q(end_date__gt=now)
-        )
-        
-        queryset = (
-            ResearchhubPost.objects.all()
-            .select_related(
-                "created_by",
-                "created_by__author_profile",
-                "unified_document",
-            )
-            .prefetch_related(
-                "unified_document__hubs",
-                "unified_document__grants",
-                "unified_document__grants__applications__applicant__author_profile",
-            )
-            .filter(document_type=GRANT)
-            .filter(unified_document__is_removed=False)
-            .annotate(
-                status_priority=Case(
-                    When(Exists(has_active_grant), then=Value(0)),
-                    default=Value(1),
-                    output_field=IntegerField()
-                )
+            document_type=GRANT, unified_document__is_removed=False
+        ).annotate(
+            status_priority=Case(
+                When(Exists(has_active), then=Value(0)),
+                default=Value(1),
+                output_field=IntegerField()
             )
         )
-
-        status_field = "status_priority"
-        end_date_field = "unified_document__grants__end_date"
-        ordering = self.request.query_params.get("ordering")
-        
-        # Filter by status if specified
-        if status:
-            status_upper = status.upper()
-            if status_upper in [Grant.OPEN, Grant.CLOSED, Grant.COMPLETED]:
-                queryset = queryset.filter(unified_document__grants__status=status_upper)
-
-        # Filter by organization if specified
-        if organization:
-            queryset = queryset.filter(
-                unified_document__grants__organization__icontains=organization
-            )
-
-        queryset = self.apply_ordering(queryset, ordering, status_field, end_date_field)
-        
-        queryset = queryset.distinct()
-
-        return queryset
