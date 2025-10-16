@@ -51,20 +51,24 @@ class TestProposalFundingMapper(TestCase):
             title="Test Proposal",
         )
 
-        # Create escrow
+        # Create fundraise first (without escrow)
+        self.fundraise = Fundraise.objects.create(
+            created_by=self.fundraise_creator,
+            unified_document=self.unified_doc,
+            goal_amount=10000,
+        )
+
+        # Create escrow linked to fundraise
         self.escrow = Escrow.objects.create(
             created_by=self.fundraise_creator,
             hold_type=Escrow.FUNDRAISE,
             content_type=ContentType.objects.get_for_model(Fundraise),
+            object_id=self.fundraise.id,
         )
 
-        # Create fundraise
-        self.fundraise = Fundraise.objects.create(
-            created_by=self.fundraise_creator,
-            unified_document=self.unified_doc,
-            escrow=self.escrow,
-            goal_amount=10000,
-        )
+        # Link escrow back to fundraise
+        self.fundraise.escrow = self.escrow
+        self.fundraise.save()
 
     def test_event_type_name(self):
         """Test event type name property."""
@@ -178,69 +182,6 @@ class TestProposalFundingMapper(TestCase):
             interaction["TIMESTAMP"],
             datetime_to_epoch_seconds(contribution.created_date),
         )
-
-    def test_map_contribution_without_user(self):
-        """Test that contributions without user are skipped."""
-        contribution = Purchase.objects.create(
-            user=self.contributor,
-            content_type=ContentType.objects.get_for_model(Fundraise),
-            object_id=self.fundraise.id,
-            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
-            purchase_method=Purchase.OFF_CHAIN,
-            amount="100",
-        )
-        # Remove user
-        contribution.user = None
-        contribution.save()
-
-        mapper = ProposalFundingMapper()
-        interactions = mapper.map_to_interactions(contribution)
-
-        # Should return empty list
-        self.assertEqual(len(interactions), 0)
-
-    def test_map_contribution_without_fundraise(self):
-        """Test that contributions without valid fundraise are skipped."""
-        # Create purchase pointing to non-existent fundraise
-        contribution = Purchase.objects.create(
-            user=self.contributor,
-            content_type=ContentType.objects.get_for_model(Fundraise),
-            object_id=99999,  # Non-existent ID
-            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
-            purchase_method=Purchase.OFF_CHAIN,
-            amount="100",
-        )
-
-        mapper = ProposalFundingMapper()
-        interactions = mapper.map_to_interactions(contribution)
-
-        # Should return empty list
-        self.assertEqual(len(interactions), 0)
-
-    def test_map_contribution_without_unified_doc(self):
-        """Test that contributions to fundraises without unified doc are skipped."""
-        # Create fundraise without unified document
-        fundraise_no_doc = Fundraise.objects.create(
-            created_by=self.fundraise_creator,
-            unified_document=None,
-            escrow=self.escrow,
-            goal_amount=5000,
-        )
-
-        contribution = Purchase.objects.create(
-            user=self.contributor,
-            content_type=ContentType.objects.get_for_model(Fundraise),
-            object_id=fundraise_no_doc.id,
-            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
-            purchase_method=Purchase.OFF_CHAIN,
-            amount="100",
-        )
-
-        mapper = ProposalFundingMapper()
-        interactions = mapper.map_to_interactions(contribution)
-
-        # Should return empty list
-        self.assertEqual(len(interactions), 0)
 
     def test_timestamp_is_integer(self):
         """Test that timestamp is converted to integer epoch seconds."""

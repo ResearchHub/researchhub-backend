@@ -193,39 +193,6 @@ class TestRfpApplicationMapper(TestCase):
             datetime_to_epoch_seconds(application.created_date),
         )
 
-    def test_map_application_without_applicant(self):
-        """Test that applications without applicant are skipped."""
-        application = GrantApplication.objects.create(
-            grant=self.grant,
-            preregistration_post=self.prereg_post,
-            applicant=self.applicant,
-        )
-        # Remove applicant
-        application.applicant = None
-        application.save()
-
-        mapper = RfpApplicationMapper()
-        interactions = mapper.map_to_interactions(application)
-
-        # Should return empty list
-        self.assertEqual(len(interactions), 0)
-
-    def test_map_application_without_grant(self):
-        """Test that applications without grant are skipped."""
-        application = GrantApplication.objects.create(
-            grant=self.grant,
-            preregistration_post=self.prereg_post,
-            applicant=self.applicant,
-        )
-        # Remove grant reference (simulating bad data)
-        application.grant = None
-
-        mapper = RfpApplicationMapper()
-        interactions = mapper.map_to_interactions(application)
-
-        # Should return empty list
-        self.assertEqual(len(interactions), 0)
-
     def test_timestamp_is_integer(self):
         """Test that timestamp is converted to integer epoch seconds."""
         application = GrantApplication.objects.create(

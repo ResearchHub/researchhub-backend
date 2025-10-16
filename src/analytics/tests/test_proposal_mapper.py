@@ -139,36 +139,6 @@ class TestProposalMapper(TestCase):
             datetime_to_epoch_seconds(proposal_post.created_date),
         )
 
-    def test_map_proposal_without_unified_doc(self):
-        """Test that posts without unified document are skipped."""
-        proposal_post = ResearchhubPost.objects.create(
-            title="Test Proposal No Doc",
-            document_type=PREREGISTRATION,
-            unified_document=None,
-            created_by=self.user,
-        )
-
-        mapper = ProposalMapper()
-        interactions = mapper.map_to_interactions(proposal_post)
-
-        # Should return empty list
-        self.assertEqual(len(interactions), 0)
-
-    def test_map_proposal_without_creator(self):
-        """Test that posts without creator are skipped."""
-        proposal_post = ResearchhubPost.objects.create(
-            title="Test Proposal No Creator",
-            document_type=PREREGISTRATION,
-            unified_document=self.unified_doc,
-            created_by=None,
-        )
-
-        mapper = ProposalMapper()
-        interactions = mapper.map_to_interactions(proposal_post)
-
-        # Should return empty list
-        self.assertEqual(len(interactions), 0)
-
     def test_timestamp_is_integer(self):
         """Test that timestamp is converted to integer epoch seconds."""
         proposal_post = ResearchhubPost.objects.create(

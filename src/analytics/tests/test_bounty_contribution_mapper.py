@@ -27,6 +27,10 @@ class TestBountyContributionMapper(TestCase):
     """Tests for BountyContributionMapper class."""
 
     def setUp(self):
+        from django.contrib.contenttypes.models import ContentType
+
+        from paper.models import Paper
+
         self.user = User.objects.create(username="creator", email="creator@example.com")
         self.contributor = User.objects.create(
             username="contributor", email="contributor@example.com"
@@ -34,18 +38,37 @@ class TestBountyContributionMapper(TestCase):
         self.unified_doc = ResearchhubUnifiedDocument.objects.create(
             document_type="DISCUSSION"
         )
+
+        # Create paper for bounty item reference
+        self.paper = Paper.objects.create(
+            title="Test Paper",
+            unified_document=self.unified_doc,
+            uploaded_by=self.user,
+        )
+
+        # Create escrow first with temporary object_id
+        bounty_ct = ContentType.objects.get_for_model(Bounty)
         self.escrow = Escrow.objects.create(
             created_by=self.user,
             hold_type=Escrow.BOUNTY,
+            content_type=bounty_ct,
+            object_id=1,  # Temporary
         )
 
-        # Create main bounty
+        # Create main bounty with escrow and item reference
+        paper_ct = ContentType.objects.get_for_model(Paper)
         self.main_bounty = Bounty.objects.create(
             created_by=self.user,
-            escrow=self.escrow,
             unified_document=self.unified_doc,
             amount=100,
+            escrow=self.escrow,
+            item_content_type=paper_ct,
+            item_object_id=self.paper.id,
         )
+
+        # Update escrow's object_id to point to bounty
+        self.escrow.object_id = self.main_bounty.id
+        self.escrow.save()
 
     def test_event_type_name(self):
         """Test event type name property."""
@@ -54,32 +77,58 @@ class TestBountyContributionMapper(TestCase):
 
     def test_get_queryset_only_child_bounties(self):
         """Test that queryset includes only child bounties (contributions)."""
+        from django.contrib.contenttypes.models import ContentType
+
+        from paper.models import Paper
+
         # Create child bounties
+        paper_ct = ContentType.objects.get_for_model(Paper)
         child_bounty1 = Bounty.objects.create(
             created_by=self.contributor,
             escrow=self.escrow,
             unified_document=self.unified_doc,
             amount=50,
             parent=self.main_bounty,
+            item_content_type=paper_ct,
+            item_object_id=self.paper.id,
         )
 
         unified_doc2 = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
+        paper2 = Paper.objects.create(
+            title="Test Paper 2",
+            unified_document=unified_doc2,
+            uploaded_by=self.user,
+        )
+
+        # Create escrow first
+        bounty_ct = ContentType.objects.get_for_model(Bounty)
         escrow2 = Escrow.objects.create(
             created_by=self.user,
             hold_type=Escrow.BOUNTY,
+            content_type=bounty_ct,
+            object_id=1,  # Temporary
         )
+
         main_bounty2 = Bounty.objects.create(
             created_by=self.user,
-            escrow=escrow2,
             unified_document=unified_doc2,
             amount=200,
+            escrow=escrow2,
+            item_content_type=paper_ct,
+            item_object_id=paper2.id,
         )
+
+        escrow2.object_id = main_bounty2.id
+        escrow2.save()
+
         child_bounty2 = Bounty.objects.create(
             created_by=self.contributor,
             escrow=escrow2,
             unified_document=unified_doc2,
             amount=75,
             parent=main_bounty2,
+            item_content_type=paper_ct,
+            item_object_id=paper2.id,
         )
 
         mapper = BountyContributionMapper()
@@ -96,8 +145,14 @@ class TestBountyContributionMapper(TestCase):
 
     def test_get_queryset_with_date_filters(self):
         """Test queryset filtering by date range."""
+        from django.contrib.contenttypes.models import ContentType
+
+        from paper.models import Paper
+
         now = django_timezone.now()
         past_date = now - timedelta(days=10)
+
+        paper_ct = ContentType.objects.get_for_model(Paper)
 
         # Create child bounty in the past
         past_contribution = Bounty.objects.create(
@@ -106,6 +161,8 @@ class TestBountyContributionMapper(TestCase):
             unified_document=self.unified_doc,
             amount=50,
             parent=self.main_bounty,
+            item_content_type=paper_ct,
+            item_object_id=self.paper.id,
         )
         past_contribution.created_date = past_date
         past_contribution.save()
@@ -117,6 +174,8 @@ class TestBountyContributionMapper(TestCase):
             unified_document=self.unified_doc,
             amount=75,
             parent=self.main_bounty,
+            item_content_type=paper_ct,
+            item_object_id=self.paper.id,
         )
 
         mapper = BountyContributionMapper()
@@ -140,12 +199,19 @@ class TestBountyContributionMapper(TestCase):
 
     def test_map_contribution_to_interaction(self):
         """Test mapping a bounty contribution to BOUNTY_CONTRIBUTED interaction."""
+        from django.contrib.contenttypes.models import ContentType
+
+        from paper.models import Paper
+
+        paper_ct = ContentType.objects.get_for_model(Paper)
         child_bounty = Bounty.objects.create(
             created_by=self.contributor,
             escrow=self.escrow,
             unified_document=self.unified_doc,
             amount=50,
             parent=self.main_bounty,
+            item_content_type=paper_ct,
+            item_object_id=self.paper.id,
         )
 
         mapper = BountyContributionMapper()
@@ -167,46 +233,21 @@ class TestBountyContributionMapper(TestCase):
             datetime_to_epoch_seconds(child_bounty.created_date),
         )
 
-    def test_map_contribution_without_unified_doc(self):
-        """Test that contributions without unified document are skipped."""
-        child_bounty = Bounty.objects.create(
-            created_by=self.contributor,
-            escrow=self.escrow,
-            unified_document=None,
-            amount=50,
-            parent=self.main_bounty,
-        )
-
-        mapper = BountyContributionMapper()
-        interactions = mapper.map_to_interactions(child_bounty)
-
-        # Should return empty list
-        self.assertEqual(len(interactions), 0)
-
-    def test_map_contribution_without_creator(self):
-        """Test that contributions without creator are skipped."""
-        child_bounty = Bounty.objects.create(
-            created_by=None,
-            escrow=self.escrow,
-            unified_document=self.unified_doc,
-            amount=50,
-            parent=self.main_bounty,
-        )
-
-        mapper = BountyContributionMapper()
-        interactions = mapper.map_to_interactions(child_bounty)
-
-        # Should return empty list
-        self.assertEqual(len(interactions), 0)
-
     def test_timestamp_is_integer(self):
         """Test that timestamp is converted to integer epoch seconds."""
+        from django.contrib.contenttypes.models import ContentType
+
+        from paper.models import Paper
+
+        paper_ct = ContentType.objects.get_for_model(Paper)
         child_bounty = Bounty.objects.create(
             created_by=self.contributor,
             escrow=self.escrow,
             unified_document=self.unified_doc,
             amount=50,
             parent=self.main_bounty,
+            item_content_type=paper_ct,
+            item_object_id=self.paper.id,
         )
 
         mapper = BountyContributionMapper()

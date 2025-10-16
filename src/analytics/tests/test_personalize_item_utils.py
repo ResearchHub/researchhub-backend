@@ -348,15 +348,19 @@ class GetBountyMetricsTest(TestCase):
 
     def test_get_bounty_metrics_with_open_bounty(self):
         """Test getting bounty metrics with an open bounty."""
-        # Create escrow
-        escrow = Escrow.objects.create(
-            created_by=self.user, hold_type=Escrow.BOUNTY, amount_holding=100
-        )
-
-        # Create bounty
         content_type = ContentType.objects.get_for_model(Paper)
         expiration_date = timezone.now() + timedelta(days=30)
 
+        # Create escrow first with temporary object_id
+        escrow = Escrow.objects.create(
+            created_by=self.user,
+            hold_type=Escrow.BOUNTY,
+            amount_holding=100,
+            content_type=ContentType.objects.get_for_model(Bounty),
+            object_id=1,  # Temporary, will be updated
+        )
+
+        # Create bounty with escrow
         bounty = Bounty.objects.create(
             created_by=self.user,
             escrow=escrow,
@@ -368,8 +372,18 @@ class GetBountyMetricsTest(TestCase):
             unified_document=self.unified_doc,
         )
 
+        # Update escrow's object_id to point to the bounty
+        escrow.object_id = bounty.id
+        escrow.save()
+
         # Create a solution
-        BountySolution.objects.create(bounty=bounty, status=BountySolution.SUBMITTED)
+        BountySolution.objects.create(
+            bounty=bounty,
+            created_by=self.user,
+            status=BountySolution.Status.SUBMITTED,
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=self.paper.id,
+        )
 
         metrics = get_bounty_metrics(self.unified_doc)
 
@@ -399,13 +413,14 @@ class GetProposalMetricsTest(TestCase):
 
     def test_get_proposal_metrics_with_fundraise(self):
         """Test getting proposal metrics with an open fundraise."""
-        # Create escrow for fundraise
+        # Create escrow for fundraise with temporary object_id
         fundraise_ct = ContentType.objects.get_for_model(Fundraise)
         escrow = Escrow.objects.create(
             created_by=self.user,
             hold_type=Escrow.FUNDRAISE,
             amount_holding=500,
             content_type=fundraise_ct,
+            object_id=1,  # Temporary, will be updated
         )
 
         # Create fundraise
@@ -419,7 +434,7 @@ class GetProposalMetricsTest(TestCase):
             end_date=end_date,
         )
 
-        # Link escrow to fundraise
+        # Update escrow's object_id to point to fundraise
         escrow.object_id = fundraise.id
         escrow.save()
 
@@ -431,13 +446,14 @@ class GetProposalMetricsTest(TestCase):
 
     def test_get_proposal_metrics_with_closed_fundraise(self):
         """Test getting proposal metrics with a closed fundraise."""
-        # Create escrow for fundraise
+        # Create escrow for fundraise with temporary object_id
         fundraise_ct = ContentType.objects.get_for_model(Fundraise)
         escrow = Escrow.objects.create(
             created_by=self.user,
             hold_type=Escrow.FUNDRAISE,
             amount_holding=500,
             content_type=fundraise_ct,
+            object_id=1,  # Temporary, will be updated
         )
 
         # Create CLOSED fundraise
@@ -451,7 +467,7 @@ class GetProposalMetricsTest(TestCase):
             end_date=end_date,
         )
 
-        # Link escrow to fundraise
+        # Update escrow's object_id to point to fundraise
         escrow.object_id = fundraise.id
         escrow.save()
 
@@ -502,9 +518,19 @@ class GetRFPMetricsTest(TestCase):
             end_date=timezone.now() + timedelta(days=30),
         )
 
-        # Create grant applications
-        GrantApplication.objects.create(grant=grant, user=self.user)
-        GrantApplication.objects.create(grant=grant, user=self.user)
+        # Create grant applications with different posts
+        post2 = ResearchhubPost.objects.create(
+            title="Test Grant 2",
+            document_type="GRANT",
+            created_by=self.user,
+            unified_document=self.unified_doc,
+        )
+        GrantApplication.objects.create(
+            grant=grant, applicant=self.user, preregistration_post=self.post
+        )
+        GrantApplication.objects.create(
+            grant=grant, applicant=self.user, preregistration_post=post2
+        )
 
         metrics = get_rfp_metrics(self.unified_doc)
 
@@ -526,7 +552,9 @@ class GetRFPMetricsTest(TestCase):
         )
 
         # Create grant application
-        GrantApplication.objects.create(grant=grant, user=self.user)
+        GrantApplication.objects.create(
+            grant=grant, applicant=self.user, preregistration_post=self.post
+        )
 
         metrics = get_rfp_metrics(self.unified_doc)
 
@@ -564,7 +592,9 @@ class GetLastCommentTimestampTest(TestCase):
         # Create a thread
         content_type = ContentType.objects.get_for_model(Paper)
         thread = RhCommentThreadModel.objects.create(
-            content_type=content_type, object_id=self.paper.id
+            content_type=content_type,
+            object_id=self.paper.id,
+            created_by=self.user,
         )
 
         # Create comments

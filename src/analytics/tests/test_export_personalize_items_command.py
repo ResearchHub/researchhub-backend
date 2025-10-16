@@ -193,7 +193,7 @@ class ExportPersonalizeItemsCommandTest(TestCase):
         """Test that bounty metrics are exported."""
         # Create unified doc with bounty
         unified_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type="QUESTION"
+            document_type="PAPER"  # Changed from QUESTION to match the Paper object
         )
 
         paper = Paper.objects.create(
@@ -202,27 +202,44 @@ class ExportPersonalizeItemsCommandTest(TestCase):
             unified_document=unified_doc,
         )
 
-        # Create bounty
-        escrow = Escrow.objects.create(
-            created_by=self.user, hold_type=Escrow.BOUNTY, amount_holding=100
-        )
-
+        # Create bounty with escrow
         content_type = ContentType.objects.get_for_model(Paper)
+        bounty_ct = ContentType.objects.get_for_model(Bounty)
         expiration_date = timezone.now() + timedelta(days=30)
 
+        # Create escrow first with temporary object_id
+        escrow = Escrow.objects.create(
+            created_by=self.user,
+            hold_type=Escrow.BOUNTY,
+            amount_holding=100,
+            content_type=bounty_ct,
+            object_id=1,  # Temporary, will be updated
+        )
+
+        # Create bounty with escrow
         bounty = Bounty.objects.create(
             created_by=self.user,
-            escrow=escrow,
             amount=100,
             status=Bounty.OPEN,
             expiration_date=expiration_date,
             item_content_type=content_type,
             item_object_id=paper.id,
             unified_document=unified_doc,
+            escrow=escrow,
         )
 
+        # Update escrow's object_id to point to bounty
+        escrow.object_id = bounty.id
+        escrow.save()
+
         # Create solution
-        BountySolution.objects.create(bounty=bounty, status=BountySolution.SUBMITTED)
+        BountySolution.objects.create(
+            bounty=bounty,
+            created_by=self.user,
+            status=BountySolution.Status.SUBMITTED,
+            content_type=content_type,
+            object_id=paper.id,
+        )
 
         # Run command
         call_command("export_personalize_items", "--output", self.output_path)
@@ -253,27 +270,29 @@ class ExportPersonalizeItemsCommandTest(TestCase):
             unified_document=unified_doc,
         )
 
-        # Create fundraise
+        # Create fundraise first
+        end_date = timezone.now() + timedelta(days=30)
+        fundraise = Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=unified_doc,
+            status=Fundraise.OPEN,
+            goal_amount=1000,
+            end_date=end_date,
+        )
+
+        # Create escrow linked to fundraise
         fundraise_ct = ContentType.objects.get_for_model(Fundraise)
         escrow = Escrow.objects.create(
             created_by=self.user,
             hold_type=Escrow.FUNDRAISE,
             amount_holding=500,
             content_type=fundraise_ct,
+            object_id=fundraise.id,
         )
 
-        end_date = timezone.now() + timedelta(days=30)
-        fundraise = Fundraise.objects.create(
-            created_by=self.user,
-            unified_document=unified_doc,
-            escrow=escrow,
-            status=Fundraise.OPEN,
-            goal_amount=1000,
-            end_date=end_date,
-        )
-
-        escrow.object_id = fundraise.id
-        escrow.save()
+        # Link escrow back to fundraise
+        fundraise.escrow = escrow
+        fundraise.save()
 
         # Run command
         call_command("export_personalize_items", "--output", self.output_path)
@@ -294,7 +313,7 @@ class ExportPersonalizeItemsCommandTest(TestCase):
         # Create GRANT document
         unified_doc = ResearchhubUnifiedDocument.objects.create(document_type="GRANT")
 
-        ResearchhubPost.objects.create(
+        post = ResearchhubPost.objects.create(
             title="Test Grant",
             document_type="GRANT",
             created_by=self.user,
@@ -313,7 +332,9 @@ class ExportPersonalizeItemsCommandTest(TestCase):
         )
 
         # Create grant application
-        GrantApplication.objects.create(grant=grant, user=self.user)
+        GrantApplication.objects.create(
+            grant=grant, applicant=self.user, preregistration_post=post
+        )
 
         # Run command
         call_command("export_personalize_items", "--output", self.output_path)
@@ -342,7 +363,9 @@ class ExportPersonalizeItemsCommandTest(TestCase):
         # Create thread and comment
         content_type = ContentType.objects.get_for_model(Paper)
         thread = RhCommentThreadModel.objects.create(
-            content_type=content_type, object_id=paper.id
+            content_type=content_type,
+            object_id=paper.id,
+            created_by=self.user,
         )
 
         RhCommentModel.objects.create(
