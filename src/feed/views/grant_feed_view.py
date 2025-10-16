@@ -5,7 +5,7 @@ and research grant postings.
 """
 
 from django.core.cache import cache
-from django.db.models import Case, DecimalField, IntegerField, Min, OuterRef, Q, Subquery, Sum, Value, When
+from django.db.models import Case, DecimalField, Exists, IntegerField, OuterRef, Q, Sum, Value, When
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from rest_framework.response import Response
@@ -54,7 +54,7 @@ class GrantFeedViewSet(FeedOrderingMixin, FeedViewMixin, ModelViewSet):
     def apply_ordering(self, queryset, ordering, status_field, end_date_field):
         """
         Override to handle grant-specific ordering.
-        Uses status_priority from subquery (0=OPEN+not expired, 1=expired/closed).
+        Uses status_priority from Exists subquery (0=OPEN+not expired, 1=expired/closed).
         Considers both status field and end_date to determine if grant is truly active.
         """
         if ordering == "hot_score":
@@ -83,7 +83,7 @@ class GrantFeedViewSet(FeedOrderingMixin, FeedViewMixin, ModelViewSet):
         organization = request.query_params.get("organization", "")
         ordering = request.query_params.get("ordering", "")
 
-        grant_params = f"-status:{status}-org:{organization}-ordering:{ordering}-v5"
+        grant_params = f"-status:{status}-org:{organization}-ordering:{ordering}-v9"
         return base_key + grant_params
 
     def list(self, request, *args, **kwargs):
@@ -144,19 +144,15 @@ class GrantFeedViewSet(FeedOrderingMixin, FeedViewMixin, ModelViewSet):
         organization = self.request.query_params.get("organization", None)
 
         now = timezone.now()
-        grant_status_subquery = Grant.objects.filter(
-            unified_document_id=OuterRef("unified_document_id")
-        ).annotate(
-            priority=Case(
-                When(
-                    Q(status=Grant.OPEN) & (Q(end_date__isnull=True) | Q(end_date__gt=now)),
-                    then=Value(0)
-                ),
-                default=Value(1),
-                output_field=IntegerField()
-            )
-        ).values("priority").order_by("priority")[:1]
-
+        
+        # Subquery to check if post has an active (OPEN and not expired) grant
+        has_active_grant = Grant.objects.filter(
+            unified_document_id=OuterRef("unified_document_id"),
+            status=Grant.OPEN,
+        ).filter(
+            Q(end_date__isnull=True) | Q(end_date__gt=now)
+        )
+        
         queryset = (
             ResearchhubPost.objects.all()
             .select_related(
@@ -172,7 +168,11 @@ class GrantFeedViewSet(FeedOrderingMixin, FeedViewMixin, ModelViewSet):
             .filter(document_type=GRANT)
             .filter(unified_document__is_removed=False)
             .annotate(
-                status_priority=Subquery(grant_status_subquery, output_field=IntegerField())
+                status_priority=Case(
+                    When(Exists(has_active_grant), then=Value(0)),
+                    default=Value(1),
+                    output_field=IntegerField()
+                )
             )
         )
 
