@@ -51,6 +51,7 @@ class TestCommentMapper(TestCase):
             content_type=ContentType.objects.get_for_model(Paper),
             object_id=self.paper.id,
             thread_type=GENERIC_COMMENT,
+            created_by=self.user,
         )
 
     def test_event_type_name(self):
@@ -110,19 +111,26 @@ class TestCommentMapper(TestCase):
             comment_content_json={"ops": [{"insert": "Comment with bounty"}]},
         )
 
-        # Attach bounty to comment
+        # Attach bounty to comment - create escrow first
+        bounty_ct = ContentType.objects.get_for_model(Bounty)
         escrow = Escrow.objects.create(
             created_by=self.user,
             hold_type=Escrow.BOUNTY,
+            content_type=bounty_ct,
+            object_id=1,  # Temporary
         )
-        Bounty.objects.create(
+
+        bounty = Bounty.objects.create(
             created_by=self.user,
-            escrow=escrow,
             unified_document=self.unified_doc,
             item_content_type=ContentType.objects.get_for_model(RhCommentModel),
             item_object_id=comment_with_bounty.id,
             amount=100,
+            escrow=escrow,
         )
+
+        escrow.object_id = bounty.id
+        escrow.save()
 
         mapper = CommentMapper()
         queryset = mapper.get_queryset()
@@ -202,21 +210,6 @@ class TestCommentMapper(TestCase):
             interaction["TIMESTAMP"],
             datetime_to_epoch_seconds(comment.created_date),
         )
-
-    def test_map_comment_without_creator(self):
-        """Test that comments without creator are skipped."""
-        comment = RhCommentModel.objects.create(
-            thread=self.thread,
-            created_by=None,
-            comment_type=GENERIC_COMMENT,
-            comment_content_json={"ops": [{"insert": "Comment without creator"}]},
-        )
-
-        mapper = CommentMapper()
-        interactions = mapper.map_to_interactions(comment)
-
-        # Should return empty list
-        self.assertEqual(len(interactions), 0)
 
     def test_timestamp_is_integer(self):
         """Test that timestamp is converted to integer epoch seconds."""

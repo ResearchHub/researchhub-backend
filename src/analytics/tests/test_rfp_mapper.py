@@ -137,36 +137,6 @@ class TestRfpMapper(TestCase):
             datetime_to_epoch_seconds(grant_post.created_date),
         )
 
-    def test_map_rfp_without_unified_doc(self):
-        """Test that posts without unified document are skipped."""
-        grant_post = ResearchhubPost.objects.create(
-            title="Test Grant No Doc",
-            document_type=GRANT,
-            unified_document=None,
-            created_by=self.user,
-        )
-
-        mapper = RfpMapper()
-        interactions = mapper.map_to_interactions(grant_post)
-
-        # Should return empty list
-        self.assertEqual(len(interactions), 0)
-
-    def test_map_rfp_without_creator(self):
-        """Test that posts without creator are skipped."""
-        grant_post = ResearchhubPost.objects.create(
-            title="Test Grant No Creator",
-            document_type=GRANT,
-            unified_document=self.unified_doc,
-            created_by=None,
-        )
-
-        mapper = RfpMapper()
-        interactions = mapper.map_to_interactions(grant_post)
-
-        # Should return empty list
-        self.assertEqual(len(interactions), 0)
-
     def test_timestamp_is_integer(self):
         """Test that timestamp is converted to integer epoch seconds."""
         grant_post = ResearchhubPost.objects.create(

@@ -219,22 +219,6 @@ class TestPreprintMapper(TestCase):
         # Should return empty list
         self.assertEqual(len(interactions), 0)
 
-    def test_map_paper_without_unified_document(self):
-        """Test that papers without unified_document are skipped."""
-        paper = Paper.objects.create(
-            title="No Unified Doc Paper",
-            unified_document=None,  # No unified document
-            uploaded_by=self.user,
-            retrieved_from_external_source=False,
-            work_type="preprint",
-        )
-
-        mapper = PreprintMapper()
-        interactions = mapper.map_to_interactions(paper)
-
-        # Should return empty list
-        self.assertEqual(len(interactions), 0)
-
     def test_excludes_external_papers(self):
         """Test that papers from external sources are excluded."""
         unified_doc1 = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")

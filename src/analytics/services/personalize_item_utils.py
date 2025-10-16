@@ -340,7 +340,7 @@ def get_rfp_metrics(unified_doc) -> Dict[str, Optional[float]]:
     result = {
         "REQUEST_FOR_PROPOSAL_AMOUNT": None,
         "REQUEST_FOR_PROPOSAL_EXPIRES_AT": None,
-        "REQUEST_FOR_PROPOSAL_NUM_OF_APPLICANTS": None,
+        "REQUEST_FOR_PROPOSAL_NUM_OF_APPLICANTS": 0,
     }
 
     try:

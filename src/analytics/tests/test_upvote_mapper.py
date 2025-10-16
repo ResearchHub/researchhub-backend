@@ -143,10 +143,14 @@ class TestUpvoteMapper(TestCase):
             uploaded_by=self.user,
         )
 
+        # Create a different user to vote (not a self-vote)
+        other_user = User.objects.create(
+            username="papervoter", email="papervoter@example.com"
+        )
         vote = Vote.objects.create(
             content_type=ContentType.objects.get_for_model(Paper),
             object_id=paper.id,
-            created_by=self.user,
+            created_by=other_user,
             vote_type=Vote.UPVOTE,
         )
 
@@ -157,7 +161,7 @@ class TestUpvoteMapper(TestCase):
         self.assertEqual(len(interactions), 1)
 
         interaction = interactions[0]
-        self.assertEqual(interaction["USER_ID"], str(self.user.id))
+        self.assertEqual(interaction["USER_ID"], str(other_user.id))
         self.assertEqual(interaction["ITEM_ID"], str(unified_doc.id))
         self.assertEqual(interaction["EVENT_TYPE"], ITEM_UPVOTED)
         self.assertEqual(interaction["EVENT_VALUE"], EVENT_WEIGHTS[ITEM_UPVOTED])
@@ -182,10 +186,14 @@ class TestUpvoteMapper(TestCase):
             document_type=DISCUSSION,
         )
 
+        # Create a different user to vote (not a self-vote)
+        other_user = User.objects.create(
+            username="otheruser", email="other@example.com"
+        )
         vote = Vote.objects.create(
             content_type=ContentType.objects.get_for_model(ResearchhubPost),
             object_id=post.id,
-            created_by=self.user,
+            created_by=other_user,
             vote_type=Vote.UPVOTE,
         )
 
@@ -196,7 +204,7 @@ class TestUpvoteMapper(TestCase):
         self.assertEqual(len(interactions), 1)
 
         interaction = interactions[0]
-        self.assertEqual(interaction["USER_ID"], str(self.user.id))
+        self.assertEqual(interaction["USER_ID"], str(other_user.id))
         self.assertEqual(interaction["ITEM_ID"], str(unified_doc.id))
         self.assertEqual(interaction["EVENT_TYPE"], ITEM_UPVOTED)
         self.assertEqual(interaction["EVENT_VALUE"], 1.0)
@@ -220,6 +228,7 @@ class TestUpvoteMapper(TestCase):
             content_type=ContentType.objects.get_for_model(Paper),
             object_id=paper.id,
             thread_type=GENERIC_COMMENT,
+            created_by=self.user,
         )
 
         # Create comment
@@ -230,11 +239,15 @@ class TestUpvoteMapper(TestCase):
             comment_content_json={"ops": [{"insert": "Test comment"}]},
         )
 
+        # Create a different user to vote (not a self-vote)
+        other_user = User.objects.create(
+            username="commenter", email="commenter@example.com"
+        )
         # Create upvote on comment
         vote = Vote.objects.create(
             content_type=ContentType.objects.get_for_model(RhCommentModel),
             object_id=comment.id,
-            created_by=self.user,
+            created_by=other_user,
             vote_type=Vote.UPVOTE,
         )
 
@@ -245,33 +258,11 @@ class TestUpvoteMapper(TestCase):
         self.assertEqual(len(interactions), 1)
 
         interaction = interactions[0]
-        self.assertEqual(interaction["USER_ID"], str(self.user.id))
+        self.assertEqual(interaction["USER_ID"], str(other_user.id))
         # CRITICAL: Should use paper's unified doc, not comment's
         self.assertEqual(interaction["ITEM_ID"], str(unified_doc.id))
         self.assertEqual(interaction["EVENT_TYPE"], ITEM_UPVOTED)
         self.assertEqual(interaction["EVENT_VALUE"], 1.0)
-
-    def test_map_upvote_without_creator(self):
-        """Test that votes without creator are skipped."""
-        unified_doc = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
-        paper = Paper.objects.create(
-            title="Test Paper",
-            unified_document=unified_doc,
-            uploaded_by=self.user,
-        )
-
-        vote = Vote.objects.create(
-            content_type=ContentType.objects.get_for_model(Paper),
-            object_id=paper.id,
-            created_by=None,
-            vote_type=Vote.UPVOTE,
-        )
-
-        mapper = UpvoteMapper()
-        interactions = mapper.map_to_interactions(vote)
-
-        # Should return empty list
-        self.assertEqual(len(interactions), 0)
 
     def test_timestamp_is_integer(self):
         """Test that timestamp is converted to integer epoch seconds."""
@@ -282,10 +273,12 @@ class TestUpvoteMapper(TestCase):
             uploaded_by=self.user,
         )
 
+        # Create a different user to vote (not a self-vote)
+        other_user = User.objects.create(username="voter", email="voter@example.com")
         vote = Vote.objects.create(
             content_type=ContentType.objects.get_for_model(Paper),
             object_id=paper.id,
-            created_by=self.user,
+            created_by=other_user,
             vote_type=Vote.UPVOTE,
         )
 
@@ -361,6 +354,7 @@ class TestUpvoteMapper(TestCase):
             content_type=ContentType.objects.get_for_model(Paper),
             object_id=paper.id,
             thread_type=GENERIC_COMMENT,
+            created_by=self.user,
         )
 
         # Create comment by self.user

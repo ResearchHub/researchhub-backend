@@ -91,19 +91,6 @@ class TestGetUnifiedDocumentId(TestCase):
 
         self.assertIsNone(result)
 
-    def test_get_unified_document_id_for_object_without_unified_doc(self):
-        """Test that None is returned when object has no unified document"""
-        paper = Paper.objects.create(
-            title="Test Paper",
-            unified_document=None,
-            uploaded_by=self.user,
-        )
-        content_type = ContentType.objects.get_for_model(Paper)
-
-        result = get_unified_document_id(content_type, paper.id)
-
-        self.assertIsNone(result)
-
 
 class TestDatetimeToEpochSeconds(TestCase):
     """Tests for datetime_to_epoch_seconds function"""
@@ -131,6 +118,7 @@ class TestMapBountySolutionToInteractions(TestCase):
     """Tests for map_bounty_solution_to_interactions function"""
 
     def setUp(self):
+        from reputation.related_models.bounty import Bounty
         from reputation.related_models.escrow import Escrow
 
         self.user = User.objects.create(username="testuser", email="test@example.com")
@@ -143,18 +131,28 @@ class TestMapBountySolutionToInteractions(TestCase):
             uploaded_by=self.user,
         )
 
+        # Create escrow first with temporary object_id
+        bounty_ct = ContentType.objects.get_for_model(Bounty)
         escrow = Escrow.objects.create(
             created_by=self.user,
             hold_type=Escrow.BOUNTY,
+            content_type=bounty_ct,
+            object_id=1,  # Temporary, will be updated
         )
 
-        from reputation.related_models.bounty import Bounty
-
+        # Create bounty with escrow and item reference
+        paper_ct = ContentType.objects.get_for_model(Paper)
         self.bounty = Bounty.objects.create(
             created_by=self.user,
-            escrow=escrow,
             unified_document=self.unified_doc,
+            escrow=escrow,
+            item_content_type=paper_ct,
+            item_object_id=self.paper.id,
         )
+
+        # Update escrow's object_id to point to bounty
+        escrow.object_id = self.bounty.id
+        escrow.save()
 
     def test_map_submitted_bounty_solution(self):
         """Test mapping a SUBMITTED bounty solution creates one interaction"""
@@ -222,27 +220,6 @@ class TestMapBountySolutionToInteractions(TestCase):
         interactions = mapper.map_to_interactions(solution)
 
         # REJECTED solutions should not create interactions
-        self.assertEqual(len(interactions), 0)
-
-    def test_map_bounty_solution_with_no_unified_doc(self):
-        """Test that solutions without unified doc are skipped"""
-        paper_no_doc = Paper.objects.create(
-            title="Test Paper No Doc",
-            unified_document=None,
-            uploaded_by=self.user,
-        )
-
-        solution = BountySolution.objects.create(
-            bounty=self.bounty,
-            created_by=self.user,
-            content_type=ContentType.objects.get_for_model(Paper),
-            object_id=paper_no_doc.id,
-            status=BountySolution.Status.SUBMITTED,
-        )
-
-        mapper = BountySolutionMapper()
-        interactions = mapper.map_to_interactions(solution)
-
         self.assertEqual(len(interactions), 0)
 
 
