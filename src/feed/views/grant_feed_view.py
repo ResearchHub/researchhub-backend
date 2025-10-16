@@ -59,7 +59,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         page = request.query_params.get("page", "1")
         page_num = int(page)
         cache_key = self.get_cache_key(request, "grants")
-        use_cache = page_num < 4
+        use_cache = page_num < 4 and not request.query_params.get("_test")
 
         if use_cache:
             # try to get cached response
