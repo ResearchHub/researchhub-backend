@@ -14,11 +14,16 @@ from django.db.models import (
     Case,
     DecimalField,
     F,
+    IntegerField,
+    OuterRef,
+    Q,
+    Subquery,
     Sum,
     Value,
     When,
 )
 from django.db.models.functions import Coalesce
+from django.utils import timezone
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
@@ -62,6 +67,11 @@ class FundingFeedViewSet(FeedOrderingMixin, FeedViewMixin, ModelViewSet):
 
     def _get_open_status(self):
         return Fundraise.OPEN
+
+    def get_cache_key(self, request, feed_type=""):
+        """Override to include funding-specific cache version"""
+        base_key = super().get_cache_key(request, feed_type)
+        return base_key + "-v2"
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -127,6 +137,20 @@ class FundingFeedViewSet(FeedOrderingMixin, FeedViewMixin, ModelViewSet):
         grant_id = self.request.query_params.get("grant_id", None)
         created_by = self.request.query_params.get("created_by", None)
 
+        now = timezone.now()
+        fundraise_status_subquery = Fundraise.objects.filter(
+            unified_document_id=OuterRef("unified_document_id")
+        ).annotate(
+            priority=Case(
+                When(
+                    Q(status=Fundraise.OPEN) & (Q(end_date__isnull=True) | Q(end_date__gt=now)),
+                    then=Value(0)
+                ),
+                default=Value(1),
+                output_field=IntegerField()
+            )
+        ).values("priority").order_by("priority")[:1]
+
         queryset = (
             ResearchhubPost.objects.all()
             .select_related(
@@ -140,6 +164,9 @@ class FundingFeedViewSet(FeedOrderingMixin, FeedViewMixin, ModelViewSet):
             )
             .filter(document_type=PREREGISTRATION)
             .filter(unified_document__is_removed=False)
+            .annotate(
+                status_priority=Subquery(fundraise_status_subquery, output_field=IntegerField())
+            )
         )
 
         # Filter by created_by if provided
@@ -147,7 +174,7 @@ class FundingFeedViewSet(FeedOrderingMixin, FeedViewMixin, ModelViewSet):
             queryset = queryset.filter(created_by__id=created_by)
 
         # Common field paths for ordering
-        status_field = "unified_document__fundraises__status"
+        status_field = "status_priority"
         end_date_field = "unified_document__fundraises__end_date"
         ordering = self.request.query_params.get("ordering")
         
