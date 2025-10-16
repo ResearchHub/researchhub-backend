@@ -188,6 +188,7 @@ class TestExportPersonalizeCommand(TestCase):
         )
 
         default_path = ".tmp/personalize_interactions.csv"
+        cache_path = ".tmp/personalize_interactions.item_ids.cache"
 
         try:
             call_command("export_personalize_interactions", stdout=StringIO())
@@ -195,9 +196,11 @@ class TestExportPersonalizeCommand(TestCase):
             # Check file was created
             self.assertTrue(os.path.exists(default_path))
         finally:
-            # Cleanup
+            # Cleanup both CSV and cache files
             if os.path.exists(default_path):
                 os.remove(default_path)
+            if os.path.exists(cache_path):
+                os.remove(cache_path)
             if os.path.exists(".tmp"):
                 try:
                     os.rmdir(".tmp")
