@@ -20,6 +20,10 @@ Usage:
     # Backfill everything
     python manage.py backfill_hot_score_v2 --all
 
+    # Backfill specific unified document(s)
+    python manage.py backfill_hot_score_v2 --unified-document-id 12345
+    python manage.py backfill_hot_score_v2 --unified-document-ids 12345 67890 11111
+
     # Dry run (show what would be updated)
     python manage.py backfill_hot_score_v2 --content-type paper --dry-run
 """
@@ -80,6 +84,17 @@ class Command(BaseCommand):
             action="store_true",
             help="Process all feed entries (ignore filters)",
         )
+        parser.add_argument(
+            "--unified-document-id",
+            type=int,
+            help="Process entries for a specific unified document ID",
+        )
+        parser.add_argument(
+            "--unified-document-ids",
+            type=int,
+            nargs="+",
+            help="Process entries for multiple unified document IDs",
+        )
 
     def handle(self, *args, **options):
         content_type_filter = options.get("content_type")
@@ -89,6 +104,8 @@ class Command(BaseCommand):
         batch_size = options["batch_size"]
         dry_run = options["dry_run"]
         process_all = options["all"]
+        unified_document_id = options.get("unified_document_id")
+        unified_document_ids = options.get("unified_document_ids")
 
         self.stdout.write(self.style.SUCCESS("Hot Score V2 Backfill Tool"))
         self.stdout.write("=" * 80)
@@ -122,6 +139,17 @@ class Command(BaseCommand):
                     end = timezone.make_aware(end)
                     queryset = queryset.filter(created_date__lte=end)
 
+        # Apply unified document ID filter
+        if not process_all:
+            doc_ids = []
+            if unified_document_id:
+                doc_ids.append(unified_document_id)
+            if unified_document_ids:
+                doc_ids.extend(unified_document_ids)
+
+            if doc_ids:
+                queryset = queryset.filter(unified_document_id__in=doc_ids)
+
         total_count = queryset.count()
 
         # Display what will be processed
@@ -138,6 +166,15 @@ class Command(BaseCommand):
                 filters.append(f"From: {start_date}")
             if end_date:
                 filters.append(f"To: {end_date}")
+
+            # Show unified document ID filter
+            doc_ids = []
+            if unified_document_id:
+                doc_ids.append(unified_document_id)
+            if unified_document_ids:
+                doc_ids.extend(unified_document_ids)
+            if doc_ids:
+                filters.append(f"Unified Doc IDs: {', '.join(map(str, doc_ids))}")
 
             self.stdout.write(f"Filters: {', '.join(filters) if filters else 'None'}")
 
