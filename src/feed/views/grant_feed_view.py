@@ -79,7 +79,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             request.query_params.get("organization", ""),
             request.query_params.get("ordering", "")
         ]
-        return f"{base_key}-{':'.join(params)}-v12-lean"
+        return f"{base_key}-{':'.join(params)}-v13-fast"
 
     def list(self, request, *args, **kwargs):
         page = request.query_params.get("page", "1")

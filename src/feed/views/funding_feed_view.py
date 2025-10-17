@@ -69,7 +69,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
 
     def get_cache_key(self, request, feed_type=""):
         base_key = super().get_cache_key(request, feed_type)
-        return base_key + "-v10-lean"
+        return base_key + "-v11-fast"
 
     def get_serializer_context(self):
         context = super().get_serializer_context()

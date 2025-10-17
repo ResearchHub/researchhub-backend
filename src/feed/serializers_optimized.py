@@ -15,6 +15,40 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from .models import FeedEntry
 
 
+def serialize_author(author_profile):
+    """Fast author serialization without DRF overhead"""
+    if not author_profile:
+        return None
+    
+    profile_image = None
+    if hasattr(author_profile, 'profile_image') and author_profile.profile_image:
+        try:
+            profile_image = author_profile.profile_image.url
+        except:
+            pass
+    
+    headline = None
+    if author_profile.headline and isinstance(author_profile.headline, dict):
+        headline = author_profile.headline.get('title')
+    
+    user_data = None
+    if hasattr(author_profile, 'user') and author_profile.user:
+        user_data = {
+            'id': author_profile.user.id,
+            'is_verified': author_profile.user.is_verified,
+        }
+    
+    return {
+        'id': author_profile.id,
+        'first_name': author_profile.first_name,
+        'last_name': author_profile.last_name,
+        'profile_image': profile_image,
+        'headline': headline,
+        'description': author_profile.description,
+        'user': user_data,
+    }
+
+
 class OptimizedAuthorSerializer(serializers.Serializer):
     """Minimal author serializer with only required fields"""
     id = serializers.IntegerField()
@@ -43,6 +77,17 @@ class OptimizedAuthorSerializer(serializers.Serializer):
                 'is_verified': obj.user.is_verified,
             }
         return None
+
+
+def serialize_hub(hub):
+    """Fast hub serialization without DRF overhead"""
+    if not hub:
+        return None
+    return {
+        'id': hub.id,
+        'name': hub.name,
+        'slug': hub.slug,
+    }
 
 
 class OptimizedHubSerializer(serializers.Serializer):
@@ -104,7 +149,7 @@ class OptimizedFundraiseSerializer(serializers.Serializer):
                 if purchase.user and hasattr(purchase.user, 'author_profile'):
                     top_contributors.append({
                         'id': purchase.user.id,
-                        'author_profile': OptimizedAuthorSerializer(purchase.user.author_profile).data,
+                        'author_profile': serialize_author(purchase.user.author_profile),
                         'total_contribution': float(purchase.amount),
                     })
         
@@ -147,7 +192,7 @@ class OptimizedGrantSerializer(serializers.Serializer):
 
     def get_created_by(self, obj):
         if obj.created_by and hasattr(obj.created_by, 'author_profile'):
-            return OptimizedAuthorSerializer(obj.created_by.author_profile).data
+            return serialize_author(obj.created_by.author_profile)
         return None
 
     def get_applications(self, obj):
@@ -157,7 +202,7 @@ class OptimizedGrantSerializer(serializers.Serializer):
         
         return [
             {
-                'applicant': OptimizedAuthorSerializer(app.applicant.author_profile).data
+                'applicant': serialize_author(app.applicant.author_profile)
                 if app.applicant and hasattr(app.applicant, 'author_profile') else None
             }
             for app in applications
@@ -197,8 +242,7 @@ class OptimizedPostSerializer(serializers.Serializer):
         if obj.unified_document:
             # This should use prefetched hubs to avoid extra query
             hub = obj.unified_document.get_primary_hub(fallback=True)
-            if hub:
-                return OptimizedHubSerializer(hub).data
+            return serialize_hub(hub)
         return None
 
     def get_fundraise(self, obj):
@@ -249,7 +293,7 @@ class OptimizedFundingFeedEntrySerializer(serializers.Serializer):
         """Return author from the post's created_by field"""
         if obj.item and hasattr(obj.item, 'created_by') and obj.item.created_by:
             if hasattr(obj.item.created_by, 'author_profile'):
-                return OptimizedAuthorSerializer(obj.item.created_by.author_profile).data
+                return serialize_author(obj.item.created_by.author_profile)
         return None
 
     def get_metrics(self, obj):
