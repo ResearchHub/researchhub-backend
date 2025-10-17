@@ -13,7 +13,9 @@ from rest_framework.viewsets import ModelViewSet
 
 from feed.models import FeedEntry
 from feed.serializers import GrantFeedEntrySerializer
+from feed.serializers_optimized import OptimizedGrantFeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
+from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
 from researchhub_document.related_models.constants.document_type import GRANT
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -77,7 +79,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             request.query_params.get("organization", ""),
             request.query_params.get("ordering", "")
         ]
-        return f"{base_key}-{':'.join(params)}-v11-optimized"
+        return f"{base_key}-{':'.join(params)}-v12-lean"
 
     def list(self, request, *args, **kwargs):
         page = request.query_params.get("page", "1")
@@ -117,7 +119,11 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             feed_entry.metrics = metrics
             feed_entries.append(feed_entry)
 
-        serializer = GrantFeedEntrySerializer(feed_entries, many=True)
+        # Use optimized serializer for better performance
+        serializer_context = {'request': request}
+        serializer = OptimizedGrantFeedEntrySerializer(
+            feed_entries, many=True, context=serializer_context
+        )
         response_data = self.get_paginated_response(serializer.data).data
 
         if request.user.is_authenticated:
@@ -154,16 +160,23 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             status=Grant.OPEN
         ).filter(Q(end_date__isnull=True) | Q(end_date__gt=now))
         
-        # Prefetch grants and their applications with optimized selects
+        # Prefetch grants with applications  
+        applications_prefetch = Prefetch(
+            "applications",
+            queryset=GrantApplication.objects.select_related(
+                "applicant", "applicant__author_profile"
+            )
+        )
+        
         grant_prefetch = Prefetch(
             "unified_document__grants",
             queryset=Grant.objects.prefetch_related(
-                "applications__applicant__author_profile"
+                applications_prefetch
             ).order_by("end_date")
         )
         
         return ResearchhubPost.objects.select_related(
-            "created_by", "created_by__author_profile", "unified_document"
+            "created_by__author_profile__user", "unified_document"
         ).prefetch_related(
             "unified_document__hubs", grant_prefetch
         ).filter(
