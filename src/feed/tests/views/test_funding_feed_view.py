@@ -172,7 +172,7 @@ class FundingFeedViewSetTests(TestCase):
         self.assertNotIn(self.non_preregistration_post.id, post_ids)
         self.assertNotIn(self.removed_post.id, post_ids)
 
-    @patch("feed.views.funding_feed_view.cache")
+    @patch("feed.views.feed_view_mixin.cache")
     def test_funding_feed_cache(self, mock_cache):
         """Test caching functionality for funding feed"""
         # No cache on first request
@@ -234,7 +234,7 @@ class FundingFeedViewSetTests(TestCase):
         vote_type = post_data["user_vote"]["vote_type"]
         self.assertEqual(vote_type, 1)  # 1 corresponds to UPVOTE
 
-    @patch("feed.views.funding_feed_view.cache")
+    @patch("feed.views.feed_view_mixin.cache")
     def test_add_user_votes_with_cached_response(self, mock_cache):
         """Test that user votes are added even with cached response"""
         # Create a vote for the post
@@ -299,7 +299,7 @@ class FundingFeedViewSetTests(TestCase):
         request.user = anon_user
 
         cache_key = viewset.get_cache_key(request, "funding")
-        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20")
+        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20-:-v3")
 
         # Authenticated user
         request = request_factory.get("/api/funding_feed/")
@@ -312,7 +312,7 @@ class FundingFeedViewSetTests(TestCase):
         request.user = mock_user
 
         cache_key = viewset.get_cache_key(request, "funding")
-        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20")
+        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20-:-v3")
 
         # Custom page and page size
         request = request_factory.get("/api/funding_feed/?page=3&page_size=10")
@@ -320,7 +320,7 @@ class FundingFeedViewSetTests(TestCase):
         request.user = mock_user
 
         cache_key = viewset.get_cache_key(request, "funding")
-        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:3-10")
+        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:3-10-:-v3")
 
     def test_preregistration_post_only(self):
         """Test that funding feed only returns preregistration posts"""
@@ -347,16 +347,21 @@ class FundingFeedViewSetTests(TestCase):
         """Test filtering feed by fundraise status"""
         # Test each filter option to ensure they can be passed without errors
 
-        # Test filtering by OPEN status
+        # Test filtering by OPEN status - shows all items with OPEN prioritized first
         url = reverse("funding_feed-list") + "?fundraise_status=OPEN"
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(len(response.data["results"]), 2)
+        # First result should be the OPEN one
         self.assertEqual(
             response.data["results"][0]["content_object"]["id"], self.post.id
         )
+        # Second result should be the CLOSED one
+        self.assertEqual(
+            response.data["results"][1]["content_object"]["id"], self.other_post.id
+        )
 
-        # Test filtering by CLOSED status
+        # Test filtering by CLOSED status - shows only closed
         url = reverse("funding_feed-list") + "?fundraise_status=CLOSED"
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -464,18 +469,18 @@ class FundingFeedViewSetTests(TestCase):
             end_date=today + timezone.timedelta(days=30),
         )
 
-        # Query the OPEN fundraises
+        # Query the OPEN fundraises - this shows all items with OPEN prioritized first
         url = reverse("funding_feed-list") + "?fundraise_status=OPEN"
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        # Should have 4 results (the original open fundraise + 3 new ones)
-        self.assertEqual(len(response.data["results"]), 4)
+        # Should have 5 results (the original open fundraise + 3 new OPEN ones + 1 CLOSED from setUp)
+        self.assertEqual(len(response.data["results"]), 5)
 
         # Extract post IDs in the order they are returned
         post_ids = [item["content_object"]["id"] for item in response.data["results"]]
 
-        # Verify ordering - closest deadlines should be first
+        # Verify ordering - closest deadlines should be first among OPEN items
         # Check early_post is before medium_post
         self.assertLess(post_ids.index(early_post.id), post_ids.index(medium_post.id))
 
@@ -1307,7 +1312,7 @@ class FundingFeedViewSetTests(TestCase):
             goal_amount=100,
         )
 
-        # Test created_by + OPEN fundraise_status
+        # Test created_by + OPEN fundraise_status (shows all items by user, OPEN first)
         url = (
             reverse("funding_feed-list")
             + f"?created_by={fourth_user.id}&fundraise_status=OPEN"
@@ -1315,13 +1320,16 @@ class FundingFeedViewSetTests(TestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        # Should only return OPEN fundraises created by fourth_user
-        self.assertEqual(len(response.data["results"]), 1)
+        # Should return all fundraises created by fourth_user, with OPEN first
+        self.assertEqual(len(response.data["results"]), 2)
         self.assertEqual(
             response.data["results"][0]["content_object"]["id"], fourth_post_open.id
         )
+        self.assertEqual(
+            response.data["results"][1]["content_object"]["id"], fourth_post_closed.id
+        )
 
-        # Test created_by + CLOSED fundraise_status
+        # Test created_by + CLOSED fundraise_status (shows only CLOSED)
         url = (
             reverse("funding_feed-list")
             + f"?created_by={fourth_user.id}&fundraise_status=CLOSED"
@@ -1343,7 +1351,7 @@ class FundingFeedViewSetTests(TestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        # Should only return OPEN fundraises created by self.user
+        # Should return all fundraises created by self.user, with OPEN first
         self.assertEqual(len(response.data["results"]), 1)
         self.assertEqual(
             response.data["results"][0]["content_object"]["id"], self.post.id
