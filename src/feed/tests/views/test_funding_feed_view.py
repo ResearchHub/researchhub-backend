@@ -299,7 +299,7 @@ class FundingFeedViewSetTests(TestCase):
         request.user = anon_user
 
         cache_key = viewset.get_cache_key(request, "funding")
-        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20-v8")
+        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20-v14-hub-opt")
 
         # Authenticated user
         request = request_factory.get("/api/funding_feed/")
@@ -312,7 +312,7 @@ class FundingFeedViewSetTests(TestCase):
         request.user = mock_user
 
         cache_key = viewset.get_cache_key(request, "funding")
-        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20-v8")
+        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20-v14-hub-opt")
 
         # Custom page and page size
         request = request_factory.get("/api/funding_feed/?page=3&page_size=10")

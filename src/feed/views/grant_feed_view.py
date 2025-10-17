@@ -12,7 +12,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from feed.models import FeedEntry
-from feed.views.fast_serializers import serialize_feed_entry_fast
+from feed.views.fund_serializer import serialize_feed_entry_fund
 from feed.views.feed_view_mixin import FeedViewMixin
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
@@ -76,7 +76,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             request.query_params.get("organization", ""),
             request.query_params.get("ordering", "")
         ]
-        return f"{base_key}-{':'.join(params)}-v15-creator-prefetch"
+        return f"{base_key}-{':'.join(params)}-v16-hub-opt"
 
     def list(self, request, *args, **kwargs):
         page = request.query_params.get("page", "1")
@@ -115,7 +115,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             feed_entry.item = post
             
             # Use ultra-fast serialization
-            serialized = serialize_feed_entry_fast(feed_entry, request)
+            serialized = serialize_feed_entry_fund(feed_entry, request)
             results.append(serialized)
         
         # Build response data manually

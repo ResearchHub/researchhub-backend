@@ -32,7 +32,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from feed.models import FeedEntry
-from feed.views.fast_serializers import serialize_feed_entry_fast
+from feed.views.fund_serializer import serialize_feed_entry_fund
 from feed.views.feed_view_mixin import FeedViewMixin
 from purchase.models import Purchase
 from purchase.related_models.fundraise_model import Fundraise
@@ -69,7 +69,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
 
     def get_cache_key(self, request, feed_type=""):
         base_key = super().get_cache_key(request, feed_type)
-        return base_key + "-v13-contributor-opt"
+        return base_key + "-v14-hub-opt"
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -114,7 +114,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
             feed_entry.item = post
             
             # Use ultra-fast serialization
-            serialized = serialize_feed_entry_fast(feed_entry, request)
+            serialized = serialize_feed_entry_fund(feed_entry, request)
             results.append(serialized)
         
         # Build response data manually

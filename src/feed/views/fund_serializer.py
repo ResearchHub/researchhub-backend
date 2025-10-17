@@ -1,5 +1,5 @@
 """
-Ultra-fast serializers that completely bypass Django REST Framework.
+Optimized serializers for fund-related feeds that bypass Django REST Framework.
 These build raw dictionaries directly from model instances for maximum performance.
 """
 from django.core.files.storage import default_storage
@@ -8,11 +8,7 @@ from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_document.related_models.constants.document_type import GRANT, PREREGISTRATION
 
 
-def serialize_author_fast(author_profile):
-    """
-    Serialize author profile to dict without DRF overhead.
-    Returns None if author_profile is None.
-    """
+def serialize_author_fund(author_profile):
     if not author_profile:
         return None
     
@@ -46,8 +42,7 @@ def serialize_author_fast(author_profile):
     }
 
 
-def serialize_hub_fast(hub):
-    """Serialize hub to dict. Returns None if hub is None."""
+def serialize_hub_fund(hub):
     if not hub:
         return None
     return {
@@ -57,12 +52,7 @@ def serialize_hub_fast(hub):
     }
 
 
-def serialize_fundraise_fast(fundraise):
-    """
-    Serialize fundraise to dict without DRF overhead.
-    Includes goal amounts, raised amounts, and contributor count.
-    Returns None if fundraise is None.
-    """
+def serialize_fundraise_fund(fundraise):
     if not fundraise:
         return None
     
@@ -89,12 +79,7 @@ def serialize_fundraise_fast(fundraise):
     }
 
 
-def serialize_grant_fast(grant):
-    """
-    Serialize grant to dict without DRF overhead.
-    Includes amount conversion, creator, and applications.
-    Returns None if grant is None.
-    """
+def serialize_grant_fund(grant):
     if not grant:
         return None
     
@@ -103,11 +88,16 @@ def serialize_grant_fast(grant):
     
     created_by = None
     if grant.created_by and hasattr(grant.created_by, 'author_profile'):
-        created_by = serialize_author_fast(grant.created_by.author_profile)
+        created_by = serialize_author_fund(grant.created_by.author_profile)
     
     applications = [
-        {'applicant': serialize_author_fast(app.applicant.author_profile)}
-        for app in grant.applications.all()
+        {
+            'id': app.id,
+            'created_date': app.created_date,
+            'applicant': serialize_author_fund(app.applicant.author_profile),
+            'preregistration_post_id': app.preregistration_post_id,
+        }
+        for app in list(grant.applications.all())
         if app.applicant and hasattr(app.applicant, 'author_profile')
     ]
     
@@ -124,19 +114,14 @@ def serialize_grant_fast(grant):
         'amount': {
             'usd': usd_amount,
             'rsc': rsc_amount,
-            'formatted': f'${usd_amount:,.0f}',
+            'formatted': f'{usd_amount:,.2f} {grant.currency}',
         },
         'created_by': created_by,
         'applications': applications,
     }
 
 
-def serialize_post_fast(post):
-    """
-    Serialize post to dict without DRF overhead.
-    Includes truncated text, hub, and related fundraise/grant.
-    Returns None if post is None.
-    """
+def serialize_post_fund(post):
     if not post:
         return None
     
@@ -150,18 +135,18 @@ def serialize_post_fast(post):
     
     if post.unified_document:
         unified_doc_id = post.unified_document.id
-        primary_hub = post.unified_document.get_primary_hub(fallback=True)
-        hub = serialize_hub_fast(primary_hub)
+        hubs = list(post.unified_document.hubs.all())
+        hub = serialize_hub_fund(hubs[0]) if hubs else None
         
         if post.document_type == PREREGISTRATION:
-            fundraises = post.unified_document.fundraises.all()
+            fundraises = list(post.unified_document.fundraises.all())
             if fundraises:
-                fundraise = serialize_fundraise_fast(fundraises[0])
+                fundraise = serialize_fundraise_fund(fundraises[0])
         
         elif post.document_type == GRANT:
-            grants = post.unified_document.grants.all()
+            grants = list(post.unified_document.grants.all())
             if grants:
-                grant = serialize_grant_fast(grants[0])
+                grant = serialize_grant_fund(grants[0])
     
     return {
         'id': post.id,
@@ -179,18 +164,14 @@ def serialize_post_fast(post):
     }
 
 
-def serialize_feed_entry_fast(feed_entry, request=None):
-    """
-    Serialize feed entry to dict without DRF overhead.
-    Includes content object, author, metrics, and user-specific data.
-    """
-    content_object = serialize_post_fast(feed_entry.item)
+def serialize_feed_entry_fund(feed_entry, request=None):
+    content_object = serialize_post_fund(feed_entry.item)
     
     author = None
     if feed_entry.item:
         created_by = getattr(feed_entry.item, 'created_by', None)
         if created_by and hasattr(created_by, 'author_profile'):
-            author = serialize_author_fast(created_by.author_profile)
+            author = serialize_author_fund(created_by.author_profile)
     
     metrics = {
         'votes': getattr(feed_entry.item, 'score', 0),
@@ -219,9 +200,9 @@ def serialize_feed_entry_fast(feed_entry, request=None):
         'content_object': content_object,
         'action': feed_entry.action,
         'action_date': feed_entry.action_date,
+        'created_date': feed_entry.action_date,
         'author': author,
         'metrics': metrics,
         'is_nonprofit': is_nonprofit,
         'user_vote': user_vote,
     }
-
