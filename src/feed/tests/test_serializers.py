@@ -1,6 +1,8 @@
+from datetime import datetime
 from decimal import Decimal
 from unittest.mock import patch
 
+import pytz
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import default_storage
@@ -17,6 +19,7 @@ from feed.serializers import (
     PostSerializer,
     SimpleReviewSerializer,
     SimpleUserSerializer,
+    serialize_feed_metrics,
 )
 from feed.views.feed_view_mixin import FeedViewMixin
 from hub.models import Hub
@@ -1711,7 +1714,7 @@ class FeedEntrySerializerTests(TestCase):
             content_type=ContentType.objects.get_for_model(Paper),
             object_id=paper.id,
             user=user,
-            action="CREATE",
+            action="PUBLISH",
             action_date=paper.created_date,
             unified_document=paper.unified_document,
         )
@@ -1738,6 +1741,118 @@ class FeedEntrySerializerTests(TestCase):
         self.assertEqual(purchase_data["id"], purchase.id)
         self.assertEqual(purchase_data["amount"], purchase.amount)
         self.assertIn("user", purchase_data)
+
+    @patch(
+        "researchhub_document.related_models.researchhub_unified_document_model."
+        "ResearchhubUnifiedDocument.get_primary_hub"
+    )
+    def test_feed_entry_includes_altmetric_data(self, mock_get_primary_hub):
+        """Test that paper feed entries include altmetric metrics from external_metadata"""
+        # Create a user and paper
+        user = create_random_default_user("altmetric_test_user")
+        paper = create_paper(uploaded_by=user, title="Test Paper with Altmetrics")
+
+        # Add altmetric data to external_metadata
+        paper.external_metadata = {
+            "metrics": {
+                "altmetric_id": 12345,
+                "score": 42.5,
+                "facebook_count": 15,
+                "twitter_count": 230,
+                "bluesky_count": 8,
+                "last_updated": datetime.now(pytz.UTC).isoformat(),
+            }
+        }
+        paper.save()
+
+        # Create a hub and set it as primary
+        hub = create_hub("Test Hub")
+        mock_get_primary_hub.return_value = hub
+
+        # Serialize metrics for the paper
+        paper_content_type = ContentType.objects.get_for_model(Paper)
+        metrics = serialize_feed_metrics(paper, paper_content_type)
+
+        # Create a feed entry with the serialized metrics
+        feed_entry = FeedEntry.objects.create(
+            content_type=paper_content_type,
+            object_id=paper.id,
+            user=user,
+            action="PUBLISH",
+            action_date=paper.created_date,
+            unified_document=paper.unified_document,
+            metrics=metrics,
+        )
+
+        # Force an empty cache in the serializer
+        feed_entry.content = {}
+        feed_entry.save()
+
+        # Serialize and check
+        serializer = FeedEntrySerializer(feed_entry)
+        data = serializer.data
+
+        # Verify metrics field exists and contains altmetric data
+        self.assertIn("metrics", data)
+        self.assertIsInstance(data["metrics"], dict)
+
+        # Verify altmetric fields are present in metrics (flat structure)
+        self.assertIn("altmetric_score", data["metrics"])
+        self.assertIn("facebook_count", data["metrics"])
+        self.assertIn("twitter_count", data["metrics"])
+        self.assertIn("bluesky_count", data["metrics"])
+
+        # Verify altmetric values are correct
+        self.assertEqual(data["metrics"]["altmetric_score"], 42.5)
+        self.assertEqual(data["metrics"]["facebook_count"], 15)
+        self.assertEqual(data["metrics"]["twitter_count"], 230)
+        self.assertEqual(data["metrics"]["bluesky_count"], 8)
+
+        # Verify altmetric_id and last_updated are not included
+        self.assertNotIn("altmetric_id", data["metrics"])
+        self.assertNotIn("last_updated", data["metrics"])
+
+    @patch(
+        "researchhub_document.related_models.researchhub_unified_document_model."
+        "ResearchhubUnifiedDocument.get_primary_hub"
+    )
+    def test_feed_entry_without_altmetric_data(self, mock_get_primary_hub):
+        """Test that paper feed entries without altmetric data don't include altmetric fields"""
+        # Create a user and paper without altmetric data
+        user = create_random_default_user("no_altmetric_user")
+        paper = create_paper(uploaded_by=user, title="Test Paper Without Altmetrics")
+
+        # Create a hub and set it as primary
+        hub = create_hub("Test Hub")
+        mock_get_primary_hub.return_value = hub
+
+        # Create a feed entry
+        feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=paper.id,
+            user=user,
+            action="PUBLISH",
+            action_date=paper.created_date,
+            unified_document=paper.unified_document,
+        )
+
+        # Force an empty cache in the serializer
+        feed_entry.content = {}
+        feed_entry.save()
+
+        # Serialize and check
+        serializer = FeedEntrySerializer(feed_entry)
+        data = serializer.data
+
+        # Verify metrics field exists but doesn't contain altmetric data
+        self.assertIn("metrics", data)
+        self.assertIsInstance(data["metrics"], dict)
+
+        # Verify altmetric fields are NOT present
+        self.assertNotIn("altmetric_score", data["metrics"])
+        self.assertNotIn("facebook_count", data["metrics"])
+        self.assertNotIn("twitter_count", data["metrics"])
+        self.assertNotIn("bluesky_count", data["metrics"])
 
 
 class FundingFeedEntrySerializerTests(TestCase):
@@ -1779,7 +1894,7 @@ class FundingFeedEntrySerializerTests(TestCase):
             content_type=ContentType.objects.get_for_model(ResearchhubPost),
             object_id=post.id,
             user=self.user,
-            action="CREATE",
+            action="PUBLISH",
             action_date=post.created_date,
             unified_document=unified_doc,
         )
