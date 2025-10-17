@@ -1,9 +1,5 @@
-import datetime
-
-from dateutil import parser
 from django.contrib.postgres.fields import ArrayField
 from django.db import models
-from django.utils.timezone import get_current_timezone, is_aware, make_aware
 
 from hub.models import Hub
 from researchhub_document.related_models.researchhub_unified_document_model import (
@@ -128,113 +124,94 @@ class Topic(DefaultModel):
         null=True,
     )
 
+    @staticmethod
     def upsert_from_openalex(oa_topic):
         has_dates = oa_topic.get("updated_date") and oa_topic.get("created_date")
 
         # Normalize created, updated dates to format that is compatible with django
         oa_topic = OpenAlex.normalize_dates(oa_topic)
 
-        topic = None
         try:
             topic = Topic.objects.get(openalex_id=oa_topic["id"])
-        except Topic.DoesNotExist:
-            pass
 
-        # if topic exists, determine if we need to update it
+        except Topic.DoesNotExist:
+            topic = None
+
+        # If the topic exists, determine if we need to update it
         needs_update = False
+
         if topic and has_dates:
-            needs_update = (not topic.openalex_updated_date) or (
+            needs_update = not topic.openalex_updated_date or (
                 topic.openalex_updated_date < oa_topic["updated_date"]
             )
 
         # Upsert domain
-        domain = None
-        try:
-            domain = Domain.objects.get(openalex_id=oa_topic["domain"]["id"])
-        except Domain.DoesNotExist:
-            pass
+        domain, created = Domain.objects.get_or_create(
+            openalex_id=oa_topic["domain"]["id"],
+            defaults={
+                "display_name": oa_topic["domain"]["display_name"],
+            },
+        )
 
-        if not domain:
-            domain = Domain.objects.create(
-                **{
-                    "openalex_id": oa_topic["domain"]["id"],
-                    "display_name": oa_topic["domain"]["display_name"],
-                }
-            )
-        elif needs_update:
-            domain.openalex_id = oa_topic["domain"]["id"]
+        if not created and needs_update:
             domain.display_name = oa_topic["domain"]["display_name"]
+
             domain.save()
 
         # Upsert field
-        field = None
-        try:
-            field = Field.objects.get(openalex_id=oa_topic["field"]["id"])
-        except Field.DoesNotExist:
-            pass
+        field, created = Field.objects.get_or_create(
+            openalex_id=oa_topic["field"]["id"],
+            defaults={
+                "display_name": oa_topic["field"]["display_name"],
+                "domain_id": domain.id,
+            },
+        )
 
-        if not field:
-            field = Field.objects.create(
-                **{
-                    "openalex_id": oa_topic["field"]["id"],
-                    "display_name": oa_topic["field"]["display_name"],
-                    "domain_id": domain.id,
-                }
-            )
-        elif needs_update:
-            field.openalex_id = oa_topic["field"]["id"]
+        if not created and needs_update:
             field.display_name = oa_topic["field"]["display_name"]
+            field.domain_id = domain.id
+
             field.save()
 
         # Upsert subfield
-        subfield = None
-        try:
-            subfield = Subfield.objects.get(openalex_id=oa_topic["subfield"]["id"])
-        except Subfield.DoesNotExist:
-            pass
+        subfield, created = Subfield.objects.get_or_create(
+            openalex_id=oa_topic["subfield"]["id"],
+            defaults={
+                "display_name": oa_topic["subfield"]["display_name"],
+                "field_id": field.id,
+            },
+        )
 
-        if not subfield:
-            subfield = Subfield.objects.create(
-                **{
-                    "openalex_id": oa_topic["subfield"]["id"],
-                    "display_name": oa_topic["subfield"]["display_name"],
-                    "field_id": field.id,
-                }
-            )
-
-        elif needs_update:
-            subfield.openalex_id = oa_topic["subfield"]["id"]
+        if not created and needs_update:
             subfield.display_name = oa_topic["subfield"]["display_name"]
+            subfield.field_id = field.id
+
             subfield.save()
 
-        # Create hub associated with subfield if one does not already exist
-        # Subfield hubs will be used for reputation calculation.
         try:
-            created = False
-            hub = None
-            try:
-                hub = Hub.get_from_subfield(subfield)
-            except Hub.DoesNotExist:
-                pass
-
-            if not hub:
-                hub, created = Hub.objects.create(
-                    name=subfield.display_name,
-                    subfield=subfield,
-                    is_used_for_rep=True,
-                )
+            # Upsert hub
+            hub, created = Hub.objects.get_or_create(
+                subfield=subfield,
+                defaults={
+                    "name": subfield.display_name,
+                    "is_used_for_rep": True,
+                },
+            )
 
             if created:
                 print(
-                    f"Created new hub {hub.name} and associated with subfield {subfield.display_name}."
+                    f"Created new hub {hub.name} and associated "
+                    f"with subfield {subfield.display_name}."
                 )
             else:
-                hub.subfield = subfield
+                # Update existing hub if needed
+                hub.name = subfield.display_name
                 hub.is_used_for_rep = True
+
                 hub.save()
+
         except Exception as e:
-            pass
-            print(f"Error creating hub {subfield.display_name}: {e}")
+            print(f"Error with hub for {subfield.display_name}: {e}")
 
         # Upsert topic
         mapped = {
@@ -250,6 +227,7 @@ class Topic(DefaultModel):
 
         if not topic:
             topic = Topic.objects.create(**mapped)
+
         elif needs_update:
             for key, value in mapped.items():
                 setattr(topic, key, value)

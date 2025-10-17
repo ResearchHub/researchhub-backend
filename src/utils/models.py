@@ -37,7 +37,7 @@ class DefaultAuthenticatedModel(models.Model):
         related_name="updated_%(app_label)s_%(class)s",
     )
     updated_date = models.DateTimeField(
-        auto_now_add=True,
+        auto_now=True,
     )
 
 

@@ -88,18 +88,21 @@ class Concept(DefaultModel):
         # https://docs.openalex.org/api-entities/concepts/concept-object#the-dehydratedconcept-object
         if "description" in openalex_concept:
             mapped["description"] = openalex_concept["description"]
+
         if "updated_date" in openalex_concept:
             mapped["openalex_updated_date"] = openalex_concept["updated_date"]
+
         if "created_date" in openalex_concept:
             mapped["openalex_created_date"] = openalex_concept["created_date"]
 
-        concept = None
         try:
             concept = Concept.objects.get(openalex_id=openalex_concept["id"])
 
             for key, value in mapped.items():
                 setattr(concept, key, value)
+
             concept.save()
+
         except Concept.DoesNotExist:
             concept = cls.objects.create(**mapped)
 

@@ -18,6 +18,7 @@ from paper.openalex_tasks import pull_openalex_author_works_batch
 from paper.related_models.authorship_model import Authorship
 from paper.serializers import DynamicPaperSerializer
 from paper.utils import PAPER_SCORE_Q_ANNOTATION
+from paper.views import PaperViewSet
 from reputation.models import Bounty, BountySolution, Contribution
 from reputation.serializers import DynamicContributionSerializer
 from researchhub.settings import TESTING
@@ -236,8 +237,6 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         methods=["get"],
     )
     def get_authored_papers(self, request, pk=None):
-        from paper.views import PaperViewSet
-
         author = self.get_object()
         prefetch_lookups = PaperViewSet.prefetch_lookups(self)
         authored_papers = (
@@ -792,14 +791,14 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
 
         if not documents:
             # We want to only return a few documents for the overview section
-            NUM_DOCUMENTS_TO_FETCH = 4
+            num_documents_to_fetch = 4
 
             # Fetch the authored papers and order by citations
             authored_doc_ids = list(
                 Authorship.objects.filter(author=author)
                 .order_by("-paper__citations")
                 .values_list("paper__unified_document_id", flat=True)[
-                    :NUM_DOCUMENTS_TO_FETCH
+                    :num_documents_to_fetch
                 ]
             )
 

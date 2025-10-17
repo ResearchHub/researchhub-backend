@@ -179,11 +179,6 @@ class OpenAlex:
         works = self._get("works", filters)
         return works
 
-    def get_concepts(self, cursor="*"):
-        filters = {"cursor": cursor}
-        concepts = self._get("concepts", filters=filters)
-        return concepts
-
     def get_author_via_orcid(self, orcid_id):
         orcid_lookup = f"https://orcid.org/{orcid_id}"
         res = self._get(f"authors/{orcid_lookup}")
@@ -234,32 +229,31 @@ class OpenAlex:
             return []
 
     def get_institutions(self, next_cursor="*", page=1, batch_size=100):
-        filters = {
-            "page": page,
-            "per-page": batch_size,
-            "cursor": next_cursor,
-        }
-
-        response = self._get("institutions", filters=filters)
-        institutions = response.get("results", [])
-
-        next_cursor = response.get("meta", {}).get("next_cursor")
-        cursor = next_cursor if next_cursor != "*" else None
-        return institutions, cursor
+        return self.get_paginated_entities(
+            "institutions", next_cursor, page, batch_size
+        )
 
     def get_topics(self, next_cursor="*", page=1, batch_size=100):
-        filters = {
-            "page": page,
-            "per-page": batch_size,
-            "cursor": next_cursor,
-        }
+        return self.get_paginated_entities("topics", next_cursor, page, batch_size)
 
-        response = self._get("topics", filters=filters)
-        topics = response.get("results", [])
+    def get_concepts(self, next_cursor="*", page=1, batch_size=100):
+        return self.get_paginated_entities("concepts", next_cursor, page, batch_size)
+
+    def get_paginated_entities(
+        self, object_type, next_cursor="*", page=1, batch_size=100
+    ):
+        response = self._get(
+            object_type,
+            filters={
+                "page": page,
+                "per-page": batch_size,
+                "cursor": next_cursor,
+            },
+        )
 
         next_cursor = response.get("meta", {}).get("next_cursor")
-        cursor = next_cursor if next_cursor != "*" else None
-        return topics, cursor
+
+        return response.get("results", []), next_cursor if next_cursor != "*" else None
 
     def get_authors(
         self,

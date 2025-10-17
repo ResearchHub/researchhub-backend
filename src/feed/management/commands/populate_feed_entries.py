@@ -1,4 +1,3 @@
-from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
 from django.db.models import Q
 
@@ -11,7 +10,7 @@ CHUNK_SIZE = 1000
 
 
 class Command(BaseCommand):
-    help = "Populates metrics for feed entries"
+    help = "Populates metrics for existing feed entries"
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -55,13 +54,15 @@ class Command(BaseCommand):
             empty_fields_filter = Q()
 
             if metrics_only:
-                print("Filtering entries with empty metrics")
+                self.stdout.write("Filtering entries with empty metrics")
                 empty_fields_filter = Q(metrics={})
             elif content_only:
-                print("Filtering entries with empty content")
+                self.stdout.write("Filtering entries with empty content")
                 empty_fields_filter = Q(content={})
             else:
-                print("Filtering entries with either empty metrics or empty content")
+                self.stdout.write(
+                    "Filtering entries with either empty metrics or empty content"
+                )
                 empty_fields_filter = Q(metrics={}) | Q(content={})
 
             queryset = queryset.filter(empty_fields_filter)
@@ -85,14 +86,22 @@ class Command(BaseCommand):
 
             # Update hot score for papers and posts
             if feed_entry.unified_document:
-                if options["use_old_hot_score_calculation"]:
-                    feed_entry.hot_score = feed_item.unified_document.hot_score
+                if feed_entry.item is None:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping feed entry {feed_entry.id}: referenced item no longer exists"
+                        )
+                    )
                 else:
-                    feed_entry.hot_score = calculate_hot_score_for_item(feed_entry)
+                    if options["use_old_hot_score_calculation"]:
+                        feed_entry.hot_score = feed_item.unified_document.hot_score
+                    else:
+                        feed_entry.hot_score = calculate_hot_score_for_item(feed_entry)
 
-                fields_to_update.append("hot_score")
+                    fields_to_update.append("hot_score")
 
-            print(
+            self.stdout.write(
                 f"Populating feed entry: {feed_entry.id} ({', '.join(fields_to_update)})"
             )
+
             feed_entry.save(update_fields=fields_to_update)
