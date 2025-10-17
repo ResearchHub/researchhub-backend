@@ -65,7 +65,11 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
 
     def get_cache_key(self, request, feed_type=""):
         base_key = super().get_cache_key(request, feed_type)
-        return base_key + "-v4"
+        params = [
+            request.query_params.get("fundraise_status", ""),
+            request.query_params.get("ordering", "")
+        ]
+        return f"{base_key}-{':'.join(params)}-v2"
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -80,7 +84,17 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         fundraise_status = request.query_params.get("fundraise_status", None)
         ordering = request.query_params.get("ordering", None)
         cache_key = self.get_cache_key(request, "funding")
-        use_cache = page_num < 4 and grant_id is None and created_by is None and fundraise_status is None and ordering is None
+        
+        cacheable_orderings = {None, "hot_score", "upvotes", "amount_raised"}
+        cacheable_statuses = {None, "OPEN", "CLOSED"}
+        
+        use_cache = (
+            page_num <= 2 and
+            grant_id is None and
+            created_by is None and
+            ordering in cacheable_orderings and
+            (fundraise_status.upper() if fundraise_status else None) in cacheable_statuses
+        )
         
         return self._list_fund_entries(request, cache_key, use_cache)
 

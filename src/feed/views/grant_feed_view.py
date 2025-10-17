@@ -69,7 +69,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             request.query_params.get("organization", ""),
             request.query_params.get("ordering", "")
         ]
-        return f"{base_key}-{':'.join(params)}-v5"
+        return f"{base_key}-{':'.join(params)}-v2"
 
     def list(self, request, *args, **kwargs):
         page = request.query_params.get("page", "1")
@@ -78,7 +78,16 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         organization = request.query_params.get("organization", None)
         ordering = request.query_params.get("ordering", None)
         cache_key = self.get_cache_key(request, "grants")
-        use_cache = page_num < 4 and status is None and organization is None and ordering is None
+        
+        cacheable_orderings = {None, "hot_score", "upvotes", "amount_raised"}
+        cacheable_statuses = {None, "OPEN", "CLOSED"}
+        
+        use_cache = (
+            page_num <= 2 and 
+            organization is None and
+            ordering in cacheable_orderings and
+            (status.upper() if status else None) in cacheable_statuses
+        )
         
         return self._list_fund_entries(request, cache_key, use_cache)
 
