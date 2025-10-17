@@ -183,9 +183,9 @@ def serialize_feed_entry_fund(feed_entry, request=None):
     
     is_nonprofit = False
     if feed_entry.unified_document and hasattr(feed_entry.unified_document, 'fundraises'):
-        fundraises = feed_entry.unified_document.fundraises.all()
+        fundraises = list(feed_entry.unified_document.fundraises.all())
         if fundraises:
-            is_nonprofit = fundraises[0].nonprofit_links.exists()
+            is_nonprofit = bool(list(fundraises[0].nonprofit_links.all()))
     
     user_vote = None
     if request and getattr(request.user, 'is_authenticated', False):

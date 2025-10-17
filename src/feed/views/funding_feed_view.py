@@ -65,11 +65,9 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
 
     def get_cache_key(self, request, feed_type=""):
         base_key = super().get_cache_key(request, feed_type)
-        params = [
-            request.query_params.get("fundraise_status", ""),
-            request.query_params.get("ordering", "")
-        ]
-        return f"{base_key}-{':'.join(params)}-v2"
+        fundraise_status = request.query_params.get("fundraise_status", "")
+        ordering = request.query_params.get("ordering", "")
+        return f"{base_key}-{fundraise_status}:{ordering}-v3"
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -130,7 +128,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         has_active = Fundraise.objects.filter(
             unified_document_id=OuterRef("unified_document_id"),
             status=Fundraise.OPEN
-        ).filter(Q(end_date__isnull=True) | Q(end_date__gt=now))
+        ).filter(Q(end_date__isnull=True) | Q(end_date__gt=now)).values('pk')[:1]
         
         contributor_count_subquery = Purchase.objects.filter(
             content_type=self._get_fundraise_content_type(),
@@ -141,7 +139,9 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         
         fundraise_prefetch = Prefetch(
             "unified_document__fundraises",
-            queryset=Fundraise.objects.select_related("escrow").annotate(
+            queryset=Fundraise.objects.select_related("escrow").prefetch_related(
+                "nonprofit_links"
+            ).annotate(
                 contributor_count=Coalesce(
                     Subquery(contributor_count_subquery, output_field=IntegerField()),
                     0

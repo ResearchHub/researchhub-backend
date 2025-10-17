@@ -64,12 +64,10 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
 
     def get_cache_key(self, request, feed_type=""):
         base_key = super().get_cache_key(request, feed_type)
-        params = [
-            request.query_params.get("status", ""),
-            request.query_params.get("organization", ""),
-            request.query_params.get("ordering", "")
-        ]
-        return f"{base_key}-{':'.join(params)}-v2"
+        status = request.query_params.get("status", "")
+        organization = request.query_params.get("organization", "")
+        ordering = request.query_params.get("ordering", "")
+        return f"{base_key}-{status}:{organization}:{ordering}-v3"
 
     def list(self, request, *args, **kwargs):
         page = request.query_params.get("page", "1")
@@ -112,7 +110,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         has_active = Grant.objects.filter(
             unified_document_id=OuterRef("unified_document_id"),
             status=Grant.OPEN
-        ).filter(Q(end_date__isnull=True) | Q(end_date__gt=now))
+        ).filter(Q(end_date__isnull=True) | Q(end_date__gt=now)).values('pk')[:1]
         
         grant_prefetch = Prefetch(
             "unified_document__grants",
