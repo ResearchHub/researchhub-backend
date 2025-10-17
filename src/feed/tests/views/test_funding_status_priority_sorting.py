@@ -24,7 +24,7 @@ User = get_user_model()
 class StatusPrioritySortingTests(TestCase):
     def setUp(self):
         cache.clear()
-        self.user = User.objects.create_user(username="testuser", password="testpass")
+        self.user = User.objects.create_user(username="testuser", password="testpass")  # NOSONAR
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
         self.now = timezone.now()

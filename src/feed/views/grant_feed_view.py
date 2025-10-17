@@ -72,7 +72,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             request.query_params.get("organization", ""),
             request.query_params.get("ordering", "")
         ]
-        return f"{base_key}-{':'.join(params)}-v2"
+        return f"{base_key}-{':'.join(params)}-v4"
 
     def list(self, request, *args, **kwargs):
         page = request.query_params.get("page", "1")
@@ -102,29 +102,38 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         return self._apply_ordering(queryset, ordering).distinct()
 
     def _build_base_queryset(self):
-        """Build base queryset with status_priority annotation and optimized prefetch."""
         now = timezone.now()
         
-        # Optimized Exists subquery - the composite index makes this fast
         has_active = Grant.objects.filter(
             unified_document_id=OuterRef("unified_document_id"),
             status=Grant.OPEN
         ).filter(Q(end_date__isnull=True) | Q(end_date__gt=now))
-        
-        # Prefetch grants with applications  
-        applications_prefetch = Prefetch(
-            "applications",
-            queryset=GrantApplication.objects.select_related(
-                "applicant__author_profile__user"
-            )
-        )
         
         grant_prefetch = Prefetch(
             "unified_document__grants",
             queryset=Grant.objects.select_related(
                 "created_by__author_profile__user"
             ).prefetch_related(
-                applications_prefetch
+                Prefetch(
+                    "applications",
+                    queryset=GrantApplication.objects.select_related(
+                        "applicant__author_profile__user"
+                    ).order_by("created_date")
+                )
+            ).annotate(
+                is_expired_flag=Case(
+                    When(end_date__lt=now, then=Value(True)),
+                    default=Value(False),
+                    output_field=IntegerField()
+                ),
+                is_active_flag=Case(
+                    When(
+                        Q(status=Grant.OPEN) & (Q(end_date__isnull=True) | Q(end_date__gte=now)),
+                        then=Value(True)
+                    ),
+                    default=Value(False),
+                    output_field=IntegerField()
+                )
             ).order_by("end_date")
         )
         

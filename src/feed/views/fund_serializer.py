@@ -97,9 +97,12 @@ def serialize_grant_fund(grant):
             'applicant': serialize_author_fund(app.applicant.author_profile),
             'preregistration_post_id': app.preregistration_post_id,
         }
-        for app in grant.applications.all()
+        for app in grant.applications.all()[:5]
         if app.applicant and hasattr(app.applicant, 'author_profile')
     ]
+    
+    is_expired = bool(getattr(grant, 'is_expired_flag', 0))
+    is_active = bool(getattr(grant, 'is_active_flag', 0))
     
     return {
         'id': grant.id,
@@ -109,8 +112,8 @@ def serialize_grant_fund(grant):
         'description': grant.description,
         'start_date': grant.start_date,
         'end_date': grant.end_date,
-        'is_expired': grant.is_expired(),
-        'is_active': grant.is_active(),
+        'is_expired': is_expired,
+        'is_active': is_active,
         'amount': {
             'usd': usd_amount,
             'rsc': rsc_amount,

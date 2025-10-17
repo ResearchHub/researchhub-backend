@@ -65,7 +65,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
 
     def get_cache_key(self, request, feed_type=""):
         base_key = super().get_cache_key(request, feed_type)
-        return base_key + "-v2"
+        return base_key + "-v3"
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -106,26 +106,29 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         
         return self._apply_ordering(queryset, ordering, fundraise_status).distinct()
 
+    _fundraise_content_type = None
+    
+    @classmethod
+    def _get_fundraise_content_type(cls):
+        if cls._fundraise_content_type is None:
+            cls._fundraise_content_type = ContentType.objects.get_for_model(Fundraise)
+        return cls._fundraise_content_type
+    
     def _build_base_queryset(self, created_by=None):
-        """Build base queryset with status_priority annotation and optimized prefetch."""
         now = timezone.now()
-        fundraise_content_type = ContentType.objects.get_for_model(Fundraise)
         
-        # Optimized Exists subquery - the composite index makes this fast
         has_active = Fundraise.objects.filter(
             unified_document_id=OuterRef("unified_document_id"),
             status=Fundraise.OPEN
         ).filter(Q(end_date__isnull=True) | Q(end_date__gt=now))
         
-        # Subquery to get contributor count per fundraise
         contributor_count_subquery = Purchase.objects.filter(
-            content_type=fundraise_content_type,
+            content_type=self._get_fundraise_content_type(),
             object_id=OuterRef("pk")
         ).values('object_id').annotate(
             count=Count('user_id', distinct=True)
         ).values('count')
         
-        # Prefetch fundraise data with escrow and contributor count
         fundraise_prefetch = Prefetch(
             "unified_document__fundraises",
             queryset=Fundraise.objects.select_related("escrow").annotate(
