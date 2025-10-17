@@ -1711,7 +1711,7 @@ class FeedEntrySerializerTests(TestCase):
             content_type=ContentType.objects.get_for_model(Paper),
             object_id=paper.id,
             user=user,
-            action="CREATE",
+            action="PUBLISH",
             action_date=paper.created_date,
             unified_document=paper.unified_document,
         )
@@ -1781,7 +1781,7 @@ class FeedEntrySerializerTests(TestCase):
             content_type=paper_content_type,
             object_id=paper.id,
             user=user,
-            action="CREATE",
+            action="PUBLISH",
             action_date=paper.created_date,
             unified_document=paper.unified_document,
             metrics=metrics,
@@ -1834,7 +1834,7 @@ class FeedEntrySerializerTests(TestCase):
             content_type=ContentType.objects.get_for_model(Paper),
             object_id=paper.id,
             user=user,
-            action="CREATE",
+            action="PUBLISH",
             action_date=paper.created_date,
             unified_document=paper.unified_document,
         )
