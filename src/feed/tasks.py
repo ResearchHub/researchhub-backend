@@ -8,7 +8,6 @@ import utils.locking as lock
 from feed.hot_score import calculate_hot_score_for_item
 from feed.models import FeedEntry
 from feed.serializers import serialize_feed_item, serialize_feed_metrics
-from feed.views.feed_view import FeedViewSet
 from researchhub.celery import app
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,

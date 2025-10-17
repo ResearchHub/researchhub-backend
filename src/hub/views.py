@@ -38,7 +38,7 @@ from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 
 from .filters import HubFilter
-from .models import Hub, HubCategory
+from .models import Hub
 from .permissions import (
     CensorHub,
     CreateHub,
@@ -47,7 +47,7 @@ from .permissions import (
     IsSubscribed,
     UpdateHub,
 )
-from .serializers import HubCategorySerializer, HubContributionSerializer, HubSerializer
+from .serializers import HubContributionSerializer, HubSerializer
 
 
 class CustomPageLimitPagination(PageNumberPagination):
@@ -533,9 +533,3 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
                     mapping[subcategory_slug] = category_slug
 
         return mapping
-
-
-class HubCategoryViewSet(viewsets.ModelViewSet):
-    queryset = HubCategory.objects.all()
-    serializer_class = HubCategorySerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
