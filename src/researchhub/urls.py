@@ -47,12 +47,7 @@ from researchhub.views import asset_upload_view
 from researchhub_comment.views.rh_comment_view import RhCommentViewSet
 from review.views.peer_review_view import PeerReviewViewSet
 from review.views.review_view import ReviewViewSet
-from user.views import (
-    author_views,
-    editor_views,
-    moderator_view,
-    persona_webhook_view,
-)
+from user.views import author_views, editor_views, moderator_view, persona_webhook_view
 from user.views.custom_verify_email_view import CustomVerifyEmailView
 from user_saved.views import UserSavedView
 
@@ -81,8 +76,6 @@ router.register(
 router.register(r"author", author_views.AuthorViewSet, basename="author")
 
 router.register(r"hub", hub.views.HubViewSet, basename="hub")
-
-router.register(r"hub_category", hub.views.HubCategoryViewSet, basename="hub_category")
 
 router.register(r"university", user.views.UniversityViewSet, basename="university")
 
