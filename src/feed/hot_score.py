@@ -1,10 +1,10 @@
 """
 Hot Score Implementation for Feed Entry Ranking
 
-Calculates hot scores for feed entries using a declarative, Hacker News-style algorithm.
+Calculates hot scores for feed entries using a declarative algorithm, similar to Hacker News.
 The algorithm prioritizes content based on:
-1. Altmetric score (external engagement metrics)
-2. Bounties (especially new or expiring within 24h)
+1. Bounties (especially new or expiring within 24h)
+2. Altmetric score (external engagement metrics)
 3. Tips/Boosts (financial support)
 4. Peer reviews (expert feedback)
 5. Upvotes (community engagement)
@@ -46,20 +46,18 @@ from utils import sentry
 logger = logging.getLogger(__name__)
 
 # Hot Score Configuration
-# This declarative structure defines all weights and parameters for hot score
 HOT_SCORE_CONFIG = {
-    # Signal weights determine relative importance of each engagement metric
     # Higher weight = more influence on final score
     "signals": {
         "altmetric": {
-            "weight": 100.0,  # Highest priority - external impact
+            "weight": 80.0,  # external impact
             "log_base": math.e,  # Natural log for smooth scaling
         },
         "bounty": {
             "weight": 80.0,
             "log_base": math.e,
             "urgency_multiplier": 1.5,  # Boost for new/expiring
-            "urgency_hours": 24,
+            "urgency_hours": 48,
         },
         "tip": {
             "weight": 60.0,
@@ -272,16 +270,17 @@ def get_comment_count(item, unified_document):
     Returns:
         int: Number of comments
     """
-    # Try to use cached discussion_count first
+    # Use unified document method for accurate count
+    # The cached discussion_count field can be stale/unreliable
+    if unified_document:
+        return unified_document.get_regular_comments().count()
+
+    # Fallback: try cached discussion_count if no unified document
     if hasattr(item, "discussion_count"):
         discussion_count = getattr(item, "discussion_count", 0) or 0
         # Subtract peer reviews to avoid double counting
         peer_reviews = get_peer_review_count(unified_document)
         return max(0, discussion_count - peer_reviews)
-
-    # Fallback: count from unified document helper method
-    if unified_document:
-        return unified_document.get_regular_comments().count()
 
     return 0
 
@@ -648,14 +647,14 @@ def calculate_hot_score(feed_entry, content_type_name):
         engagement_score *= freshness_multiplier
 
         # ====================================================================
-        # 3. Apply HN-style time decay
+        # 3. Apply time decay
         # ====================================================================
 
         decay_config = HOT_SCORE_CONFIG["time_decay"]
         gravity = decay_config["gravity"]
         base_hours = decay_config["base_hours"]
 
-        # Denominator grows polynomially with age, drastically reducing score over time
+        # Denominator grows with age, drastically reducing score over time
         # base_hours prevents division by zero and softens decay for very new content
         denominator = math.pow(age_hours + base_hours, gravity)
 
@@ -674,4 +673,4 @@ def calculate_hot_score(feed_entry, content_type_name):
     except Exception as e:
         logger.error(f"Error calculating hot score for feed_entry {feed_entry.id}: {e}")
         sentry.log_error(e)
-        return 0  # Return 0 on error (was 1 before scaling)
+        return 0
