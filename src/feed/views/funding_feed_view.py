@@ -141,11 +141,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         
         if fundraise_status:
             status_upper = fundraise_status.upper()
-            if status_upper == "OPEN":
-                queryset = queryset.filter(
-                    unified_document__fundraises__status=Fundraise.OPEN
-                )
-            elif status_upper == "CLOSED":
+            if status_upper == "CLOSED":
                 queryset = queryset.filter(unified_document__fundraises__status=Fundraise.COMPLETED)
         
         return self._apply_ordering(queryset, ordering, fundraise_status).distinct()

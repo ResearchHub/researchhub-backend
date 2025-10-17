@@ -347,16 +347,21 @@ class FundingFeedViewSetTests(TestCase):
         """Test filtering feed by fundraise status"""
         # Test each filter option to ensure they can be passed without errors
 
-        # Test filtering by OPEN status
+        # Test filtering by OPEN status - shows all items with OPEN prioritized first
         url = reverse("funding_feed-list") + "?fundraise_status=OPEN"
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(len(response.data["results"]), 2)
+        # First result should be the OPEN one
         self.assertEqual(
             response.data["results"][0]["content_object"]["id"], self.post.id
         )
+        # Second result should be the CLOSED one
+        self.assertEqual(
+            response.data["results"][1]["content_object"]["id"], self.other_post.id
+        )
 
-        # Test filtering by CLOSED status
+        # Test filtering by CLOSED status - shows only closed
         url = reverse("funding_feed-list") + "?fundraise_status=CLOSED"
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -464,18 +469,18 @@ class FundingFeedViewSetTests(TestCase):
             end_date=today + timezone.timedelta(days=30),
         )
 
-        # Query the OPEN fundraises
+        # Query the OPEN fundraises - this shows all items with OPEN prioritized first
         url = reverse("funding_feed-list") + "?fundraise_status=OPEN"
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        # Should have 4 results (the original open fundraise + 3 new ones)
-        self.assertEqual(len(response.data["results"]), 4)
+        # Should have 5 results (the original open fundraise + 3 new OPEN ones + 1 CLOSED from setUp)
+        self.assertEqual(len(response.data["results"]), 5)
 
         # Extract post IDs in the order they are returned
         post_ids = [item["content_object"]["id"] for item in response.data["results"]]
 
-        # Verify ordering - closest deadlines should be first
+        # Verify ordering - closest deadlines should be first among OPEN items
         # Check early_post is before medium_post
         self.assertLess(post_ids.index(early_post.id), post_ids.index(medium_post.id))
 
@@ -1307,7 +1312,7 @@ class FundingFeedViewSetTests(TestCase):
             goal_amount=100,
         )
 
-        # Test created_by + OPEN fundraise_status
+        # Test created_by + OPEN fundraise_status (shows all items by user, OPEN first)
         url = (
             reverse("funding_feed-list")
             + f"?created_by={fourth_user.id}&fundraise_status=OPEN"
@@ -1315,13 +1320,16 @@ class FundingFeedViewSetTests(TestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        # Should only return OPEN fundraises created by fourth_user
-        self.assertEqual(len(response.data["results"]), 1)
+        # Should return all fundraises created by fourth_user, with OPEN first
+        self.assertEqual(len(response.data["results"]), 2)
         self.assertEqual(
             response.data["results"][0]["content_object"]["id"], fourth_post_open.id
         )
+        self.assertEqual(
+            response.data["results"][1]["content_object"]["id"], fourth_post_closed.id
+        )
 
-        # Test created_by + CLOSED fundraise_status
+        # Test created_by + CLOSED fundraise_status (shows only CLOSED)
         url = (
             reverse("funding_feed-list")
             + f"?created_by={fourth_user.id}&fundraise_status=CLOSED"
@@ -1343,7 +1351,7 @@ class FundingFeedViewSetTests(TestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        # Should only return OPEN fundraises created by self.user
+        # Should return all fundraises created by self.user, with OPEN first
         self.assertEqual(len(response.data["results"]), 1)
         self.assertEqual(
             response.data["results"][0]["content_object"]["id"], self.post.id

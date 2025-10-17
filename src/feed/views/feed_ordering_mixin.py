@@ -43,7 +43,7 @@ class FeedOrderingMixin:
         )
         return self._apply_status_priority_ordering(queryset, status_field, "-amount_raised")
     
-    def apply_ordering(self, queryset, ordering, status_field, end_date_field):
+    def apply_ordering(self, queryset, ordering, status_field):
         """
         Apply ordering to queryset based on the ordering parameter.
         
@@ -51,7 +51,6 @@ class FeedOrderingMixin:
             queryset: The queryset to order
             ordering: The ordering type ('hot_score', 'upvotes', 'amount_raised')
             status_field: Field path to status (e.g., 'unified_document__fundraises__status')
-            end_date_field: Field path to end_date (not currently used, kept for compatibility)
         """
         if ordering == "hot_score":
             return self._apply_status_priority_ordering(
