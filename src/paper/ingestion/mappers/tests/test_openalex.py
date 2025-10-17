@@ -4,11 +4,9 @@ Tests for OpenAlex mapper.
 
 import json
 import os
-from unittest.mock import MagicMock
 
 from django.test import TestCase
 
-from hub.models import Hub
 from paper.ingestion.mappers.openalex import OpenAlexMapper
 from paper.models import Paper
 
