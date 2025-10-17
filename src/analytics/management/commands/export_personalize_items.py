@@ -9,6 +9,7 @@ Usage:
 
 import os
 from datetime import datetime
+from time import time
 
 from django.core.management.base import BaseCommand
 
@@ -54,6 +55,9 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        start_time = time()
+        start_datetime = datetime.now()
+
         start_date = options.get("start_date")
         end_date = options.get("end_date")
         output_path = options.get("output")
@@ -104,6 +108,12 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.ERROR(f"Error loading interactions: {e}"))
                 return
 
+        self.stdout.write(f"\n{'='*60}")
+        self.stdout.write(
+            f"Export started at: {start_datetime.strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+        self.stdout.write(f"{'='*60}\n")
+
         self.stdout.write("Starting item export for AWS Personalize...")
         self.stdout.write(f"Output file: {output_path}")
 
@@ -148,3 +158,23 @@ class Command(BaseCommand):
             self.stdout.write(
                 f"\nFile size: {file_size_mb:.2f} MB ({file_size:,} bytes)"
             )
+
+        # Display timing metrics
+        end_time = time()
+        end_datetime = datetime.now()
+        duration = end_time - start_time
+
+        self.stdout.write(f"\n{'='*60}")
+        self.stdout.write(
+            f"Export ended at: {end_datetime.strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+        self.stdout.write(
+            f"Total duration: {duration:.2f} seconds ({duration/60:.2f} minutes)"
+        )
+        if stats["total_items"] > 0:
+            items_per_sec = stats["total_items"] / duration
+            self.stdout.write(
+                f"Average speed: {items_per_sec:.2f} items/second "
+                f"({(duration/stats['total_items'])*1000:.2f} ms/item)"
+            )
+        self.stdout.write(f"{'='*60}")
