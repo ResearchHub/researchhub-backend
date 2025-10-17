@@ -83,6 +83,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
                 "last_name",
                 "created_date",
                 "author_profile",
+                "is_verified",
             ],
         }
 
@@ -326,14 +327,18 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         top_reviewers = (
             self.get_queryset()
             .annotate(
-                **self._create_reviewer_earnings_annotation(start_date=reviewer_start_date)
+                **self._create_reviewer_earnings_annotation(
+                    start_date=reviewer_start_date
+                )
             )
             .order_by("-earned_rsc")[:3]
         )
 
         top_funders = (
             self.get_queryset()
-            .annotate(**self._create_funder_earnings_annotation(start_date=funder_start_date))
+            .annotate(
+                **self._create_funder_earnings_annotation(start_date=funder_start_date)
+            )
             .order_by("-total_funding")[:3]
         )
 
