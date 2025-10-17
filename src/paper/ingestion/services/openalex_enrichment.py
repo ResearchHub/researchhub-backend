@@ -371,7 +371,7 @@ class PaperOpenAlexEnrichmentService:
 
     def process_hubs(self, paper: Paper, openalex_data: dict) -> int:
         """
-        Process hubs from OpenAlex data and create Hub records.
+        Process hubs from OpenAlex data, create Hub instances, and assign it to the given paper.
 
         Args:
             paper: Paper instance
