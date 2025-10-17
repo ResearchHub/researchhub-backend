@@ -43,20 +43,17 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
     pagination_class = FeedPagination
 
     def _apply_ordering(self, queryset, ordering):
-        """Apply ordering with status priority for grants."""
-        order_fields = {
-            "hot_score": ("status_priority", "-unified_document__hot_score", "id"),
-            "upvotes": ("status_priority", "-score", "id"),
-            "amount_raised": None,
-        }.get(ordering, ("status_priority", "-created_date", "id"))
-        
         if ordering == "amount_raised":
-            queryset = queryset.annotate(
+            return queryset.annotate(
                 grant_amount=Coalesce(
                     Sum("unified_document__grants__amount"), 0, output_field=DecimalField()
                 )
-            )
-            return queryset.order_by("status_priority", "-grant_amount", "id")
+            ).order_by("status_priority", "-grant_amount", "id")
+        
+        order_fields = {
+            "hot_score": ("status_priority", "-unified_document__hot_score", "id"),
+            "upvotes": ("status_priority", "-score", "id"),
+        }.get(ordering, ("status_priority", "-created_date", "id"))
         
         return queryset.order_by(*order_fields)
 
@@ -72,7 +69,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             request.query_params.get("organization", ""),
             request.query_params.get("ordering", "")
         ]
-        return f"{base_key}-{':'.join(params)}-v4"
+        return f"{base_key}-{':'.join(params)}-v5"
 
     def list(self, request, *args, **kwargs):
         page = request.query_params.get("page", "1")
@@ -83,10 +80,9 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         cache_key = self.get_cache_key(request, "grants")
         use_cache = page_num < 4 and status is None and organization is None and ordering is None
         
-        return self._list_fund_entries(request, cache_key, use_cache, "grants")
+        return self._list_fund_entries(request, cache_key, use_cache)
 
     def get_queryset(self):
-        """Filter to posts with grants, prioritizing active ones."""
         status = self.request.query_params.get("status")
         organization = self.request.query_params.get("organization")
         ordering = self.request.query_params.get("ordering")
@@ -99,7 +95,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         if organization:
             queryset = queryset.filter(unified_document__grants__organization__icontains=organization)
         
-        return self._apply_ordering(queryset, ordering).distinct()
+        return self._apply_ordering(queryset, ordering)
 
     def _build_base_queryset(self):
         now = timezone.now()

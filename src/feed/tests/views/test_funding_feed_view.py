@@ -172,7 +172,7 @@ class FundingFeedViewSetTests(TestCase):
         self.assertNotIn(self.non_preregistration_post.id, post_ids)
         self.assertNotIn(self.removed_post.id, post_ids)
 
-    @patch("feed.views.funding_feed_view.cache")
+    @patch("feed.views.feed_view_mixin.cache")
     def test_funding_feed_cache(self, mock_cache):
         """Test caching functionality for funding feed"""
         # No cache on first request
@@ -234,7 +234,7 @@ class FundingFeedViewSetTests(TestCase):
         vote_type = post_data["user_vote"]["vote_type"]
         self.assertEqual(vote_type, 1)  # 1 corresponds to UPVOTE
 
-    @patch("feed.views.funding_feed_view.cache")
+    @patch("feed.views.feed_view_mixin.cache")
     def test_add_user_votes_with_cached_response(self, mock_cache):
         """Test that user votes are added even with cached response"""
         # Create a vote for the post
@@ -299,7 +299,7 @@ class FundingFeedViewSetTests(TestCase):
         request.user = anon_user
 
         cache_key = viewset.get_cache_key(request, "funding")
-        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20-v2")
+        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20-v4")
 
         # Authenticated user
         request = request_factory.get("/api/funding_feed/")
@@ -312,7 +312,7 @@ class FundingFeedViewSetTests(TestCase):
         request.user = mock_user
 
         cache_key = viewset.get_cache_key(request, "funding")
-        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20-v2")
+        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20-v4")
 
         # Custom page and page size
         request = request_factory.get("/api/funding_feed/?page=3&page_size=10")
@@ -320,7 +320,7 @@ class FundingFeedViewSetTests(TestCase):
         request.user = mock_user
 
         cache_key = viewset.get_cache_key(request, "funding")
-        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:3-10-v2")
+        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:3-10-v4")
 
     def test_preregistration_post_only(self):
         """Test that funding feed only returns preregistration posts"""

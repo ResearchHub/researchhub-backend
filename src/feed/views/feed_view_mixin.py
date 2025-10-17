@@ -205,7 +205,7 @@ class FeedViewMixin:
             created_by=created_by,
         )
     
-    def _list_fund_entries(self, request, cache_key, use_cache, feed_type_name):
+    def _list_fund_entries(self, request, cache_key, use_cache):
         """
         Shared logic for listing fund-related feed entries (grants and fundraises).
         Handles caching, pagination, and serialization.
