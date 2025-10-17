@@ -12,6 +12,7 @@ Usage:
 import os
 from datetime import datetime
 from pathlib import Path
+from time import time
 
 from django.core.management.base import BaseCommand
 
@@ -49,6 +50,9 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        start_time = time()
+        start_dt = datetime.now()
+
         start_date = options["start_date"]
         end_date = options["end_date"]
         output_path = options["output_path"]
@@ -64,6 +68,12 @@ class Command(BaseCommand):
         # Ensure output directory exists
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
+        self.stdout.write(f"\n{'='*60}")
+        self.stdout.write(
+            f"Export started at: {start_dt.strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+        self.stdout.write(f"{'='*60}\n")
+
         # Build CSV
         self.stdout.write("Initializing CSV builder...")
         builder = PersonalizeCSVBuilder(event_types=event_types)
@@ -77,8 +87,13 @@ class Command(BaseCommand):
             end_date=end_datetime,
         )
 
+        # Calculate timing
+        end_time = time()
+        end_dt = datetime.now()
+        duration = end_time - start_time
+
         # Report statistics
-        self._print_stats(stats, output_path)
+        self._print_stats(stats, output_path, start_dt, end_dt, duration)
 
     def _parse_date(self, date_str, date_type):
         """Parse and validate date string."""
@@ -99,7 +114,7 @@ class Command(BaseCommand):
             )
             return None
 
-    def _print_stats(self, stats, output_path):
+    def _print_stats(self, stats, output_path, start_dt, end_dt, duration):
         """Print export statistics."""
         self.stdout.write(self.style.SUCCESS("\n=== Export Complete ==="))
         self.stdout.write(f"Total records processed: {stats['total_records']}")
@@ -116,6 +131,27 @@ class Command(BaseCommand):
             )
 
         self.stdout.write(f"\nOutput file: {os.path.abspath(output_path)}")
+
+        # Display file size
+        if os.path.exists(output_path):
+            file_size = os.path.getsize(output_path)
+            file_size_mb = file_size / (1024 * 1024)
+            self.stdout.write(f"File size: {file_size_mb:.2f} MB ({file_size:,} bytes)")
+
+        # Display timing metrics
+        self.stdout.write(f"\n{'='*60}")
+        self.stdout.write(f"Export ended at: {end_dt.strftime('%Y-%m-%d %H:%M:%S')}")
+        self.stdout.write(
+            f"Total duration: {duration:.2f} seconds ({duration/60:.2f} minutes)"
+        )
+        if stats["interactions_exported"] > 0:
+            interactions_per_sec = stats["interactions_exported"] / duration
+            self.stdout.write(
+                f"Average speed: {interactions_per_sec:.2f} interactions/second "
+                f"({(duration/stats['interactions_exported'])*1000:.2f} ms/interaction)"
+            )
+        self.stdout.write(f"{'='*60}")
+
         success_msg = (
             f"\nSuccessfully exported {stats['interactions_exported']} " "interactions"
         )

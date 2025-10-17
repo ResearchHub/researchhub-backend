@@ -26,6 +26,7 @@ class PersonalizeItemCSVBuilder:
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         item_ids: Optional[set] = None,
+        since_date: Optional[str] = None,
     ) -> Dict[str, int]:
         """
         Build CSV file of items for AWS Personalize.
@@ -35,6 +36,7 @@ class PersonalizeItemCSVBuilder:
             start_date: Optional filter for documents created after this date
             end_date: Optional filter for documents created before this date
             item_ids: Optional set of item IDs to filter by (from interactions)
+            since_date: Optional date to include all papers created on/after this date
 
         Returns:
             Dictionary with statistics:
@@ -49,7 +51,7 @@ class PersonalizeItemCSVBuilder:
             os.makedirs(output_dir)
 
         # Get queryset
-        queryset = self.mapper.get_queryset(start_date, end_date, item_ids)
+        queryset = self.mapper.get_queryset(start_date, end_date, item_ids, since_date)
         total_count = queryset.count()
 
         # Initialize statistics
