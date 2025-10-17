@@ -111,7 +111,7 @@ class StatusPrioritySortingTests(TestCase):
 
         response = self.client.get(
             reverse("funding_feed-list")
-            + "?fundraise_status=OPEN&ordering=amount_raised"
+            + "?ordering=amount_raised"
         )
 
         post_ids = self._get_post_ids(response)
@@ -125,7 +125,7 @@ class StatusPrioritySortingTests(TestCase):
         closed_post = self._create_fundraise_post("Closed Hot", Fundraise.COMPLETED, -5)
 
         response = self.client.get(
-            reverse("funding_feed-list") + "?fundraise_status=OPEN&ordering=hot_score"
+            reverse("funding_feed-list") + "?ordering=hot_score"
         )
 
         post_ids = self._get_post_ids(response)
@@ -143,7 +143,7 @@ class StatusPrioritySortingTests(TestCase):
         )
 
         response = self.client.get(
-            reverse("funding_feed-list") + "?fundraise_status=OPEN"
+            reverse("funding_feed-list")
         )
 
         post_ids = self._get_post_ids(response)
@@ -185,7 +185,7 @@ class StatusPrioritySortingTests(TestCase):
         closed_post = self._create_fundraise_post("Closed Upvoted", Fundraise.COMPLETED, -5)
 
         response = self.client.get(
-            reverse("funding_feed-list") + "?fundraise_status=OPEN&ordering=upvotes"
+            reverse("funding_feed-list") + "?ordering=upvotes"
         )
 
         post_ids = self._get_post_ids(response)
