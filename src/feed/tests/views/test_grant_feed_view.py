@@ -6,6 +6,9 @@ from django.core.cache import cache
 from rest_framework.test import APITestCase
 
 from purchase.models import Grant, GrantApplication
+from purchase.related_models.constants.currency import USD
+from purchase.related_models.constants.rsc_exchange_currency import MORALIS
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
@@ -22,6 +25,15 @@ class GrantFeedViewTests(APITestCase):
         GrantApplication.objects.all().delete()
         Grant.objects.all().delete()
         ResearchhubPost.objects.filter(document_type=GRANT).delete()
+        
+        # Create an exchange rate for converting currency
+        self.exchange_rate = RscExchangeRate.objects.create(
+            price_source=MORALIS,
+            rate=3.0,
+            real_rate=3.0,
+            target_currency=USD,
+        )
+        
         # Create users
         self.moderator = create_random_authenticated_user(
             "grant_feed_moderator", moderator=True

@@ -11,6 +11,7 @@ This is done for three reasons:
 from django.core.cache import cache
 from django.db.models import (
     Case,
+    Count,
     DateTimeField,
     DecimalField,
     Exists,
@@ -19,10 +20,12 @@ from django.db.models import (
     OuterRef,
     Prefetch,
     Q,
+    Subquery,
     Sum,
     Value,
     When,
 )
+from django.contrib.contenttypes.models import ContentType
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from rest_framework.response import Response
@@ -31,6 +34,7 @@ from rest_framework.viewsets import ModelViewSet
 from feed.models import FeedEntry
 from feed.views.fast_serializers import serialize_feed_entry_fast
 from feed.views.feed_view_mixin import FeedViewMixin
+from purchase.models import Purchase
 from purchase.related_models.fundraise_model import Fundraise
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -65,7 +69,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
 
     def get_cache_key(self, request, feed_type=""):
         base_key = super().get_cache_key(request, feed_type)
-        return base_key + "-v12-ultrafast"
+        return base_key + "-v13-contributor-opt"
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -149,6 +153,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
     def _build_base_queryset(self, created_by=None):
         """Build base queryset with status_priority annotation and optimized prefetch."""
         now = timezone.now()
+        fundraise_content_type = ContentType.objects.get_for_model(Fundraise)
         
         # Optimized Exists subquery - the composite index makes this fast
         has_active = Fundraise.objects.filter(
@@ -156,10 +161,23 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
             status=Fundraise.OPEN
         ).filter(Q(end_date__isnull=True) | Q(end_date__gt=now))
         
-        # Prefetch fundraise data with escrow
+        # Subquery to get contributor count per fundraise
+        contributor_count_subquery = Purchase.objects.filter(
+            content_type=fundraise_content_type,
+            object_id=OuterRef("pk")
+        ).values('object_id').annotate(
+            count=Count('user_id', distinct=True)
+        ).values('count')
+        
+        # Prefetch fundraise data with escrow and contributor count
         fundraise_prefetch = Prefetch(
             "unified_document__fundraises",
-            queryset=Fundraise.objects.select_related("escrow").order_by("end_date")
+            queryset=Fundraise.objects.select_related("escrow").annotate(
+                contributor_count=Coalesce(
+                    Subquery(contributor_count_subquery, output_field=IntegerField()),
+                    0
+                )
+            ).order_by("end_date")
         )
         
         queryset = ResearchhubPost.objects.select_related(

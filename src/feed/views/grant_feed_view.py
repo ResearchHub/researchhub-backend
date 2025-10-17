@@ -76,7 +76,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             request.query_params.get("organization", ""),
             request.query_params.get("ordering", "")
         ]
-        return f"{base_key}-{':'.join(params)}-v14-ultrafast"
+        return f"{base_key}-{':'.join(params)}-v15-creator-prefetch"
 
     def list(self, request, *args, **kwargs):
         page = request.query_params.get("page", "1")
@@ -159,13 +159,15 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         applications_prefetch = Prefetch(
             "applications",
             queryset=GrantApplication.objects.select_related(
-                "applicant", "applicant__author_profile"
+                "applicant__author_profile__user"
             )
         )
         
         grant_prefetch = Prefetch(
             "unified_document__grants",
-            queryset=Grant.objects.prefetch_related(
+            queryset=Grant.objects.select_related(
+                "created_by__author_profile__user"
+            ).prefetch_related(
                 applications_prefetch
             ).order_by("end_date")
         )

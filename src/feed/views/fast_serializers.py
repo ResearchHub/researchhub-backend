@@ -73,7 +73,7 @@ def serialize_fundraise_fast(fundraise):
     if fundraise.escrow_id:
         usd_raised = fundraise.get_amount_raised(currency=USD)
         rsc_raised = fundraise.get_amount_raised(currency=RSC)
-        contributor_count = fundraise.purchases.values('user_id').distinct().count()
+        contributor_count = getattr(fundraise, 'contributor_count', 0)
     
     return {
         'id': fundraise.id,
