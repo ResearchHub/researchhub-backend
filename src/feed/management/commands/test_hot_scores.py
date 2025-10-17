@@ -8,6 +8,8 @@ Usage:
     python manage.py test_hot_scores --limit 20
     python manage.py test_hot_scores --content-type paper --csv output.csv
     python manage.py test_hot_scores --show-components
+    python manage.py test_hot_scores --feed-entry-id 12345
+    python manage.py test_hot_scores --unified-document-id 67890
 """
 
 import csv
@@ -66,6 +68,11 @@ class Command(BaseCommand):
             type=int,
             help="Debug a specific unified document by ID",
         )
+        parser.add_argument(
+            "--feed-entry-id",
+            type=int,
+            help="Debug a specific feed entry by ID",
+        )
         # Simulation parameters (default 0 = use actual values)
         parser.add_argument(
             "--sim-upvotes",
@@ -121,6 +128,7 @@ class Command(BaseCommand):
         show_components = options["show_components"]
         csv_file = options["csv"]
         unified_document_id = options.get("unified_document_id")
+        feed_entry_id = options.get("feed_entry_id")
 
         # Build simulation parameters dict
         sim_params = {
@@ -133,6 +141,11 @@ class Command(BaseCommand):
             "altmetric": options.get("sim_altmetric", 0),
             "age_hours": options.get("sim_age_hours", 0),
         }
+
+        # Special handling for specific feed entry debugging
+        if feed_entry_id:
+            self._debug_feed_entry(feed_entry_id, sim_params)
+            return
 
         # Special handling for specific unified document debugging
         if unified_document_id:
@@ -586,6 +599,186 @@ class Command(BaseCommand):
                 )
 
         self.stdout.write(self.style.SUCCESS(f"Exported to {csv_file}"))
+
+    def _debug_feed_entry(self, feed_entry_id, sim_params=None):
+        """Debug a specific feed entry with detailed breakdown."""
+        # Check if any simulation parameters are active
+        has_simulation = sim_params and any(
+            [
+                sim_params.get("upvotes", 0) > 0,
+                sim_params.get("comments", 0) > 0,
+                sim_params.get("tips", 0) > 0,
+                sim_params.get("bounty", 0) > 0,
+                sim_params.get("urgent_bounty", False),
+                sim_params.get("peer_reviews", 0) > 0,
+                sim_params.get("altmetric", 0) > 0,
+                sim_params.get("age_hours", 0) > 0,
+            ]
+        )
+
+        title_text = f"Debugging Feed Entry ID: {feed_entry_id}"
+        if has_simulation:
+            title_text += " (WITH SIMULATION)"
+        self.stdout.write(self.style.SUCCESS(title_text))
+        self.stdout.write("=" * 80)
+        self.stdout.write("")
+
+        try:
+            feed_entry = (
+                FeedEntry.objects.select_related("content_type", "unified_document")
+                .prefetch_related("item")
+                .get(id=feed_entry_id)
+            )
+        except FeedEntry.DoesNotExist:
+            self.stdout.write(
+                self.style.ERROR(f"Feed entry with ID {feed_entry_id} not found")
+            )
+            return
+
+        item = feed_entry.item
+        if not item:
+            self.stdout.write(self.style.ERROR("Feed entry has no associated item"))
+            return
+
+        unified_doc = feed_entry.unified_document
+
+        # Display basic info
+        self.stdout.write(self.style.SUCCESS("Basic Information:"))
+        self.stdout.write(f"  Feed Entry ID:        {feed_entry.id}")
+        if unified_doc:
+            self.stdout.write(f"  Unified Document ID:  {unified_doc.id}")
+            self.stdout.write(f"  Document Type:        {unified_doc.document_type}")
+        else:
+            self.stdout.write("  Unified Document ID:  None")
+        self.stdout.write(f"  Content Type:         {feed_entry.content_type.model}")
+        self.stdout.write(f"  Item ID:              {item.id}")
+
+        title = getattr(item, "title", None) or getattr(
+            item, "paper_title", f"Item #{item.id}"
+        )
+        self.stdout.write(f"  Title:                {title}")
+        self.stdout.write(f"  Created:              {item.created_date}")
+        self.stdout.write("")
+
+        # Calculate scores
+        try:
+            v1_score = calculate_hot_score_for_item_DEPRECATED(feed_entry)
+            v2_score = calculate_hot_score_for_item(feed_entry)
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f"Error calculating hot scores: {e}"))
+            import traceback
+
+            self.stdout.write(traceback.format_exc())
+            return
+
+        # Display scores
+        self.stdout.write(self.style.SUCCESS("Hot Scores:"))
+        self.stdout.write(f"  V1 Score (Old):       {v1_score:.2f}")
+        self.stdout.write(f"  V2 Score (New):       {v2_score:.2f}")
+        self.stdout.write(
+            f"  Stored V1:            {feed_entry.hot_score or 'Not set'}"
+        )
+        self.stdout.write(
+            f"  Stored V2:            {feed_entry.hot_score_v2 or 'Not set'}"
+        )
+
+        if v1_score > 0:
+            change = v2_score - v1_score
+            change_pct = change / v1_score * 100
+            change_str = f"{change:+.2f} ({change_pct:+.1f}%)"
+            self.stdout.write(f"  Change (V2-V1):       {change_str}")
+        self.stdout.write("")
+
+        # Get and display component breakdown
+        if has_simulation:
+            # Show both actual and simulated breakdowns
+            self.stdout.write(self.style.SUCCESS("ACTUAL Component Breakdown (V2):"))
+            self.stdout.write("")
+
+            try:
+                actual_components = self._get_components(item, unified_doc, feed_entry)
+                self._display_detailed_components(actual_components)
+            except Exception as e:
+                self.stdout.write(
+                    self.style.ERROR(f"Error getting actual component breakdown: {e}")
+                )
+                import traceback
+
+                self.stdout.write(traceback.format_exc())
+
+            # Show simulation parameters being used
+            self.stdout.write("")
+            self.stdout.write(self.style.SUCCESS("SIMULATION Parameters:"))
+            self.stdout.write("")
+            sim_active = []
+            if sim_params.get("upvotes", 0) > 0:
+                sim_active.append(f"  Upvotes:      {sim_params['upvotes']}")
+            if sim_params.get("comments", 0) > 0:
+                sim_active.append(f"  Comments:     {sim_params['comments']}")
+            if sim_params.get("tips", 0) > 0:
+                sim_active.append(f"  Tips:         {sim_params['tips']}")
+            if sim_params.get("bounty", 0) > 0:
+                sim_active.append(f"  Bounty:       {sim_params['bounty']}")
+            if sim_params.get("urgent_bounty", False):
+                sim_active.append("  Urgent Bounty: ENABLED")
+            if sim_params.get("peer_reviews", 0) > 0:
+                sim_active.append(f"  Peer Reviews: {sim_params['peer_reviews']}")
+            if sim_params.get("altmetric", 0) > 0:
+                sim_active.append(f"  Altmetric:    {sim_params['altmetric']}")
+            if sim_params.get("age_hours", 0) > 0:
+                sim_active.append(f"  Age (hours):  {sim_params['age_hours']}")
+
+            for line in sim_active:
+                self.stdout.write(line)
+            self.stdout.write("")
+
+            # Show simulated breakdown
+            self.stdout.write(self.style.SUCCESS("SIMULATED Component Breakdown (V2):"))
+            self.stdout.write("")
+
+            try:
+                sim_components = self._get_components_with_simulation(
+                    item, unified_doc, feed_entry, sim_params
+                )
+                self._display_detailed_components(sim_components)
+
+                # Calculate and display simulated score
+                sim_score = self._calculate_score_from_components(sim_components)
+                actual_score = self._calculate_score_from_components(actual_components)
+
+                # Show comparison
+                self.stdout.write("")
+                self.stdout.write(self.style.SUCCESS("COMPARISON:"))
+                self.stdout.write("")
+                diff = sim_score - actual_score
+                diff_pct = (diff / actual_score * 100) if actual_score > 0 else 0
+                self.stdout.write(f"  Actual Score:    {actual_score:>8.0f}")
+                self.stdout.write(f"  Simulated Score: {sim_score:>8.0f}")
+                self.stdout.write(f"  Difference:      {diff:>8.0f} ({diff_pct:+.1f}%)")
+            except Exception as e:
+                self.stdout.write(
+                    self.style.ERROR(
+                        f"Error getting simulated component breakdown: {e}"
+                    )
+                )
+                import traceback
+
+                self.stdout.write(traceback.format_exc())
+        else:
+            # No simulation, show actual breakdown only
+            self.stdout.write(self.style.SUCCESS("Component Breakdown (V2):"))
+            self.stdout.write("")
+
+            try:
+                components = self._get_components(item, unified_doc, feed_entry)
+                self._display_detailed_components(components)
+            except Exception as e:
+                self.stdout.write(
+                    self.style.ERROR(f"Error getting component breakdown: {e}")
+                )
+                import traceback
+
+                self.stdout.write(traceback.format_exc())
 
     def _debug_unified_document(self, unified_document_id, sim_params=None):
         """Debug a specific unified document with detailed breakdown."""
