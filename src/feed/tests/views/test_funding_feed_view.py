@@ -299,7 +299,7 @@ class FundingFeedViewSetTests(TestCase):
         request.user = anon_user
 
         cache_key = viewset.get_cache_key(request, "funding")
-        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20")
+        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20-v7")
 
         # Authenticated user
         request = request_factory.get("/api/funding_feed/")
@@ -312,7 +312,7 @@ class FundingFeedViewSetTests(TestCase):
         request.user = mock_user
 
         cache_key = viewset.get_cache_key(request, "funding")
-        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20")
+        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20-v7")
 
         # Custom page and page size
         request = request_factory.get("/api/funding_feed/?page=3&page_size=10")
@@ -320,7 +320,7 @@ class FundingFeedViewSetTests(TestCase):
         request.user = mock_user
 
         cache_key = viewset.get_cache_key(request, "funding")
-        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:3-10")
+        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:3-10-v7")
 
     def test_preregistration_post_only(self):
         """Test that funding feed only returns preregistration posts"""

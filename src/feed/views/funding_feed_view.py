@@ -12,6 +12,7 @@ from django.core.cache import cache
 from django.db.models import (
     BooleanField,
     Case,
+    DateTimeField,
     DecimalField,
     Exists,
     F,
@@ -142,14 +143,12 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
             status_upper = fundraise_status.upper()
             if status_upper == "OPEN":
                 queryset = queryset.filter(
-                    unified_document__fundraises__status__in=[Fundraise.OPEN, Fundraise.COMPLETED]
+                    unified_document__fundraises__status=Fundraise.OPEN
                 )
             elif status_upper == "CLOSED":
                 queryset = queryset.filter(unified_document__fundraises__status=Fundraise.COMPLETED)
-                if not ordering:
-                    return queryset.order_by("-unified_document__fundraises__end_date").distinct()
         
-        return self._apply_ordering(queryset, ordering).distinct()
+        return self._apply_ordering(queryset, ordering, fundraise_status).distinct()
 
     def _build_base_queryset(self, created_by=None):
         """Build base queryset with status_priority annotation."""
@@ -175,22 +174,60 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         
         return queryset.filter(created_by__id=created_by) if created_by else queryset
 
-    def _apply_ordering(self, queryset, ordering):
-        """Apply ordering with status priority."""
-        order_fields = {
-            "hot_score": ["-unified_document__hot_score"],
-            "upvotes": ["-score"],
-            "amount_raised": None,
-        }.get(ordering, ["-created_date"])
+    def _apply_ordering(self, queryset, ordering, fundraise_status=None):
+        """Apply ordering with status priority and proper end_date sorting."""
+        # Annotate with end_date for sorting
+        queryset = queryset.annotate(
+            fundraise_end_date=F("unified_document__fundraises__end_date")
+        )
         
-        if ordering == "amount_raised":
-            queryset = queryset.annotate(
-                amount_raised=Coalesce(
-                    Sum("unified_document__fundraises__escrow__amount_holding") +
-                    Sum("unified_document__fundraises__escrow__amount_paid"),
-                    0, output_field=DecimalField()
+        # If user specified custom ordering, use that
+        if ordering:
+            order_fields = {
+                "hot_score": ["-unified_document__hot_score"],
+                "upvotes": ["-score"],
+                "amount_raised": None,
+            }.get(ordering, ["-created_date"])
+            
+            if ordering == "amount_raised":
+                queryset = queryset.annotate(
+                    amount_raised=Coalesce(
+                        Sum("unified_document__fundraises__escrow__amount_holding") +
+                        Sum("unified_document__fundraises__escrow__amount_paid"),
+                        0, output_field=DecimalField()
+                    )
                 )
-            )
-            order_fields = ["-amount_raised"]
+                order_fields = ["-amount_raised"]
+            
+            return queryset.order_by("status_priority", *order_fields, "id")
         
-        return queryset.order_by("status_priority", *order_fields, "id")
+        # Default ordering based on fundraise_status
+        if fundraise_status:
+            status_upper = fundraise_status.upper()
+            if status_upper == "OPEN":
+                # OPEN: sort by end_date ascending (closest deadlines first)
+                return queryset.order_by("fundraise_end_date", "id")
+            elif status_upper == "CLOSED":
+                # CLOSED: sort by end_date descending (most recent first)
+                return queryset.order_by("-fundraise_end_date", "id")
+        
+        # ALL tab: OPEN first (by end_date asc), then CLOSED (by end_date desc)
+        # Use separate annotations for OPEN and CLOSED sort dates
+        queryset = queryset.annotate(
+            open_sort_date=Case(
+                When(unified_document__fundraises__status=Fundraise.OPEN, 
+                     then=F("fundraise_end_date")),
+                default=Value(None),
+                output_field=DateTimeField()
+            ),
+            closed_sort_date=Case(
+                When(unified_document__fundraises__status=Fundraise.COMPLETED, 
+                     then=F("fundraise_end_date")),
+                default=Value(None),
+                output_field=DateTimeField()
+            )
+        )
+        
+        # Order by: status_priority (0=OPEN, 1=CLOSED), then open_sort_date ASC, 
+        # then closed_sort_date DESC, then id
+        return queryset.order_by("status_priority", "open_sort_date", "-closed_sort_date", "id")
