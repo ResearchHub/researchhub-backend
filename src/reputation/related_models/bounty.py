@@ -6,7 +6,8 @@ import pytz
 from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from django.db.models import Sum
+from django.db.models import Case, Sum, Value, When
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
@@ -24,6 +25,14 @@ def get_default_expiration_date():
 class AnnotatedBounty(TypedDict):
     user_hub_score: int
     matching_hub_id: int
+
+
+class BountyQuerySet(models.QuerySet):
+    def order_by_open_and_expiration(self):
+        return self.order_by(
+            Case(When(status=Bounty.OPEN, then=Value(0)), default=Value(1)),
+            Coalesce("expiration_date", Value(None))
+        )
 
 
 class Bounty(DefaultModel):
@@ -80,6 +89,8 @@ class Bounty(DefaultModel):
         content_type_field="content_type",
         related_query_name="bounty",
     )
+
+    objects = BountyQuerySet.as_manager()
 
     class Meta:
         indexes = (

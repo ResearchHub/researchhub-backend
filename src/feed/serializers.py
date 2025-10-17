@@ -121,7 +121,11 @@ class ContentObjectSerializer(serializers.Serializer):
     def get_bounty_data(self, obj):
         """Return bounty data from the unified document if it exists"""
         if hasattr(obj, "unified_document") and obj.unified_document:
-            bounties = obj.unified_document.related_bounties.filter(parent__isnull=True)
+            bounties = (
+                obj.unified_document.related_bounties
+                .filter(parent__isnull=True)
+                .order_by_open_and_expiration()
+            )
 
             if not bounties.exists():
                 return []
