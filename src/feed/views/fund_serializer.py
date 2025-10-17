@@ -97,7 +97,7 @@ def serialize_grant_fund(grant):
             'applicant': serialize_author_fund(app.applicant.author_profile),
             'preregistration_post_id': app.preregistration_post_id,
         }
-        for app in list(grant.applications.all())
+        for app in grant.applications.all()
         if app.applicant and hasattr(app.applicant, 'author_profile')
     ]
     

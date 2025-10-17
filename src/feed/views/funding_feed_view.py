@@ -8,7 +8,7 @@ This is done for three reasons:
 3. Older feed entries are not in the feed table.
 """
 
-from django.core.cache import cache
+from django.contrib.contenttypes.models import ContentType
 from django.db.models import (
     Case,
     Count,
@@ -25,14 +25,10 @@ from django.db.models import (
     Value,
     When,
 )
-from django.contrib.contenttypes.models import ContentType
 from django.db.models.functions import Coalesce
 from django.utils import timezone
-from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
-from feed.models import FeedEntry
-from feed.views.fund_serializer import serialize_feed_entry_fund
 from feed.views.feed_view_mixin import FeedViewMixin
 from purchase.models import Purchase
 from purchase.related_models.fundraise_model import Fundraise
@@ -69,7 +65,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
 
     def get_cache_key(self, request, feed_type=""):
         base_key = super().get_cache_key(request, feed_type)
-        return base_key + "-v14-hub-opt"
+        return base_key + "-v2"
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -85,48 +81,8 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         ordering = request.query_params.get("ordering", None)
         cache_key = self.get_cache_key(request, "funding")
         use_cache = page_num < 4 and grant_id is None and created_by is None and fundraise_status is None and ordering is None
-
-        if use_cache:
-            # try to get cached response
-            cached_response = cache.get(cache_key)
-            if cached_response:
-                if request.user.is_authenticated:
-                    self.add_user_votes_to_response(request.user, cached_response)
-                return Response(cached_response)
-
-        # Get paginated posts
-        queryset = self.get_queryset()
-        page = self.paginate_queryset(queryset)
-
-        # Ultra-fast serialization - bypass DRF completely
-        results = []
-        for post in page:
-            # Create an unsaved FeedEntry instance
-            feed_entry = FeedEntry(
-                id=post.id,
-                content_type=self._post_content_type,
-                object_id=post.id,
-                action="PUBLISH",
-                action_date=post.created_date,
-                user=post.created_by,
-                unified_document=post.unified_document,
-            )
-            feed_entry.item = post
-            
-            # Use ultra-fast serialization
-            serialized = serialize_feed_entry_fund(feed_entry, request)
-            results.append(serialized)
         
-        # Build response data manually
-        response_data = self.get_paginated_response(results).data
-
-        if request.user.is_authenticated:
-            self.add_user_votes_to_response(request.user, response_data)
-
-        if use_cache:
-            cache.set(cache_key, response_data, timeout=self.DEFAULT_CACHE_TIMEOUT)
-
-        return Response(response_data)
+        return self._list_fund_entries(request, cache_key, use_cache, "funding")
 
     def get_queryset(self):
         """

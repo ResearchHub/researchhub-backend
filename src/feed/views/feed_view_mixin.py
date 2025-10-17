@@ -204,6 +204,50 @@ class FeedViewMixin:
             object_id__in=doc_ids,
             created_by=created_by,
         )
+    
+    def _list_fund_entries(self, request, cache_key, use_cache, feed_type_name):
+        """
+        Shared logic for listing fund-related feed entries (grants and fundraises).
+        Handles caching, pagination, and serialization.
+        """
+        from feed.models import FeedEntry
+        from feed.views.fund_serializer import serialize_feed_entry_fund
+        from rest_framework.response import Response
+        
+        if use_cache:
+            cached_response = cache.get(cache_key)
+            if cached_response:
+                if request.user.is_authenticated:
+                    self.add_user_votes_to_response(request.user, cached_response)
+                return Response(cached_response)
+        
+        queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+        
+        results = []
+        for post in page:
+            feed_entry = FeedEntry(
+                id=post.id,
+                content_type=self._post_content_type,
+                object_id=post.id,
+                action="PUBLISH",
+                action_date=post.created_date,
+                user=post.created_by,
+                unified_document=post.unified_document,
+            )
+            feed_entry.item = post
+            serialized = serialize_feed_entry_fund(feed_entry, request)
+            results.append(serialized)
+        
+        response_data = self.get_paginated_response(results).data
+        
+        if request.user.is_authenticated:
+            self.add_user_votes_to_response(request.user, response_data)
+        
+        if use_cache:
+            cache.set(cache_key, response_data, timeout=self.DEFAULT_CACHE_TIMEOUT)
+        
+        return Response(response_data)
 
     @staticmethod
     def invalidate_feed_cache_for_user(user_id):
