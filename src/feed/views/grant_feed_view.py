@@ -12,15 +12,13 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from feed.models import FeedEntry
-from feed.serializers import GrantFeedEntrySerializer
-from feed.serializers_optimized import OptimizedGrantFeedEntrySerializer
+from feed.views.fast_serializers import serialize_feed_entry_fast
 from feed.views.feed_view_mixin import FeedViewMixin
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
 from researchhub_document.related_models.constants.document_type import GRANT
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 
-from ..serializers import PostSerializer, serialize_feed_metrics
 from .common import FeedPagination
 
 
@@ -45,7 +43,6 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         - amount_raised: Sort by amount raised (highest first)
     """
 
-    serializer_class = PostSerializer
     permission_classes = []
     pagination_class = FeedPagination
 
@@ -79,7 +76,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             request.query_params.get("organization", ""),
             request.query_params.get("ordering", "")
         ]
-        return f"{base_key}-{':'.join(params)}-v13-fast"
+        return f"{base_key}-{':'.join(params)}-v14-ultrafast"
 
     def list(self, request, *args, **kwargs):
         page = request.query_params.get("page", "1")
@@ -102,11 +99,12 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         queryset = self.get_queryset()
         page = self.paginate_queryset(queryset)
 
-        feed_entries = []
+        # Ultra-fast serialization - bypass DRF completely
+        results = []
         for post in page:
             # Create an unsaved FeedEntry instance
             feed_entry = FeedEntry(
-                id=post.id,  # We can use the post ID as a temporary ID
+                id=post.id,
                 content_type=self._post_content_type,
                 object_id=post.id,
                 action="PUBLISH",
@@ -115,16 +113,13 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
                 unified_document=post.unified_document,
             )
             feed_entry.item = post
-            metrics = serialize_feed_metrics(post, self._post_content_type)
-            feed_entry.metrics = metrics
-            feed_entries.append(feed_entry)
-
-        # Use optimized serializer for better performance
-        serializer_context = {'request': request}
-        serializer = OptimizedGrantFeedEntrySerializer(
-            feed_entries, many=True, context=serializer_context
-        )
-        response_data = self.get_paginated_response(serializer.data).data
+            
+            # Use ultra-fast serialization
+            serialized = serialize_feed_entry_fast(feed_entry, request)
+            results.append(serialized)
+        
+        # Build response data manually
+        response_data = self.get_paginated_response(results).data
 
         if request.user.is_authenticated:
             self.add_user_votes_to_response(request.user, response_data)
