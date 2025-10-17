@@ -26,10 +26,6 @@ ROR_ORG_DOMAIN = "ror.org"
 class OpenAlexMapper(BaseMapper):
     """Maps OpenAlex work records to ResearchHub Paper model format."""
 
-    def __init__(self):
-        """Constructor."""
-        pass
-
     def validate(self, record: Dict[str, Any]) -> bool:
         """
         Validate an OpenAlex work record has minimum required fields.
