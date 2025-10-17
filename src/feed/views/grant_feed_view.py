@@ -5,7 +5,7 @@ and research grant postings.
 """
 
 from django.core.cache import cache
-from django.db.models import Case, DecimalField, Exists, IntegerField, OuterRef, Q, Sum, Value, When
+from django.db.models import Case, DecimalField, Exists, IntegerField, OuterRef, Prefetch, Q, Sum, Value, When
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from rest_framework.response import Response
@@ -50,10 +50,10 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
     def _apply_ordering(self, queryset, ordering):
         """Apply ordering with status priority for grants."""
         order_fields = {
-            "hot_score": ["-unified_document__hot_score"],
-            "upvotes": ["-score"],
+            "hot_score": ("status_priority", "-unified_document__hot_score", "id"),
+            "upvotes": ("status_priority", "-score", "id"),
             "amount_raised": None,
-        }.get(ordering, ["-created_date"])
+        }.get(ordering, ("status_priority", "-created_date", "id"))
         
         if ordering == "amount_raised":
             queryset = queryset.annotate(
@@ -61,9 +61,9 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
                     Sum("unified_document__grants__amount"), 0, output_field=DecimalField()
                 )
             )
-            order_fields = ["-grant_amount"]
+            return queryset.order_by("status_priority", "-grant_amount", "id")
         
-        return queryset.order_by("status_priority", *order_fields, "id")
+        return queryset.order_by(*order_fields)
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -77,7 +77,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             request.query_params.get("organization", ""),
             request.query_params.get("ordering", "")
         ]
-        return f"{base_key}-{':'.join(params)}-v10"
+        return f"{base_key}-{':'.join(params)}-v11-optimized"
 
     def list(self, request, *args, **kwargs):
         page = request.query_params.get("page", "1")
@@ -145,19 +145,27 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         return self._apply_ordering(queryset, ordering).distinct()
 
     def _build_base_queryset(self):
-        """Build base queryset with status_priority annotation."""
+        """Build base queryset with status_priority annotation and optimized prefetch."""
         now = timezone.now()
+        
+        # Optimized Exists subquery - the composite index makes this fast
         has_active = Grant.objects.filter(
             unified_document_id=OuterRef("unified_document_id"),
-            status=Grant.OPEN,
+            status=Grant.OPEN
         ).filter(Q(end_date__isnull=True) | Q(end_date__gt=now))
+        
+        # Prefetch grants and their applications with optimized selects
+        grant_prefetch = Prefetch(
+            "unified_document__grants",
+            queryset=Grant.objects.prefetch_related(
+                "applications__applicant__author_profile"
+            ).order_by("end_date")
+        )
         
         return ResearchhubPost.objects.select_related(
             "created_by", "created_by__author_profile", "unified_document"
         ).prefetch_related(
-            "unified_document__hubs",
-            "unified_document__grants",
-            "unified_document__grants__applications__applicant__author_profile"
+            "unified_document__hubs", grant_prefetch
         ).filter(
             document_type=GRANT, unified_document__is_removed=False
         ).annotate(

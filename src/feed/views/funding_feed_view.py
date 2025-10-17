@@ -18,6 +18,7 @@ from django.db.models import (
     F,
     IntegerField,
     OuterRef,
+    Prefetch,
     Q,
     Sum,
     Value,
@@ -67,7 +68,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
 
     def get_cache_key(self, request, feed_type=""):
         base_key = super().get_cache_key(request, feed_type)
-        return base_key + "-v8"
+        return base_key + "-v9-optimized"
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -147,17 +148,25 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         return self._apply_ordering(queryset, ordering, fundraise_status).distinct()
 
     def _build_base_queryset(self, created_by=None):
-        """Build base queryset with status_priority annotation."""
+        """Build base queryset with status_priority annotation and optimized prefetch."""
         now = timezone.now()
+        
+        # Optimized Exists subquery - the composite index makes this fast
         has_active = Fundraise.objects.filter(
             unified_document_id=OuterRef("unified_document_id"),
-            status=Fundraise.OPEN,
+            status=Fundraise.OPEN
         ).filter(Q(end_date__isnull=True) | Q(end_date__gt=now))
+        
+        # Prefetch only necessary fundraise data with filtering
+        fundraise_prefetch = Prefetch(
+            "unified_document__fundraises",
+            queryset=Fundraise.objects.select_related("escrow").order_by("end_date")
+        )
         
         queryset = ResearchhubPost.objects.select_related(
             "created_by", "created_by__author_profile", "unified_document"
         ).prefetch_related(
-            "unified_document__hubs", "unified_document__fundraises"
+            "unified_document__hubs", fundraise_prefetch
         ).filter(
             document_type=PREREGISTRATION, unified_document__is_removed=False
         ).annotate(
@@ -172,18 +181,13 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
 
     def _apply_ordering(self, queryset, ordering, fundraise_status=None):
         """Apply ordering with status priority and proper end_date sorting."""
-        # Annotate with end_date for sorting
-        queryset = queryset.annotate(
-            fundraise_end_date=F("unified_document__fundraises__end_date")
-        )
-        
         # If user specified custom ordering, use that
         if ordering:
             order_fields = {
-                "hot_score": ["-unified_document__hot_score"],
-                "upvotes": ["-score"],
+                "hot_score": ("status_priority", "-unified_document__hot_score", "id"),
+                "upvotes": ("status_priority", "-score", "id"),
                 "amount_raised": None,
-            }.get(ordering, ["-created_date"])
+            }.get(ordering, ("status_priority", "-created_date", "id"))
             
             if ordering == "amount_raised":
                 queryset = queryset.annotate(
@@ -193,18 +197,24 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
                         0, output_field=DecimalField()
                     )
                 )
-                order_fields = ["-amount_raised"]
+                return queryset.order_by("status_priority", "-amount_raised", "id")
             
-            return queryset.order_by("status_priority", *order_fields, "id")
+            return queryset.order_by(*order_fields)
         
-        # Default ordering based on fundraise_status
+        # Default ordering based on fundraise_status - only annotate end_date when needed
         if fundraise_status:
             status_upper = fundraise_status.upper()
+            queryset = queryset.annotate(
+                fundraise_end_date=F("unified_document__fundraises__end_date")
+            )
             if status_upper == "OPEN":
                 return queryset.order_by("status_priority", "fundraise_end_date", "id")
             elif status_upper == "CLOSED":
                 return queryset.order_by("-fundraise_end_date", "id")
+        
+        # Default ordering for ALL tab: annotate conditional dates only when needed
         queryset = queryset.annotate(
+            fundraise_end_date=F("unified_document__fundraises__end_date"),
             open_sort_date=Case(
                 When(unified_document__fundraises__status=Fundraise.OPEN, 
                      then=F("fundraise_end_date")),
@@ -219,6 +229,4 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
             )
         )
         
-        # Order by: status_priority (0=OPEN, 1=CLOSED), then open_sort_date ASC, 
-        # then closed_sort_date DESC, then id
         return queryset.order_by("status_priority", "open_sort_date", "-closed_sort_date", "id")
