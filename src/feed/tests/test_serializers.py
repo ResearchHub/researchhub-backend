@@ -1,6 +1,8 @@
+from datetime import datetime
 from decimal import Decimal
 from unittest.mock import patch
 
+import pytz
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import default_storage
@@ -17,6 +19,7 @@ from feed.serializers import (
     PostSerializer,
     SimpleReviewSerializer,
     SimpleUserSerializer,
+    serialize_feed_metrics,
 )
 from feed.views.feed_view_mixin import FeedViewMixin
 from hub.models import Hub
@@ -1745,12 +1748,6 @@ class FeedEntrySerializerTests(TestCase):
     )
     def test_feed_entry_includes_altmetric_data(self, mock_get_primary_hub):
         """Test that paper feed entries include altmetric metrics from external_metadata"""
-        from datetime import datetime
-
-        import pytz
-
-        from feed.serializers import serialize_feed_metrics
-
         # Create a user and paper
         user = create_random_default_user("altmetric_test_user")
         paper = create_paper(uploaded_by=user, title="Test Paper with Altmetrics")
@@ -1897,7 +1894,7 @@ class FundingFeedEntrySerializerTests(TestCase):
             content_type=ContentType.objects.get_for_model(ResearchhubPost),
             object_id=post.id,
             user=self.user,
-            action="CREATE",
+            action="PUBLISH",
             action_date=post.created_date,
             unified_document=unified_doc,
         )
