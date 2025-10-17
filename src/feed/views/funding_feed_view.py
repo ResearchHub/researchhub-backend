@@ -67,7 +67,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
 
     def get_cache_key(self, request, feed_type=""):
         base_key = super().get_cache_key(request, feed_type)
-        return base_key + "-v7"
+        return base_key + "-v8"
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -201,14 +201,9 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         if fundraise_status:
             status_upper = fundraise_status.upper()
             if status_upper == "OPEN":
-                # OPEN: sort by end_date ascending (closest deadlines first)
-                return queryset.order_by("fundraise_end_date", "id")
+                return queryset.order_by("status_priority", "fundraise_end_date", "id")
             elif status_upper == "CLOSED":
-                # CLOSED: sort by end_date descending (most recent first)
                 return queryset.order_by("-fundraise_end_date", "id")
-        
-        # ALL tab: OPEN first (by end_date asc), then CLOSED (by end_date desc)
-        # Use separate annotations for OPEN and CLOSED sort dates
         queryset = queryset.annotate(
             open_sort_date=Case(
                 When(unified_document__fundraises__status=Fundraise.OPEN, 
