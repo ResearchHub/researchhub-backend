@@ -11,7 +11,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from discussion.models import Vote
-from feed.models import FeedEntry, FeedEntryLatest, FeedEntryPopular
+from feed.models import FeedEntry
 from hub.models import Hub
 from paper.models import Paper
 from researchhub_comment.constants import rh_comment_thread_types
@@ -113,8 +113,6 @@ class FeedViewSetTests(TestCase):
         )
         self.post_feed_entry.hubs.add(self.other_hub)
 
-        FeedEntryLatest.refresh()
-        FeedEntryPopular.refresh()
         cache.clear()
 
     def test_default_feed_view(self):
@@ -172,7 +170,6 @@ class FeedViewSetTests(TestCase):
                 object_id=paper.id,
                 unified_document=paper.unified_document,
             )
-        FeedEntryLatest.refresh()
 
         url = reverse("feed-list")
         response = self.client.get(url)
@@ -201,7 +198,6 @@ class FeedViewSetTests(TestCase):
             unified_document=paper2.unified_document,
         )
 
-        FeedEntryPopular.refresh()
         url = reverse("feed-list")
 
         # Act
@@ -316,7 +312,6 @@ class FeedViewSetTests(TestCase):
             unified_document=low_score_doc,
             hot_score=low_score_doc.hot_score,
         )
-        FeedEntryPopular.refresh()
 
         url = reverse("feed-list")
         response = self.client.get(url, {"feed_view": "popular"})
@@ -355,8 +350,6 @@ class FeedViewSetTests(TestCase):
             unified_document=high_score_doc,
         )
         feed_entry.hubs.add(another_hub)
-
-        FeedEntryPopular.refresh()
 
         url = reverse("feed-list")
         response = self.client.get(
@@ -522,7 +515,6 @@ class FeedViewSetTests(TestCase):
         )
 
         # First request - no cache
-        FeedEntryLatest.refresh()
         mock_cache.get.return_value = None
         url = reverse("feed-list")
         response1 = self.client.get(url)
@@ -583,8 +575,8 @@ class FeedViewSetTests(TestCase):
         self.assertFalse(mock_cache.set.called)
 
     def test_distinct_entries_in_latest_feed(self):
-        """Test that latest feed view returns only the most recent entry for each
-        content type and object ID."""
+        """Test that latest feed view returns entries ordered by action_date.
+        Multiple entries for the same item can appear if they have different actions."""
         # Create multiple feed entries for the same paper
         newer_entry = FeedEntry.objects.create(
             user=self.user,
@@ -598,7 +590,7 @@ class FeedViewSetTests(TestCase):
         # Create another entry for the same paper but with an older date and
         # different action
         # Using OPEN action to avoid unique constraint violation
-        FeedEntry.objects.create(
+        older_entry = FeedEntry.objects.create(
             user=self.user,
             action="OPEN",
             action_date=timezone.now() - timezone.timedelta(days=5),
@@ -606,8 +598,6 @@ class FeedViewSetTests(TestCase):
             object_id=self.paper.id,
             unified_document=self.unified_document,
         )
-
-        FeedEntryLatest.refresh()
 
         url = reverse("feed-list")
         response = self.client.get(url, {"feed_view": "latest"})
@@ -622,18 +612,19 @@ class FeedViewSetTests(TestCase):
         paper_pair = (self.paper_content_type.model.upper(), self.paper.id)
         paper_occurrences = result_pairs.count(paper_pair)
 
-        # There should be only one occurrence of the paper (the newest entry)
-        error_msg = f"Expected 1 occurrence of paper, got {paper_occurrences}"
-        self.assertEqual(paper_occurrences, 1, error_msg)
+        # There should be 3 occurrences of the paper (one from setUp, plus two we just created)
+        error_msg = f"Expected 3 occurrences of paper, got {paper_occurrences}"
+        self.assertEqual(paper_occurrences, 3, error_msg)
 
-        # Find the paper result and verify it's the newer entry
-        paper_result = next(
+        # Verify entries are ordered by action_date descending
+        paper_results = [
             r for r in results if r["content_object"]["id"] == self.paper.id
-        )
+        ]
+        # The first one should be the newest entry (COMMENT action)
         self.assertEqual(
-            paper_result["action"],
+            paper_results[0]["action"],
             newer_entry.action,
-            "The entry in the results should be the newest one",
+            "The first entry should be the newest one",
         )
 
     def test_distinct_entries_in_popular_feed(self):
@@ -662,8 +653,6 @@ class FeedViewSetTests(TestCase):
             object_id=self.paper.id,
             unified_document=self.unified_document,
         )
-
-        FeedEntryPopular.refresh()
 
         url = reverse("feed-list")
         response = self.client.get(url, {"feed_view": "popular"})
@@ -796,8 +785,6 @@ class FeedViewSetTests(TestCase):
         self.feed_entry.save()
 
         # Refresh materialized views
-        FeedEntryLatest.refresh()
-        FeedEntryPopular.refresh()
         cache.clear()
 
         url = reverse("feed-list")
@@ -870,7 +857,6 @@ class FeedViewSetTests(TestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        # Should use FeedEntryLatest by default
         # Verify by checking that entries are sorted by action_date
         results = response.data["results"]
         if len(results) > 1:

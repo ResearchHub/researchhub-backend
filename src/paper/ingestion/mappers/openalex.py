@@ -94,25 +94,8 @@ class OpenAlexMapper(BaseMapper):
         is_oa = oa_info.get("is_oa", False)
         oa_status = oa_info.get("oa_status")
 
-        # Location information for URLs
-        primary_location = record.get("primary_location", {})
-        best_oa_location = record.get("best_oa_location", {})
-
-        # PDF URL
-        pdf_url = (
-            best_oa_location.get("pdf_url")
-            or primary_location.get("pdf_url")
-            or oa_info.get("oa_url")
-        )
-
-        # Landing page URL
-        landing_page_url = best_oa_location.get(
-            "landing_page_url"
-        ) or primary_location.get("landing_page_url")
-
-        # Publication source and journal name
-        source_info = primary_location.get("source", {})
-        journal_name = source_info.get("display_name")
+        # Extract license information (includes pdf_url)
+        license_info = self._extract_license_info(record)
 
         # Create Paper instance
         paper = Paper(
@@ -132,6 +115,8 @@ class OpenAlexMapper(BaseMapper):
             # License and access
             is_open_access=is_oa,
             oa_status=oa_status if is_oa else None,
+            pdf_license=license_info.get("license"),
+            pdf_license_url=license_info.get("license_url"),
             # Language
             language=record.get("language"),
             # External metadata
@@ -139,14 +124,14 @@ class OpenAlexMapper(BaseMapper):
                 "cited_by_count": record.get("cited_by_count"),
             },
             # URLs
-            url=landing_page_url,
-            pdf_url=pdf_url,
+            url=license_info.get("landing_page_url"),
+            pdf_url=license_info.get("pdf_url"),
             retrieved_from_external_source=True,
         )
 
         # Add journal name if available
-        if journal_name:
-            paper.external_metadata["journal_name"] = journal_name
+        if license_info.get("journal_name"):
+            paper.external_metadata["journal_name"] = license_info["journal_name"]
 
         return paper
 
@@ -394,7 +379,7 @@ class OpenAlexMapper(BaseMapper):
             Only creates institutions with ROR IDs to enable deduplication.
         """
         institutions = []
-        seen_ror_ids = set()
+        seen_oa_ids = set()
         authorships_list = record.get("authorships", [])
 
         for authorship_data in authorships_list:
@@ -412,17 +397,21 @@ class OpenAlexMapper(BaseMapper):
                 else:
                     ror_id = ror_url
 
+                openalex_id = self._extract_openalex_id(institution_info.get("id", ""))
+
                 # Skip if already processed
-                if ror_id in seen_ror_ids:
+                if openalex_id in seen_oa_ids:
                     continue
 
-                seen_ror_ids.add(ror_id)
+                seen_oa_ids.add(openalex_id)
 
                 # Create Institution instance
                 institution = Institution(
                     display_name=institution_info.get("display_name", ""),
                     ror_id=ror_id,
                     country_code=institution_info.get("country_code"),
+                    openalex_id=openalex_id if openalex_id else "",
+                    type=institution_info.get("type", ""),
                 )
 
                 institutions.append(institution)
@@ -447,17 +436,16 @@ class OpenAlexMapper(BaseMapper):
 
         for authorship_data in authorships_list:
             author_info = authorship_data.get("author", {})
-            orcid = author_info.get("orcid")
 
-            # Only create authorships for authors with ORCID IDs
-            if not orcid:
+            # Extract OpenAlex author ID
+            openalex_author_id = self._extract_openalex_id(author_info.get("id", ""))
+
+            # Only create authorships for authors with OpenAlex IDs
+            if not openalex_author_id:
+                logger.warning(
+                    f"Skipping authorship without OpenAlex ID: {author_info}"
+                )
                 continue
-
-            # Extract ORCID ID
-            if f"{ORCID_ORG_DOMAIN}/" in orcid:
-                orcid_id = orcid.split(f"{ORCID_ORG_DOMAIN}/")[-1]
-            else:
-                orcid_id = orcid
 
             raw_author_name = authorship_data.get(
                 "raw_author_name", author_info.get("display_name", "")
@@ -471,22 +459,18 @@ class OpenAlexMapper(BaseMapper):
                 is_corresponding=authorship_data.get("is_corresponding", False),
             )
 
-            # Store author ORCID for later linking
-            authorship._orcid_id = orcid_id
+            # Store author OpenAlex ID for later linking
+            authorship._author_openalex_id = openalex_author_id
 
-            # Store institution ROR IDs for later linking
-            institution_ror_ids = []
+            # Store institution OpenAlex IDs for later linking
+            institution_openalex_ids = []
             for institution_info in authorship_data.get("institutions", []):
-                ror_url = institution_info.get("ror")
-                if ror_url:
-                    if f"{ROR_ORG_DOMAIN}/" in ror_url:
-                        ror_id = ror_url.split(f"{ROR_ORG_DOMAIN}/")[-1]
-                    else:
-                        ror_id = ror_url
-                    institution_ror_ids.append(ror_id)
+                openalex_id = self._extract_openalex_id(institution_info.get("id", ""))
+                if openalex_id:
+                    institution_openalex_ids.append(openalex_id)
 
-            if institution_ror_ids:
-                authorship._institution_ror_ids = institution_ror_ids
+            if institution_openalex_ids:
+                authorship._institution_openalex_ids = institution_openalex_ids
 
             authorships.append(authorship)
 
@@ -525,3 +509,28 @@ class OpenAlexMapper(BaseMapper):
                             hubs.append(hub)
 
         return hubs
+
+    def _extract_license_info(self, record: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Extract license information from OpenAlex record.
+
+        Args:
+            record: OpenAlex work record
+
+        Returns:
+            Dictionary with 'license', 'license_url', and 'pdf_url' keys
+        """
+        license_info = {"license": None, "license_url": None, "pdf_url": None}
+
+        # Use primary_location for preprints
+        primary_location = record.get("primary_location", {})
+        if primary_location:
+            license_info["license"] = primary_location.get("license")
+            license_info["license_url"] = primary_location.get("license_id")
+            license_info["pdf_url"] = primary_location.get("pdf_url")
+            license_info["landing_page_url"] = primary_location.get("landing_page_url")
+            license_info["journal_name"] = primary_location.get("source", {}).get(
+                "display_name"
+            )
+
+        return license_info

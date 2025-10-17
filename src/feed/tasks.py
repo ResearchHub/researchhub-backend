@@ -6,7 +6,7 @@ from django.contrib.contenttypes.models import ContentType
 
 import utils.locking as lock
 from feed.hot_score import calculate_hot_score_for_item
-from feed.models import FeedEntry, FeedEntryLatest, FeedEntryPopular
+from feed.models import FeedEntry
 from feed.serializers import serialize_feed_item, serialize_feed_metrics
 from feed.views.feed_view import FeedViewSet
 from researchhub.celery import app
@@ -159,36 +159,6 @@ def delete_feed_entry(
 
 
 @app.task
-def refresh_feed():
-    """
-    Task that refreshes the materialized feed entries that are managed in a materialized
-    view in the database.
-    """
-    key = lock.name("refresh_feed")
-    if not lock.acquire(key):
-        logger.warning(f"Already locked {key}, skipping task")
-        return False
-
-    try:
-        _refresh_feed()
-    finally:
-        lock.release(key)
-        logger.info(f"Released lock {key}")
-
-
-def _refresh_feed():
-    """
-    Refreshes the materialized feed entries that are managed in a materialized
-    view in the database.
-    """
-    start_time = time.time()
-    FeedEntryLatest.refresh()
-    FeedEntryPopular.refresh()
-    duration = time.time() - start_time
-    logger.info(f"Refreshed materialized feed entries in {duration:.2f}s")
-
-
-@app.task
 def refresh_feed_hot_scores():
     key = lock.name("refresh_feed_hot_scores")
     if not lock.acquire(key):
@@ -206,7 +176,7 @@ def _refresh_feed_hot_scores():
     start_time = time.time()
     count = 0
     batch_size = 1000
-    total_entries = FeedEntryPopular.objects.count()
+    total_entries = FeedEntry.objects.count()
 
     # Process in batches
     for offset in range(0, total_entries, batch_size):
@@ -214,7 +184,7 @@ def _refresh_feed_hot_scores():
 
         # Process a batch of entries, skipping entries with hot_score <= 10
         batch = list(
-            FeedEntryPopular.objects.filter(hot_score__gt=10).prefetch_related("item")[
+            FeedEntry.objects.filter(hot_score__gt=10).prefetch_related("item")[
                 offset : (offset + batch_size)
             ]
         )
@@ -244,35 +214,3 @@ def _refresh_feed_hot_scores():
     duration = time.time() - start_time
     logger.info(f"Refreshed feed hot scores in {duration:.2f}s")
     sentry.log_info(f"Refreshed feed hot scores in {duration:.2f}s")
-
-
-@app.task
-def refresh_popular_feed_entries():
-    import time
-
-    from rest_framework.request import Request
-    from rest_framework.test import APIRequestFactory
-
-    start = time.time()
-    logger.info("Refreshing popular feed entries...")
-
-    factory = APIRequestFactory()
-    django_request = factory.get(
-        "/api/feed/",
-        {
-            "feed_view": "popular",
-        },
-        HTTP_HOST="localhost",
-    )
-
-    drf_request = Request(django_request)
-
-    viewset = FeedViewSet()
-    viewset.setup(drf_request, None)
-    viewset.format_kwarg = None
-
-    # Call the list() method
-    viewset.list(drf_request)
-
-    duration = time.time() - start
-    logger.info(f"Popular feed entries refreshed ({duration:.2f}s)")

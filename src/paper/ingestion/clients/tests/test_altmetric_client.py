@@ -99,3 +99,135 @@ class TestAltmetricClient(TestCase):
 
         result = self.client.fetch_by_doi("10.1038/nature12373")
         self.assertIsNone(result)
+
+    @patch("paper.ingestion.clients.altmetric.retryable_requests_session")
+    def test_fetch_by_arxiv_id_success(self, mock_session):
+        """
+        Test successful arXiv ID fetch.
+        """
+        # Arrange
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "score": 42.5,
+            "arxiv_id": "2301.12345",
+            "altmetric_id": 9876543,
+            "title": "Test Paper Title",
+        }
+
+        mock_session_instance = Mock()
+        mock_session_instance.get.return_value = mock_response
+        mock_session.return_value.__enter__.return_value = mock_session_instance
+
+        # Act
+        result = self.client.fetch_by_arxiv_id("2301.12345")
+
+        # Assert
+        self.assertIsNotNone(result)
+        self.assertAlmostEqual(result["score"], 42.5)
+        self.assertEqual(result["arxiv_id"], "2301.12345")
+
+        # Verify the correct URL was called
+        mock_session_instance.get.assert_called_once_with(
+            "https://api.altmetric.com/v1/arxiv/2301.12345",
+            headers=self.client.headers,
+            timeout=self.client.timeout,
+        )
+
+    @patch("paper.ingestion.clients.altmetric.retryable_requests_session")
+    def test_fetch_by_arxiv_id_not_found(self, mock_session):
+        """
+        Test arXiv ID fetch when paper is not found in Altmetric.
+        """
+        # Arrange
+        mock_response = Mock()
+        mock_response.status_code = 404
+
+        mock_session_instance = Mock()
+        mock_session_instance.get.return_value = mock_response
+        mock_session.return_value.__enter__.return_value = mock_session_instance
+
+        # Act
+        result = self.client.fetch_by_arxiv_id("9999.99999")
+
+        # Assert
+        self.assertIsNone(result)
+
+    @patch("paper.ingestion.clients.altmetric.retryable_requests_session")
+    def test_fetch_by_arxiv_id_rate_limited(self, mock_session):
+        """
+        Test arXiv ID fetch when rate limited.
+        """
+        # Arrange
+        mock_response = Mock()
+        mock_response.status_code = 429
+        mock_response.raise_for_status.side_effect = Exception("Rate limited")
+
+        mock_session_instance = Mock()
+        mock_session_instance.get.return_value = mock_response
+        mock_session.return_value.__enter__.return_value = mock_session_instance
+
+        # Act
+        result = self.client.fetch_by_arxiv_id("2301.12345")
+
+        # Assert
+        self.assertIsNone(result)
+        mock_response.raise_for_status.assert_called_once()
+
+    def test_fetch_empty_arxiv_id(self):
+        """
+        Test fetch with empty arXiv ID.
+        """
+        result = self.client.fetch_by_arxiv_id("")
+        self.assertIsNone(result)
+
+        result = self.client.fetch_by_arxiv_id(None)
+        self.assertIsNone(result)
+
+    @patch("paper.ingestion.clients.altmetric.retryable_requests_session")
+    def test_fetch_by_arxiv_id_network_error(self, mock_session):
+        """
+        Test arXiv ID fetch with network error.
+        """
+        # Arrange
+        mock_session_instance = Mock()
+        mock_session_instance.get.side_effect = Exception("Network error")
+        mock_session.return_value.__enter__.return_value = mock_session_instance
+
+        # Act
+        result = self.client.fetch_by_arxiv_id("2301.12345")
+
+        # Assert
+        self.assertIsNone(result)
+
+    @patch("paper.ingestion.clients.altmetric.retryable_requests_session")
+    def test_fetch_by_arxiv_id_with_version(self, mock_session):
+        """
+        Test arXiv ID fetch with version number (e.g., 2301.12345v1).
+        """
+        # Arrange
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "score": 25.0,
+            "arxiv_id": "2301.12345v1",
+            "altmetric_id": 1111111,
+        }
+
+        mock_session_instance = Mock()
+        mock_session_instance.get.return_value = mock_response
+        mock_session.return_value.__enter__.return_value = mock_session_instance
+
+        # Act
+        result = self.client.fetch_by_arxiv_id("2301.12345v1")
+
+        # Assert
+        self.assertIsNotNone(result)
+        self.assertEqual(result["arxiv_id"], "2301.12345v1")
+
+        # Verify the URL does not include the version suffix
+        mock_session_instance.get.assert_called_once_with(
+            "https://api.altmetric.com/v1/arxiv/2301.12345",
+            headers=self.client.headers,
+            timeout=self.client.timeout,
+        )

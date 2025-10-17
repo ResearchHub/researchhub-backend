@@ -3,15 +3,12 @@ from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 from allauth.socialaccount.providers.google.provider import GoogleProvider
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 
-from utils.siftscience import events_api, update_user_risk_score
 
 
 class SocialAccountAdapter(DefaultSocialAccountAdapter):
     def save_user(self, request, sociallogin, form=None):  # Saves new user
         saved_user = super().save_user(request, sociallogin, form)
 
-        tracked_account = events_api.track_account(saved_user, request)
-        update_user_risk_score(saved_user, tracked_account)
         return saved_user
 
 

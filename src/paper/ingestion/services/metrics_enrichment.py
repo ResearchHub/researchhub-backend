@@ -90,12 +90,17 @@ class PaperMetricsEnrichmentService:
 
         try:
             # Fetch Altmetric data
-            altmetric_data = self.altmetric_client.fetch_by_doi(paper.doi)
+            if paper.external_source == "arxiv":
+                arxiv_id = (paper.external_metadata or {}).get("external_id")
+                if not arxiv_id:
+                    logger.warning(f"arXiv paper {paper.id} without arXiv ID, skipping")
+                    return EnrichmentResult(status="skipped", reason="no_arxiv_id")
+                altmetric_data = self.altmetric_client.fetch_by_arxiv_id(arxiv_id)
+            else:
+                altmetric_data = self.altmetric_client.fetch_by_doi(paper.doi)
 
             if not altmetric_data:
-                logger.info(
-                    f"No Altmetric data found for paper {paper.id} (DOI: {paper.doi})"
-                )
+                logger.info(f"No Altmetric data found for paper {paper.id}")
                 return EnrichmentResult(status="not_found", reason="no_altmetric_data")
 
             mapped_metrics = self.altmetric_mapper.map_metrics(altmetric_data)
