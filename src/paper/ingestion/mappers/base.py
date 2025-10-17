@@ -6,6 +6,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List
 
+from hub.mappers.external_category_mapper import ExternalCategoryMapper
 from hub.models import Hub
 from institution.models import Institution
 from paper.models import Paper
@@ -17,6 +18,14 @@ logger = logging.getLogger(__name__)
 
 class BaseMapper(ABC):
     """Abstract base class for mapping source data to domain models."""
+
+    def __init__(self, hub_mapper: ExternalCategoryMapper):
+        """
+        Constructor.
+        Args:
+            hub_mapper: Hub mapper instance.
+        """
+        self._hub_mapper = hub_mapper
 
     @abstractmethod
     def validate(self, record: Dict[str, Any]) -> bool:

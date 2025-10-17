@@ -14,8 +14,11 @@ from django.utils import timezone
 from paper.ingestion.clients.arxiv import ArXivClient, ArXivConfig
 from paper.ingestion.clients.biorxiv import BioRxivClient, BioRxivConfig
 from paper.ingestion.clients.chemrxiv import ChemRxivClient, ChemRxivConfig
+from paper.ingestion.clients.medrxiv import MedRxivClient, MedRxivConfig
+from paper.ingestion.constants import IngestionSource
 from paper.ingestion.exceptions import FetchError, RetryExhaustedError
-from paper.ingestion.service import IngestionSource, PaperIngestionService
+from paper.ingestion.mappers.factory import MapperFactory
+from paper.ingestion.services import PaperIngestionService
 from paper.models import PaperFetchLog
 from researchhub.celery import QUEUE_PULL_PAPERS, app
 from utils.sentry import log_error
@@ -62,6 +65,7 @@ class PaperIngestionPipeline:
         sources: Optional[List[str]] = None,
         since: Optional[datetime] = None,
         until: Optional[datetime] = None,
+        create_fetch_log: bool = True,
     ) -> Dict[str, IngestionStatus]:
         """
         Run the ingestion pipeline for specified sources.
@@ -70,6 +74,7 @@ class PaperIngestionPipeline:
             sources: List of source names to fetch from. Uses all enabled sources if none provided.
             since: Start date for fetching papers. Uses last successful fetch time if none provided.
             until: End date for fetching papers. Uses current time if none provided.
+            create_fetch_log: Whether to create PaperFetchLog entries. Defaults to True.
 
         Returns:
             Dictionary mapping source names to their ingestion status.
@@ -105,7 +110,8 @@ class PaperIngestionPipeline:
                 self._process_papers_in_batches(source, papers_data)
 
                 status.end_time = timezone.now()
-                self._log_fetch(source, status, success=True)
+                if create_fetch_log:
+                    self._log_fetch(source, status, success=True)
             except Exception as e:
                 status.end_time = timezone.now()
                 status.errors.append(
@@ -117,7 +123,8 @@ class PaperIngestionPipeline:
                 logger.error(f"Pipeline error for [{source}]: {e}")
                 log_error(e, message=f"Pipeline error for [{source}]")
                 # Log failure
-                self._log_fetch(source, status, success=False)
+                if create_fetch_log:
+                    self._log_fetch(source, status, success=False)
 
             results[source] = status
 
@@ -227,7 +234,7 @@ def fetch_all_papers() -> Dict[str, Any]:
         logger.info("Paper ingestion is disabled in settings. Skipping.")
         return {}
 
-    sources = ["arxiv", "biorxiv", "chemrxiv"]
+    sources = ["arxiv", "biorxiv", "chemrxiv", "medrxiv"]
 
     # Create a group of parallel tasks
     job = group(fetch_papers_from_source.s(source) for source in sources)
@@ -253,6 +260,7 @@ def fetch_papers_from_source(
     source: str,
     since: Optional[str] = None,
     until: Optional[str] = None,
+    create_fetch_log: bool = True,
 ) -> Dict[str, Any]:
     """
     Task for fetching papers from a specific source.
@@ -290,6 +298,15 @@ def fetch_papers_from_source(
                     max_retries=3,
                 )
             )
+        elif source == "medrxiv":
+            clients["medrxiv"] = MedRxivClient(
+                MedRxivConfig(
+                    rate_limit=1.0,
+                    page_size=100,
+                    request_timeout=60.0,
+                    max_retries=3,
+                )
+            )
         else:
             raise ValueError(f"Unknown source: {source}")
 
@@ -302,6 +319,7 @@ def fetch_papers_from_source(
             sources=[source],
             since=since_date,
             until=until_date,
+            create_fetch_log=create_fetch_log,
         )
 
         return results[source].to_dict()
@@ -325,7 +343,8 @@ def process_batch_task(
     """
     Process a batch of papers and save them to the database.
     """
-    service = PaperIngestionService()
+    mappers = MapperFactory().create_mappers()
+    service = PaperIngestionService(mappers)
     successes, failures = service.ingest_papers(batch, IngestionSource(source))
 
     return {

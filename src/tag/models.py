@@ -52,15 +52,6 @@ class Concept(DefaultModel):
     def __str__(self):
         return self.display_name
 
-    def save(self, *args, **kwargs):
-        is_new_concept = not self.pk or not hasattr(self, "hub")
-        super().save(*args, **kwargs)
-
-        # Do not update hub props when concept is updated to avoid
-        # overriding changes made by our system (e.g. hub name, description, etc.)
-        if is_new_concept:
-            Hub.create_or_update_hub_from_concept(concept=self)
-
     @classmethod
     def create_or_update(cls, paper_concept):
         stored_concept, created = cls.objects.get_or_create(

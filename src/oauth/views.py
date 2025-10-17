@@ -36,7 +36,6 @@ from researchhub.settings import (
 )
 from utils import sentry
 from utils.http import RequestMethods
-from utils.siftscience import events_api
 from utils.throttles import captcha_unlock
 
 
@@ -135,7 +134,6 @@ google_yolo_callback = CallbackView.adapter_view(GoogleOAuth2AdapterIdToken)
 class EmailLoginView(LoginView):
     def post(self, request, *args, **kwargs):
         res = super().post(request, *args, **kwargs)
-        events_api.track_login(self.user, "$success", request)
         return res
 
 

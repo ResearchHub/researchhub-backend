@@ -13,9 +13,7 @@ from paper.ingestion.pipeline import (  # noqa: F401
     fetch_papers_from_source,
     process_batch_task,
 )
-
-# Import paper ingestion tasks for auto-discovery by Celery:
-from paper.ingestion.tasks import pull_biorxiv_papers  # noqa: F401
+from paper.ingestion.tasks import update_recent_papers_with_metrics  # noqa: F401
 from paper.utils import (
     get_cache_key,
     get_csl_item,
@@ -71,7 +69,6 @@ def download_pdf(paper_id, retry=0):
             paper.file.save(filename, pdf)
             paper.save(update_fields=["file"])
             paper.extract_pdf_preview(use_celery=True)
-            paper.set_paper_completeness()
             paper.compress_and_linearize_file()
             return True
         except Exception as e:

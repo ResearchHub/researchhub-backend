@@ -122,6 +122,64 @@ class TestPaperIngestionPipeline(TestCase):
         mock_process_batch.delay.assert_called_once()
 
     @patch("paper.ingestion.pipeline.process_batch_task")
+    def test_run_ingestion_with_create_fetch_log_true(self, mock_process_batch):
+        """
+        Test ingestion with create_fetch_log=True creates log entry.
+        """
+        # Arrange
+        mock_papers = [
+            {"id": "arxiv:2301.00001", "title": "Paper 1"},
+            {"id": "arxiv:2301.00002", "title": "Paper 2"},
+        ]
+        self.mock_arxiv_client.fetch_recent.return_value = mock_papers
+
+        # Act
+        results = self.pipeline.run_ingestion(
+            sources=["arxiv"],
+            create_fetch_log=True,
+        )
+
+        # Assert
+        self.assertIn("arxiv", results)
+        status = results["arxiv"]
+        self.assertEqual(status.total_fetched, 2)
+
+        # Verify that a fetch log was created
+        log = PaperFetchLog.objects.filter(source="ARXIV").order_by("-id").first()
+        self.assertIsNotNone(log)
+        self.assertEqual(log.status, PaperFetchLog.SUCCESS)
+        self.assertEqual(log.total_papers_processed, 2)
+
+    @patch("paper.ingestion.pipeline.process_batch_task")
+    def test_run_ingestion_with_create_fetch_log_false(self, mock_process_batch):
+        """
+        Test ingestion with create_fetch_log=False does not create log entry.
+        """
+        # Arrange
+        mock_papers = [
+            {"id": "arxiv:2301.00001", "title": "Paper 1"},
+        ]
+        self.mock_arxiv_client.fetch_recent.return_value = mock_papers
+
+        # Get initial count
+        initial_count = PaperFetchLog.objects.filter(source="ARXIV").count()
+
+        # Act
+        results = self.pipeline.run_ingestion(
+            sources=["arxiv"],
+            create_fetch_log=False,
+        )
+
+        # Assert
+        self.assertIn("arxiv", results)
+        status = results["arxiv"]
+        self.assertEqual(status.total_fetched, 1)
+
+        # Verify that no fetch log was created
+        final_count = PaperFetchLog.objects.filter(source="ARXIV").count()
+        self.assertEqual(initial_count, final_count)
+
+    @patch("paper.ingestion.pipeline.process_batch_task")
     def test_run_ingestion_multiple_sources(self, mock_process_batch):
         """
         Test ingestion for multiple sources.
@@ -409,7 +467,7 @@ class TestPaperIngestionTasks(TestCase):
 
         # Assert
         self.assertEqual(result["status"], "initiated")
-        self.assertEqual(result["sources"], ["arxiv", "biorxiv", "chemrxiv"])
+        self.assertEqual(result["sources"], ["arxiv", "biorxiv", "chemrxiv", "medrxiv"])
         self.assertEqual(result["job_id"], "test-job-id")
 
     def test_process_batch_task(self):

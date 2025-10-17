@@ -8,6 +8,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from hub.mappers.external_category_mapper import ExternalCategoryMapper
 from hub.models import Hub
 from institution.models import Institution
 from paper.models import Paper
@@ -22,18 +23,27 @@ logger = logging.getLogger(__name__)
 class ChemRxivMapper(BaseMapper):
     """Maps ChemRxiv paper records to ResearchHub Paper model format."""
 
-    _chemrxiv_hub = None
+    _preprint_hub = None
+
+    def __init__(self, hub_mapper: ExternalCategoryMapper):
+        """
+        Constructor.
+
+        Args:
+            hub_mapper: Hub mapper instance.
+        """
+        super().__init__(hub_mapper)
 
     @property
-    def chemrxiv_hub(self):
+    def preprint_hub(self):
         """
         Lazy load the ChemRxiv hub.
         """
-        if self._chemrxiv_hub is None:
-            self._chemrxiv_hub = Hub.objects.filter(
+        if self._preprint_hub is None:
+            self._preprint_hub = Hub.objects.filter(
                 slug="chemrxiv", namespace=Hub.Namespace.JOURNAL
             ).first()
-        return self._chemrxiv_hub
+        return self._preprint_hub
 
     def validate(self, record: Dict[str, Any]) -> bool:
         """
@@ -88,6 +98,10 @@ class ChemRxivMapper(BaseMapper):
         # Determine the best date to use
         paper_date = self._get_best_date(record)
 
+        # Extract and parse license
+        license_str = self._extract_license(record.get("license"))
+        pdf_license = self._parse_license(license_str)
+
         # Create Paper instance
         paper = Paper(
             # Core identifiers
@@ -102,11 +116,11 @@ class ChemRxivMapper(BaseMapper):
             # Authors (JSON field)
             raw_authors=raw_authors,
             # License and access
-            pdf_license=self._extract_license(record.get("license")),
+            pdf_license=pdf_license,
             is_open_access=True,  # ChemRxiv is open access
             oa_status="gold",  # Gold open access for preprints
             external_metadata={
-                "chemrxiv_id": chemrxiv_id,
+                "external_id": chemrxiv_id,
             },
             retrieved_from_external_source=True,
         )
@@ -369,6 +383,25 @@ class ChemRxivMapper(BaseMapper):
 
         return authorships
 
+    def _parse_license(self, license_str: Optional[str]) -> Optional[str]:
+        """
+        Parse license string to standard format.
+
+        Note: Licenses used by ChemRxiv can be queried via their API:
+        https://chemrxiv.org/engage/chemrxiv/public-api/v1/licenses
+
+        Args:
+            license_str: License string from ChemRxiv
+
+        Returns:
+            Standardized license string or None
+        """
+        if not license_str:
+            return None
+
+        # Currently just return lowercased, hyphenated version
+        return license_str.lower().replace(" ", "-").strip()
+
     def _extract_license(self, license_obj: Optional[Dict[str, Any]]) -> Optional[str]:
         """
         Extract license name.
@@ -400,7 +433,20 @@ class ChemRxivMapper(BaseMapper):
     def map_to_hubs(self, paper: Paper, record: Dict[str, Any]) -> List[Hub]:
         """
         Map ChemRxiv record to Hub (tag) model instances.
-
-        Initially, this only returns the preprint server hub.
         """
-        return [self.chemrxiv_hub] if self.chemrxiv_hub else []
+        hubs = []
+
+        categories = record.get("categories", None)
+
+        if self._hub_mapper and categories:
+            for category in categories:
+                for hub in self._hub_mapper.map(
+                    source_category=category, source="chemrxiv"
+                ):
+                    if hub and hub not in hubs:
+                        hubs.append(hub)
+
+        if self.preprint_hub and self.preprint_hub not in hubs:
+            hubs.append(self.preprint_hub)
+
+        return hubs

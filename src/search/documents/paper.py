@@ -25,7 +25,7 @@ class PaperDocument(BaseDocument):
 
     citations = es_fields.IntegerField()
     paper_title = es_fields.TextField(analyzer=title_analyzer)
-    paper_publish_date = es_fields.DateField(format="yyyy-MM-dd")
+    paper_publish_date = es_fields.DateField()
     doi = es_fields.TextField(analyzer="keyword")
     openalex_id = es_fields.TextField()
     # TODO: Deprecate this field once we move over to new app. It should not longer be necessary since authors property will replace it.

@@ -52,6 +52,7 @@ class SimpleHubSerializer(ModelSerializer):
 
 class HubSerializer(ModelSerializer):
     editor_permission_groups = SerializerMethodField()
+    category = SerializerMethodField()
 
     class Meta:
         fields = [
@@ -70,8 +71,20 @@ class HubSerializer(ModelSerializer):
             "namespace",
             "is_used_for_rep",
         ]
-        read_only_fields = ["editor_permission_groups"]
+        read_only_fields = ["editor_permission_groups", "category"]
         model = Hub
+
+    def get_category(self, obj):
+        # Check if we have category mapping in context
+        hub_category_mapping = self.context.get("hub_category_mapping", {})
+        if hub_category_mapping and obj.slug in hub_category_mapping:
+            return hub_category_mapping[obj.slug]
+        # Otherwise return the DB category if it exists
+        return (
+            obj.category.category_name
+            if hasattr(obj, "category") and obj.category
+            else None
+        )
 
     def get_editor_permission_groups(self, hub_instance):
         context = self.context

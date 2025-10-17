@@ -46,16 +46,8 @@ HELP_TEXT_IS_PDF_REMOVED = "Hides the PDF because it infringes Copyright."
 class Paper(AbstractGenericReactionModel):
     REGULAR = "REGULAR"
     PRE_REGISTRATION = "PRE_REGISTRATION"
-    COMPLETE = "COMPLETE"
-    PARTIAL = "PARTIAL"
-    INCOMPLETE = "INCOMPLETE"
 
     PAPER_TYPE_CHOICES = [(REGULAR, REGULAR), (PRE_REGISTRATION, PRE_REGISTRATION)]
-    PAPER_COMPLETENESS = [
-        (COMPLETE, COMPLETE),
-        (PARTIAL, PARTIAL),
-        (INCOMPLETE, INCOMPLETE),
-    ]
 
     CREATED_LOCATION_PROGRESS = CREATED_LOCATIONS["PROGRESS"]
     CREATED_LOCATION_CHOICES = [(CREATED_LOCATION_PROGRESS, "Progress")]
@@ -111,13 +103,9 @@ class Paper(AbstractGenericReactionModel):
     paper_type = models.CharField(
         choices=PAPER_TYPE_CHOICES, max_length=32, default=REGULAR
     )
-    completeness = models.CharField(
-        choices=PAPER_COMPLETENESS, max_length=16, default=INCOMPLETE
-    )
 
     # User generated
     title = models.CharField(max_length=1024)  # User generated title
-    tagline = models.CharField(max_length=255, default=None, null=True, blank=True)
     uploaded_by = models.ForeignKey(
         "user.User",
         related_name="papers",
@@ -137,7 +125,7 @@ class Paper(AbstractGenericReactionModel):
     paper_title = models.CharField(  # Official paper title
         max_length=1024, default=None, null=True, blank=True
     )
-    paper_publish_date = models.DateField(null=True, blank=True)
+    paper_publish_date = models.DateTimeField(null=True, blank=True)
     raw_authors = JSONField(blank=True, null=True)
     abstract = models.TextField(default=None, null=True, blank=True)
     abstract_src = models.FileField(
@@ -488,18 +476,6 @@ class Paper(AbstractGenericReactionModel):
             self.pdf_license = license
             self.save()
         return license
-
-    def set_paper_completeness(self):
-        self.completeness = self.get_paper_completeness()
-        self.save()
-
-    def get_paper_completeness(self):
-        if self.abstract and self.title and (self.file or self.pdf_url):
-            return self.COMPLETE
-        elif self.abstract and self.title:
-            return self.PARTIAL
-        else:
-            return self.INCOMPLETE
 
     def get_abstract_backup(self, should_save=False):
         if not self.abstract:

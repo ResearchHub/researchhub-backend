@@ -154,12 +154,12 @@ class ArXivClient(BaseClient):
         if since is None:
             since = until - timedelta(days=7)
 
-        # Format dates for ArXiv query (YYYYMMDD format)
-        since_str = since.strftime("%Y%m%d")
-        until_str = until.strftime("%Y%m%d")
+        # Format dates for ArXiv query (YYYYMMDDHHMM format)
+        since_str = since.strftime("%Y%m%d%H%M")
+        until_str = until.strftime("%Y%m%d%H%M")
 
-        # Build search query with date range using submittedDate
-        search_query = f"submittedDate:[{since_str} TO {until_str}]"
+        # Build search query with date range using lastUpdatedDate
+        search_query = f"lastUpdatedDate:[{since_str} TO {until_str}]"
 
         all_papers = []
         start = 0
@@ -180,7 +180,7 @@ class ArXivClient(BaseClient):
                 "search_query": search_query,
                 "start": start,
                 "max_results": current_page_size,
-                "sortBy": "submittedDate",
+                "sortBy": "lastUpdatedDate",
                 "sortOrder": "descending",
             }
 
@@ -191,10 +191,30 @@ class ArXivClient(BaseClient):
 
             try:
                 response = self.fetch_with_retry("/query", params)
+
+                root = ET.fromstring(response)
+                total_results_elem = root.find(f"{self.OPENSEARCH_NS}totalResults")
+                total_results = (
+                    int(total_results_elem.text)
+                    if total_results_elem is not None
+                    else 0
+                )
+
                 papers = self.process_page(response)
 
                 if not papers:
-                    # No more results
+                    # Check if this is a spurious empty response
+                    if start < total_results:
+                        logger.warning(
+                            f"ArXiv returned empty feed despite "
+                            f"start={start} < totalResults={total_results}. "
+                            f"Skipping to next batch."
+                        )
+                        # Skip ahead to try next batch
+                        start += current_page_size
+                        continue
+
+                    # Truly no more results
                     break
 
                 all_papers.extend(papers)

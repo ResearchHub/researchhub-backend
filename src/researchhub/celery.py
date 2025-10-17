@@ -40,26 +40,9 @@ QUEUE_HUBS = "hubs"
 
 app.conf.beat_schedule = {
     # Feed
-    "feed-refresh": {
-        "task": "feed.tasks.refresh_feed",
-        "schedule": crontab(minute="*/15"),
-        "options": {
-            "expires": 14 * 60,
-            "priority": 1,
-            "queue": QUEUE_CACHES,
-        },
-    },
     "feed-refresh-hot-scores": {
         "task": "feed.tasks.refresh_feed_hot_scores",
         "schedule": crontab(hour="*/8", minute=20),
-        "options": {
-            "priority": 1,
-            "queue": QUEUE_CACHES,
-        },
-    },
-    "refresh_popular_feed_entries": {
-        "task": "feed.tasks.refresh_popular_feed_entries",
-        "schedule": crontab(minute="*/1"),
         "options": {
             "priority": 1,
             "queue": QUEUE_CACHES,
@@ -186,13 +169,13 @@ app.conf.beat_schedule = {
             "queue": QUEUE_PULL_PAPERS,
         },
     },
-    # Testing tasks for paper ingestion
-    "test_biorxiv-paper-pull": {
-        "task": "paper.ingestion.tasks.pull_biorxiv_papers",
-        "schedule": crontab(hour="*/2", minute=0),
+    "paper-metrics-update": {
+        "task": "paper.ingestion.tasks.update_recent_papers_with_metrics",
+        "kwargs": {"days": 30},
+        "schedule": crontab(hour=3, minute=0),
         "options": {
-            "priority": 3,
-            "queue": QUEUE_PULL_PAPERS,
+            "priority": 2,
+            "queue": QUEUE_PAPER_MISC,
         },
     },
 }

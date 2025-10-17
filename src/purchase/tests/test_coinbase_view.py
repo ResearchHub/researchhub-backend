@@ -4,8 +4,9 @@ from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from purchase.services.coinbase_service import CoinbaseService
 from user.tests.helpers import create_user
+
+TEST_IP = "8.8.8.8"
 
 
 class TestCoinbaseViewSet(TestCase):
@@ -42,6 +43,8 @@ class TestCoinbaseViewSet(TestCase):
             self.url,
             data=request_data,
             format="json",
+            HTTP_ORIGIN="https://www.researchhub.com",
+            HTTP_X_FORWARDED_FOR=TEST_IP,
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -57,6 +60,7 @@ class TestCoinbaseViewSet(TestCase):
             preset_fiat_amount=request_data["preset_fiat_amount"],
             preset_crypto_amount=None,
             default_asset=request_data["default_asset"],
+            client_ip=TEST_IP,
         )
 
     @patch("purchase.views.coinbase_view.CoinbaseService")
@@ -76,6 +80,8 @@ class TestCoinbaseViewSet(TestCase):
             self.url,
             data=request_data,
             format="json",
+            HTTP_ORIGIN="https://www.researchhub.com",
+            HTTP_X_FORWARDED_FOR=TEST_IP,
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -89,6 +95,7 @@ class TestCoinbaseViewSet(TestCase):
             preset_fiat_amount=None,
             preset_crypto_amount=None,
             default_asset=None,
+            client_ip=TEST_IP,
         )
 
     def test_generate_onramp_url_unauthenticated(self):
@@ -103,6 +110,8 @@ class TestCoinbaseViewSet(TestCase):
             self.url,
             data=request_data,
             format="json",
+            HTTP_ORIGIN="https://www.researchhub.com",
+            HTTP_X_FORWARDED_FOR=TEST_IP,
         )
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
@@ -116,6 +125,8 @@ class TestCoinbaseViewSet(TestCase):
             self.url,
             data=request_data,
             format="json",
+            HTTP_ORIGIN="https://www.researchhub.com",
+            HTTP_X_FORWARDED_FOR=TEST_IP,
         )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -129,6 +140,8 @@ class TestCoinbaseViewSet(TestCase):
             self.url,
             data=request_data,
             format="json",
+            HTTP_ORIGIN="https://www.researchhub.com",
+            HTTP_X_FORWARDED_FOR=TEST_IP,
         )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -150,6 +163,8 @@ class TestCoinbaseViewSet(TestCase):
             self.url,
             data=request_data,
             format="json",
+            HTTP_ORIGIN="https://www.researchhub.com",
+            HTTP_X_FORWARDED_FOR=TEST_IP,
         )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -173,6 +188,8 @@ class TestCoinbaseViewSet(TestCase):
             self.url,
             data=request_data,
             format="json",
+            HTTP_ORIGIN="https://www.researchhub.com",
+            HTTP_X_FORWARDED_FOR=TEST_IP,
         )
 
         self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)

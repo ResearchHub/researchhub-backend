@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from hub.mappers.external_category_mapper import ExternalCategoryMapper
 from hub.models import Hub
 from institution.models import Institution
 from paper.models import Paper
@@ -28,18 +29,27 @@ class ArXivMapper(BaseMapper):
     ARXIV_NS = "{http://arxiv.org/schemas/atom}"
     OPENSEARCH_NS = "{http://a9.com/-/spec/opensearch/1.1/}"
 
-    _arxiv_hub = None
+    _preprint_hub = None
+
+    def __init__(self, hub_mapper: ExternalCategoryMapper):
+        """
+        Constructor.
+
+        Args:
+            hub_mapper: Hub mapper instance.
+        """
+        super().__init__(hub_mapper)
 
     @property
-    def arxiv_hub(self) -> Optional[Hub]:
+    def preprint_hub(self) -> Optional[Hub]:
         """
         Lazy load the ArXiv hub.
         """
-        if self._arxiv_hub is None:
-            self._arxiv_hub = Hub.objects.filter(
+        if self._preprint_hub is None:
+            self._preprint_hub = Hub.objects.filter(
                 slug="arxiv", namespace=Hub.Namespace.JOURNAL
             ).first()
-        return self._arxiv_hub
+        return self._preprint_hub
 
     def _parse_xml_entry(self, raw_xml: str) -> Dict[str, Any]:
         """
@@ -214,7 +224,7 @@ class ArXivMapper(BaseMapper):
             oa_status="gold",  # Gold open access for preprints
             # External metadata
             external_metadata={
-                "arxiv_id": arxiv_id,
+                "external_id": arxiv_id,
             },
             # Status flags
             retrieved_from_external_source=True,
@@ -452,8 +462,16 @@ class ArXivMapper(BaseMapper):
     def map_to_hubs(self, paper: Paper, record: Dict[str, Any]) -> List[Hub]:
         """
         Map arXiv record to Hub (tag) model instances.
-
-        Initially, this only returns the preprint server hub.
         """
+        hubs = []
+        primary_category = record.get("primary_category")
 
-        return [self.arxiv_hub] if self.arxiv_hub else []
+        if self._hub_mapper and primary_category:
+            for hub in self._hub_mapper.map(primary_category, "arxiv"):
+                if hub and hub not in hubs:
+                    hubs.append(hub)
+
+        if self.preprint_hub and self.preprint_hub not in hubs:
+            hubs.append(self.preprint_hub)
+
+        return hubs

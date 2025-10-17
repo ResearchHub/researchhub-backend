@@ -15,6 +15,10 @@ from rest_framework.permissions import (
 )
 from rest_framework.response import Response
 
+from hub.mappers.arxiv_mappings import ARXIV_MAPPINGS
+from hub.mappers.biorxiv_mappings import BIORXIV_MAPPINGS
+from hub.mappers.chemrxiv_mappings import CHEMRXIV_MAPPINGS
+from hub.mappers.medrxiv_mappings import MEDRXIV_MAPPINGS
 from mailing_list.models import EmailRecipient, HubSubscription
 from paper.models import Paper
 from paper.utils import get_cache_key
@@ -146,7 +150,7 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         permission_classes=[AllowAny],
     )
     def rep_hubs(self, request):
-        cache_key = f"rep-hubs"
+        cache_key = "rep-hubs"
         cache_hit = cache.get(cache_key)
 
         if cache_hit:
@@ -467,6 +471,68 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
             },
             status=200,
         )
+
+    @action(detail=False, methods=[GET], permission_classes=[AllowAny])
+    def primary_only(self, request):
+        """
+        Returns a list of all unique hubs (both categories and subcategories)
+        that appear in the mappings, deduplicated, sorted by paper_count descending.
+        """
+
+        cache_key = get_cache_key("hubs", "primary_only")
+        cached_data = cache.get(cache_key)
+
+        if cached_data:
+            return Response(cached_data, status=200)
+
+        # Extract all unique hub slugs (both category and subcategory) from mappings
+        all_hub_slugs = set()
+        all_mappings = [
+            ARXIV_MAPPINGS,
+            BIORXIV_MAPPINGS,
+            CHEMRXIV_MAPPINGS,
+            MEDRXIV_MAPPINGS,
+        ]
+
+        for source in all_mappings:
+            for category_slug, subcategory_slug in source.values():
+                if category_slug:
+                    all_hub_slugs.add(category_slug)
+                if subcategory_slug:
+                    all_hub_slugs.add(subcategory_slug)
+
+        # Get all unique hubs, sorted by paper_count descending
+        primary_hubs = Hub.objects.filter(
+            slug__in=all_hub_slugs, is_removed=False
+        ).order_by("-paper_count")
+
+        # Serialize all results
+        serializer = self.get_serializer(primary_hubs, many=True)
+
+        # Return with count and results format
+        response_data = {"count": primary_hubs.count(), "results": serializer.data}
+
+        cache.set(cache_key, response_data, timeout=60 * 60 * 24)
+
+        return Response(response_data, status=200)
+
+    def _build_subcategory_mapping(self):
+        """Build mapping of subcategory slug -> category slug from all sources."""
+
+        mapping = {}
+        all_mappings = [
+            ARXIV_MAPPINGS,
+            BIORXIV_MAPPINGS,
+            CHEMRXIV_MAPPINGS,
+            MEDRXIV_MAPPINGS,
+        ]
+
+        for source in all_mappings:
+            for category_slug, subcategory_slug in source.values():
+                if category_slug and subcategory_slug:
+                    mapping[subcategory_slug] = category_slug
+
+        return mapping
 
 
 class HubCategoryViewSet(viewsets.ModelViewSet):
