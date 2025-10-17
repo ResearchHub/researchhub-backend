@@ -6,6 +6,7 @@ from unittest.mock import Mock
 
 from django.test import TestCase
 
+from hub.models import Hub
 from paper.ingestion.services.openalex_enrichment import PaperOpenAlexEnrichmentService
 from paper.tests.helpers import create_paper
 
@@ -93,6 +94,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         self.mock_openalex_mapper.map_to_authors.return_value = []
         self.mock_openalex_mapper.map_to_institutions.return_value = []
         self.mock_openalex_mapper.map_to_authorships.return_value = []
+        self.mock_openalex_mapper.map_to_hubs.return_value = []
 
         result = self.service.enrich_paper_with_openalex(self.paper)
 
@@ -135,6 +137,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         self.mock_openalex_mapper.map_to_authors.return_value = []
         self.mock_openalex_mapper.map_to_institutions.return_value = []
         self.mock_openalex_mapper.map_to_authorships.return_value = []
+        self.mock_openalex_mapper.map_to_hubs.return_value = []
 
         result = self.service.enrich_paper_with_openalex(self.paper)
 
@@ -166,6 +169,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         self.mock_openalex_mapper.map_to_authors.return_value = []
         self.mock_openalex_mapper.map_to_institutions.return_value = []
         self.mock_openalex_mapper.map_to_authorships.return_value = []
+        self.mock_openalex_mapper.map_to_hubs.return_value = []
 
         result = self.service.enrich_paper_with_openalex(self.paper)
 
@@ -218,6 +222,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         self.mock_openalex_mapper.map_to_authors.return_value = []
         self.mock_openalex_mapper.map_to_institutions.return_value = []
         self.mock_openalex_mapper.map_to_authorships.return_value = []
+        self.mock_openalex_mapper.map_to_hubs.return_value = []
 
         result = self.service.enrich_papers_batch([paper1.id, paper2.id])
 
@@ -265,6 +270,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         self.mock_openalex_mapper.map_to_authors.return_value = []
         self.mock_openalex_mapper.map_to_institutions.return_value = []
         self.mock_openalex_mapper.map_to_authorships.return_value = []
+        self.mock_openalex_mapper.map_to_hubs.return_value = []
 
         result = self.service.enrich_papers_batch([paper1.id, paper2.id, paper3.id])
 
@@ -331,6 +337,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         self.mock_openalex_mapper.map_to_authors.return_value = []
         self.mock_openalex_mapper.map_to_institutions.return_value = []
         self.mock_openalex_mapper.map_to_authorships.return_value = []
+        self.mock_openalex_mapper.map_to_hubs.return_value = []
 
         result = self.service.enrich_paper_with_openalex(self.paper)
 
@@ -411,6 +418,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         self.mock_openalex_mapper.map_to_authors.return_value = [mock_author]
         self.mock_openalex_mapper.map_to_institutions.return_value = [mock_institution]
         self.mock_openalex_mapper.map_to_authorships.return_value = [mock_authorship]
+        self.mock_openalex_mapper.map_to_hubs.return_value = []
 
         result = self.service.enrich_paper_with_openalex(self.paper)
 
@@ -485,6 +493,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         self.mock_openalex_mapper.map_to_authors.return_value = []
         self.mock_openalex_mapper.map_to_institutions.return_value = []
         self.mock_openalex_mapper.map_to_authorships.return_value = []
+        self.mock_openalex_mapper.map_to_hubs.return_value = []
 
         result = self.service.enrich_papers_batch([paper.id])
 
@@ -495,3 +504,66 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         self.assertEqual(result.total_institutions_created, 0)
         self.assertEqual(result.total_institutions_updated, 0)
         self.assertEqual(result.total_authorships_created, 0)
+
+    def test_enrich_papers_with_same_topic_reuses_hub(self):
+        """Test that enriching two papers with the same topic creates only one hub."""
+
+        # Create two papers with DOIs
+        paper1 = create_paper(title="Paper 1")
+        paper1.doi = "10.1234/test1"
+        paper1.save()
+
+        paper2 = create_paper(title="Paper 2")
+        paper2.doi = "10.1234/test2"
+        paper2.save()
+
+        # Mock OpenAlex data with the same topic for both papers
+        openalex_data = {
+            "raw_data": {
+                "primary_location": {},
+                "authorships": [],
+                "topics": [
+                    {
+                        "display_name": "Machine Learning",
+                    }
+                ],
+            }
+        }
+        self.mock_openalex_client.fetch_by_doi.return_value = openalex_data
+
+        # Mock the mapped paper
+        mock_mapped_paper = Mock()
+        mock_mapped_paper.pdf_license = None
+        mock_mapped_paper.pdf_url = None
+        mock_mapped_paper.pdf_license_url = None
+        self.mock_openalex_mapper.map_to_paper.return_value = mock_mapped_paper
+
+        # Mock mapper methods for authors/institutions/authorships
+        self.mock_openalex_mapper.map_to_authors.return_value = []
+        self.mock_openalex_mapper.map_to_institutions.return_value = []
+        self.mock_openalex_mapper.map_to_authorships.return_value = []
+
+        # Mock map_to_hubs to return the same hub for both papers
+        hub = Hub(name="Machine Learning")
+        self.mock_openalex_mapper.map_to_hubs.return_value = [hub]
+
+        # Enrich both papers
+        result1 = self.service.enrich_paper_with_openalex(paper1)
+        result2 = self.service.enrich_paper_with_openalex(paper2)
+
+        # Both enrichments should succeed
+        self.assertEqual(result1.status, "success")
+        self.assertEqual(result2.status, "success")
+
+        # First paper should create 1 hub
+        self.assertEqual(result1.hubs_created, 1)
+        # Second paper should reuse the existing hub (0 created)
+        self.assertEqual(result2.hubs_created, 0)
+
+        # Verify only one hub exists in the database
+        self.assertEqual(Hub.objects.filter(name="Machine Learning").count(), 1)
+
+        # Verify both papers are associated with the same hub
+        hub = Hub.objects.get(name="Machine Learning")
+        self.assertIn(hub, paper1.unified_document.hubs.all())
+        self.assertIn(hub, paper2.unified_document.hubs.all())

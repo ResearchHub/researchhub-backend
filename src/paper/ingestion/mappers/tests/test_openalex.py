@@ -4,11 +4,9 @@ Tests for OpenAlex mapper.
 
 import json
 import os
-from unittest.mock import MagicMock
 
 from django.test import TestCase
 
-from hub.models import Hub
 from paper.ingestion.mappers.openalex import OpenAlexMapper
 from paper.models import Paper
 
@@ -19,7 +17,7 @@ class TestOpenAlexMapper(TestCase):
     """
 
     def setUp(self):
-        self.mapper = OpenAlexMapper(None)
+        self.mapper = OpenAlexMapper()
 
         # Load fixture files
         fixtures_dir = os.path.join(
@@ -318,16 +316,13 @@ class TestOpenAlexMapper(TestCase):
             title="Test Paper",
             external_source="openalex",
         )
-        mock_hub = Hub(name="Test Hub", slug="test-hub")
-        mock_hub_mapper = MagicMock()
-        mock_hub_mapper.map.return_value = [mock_hub]
-        mapper = OpenAlexMapper(hub_mapper=mock_hub_mapper)
+        mapper = OpenAlexMapper()
 
         # Act
-        mapper.map_to_hubs(paper, self.sample_record)
+        hubs = mapper.map_to_hubs(paper, self.sample_record)
 
         # Assert
-        self.assertTrue(mock_hub_mapper.map.called)
+        self.assertEqual(len(hubs), 3)
 
     def test_extract_license_info_full(self):
         """

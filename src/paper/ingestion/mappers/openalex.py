@@ -8,7 +8,6 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from hub.mappers.external_category_mapper import ExternalCategoryMapper
 from hub.models import Hub
 from institution.models import Institution
 from paper.models import Paper
@@ -27,14 +26,11 @@ ROR_ORG_DOMAIN = "ror.org"
 class OpenAlexMapper(BaseMapper):
     """Maps OpenAlex work records to ResearchHub Paper model format."""
 
-    def __init__(self, hub_mapper: ExternalCategoryMapper):
+    def __init__(self):
         """
         Constructor.
-
-        Args:
-            hub_mapper: Hub mapper instance.
         """
-        super().__init__(hub_mapper)
+        super().__init__(hub_mapper=None)
 
     def validate(self, record: Dict[str, Any]) -> bool:
         """
@@ -478,35 +474,17 @@ class OpenAlexMapper(BaseMapper):
 
     def map_to_hubs(self, paper: Paper, record: Dict[str, Any]) -> List[Hub]:
         """
-        Map OpenAlex work record to Hub (tag) model instances.
-
-        Args:
-            paper: The Paper instance to create tags for
-            record: OpenAlex work record
-
-        Returns:
-            List of Hub instances
+        Map OpenAlex work record to Hub instances.
         """
         hubs = []
+        topics = record.get("topics", [])
 
-        # Map primary topic to hubs
-        primary_topic = record.get("primary_topic", {})
-        if primary_topic and self._hub_mapper:
-            topic_name = primary_topic.get("display_name")
-            if topic_name:
-                for hub in self._hub_mapper.map(topic_name, "openalex"):
-                    if hub and hub not in hubs:
-                        hubs.append(hub)
-
-        # Map field and subfield to hubs
-        if primary_topic:
-            field = primary_topic.get("field", {})
-            if field:
-                field_name = field.get("display_name")
-                if field_name and self._hub_mapper:
-                    for hub in self._hub_mapper.map(field_name, "openalex"):
-                        if hub and hub not in hubs:
-                            hubs.append(hub)
+        for topic in topics:
+            hubs.append(
+                Hub(
+                    name=topic.get("display_name", ""),
+                )
+            )
 
         return hubs
 
