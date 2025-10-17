@@ -27,7 +27,7 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
     serializer_class = FeedEntrySerializer
     permission_classes = []
     pagination_class = FeedPagination
-    cache_enabled = settings.TESTING or settings.CLOUD
+    cache_enabled = False  # settings.TESTING or settings.CLOUD
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -81,6 +81,8 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
         hub_slug = self.request.query_params.get("hub_slug")
         source = self.request.query_params.get("source", "all")
         sort_by = self.request.query_params.get("sort_by", "latest")
+        hot_score_version = self.request.query_params.get("hot_score_version", "v1")
+        hot_score_field = "hot_score_v2" if hot_score_version == "v2" else "hot_score"
 
         # Use FeedEntry for all queries, sorted by hot_score or action_date
         queryset = FeedEntry.objects.all()
@@ -89,7 +91,7 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
         if feed_view == "popular" or (
             feed_view == "following" and sort_by == "hot_score"
         ):
-            queryset = queryset.order_by("-hot_score")
+            queryset = queryset.order_by(f"-{hot_score_field}")
         else:
             queryset = queryset.order_by("-action_date")
 

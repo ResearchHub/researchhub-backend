@@ -579,6 +579,8 @@ class FeedEntrySerializer(serializers.ModelSerializer):
     action_date = serializers.DateTimeField()
     action = serializers.CharField()
     author = serializers.SerializerMethodField()
+    hot_score_v2 = serializers.IntegerField()
+    external_metadata = serializers.SerializerMethodField()
 
     class Meta:
         model = FeedEntry
@@ -591,12 +593,24 @@ class FeedEntrySerializer(serializers.ModelSerializer):
             "action",
             "author",
             "metrics",
+            "hot_score_v2",
+            "external_metadata",
         ]
 
     def get_author(self, obj):
         """Return author data only if feed entry has an associated user"""
         if obj.user and hasattr(obj.user, "author_profile"):
             return SimpleAuthorSerializer(obj.user.author_profile).data
+        return None
+
+    def get_external_metadata(self, obj):
+        """
+        Return external_metadata from Paper if content is a Paper.
+        Returns None for non-paper content.
+        """
+        if obj.item and obj.content_type.model == "paper":
+            if hasattr(obj.item, "external_metadata"):
+                return obj.item.external_metadata
         return None
 
     def get_content_object(self, obj):
