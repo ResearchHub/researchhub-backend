@@ -275,21 +275,31 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
         """
         Get all comments on this document across all threads.
 
+        Threads are attached to Papers/Posts, not directly to UnifiedDocuments.
+        This method uses get_document() to access the underlying content item.
+
         Args:
             include_removed: If True, include soft-deleted comments
 
         Returns:
             QuerySet of RhCommentModel instances
         """
-        if not hasattr(self, "rh_threads"):
+        try:
+            document = self.get_document()
+            if not document or not hasattr(document, "rh_threads"):
+                return RhCommentModel.objects.none()
+
+            thread_ids = document.rh_threads.values_list("id", flat=True)
+
+            if not thread_ids:
+                return RhCommentModel.objects.none()
+
+            if include_removed:
+                return RhCommentModel.all_objects.filter(thread_id__in=thread_ids)
+            else:
+                return RhCommentModel.objects.filter(thread_id__in=thread_ids)
+        except Exception:
             return RhCommentModel.objects.none()
-
-        thread_ids = self.rh_threads.values_list("id", flat=True)
-
-        if include_removed:
-            return RhCommentModel.all_objects.filter(thread_id__in=thread_ids)
-        else:
-            return RhCommentModel.objects.filter(thread_id__in=thread_ids)
 
     def get_peer_review_comments(self):
         """
