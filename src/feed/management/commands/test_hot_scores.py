@@ -228,20 +228,20 @@ class Command(BaseCommand):
 
     def _get_components(self, item, unified_doc, feed_entry):
         """Get detailed component breakdown for an item."""
-        # Gather signals
-        altmetric = get_altmetric_score(item)
-        bounty_amount, has_urgent_bounty = get_total_bounty_amount(unified_doc)
-        tip_amount = get_total_tip_amount(unified_doc, item)
-        fundraise_amount = get_fundraise_amount(item)
+        # Gather signals using new feed_entry-based API
+        altmetric = get_altmetric_score(feed_entry)
+        bounty_amount, has_urgent_bounty = get_total_bounty_amount(feed_entry)
+        tip_amount = get_total_tip_amount(feed_entry)
+        fundraise_amount = get_fundraise_amount(feed_entry)
         if fundraise_amount > 0:
             tip_amount += fundraise_amount
 
-        peer_review_count = get_peer_review_count(unified_doc)
-        upvote_count = get_total_upvotes(item, unified_doc)
-        comment_count = get_comment_count(item, unified_doc)
+        peer_review_count = get_peer_review_count(feed_entry)
+        upvote_count = get_total_upvotes(feed_entry)
+        comment_count = get_comment_count(feed_entry)
 
-        age_hours = get_age_hours(item)
-        freshness_multiplier = get_freshness_multiplier(item, age_hours)
+        age_hours = get_age_hours(feed_entry)
+        freshness_multiplier = get_freshness_multiplier(feed_entry, age_hours)
 
         # Calculate component scores (same logic as calculate_hot_score)
         import math
@@ -327,18 +327,18 @@ class Command(BaseCommand):
 
         config = HOT_SCORE_CONFIG["signals"]
 
-        # Gather actual signals
-        altmetric = get_altmetric_score(item)
-        bounty_amount, has_urgent_bounty = get_total_bounty_amount(unified_doc)
-        tip_amount = get_total_tip_amount(unified_doc, item)
-        fundraise_amount = get_fundraise_amount(item)
+        # Gather actual signals using new feed_entry-based API
+        altmetric = get_altmetric_score(feed_entry)
+        bounty_amount, has_urgent_bounty = get_total_bounty_amount(feed_entry)
+        tip_amount = get_total_tip_amount(feed_entry)
+        fundraise_amount = get_fundraise_amount(feed_entry)
         if fundraise_amount > 0:
             tip_amount += fundraise_amount
 
-        peer_review_count = get_peer_review_count(unified_doc)
-        upvote_count = get_total_upvotes(item, unified_doc)
-        comment_count = get_comment_count(item, unified_doc)
-        age_hours = get_age_hours(item)
+        peer_review_count = get_peer_review_count(feed_entry)
+        upvote_count = get_total_upvotes(feed_entry)
+        comment_count = get_comment_count(feed_entry)
+        age_hours = get_age_hours(feed_entry)
 
         # Override with simulation parameters if provided
         if sim_params:
@@ -360,7 +360,7 @@ class Command(BaseCommand):
                 age_hours = sim_params["age_hours"]
 
         # Calculate freshness multiplier after overrides (depends on age_hours)
-        freshness_multiplier = get_freshness_multiplier(item, age_hours)
+        freshness_multiplier = get_freshness_multiplier(feed_entry, age_hours)
 
         # Calculate component scores (same logic as calculate_hot_score)
         altmetric_component = (
