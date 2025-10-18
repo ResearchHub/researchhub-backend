@@ -14,30 +14,7 @@ from typing import Any, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 
-# ============================================================================
-# Core Helper Functions
-# ============================================================================
-
-
 def safe_get_nested(data: dict, *keys, default=None) -> Any:
-    """
-    Safely navigate nested dictionary structure.
-
-    Args:
-        data: The dictionary to navigate
-        *keys: Sequence of keys to traverse
-        default: Default value if key path doesn't exist
-
-    Returns:
-        The value at the key path, or default if not found
-
-    Example:
-        >>> data = {"a": {"b": {"c": 42}}}
-        >>> safe_get_nested(data, "a", "b", "c")
-        42
-        >>> safe_get_nested(data, "a", "x", "y", default=0)
-        0
-    """
     result = data
     for key in keys:
         if isinstance(result, dict):
@@ -50,24 +27,6 @@ def safe_get_nested(data: dict, *keys, default=None) -> Any:
 
 
 def has_comments(metrics: dict) -> bool:
-    """
-    Check if the feed entry has comments (regular or peer reviews).
-
-    Used to determine if we need to query comment-related data from the database.
-
-    Args:
-        metrics: The FeedEntry.metrics JSON dict
-
-    Returns:
-        True if replies > 0 OR review_metrics.count > 0
-
-    Example metrics:
-        {
-            "votes": 5,
-            "replies": 3,
-            "review_metrics": {"avg": 4.5, "count": 2}
-        }
-    """
     if not isinstance(metrics, dict):
         return False
 
@@ -78,15 +37,6 @@ def has_comments(metrics: dict) -> bool:
 
 
 def get_content_type_name(feed_entry) -> str:
-    """
-    Get the content type name as a lowercase string.
-
-    Args:
-        feed_entry: FeedEntry instance
-
-    Returns:
-        "paper", "researchhubpost", or "rhcommentmodel"
-    """
     try:
         return feed_entry.content_type.model.lower()
     except (AttributeError, TypeError):
@@ -94,19 +44,6 @@ def get_content_type_name(feed_entry) -> str:
 
 
 def parse_iso_datetime(date_string: str) -> Optional[datetime]:
-    """
-    Parse ISO 8601 datetime string to timezone-aware datetime.
-
-    Args:
-        date_string: ISO format datetime string
-
-    Returns:
-        Timezone-aware datetime object, or None if parsing fails
-
-    Example:
-        >>> parse_iso_datetime("2025-10-16T18:06:10.013228Z")
-        datetime(2025, 10, 16, 18, 6, 10, 13228, tzinfo=timezone.utc)
-    """
     if not date_string or not isinstance(date_string, str):
         return None
 
@@ -134,14 +71,6 @@ def parse_iso_datetime(date_string: str) -> Optional[datetime]:
 
 def get_altmetric_from_metrics(metrics: dict) -> float:
     """
-    Extract altmetric score from metrics JSON.
-
-    Args:
-        metrics: The FeedEntry.metrics JSON dict
-
-    Returns:
-        Altmetric score as float, or 0 if not available
-
     Example metrics:
         {
             "votes": 0,
@@ -161,14 +90,6 @@ def get_altmetric_from_metrics(metrics: dict) -> float:
 
 def get_votes_from_metrics(metrics: dict) -> int:
     """
-    Extract vote count from metrics JSON.
-
-    Args:
-        metrics: The FeedEntry.metrics JSON dict
-
-    Returns:
-        Vote count (upvotes - downvotes) as int, or 0 if not available
-
     Example metrics:
         {
             "votes": 5,
@@ -187,14 +108,6 @@ def get_votes_from_metrics(metrics: dict) -> int:
 
 def get_peer_review_count_from_metrics(metrics: dict) -> int:
     """
-    Extract peer review count from metrics JSON.
-
-    Args:
-        metrics: The FeedEntry.metrics JSON dict
-
-    Returns:
-        Number of peer reviews as int, or 0 if not available
-
     Example metrics:
         {
             "votes": 0,
@@ -217,14 +130,6 @@ def get_peer_review_count_from_metrics(metrics: dict) -> int:
 
 def get_comment_count_from_metrics(metrics: dict) -> int:
     """
-    Extract regular comment count (excluding peer reviews) from metrics JSON.
-
-    Args:
-        metrics: The FeedEntry.metrics JSON dict
-
-    Returns:
-        Number of regular comments as int, or 0 if not available
-
     Example metrics:
         {
             "replies": 5,
@@ -382,18 +287,6 @@ def get_tips_from_content(content: dict, feed_entry, unified_document) -> float:
 
 def get_upvotes_rolled_up(metrics: dict, feed_entry, unified_document) -> int:
     """
-    Extract total upvotes (document + comments) from metrics and optionally DB.
-
-    Only queries comment upvotes if metrics indicate comments exist.
-
-    Args:
-        metrics: The FeedEntry.metrics JSON dict
-        feed_entry: FeedEntry instance (for metrics check)
-        unified_document: ResearchhubUnifiedDocument instance (for comment upvotes)
-
-    Returns:
-        Total upvote count as int
-
     Example metrics:
         {
             "votes": 5,
@@ -415,16 +308,6 @@ def get_upvotes_rolled_up(metrics: dict, feed_entry, unified_document) -> int:
 
 def get_fundraise_amount_from_content(content: dict) -> float:
     """
-    Extract fundraise amount raised from content JSON.
-
-    Prefers RSC over USD.
-
-    Args:
-        content: The FeedEntry.content JSON dict
-
-    Returns:
-        Amount raised as float, or 0 if not available
-
     Example content (PREREGISTRATION):
         {
             "fundraise": {

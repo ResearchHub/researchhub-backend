@@ -36,6 +36,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from feed.models import FeedEntry
+from feed.tasks import refresh_feed_hot_scores_batch
 from paper.related_models.paper_model import Paper
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 
@@ -207,9 +208,6 @@ class Command(BaseCommand):
                 f"Updated: {updated:,}, Errors: {errors}",
                 ending="\r",
             )
-
-        # Use shared batch processing function
-        from feed.tasks import refresh_feed_hot_scores_batch
 
         # Pass the pre-filtered queryset (respects all user filters)
         stats = refresh_feed_hot_scores_batch(
