@@ -177,10 +177,10 @@ def refresh_feed_hot_scores():
     try:
         # Uses default 30-day lookback for papers and posts only
         stats = refresh_feed_hot_scores_batch(
-            queryset=None,  # Will auto-filter to last 30 days
+            queryset=None,
             update_v1=True,
             update_v2=True,
-            content_types=None,  # Defaults to paper and post
+            content_types=None,
         )
         logger.info(f"Refreshed hot scores: {stats}")
         sentry.log_info(f"Refreshed hot scores: {stats}")
