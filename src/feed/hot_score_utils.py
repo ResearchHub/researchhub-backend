@@ -231,7 +231,7 @@ def get_bounties_from_content(
     return total_amount, has_urgent_bounty
 
 
-def get_tips_from_content(content: dict, feed_entry, unified_document) -> float:
+def get_tips_from_content(content: dict, feed_entry) -> float:
     """
     Extract total tip/boost amount from content JSON and optionally comments.
 
@@ -239,8 +239,7 @@ def get_tips_from_content(content: dict, feed_entry, unified_document) -> float:
 
     Args:
         content: The FeedEntry.content JSON dict
-        feed_entry: FeedEntry instance (for metrics check)
-        unified_document: ResearchhubUnifiedDocument instance (for comment tips)
+        feed_entry: FeedEntry instance (for metrics check and lazy unified_document)
 
     Returns:
         Total tip amount as float
@@ -275,18 +274,32 @@ def get_tips_from_content(content: dict, feed_entry, unified_document) -> float:
                 continue
 
     # Add comment tips only if comments exist
-    if unified_document and has_comments(feed_entry.metrics):
+    if has_comments(feed_entry.metrics):
+        # Lazy-load unified_document only when needed
         try:
-            comment_tips = unified_document.get_comment_tip_sum()
-            total += comment_tips
+            unified_document = feed_entry.unified_document
+            if unified_document:
+                comment_tips = unified_document.get_comment_tip_sum()
+                total += comment_tips
         except Exception as e:
             logger.warning(f"Failed to get comment tip sum: {e}")
 
     return total
 
 
-def get_upvotes_rolled_up(metrics: dict, feed_entry, unified_document) -> int:
+def get_upvotes_rolled_up(metrics: dict, feed_entry) -> int:
     """
+    Extract total upvotes (document + comments) from metrics and optionally DB.
+
+    Only queries comment upvotes if metrics indicate comments exist.
+
+    Args:
+        metrics: The FeedEntry.metrics JSON dict
+        feed_entry: FeedEntry instance (for lazy unified_document access)
+
+    Returns:
+        Total upvote count as int
+
     Example metrics:
         {
             "votes": 5,
@@ -296,10 +309,13 @@ def get_upvotes_rolled_up(metrics: dict, feed_entry, unified_document) -> int:
     total_upvotes = get_votes_from_metrics(metrics)
 
     # Add comment upvotes only if comments exist
-    if unified_document and has_comments(metrics):
+    if has_comments(metrics):
+        # Lazy-load unified_document only when needed
         try:
-            comment_upvotes = unified_document.get_comment_upvote_sum()
-            total_upvotes += comment_upvotes
+            unified_document = feed_entry.unified_document
+            if unified_document:
+                comment_upvotes = unified_document.get_comment_upvote_sum()
+                total_upvotes += comment_upvotes
         except Exception as e:
             logger.warning(f"Failed to get comment upvote sum: {e}")
 
