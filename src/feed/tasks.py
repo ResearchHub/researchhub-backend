@@ -201,23 +201,6 @@ def refresh_feed_hot_scores_batch(
 ):
     """
     Refresh hot scores for feed entries with optional filtering.
-
-    Args:
-        queryset: Optional FeedEntry queryset to process. If None, creates
-                  default queryset.
-        batch_size: Number of entries to process per batch (default 1000)
-        update_v1: Whether to update hot_score (deprecated v1)
-        update_v2: Whether to update hot_score_v2 (new algorithm)
-        days_back: If queryset is None, only process entries from last N days
-                   (default 30). Set to None to process all entries.
-        content_types: List of ContentType objects to filter by.
-                       Defaults to Paper and ResearchhubPost ContentTypes.
-                       Only applies when queryset is None.
-        progress_callback: Optional callback function(processed, total,
-                           updated, errors)
-
-    Returns:
-        dict with keys: processed, updated, errors, duration
     """
     start_time = time.time()
 
@@ -321,35 +304,3 @@ def refresh_feed_hot_scores_batch(
         "errors": errors,
         "duration": duration,
     }
-
-
-@app.task
-def refresh_popular_feed_entries():
-    import time
-
-    from rest_framework.request import Request
-    from rest_framework.test import APIRequestFactory
-
-    start = time.time()
-    logger.info("Refreshing popular feed entries...")
-
-    factory = APIRequestFactory()
-    django_request = factory.get(
-        "/api/feed/",
-        {
-            "feed_view": "popular",
-        },
-        HTTP_HOST="localhost",
-    )
-
-    drf_request = Request(django_request)
-
-    viewset = FeedViewSet()
-    viewset.setup(drf_request, None)
-    viewset.format_kwarg = None
-
-    # Call the list() method
-    viewset.list(drf_request)
-
-    duration = time.time() - start
-    logger.info(f"Popular feed entries refreshed ({duration:.2f}s)")
