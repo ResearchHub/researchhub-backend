@@ -155,9 +155,7 @@ def get_total_tip_amount(feed_entry):
     Returns:
         float: Total tip amount
     """
-    return get_tips_from_content(
-        feed_entry.content, feed_entry, feed_entry.unified_document
-    )
+    return get_tips_from_content(feed_entry.content, feed_entry)
 
 
 def get_total_upvotes(feed_entry):
@@ -170,9 +168,7 @@ def get_total_upvotes(feed_entry):
     Returns:
         int: Total upvote count
     """
-    return get_upvotes_rolled_up(
-        feed_entry.metrics, feed_entry, feed_entry.unified_document
-    )
+    return get_upvotes_rolled_up(feed_entry.metrics, feed_entry)
 
 
 def get_peer_review_count(feed_entry):
