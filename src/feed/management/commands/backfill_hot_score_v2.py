@@ -215,10 +215,10 @@ class Command(BaseCommand):
         stats = refresh_feed_hot_scores_batch(
             queryset=queryset,
             batch_size=batch_size,
-            update_v1=False,  # Only update v2 in backfill
+            update_v1=False,
             update_v2=True,
-            days_back=None,  # Ignored when queryset is provided
-            content_types=None,  # Ignored when queryset is provided
+            days_back=None,
+            content_types=None,
             progress_callback=progress_callback,
         )
 
