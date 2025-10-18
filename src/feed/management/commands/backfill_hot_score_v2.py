@@ -33,7 +33,6 @@ from datetime import datetime, timedelta
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
-from django.db import connection
 from django.utils import timezone
 
 from feed.models import FeedEntry
@@ -196,63 +195,37 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING("Cancelled."))
             return
 
-        # Process in batches
+        # Process using shared batch processing function
         self.stdout.write("")
         self.stdout.write("Processing entries...")
-        start_time = timezone.now()
 
-        processed = 0
-        updated = 0
-        errors = 0
-
-        for offset in range(0, total_count, batch_size):
-            batch = list(
-                queryset.prefetch_related("item")[offset : (offset + batch_size)]
-            )
-
-            entries_to_update = []
-
-            for feed_entry in batch:
-                try:
-                    if not feed_entry.item:
-                        continue
-
-                    # Calculate new v2 score
-                    new_v2_score = feed_entry.calculate_hot_score_v2()
-                    feed_entry.hot_score_v2 = new_v2_score
-                    entries_to_update.append(feed_entry)
-
-                except Exception as e:
-                    errors += 1
-                    logger.error(
-                        f"Error calculating score for entry {feed_entry.id}: {e}"
-                    )
-                    continue
-
-            # Bulk update
-            if entries_to_update:
-                with connection.cursor() as cursor:
-                    batch_params = [
-                        (entry.hot_score_v2, entry.id) for entry in entries_to_update
-                    ]
-                    cursor.executemany(
-                        "UPDATE feed_feedentry SET hot_score_v2 = %s " "WHERE id = %s",
-                        batch_params,
-                    )
-                updated += len(entries_to_update)
-
-            processed += len(batch)
-
-            # Progress update
-            pct = (processed / total_count) * 100
+        # Define progress callback for CLI feedback
+        def progress_callback(processed, total, updated, errors):
+            pct = (processed / total) * 100 if total > 0 else 0
             self.stdout.write(
-                f"  Progress: {processed:,}/{total_count:,} ({pct:.1f}%) - "
+                f"  Progress: {processed:,}/{total:,} ({pct:.1f}%) - "
                 f"Updated: {updated:,}, Errors: {errors}",
                 ending="\r",
             )
 
-        # Final summary
-        duration = (timezone.now() - start_time).total_seconds()
+        # Use shared batch processing function
+        from feed.tasks import refresh_feed_hot_scores_batch
+
+        # Pass the pre-filtered queryset (respects all user filters)
+        stats = refresh_feed_hot_scores_batch(
+            queryset=queryset,
+            batch_size=batch_size,
+            update_v1=False,  # Only update v2 in backfill
+            update_v2=True,
+            days_back=None,  # Ignored when queryset is provided
+            content_types=None,  # Ignored when queryset is provided
+            progress_callback=progress_callback,
+        )
+
+        processed = stats["processed"]
+        updated = stats["updated"]
+        errors = stats["errors"]
+        duration = stats["duration"]
         self.stdout.write("")
         self.stdout.write("")
         self.stdout.write("=" * 80)

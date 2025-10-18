@@ -1,8 +1,8 @@
 """
 Hot Score Implementation for Feed Entry Ranking
 
-Calculates hot scores for feed entries using a declarative algorithm, similar to Hacker News.
-The algorithm prioritizes content based on:
+Calculates hot scores for feed entries using a declarative algorithm, similar
+to Hacker News. The algorithm prioritizes content based on:
 1. Bounties (especially new or expiring within 24h)
 2. Altmetric score (external engagement metrics)
 3. Tips/Boosts (financial support)
@@ -20,7 +20,8 @@ Where engagement_score is a weighted sum of logarithmic-scaled signals.
 
 Temporal urgency handling:
 - New content boost: 4.5x → 1.0x for ResearchHub posts over first 48 hours
-- Expiring content urgency: Surfaces grants/preregistrations with approaching deadlines
+- Expiring content urgency: Surfaces grants/preregistrations with approaching
+  deadlines
 
 Note: Scores are scaled by 100 and converted to integers to preserve precision
 while allowing meaningful differentiation between items during sorting.
@@ -28,12 +29,22 @@ while allowing meaningful differentiation between items during sorting.
 
 import logging
 import math
-from datetime import datetime, timedelta, timezone
 
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import DecimalField, Sum
-from django.db.models.functions import Cast
 
+# Re-export from deprecated module for backward compatibility with tests
+from feed.hot_score_DEPRECATED import CONTENT_TYPE_WEIGHTS  # noqa: F401
+from feed.hot_score_utils import (
+    get_age_hours_from_content,
+    get_altmetric_from_metrics,
+    get_bounties_from_content,
+    get_comment_count_from_metrics,
+    get_content_type_name,
+    get_fundraise_amount_from_content,
+    get_peer_review_count_from_metrics,
+    get_tips_from_content,
+    get_upvotes_rolled_up,
+)
 from paper.related_models.paper_model import Paper
 from researchhub_comment.constants.rh_comment_thread_types import (
     COMMUNITY_REVIEW,
@@ -50,7 +61,7 @@ HOT_SCORE_CONFIG = {
     # Higher weight = more influence on final score
     "signals": {
         "altmetric": {
-            "weight": 80.0,  # external impact
+            "weight": 100.0,  # external impact
             "log_base": math.e,  # Natural log for smooth scaling
         },
         "bounty": {
@@ -107,265 +118,111 @@ HOT_SCORE_CONFIG = {
 # ============================================================================
 
 
-def get_altmetric_score(item):
+def get_altmetric_score(feed_entry):
     """
-    Extract altmetric score from Paper.external_metadata.
+    Extract altmetric score from FeedEntry metrics JSON.
 
     Args:
-        item: The content item (Paper or ResearchhubPost)
+        feed_entry: FeedEntry instance
 
     Returns:
         float: Altmetric score, or 0 if not available
     """
-    if not isinstance(item, Paper):
-        return 0
-
-    if not hasattr(item, "external_metadata") or not item.external_metadata:
-        return 0
-
-    # Safely navigate the nested dictionary structure
-    metrics = item.external_metadata.get("metrics")
-    if not metrics or not isinstance(metrics, dict):
-        return 0
-
-    score = metrics.get("score", 0)
-    try:
-        return float(score) if score else 0
-    except (ValueError, TypeError):
-        return 0
+    return get_altmetric_from_metrics(feed_entry.metrics)
 
 
-def get_total_bounty_amount(unified_document):
+def get_total_bounty_amount(feed_entry):
     """
-    Sum all open bounties on the document and its comments.
+    Sum all open bounties from FeedEntry content JSON.
 
     Args:
-        unified_document: ResearchhubUnifiedDocument instance
+        feed_entry: FeedEntry instance
 
     Returns:
         tuple: (total_amount: float, has_urgent_bounty: bool)
     """
-    from reputation.related_models.bounty import Bounty
-
-    if not unified_document:
-        return 0, False
-
-    now = datetime.now(timezone.utc)
     urgency_hours = HOT_SCORE_CONFIG["signals"]["bounty"]["urgency_hours"]
-    urgency_threshold = timedelta(hours=urgency_hours)
-
-    # Get all open bounties on this unified document
-    bounties = unified_document.related_bounties.filter(status=Bounty.OPEN)
-
-    total_amount = 0
-    has_urgent_bounty = False
-
-    for bounty in bounties:
-        try:
-            amount = float(bounty.amount)
-            total_amount += amount
-
-            # Check if bounty is new or expiring soon
-            time_since_create = now - bounty.created_date
-            if bounty.expiration_date:
-                time_to_expiration = bounty.expiration_date - now
-                is_urgent = (
-                    time_since_create < urgency_threshold
-                    or time_to_expiration < urgency_threshold
-                )
-                if is_urgent:
-                    has_urgent_bounty = True
-        except (ValueError, TypeError, AttributeError):
-            continue
-
-    return total_amount, has_urgent_bounty
+    return get_bounties_from_content(feed_entry.content, feed_entry, urgency_hours)
 
 
-def get_total_tip_amount(unified_document, item):
+def get_total_tip_amount(feed_entry):
     """
-    Sum all tips/boosts (Purchase.BOOST) on the document and its comments.
+    Sum all tips/boosts from FeedEntry content JSON and optionally comments.
 
     Args:
-        unified_document: ResearchhubUnifiedDocument instance
-        item: The content item (Paper or ResearchhubPost)
+        feed_entry: FeedEntry instance
 
     Returns:
         float: Total tip amount
     """
-    from purchase.models import Purchase
-
-    total = 0
-
-    # Get tips on the main item
-    if hasattr(item, "purchases"):
-        item_tips = item.purchases.filter(
-            purchase_type=Purchase.BOOST,
-            paid_status=Purchase.PAID,
-        ).aggregate(
-            total=Sum(Cast("amount", DecimalField(max_digits=19, decimal_places=10)))
-        )[
-            "total"
-        ]
-
-        if item_tips:
-            try:
-                total += float(item_tips)
-            except (ValueError, TypeError):
-                pass
-
-    # Get tips on comments using unified document helper method
-    if unified_document:
-        comment_tips = unified_document.get_comment_tip_sum()
-        total += comment_tips
-
-    return total
+    return get_tips_from_content(
+        feed_entry.content, feed_entry, feed_entry.unified_document
+    )
 
 
-def get_total_upvotes(item, unified_document):
+def get_total_upvotes(feed_entry):
     """
     Calculate total upvotes: document upvotes + rolled-up comment upvotes.
 
     Args:
-        item: The content item (Paper or ResearchhubPost)
-        unified_document: ResearchhubUnifiedDocument instance
+        feed_entry: FeedEntry instance
 
     Returns:
         int: Total upvote count
     """
-    # Start with document-level score (upvotes - downvotes)
-    total_upvotes = getattr(item, "score", 0) or 0
-
-    # Add comment upvotes using unified document helper method
-    if unified_document:
-        comment_upvotes = unified_document.get_comment_upvote_sum()
-        total_upvotes += comment_upvotes
-
-    return max(0, total_upvotes)  # Ensure non-negative
+    return get_upvotes_rolled_up(
+        feed_entry.metrics, feed_entry, feed_entry.unified_document
+    )
 
 
-def get_peer_review_count(unified_document):
+def get_peer_review_count(feed_entry):
     """
-    Count peer reviews on the document.
+    Count peer reviews from FeedEntry metrics JSON.
 
     Args:
-        unified_document: ResearchhubUnifiedDocument instance
+        feed_entry: FeedEntry instance
 
     Returns:
         int: Number of peer reviews
     """
-    if not unified_document:
-        return 0
-
-    return unified_document.get_peer_review_comments().count()
+    return get_peer_review_count_from_metrics(feed_entry.metrics)
 
 
-def get_comment_count(item, unified_document):
+def get_comment_count(feed_entry):
     """
-    Count regular comments (excluding peer reviews).
+    Count regular comments (excluding peer reviews) from FeedEntry metrics JSON.
 
     Args:
-        item: The content item (Paper or ResearchhubPost)
-        unified_document: ResearchhubUnifiedDocument instance
+        feed_entry: FeedEntry instance
 
     Returns:
         int: Number of comments
     """
-    # Use unified document method for accurate count
-    # The cached discussion_count field can be stale/unreliable
-    if unified_document:
-        return unified_document.get_regular_comments().count()
-
-    # Fallback: try cached discussion_count if no unified document
-    if hasattr(item, "discussion_count"):
-        discussion_count = getattr(item, "discussion_count", 0) or 0
-        # Subtract peer reviews to avoid double counting
-        peer_reviews = get_peer_review_count(unified_document)
-        return max(0, discussion_count - peer_reviews)
-
-    return 0
+    return get_comment_count_from_metrics(feed_entry.metrics)
 
 
-def get_age_hours(item):
+def get_age_hours(feed_entry):
     """
-    Calculate age in hours based on content type and document type.
+    Calculate age in hours from FeedEntry content JSON, with urgency adjustments.
 
-    For Papers: Use paper_publish_date if available, else created_date
-    For Posts:
-        - GRANT: Use end_date if within urgency window
-        - PREREGISTRATION: Use fundraise.end_date if within urgency
-        - Others: Use created_date
+    For grants/preregistrations with approaching deadlines: Uses end_date for urgency
 
     Args:
-        item: The content item (Paper or ResearchhubPost)
+        feed_entry: FeedEntry instance
 
     Returns:
         float: Age in hours
     """
-    now = datetime.now(timezone.utc)
+    urgency_config = HOT_SCORE_CONFIG["temporal_urgency"]["expiring_content_urgency"]
+    grant_urgency_days = urgency_config["grant_urgency_days"]
+    prereg_urgency_days = urgency_config["preregistration_urgency_days"]
 
-    # Handle Papers
-    if isinstance(item, Paper):
-        publish_date = getattr(item, "paper_publish_date", None)
-        if publish_date:
-            age = now - publish_date
-            return max(0, age.total_seconds() / 3600)
-
-        # Fallback to created_date
-        created_date = getattr(item, "created_date", now)
-        age = now - created_date
-        return max(0, age.total_seconds() / 3600)
-
-    # Handle ResearchhubPost
-    if isinstance(item, ResearchhubPost):
-        document_type = getattr(item, "document_type", None)
-
-        # Handle GRANT - use end_date if approaching
-        if document_type == "GRANT":
-            unified_doc = getattr(item, "unified_document", None)
-            if unified_doc and hasattr(unified_doc, "grants"):
-                grant = unified_doc.grants.first()
-                if grant and grant.end_date:
-                    urgency_config = HOT_SCORE_CONFIG["temporal_urgency"][
-                        "expiring_content_urgency"
-                    ]
-                    urgency_days = urgency_config["grant_urgency_days"]
-                    time_to_deadline = grant.end_date - now
-                    is_urgent = (
-                        timedelta(0) < time_to_deadline < timedelta(days=urgency_days)
-                    )
-                    if is_urgent:
-                        # Use end_date for urgency - appear "newer"
-                        urgency_offset = timedelta(days=urgency_days)
-                        age = now - grant.end_date + urgency_offset
-                        return max(0, age.total_seconds() / 3600)
-
-        # Handle PREREGISTRATION - use fundraise end_date if approaching
-        if document_type == "PREREGISTRATION":
-            unified_doc = getattr(item, "unified_document", None)
-            if unified_doc and hasattr(unified_doc, "fundraises"):
-                fundraise = unified_doc.fundraises.filter(status="OPEN").first()
-                if fundraise and fundraise.end_date:
-                    urgency_config = HOT_SCORE_CONFIG["temporal_urgency"][
-                        "expiring_content_urgency"
-                    ]
-                    urgency_days = urgency_config["preregistration_urgency_days"]
-                    time_to_deadline = fundraise.end_date - now
-                    is_urgent = (
-                        timedelta(0) < time_to_deadline < timedelta(days=urgency_days)
-                    )
-                    if is_urgent:
-                        # Use end_date for urgency
-                        urgency_offset = timedelta(days=urgency_days)
-                        age = now - fundraise.end_date + urgency_offset
-                        return max(0, age.total_seconds() / 3600)
-
-    # Default: use created_date
-    created_date = getattr(item, "created_date", now)
-    age = now - created_date
-    return max(0, age.total_seconds() / 3600)
+    return get_age_hours_from_content(
+        feed_entry.content, feed_entry, grant_urgency_days, prereg_urgency_days
+    )
 
 
-def get_freshness_multiplier(item, age_hours):
+def get_freshness_multiplier(feed_entry, age_hours):
     """
     Calculate time-decaying freshness boost for new content.
 
@@ -377,7 +234,7 @@ def get_freshness_multiplier(item, age_hours):
         clamped to [1.0, initial_boost]
 
     Args:
-        item: The content item (Paper or ResearchhubPost)
+        feed_entry: FeedEntry instance
         age_hours: Age of the content in hours
 
     Returns:
@@ -391,12 +248,8 @@ def get_freshness_multiplier(item, age_hours):
 
     # Get the appropriate initial multiplier based on content type
     initial_multipliers = config.get("initial_multipliers", {})
-    if isinstance(item, ResearchhubPost):
-        initial_boost = initial_multipliers.get("researchhubpost", 1.0)
-    elif isinstance(item, Paper):
-        initial_boost = initial_multipliers.get("paper", 1.0)
-    else:
-        initial_boost = 1.0
+    content_type = get_content_type_name(feed_entry)
+    initial_boost = initial_multipliers.get(content_type, 1.0)
 
     # If no boost configured, return 1.0
     if initial_boost <= 1.0:
@@ -417,36 +270,17 @@ def get_freshness_multiplier(item, age_hours):
     return max(1.0, min(initial_boost, multiplier))
 
 
-def get_fundraise_amount(item):
+def get_fundraise_amount(feed_entry):
     """
-    Get fundraise amount for PREREGISTRATION posts.
+    Get fundraise amount for PREREGISTRATION posts from FeedEntry content JSON.
 
     Args:
-        item: The content item
+        feed_entry: FeedEntry instance
 
     Returns:
         float: Amount raised, or 0 if not applicable
     """
-    if not isinstance(item, ResearchhubPost):
-        return 0
-
-    document_type = getattr(item, "document_type", None)
-    if document_type != "PREREGISTRATION":
-        return 0
-
-    unified_doc = getattr(item, "unified_document", None)
-    if not unified_doc or not hasattr(unified_doc, "fundraises"):
-        return 0
-
-    fundraise = unified_doc.fundraises.filter(status="OPEN").first()
-    if not fundraise:
-        return 0
-
-    try:
-        amount = fundraise.get_amount_raised()
-        return float(amount) if amount else 0
-    except (ValueError, TypeError, AttributeError):
-        return 0
+    return get_fundraise_amount_from_content(feed_entry.content)
 
 
 # ============================================================================
@@ -550,46 +384,40 @@ def calculate_hot_score(feed_entry, content_type_name):
     Returns:
         int: Calculated hot score (scaled by 100)
     """
-    item = feed_entry.item
-    unified_document = feed_entry.unified_document
-
-    if not item:
-        return 0
-
     try:
         # ====================================================================
-        # 1. Gather all signals
+        # 1. Gather all signals from FeedEntry JSON fields
         # ====================================================================
 
         # Altmetric (external research impact)
-        altmetric = get_altmetric_score(item)
+        altmetric = get_altmetric_score(feed_entry)
 
         # Bounties (with urgency detection)
-        bounty_amount, has_urgent_bounty = get_total_bounty_amount(unified_document)
+        bounty_amount, has_urgent_bounty = get_total_bounty_amount(feed_entry)
 
         # Tips/Boosts
-        tip_amount = get_total_tip_amount(unified_document, item)
+        tip_amount = get_total_tip_amount(feed_entry)
 
         # Peer reviews
-        peer_review_count = get_peer_review_count(unified_document)
+        peer_review_count = get_peer_review_count(feed_entry)
 
         # Upvotes (document + comments rolled up)
-        upvote_count = get_total_upvotes(item, unified_document)
+        upvote_count = get_total_upvotes(feed_entry)
 
         # Comments (excluding peer reviews)
-        comment_count = get_comment_count(item, unified_document)
+        comment_count = get_comment_count(feed_entry)
 
         # Fundraise amount (for PREREGISTRATION)
-        fundraise_amount = get_fundraise_amount(item)
+        fundraise_amount = get_fundraise_amount(feed_entry)
         if fundraise_amount > 0:
             # Treat fundraise amount like tips
             tip_amount += fundraise_amount
 
         # Age in hours
-        age_hours = get_age_hours(item)
+        age_hours = get_age_hours(feed_entry)
 
         # Freshness multiplier (time-decaying boost for new content)
-        freshness_multiplier = get_freshness_multiplier(item, age_hours)
+        freshness_multiplier = get_freshness_multiplier(feed_entry, age_hours)
 
         # ====================================================================
         # 2. Calculate engagement score using logarithmic scaling
