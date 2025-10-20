@@ -3,4 +3,5 @@ celery -A researchhub worker \
     -l info \
     --prefetch-multiplier=1 \
     -P prefork \
-    --concurrency=1
+    --concurrency=1 \
+    --beat

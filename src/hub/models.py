@@ -15,21 +15,12 @@ HELP_TEXT_IS_REMOVED = "Hides the hub because it is not allowed."
 
 
 def get_default_hub_category():
-    """Get or create a default value for the hub categories"""
-
-    return HubCategory.objects.get_or_create(category_name="Other")[0]
-
-
-class HubCategory(models.Model):
-    """A grouping of hubs, organized by category"""
-
-    def __str__(self):
-        return self.category_name
-
-    def __int__(self):
-        return self.id
-
-    category_name = models.CharField(max_length=1024, unique=True)
+    """
+    Stub function for backwards compatibility with old migrations.
+    Returns 1 as a placeholder since the HubCategory model no longer exists.
+    This function is only used by migration 0011_auto_20200912_0350.py
+    """
+    return 1
 
 
 class Hub(models.Model):
@@ -68,9 +59,6 @@ class Hub(models.Model):
         related_name="hub",
         related_query_name="hub_source",
     )
-    category = models.ForeignKey(
-        HubCategory, on_delete=models.CASCADE, default=get_default_hub_category
-    )
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
 
@@ -106,9 +94,17 @@ class Hub(models.Model):
 
     class Meta:
         constraints = [
+            # Case-insensitive unique constraint to prevent duplicates
+            # with different cases. Example: Prevents "Nature", "nature",
+            # "NATURE" from coexisting with same namespace
             models.UniqueConstraint(
-                fields=["name", "namespace"], name="unique_name_namespace"
-            )
+                # Field 1: UPPER(name) - case-insensitive (used for comparison)
+                models.Func("name", function="UPPER"),
+                # Field 2: namespace - as-is
+                "namespace",
+                # Constraint name in DB
+                name="unique_name_namespace_case_insensitive",
+            ),
         ]
         indexes = [
             models.Index(
@@ -168,28 +164,14 @@ class Hub(models.Model):
         ).all()
 
     # There are a handful of OpenAlex subfields that have duplicate names
-    # but different IDs. This method will ensure that a corresponding hub is returned properly
+    # but different IDs. This method will ensure that a corresponding hub
+    # is returned properly
     @classmethod
     def get_from_subfield(cls, subfield):
         return Hub.objects.get(
             (Q(name__iexact=subfield.display_name) | Q(subfield_id=subfield.id))
             & ~Q(namespace="journal")
         )
-
-    @classmethod
-    def create_or_update_hub_from_concept(cls, concept):
-        hub, _ = Hub.objects.get_or_create(
-            name__iexact=concept.display_name,
-            defaults={
-                "name": concept.display_name,
-            },
-        )
-
-        hub.concept_id = concept.id
-        hub.description = concept.description
-        hub.save()
-
-        return hub
 
     @property
     def paper_count_indexing(self):

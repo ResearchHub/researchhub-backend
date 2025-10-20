@@ -117,7 +117,8 @@ class BaseClient(ABC):
                     )
 
                 logger.warning(
-                    f"Attempt {attempt + 1}/{self.config.max_retries + 1} failed. "
+                    f"Attempt {attempt + 1}/{self.config.max_retries + 1} failed: "
+                    f"{str(e)}. "
                     f"Retrying in {backoff:.1f}s..."
                 )
                 time.sleep(backoff)

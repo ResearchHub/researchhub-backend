@@ -38,7 +38,7 @@ from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 
 from .filters import HubFilter
-from .models import Hub, HubCategory
+from .models import Hub
 from .permissions import (
     CensorHub,
     CreateHub,
@@ -47,7 +47,7 @@ from .permissions import (
     IsSubscribed,
     UpdateHub,
 )
-from .serializers import HubCategorySerializer, HubContributionSerializer, HubSerializer
+from .serializers import HubContributionSerializer, HubSerializer
 
 
 class CustomPageLimitPagination(PageNumberPagination):
@@ -150,7 +150,7 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         permission_classes=[AllowAny],
     )
     def rep_hubs(self, request):
-        cache_key = f"rep-hubs"
+        cache_key = "rep-hubs"
         cache_hit = cache.get(cache_key)
 
         if cache_hit:
@@ -473,50 +473,48 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         )
 
     @action(detail=False, methods=[GET], permission_classes=[AllowAny])
-    def by_category(self, request):
+    def primary_only(self, request):
         """
-        Returns all subcategory hubs with their parent category from mappings.
-        Example: "neuroscience" hub will have category="Biology"
+        Returns a list of all unique hubs (both categories and subcategories)
+        that appear in the mappings, deduplicated, sorted by paper_count descending.
         """
 
-        cache_key = get_cache_key("hubs", "by_category")
+        cache_key = get_cache_key("hubs", "primary_only")
         cached_data = cache.get(cache_key)
 
         if cached_data:
             return Response(cached_data, status=200)
 
-        subcategory_to_category_map = self._build_subcategory_mapping()
+        # Extract all unique hub slugs (both category and subcategory) from mappings
+        all_hub_slugs = set()
+        all_mappings = [
+            ARXIV_MAPPINGS,
+            BIORXIV_MAPPINGS,
+            CHEMRXIV_MAPPINGS,
+            MEDRXIV_MAPPINGS,
+        ]
 
-        # Get subcategory hubs
-        subcategory_slugs = list(subcategory_to_category_map.keys())
-        hubs = Hub.objects.filter(slug__in=subcategory_slugs, is_removed=False)
+        for source in all_mappings:
+            for category_slug, subcategory_slug in source.values():
+                if category_slug:
+                    all_hub_slugs.add(category_slug)
+                if subcategory_slug:
+                    all_hub_slugs.add(subcategory_slug)
 
-        # Convert category slugs to names
-        category_names = dict(
-            Hub.objects.filter(
-                slug__in=set(subcategory_to_category_map.values())
-            ).values_list("slug", "name")
-        )
+        # Get all unique hubs, sorted by paper_count descending
+        primary_hubs = Hub.objects.filter(
+            slug__in=all_hub_slugs, is_removed=False
+        ).order_by("-paper_count")
 
-        # Create final mapping: subcategory slug -> category name
-        hub_category_mapping = {}
-        for subcategory_slug, category_slug in subcategory_to_category_map.items():
-            # Use the category's name if found, otherwise fallback to slug
-            category_name = category_names.get(
-                category_slug, f"Unknown ({category_slug})"
-            )
-            hub_category_mapping[subcategory_slug] = category_name
+        # Serialize all results
+        serializer = self.get_serializer(primary_hubs, many=True)
 
-        # Serialize with category mapping
-        context = self.get_serializer_context()
-        context["hub_category_mapping"] = hub_category_mapping
+        # Return with count and results format
+        response_data = {"count": primary_hubs.count(), "results": serializer.data}
 
-        serializer = self.get_serializer(hubs, many=True, context=context)
-        data = serializer.data
+        cache.set(cache_key, response_data, timeout=60 * 60 * 24)
 
-        cache.set(cache_key, data, timeout=60 * 60 * 24)
-
-        return Response(data, status=200)
+        return Response(response_data, status=200)
 
     def _build_subcategory_mapping(self):
         """Build mapping of subcategory slug -> category slug from all sources."""
@@ -535,9 +533,3 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
                     mapping[subcategory_slug] = category_slug
 
         return mapping
-
-
-class HubCategoryViewSet(viewsets.ModelViewSet):
-    queryset = HubCategory.objects.all()
-    serializer_class = HubCategorySerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]

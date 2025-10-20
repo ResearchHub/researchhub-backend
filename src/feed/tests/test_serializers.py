@@ -1,6 +1,8 @@
+from datetime import datetime
 from decimal import Decimal
 from unittest.mock import patch
 
+import pytz
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import default_storage
@@ -17,6 +19,7 @@ from feed.serializers import (
     PostSerializer,
     SimpleReviewSerializer,
     SimpleUserSerializer,
+    serialize_feed_metrics,
 )
 from feed.views.feed_view_mixin import FeedViewMixin
 from hub.models import Hub
@@ -416,12 +419,13 @@ class PostSerializerTests(TestCase):
         context = FeedViewMixin().get_common_serializer_context()
 
         # Mock the RscExchangeRate.usd_to_rsc method to avoid database dependency
-        with patch.object(
-            RscExchangeRate, "usd_to_rsc", return_value=200.0
-        ), patch.object(
-            Fundraise,
-            "get_amount_raised",
-            side_effect=lambda currency: 50.0 if currency == USD else 100.0,
+        with (
+            patch.object(RscExchangeRate, "usd_to_rsc", return_value=200.0),
+            patch.object(
+                Fundraise,
+                "get_amount_raised",
+                side_effect=lambda currency: 50.0 if currency == USD else 100.0,
+            ),
         ):
             # Serialize the post with the context
             serializer = PostSerializer(preregistration_post, context=context)
@@ -1240,6 +1244,7 @@ class SimpleHubSerializerTests(TestCase):
         serializer = SimpleHubSerializer(self.hub)
         data = serializer.data
 
+        self.assertEqual(data["id"], self.hub.id)
         self.assertEqual(data["name"], self.hub.name)
         self.assertEqual(data["slug"], self.hub.slug)
 
@@ -1295,6 +1300,199 @@ class FeedEntrySerializerTests(TestCase):
         self.user = create_random_default_user("feed_creator")
 
         return None
+
+    def test_serializes_paper_feed_entry_with_unified_document_id(self):
+        """Test that paper feed entries include unified_document_id in content_object"""
+        paper = create_paper(uploaded_by=self.user)
+        paper.score = 42
+        paper.discussion_count = 15
+        paper.save()
+
+        # Mock the get_review_details method to return test review metrics
+        review_metrics = {"avg": 4.5, "count": 3}
+        with patch.object(
+            paper.unified_document, "get_review_details", return_value=review_metrics
+        ):
+            feed_entry = FeedEntry.objects.create(
+                content_type=ContentType.objects.get_for_model(Paper),
+                object_id=paper.id,
+                item=paper,
+                created_date=paper.created_date,
+                action="PUBLISH",
+                action_date=paper.paper_publish_date,
+                metrics={"votes": 42, "comments": 15, "review_metrics": review_metrics},
+                user=self.user,
+                unified_document=paper.unified_document,
+            )
+
+            serializer = FeedEntrySerializer(feed_entry)
+            data = serializer.data
+
+            # Verify basic feed entry fields
+            self.assertIn("id", data)
+            self.assertIn("content_type", data)
+            self.assertEqual(data["content_type"], "PAPER")
+            self.assertIn("content_object", data)
+
+            # Verify unified_document_id is included in content_object
+            paper_data = data["content_object"]
+            self.assertIn("unified_document_id", paper_data)
+            self.assertEqual(
+                paper_data["unified_document_id"], paper.unified_document.id
+            )
+
+    def test_serializes_post_feed_entry_with_unified_document_id(self):
+        """Test that post feed entries include unified_document_id in content_object"""
+        # Create a post with metrics
+        unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.POSTS,
+        )
+
+        post = ResearchhubPost.objects.create(
+            title="Test Post",
+            created_by=self.user,
+            document_type=document_type.POSTS,
+            renderable_text="This is a test post",
+            unified_document=unified_document,
+            score=25,
+            discussion_count=8,
+        )
+
+        # Create a feed entry for the post
+        post_feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=post.id,
+            item=post,
+            created_date=post.created_date,
+            action="PUBLISH",
+            action_date=post.created_date,
+            metrics={"votes": 25, "comments": 8},
+            user=self.user,
+            unified_document=post.unified_document,
+        )
+
+        # Serialize the feed entry
+        serializer = FeedEntrySerializer(post_feed_entry)
+        data = serializer.data
+
+        # Verify basic feed entry fields
+        self.assertIn("id", data)
+        self.assertIn("content_type", data)
+        self.assertEqual(data["content_type"], "RESEARCHHUBPOST")
+        self.assertIn("content_object", data)
+
+        # Verify unified_document_id is included in content_object
+        post_data = data["content_object"]
+        self.assertIn("unified_document_id", post_data)
+        self.assertEqual(post_data["unified_document_id"], post.unified_document.id)
+
+    def test_serializes_comment_feed_entry_with_unified_document_id(self):
+        """Test that comment feed entries include unified_document_id in paper/post fields"""
+        # Create a paper and unified document
+        paper = create_paper(uploaded_by=self.user)
+
+        # Create a comment thread and comment
+        thread = RhCommentThreadModel.objects.create(
+            thread_type=rh_comment_thread_types.GENERIC_COMMENT,
+            object_id=paper.id,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(Paper),
+        )
+
+        comment = RhCommentModel.objects.create(
+            thread=thread,
+            created_by=self.user,
+            comment_content_type=QUILL_EDITOR,
+        )
+
+        # Create a feed entry for the comment
+        comment_feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=comment.id,
+            item=comment,
+            created_date=comment.created_date,
+            action="PUBLISH",
+            action_date=comment.created_date,
+            metrics={"votes": 15},
+            user=self.user,
+            unified_document=paper.unified_document,
+        )
+
+        # Serialize the feed entry
+        serializer = FeedEntrySerializer(comment_feed_entry)
+        data = serializer.data
+
+        # Verify basic feed entry fields
+        self.assertIn("id", data)
+        self.assertIn("content_type", data)
+        self.assertEqual(data["content_type"], "RHCOMMENTMODEL")
+        self.assertIn("content_object", data)
+
+        # Verify unified_document_id is included in paper field of comment
+        comment_data = data["content_object"]
+        self.assertIn("paper", comment_data)
+        paper_data = comment_data["paper"]
+        self.assertIn("unified_document_id", paper_data)
+        self.assertEqual(paper_data["unified_document_id"], paper.unified_document.id)
+
+    def test_serializes_comment_feed_entry_with_post_unified_document_id(self):
+        """Test that comment feed entries include unified_document_id in post field when comment is on a post"""
+        # Create a post and unified document
+        unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.DISCUSSION,
+        )
+
+        post = ResearchhubPost.objects.create(
+            title="Test Post",
+            created_by=self.user,
+            document_type=document_type.DISCUSSION,
+            renderable_text="This is a test post",
+            unified_document=unified_document,
+        )
+
+        # Create a comment thread and comment on the post
+        thread = RhCommentThreadModel.objects.create(
+            thread_type=rh_comment_thread_types.GENERIC_COMMENT,
+            object_id=post.id,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+        )
+
+        comment = RhCommentModel.objects.create(
+            thread=thread,
+            created_by=self.user,
+            comment_content_type=QUILL_EDITOR,
+        )
+
+        # Create a feed entry for the comment
+        comment_feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=comment.id,
+            item=comment,
+            created_date=comment.created_date,
+            action="PUBLISH",
+            action_date=comment.created_date,
+            metrics={"votes": 15},
+            user=self.user,
+            unified_document=post.unified_document,
+        )
+
+        # Serialize the feed entry
+        serializer = FeedEntrySerializer(comment_feed_entry)
+        data = serializer.data
+
+        # Verify basic feed entry fields
+        self.assertIn("id", data)
+        self.assertIn("content_type", data)
+        self.assertEqual(data["content_type"], "RHCOMMENTMODEL")
+        self.assertIn("content_object", data)
+
+        # Verify unified_document_id is included in post field of comment
+        comment_data = data["content_object"]
+        self.assertIn("post", comment_data)
+        post_data = comment_data["post"]
+        self.assertIn("unified_document_id", post_data)
+        self.assertEqual(post_data["unified_document_id"], post.unified_document.id)
 
     @patch(
         "researchhub_document.related_models.researchhub_unified_document_model"
@@ -1516,7 +1714,7 @@ class FeedEntrySerializerTests(TestCase):
             content_type=ContentType.objects.get_for_model(Paper),
             object_id=paper.id,
             user=user,
-            action="CREATE",
+            action="PUBLISH",
             action_date=paper.created_date,
             unified_document=paper.unified_document,
         )
@@ -1543,6 +1741,118 @@ class FeedEntrySerializerTests(TestCase):
         self.assertEqual(purchase_data["id"], purchase.id)
         self.assertEqual(purchase_data["amount"], purchase.amount)
         self.assertIn("user", purchase_data)
+
+    @patch(
+        "researchhub_document.related_models.researchhub_unified_document_model."
+        "ResearchhubUnifiedDocument.get_primary_hub"
+    )
+    def test_feed_entry_includes_altmetric_data(self, mock_get_primary_hub):
+        """Test that paper feed entries include altmetric metrics from external_metadata"""
+        # Create a user and paper
+        user = create_random_default_user("altmetric_test_user")
+        paper = create_paper(uploaded_by=user, title="Test Paper with Altmetrics")
+
+        # Add altmetric data to external_metadata
+        paper.external_metadata = {
+            "metrics": {
+                "altmetric_id": 12345,
+                "score": 42.5,
+                "facebook_count": 15,
+                "twitter_count": 230,
+                "bluesky_count": 8,
+                "last_updated": datetime.now(pytz.UTC).isoformat(),
+            }
+        }
+        paper.save()
+
+        # Create a hub and set it as primary
+        hub = create_hub("Test Hub")
+        mock_get_primary_hub.return_value = hub
+
+        # Serialize metrics for the paper
+        paper_content_type = ContentType.objects.get_for_model(Paper)
+        metrics = serialize_feed_metrics(paper, paper_content_type)
+
+        # Create a feed entry with the serialized metrics
+        feed_entry = FeedEntry.objects.create(
+            content_type=paper_content_type,
+            object_id=paper.id,
+            user=user,
+            action="PUBLISH",
+            action_date=paper.created_date,
+            unified_document=paper.unified_document,
+            metrics=metrics,
+        )
+
+        # Force an empty cache in the serializer
+        feed_entry.content = {}
+        feed_entry.save()
+
+        # Serialize and check
+        serializer = FeedEntrySerializer(feed_entry)
+        data = serializer.data
+
+        # Verify metrics field exists and contains altmetric data
+        self.assertIn("metrics", data)
+        self.assertIsInstance(data["metrics"], dict)
+
+        # Verify altmetric fields are present in metrics (flat structure)
+        self.assertIn("altmetric_score", data["metrics"])
+        self.assertIn("facebook_count", data["metrics"])
+        self.assertIn("twitter_count", data["metrics"])
+        self.assertIn("bluesky_count", data["metrics"])
+
+        # Verify altmetric values are correct
+        self.assertEqual(data["metrics"]["altmetric_score"], 42.5)
+        self.assertEqual(data["metrics"]["facebook_count"], 15)
+        self.assertEqual(data["metrics"]["twitter_count"], 230)
+        self.assertEqual(data["metrics"]["bluesky_count"], 8)
+
+        # Verify altmetric_id and last_updated are not included
+        self.assertNotIn("altmetric_id", data["metrics"])
+        self.assertNotIn("last_updated", data["metrics"])
+
+    @patch(
+        "researchhub_document.related_models.researchhub_unified_document_model."
+        "ResearchhubUnifiedDocument.get_primary_hub"
+    )
+    def test_feed_entry_without_altmetric_data(self, mock_get_primary_hub):
+        """Test that paper feed entries without altmetric data don't include altmetric fields"""
+        # Create a user and paper without altmetric data
+        user = create_random_default_user("no_altmetric_user")
+        paper = create_paper(uploaded_by=user, title="Test Paper Without Altmetrics")
+
+        # Create a hub and set it as primary
+        hub = create_hub("Test Hub")
+        mock_get_primary_hub.return_value = hub
+
+        # Create a feed entry
+        feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=paper.id,
+            user=user,
+            action="PUBLISH",
+            action_date=paper.created_date,
+            unified_document=paper.unified_document,
+        )
+
+        # Force an empty cache in the serializer
+        feed_entry.content = {}
+        feed_entry.save()
+
+        # Serialize and check
+        serializer = FeedEntrySerializer(feed_entry)
+        data = serializer.data
+
+        # Verify metrics field exists but doesn't contain altmetric data
+        self.assertIn("metrics", data)
+        self.assertIsInstance(data["metrics"], dict)
+
+        # Verify altmetric fields are NOT present
+        self.assertNotIn("altmetric_score", data["metrics"])
+        self.assertNotIn("facebook_count", data["metrics"])
+        self.assertNotIn("twitter_count", data["metrics"])
+        self.assertNotIn("bluesky_count", data["metrics"])
 
 
 class FundingFeedEntrySerializerTests(TestCase):
@@ -1584,7 +1894,7 @@ class FundingFeedEntrySerializerTests(TestCase):
             content_type=ContentType.objects.get_for_model(ResearchhubPost),
             object_id=post.id,
             user=self.user,
-            action="CREATE",
+            action="PUBLISH",
             action_date=post.created_date,
             unified_document=unified_doc,
         )

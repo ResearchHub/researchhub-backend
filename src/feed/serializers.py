@@ -78,7 +78,7 @@ class SimpleHubSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Hub
-        fields = ["name", "slug"]
+        fields = ["id", "name", "slug"]
 
 
 class SimpleReviewSerializer(serializers.ModelSerializer):
@@ -103,12 +103,19 @@ class ContentObjectSerializer(serializers.Serializer):
     hub = serializers.SerializerMethodField()
     reviews = serializers.SerializerMethodField()
     slug = serializers.CharField()
+    unified_document_id = serializers.SerializerMethodField()
 
     def get_hub(self, obj):
         if hasattr(obj, "unified_document") and obj.unified_document:
             hub = obj.unified_document.get_primary_hub(fallback=True)
             if hub:
                 return SimpleHubSerializer(hub).data
+        return None
+
+    def get_unified_document_id(self, obj):
+        """Return unified document ID if it exists"""
+        if hasattr(obj, "unified_document") and obj.unified_document:
+            return obj.unified_document.id
         return None
 
     def get_bounty_data(self, obj):
@@ -160,7 +167,15 @@ class ContentObjectSerializer(serializers.Serializer):
         return []
 
     class Meta:
-        fields = ["id", "created_date", "hub", "reviews", "slug", "user"]
+        fields = [
+            "id",
+            "created_date",
+            "hub",
+            "reviews",
+            "slug",
+            "user",
+            "unified_document_id",
+        ]
         abstract = True
 
 
@@ -486,7 +501,9 @@ class CommentSerializer(serializers.Serializer):
             and obj.unified_document.document_type == document_type.PAPER
         ):
             paper = obj.unified_document.paper
-            return PaperSerializer(paper).data
+            paper_data = PaperSerializer(paper).data
+            paper_data["unified_document_id"] = obj.unified_document.id
+            return paper_data
         return None
 
     def get_parent_comment(self, obj):
@@ -499,7 +516,9 @@ class CommentSerializer(serializers.Serializer):
         """Return the post associated with this comment if it exists"""
         if obj.unified_document and hasattr(obj.unified_document, "posts"):
             post = obj.unified_document.posts.first()
-            return PostSerializer(post).data
+            post_data = PostSerializer(post).data
+            post_data["unified_document_id"] = obj.unified_document.id
+            return post_data
         return None
 
     def get_review(self, obj):
@@ -611,6 +630,18 @@ def serialize_feed_metrics(item, item_content_type):
             metrics["review_metrics"] = item.unified_document.get_review_details()
         if hasattr(item, "citations"):
             metrics["citations"] = item.citations
+
+        # Add altmetric data from external_metadata for Papers
+        if item_content_type == ContentType.objects.get_for_model(Paper):
+            if hasattr(item, "external_metadata") and item.external_metadata:
+                altmetric_metrics = item.external_metadata.get("metrics", {})
+                if altmetric_metrics:
+                    metrics["altmetric_score"] = altmetric_metrics.get("score", 0.0)
+                    metrics["facebook_count"] = altmetric_metrics.get(
+                        "facebook_count", 0
+                    )
+                    metrics["twitter_count"] = altmetric_metrics.get("twitter_count", 0)
+                    metrics["bluesky_count"] = altmetric_metrics.get("bluesky_count", 0)
 
     return metrics
 

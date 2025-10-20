@@ -16,7 +16,7 @@ class TestMedRxivMapper(TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.mapper = MedRxivMapper()
+        self.mapper = MedRxivMapper(None)
 
         # Sample MedRxiv record
         self.sample_record = {
@@ -142,8 +142,7 @@ class TestMedRxivMapper(TestCase):
                 "namespace": Hub.Namespace.JOURNAL,
             },
         )
-        mapper = MedRxivMapper()
-        mapper._hub = hub
+        mapper = MedRxivMapper(None)
         paper = mapper.map_to_paper(self.sample_record)
 
         # Act
@@ -162,7 +161,7 @@ class TestMedRxivMapper(TestCase):
         """
         # Arrange
         mock_preprint_hub.return_value = None
-        mapper = MedRxivMapper()
+        mapper = MedRxivMapper(None)
         paper = mapper.map_to_paper(self.sample_record)
 
         # Act

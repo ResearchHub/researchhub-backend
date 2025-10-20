@@ -10,6 +10,7 @@ class Institution(DefaultModel):
     # https://docs.openalex.org/api-entities/institutions/institution-object#id
     openalex_id = models.CharField(
         unique=True,
+        db_index=True,
         blank=False,
         null=False,
         max_length=255,

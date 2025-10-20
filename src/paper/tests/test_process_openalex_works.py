@@ -91,9 +91,9 @@ class ProcessOpenAlexWorksTests(APITestCase):
             created_papers = Paper.objects.filter(doi__in=dois).order_by("doi")
 
             paper_hubs = created_papers[0].unified_document.hubs.all()
-            self.assertEqual(len(paper_hubs), 16)
+            self.assertEqual(len(paper_hubs), 2)
             paper_hubs = created_papers[1].unified_document.hubs.all()
-            self.assertEqual(len(paper_hubs), 23)
+            self.assertEqual(len(paper_hubs), 3)
 
     @patch.object(OpenAlex, "get_authors")
     def test_creating_papers_should_tag_with_reputation_hubs(self, mock_get_authors):
