@@ -70,5 +70,5 @@ class HubDocument(BaseDocument):
         }
 
     @override
-    def should_index_object(self, obj):  # type: ignore[override]
+    def should_index_object(self, obj) -> bool:  # type: ignore[override]
         return not obj.is_removed
