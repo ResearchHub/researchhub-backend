@@ -32,7 +32,3 @@ class UserDocumentTests(TestCase):
         """Test that suspended users should not be indexed"""
         result = self.document.should_index_object(self.suspended_user)
         self.assertFalse(result, "Suspended users should not be indexed")
-
-    def tearDown(self):
-        """Clean up test data"""
-        User.objects.all().delete()
