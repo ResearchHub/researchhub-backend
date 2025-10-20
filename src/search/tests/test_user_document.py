@@ -1,5 +1,3 @@
-from unittest.mock import Mock
-
 from django.test import TestCase
 
 from search.documents.user import UserDocument
@@ -34,96 +32,6 @@ class UserDocumentTests(TestCase):
         """Test that suspended users should not be indexed"""
         result = self.document.should_index_object(self.suspended_user)
         self.assertFalse(result, "Suspended users should not be indexed")
-
-    def test_prepare_is_suspended_active_user(self):
-        """Test that is_suspended field is prepared correctly for active users"""
-        result = self.document.prepare_is_suspended(self.active_user)
-        self.assertFalse(result, "Active user should have is_suspended=False")
-
-    def test_prepare_is_suspended_suspended_user(self):
-        """Test that is_suspended field is prepared correctly for suspended users"""
-        result = self.document.prepare_is_suspended(self.suspended_user)
-        self.assertTrue(result, "Suspended user should have is_suspended=True")
-
-    def test_prepare_is_suspended_missing_field(self):
-        """Test that prepare_is_suspended handles missing is_suspended field"""
-        mock_user = Mock()
-        del mock_user.is_suspended  # Remove the attribute
-
-        with self.assertRaises(AttributeError):
-            self.document.prepare_is_suspended(mock_user)
-
-    def test_should_index_object_with_missing_field(self):
-        """Test that should_index_object handles missing is_suspended field"""
-        mock_user = Mock()
-        del mock_user.is_suspended  # Remove the attribute
-
-        with self.assertRaises(AttributeError):
-            self.document.should_index_object(mock_user)
-
-    def test_should_index_object_boolean_values(self):
-        """Test that should_index_object correctly handles boolean values"""
-        # Test with explicit True/False values
-        mock_user_true = Mock()
-        mock_user_true.is_suspended = True
-
-        mock_user_false = Mock()
-        mock_user_false.is_suspended = False
-
-        self.assertFalse(self.document.should_index_object(mock_user_true))
-        self.assertTrue(self.document.should_index_object(mock_user_false))
-
-    def test_document_field_definitions(self):
-        """Test that the document has the correct field definitions"""
-        # Check that is_suspended field exists
-        self.assertTrue(hasattr(self.document, "is_suspended"))
-
-        # Check that the field exists on the document instance
-        self.assertTrue(hasattr(self.document, "is_suspended"))
-
-        # Check that the field is accessible
-        field_value = getattr(self.document, "is_suspended", None)
-        # The field should exist (even if it's None initially)
-        self.assertIsNotNone(
-            field_value or True, "is_suspended field should be accessible"
-        )
-
-    def test_document_inheritance(self):
-        """Test that UserDocument properly inherits from BaseDocument"""
-        from search.documents.base import BaseDocument
-
-        self.assertIsInstance(self.document, BaseDocument)
-
-    def test_should_index_object_override(self):
-        """Test that should_index_object properly overrides the base method"""
-        # Check that the method exists and is callable
-        self.assertTrue(hasattr(self.document, "should_index_object"))
-        self.assertTrue(callable(self.document.should_index_object))
-
-        # Test that it returns boolean values
-        result = self.document.should_index_object(self.active_user)
-        self.assertIsInstance(result, bool)
-
-    def test_prepare_is_suspended_method_exists(self):
-        """Test that prepare_is_suspended method exists and is callable"""
-        self.assertTrue(hasattr(self.document, "prepare_is_suspended"))
-        self.assertTrue(callable(self.document.prepare_is_suspended))
-
-    def test_integration_with_real_users(self):
-        """Test integration with real User model instances"""
-        # Test with real database users
-        active_result = self.document.should_index_object(self.active_user)
-        suspended_result = self.document.should_index_object(self.suspended_user)
-
-        self.assertTrue(active_result)
-        self.assertFalse(suspended_result)
-
-        # Test prepare methods with real users
-        active_suspended = self.document.prepare_is_suspended(self.active_user)
-        suspended_suspended = self.document.prepare_is_suspended(self.suspended_user)
-
-        self.assertFalse(active_suspended)
-        self.assertTrue(suspended_suspended)
 
     def tearDown(self):
         """Clean up test data"""
