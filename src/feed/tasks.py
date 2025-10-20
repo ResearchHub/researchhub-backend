@@ -9,7 +9,6 @@ from django.utils import timezone
 import utils.locking as lock
 from feed.models import FeedEntry
 from feed.serializers import serialize_feed_item, serialize_feed_metrics
-from feed.views.feed_view import FeedViewSet
 from paper.related_models.paper_model import Paper
 from researchhub.celery import app
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -236,6 +235,7 @@ def refresh_feed_hot_scores_batch(
         update_fields.append("hot_score")
     if update_v2:
         update_fields.append("hot_score_v2")
+        update_fields.append("hot_score_v2_breakdown")
 
     if not update_fields:
         logger.warning("No update fields specified, skipping hot score refresh")

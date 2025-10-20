@@ -349,7 +349,7 @@ def calculate_hot_score_for_peer_review(feed_entry):
     return max(0, final_score)
 
 
-def calculate_hot_score(feed_entry, content_type_name):
+def calculate_hot_score(feed_entry, content_type_name, return_components=False):
     """
     Calculate hot score using HN-style algorithm with prioritized signals.
 
@@ -376,9 +376,11 @@ def calculate_hot_score(feed_entry, content_type_name):
     Args:
         feed_entry: The feed entry object
         content_type_name: ContentType instance
+        return_components: If True, return dict with score and all components
 
     Returns:
-        int: Calculated hot score (scaled by 100)
+        int: Calculated hot score (if return_components=False)
+        dict: Full calculation data (if return_components=True)
     """
     try:
         # ====================================================================
@@ -492,9 +494,46 @@ def calculate_hot_score(feed_entry, content_type_name):
         # This allows for better differentiation between items
         # Example: 0.0051 → 0, 1.5 → 150, 10.25 → 1025
         scaled_score = hot_score * 100
-        return max(0, int(scaled_score))
+        final_score = max(0, int(scaled_score))
+
+        # Return components if requested (for breakdown generation)
+        if return_components:
+            return {
+                "final_score": final_score,
+                "raw_signals": {
+                    "altmetric": altmetric,
+                    "bounty": bounty_amount,
+                    "tip": tip_amount,
+                    "peer_review": peer_review_count,
+                    "upvote": upvote_count,
+                    "comment": comment_count,
+                },
+                "components": {
+                    "altmetric": altmetric_component,
+                    "bounty": bounty_component,
+                    "tip": tip_component,
+                    "peer_review": peer_review_component,
+                    "upvote": upvote_component,
+                    "comment": comment_component,
+                },
+                "bounty_urgent": has_urgent_bounty,
+                "bounty_multiplier": bounty_multiplier,
+                "time_factors": {
+                    "age_hours": age_hours,
+                    "freshness_multiplier": freshness_multiplier,
+                    "base_hours": base_hours,
+                    "gravity": gravity,
+                },
+                "engagement_score": engagement_score,
+                "time_denominator": denominator,
+                "raw_score": hot_score,
+            }
+
+        return final_score
 
     except Exception as e:
         logger.error(f"Error calculating hot score for feed_entry {feed_entry.id}: {e}")
         sentry.log_error(e)
+        if return_components:
+            return None
         return 0

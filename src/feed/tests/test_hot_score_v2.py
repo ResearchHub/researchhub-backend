@@ -425,3 +425,70 @@ class TestHotScoreV2(TestCase):
         # Should return valid integer (0 or low value)
         self.assertIsInstance(score, int)
         self.assertGreaterEqual(score, 0)
+
+    def test_hot_score_breakdown_structure(self):
+        """Test that hot score breakdown has correct structure and uses config."""
+        from feed.hot_score import HOT_SCORE_CONFIG
+        from feed.hot_score_breakdown import get_hot_score_breakdown
+
+        post = create_post(created_by=self.user)
+
+        content = {
+            "id": post.id,
+            "title": "Test Post",
+            "bounties": [
+                {
+                    "id": 1,
+                    "amount": "100.0000000000",
+                    "status": "OPEN",
+                    "expiration_date": (self.now + timedelta(days=10)).isoformat(),
+                }
+            ],
+            "purchases": [{"id": 1, "amount": "50"}],
+        }
+
+        metrics = {
+            "votes": 10,
+            "replies": 3,
+            "review_metrics": {"count": 1},
+            "altmetric_score": 2.5,
+        }
+
+        feed_entry = FeedEntry.objects.create(
+            item=post,
+            unified_document=post.unified_document,
+            content_type=ContentType.objects.get_for_model(post),
+            object_id=post.id,
+            action=FeedEntry.PUBLISH,
+            action_date=self.now,
+            content=content,
+            metrics=metrics,
+        )
+
+        breakdown = get_hot_score_breakdown(feed_entry)
+
+        # Verify structure
+        self.assertIn("equation", breakdown)
+        self.assertIn("steps", breakdown)
+        self.assertIn("signals", breakdown)
+        self.assertIn("time_factors", breakdown)
+        self.assertIn("calculation", breakdown)
+        self.assertIn("config_snapshot", breakdown)
+
+        # Verify signals match config
+        self.assertIn("altmetric", breakdown["signals"])
+        self.assertIn("bounty", breakdown["signals"])
+        self.assertIn("tip", breakdown["signals"])
+
+        # Verify weights come from config
+        altmetric_weight = breakdown["signals"]["altmetric"]["weight"]
+        config_weight = HOT_SCORE_CONFIG["signals"]["altmetric"]["weight"]
+        self.assertEqual(altmetric_weight, config_weight)
+
+        # Verify equation is a non-empty string
+        self.assertIsInstance(breakdown["equation"], str)
+        self.assertGreater(len(breakdown["equation"]), 0)
+
+        # Verify steps is a list
+        self.assertIsInstance(breakdown["steps"], list)
+        self.assertGreater(len(breakdown["steps"]), 0)

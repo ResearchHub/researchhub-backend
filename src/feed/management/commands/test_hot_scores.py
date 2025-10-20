@@ -228,101 +228,61 @@ class Command(BaseCommand):
 
     def _get_components(self, item, unified_doc, feed_entry):
         """Get detailed component breakdown for an item."""
-        # Gather signals using new feed_entry-based API
-        altmetric = get_altmetric_score(feed_entry)
-        bounty_amount, has_urgent_bounty = get_total_bounty_amount(feed_entry)
-        tip_amount = get_total_tip_amount(feed_entry)
-        fundraise_amount = get_fundraise_amount(feed_entry)
-        if fundraise_amount > 0:
-            tip_amount += fundraise_amount
+        from feed.hot_score_breakdown import get_hot_score_breakdown
 
-        peer_review_count = get_peer_review_count(feed_entry)
-        upvote_count = get_total_upvotes(feed_entry)
-        comment_count = get_comment_count(feed_entry)
+        # Use stored breakdown if available, otherwise calculate
+        if (
+            hasattr(feed_entry, "hot_score_v2_breakdown")
+            and feed_entry.hot_score_v2_breakdown
+        ):
+            breakdown = feed_entry.hot_score_v2_breakdown
 
-        age_hours = get_age_hours(feed_entry)
-        freshness_multiplier = get_freshness_multiplier(feed_entry, age_hours)
+            # Convert breakdown format to legacy format for compatibility
+            return {
+                "altmetric": breakdown["signals"]["altmetric"],
+                "bounty": breakdown["signals"]["bounty"],
+                "tip": breakdown["signals"]["tip"],
+                "peer_review": breakdown["signals"]["peer_review"],
+                "upvote": breakdown["signals"]["upvote"],
+                "comment": breakdown["signals"]["comment"],
+                "age_hours": breakdown["time_factors"]["age_hours"],
+                "freshness_multiplier": breakdown["time_factors"][
+                    "freshness_multiplier"
+                ],
+                "engagement_score": breakdown["calculation"]["engagement_score"],
+                "time_denominator": breakdown["calculation"]["time_denominator"],
+            }
 
-        # Calculate component scores (same logic as calculate_hot_score)
-        import math
-
-        config = HOT_SCORE_CONFIG["signals"]
-
-        altmetric_component = (
-            math.log(altmetric + 1, config["altmetric"]["log_base"])
-            * config["altmetric"]["weight"]
-        )
-
-        bounty_multiplier = (
-            config["bounty"]["urgency_multiplier"] if has_urgent_bounty else 1.0
-        )
-        bounty_component = (
-            math.log(bounty_amount + 1, config["bounty"]["log_base"])
-            * config["bounty"]["weight"]
-            * bounty_multiplier
-        )
-
-        tip_component = (
-            math.log(tip_amount + 1, config["tip"]["log_base"])
-            * config["tip"]["weight"]
-        )
-
-        peer_review_component = (
-            math.log(peer_review_count + 1, config["peer_review"]["log_base"])
-            * config["peer_review"]["weight"]
-        )
-
-        upvote_component = (
-            math.log(upvote_count + 1, config["upvote"]["log_base"])
-            * config["upvote"]["weight"]
-        )
-
-        comment_component = (
-            math.log(comment_count + 1, config["comment"]["log_base"])
-            * config["comment"]["weight"]
-        )
-
-        engagement_score = (
-            altmetric_component
-            + bounty_component
-            + tip_component
-            + peer_review_component
-            + upvote_component
-            + comment_component
-        ) * freshness_multiplier
-
-        decay_config = HOT_SCORE_CONFIG["time_decay"]
-        denominator = math.pow(
-            age_hours + decay_config["base_hours"], decay_config["gravity"]
-        )
+        # Fallback: calculate if not stored (for old entries)
+        breakdown = get_hot_score_breakdown(feed_entry)
 
         return {
-            "altmetric": {
-                "raw": altmetric,
-                "component": altmetric_component,
-            },
-            "bounty": {
-                "raw": bounty_amount,
-                "urgent": has_urgent_bounty,
-                "component": bounty_component,
-            },
-            "tip": {"raw": tip_amount, "component": tip_component},
-            "peer_review": {
-                "raw": peer_review_count,
-                "component": peer_review_component,
-            },
-            "upvote": {"raw": upvote_count, "component": upvote_component},
-            "comment": {"raw": comment_count, "component": comment_component},
-            "age_hours": age_hours,
-            "freshness_multiplier": freshness_multiplier,
-            "engagement_score": engagement_score,
-            "time_denominator": denominator,
+            "altmetric": breakdown["signals"]["altmetric"],
+            "bounty": breakdown["signals"]["bounty"],
+            "tip": breakdown["signals"]["tip"],
+            "peer_review": breakdown["signals"]["peer_review"],
+            "upvote": breakdown["signals"]["upvote"],
+            "comment": breakdown["signals"]["comment"],
+            "age_hours": breakdown["time_factors"]["age_hours"],
+            "freshness_multiplier": breakdown["time_factors"]["freshness_multiplier"],
+            "engagement_score": breakdown["calculation"]["engagement_score"],
+            "time_denominator": breakdown["calculation"]["time_denominator"],
         }
 
     def _get_components_with_simulation(
         self, item, unified_doc, feed_entry, sim_params
     ):
-        """Get detailed component breakdown with optional simulated values."""
+        """
+        Get detailed component breakdown with optional simulated values.
+
+        NOTE: This function intentionally duplicates calculation logic from
+        calculate_hot_score() because it needs to support "what-if" scenarios
+        where individual signal values are overridden for testing purposes.
+        We cannot use calculate_hot_score() directly because we need to:
+        1. Get actual values first
+        2. Override specific values with simulation parameters
+        3. Recalculate components with the overridden values
+        """
         import math
 
         config = HOT_SCORE_CONFIG["signals"]

@@ -580,6 +580,7 @@ class FeedEntrySerializer(serializers.ModelSerializer):
     action = serializers.CharField()
     author = serializers.SerializerMethodField()
     hot_score_v2 = serializers.IntegerField()
+    hot_score_breakdown = serializers.SerializerMethodField()
     external_metadata = serializers.SerializerMethodField()
 
     class Meta:
@@ -594,6 +595,7 @@ class FeedEntrySerializer(serializers.ModelSerializer):
             "author",
             "metrics",
             "hot_score_v2",
+            "hot_score_breakdown",
             "external_metadata",
         ]
 
@@ -602,6 +604,20 @@ class FeedEntrySerializer(serializers.ModelSerializer):
         if obj.user and hasattr(obj.user, "author_profile"):
             return SimpleAuthorSerializer(obj.user.author_profile).data
         return None
+
+    def get_hot_score_breakdown(self, obj):
+        """Return hot score breakdown if explicitly requested via query param."""
+        request = self.context.get("request")
+        if not request:
+            return None
+
+        # Only include if explicitly requested
+        include = request.query_params.get("include_hot_score_breakdown", "false")
+        if include.lower() != "true":
+            return None
+
+        # Return stored breakdown (already calculated)
+        return obj.hot_score_v2_breakdown if obj.hot_score_v2_breakdown else None
 
     def get_external_metadata(self, obj):
         """
