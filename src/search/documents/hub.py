@@ -1,6 +1,6 @@
 import logging
 import re
-from typing import override
+from typing import Any, override
 
 from django.db.models import QuerySet
 from django_opensearch_dsl import fields as es_fields
@@ -59,7 +59,7 @@ class HubDocument(BaseDocument):
         )
 
     # Used specifically for "autocomplete" style suggest feature
-    def prepare_name_suggest(self, instance):
+    def prepare_name_suggest(self, instance) -> dict[str, Any]:
         cleaned_name = re.sub(r"[^\w\s]", "", instance.name)
         words = cleaned_name.split()
         # Prioritize results with less words: "Computer Science" > "Computer Science and Engineering"

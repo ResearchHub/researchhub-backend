@@ -3,7 +3,7 @@ import logging
 import math
 import sys
 import time
-from typing import Iterable, Optional, override
+from typing import Any, Iterable, Optional, override
 
 from django.db.models import Q, QuerySet
 from django_opensearch_dsl import fields as es_fields
@@ -72,7 +72,7 @@ class PaperDocument(BaseDocument):
 
     # Used specifically for "autocomplete" style suggest feature.
     # Includes a bunch of phrases the user may search by.
-    def prepare_suggestion_phrases(self, instance):
+    def prepare_suggestion_phrases(self, instance) -> dict[str, Any]:
         phrases = []
 
         phrases.append(str(instance.id))
@@ -159,7 +159,7 @@ class PaperDocument(BaseDocument):
             "weight": weight,
         }
 
-    def prepare_raw_authors(self, instance):
+    def prepare_raw_authors(self, instance) -> list[dict[str, Any]]:
         authors = []
         if isinstance(instance.raw_authors, list) is False:
             return authors
@@ -176,7 +176,7 @@ class PaperDocument(BaseDocument):
 
         return authors
 
-    def prepare_doi_indexing(self, instance):
+    def prepare_doi_indexing(self, instance) -> str:
         return instance.doi or ""
 
     def get_indexing_queryset(

@@ -1,6 +1,6 @@
 import logging
 import math
-from typing import override
+from typing import Any, override
 
 from django_opensearch_dsl import fields as es_fields
 from django_opensearch_dsl.registries import registry
@@ -71,7 +71,7 @@ class PostDocument(BaseDocument):
 
     # Used specifically for "autocomplete" style suggest feature.
     # Inlcudes a bunch of phrases the user may search by.
-    def prepare_suggestion_phrases(self, instance):
+    def prepare_suggestion_phrases(self, instance) -> dict[str, Any]:
         phrases = []
 
         # Variation of title which may be searched by users

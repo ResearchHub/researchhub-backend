@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 from django_opensearch_dsl import fields as es_fields
 from django_opensearch_dsl.registries import registry
@@ -51,7 +52,7 @@ class UserDocument(BaseDocument):
             "reputation",
         ]
 
-    def prepare_author_profile(self, instance):
+    def prepare_author_profile(self, instance) -> dict[str, Any] | None:
         profile = None
 
         try:
@@ -70,7 +71,7 @@ class UserDocument(BaseDocument):
         return profile
 
     # Used specifically for "autocomplete" style suggest feature
-    def prepare_full_name_suggest(self, instance):
+    def prepare_full_name_suggest(self, instance) -> dict[str, Any]:
         full_name_suggest = ""
         try:
             full_name_suggest = f"{instance.author_profile.first_name} {instance.author_profile.last_name}"
@@ -88,13 +89,13 @@ class UserDocument(BaseDocument):
             "weight": weight,
         }
 
-    def prepare_full_name(self, instance):
+    def prepare_full_name(self, instance) -> str:
         try:
             return f"{instance.author_profile.first_name} {instance.author_profile.last_name}"
         except Exception:
             # Some legacy users don't have an author profile
             return f"{instance.first_name} {instance.last_name}"
 
-    def prepare_is_verified(self, instance):
+    def prepare_is_verified(self, instance) -> bool:
         """Prepare the is_verified field for Elasticsearch indexing"""
         return instance.is_verified

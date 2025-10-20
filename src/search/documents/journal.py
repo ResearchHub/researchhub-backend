@@ -1,6 +1,6 @@
 import logging
 import re
-from typing import Optional, override
+from typing import Any, Optional, override
 
 from django.db.models import Q, QuerySet
 from django_opensearch_dsl import fields as es_fields
@@ -64,7 +64,7 @@ class JournalDocument(BaseDocument):
         )
 
     # Used specifically for "autocomplete" style suggest feature
-    def prepare_name_suggest(self, instance):
+    def prepare_name_suggest(self, instance) -> dict[str, Any]:
         cleaned_name = re.sub(r"[^\w\s]", "", instance.name)
         words = cleaned_name.split()
         # Prioritize results with less words: "Computer Science" > "Computer Science and Engineering"
