@@ -107,7 +107,7 @@ class UserDocument(BaseDocument):
         """Prepare the is_verified field for Elasticsearch indexing"""
         return instance.is_verified
 
-    def prepare_is_suspended(self, instance) -> bool | None:
+    def prepare_is_suspended(self, instance) -> bool:
         """Prepare the is_suspended field for Elasticsearch indexing"""
         return instance.is_suspended
 
