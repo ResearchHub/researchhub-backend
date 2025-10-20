@@ -1,5 +1,5 @@
 import logging
-from typing import override
+from typing import Any, override
 
 from django_opensearch_dsl import fields as es_fields
 from django_opensearch_dsl.registries import registry
@@ -107,14 +107,14 @@ class UserDocument(BaseDocument):
         """Prepare the is_verified field for Elasticsearch indexing"""
         return instance.is_verified
 
-    def prepare_is_suspended(self, instance):
+    def prepare_is_suspended(self, instance) -> bool | None:
         """Prepare the is_suspended field for Elasticsearch indexing"""
         if instance is None:
             return None
         return instance.is_suspended
 
     @override
-    def should_index_object(self, obj):
+    def should_index_object(self, obj) -> bool:
         """Exclude suspended users from the index"""
         if obj is None:
             return False

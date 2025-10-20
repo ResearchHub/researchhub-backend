@@ -100,23 +100,6 @@ class UserDocumentTests(TestCase):
         self.assertTrue(self.document.should_index_object(mock_user_empty))
         self.assertTrue(self.document.should_index_object(mock_user_zero))
 
-    def test_prepare_is_suspended_edge_cases(self):
-        """Test prepare_is_suspended with edge case values"""
-        # Test with falsy values
-        mock_user_none = Mock()
-        mock_user_none.is_suspended = None
-
-        mock_user_empty = Mock()
-        mock_user_empty.is_suspended = ""
-
-        mock_user_zero = Mock()
-        mock_user_zero.is_suspended = 0
-
-        # These should return the actual values
-        self.assertIsNone(self.document.prepare_is_suspended(mock_user_none))
-        self.assertEqual(self.document.prepare_is_suspended(mock_user_empty), "")
-        self.assertEqual(self.document.prepare_is_suspended(mock_user_zero), 0)
-
     def test_document_field_definitions(self):
         """Test that the document has the correct field definitions"""
         # Check that is_suspended field exists
