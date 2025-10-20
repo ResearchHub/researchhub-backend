@@ -63,10 +63,10 @@ class PersonDocument(BaseDocument):
             .prefetch_related("institutions__institution")
         )
 
-    def prepare_headline(self, instance):
+    def prepare_headline(self, instance) -> dict[str, str]:
         return {"title": instance.headline}
 
-    def prepare_reputation_hubs(self, instance):
+    def prepare_reputation_hubs(self, instance) -> list[str]:
         reputation_hubs = []
         if instance.reputation_list:
             for rep in instance.reputation_list:
@@ -74,7 +74,7 @@ class PersonDocument(BaseDocument):
 
         return reputation_hubs
 
-    def prepare_education(self, instance):
+    def prepare_education(self, instance) -> list[str]:
         education = []
         if instance.education:
             for edu in instance.education:
@@ -83,7 +83,7 @@ class PersonDocument(BaseDocument):
 
         return education
 
-    def prepare_suggestion_phrases(self, instance):
+    def prepare_suggestion_phrases(self, instance) -> list[dict[str, int]]:
         suggestions = []
 
         if instance.full_name:
