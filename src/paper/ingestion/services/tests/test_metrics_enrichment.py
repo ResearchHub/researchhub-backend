@@ -4,8 +4,6 @@ from unittest.mock import Mock
 from django.test import TestCase
 from django.utils import timezone
 
-from paper.ingestion.clients.altmetric import AltmetricClient
-from paper.ingestion.mappers.altmetric import AltmetricMapper
 from paper.ingestion.services import PaperMetricsEnrichmentService
 from paper.models import Paper
 
@@ -39,10 +37,14 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
             "score": 140.5,
         }
 
+        # Create mocks for client and mapper
+        self.mock_client = Mock()
+        self.mock_mapper = Mock()
+
     def test_get_recent_papers_with_dois(self):
         """Test querying recent papers with DOIs."""
         # Arrange
-        service = PaperMetricsEnrichmentService(AltmetricClient(), AltmetricMapper())
+        service = PaperMetricsEnrichmentService(self.mock_client, self.mock_mapper)
 
         # Act
         papers = service.get_recent_papers_with_dois(days=7)
@@ -55,7 +57,7 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
     def test_get_recent_papers_excludes_old_papers(self):
         """Test that old papers are excluded."""
         # Arrange
-        service = PaperMetricsEnrichmentService(AltmetricClient(), AltmetricMapper())
+        service = PaperMetricsEnrichmentService(self.mock_client, self.mock_mapper)
         # Create old paper (will have auto_now_add set to now)
         old_paper = Paper.objects.create(
             title="Old Paper",
@@ -73,7 +75,8 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         self.assertNotIn(
             old_paper.id,
             papers,
-            f"Old paper (created {old_paper.created_date}) should not be in papers from last 7 days",
+            f"Old paper (created {old_paper.created_date}) "
+            f"should be excluded from papers from last 7 days",
         )
 
     def test_enrich_paper_with_altmetric_success(self):
@@ -140,7 +143,7 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
     def test_enrich_paper_no_doi(self):
         """Test enrichment of paper without DOI."""
         # Arrange
-        service = PaperMetricsEnrichmentService(AltmetricClient(), AltmetricMapper())
+        service = PaperMetricsEnrichmentService(self.mock_client, self.mock_mapper)
 
         # Act
         result = service.enrich_paper_with_altmetric(self.paper_without_doi)
