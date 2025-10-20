@@ -189,8 +189,8 @@ class PaperDocument(BaseDocument):
         stdout: io.FileIO = sys.stdout,
     ) -> Iterable:
         """
-        Divide the queryset into chunks. Overwrite django_opensearch_dsl default because it uses offsets instead of
-        filtering by greater than pk.
+        Divide the queryset into chunks. Overwrite django_opensearch_dsl default
+        because it uses offsets instead of filtering by greater than pk.
         """
         chunk_size = self.django.queryset_pagination
         qs = self.get_queryset(filter_=filter_, exclude=exclude, count=count)
