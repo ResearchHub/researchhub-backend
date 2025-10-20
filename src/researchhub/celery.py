@@ -178,4 +178,13 @@ app.conf.beat_schedule = {
             "queue": QUEUE_PAPER_MISC,
         },
     },
+    "paper-openalex-enrichment": {
+        "task": "paper.ingestion.tasks.enrich_papers_with_openalex",
+        "kwargs": {"days": 30},
+        "schedule": crontab(hour=4, minute=0),
+        "options": {
+            "priority": 2,
+            "queue": QUEUE_PAPER_MISC,
+        },
+    },
 }
