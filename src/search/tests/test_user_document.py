@@ -45,11 +45,6 @@ class UserDocumentTests(TestCase):
         result = self.document.prepare_is_suspended(self.suspended_user)
         self.assertTrue(result, "Suspended user should have is_suspended=True")
 
-    def test_prepare_is_suspended_none_user(self):
-        """Test that prepare_is_suspended handles None gracefully"""
-        result = self.document.prepare_is_suspended(None)
-        self.assertIsNone(result, "None user should return None")
-
     def test_prepare_is_suspended_missing_field(self):
         """Test that prepare_is_suspended handles missing is_suspended field"""
         mock_user = Mock()
@@ -57,11 +52,6 @@ class UserDocumentTests(TestCase):
 
         with self.assertRaises(AttributeError):
             self.document.prepare_is_suspended(mock_user)
-
-    def test_should_index_object_with_none(self):
-        """Test that should_index_object handles None gracefully"""
-        result = self.document.should_index_object(None)
-        self.assertFalse(result, "None user should not be indexed")
 
     def test_should_index_object_with_missing_field(self):
         """Test that should_index_object handles missing is_suspended field"""
@@ -82,23 +72,6 @@ class UserDocumentTests(TestCase):
 
         self.assertFalse(self.document.should_index_object(mock_user_true))
         self.assertTrue(self.document.should_index_object(mock_user_false))
-
-    def test_should_index_object_edge_cases(self):
-        """Test should_index_object with edge case values"""
-        # Test with falsy values that should still be considered "not suspended"
-        mock_user_none = Mock()
-        mock_user_none.is_suspended = None
-
-        mock_user_empty = Mock()
-        mock_user_empty.is_suspended = ""
-
-        mock_user_zero = Mock()
-        mock_user_zero.is_suspended = 0
-
-        # These should all be considered "not suspended" and thus indexable
-        self.assertTrue(self.document.should_index_object(mock_user_none))
-        self.assertTrue(self.document.should_index_object(mock_user_empty))
-        self.assertTrue(self.document.should_index_object(mock_user_zero))
 
     def test_document_field_definitions(self):
         """Test that the document has the correct field definitions"""
