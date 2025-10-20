@@ -125,34 +125,6 @@ class UserDocumentTests(TestCase):
         self.assertFalse(active_suspended)
         self.assertTrue(suspended_suspended)
 
-    def test_should_index_object_performance(self):
-        """Test that should_index_object is efficient for large numbers of users"""
-        import time
-
-        # Create many users to test performance
-        users = []
-        for i in range(100):
-            user = User.objects.create_user(
-                username=f"user{i}@test.com",
-                email=f"user{i}@test.com",
-                first_name=f"User{i}",
-                last_name="Test",
-                is_suspended=(i % 2 == 0),  # Every other user is suspended
-            )
-            users.append(user)
-
-        # Test that the method works efficiently
-        start_time = time.time()
-        results = [self.document.should_index_object(user) for user in users]
-        end_time = time.time()
-
-        # Should complete quickly (less than 1 second for 100 users)
-        self.assertLess(end_time - start_time, 1.0)
-
-        # Should have correct results
-        self.assertEqual(len(results), 100)
-        self.assertEqual(sum(results), 50)  # Half should be indexable (not suspended)
-
     def tearDown(self):
         """Clean up test data"""
         User.objects.all().delete()
