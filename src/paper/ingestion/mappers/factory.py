@@ -31,5 +31,5 @@ class MapperFactory:
             IngestionSource.BIORXIV: BioRxivMapper(hub_mapper=self._hub_mapper),
             IngestionSource.CHEMRXIV: ChemRxivMapper(hub_mapper=self._hub_mapper),
             IngestionSource.MEDRXIV: MedRxivMapper(hub_mapper=self._hub_mapper),
-            IngestionSource.OPENALEX: OpenAlexMapper(hub_mapper=self._hub_mapper),
+            IngestionSource.OPENALEX: OpenAlexMapper(),
         }
