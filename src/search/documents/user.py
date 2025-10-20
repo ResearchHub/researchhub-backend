@@ -1,4 +1,5 @@
 import logging
+import unicodedata
 from typing import Any, override
 
 from django_opensearch_dsl import fields as es_fields
@@ -88,8 +89,55 @@ class UserDocument(BaseDocument):
         if instance.is_verified:
             weight += 500
 
+        # Create ASCII-normalized version for better search matching
+        def normalize_for_search(text):
+            """Normalize text by removing accents for better search matching.
+
+            This function converts accented characters to their ASCII equivalents,
+            enabling searches like 'martin' to match 'Martín'.
+            """
+            if not text:
+                return ""
+            return (
+                unicodedata.normalize("NFD", text)
+                .encode("ascii", "ignore")
+                .decode("ascii")
+                .lower()
+            )
+
+        normalized_name = normalize_for_search(full_name_suggest)
+
+        # Include both original and normalized versions in the input
+        # Also include partial combinations for better matching
+        original_words = full_name_suggest.split()
+        normalized_words = normalized_name.split()
+
+        input_list = (
+            original_words  # Original words with accents
+            + [full_name_suggest]  # Original full name
+            + normalized_words  # Normalized words without accents
+            + [normalized_name]  # Normalized full name
+        )
+
+        # Add partial combinations for better matching
+        # (e.g., "martin rivero" from "martin nicolas rivero")
+        if len(original_words) >= 2:
+            # Add first + last name combinations
+            first_last_original = f"{original_words[0]} {original_words[-1]}"
+            first_last_normalized = f"{normalized_words[0]} {normalized_words[-1]}"
+            input_list.append(first_last_original)  # "Martín Rivero"
+            input_list.append(first_last_normalized)  # "martin rivero"
+
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_input_list = []
+        for item in input_list:
+            if item not in seen:
+                seen.add(item)
+                unique_input_list.append(item)
+
         return {
-            "input": full_name_suggest.split() + [full_name_suggest],
+            "input": unique_input_list,
             "weight": weight,
         }
 
