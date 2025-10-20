@@ -1,7 +1,8 @@
 import logging
 
 from django.contrib.contenttypes.models import ContentType
-from django.db.models.signals import m2m_changed, pre_save
+from django.db import transaction
+from django.db.models.signals import m2m_changed, post_save
 from django.dispatch import receiver
 
 from feed.tasks import create_feed_entry, delete_feed_entry
@@ -109,21 +110,19 @@ def _delete_document_feed_entries(instance, pk_set):
 
 
 @receiver(
-    pre_save,
+    post_save,
     sender=ResearchhubUnifiedDocument,
     dispatch_uid="unified_document_removed",
 )
 def handle_unified_document_removed(sender, instance, **kwargs):
     """
-    When a unified document is marked as removed, delete all related feed entries.
+    When a unified document is marked as removed, delete all related feed entries
     """
     try:
-        # Get the original instance to check if is_removed changed
-        if instance.id:
-            original = ResearchhubUnifiedDocument.objects.get(id=instance.id)
-            # If document is being removed, delete all feed entries
-            if not original.is_removed and instance.is_removed:
-                delete_feed_entries_for_unified_document(instance)
+        if instance.is_removed:
+            transaction.on_commit(
+                lambda: delete_feed_entries_for_unified_document(instance)
+            )
     except Exception as e:
         logger.error(f"Failed to handle unified document removal: {e}")
 
@@ -145,6 +144,7 @@ def delete_feed_entries_for_unified_document(unified_document):
                 args=(
                     entry.object_id,
                     entry.content_type_id,
+                    None,  # hub_ids=None means delete all feed entries for this item
                 ),
                 priority=1,
             )
