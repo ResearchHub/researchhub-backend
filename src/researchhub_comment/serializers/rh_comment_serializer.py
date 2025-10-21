@@ -31,8 +31,12 @@ class RhCommentSerializer(GenericReactionSerializer):
             *RH_COMMENT_READ_ONLY_FIELDS,
         ]
 
+    best_score = SerializerMethodField()
     children_count = SerializerMethodField()
     children = SerializerMethodField()
+
+    def get_best_score(self, comment):
+        return getattr(comment, "best_score", None)
 
     def get_children_count(self, comment):
         return comment.children_count
@@ -50,6 +54,7 @@ class DynamicRhCommentSerializer(
     DynamicModelFieldSerializer,
 ):
     awarded_bounty_amount = SerializerMethodField()
+    best_score = SerializerMethodField()
     created_by = SerializerMethodField()
     thread = SerializerMethodField()
     children_count = SerializerMethodField()
@@ -63,6 +68,9 @@ class DynamicRhCommentSerializer(
     class Meta:
         fields = "__all__"
         model = RhCommentModel
+
+    def get_best_score(self, comment):
+        return getattr(comment, "best_score", None)
 
     def get_parent(self, comment):
         context = self.context

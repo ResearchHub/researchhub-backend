@@ -1,4 +1,5 @@
 RH_COMMENT_FIELDS = [
+    "best_score",
     "children",
     "children_count",
     "comment_content_json",
@@ -16,6 +17,7 @@ RH_COMMENT_FIELDS = [
     "comment_type",
 ]
 RH_COMMENT_READ_ONLY_FIELDS = [
+    "best_score",
     "children",
     "created_date",
     "is_accepted_answer",

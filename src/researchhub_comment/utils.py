@@ -5,12 +5,15 @@ Provides scoring algorithms for ranking comments, following the architectural
 pattern established by feed.hot_score module.
 """
 
+from django.contrib.contenttypes.models import ContentType
 from django.db.models import (
     Case,
     DecimalField,
+    Exists,
     F,
     FloatField,
     IntegerField,
+    OuterRef,
     Q,
     QuerySet,
     Sum,
@@ -22,12 +25,14 @@ from django.utils import timezone
 
 from purchase.models import Purchase
 from reputation.models import Bounty
+from user.related_models.user_verification_model import UserVerification
 
 BEST_SCORE_CONFIG = {
     "signals": {
+        "accepted_answer": {"weight": 100.0},
+        "user_verified": {"weight": 90.0},
         "bounty": {"weight": 80.0},
         "tip": {"weight": 60.0},
-        "accepted_answer": {"weight": 100.0},
         "score": {"weight": 20.0},
     },
     "time_decay": {
@@ -47,9 +52,10 @@ def annotate_best_score(queryset: QuerySet) -> QuerySet:
 
     Formula:
         engagement_score = (
+            accepted_answer * 100.0 +
+            user_verified * 90.0 +
             ln(bounty_sum + 1) * 80.0 +
             ln(tip_sum + 1) * 60.0 +
-            accepted_answer * 100.0 +
             ln(score + 1) * 20.0
         )
         best_score = engagement_score / (age_hours + 10)^1.5
@@ -63,7 +69,7 @@ def annotate_best_score(queryset: QuerySet) -> QuerySet:
     config = BEST_SCORE_CONFIG
     
     # ========================================================================
-    # 1. Annotate base fields (bounty_sum, tip_sum, accepted_answer)
+    # 1. Annotate base fields (bounty_sum, tip_sum, accepted_answer, user_verified)
     # ========================================================================
     queryset = queryset.annotate(
         bounty_sum=Coalesce(
@@ -86,6 +92,15 @@ def annotate_best_score(queryset: QuerySet) -> QuerySet:
             output_field=DecimalField(),
         ),
         accepted_answer=Cast("is_accepted_answer", output_field=IntegerField()),
+        user_verified=Cast(
+            Exists(
+                UserVerification.objects.filter(
+                    user=OuterRef("created_by"),
+                    status=UserVerification.Status.APPROVED,
+                )
+            ),
+            output_field=IntegerField(),
+        ),
     )
 
     # ========================================================================
@@ -97,6 +112,10 @@ def annotate_best_score(queryset: QuerySet) -> QuerySet:
     # ========================================================================
     # 3. Calculate engagement score (weighted sum of log-scaled signals)
     # ========================================================================
+    accepted_component = (
+        F("accepted_answer") * config["signals"]["accepted_answer"]["weight"]
+    )
+    verified_component = F("user_verified") * config["signals"]["user_verified"]["weight"]
     bounty_component = (
         Ln(Greatest(F("bounty_sum") + 1, Value(1)))
         * config["signals"]["bounty"]["weight"]
@@ -104,16 +123,17 @@ def annotate_best_score(queryset: QuerySet) -> QuerySet:
     tip_component = (
         Ln(Greatest(F("tip_sum") + 1, Value(1))) * config["signals"]["tip"]["weight"]
     )
-    accepted_component = (
-        F("accepted_answer") * config["signals"]["accepted_answer"]["weight"]
-    )
     score_component = (
         Ln(Greatest(F("score") + 1, Value(1)))
         * config["signals"]["score"]["weight"]
     )
 
     engagement_score = (
-        bounty_component + tip_component + accepted_component + score_component
+        accepted_component
+        + verified_component
+        + bounty_component
+        + tip_component
+        + score_component
     )
 
     # ========================================================================
