@@ -21,8 +21,8 @@ from utils import sentry
 logger = logging.getLogger(__name__)
 
 
+# Default content types for hot score refresh
 def _get_default_content_types():
-    """Get default content types for hot score refresh (lazily evaluated)."""
     return [
         ContentType.objects.get_for_model(Paper),
         ContentType.objects.get_for_model(ResearchhubPost),
