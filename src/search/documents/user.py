@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Any, override
 
 from django_opensearch_dsl import fields as es_fields
 from django_opensearch_dsl.registries import registry
@@ -36,6 +36,7 @@ class UserDocument(BaseDocument):
     )
     created_date = es_fields.DateField()
     is_verified = es_fields.BooleanField()
+    is_suspended = es_fields.BooleanField()
 
     author_profile = es_fields.ObjectField()
 
@@ -74,7 +75,10 @@ class UserDocument(BaseDocument):
     def prepare_full_name_suggest(self, instance) -> dict[str, Any]:
         full_name_suggest = ""
         try:
-            full_name_suggest = f"{instance.author_profile.first_name} {instance.author_profile.last_name}"
+            full_name_suggest = (
+                f"{instance.author_profile.first_name} "
+                f"{instance.author_profile.last_name}"
+            )
         except Exception:
             # Some legacy users don't have an author profile
             full_name_suggest = f"{instance.first_name} {instance.last_name}"
@@ -91,7 +95,10 @@ class UserDocument(BaseDocument):
 
     def prepare_full_name(self, instance) -> str:
         try:
-            return f"{instance.author_profile.first_name} {instance.author_profile.last_name}"
+            return (
+                f"{instance.author_profile.first_name} "
+                f"{instance.author_profile.last_name}"
+            )
         except Exception:
             # Some legacy users don't have an author profile
             return f"{instance.first_name} {instance.last_name}"
@@ -99,3 +106,12 @@ class UserDocument(BaseDocument):
     def prepare_is_verified(self, instance) -> bool:
         """Prepare the is_verified field for Elasticsearch indexing"""
         return instance.is_verified
+
+    def prepare_is_suspended(self, instance) -> bool:
+        """Prepare the is_suspended field for Elasticsearch indexing"""
+        return instance.is_suspended
+
+    @override
+    def should_index_object(self, obj) -> bool:
+        """Exclude suspended users from the index"""
+        return not obj.is_suspended
