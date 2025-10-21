@@ -67,7 +67,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         base_key = super().get_cache_key(request, feed_type)
         fundraise_status = request.query_params.get("fundraise_status", "")
         ordering = request.query_params.get("ordering", "")
-        return f"{base_key}-{fundraise_status}:{ordering}-v3"
+        return f"{base_key}-{fundraise_status}:{ordering}"
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -87,7 +87,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         cacheable_statuses = {None, "OPEN", "CLOSED"}
         
         use_cache = (
-            page_num <= 2 and
+            page_num <= 4 and
             grant_id is None and
             created_by is None and
             ordering in cacheable_orderings and
@@ -125,11 +125,13 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
     def _build_base_queryset(self, created_by=None):
         now = timezone.now()
         
+        # Subquery to check if post has any active (open and not expired) fundraises
         has_active = Fundraise.objects.filter(
             unified_document_id=OuterRef("unified_document_id"),
             status=Fundraise.OPEN
         ).filter(Q(end_date__isnull=True) | Q(end_date__gt=now)).values('pk')[:1]
         
+        # Subquery to count unique contributors for each fundraise
         contributor_count_subquery = Purchase.objects.filter(
             content_type=self._get_fundraise_content_type(),
             object_id=OuterRef("pk")
@@ -137,6 +139,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
             count=Count('user_id', distinct=True)
         ).values('count')
         
+        # Prefetch fundraises with related data to avoid N+1 queries
         fundraise_prefetch = Prefetch(
             "unified_document__fundraises",
             queryset=Fundraise.objects.select_related("escrow").prefetch_related(
@@ -150,12 +153,22 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         )
         
         queryset = ResearchhubPost.objects.select_related(
-            "created_by__author_profile__user", "unified_document"
+            # Fetch post creator's user data in a single query to avoid N+1
+            "created_by__author_profile__user",
+            # Fetch unified document to avoid additional queries
+            "unified_document"
         ).prefetch_related(
-            "unified_document__hubs", fundraise_prefetch
+            # Fetch all hubs associated with the document
+            "unified_document__hubs",
+            # Fetch fundraises with escrow, nonprofit links, and contributor counts
+            fundraise_prefetch
         ).filter(
-            document_type=PREREGISTRATION, unified_document__is_removed=False
+            # Only show preregistration posts that haven't been removed
+            document_type=PREREGISTRATION,
+            unified_document__is_removed=False
         ).annotate(
+            # Priority field: 0 for open/active fundraises, 1 for closed/expired
+            # Used to sort open items before closed items
             status_priority=Case(
                 When(Exists(has_active), then=Value(0)),
                 default=Value(1),

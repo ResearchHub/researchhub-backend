@@ -67,7 +67,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         status = request.query_params.get("status", "")
         organization = request.query_params.get("organization", "")
         ordering = request.query_params.get("ordering", "")
-        return f"{base_key}-{status}:{organization}:{ordering}-v3"
+        return f"{base_key}-{status}:{organization}:{ordering}"
 
     def list(self, request, *args, **kwargs):
         page = request.query_params.get("page", "1")
@@ -81,7 +81,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         cacheable_statuses = {None, "OPEN", "CLOSED"}
         
         use_cache = (
-            page_num <= 2 and 
+            page_num <= 4 and 
             organization is None and
             ordering in cacheable_orderings and
             (status.upper() if status else None) in cacheable_statuses
@@ -107,28 +107,34 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
     def _build_base_queryset(self):
         now = timezone.now()
         
+        # Subquery to check if post has any active (open and not expired) grants
         has_active = Grant.objects.filter(
             unified_document_id=OuterRef("unified_document_id"),
             status=Grant.OPEN
         ).filter(Q(end_date__isnull=True) | Q(end_date__gt=now)).values('pk')[:1]
         
+        # Prefetch grants with related data to avoid N+1 queries
         grant_prefetch = Prefetch(
             "unified_document__grants",
             queryset=Grant.objects.select_related(
+                # Fetch grant creator's user data in a single query
                 "created_by__author_profile__user"
             ).prefetch_related(
                 Prefetch(
+                    # Fetch all applications for each grant with applicant data
                     "applications",
                     queryset=GrantApplication.objects.select_related(
                         "applicant__author_profile__user"
                     ).order_by("created_date")
                 )
             ).annotate(
+                # Flag to indicate if grant deadline has passed
                 is_expired_flag=Case(
                     When(end_date__lt=now, then=Value(True)),
                     default=Value(False),
                     output_field=IntegerField()
                 ),
+                # Flag to indicate if grant is currently accepting applications
                 is_active_flag=Case(
                     When(
                         Q(status=Grant.OPEN) & (Q(end_date__isnull=True) | Q(end_date__gte=now)),
@@ -141,12 +147,22 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         )
         
         return ResearchhubPost.objects.select_related(
-            "created_by__author_profile__user", "unified_document"
+            # Fetch post creator's user data in a single query to avoid N+1
+            "created_by__author_profile__user",
+            # Fetch unified document to avoid additional queries
+            "unified_document"
         ).prefetch_related(
-            "unified_document__hubs", grant_prefetch
+            # Fetch all hubs associated with the document
+            "unified_document__hubs",
+            # Fetch grants with applications and related user data
+            grant_prefetch
         ).filter(
-            document_type=GRANT, unified_document__is_removed=False
+            # Only show grant posts that haven't been removed
+            document_type=GRANT,
+            unified_document__is_removed=False
         ).annotate(
+            # Priority field: 0 for open/active grants, 1 for closed/expired
+            # Used to sort open items before closed items
             status_priority=Case(
                 When(Exists(has_active), then=Value(0)),
                 default=Value(1),

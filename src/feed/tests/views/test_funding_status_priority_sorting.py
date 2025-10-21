@@ -85,7 +85,7 @@ class StatusPrioritySortingTests(TestCase):
     def _get_ids(self, response):
         return [item["content_object"]["id"] for item in response.data["results"]]
 
-    def test_funding_feed_prioritizes_open_status(self):
+    def test_show_open_fundraises_before_closed(self):
         open_post = self._create_fundraise(Fundraise.OPEN, 10)
         closed_post = self._create_fundraise(Fundraise.COMPLETED, -5)
         
@@ -94,7 +94,7 @@ class StatusPrioritySortingTests(TestCase):
         
         self.assertLess(ids.index(open_post.id), ids.index(closed_post.id))
 
-    def test_grant_feed_prioritizes_open_status(self):
+    def test_show_open_grants_before_closed(self):
         open_grant = self._create_grant(Grant.OPEN, 10)
         closed_grant = self._create_grant(Grant.CLOSED, -5)
         
@@ -103,7 +103,7 @@ class StatusPrioritySortingTests(TestCase):
         
         self.assertLess(ids.index(open_grant.id), ids.index(closed_grant.id))
 
-    def test_custom_ordering_maintains_status_priority(self):
+    def test_open_before_closed_across_all_orderings(self):
         open_post = self._create_fundraise(Fundraise.OPEN, 10)
         closed_post = self._create_fundraise(Fundraise.COMPLETED, -5)
         
@@ -113,7 +113,7 @@ class StatusPrioritySortingTests(TestCase):
             
             self.assertLess(ids.index(open_post.id), ids.index(closed_post.id))
 
-    def test_closed_items_sorted_by_deadline_descending(self):
+    def test_closed_sorted_most_recent_deadline_first(self):
         recent = self._create_fundraise(Fundraise.COMPLETED, -5)
         older = self._create_fundraise(Fundraise.COMPLETED, -30)
         
