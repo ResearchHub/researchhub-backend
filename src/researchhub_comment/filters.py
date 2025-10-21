@@ -15,6 +15,7 @@ from researchhub_comment.constants.rh_comment_thread_types import (
     SUMMARY,
 )
 from researchhub_comment.models import RhCommentModel
+from researchhub_comment.utils import annotate_best_score
 from utils.http import GET
 
 BEST = "BEST"
@@ -143,6 +144,9 @@ class RHCommentFilter(filters.FilterSet):
         )
         return queryset
 
+    def _calculate_best_score(self, qs):
+        return annotate_best_score(qs)
+
     def _is_on_child_queryset(self):
         # This checks whether we are filtering on the comment's children
         # because we don't want the related filters to be called
@@ -190,20 +194,8 @@ class RHCommentFilter(filters.FilterSet):
 
     def ordering_filter(self, qs, name, value):
         if value == BEST:
-            qs = self._annotate_bounty_sum(
-                qs, annotation_filters=[{"bounties__status": Bounty.OPEN}]
-            )
-            qs = qs.annotate(
-                accepted_answer=Cast("is_accepted_answer", output_field=IntegerField())
-            )
-            keys = self._get_ordering_keys(
-                [
-                    "bounty_sum",
-                    "accepted_answer",
-                    "score",
-                    "created_date",
-                ]
-            )
+            qs = self._calculate_best_score(qs)
+            keys = self._get_ordering_keys(["best_score"])
             qs = qs.order_by(*keys)
         elif value == TOP:
             keys = self._get_ordering_keys(["score"])

@@ -271,3 +271,33 @@ class CommentOrderingTests(APITestCase):
                     date_next,
                     f"Comments not in ascending order: {results[i]['id']} ({date_current}) should come before {results[i+1]['id']} ({date_next})",
                 )
+
+    def test_best_score_ordering(self):
+        """Test that BEST ordering ranks comments by engagement and time, with deleted comments last."""
+        now = timezone.now()
+        
+        old_high_score = self._create_comment_at_time("Old popular", now - timedelta(days=5))
+        old_high_score.score = 10
+        old_high_score.save()
+        
+        new_low_score = self._create_comment_at_time("New unpopular", now - timedelta(hours=1))
+        new_low_score.score = 1
+        new_low_score.save()
+        
+        deleted_comment = self._create_comment_at_time("Deleted", now - timedelta(days=1))
+        deleted_comment.score = 100
+        deleted_comment.is_removed = True
+        deleted_comment.save()
+        
+        response = self.client.get(
+            f"/api/researchhubpost/{self.post.id}/comments/",
+            {"page_size": 15, "privacy_type": "PUBLIC", "ordering": "BEST", "parent__isnull": "true"},
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        results = response.data["results"]
+        self.assertEqual(len(results), 3)
+        
+        self.assertEqual(results[2]["id"], deleted_comment.id, "Deleted comment must be last")
+        self.assertIn(old_high_score.id, [results[0]["id"], results[1]["id"]])
+        self.assertIn(new_low_score.id, [results[0]["id"], results[1]["id"]])
