@@ -1,3 +1,5 @@
+from typing import Any
+
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import default_storage
@@ -475,23 +477,13 @@ class BountySerializer(serializers.Serializer):
 
     def get_category(self, obj):
         """Return category hub if it exists"""
-        if obj.unified_document:
-            category = obj.unified_document.hubs.filter(
-                namespace=Hub.Namespace.CATEGORY
-            ).first()
-            if category:
-                return SimpleHubSerializer(category).data
-        return None
+        hub = _get_first_namespace_hub(obj, Hub.Namespace.CATEGORY)
+        return SimpleHubSerializer(hub).data if hub else None
 
     def get_subcategory(self, obj):
         """Return subcategory hub if it exists"""
-        if obj.unified_document:
-            subcategory = obj.unified_document.hubs.filter(
-                namespace=Hub.Namespace.SUBCATEGORY
-            ).first()
-            if subcategory:
-                return SimpleHubSerializer(subcategory).data
-        return None
+        hub = _get_first_namespace_hub(obj, Hub.Namespace.SUBCATEGORY)
+        return SimpleHubSerializer(hub).data if hub else None
 
     class Meta:
         fields = [
@@ -546,23 +538,13 @@ class CommentSerializer(serializers.Serializer):
 
     def get_category(self, obj):
         """Return category hub if it exists"""
-        if obj.unified_document:
-            category = obj.unified_document.hubs.filter(
-                namespace=Hub.Namespace.CATEGORY
-            ).first()
-            if category:
-                return SimpleHubSerializer(category).data
-        return None
+        hub = _get_first_namespace_hub(obj, Hub.Namespace.CATEGORY)
+        return SimpleHubSerializer(hub).data if hub else None
 
     def get_subcategory(self, obj):
         """Return subcategory hub if it exists"""
-        if obj.unified_document:
-            subcategory = obj.unified_document.hubs.filter(
-                namespace=Hub.Namespace.SUBCATEGORY
-            ).first()
-            if subcategory:
-                return SimpleHubSerializer(subcategory).data
-        return None
+        hub = _get_first_namespace_hub(obj, Hub.Namespace.SUBCATEGORY)
+        return SimpleHubSerializer(hub).data if hub else None
 
     def get_paper(self, obj):
         """Return the paper associated with this comment if it exists"""
@@ -792,3 +774,15 @@ class GrantFeedEntrySerializer(FeedEntrySerializer):
     class Meta:
         model = FeedEntry
         fields = FeedEntrySerializer.Meta.fields
+
+
+def _get_first_namespace_hub(obj: Any, hub_namespace: Hub.Namespace) -> Hub | None:
+    """
+    Return the namespace hub of the unified document associated with the given object,
+    if it exists.
+    """
+    if hasattr(obj, "unified_document") and obj.unified_document:
+        hub = obj.unified_document.hubs.filter(namespace=hub_namespace).first()
+        if hub:
+            return hub
+    return None
