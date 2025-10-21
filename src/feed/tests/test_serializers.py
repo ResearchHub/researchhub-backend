@@ -88,6 +88,10 @@ class ContentObjectSerializerTests(TestCase):
         self.author.save()
         self.user.refresh_from_db()
         self.hub = create_hub("Test Hub")
+        self.category = create_hub("Chemistry", namespace=Hub.Namespace.CATEGORY)
+        self.subcategory = create_hub(
+            "Organic Chemistry", namespace=Hub.Namespace.SUBCATEGORY
+        )
 
     @patch(
         "researchhub_document.related_models.researchhub_unified_document_model"
@@ -96,6 +100,8 @@ class ContentObjectSerializerTests(TestCase):
     def test_serializes_basic_content_fields(self, mock_get_primary_hub):
         paper = create_paper(uploaded_by=self.user)
         paper.hubs.add(self.hub)
+        paper.unified_document.hubs.add(self.category)
+        paper.unified_document.hubs.add(self.subcategory)
         paper.save()
 
         mock_get_primary_hub.return_value = self.hub
@@ -106,8 +112,15 @@ class ContentObjectSerializerTests(TestCase):
         self.assertIn("id", data)
         self.assertIn("created_date", data)
         self.assertIn("hub", data)
+        self.assertIn("category", data)
+        self.assertIn("subcategory", data)
         self.assertIn("slug", data)
         self.assertEqual(data["hub"]["name"], self.hub.name)
+        # Verify category and subcategory are properly serialized
+        self.assertIsNotNone(data["category"])
+        self.assertEqual(data["category"]["id"], self.category.id)
+        self.assertIsNotNone(data["subcategory"])
+        self.assertEqual(data["subcategory"]["id"], self.subcategory.id)
 
         mock_get_primary_hub.assert_called()
 
@@ -119,6 +132,10 @@ class PaperSerializerTests(TestCase):
         self.author.profile_image = "https://example.com/profile.jpg"
         self.author.save()
         self.journal = create_hub("Test Journal", namespace=Hub.Namespace.JOURNAL)
+        self.category = create_hub("Biology", namespace=Hub.Namespace.CATEGORY)
+        self.subcategory = create_hub(
+            "Molecular Biology", namespace=Hub.Namespace.SUBCATEGORY
+        )
 
         self.paper = create_paper(
             uploaded_by=self.user,
@@ -128,6 +145,8 @@ class PaperSerializerTests(TestCase):
         self.paper.abstract = "Test Abstract"
         self.paper.doi = "10.1234/test"
         self.paper.hubs.add(self.journal)
+        self.paper.unified_document.hubs.add(self.category)
+        self.paper.unified_document.hubs.add(self.subcategory)
         self.paper.authors.add(self.user.author_profile)
         self.paper.save()
 
@@ -174,8 +193,16 @@ class PaperSerializerTests(TestCase):
             self.assertIn("id", data)
             self.assertIn("created_date", data)
             self.assertIn("hub", data)
+            self.assertIn("category", data)
+            self.assertIn("subcategory", data)
             self.assertIn("slug", data)
             self.assertIn("reviews", data)
+
+            # Verify category and subcategory are properly serialized
+            self.assertIsNotNone(data["category"])
+            self.assertEqual(data["category"]["id"], self.category.id)
+            self.assertIsNotNone(data["subcategory"])
+            self.assertEqual(data["subcategory"]["id"], self.subcategory.id)
 
             # Test PaperSerializer specific fields
             self.assertEqual(data["title"], "Test Paper")
@@ -338,9 +365,15 @@ class PaperSerializerTests(TestCase):
 class PostSerializerTests(TestCase):
     def setUp(self):
         self.user = create_random_default_user("post_creator")
+        self.category = create_hub("Science", namespace=Hub.Namespace.CATEGORY)
+        self.subcategory = create_hub(
+            "Neuroscience", namespace=Hub.Namespace.SUBCATEGORY
+        )
         self.unified_document = ResearchhubUnifiedDocument.objects.create(
             document_type=document_type.DISCUSSION,
         )
+        self.unified_document.hubs.add(self.category)
+        self.unified_document.hubs.add(self.subcategory)
 
         self.post = ResearchhubPost.objects.create(
             title="title1",
@@ -377,7 +410,14 @@ class PostSerializerTests(TestCase):
         data = serializer.data
 
         self.assertEqual(data["id"], self.post.id)
-        self.assertEqual(data["hub"], None)
+        self.assertIn("hub", data)
+        self.assertIn("category", data)
+        self.assertIn("subcategory", data)
+        # Verify category and subcategory are properly serialized
+        self.assertIsNotNone(data["category"])
+        self.assertEqual(data["category"]["id"], self.category.id)
+        self.assertIsNotNone(data["subcategory"])
+        self.assertEqual(data["subcategory"]["id"], self.subcategory.id)
         self.assertEqual(data["renderable_text"], self.post.renderable_text)
         self.assertEqual(data["slug"], self.post.slug)
         self.assertEqual(data["title"], self.post.title)
@@ -1030,6 +1070,10 @@ class PostSerializerTests(TestCase):
 class CommentSerializerTests(TestCase):
     def setUp(self):
         self.user = create_random_default_user("user1")
+        self.category = create_hub("Physics", namespace=Hub.Namespace.CATEGORY)
+        self.subcategory = create_hub(
+            "Quantum Mechanics", namespace=Hub.Namespace.SUBCATEGORY
+        )
         self.unified_document = ResearchhubUnifiedDocument.objects.create(
             document_type=document_type.PAPER,
         )
@@ -1038,6 +1082,8 @@ class CommentSerializerTests(TestCase):
         )
         self.hub = create_hub("Test Hub")
         self.unified_document.hubs.add(self.hub)
+        self.unified_document.hubs.add(self.category)
+        self.unified_document.hubs.add(self.subcategory)
 
         self.thread = RhCommentThreadModel.objects.create(
             thread_type=rh_comment_thread_types.GENERIC_COMMENT,
@@ -1077,6 +1123,14 @@ class CommentSerializerTests(TestCase):
 
         # Test author field
         self.assertIn("author", data)
+        self.assertIn("hub", data)
+        self.assertIn("category", data)
+        self.assertIn("subcategory", data)
+        # Verify category and subcategory are properly serialized
+        self.assertIsNotNone(data["category"])
+        self.assertEqual(data["category"]["id"], self.category.id)
+        self.assertIsNotNone(data["subcategory"])
+        self.assertEqual(data["subcategory"]["id"], self.subcategory.id)
 
     def test_serializes_comment_with_review(self):
         review = Review.objects.create(

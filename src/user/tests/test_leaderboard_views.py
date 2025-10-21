@@ -253,6 +253,7 @@ class LeaderboardApiTests(APITestCase):
         )  # 100 + 75 from bounties + 50 + 25 from tips
         self.assertEqual(float(top_reviewer["bounty_earnings"]), 175.0)  # 100 + 75
         self.assertEqual(float(top_reviewer["tip_earnings"]), 75.0)  # 50 + 25
+        self.assertIn("is_verified", top_reviewer)
 
         # Verify ordering
         if len(results) > 1:
@@ -289,6 +290,7 @@ class LeaderboardApiTests(APITestCase):
         self.assertEqual(float(top_funder["bounty_funding"]), 175.0)
         self.assertEqual(float(top_funder["distribution_funding"]), 150.0)  # 3 * 50
         self.assertEqual(float(top_funder["total_funding"]), 650.0)
+        self.assertIn("is_verified", top_funder)
 
     def test_get_leaderboard_overview(self):
         """Test the leaderboard overview endpoint."""
@@ -320,6 +322,7 @@ class LeaderboardApiTests(APITestCase):
         )  # 175 from bounties + 75 from regular tips + 500 from additional tip
         self.assertEqual(float(top_reviewer["bounty_earnings"]), 175.0)  # 100 + 75
         self.assertEqual(float(top_reviewer["tip_earnings"]), 575.0)  # 50 + 25 + 500
+        self.assertIn("is_verified", top_reviewer)
 
         # Verify top funder data
         self.assertEqual(top_funder["id"], self.funder1.id)
@@ -327,6 +330,7 @@ class LeaderboardApiTests(APITestCase):
         self.assertEqual(float(top_funder["purchase_funding"]), 325.0)
         self.assertEqual(float(top_funder["bounty_funding"]), 175.0)
         self.assertEqual(float(top_funder["distribution_funding"]), 150.0)
+        self.assertIn("is_verified", top_funder)
 
     def test_date_range_exceeds_max_days_reviewers(self):
         """Test that date range exceeds max days returns a 400 error"""

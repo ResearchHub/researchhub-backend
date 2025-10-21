@@ -41,7 +41,13 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
 
         disable_cache_token = request.query_params.get("disable_cache")
         force_disable_cache = disable_cache_token == settings.HEALTH_CHECK_TOKEN
-        use_cache = not force_disable_cache and self.cache_enabled and page_num < 4
+        hot_score_version = request.query_params.get("hot_score_version", "v1")
+        use_cache = (
+            not force_disable_cache
+            and self.cache_enabled
+            and page_num < 4
+            and hot_score_version != "v2"
+        )
 
         if use_cache:
             # try to get cached response
@@ -81,6 +87,8 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
         hub_slug = self.request.query_params.get("hub_slug")
         source = self.request.query_params.get("source", "all")
         sort_by = self.request.query_params.get("sort_by", "latest")
+        hot_score_version = self.request.query_params.get("hot_score_version", "v1")
+        hot_score_field = "hot_score_v2" if hot_score_version == "v2" else "hot_score"
 
         # Use FeedEntry for all queries, sorted by hot_score or action_date
         queryset = FeedEntry.objects.all()
@@ -89,7 +97,7 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
         if feed_view == "popular" or (
             feed_view == "following" and sort_by == "hot_score"
         ):
-            queryset = queryset.order_by("-hot_score")
+            queryset = queryset.order_by(f"-{hot_score_field}")
         else:
             queryset = queryset.order_by("-action_date")
 
