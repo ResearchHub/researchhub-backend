@@ -162,7 +162,7 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
             # No need to order by hotscore descending since the view is already sorted
             queryset = queryset.filter(id__in=Subquery(latest_entries_subquery))
 
-            return queryset
+            return queryset.distinct()
 
         # Latest / Following
 
@@ -180,4 +180,4 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
                 hubs__in=[hub],
             )
 
-        return queryset
+        return queryset.distinct()
