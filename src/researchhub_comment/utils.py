@@ -20,11 +20,13 @@ from django.db.models import (
 from django.db.models.functions import Cast, Coalesce, Extract, Greatest, Ln, Power
 from django.utils import timezone
 
+from purchase.models import Purchase
 from reputation.models import Bounty
 
 BEST_SCORE_CONFIG = {
     "signals": {
         "bounty": {"weight": 80.0},
+        "tip": {"weight": 60.0},
         "accepted_answer": {"weight": 100.0},
         "score": {"weight": 20.0},
     },
@@ -46,6 +48,7 @@ def annotate_best_score(queryset: QuerySet) -> QuerySet:
     Formula:
         engagement_score = (
             ln(bounty_sum + 1) * 80.0 +
+            ln(tip_sum + 1) * 60.0 +
             accepted_answer * 100.0 +
             ln(score + 1) * 20.0
         )
@@ -56,17 +59,29 @@ def annotate_best_score(queryset: QuerySet) -> QuerySet:
 
     Returns:
         Annotated queryset with 'best_score' field
-    Issues: 
-        I removed the tip component from the BEST_SCORE_CONFIG because it was not working as expected.  It being stored as a string was causing issues.
     """
     config = BEST_SCORE_CONFIG
     
     # ========================================================================
-    # 1. Annotate base fields (bounty_sum, accepted_answer)
+    # 1. Annotate base fields (bounty_sum, tip_sum, accepted_answer)
     # ========================================================================
     queryset = queryset.annotate(
         bounty_sum=Coalesce(
             Sum("bounties__amount", filter=Q(bounties__status=Bounty.OPEN)),
+            0,
+            output_field=DecimalField(),
+        ),
+        tip_sum=Coalesce(
+            Sum(
+                Cast(
+                    "purchases__amount",
+                    output_field=DecimalField(max_digits=19, decimal_places=8),
+                ),
+                filter=Q(
+                    purchases__paid_status=Purchase.PAID,
+                    purchases__purchase_type=Purchase.BOOST,
+                ),
+            ),
             0,
             output_field=DecimalField(),
         ),
@@ -86,6 +101,9 @@ def annotate_best_score(queryset: QuerySet) -> QuerySet:
         Ln(Greatest(F("bounty_sum") + 1, Value(1)))
         * config["signals"]["bounty"]["weight"]
     )
+    tip_component = (
+        Ln(Greatest(F("tip_sum") + 1, Value(1))) * config["signals"]["tip"]["weight"]
+    )
     accepted_component = (
         F("accepted_answer") * config["signals"]["accepted_answer"]["weight"]
     )
@@ -94,7 +112,9 @@ def annotate_best_score(queryset: QuerySet) -> QuerySet:
         * config["signals"]["score"]["weight"]
     )
 
-    engagement_score = bounty_component + accepted_component + score_component
+    engagement_score = (
+        bounty_component + tip_component + accepted_component + score_component
+    )
 
     # ========================================================================
     # 4. Apply time decay and handle deleted comments
