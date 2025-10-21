@@ -150,18 +150,6 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
                     hubs__in=[hub],
                 )
 
-            # Since there can be multiple feed entries per unified document,
-            # we need to select the most recent entry for each document
-            # Get the IDs of the most recent feed entry for each unified document
-            latest_entries_subquery = (
-                queryset.values("unified_document")
-                .annotate(latest_id=models.Max("id"))
-                .values_list("latest_id", flat=True)
-            )
-
-            # No need to order by hotscore descending since the view is already sorted
-            queryset = queryset.filter(id__in=Subquery(latest_entries_subquery))
-
             return queryset.distinct()
 
         # Latest / Following
