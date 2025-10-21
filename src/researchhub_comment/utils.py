@@ -103,11 +103,15 @@ def annotate_best_score(queryset: QuerySet) -> QuerySet:
         output_field=DecimalField(),
     )
     
+    # Split into separate annotate() calls to avoid Cartesian product
+    # when aggregating multiple GenericRelations
     queryset = queryset.annotate(
-        bounty_sum=bounty_sum,
-        tip_sum=tip_sum,
         accepted_answer=accepted_answer_int,
         user_verified=user_verified_int,
+    ).annotate(
+        bounty_sum=bounty_sum,
+    ).annotate(
+        tip_sum=tip_sum,
     )
 
     # ========================================================================
