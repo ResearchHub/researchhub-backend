@@ -20,11 +20,13 @@ from utils import sentry
 
 logger = logging.getLogger(__name__)
 
-# Default content types for hot score refresh
-_DEFAULT_CONTENT_TYPES = [
-    ContentType.objects.get_for_model(Paper),
-    ContentType.objects.get_for_model(ResearchhubPost),
-]
+
+def _get_default_content_types():
+    """Get default content types for hot score refresh (lazily evaluated)."""
+    return [
+        ContentType.objects.get_for_model(Paper),
+        ContentType.objects.get_for_model(ResearchhubPost),
+    ]
 
 
 @app.task
@@ -214,7 +216,7 @@ def refresh_feed_hot_scores_batch(
 
         # Apply content type filter with defaults
         if content_types is None:
-            content_types = _DEFAULT_CONTENT_TYPES
+            content_types = _get_default_content_types()
 
         if content_types:
             queryset = queryset.filter(content_type__in=content_types)
