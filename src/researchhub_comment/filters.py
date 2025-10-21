@@ -145,6 +145,8 @@ class RHCommentFilter(filters.FilterSet):
         return queryset
 
     def _calculate_best_score(self, qs):
+        # Only select_related to optimize joins for best_score calculation
+        qs = qs.select_related("created_by__userverification")
         return annotate_best_score(qs)
 
     def _is_on_child_queryset(self):

@@ -5,15 +5,12 @@ Provides scoring algorithms for ranking comments, following the architectural
 pattern established by feed.hot_score module.
 """
 
-from django.contrib.contenttypes.models import ContentType
 from django.db.models import (
     Case,
     DecimalField,
-    Exists,
     F,
     FloatField,
     IntegerField,
-    OuterRef,
     Q,
     QuerySet,
     Sum,
@@ -69,38 +66,48 @@ def annotate_best_score(queryset: QuerySet) -> QuerySet:
     config = BEST_SCORE_CONFIG
     
     # ========================================================================
-    # 1. Annotate base fields (bounty_sum, tip_sum, accepted_answer, user_verified)
+    # 1. Annotate base fields
     # ========================================================================
+    
+    # Pre-calculate simple fields
+    accepted_answer_int = Cast("is_accepted_answer", output_field=IntegerField())
+    
+    # Use CASE/WHEN with LEFT JOIN instead of Exists subquery for better performance
+    user_verified_int = Case(
+        When(
+            created_by__userverification__status=UserVerification.Status.APPROVED,
+            then=Value(1),
+        ),
+        default=Value(0),
+        output_field=IntegerField(),
+    )
+    
+    # Calculate aggregated sums (these trigger joins)
+    bounty_sum = Coalesce(
+        Sum("bounties__amount", filter=Q(bounties__status=Bounty.OPEN)),
+        0,
+        output_field=DecimalField(),
+    )
+    tip_sum = Coalesce(
+        Sum(
+            Cast(
+                "purchases__amount",
+                output_field=DecimalField(max_digits=19, decimal_places=8),
+            ),
+            filter=Q(
+                purchases__paid_status=Purchase.PAID,
+                purchases__purchase_type=Purchase.BOOST,
+            ),
+        ),
+        0,
+        output_field=DecimalField(),
+    )
+    
     queryset = queryset.annotate(
-        bounty_sum=Coalesce(
-            Sum("bounties__amount", filter=Q(bounties__status=Bounty.OPEN)),
-            0,
-            output_field=DecimalField(),
-        ),
-        tip_sum=Coalesce(
-            Sum(
-                Cast(
-                    "purchases__amount",
-                    output_field=DecimalField(max_digits=19, decimal_places=8),
-                ),
-                filter=Q(
-                    purchases__paid_status=Purchase.PAID,
-                    purchases__purchase_type=Purchase.BOOST,
-                ),
-            ),
-            0,
-            output_field=DecimalField(),
-        ),
-        accepted_answer=Cast("is_accepted_answer", output_field=IntegerField()),
-        user_verified=Cast(
-            Exists(
-                UserVerification.objects.filter(
-                    user=OuterRef("created_by"),
-                    status=UserVerification.Status.APPROVED,
-                )
-            ),
-            output_field=IntegerField(),
-        ),
+        bounty_sum=bounty_sum,
+        tip_sum=tip_sum,
+        accepted_answer=accepted_answer_int,
+        user_verified=user_verified_int,
     )
 
     # ========================================================================
