@@ -41,13 +41,7 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
 
         disable_cache_token = request.query_params.get("disable_cache")
         force_disable_cache = disable_cache_token == settings.HEALTH_CHECK_TOKEN
-        hot_score_version = request.query_params.get("hot_score_version", "v1")
-        use_cache = (
-            not force_disable_cache
-            and self.cache_enabled
-            and page_num < 4
-            and hot_score_version != "v2"
-        )
+        use_cache = not force_disable_cache and self.cache_enabled and page_num < 4
 
         if use_cache:
             # try to get cached response
