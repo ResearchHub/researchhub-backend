@@ -118,6 +118,14 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
                     hubs__id__in=followed_hub_ids,
                 )
 
+            # Only show paper and post for all following views
+            queryset = queryset.filter(
+                content_type__in=[
+                    self._paper_content_type,
+                    self._post_content_type,
+                ]
+            )
+
         # Handle both popular view and following view with hot_score sorting
         if feed_view == "popular" or (
             feed_view == "following" and sort_by == "hot_score"
