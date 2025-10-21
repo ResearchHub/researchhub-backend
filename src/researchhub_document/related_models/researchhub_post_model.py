@@ -175,25 +175,6 @@ class ResearchhubPost(AbstractGenericReactionModel):
     def hubs_indexing_flat(self):
         return [hub.name for hub in self.hubs.all()]
 
-    @property
-    def hot_score_indexing(self):
-        return self.unified_document.hot_score
-
-    @property
-    def authors_indexing(self):
-        authors = []
-
-        for author in self.unified_document.authors:
-            authors.append(
-                {
-                    "first_name": author.first_name,
-                    "last_name": author.last_name,
-                    "full_name": author.full_name,
-                }
-            )
-
-        return authors
-
     def get_document_slug_type(self):
         if self.document_type == "BOUNTY":
             return "bounty"
