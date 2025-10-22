@@ -256,19 +256,6 @@ class ReactionViewActionMixin:
         obj.save()
         return vote
 
-    # TODO: Delete
-    def get_self_upvote_response(self, request, response, model):
-        """Returns item in response data with upvote from creator and score."""
-        item = model.objects.get(pk=response.data["id"])
-        create_vote(request.user, item, Vote.UPVOTE)
-
-        serializer = self.get_serializer(item)
-        headers = self.get_success_headers(serializer.data)
-        return Response(
-            serializer.data, status=status.HTTP_201_CREATED, headers=headers
-        )
-
-
 
 def retrieve_endorsement(user, item):
     return Endorsement.objects.get(
