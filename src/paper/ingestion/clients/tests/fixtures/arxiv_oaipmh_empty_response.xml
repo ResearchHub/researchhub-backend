@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.openarchives.org/OAI/2.0/ http://www.openarchives.org/OAI/2.0/OAI-PMH.xsd">
+  <responseDate>2025-01-15T12:00:00Z</responseDate>
+  <request verb="ListRecords" from="2025-01-01" until="2025-01-07" metadataPrefix="arXiv">https://oaipmh.arxiv.org/oai</request>
+  <ListRecords>
+  </ListRecords>
+</OAI-PMH>
