@@ -280,6 +280,16 @@ def fetch_papers_from_source(
                     max_retries=3,
                 )
             )
+        elif source == "arxiv_oaipmh":
+            clients["arxiv_oaipmh"] = ArXivClient(
+                ArXivConfig(
+                    rate_limit=0.33,
+                    page_size=100,
+                    request_timeout=60.0,
+                    max_retries=3,
+                    use_oaipmh=True,
+                )
+            )
         elif source == "biorxiv":
             clients["biorxiv"] = BioRxivClient(
                 BioRxivConfig(
