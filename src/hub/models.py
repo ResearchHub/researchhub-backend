@@ -176,14 +176,6 @@ class Hub(models.Model):
         )
 
     @property
-    def paper_count_indexing(self):
-        return self.get_paper_count()
-
-    @property
-    def subscriber_count_indexing(self):
-        return self.get_subscribers_count()
-
-    @property
     def editor_permission_groups(self):
         return self.get_editor_permission_groups()
 

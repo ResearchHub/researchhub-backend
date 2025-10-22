@@ -16,8 +16,8 @@ class FeedViewMixin:
     Mixin for feed-related viewsets.
     """
 
-    # Cache timeout (30 minutes)
-    DEFAULT_CACHE_TIMEOUT = 60 * 30
+    # Cache timeout
+    DEFAULT_CACHE_TIMEOUT = 60 * 10  # 10 minutes
 
     _content_types = {}
 

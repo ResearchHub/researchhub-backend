@@ -78,19 +78,19 @@ HOT_SCORE_CONFIG = {
             "weight": 50.0,
             "log_base": math.e,
         },
-        "upvote": {
+        "comment": {
             "weight": 40.0,
             "log_base": math.e,
         },
-        "comment": {
+        "upvote": {
             "weight": 20.0,
             "log_base": math.e,
         },
     },
     # Time decay parameters control content prominence over time
     "time_decay": {
-        "gravity": 1.8,  # higher = faster decay
-        "base_hours": 20,  # Softens decay for very new content
+        "gravity": 1.5,  # higher = faster decay
+        "base_hours": 10,  # Softens decay for very new content
     },
     # Temporal urgency configuration
     # Handles time-sensitive boosts for both new and expiring content
@@ -98,7 +98,7 @@ HOT_SCORE_CONFIG = {
         # Boost new content before it accumulates engagement signals
         "new_content_boost": {
             "enabled": True,
-            "cutoff_hours": 48,  # Boost decays to 1x at this point
+            "cutoff_hours": 72,  # Boost decays to 1x at this point
             "initial_multipliers": {
                 "researchhubpost": 4.5,  # 4.5x boost for new posts
                 "paper": 1.0,  # No boost for papers (they have altmetric advantage)

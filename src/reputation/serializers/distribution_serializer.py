@@ -1,3 +1,5 @@
+import logging
+
 from rest_framework import serializers
 
 from discussion.models import Vote as DisVote
@@ -5,7 +7,8 @@ from discussion.serializers import VoteSerializer as DisVoteSerializer
 from paper.models import Paper
 from purchase.models import Purchase
 from reputation.models import Distribution
-from utils import sentry
+
+logger = logging.getLogger(__name__)
 
 
 class ProofRelatedField(serializers.RelatedField):
@@ -30,9 +33,7 @@ class ProofRelatedField(serializers.RelatedField):
         elif isinstance(value, Purchase):
             return PurchaseSerializer(value, context={"exclude_stats": True}).data
 
-        sentry.log_info(
-            "No representation for {} / id: {}".format(str(value), value.id)
-        )
+        logger.info(f"No representation for {value} / id: {value.id}")
         return None
 
 
@@ -41,4 +42,5 @@ class DistributionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Distribution
+        fields = "__all__"
         fields = "__all__"
