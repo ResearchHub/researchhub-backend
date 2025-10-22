@@ -70,7 +70,7 @@ def get_hub_mapping(unified_doc, document) -> Tuple[Optional[str], Optional[str]
         document: The concrete document (Paper or Post)
 
     Returns:
-        Tuple of (HUB_L1, HUB_L2) as hub slugs or None
+        Tuple of (HUB_L1, HUB_L2) as hub IDs or None
     """
     from hub.models import Hub
 
@@ -83,9 +83,9 @@ def get_hub_mapping(unified_doc, document) -> Tuple[Optional[str], Optional[str]
     # Find category and subcategory hubs
     for hub in hubs:
         if hub.namespace == Hub.Namespace.CATEGORY:
-            hub_l1 = hub.slug
+            hub_l1 = str(hub.id)
         elif hub.namespace == Hub.Namespace.SUBCATEGORY:
-            hub_l2 = hub.slug
+            hub_l2 = str(hub.id)
 
     return (hub_l1, hub_l2)
 

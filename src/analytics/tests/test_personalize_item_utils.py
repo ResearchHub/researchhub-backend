@@ -99,8 +99,8 @@ class GetHubMappingTest(TestCase):
 
         hub_l1, hub_l2 = get_hub_mapping(unified_doc, paper)
 
-        # Should return the category hub slug as L1, L2 should be None
-        self.assertEqual(hub_l1, "computer-science")
+        # Should return the category hub ID as L1, L2 should be None
+        self.assertEqual(hub_l1, str(self.hub1.id))
         self.assertIsNone(hub_l2)
 
     def test_get_hub_mapping_no_hubs(self):
@@ -139,9 +139,9 @@ class GetHubMappingTest(TestCase):
 
         hub_l1, hub_l2 = get_hub_mapping(unified_doc, paper)
 
-        # Should return category hub as L1 and subcategory hub as L2
-        self.assertEqual(hub_l1, "computer-science")
-        self.assertEqual(hub_l2, "machine-learning")
+        # Should return category hub ID as L1 and subcategory hub ID as L2
+        self.assertEqual(hub_l1, str(self.hub1.id))
+        self.assertEqual(hub_l2, str(self.hub2.id))
 
     def test_get_hub_mapping_with_subcategory_only(self):
         """Test hub mapping with only subcategory hub."""
@@ -162,9 +162,9 @@ class GetHubMappingTest(TestCase):
 
         hub_l1, hub_l2 = get_hub_mapping(unified_doc, paper)
 
-        # Should return None for L1 and subcategory hub as L2
+        # Should return None for L1 and subcategory hub ID as L2
         self.assertIsNone(hub_l1)
-        self.assertEqual(hub_l2, "machine-learning")
+        self.assertEqual(hub_l2, str(self.hub2.id))
 
 
 class GetAuthorIDsTest(TestCase):
