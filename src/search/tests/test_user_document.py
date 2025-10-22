@@ -73,21 +73,21 @@ class UserDocumentTests(TestCase):
         result = self.document.prepare_full_name_suggest(multi_name_user)
         input_list = result["input"]
 
-        # Should contain first + last name combinations
+        # Should contain first + last name combinations (prioritized)
         self.assertIn("José López", input_list)  # Original first + last
         self.assertIn("jose lopez", input_list)  # Normalized first + last
 
-        # Should contain all individual words
-        self.assertIn("José", input_list)
-        self.assertIn("María", input_list)
-        self.assertIn("García", input_list)
-        self.assertIn("López", input_list)
+        # Should contain full name (prioritized)
+        self.assertIn("José María García López", input_list)
+        self.assertIn("jose maria garcia lopez", input_list)
 
-        # Should contain normalized versions
-        self.assertIn("jose", input_list)
-        self.assertIn("maria", input_list)
-        self.assertIn("garcia", input_list)
-        self.assertIn("lopez", input_list)
+        # Should contain some individual words (may be limited by input size cap)
+        # Test that we have at least the most important ones
+        self.assertIn("José", input_list)
+        self.assertIn("López", input_list)
+        
+        # Verify input size is capped
+        self.assertLessEqual(len(input_list), 10)
 
     def test_prepare_full_name_suggest_with_special_characters(self):
         """Test normalization with various special characters"""
