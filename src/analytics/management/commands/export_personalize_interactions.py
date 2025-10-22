@@ -119,7 +119,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS("\n=== Export Complete ==="))
         self.stdout.write(f"Total records processed: {stats['total_records']}")
         self.stdout.write(
-            f"Records skipped (no unified doc): {stats['records_skipped']}"
+            f"Records skipped (no interactions): {stats['records_skipped']}"
         )
         self.stdout.write(f"Interactions exported: {stats['interactions_exported']}")
 
@@ -137,6 +137,15 @@ class Command(BaseCommand):
             file_size = os.path.getsize(output_path)
             file_size_mb = file_size / (1024 * 1024)
             self.stdout.write(f"File size: {file_size_mb:.2f} MB ({file_size:,} bytes)")
+
+        # Show skipped records log if there are any
+        if stats["records_skipped"] > 0:
+            log_path = output_path.replace(".csv", ".skipped_records.log")
+            if os.path.exists(log_path):
+                self.stdout.write(f"\nSkipped records log: {os.path.abspath(log_path)}")
+                self.stdout.write(
+                    "Check this file to investigate why records were skipped."
+                )
 
         # Display timing metrics
         self.stdout.write(f"\n{'='*60}")

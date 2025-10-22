@@ -136,13 +136,14 @@ class PersonalizeCSVBuilder:
 
         # Track unique item IDs for cache file
         seen_item_ids = set()
+        all_skipped_records = []
 
         with open(output_path, "w", newline="", encoding="utf-8") as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(INTERACTION_CSV_HEADERS)
 
             for mapper in self.mappers:
-                event_stats = self._process_mapper(
+                event_stats, skipped_records = self._process_mapper(
                     mapper,
                     writer,
                     start_date,
@@ -156,10 +157,15 @@ class PersonalizeCSVBuilder:
                 stats["interactions_exported"] += interactions_count
                 stats["records_skipped"] += event_stats["records_skipped"]
                 stats["by_event_type"][mapper.event_type_name] = event_stats
+                all_skipped_records.extend(skipped_records)
 
         # Write item IDs cache file
         self._write_item_ids_cache(output_path, seen_item_ids)
         stats["unique_items"] = len(seen_item_ids)
+
+        # Write skipped records log if there are any
+        if all_skipped_records:
+            self._write_skipped_records_log(output_path, all_skipped_records)
 
         return stats
 
@@ -173,6 +179,9 @@ class PersonalizeCSVBuilder:
             "records_skipped": 0,
         }
 
+        # Track skipped records for detailed logging
+        skipped_records = []
+
         queryset = mapper.get_queryset(start_date, end_date)
         stats["records_processed"] = queryset.count()
 
@@ -181,6 +190,32 @@ class PersonalizeCSVBuilder:
 
             if not interactions:
                 stats["records_skipped"] += 1
+
+                # Log details about the skipped record
+                record_info = {
+                    "mapper": mapper.event_type_name,
+                    "record_id": getattr(record, "id", "unknown"),
+                    "record_type": type(record).__name__,
+                    "record_str": str(record)[:200],  # First 200 chars
+                }
+
+                # Try to get more specific info based on record type
+                if hasattr(record, "unified_document"):
+                    record_info["unified_doc_id"] = getattr(
+                        record.unified_document, "id", "None"
+                    )
+                    record_info["unified_doc_type"] = getattr(
+                        record.unified_document, "document_type", "None"
+                    )
+                elif hasattr(record, "content_object"):
+                    record_info["content_object_id"] = getattr(
+                        record.content_object, "id", "None"
+                    )
+                    record_info["content_object_type"] = type(
+                        record.content_object
+                    ).__name__
+
+                skipped_records.append(record_info)
                 continue
 
             for interaction in interactions:
@@ -199,7 +234,7 @@ class PersonalizeCSVBuilder:
                     stats["records_skipped"],
                 )
 
-        return stats
+        return stats, skipped_records
 
     def _write_item_ids_cache(self, output_path: str, item_ids: set):
         """
@@ -213,3 +248,52 @@ class PersonalizeCSVBuilder:
         with open(cache_path, "w", encoding="utf-8") as f:
             for item_id in sorted(item_ids, key=lambda x: int(x)):
                 f.write(f"{item_id}\n")
+
+    def _write_skipped_records_log(self, output_path: str, skipped_records: list):
+        """
+        Write skipped records to a log file for investigation.
+
+        Args:
+            output_path: Path to the interactions CSV file
+            skipped_records: List of skipped record information
+        """
+        from datetime import datetime
+
+        log_path = output_path.replace(".csv", ".skipped_records.log")
+        with open(log_path, "w", encoding="utf-8") as f:
+            f.write(f"Skipped Records Log - {datetime.now()}\n")
+            f.write("=" * 60 + "\n\n")
+            f.write(f"Total skipped records: {len(skipped_records)}\n\n")
+
+            # Group by mapper for better organization
+            by_mapper = {}
+            for record_info in skipped_records:
+                mapper = record_info["mapper"]
+                if mapper not in by_mapper:
+                    by_mapper[mapper] = []
+                by_mapper[mapper].append(record_info)
+
+            for mapper, records in by_mapper.items():
+                f.write(f"=== {mapper} ({len(records)} records) ===\n")
+                for i, record_info in enumerate(records, 1):
+                    f.write(f"\nRecord {i}:\n")
+                    f.write(f"  ID: {record_info['record_id']}\n")
+                    f.write(f"  Type: {record_info['record_type']}\n")
+                    f.write(f"  String: {record_info['record_str']}\n")
+
+                    if "unified_doc_id" in record_info:
+                        f.write(f"  Unified Doc ID: {record_info['unified_doc_id']}\n")
+                        f.write(
+                            f"  Unified Doc Type: {record_info['unified_doc_type']}\n"
+                        )
+                    elif "content_object_id" in record_info:
+                        f.write(
+                            f"  Content Object ID: {record_info['content_object_id']}\n"
+                        )
+                        f.write(
+                            f"  Content Object Type: "
+                            f"{record_info['content_object_type']}\n"
+                        )
+
+                    f.write("-" * 40 + "\n")
+                f.write("\n")
