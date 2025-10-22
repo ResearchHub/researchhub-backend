@@ -211,7 +211,7 @@ class FeedViewMixin:
         Handles caching, pagination, and serialization.
         """
         from feed.models import FeedEntry
-        from feed.serializers import FeedFundingEntrySerializer
+        from feed.serializers import FundFeedEntrySerializer
         from rest_framework.response import Response
         
         if use_cache:
@@ -238,7 +238,7 @@ class FeedViewMixin:
             feed_entry.item = post
             feed_entries.append(feed_entry)
         
-        serializer = FeedFundingEntrySerializer(
+        serializer = FundFeedEntrySerializer(
             feed_entries,
             many=True,
             context={'request': request}
