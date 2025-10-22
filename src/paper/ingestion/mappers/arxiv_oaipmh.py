@@ -147,8 +147,8 @@ class ArXivOAIPMHMapper(BaseMapper):
             if entry_data.get("id"):
                 arxiv_id = entry_data["id"]
                 entry_data["links"] = {
-                    "alternate": f"http://arxiv.org/abs/{arxiv_id}",  # NOSONAR (http)
-                    "pdf": f"http://arxiv.org/pdf/{arxiv_id}.pdf",  # NOSONAR (http)
+                    "alternate": f"http://arxiv.org/abs/{arxiv_id}",  # NOSONAR - http
+                    "pdf": f"http://arxiv.org/pdf/{arxiv_id}.pdf",  # NOSONAR - http
                 }
 
             return entry_data
