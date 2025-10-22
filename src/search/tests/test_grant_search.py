@@ -26,6 +26,15 @@ class GrantSearchTests(TestCase):
             ("Request for proposals: Climate Research", "Climate Research"),
             ("Request For Proposals AI Grant", "AI Grant"),
             ("RFP Data Science Project", "Data Science Project"),
+            # New patterns with dashes and spaces
+            ("Request For Proposals - AI Research Grant", "AI Research Grant"),
+            ("Request For Proposals -Machine Learning Study", "Machine Learning Study"),
+            ("RFP - Data Science Initiative", "Data Science Initiative"),
+            ("Request for Proposals - Climate Research", "Climate Research"),
+            # Extra space
+            ("Request For Proposals  AI Research Grant", "AI Research Grant"),
+            # Extra space
+            ("RFP  Data Science Project", "Data Science Project"),
             ("Regular Grant Title", "Regular Grant Title"),  # No prefix
             ("", ""),  # Empty string
             ("Request For Proposals", ""),  # Only prefix
@@ -100,11 +109,17 @@ class GrantSearchTests(TestCase):
         post_doc = PostDocument()
 
         test_cases = [
-            # Various RFP prefix formats
+            # Various RFP prefix formats with colons
             ("Request For Proposals: Grant Title", "Grant Title"),
             ("Request for Proposals: Grant Title", "Grant Title"),
             ("RFP: Grant Title", "Grant Title"),
             ("Request for proposals: Grant Title", "Grant Title"),
+            # Various RFP prefix formats with dashes
+            ("Request For Proposals - Grant Title", "Grant Title"),
+            ("Request for Proposals - Grant Title", "Grant Title"),
+            ("RFP - Grant Title", "Grant Title"),
+            ("Request for proposals - Grant Title", "Grant Title"),
+            # Various RFP prefix formats with spaces only
             ("Request For Proposals Grant Title", "Grant Title"),
             ("Request for Proposals Grant Title", "Grant Title"),
             ("RFP Grant Title", "Grant Title"),
@@ -112,6 +127,8 @@ class GrantSearchTests(TestCase):
             # Edge cases
             ("Request For Proposals:", ""),
             ("RFP:", ""),
+            ("Request For Proposals -", ""),
+            ("RFP -", ""),
             ("Request For Proposals", ""),
             ("RFP", ""),
             # No prefix cases
