@@ -69,6 +69,7 @@ class SimpleAuthorSerializer(serializers.ModelSerializer):
             "last_name",
             "profile_image",
             "headline",
+            "description",
             "user",
         ]
 
@@ -794,50 +795,6 @@ class GrantFeedEntrySerializer(FeedEntrySerializer):
         fields = FeedEntrySerializer.Meta.fields
 
 
-class FundAuthorSerializer(serializers.Serializer):
-    """Optimized author serializer for fund-related feeds"""
-
-    id = serializers.IntegerField()
-    first_name = serializers.CharField()
-    last_name = serializers.CharField()
-    profile_image = serializers.SerializerMethodField()
-    headline = serializers.SerializerMethodField()
-    description = serializers.CharField()
-    user = serializers.SerializerMethodField()
-
-    def get_profile_image(self, obj):
-        if not obj:
-            return None
-        
-        if hasattr(obj, 'profile_image') and obj.profile_image:
-            try:
-                return obj.profile_image.url
-            except (AttributeError, ValueError):
-                return None
-        return None
-
-    def get_headline(self, obj):
-        if not obj:
-            return None
-        
-        headline = getattr(obj, 'headline', None)
-        if isinstance(headline, dict):
-            return headline.get('title')
-        return None
-
-    def get_user(self, obj):
-        if not obj:
-            return None
-        
-        user = getattr(obj, 'user', None)
-        if user:
-            return {
-                'id': user.id,
-                'is_verified': user.is_verified,
-            }
-        return None
-
-
 class FundHubSerializer(serializers.Serializer):
     """Optimized hub serializer for fund-related feeds"""
 
@@ -846,7 +803,7 @@ class FundHubSerializer(serializers.Serializer):
     slug = serializers.CharField()
 
 
-class FundFundraiseSerializer(serializers.Serializer):
+class FeedFundraiseSerializer(serializers.Serializer):
     """Optimized fundraise serializer for fund-related feeds"""
 
     id = serializers.IntegerField()
@@ -885,7 +842,7 @@ class FundFundraiseSerializer(serializers.Serializer):
         return {'total': contributor_count, 'top': []}
 
 
-class FundGrantSerializer(serializers.Serializer):
+class FeedGrantSerializer(serializers.Serializer):
     """Optimized grant serializer for fund-related feeds"""
 
     id = serializers.IntegerField()
@@ -921,7 +878,7 @@ class FundGrantSerializer(serializers.Serializer):
 
     def get_created_by(self, obj):
         if obj.created_by and hasattr(obj.created_by, 'author_profile'):
-            return FundAuthorSerializer(obj.created_by.author_profile).data
+            return SimpleAuthorSerializer(obj.created_by.author_profile).data
         return None
 
     def get_applications(self, obj):
@@ -931,13 +888,13 @@ class FundGrantSerializer(serializers.Serializer):
                 applications.append({
                     'id': app.id,
                     'created_date': app.created_date,
-                    'applicant': FundAuthorSerializer(app.applicant.author_profile).data,
+                    'applicant': SimpleAuthorSerializer(app.applicant.author_profile).data,
                     'preregistration_post_id': app.preregistration_post_id,
                 })
         return applications
 
 
-class FundPostSerializer(serializers.Serializer):
+class FeedPostSerializer(serializers.Serializer):
     """Optimized post serializer for fund-related feeds"""
 
     id = serializers.IntegerField()
@@ -982,7 +939,7 @@ class FundPostSerializer(serializers.Serializer):
         if obj.unified_document and obj.document_type == PREREGISTRATION:
             fundraises = list(obj.unified_document.fundraises.all())
             if fundraises:
-                return FundFundraiseSerializer(fundraises[0]).data
+                return FeedFundraiseSerializer(fundraises[0]).data
         return None
 
     def get_grant(self, obj):
@@ -991,14 +948,14 @@ class FundPostSerializer(serializers.Serializer):
         if obj.unified_document and obj.document_type == GRANT:
             grants = list(obj.unified_document.grants.all())
             if grants:
-                return FundGrantSerializer(grants[0]).data
+                return FeedGrantSerializer(grants[0]).data
         return None
 
     def get_reviews(self, obj):
         return []
 
 
-class FundFeedEntrySerializer(serializers.Serializer):
+class FeedFundingEntrySerializer(serializers.Serializer):
     """Optimized feed entry serializer for fund-related feeds"""
 
     id = serializers.IntegerField()
@@ -1016,7 +973,7 @@ class FundFeedEntrySerializer(serializers.Serializer):
         return obj.content_type.model.upper()
 
     def get_content_object(self, obj):
-        return FundPostSerializer(obj.item).data
+        return FeedPostSerializer(obj.item).data
 
     def get_created_date(self, obj):
         return obj.action_date
@@ -1025,7 +982,7 @@ class FundFeedEntrySerializer(serializers.Serializer):
         if obj.item:
             created_by = getattr(obj.item, 'created_by', None)
             if created_by and hasattr(created_by, 'author_profile'):
-                return FundAuthorSerializer(created_by.author_profile).data
+                return SimpleAuthorSerializer(created_by.author_profile).data
         return None
 
     def get_metrics(self, obj):
