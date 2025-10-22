@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 from django_opensearch_dsl import fields as es_fields
 from django_opensearch_dsl.registries import registry
@@ -36,7 +37,7 @@ class InstitutionDocument(BaseDocument):
     class Django:
         model = Institution
 
-    def prepare_suggestion_phrases(self, instance):
+    def prepare_suggestion_phrases(self, instance) -> list[dict[str, Any]]:
         suggestions = []
 
         suggestions.append({"input": instance.display_name, "weight": 10})

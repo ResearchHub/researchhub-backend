@@ -1,14 +1,17 @@
 import logging
 import time
+from datetime import timedelta
 from typing import Any, Optional
 
 from django.contrib.contenttypes.models import ContentType
+from django.utils import timezone
 
 import utils.locking as lock
-from feed.hot_score import calculate_hot_score_for_item
 from feed.models import FeedEntry
 from feed.serializers import serialize_feed_item, serialize_feed_metrics
+from paper.related_models.paper_model import Paper
 from researchhub.celery import app
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -16,6 +19,14 @@ from user.models import User
 from utils import sentry
 
 logger = logging.getLogger(__name__)
+
+
+# Default content types for hot score refresh
+def _get_default_content_types():
+    return [
+        ContentType.objects.get_for_model(Paper),
+        ContentType.objects.get_for_model(ResearchhubPost),
+    ]
 
 
 @app.task
@@ -165,51 +176,133 @@ def refresh_feed_hot_scores():
         return False
 
     try:
-        _refresh_feed_hot_scores()
+        # Uses default 30-day lookback for papers and posts only
+        stats = refresh_feed_hot_scores_batch(
+            queryset=None,
+            update_v1=True,
+            update_v2=True,
+            content_types=None,
+        )
+        logger.info(f"Refreshed hot scores: {stats}")
+        sentry.log_info(f"Refreshed hot scores: {stats}")
+        return stats
     finally:
         lock.release(key)
         logger.info(f"Released lock {key}")
 
 
-def _refresh_feed_hot_scores():
+def refresh_feed_hot_scores_batch(
+    queryset=None,
+    batch_size=1000,
+    update_v1=True,
+    update_v2=True,
+    days_back=30,
+    content_types=None,
+    progress_callback=None,
+):
+    """
+    Refresh hot scores for feed entries with optional filtering.
+    """
     start_time = time.time()
-    count = 0
-    batch_size = 1000
-    total_entries = FeedEntry.objects.count()
+
+    # Build default queryset if none provided
+    if queryset is None:
+        queryset = FeedEntry.objects.all()
+
+        # Apply date filter
+        if days_back is not None:
+            cutoff_date = timezone.now() - timedelta(days=days_back)
+            queryset = queryset.filter(created_date__gte=cutoff_date)
+
+        # Apply content type filter with defaults
+        if content_types is None:
+            content_types = _get_default_content_types()
+
+        if content_types:
+            queryset = queryset.filter(content_type__in=content_types)
+
+    # Apply proper prefetching
+    queryset = queryset.select_related(
+        "content_type", "unified_document"
+    ).prefetch_related("item")
+
+    total_entries = queryset.count()
+    processed = 0
+    updated = 0
+    errors = 0
+
+    # Determine which fields to update
+    update_fields = []
+    if update_v1:
+        update_fields.append("hot_score")
+    if update_v2:
+        update_fields.append("hot_score_v2")
+        update_fields.append("hot_score_v2_breakdown")
+
+    if not update_fields:
+        logger.warning("No update fields specified, skipping hot score refresh")
+        return {
+            "processed": 0,
+            "updated": 0,
+            "errors": 0,
+            "duration": 0,
+        }
 
     # Process in batches
     for offset in range(0, total_entries, batch_size):
         entries_to_update = []
 
-        # Process a batch of entries, skipping entries with hot_score <= 10
-        batch = list(
-            FeedEntry.objects.filter(hot_score__gt=10).prefetch_related("item")[
-                offset : (offset + batch_size)
-            ]
-        )
+        # Process a batch of entries
+        batch = list(queryset[offset : (offset + batch_size)])
 
         # Calculate hot scores for each entry in the batch
         for feed_entry in batch:
-            if feed_entry.item:
-                feed_entry.hot_score = calculate_hot_score_for_item(feed_entry)
+            try:
+                if not feed_entry.item:
+                    processed += 1
+                    continue
+
+                # Calculate scores based on flags
+                if update_v1:
+                    feed_entry.hot_score = feed_entry.calculate_hot_score()
+                if update_v2:
+                    feed_entry.hot_score_v2 = feed_entry.calculate_hot_score_v2()
+
                 entries_to_update.append(feed_entry)
 
-        # Bulk update entries with new hot scores
+            except Exception as e:
+                errors += 1
+                logger.error(f"Error calculating score for entry {feed_entry.id}: {e}")
+                continue
+
+        # Bulk update entries using Django ORM
         if entries_to_update:
-            from django.db import connection
-
-            with connection.cursor() as cursor:
-                batch_params = [
-                    (entry.hot_score, entry.id) for entry in entries_to_update
-                ]
-                cursor.executemany(
-                    "UPDATE feed_feedentry SET hot_score = %s WHERE id = %s",
-                    batch_params,
+            try:
+                FeedEntry.objects.bulk_update(
+                    entries_to_update, update_fields, batch_size=batch_size
                 )
+                updated += len(entries_to_update)
+            except Exception as e:
+                errors += len(entries_to_update)
+                logger.error(f"Error bulk updating batch: {e}")
 
-        count += len(batch)
-        logger.info(f"Processed {count} of {total_entries} feed entries")
+        processed += len(batch)
+
+        # Call progress callback if provided
+        if progress_callback:
+            progress_callback(processed, total_entries, updated, errors)
+        else:
+            logger.info(f"Processed {processed} of {total_entries} feed entries")
 
     duration = time.time() - start_time
-    logger.info(f"Refreshed feed hot scores in {duration:.2f}s")
-    sentry.log_info(f"Refreshed feed hot scores in {duration:.2f}s")
+    logger.info(
+        f"Refreshed hot scores in {duration:.2f}s: "
+        f"processed={processed}, updated={updated}, errors={errors}"
+    )
+
+    return {
+        "processed": processed,
+        "updated": updated,
+        "errors": errors,
+        "duration": duration,
+    }

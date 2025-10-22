@@ -5,7 +5,6 @@ from bs4 import BeautifulSoup
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.core.validators import URLValidator
-from django.db import models
 from django.db.models import Count, Q
 
 from discussion.models import Vote
@@ -201,38 +200,6 @@ def get_pdf_from_url(url):
 
 def get_cache_key(obj_type, pk):
     return f"{obj_type}_{pk}"
-
-
-def parse_author_name(author):
-    full_name = []
-
-    if isinstance(author, models.Model):
-        if getattr(author, "first_name") and not is_blank_str(
-            getattr(author, "first_name")
-        ):
-            full_name.append(author.first_name)
-        if getattr(author, "last_name") and not is_blank_str(
-            getattr(author, "last_name")
-        ):
-            full_name.append(author.last_name)
-
-    elif isinstance(author, dict):
-        if author.get("first_name") and not is_blank_str(author.get("first_name")):
-            full_name.append(author.get("first_name"))
-        if author.get("last_name") and not is_blank_str(author.get("last_name")):
-            full_name.append(author.get("last_name"))
-
-    elif isinstance(author, str) and not is_blank_str(author):
-        full_name.append(author)
-
-    return " ".join(full_name)
-
-
-def is_blank_str(string):
-    if string and isinstance(string, str) and string.strip() != "":
-        return False
-
-    return True
 
 
 def format_raw_authors(raw_authors):

@@ -33,6 +33,8 @@ class Hub(models.Model):
         """
 
         JOURNAL = "journal", _("Journal")
+        CATEGORY = "category", _("Category")
+        SUBCATEGORY = "subcategory", _("Subcategory")
 
     UNLOCK_AFTER = 14
 
@@ -172,14 +174,6 @@ class Hub(models.Model):
             (Q(name__iexact=subfield.display_name) | Q(subfield_id=subfield.id))
             & ~Q(namespace="journal")
         )
-
-    @property
-    def paper_count_indexing(self):
-        return self.get_paper_count()
-
-    @property
-    def subscriber_count_indexing(self):
-        return self.get_subscribers_count()
 
     @property
     def editor_permission_groups(self):

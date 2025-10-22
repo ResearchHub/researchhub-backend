@@ -81,6 +81,8 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
         hub_slug = self.request.query_params.get("hub_slug")
         source = self.request.query_params.get("source", "all")
         sort_by = self.request.query_params.get("sort_by", "latest")
+        hot_score_version = self.request.query_params.get("hot_score_version", "v1")
+        hot_score_field = "hot_score_v2" if hot_score_version == "v2" else "hot_score"
 
         # Use FeedEntry for all queries, sorted by hot_score or action_date
         queryset = FeedEntry.objects.all()
@@ -89,7 +91,7 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
         if feed_view == "popular" or (
             feed_view == "following" and sort_by == "hot_score"
         ):
-            queryset = queryset.order_by("-hot_score")
+            queryset = queryset.order_by(f"-{hot_score_field}")
         else:
             queryset = queryset.order_by("-action_date")
 
@@ -116,6 +118,14 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
                     hubs__id__in=followed_hub_ids,
                 )
 
+            # Only show paper and post for all following views
+            queryset = queryset.filter(
+                content_type__in=[
+                    self._paper_content_type,
+                    self._post_content_type,
+                ]
+            )
+
         # Handle both popular view and following view with hot_score sorting
         if feed_view == "popular" or (
             feed_view == "following" and sort_by == "hot_score"
@@ -140,19 +150,7 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
                     hubs__in=[hub],
                 )
 
-            # Since there can be multiple feed entries per unified document,
-            # we need to select the most recent entry for each document
-            # Get the IDs of the most recent feed entry for each unified document
-            latest_entries_subquery = (
-                queryset.values("unified_document")
-                .annotate(latest_id=models.Max("id"))
-                .values_list("latest_id", flat=True)
-            )
-
-            # No need to order by hotscore descending since the view is already sorted
-            queryset = queryset.filter(id__in=Subquery(latest_entries_subquery))
-
-            return queryset
+            return queryset.distinct()
 
         # Latest / Following
 
@@ -170,4 +168,4 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
                 hubs__in=[hub],
             )
 
-        return queryset
+        return queryset.distinct()
