@@ -86,28 +86,16 @@ class UserDocument(BaseDocument):
 
     # Used specifically for "autocomplete" style suggest feature
     def prepare_full_name_suggest(self, instance) -> dict[str, Any]:
-        full_name_suggest = ""
         try:
-            full_name_suggest = (
-                f"{instance.author_profile.first_name} "
-                f"{instance.author_profile.last_name}"
-            )
+            first_name = instance.author_profile.first_name
+            last_name = instance.author_profile.last_name
+            full_name = f"{first_name} {last_name}"
         except Exception:
-            # Some legacy users don't have an author profile
-            full_name_suggest = f"{instance.first_name} {instance.last_name}"
+            full_name = f"{instance.first_name} {instance.last_name}"
 
-        weight = instance.reputation
+        weight = instance.reputation + (500 if instance.is_verified else 0)
 
-        if instance.is_verified:
-            weight += 500
-
-        # Create ASCII-normalized version for better search matching
         def _normalize_for_search(text):
-            """Normalize text by removing accents for better search matching.
-
-            This function converts accented characters to their ASCII equivalents,
-            enabling searches like 'martin' to match 'Martín'.
-            """
             if not text:
                 return ""
             return (
@@ -117,48 +105,31 @@ class UserDocument(BaseDocument):
                 .lower()
             )
 
-        normalized_name = _normalize_for_search(full_name_suggest)
-
-        # Include both original and normalized versions in the input
-        # Also include partial combinations for better matching
-        original_words = full_name_suggest.split()
+        normalized_name = _normalize_for_search(full_name)
+        original_words = full_name.split()
         normalized_words = normalized_name.split()
 
-        input_list = (
-            original_words  # Original words with accents
-            + [full_name_suggest]  # Original full name
-            + normalized_words  # Normalized words without accents
-            + [normalized_name]  # Normalized full name
-        )
+        input_list = original_words + [full_name] + normalized_words + [normalized_name]
 
-        # Add partial combinations for better matching
-        # (e.g., "martin rivero" from "martin nicolas rivero")
         if len(original_words) >= 2:
-            # Add first + last name combinations
-            first_last_original = f"{original_words[0]} {original_words[-1]}"
-            first_last_normalized = f"{normalized_words[0]} {normalized_words[-1]}"
-            input_list.append(first_last_original)  # "Martín Rivero"
-            input_list.append(first_last_normalized)  # "martin rivero"
+            input_list.extend(
+                [
+                    f"{original_words[0]} {original_words[-1]}",
+                    f"{normalized_words[0]} {normalized_words[-1]}",
+                ]
+            )
 
         # Remove duplicates while preserving order
-        seen = set()
-        unique_input_list = []
-        for item in input_list:
-            if item not in seen:
-                seen.add(item)
-                unique_input_list.append(item)
+        unique_input_list = list(dict.fromkeys(input_list))
 
-        # Cap input size for performance - larger inputs slow down suggest
-        # Based on codebase patterns: query truncation to 50 chars
-        MAX_INPUT_SIZE = 10  # Reasonable limit based on typical name variations
+        # Cap input size for performance
+        MAX_INPUT_SIZE = 10
         if len(unique_input_list) > MAX_INPUT_SIZE:
-            # Prioritize full names over partial combinations
             full_names = [item for item in unique_input_list if len(item.split()) >= 2]
             partial_names = [
                 item for item in unique_input_list if len(item.split()) == 1
             ]
 
-            # Take full names first, then fill remaining slots with partial names
             prioritized_list = full_names[:MAX_INPUT_SIZE]
             remaining_slots = MAX_INPUT_SIZE - len(prioritized_list)
             if remaining_slots > 0:
@@ -166,10 +137,7 @@ class UserDocument(BaseDocument):
 
             unique_input_list = prioritized_list
 
-        return {
-            "input": unique_input_list,
-            "weight": weight,
-        }
+        return {"input": unique_input_list, "weight": weight}
 
     def prepare_full_name(self, instance) -> str:
         try:
