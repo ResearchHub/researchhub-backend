@@ -192,7 +192,12 @@ class RhCommentModel(
 
     @property
     def children_count(self):
-        return self.children.count()
+        # Use annotated value if available to avoid N+1 queries
+        # Check __dict__ to see if it was set as an annotation (not computed by this property)
+        if "_children_count" in self.__dict__:
+            return self.__dict__["_children_count"]
+        # Fallback to database query for backwards compatibility
+        return self.children.filter(is_removed=False).count()
 
     """ --- METHODS --- """
 

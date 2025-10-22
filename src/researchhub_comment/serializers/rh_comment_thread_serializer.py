@@ -51,9 +51,11 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
 
     def get_peer_review(self, thread):
         peer_review = thread.peer_review
-
-        if peer_review.exists():
-            peer_review = peer_review.first()
+        
+        # Use all() to access prefetched data instead of exists()
+        peer_review_list = peer_review.all()
+        if peer_review_list:
+            peer_review = peer_review_list[0]
             return {
                 "id": peer_review.id,
                 "status": peer_review.status,
@@ -132,8 +134,10 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
 
     def get_privacy_type(self, thread):
         permissions = thread.permissions
-        if permissions.exists():
-            permission = permissions.first()
+        # Use all() to access prefetched data instead of exists()
+        permissions_list = permissions.all()
+        if permissions_list:
+            permission = permissions_list[0]
             if permission.organization:
                 return WORKSPACE
             else:

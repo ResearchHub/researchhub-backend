@@ -211,11 +211,14 @@ class DynamicRhCommentSerializer(
     def get_awarded_bounty_amount(self, comment):
         amount_awarded = None
         bounty_solution = comment.bounty_solution
-
-        if not bounty_solution.exists():
+        
+        # Use all() to access prefetched data, then check length
+        # exists() always hits the database even with prefetch
+        bounty_solution_list = bounty_solution.all()
+        if not bounty_solution_list:
             return None
 
-        if bounty_solution := bounty_solution.first():
+        if bounty_solution := bounty_solution_list[0]:
             bounty = bounty_solution.bounty
             escrow = bounty.escrow
             comment_creator = comment.created_by
@@ -244,8 +247,10 @@ class DynamicRhCommentSerializer(
         context = self.context
         _context_fields = context.get("rhc_dcs_get_review", {})
         reviews = comment.reviews
-        if reviews.exists():
-            review = reviews.first()
+        # Use all() to access prefetched data instead of exists()
+        reviews_list = reviews.all()
+        if reviews_list:
+            review = reviews_list[0]
             serializer = DynamicReviewSerializer(
                 review, many=False, context=context, **_context_fields
             )

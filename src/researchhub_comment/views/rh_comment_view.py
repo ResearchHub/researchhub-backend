@@ -522,7 +522,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         )
 
     def list(self, request, *args, **kwargs):
-        from django.db.models import Prefetch
+        from django.db.models import Count, Prefetch, Q
 
         from researchhub_comment.models import RhCommentModel
 
@@ -534,11 +534,30 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             if level >= max_depth:
                 return []
 
+            # Build list of prefetches for this level's children
+            child_prefetches = [
+                *prefetch_children_recursively(level + 1, max_depth),
+                "purchases",
+                "bounties",
+                "bounty_solution",
+                "reviews",
+                "votes",
+                "thread__permissions",
+                "thread__peer_review",
+            ]
+
             return [
                 Prefetch(
                     "children",
-                    queryset=RhCommentModel.all_objects.prefetch_related(
-                        *prefetch_children_recursively(level + 1, max_depth)
+                    queryset=RhCommentModel.all_objects.annotate(
+                        _children_count=Count("children", filter=Q(children__is_removed=False))
+                    ).select_related(
+                        "created_by",
+                        "created_by__author_profile",
+                        "thread",
+                        "thread__content_type",
+                    ).prefetch_related(
+                        *child_prefetches
                     ),
                     to_attr=f"prefetched_children_{level}",
                 )
@@ -549,6 +568,13 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             "created_by",
             "created_by__author_profile",
             "thread",
+            "thread__content_type",  # Avoid N+1 for thread content type
+        )
+        
+        # Annotate children_count to avoid N+1 queries
+        # Use _children_count to avoid conflict with the property
+        queryset = queryset.annotate(
+            _children_count=Count("children", filter=Q(children__is_removed=False))
         )
 
         # Add prefetches for nested children
@@ -562,9 +588,14 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             "bounties__solutions",
             "bounties__solutions__created_by",
             "bounties__solutions__created_by__author_profile",
+            "bounty_solution",  # Prefetch to avoid exists() N+1
+            "bounty_solution__bounty",
+            "bounty_solution__bounty__escrow",
             "reviews",
+            "votes",  # Prefetch to avoid get_user_vote N+1
             "thread__permissions",
-            "thread__content_type",
+            "thread__permissions__content_type",  # Prefetch permission content types
+            "thread__peer_review",  # Prefetch peer reviews to avoid exists() N+1
             Prefetch(
                 "created_by__permissions",
                 queryset=Permission.objects.filter(

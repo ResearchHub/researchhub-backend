@@ -184,15 +184,23 @@ class RHCommentFilter(filters.FilterSet):
         if self._is_on_child_queryset() or self._has_explicit_filtering():
             return base_qs
 
-        # Apply the default restriction: include only comments whose own
-        # `comment_type` and their parent thread's `thread_type` are both
-        # GENERIC_COMMENT, and that do **not** have bounties attached.
-        return base_qs.filter(
-            comment_type=GENERIC_COMMENT,
-            thread__thread_type=GENERIC_COMMENT,
-            bounties__isnull=True,
-            parent__isnull=True,
-        )
+        # Check if ordering by BEST - if so, we need to include bounty comments
+        # because bounty_sum is part of the best_score calculation
+        ordering_value = self.data.get("ordering")
+        
+        # Apply the default restriction
+        filter_kwargs = {
+            "comment_type": GENERIC_COMMENT,
+            "thread__thread_type": GENERIC_COMMENT,
+            "parent__isnull": True,
+        }
+        
+        # Only exclude bounty comments if NOT ordering by BEST
+        # (BEST ordering needs to aggregate bounties, which conflicts with bounties__isnull=True)
+        if ordering_value != BEST:
+            filter_kwargs["bounties__isnull"] = True
+        
+        return base_qs.filter(**filter_kwargs)
 
     def ordering_filter(self, qs, name, value):
         if value == BEST:
