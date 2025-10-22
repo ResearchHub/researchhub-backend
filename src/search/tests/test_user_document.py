@@ -85,7 +85,7 @@ class UserDocumentTests(TestCase):
         # Test that we have at least the most important ones
         self.assertIn("José", input_list)
         self.assertIn("López", input_list)
-        
+
         # Verify input size is capped
         self.assertLessEqual(len(input_list), 10)
 
