@@ -22,11 +22,13 @@ from analytics.services.personalize_item_utils import (
 )
 from hub.models import Hub
 from paper.models import Paper
+from paper.related_models.authorship_model import Authorship
 from purchase.models import Fundraise, Grant, GrantApplication
 from reputation.models import Bounty, BountySolution, Escrow
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from user.models import User
+from user.related_models.author_model import Author
 
 
 class CleanTextForCSVTest(TestCase):
@@ -83,10 +85,12 @@ class GetHubMappingTest(TestCase):
 
         self.user = User.objects.create(email="test@example.com", username="testuser")
 
-    def test_get_hub_mapping_with_primary_hub(self):
-        """Test hub mapping uses primary hub as fallback."""
-        # Create a unified document with a primary hub
+    def test_get_hub_mapping_with_category_hub(self):
+        """Test hub mapping uses category hub for L1."""
+        # Create a unified document with a category hub
         unified_doc = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
+        self.hub1.namespace = Hub.Namespace.CATEGORY
+        self.hub1.save()
         unified_doc.hubs.add(self.hub1)
 
         paper = Paper.objects.create(
@@ -95,7 +99,7 @@ class GetHubMappingTest(TestCase):
 
         hub_l1, hub_l2 = get_hub_mapping(unified_doc, paper)
 
-        # Should return the hub slug, L2 should be None
+        # Should return the category hub slug as L1, L2 should be None
         self.assertEqual(hub_l1, "computer-science")
         self.assertIsNone(hub_l2)
 
@@ -112,51 +116,55 @@ class GetHubMappingTest(TestCase):
         self.assertIsNone(hub_l1)
         self.assertIsNone(hub_l2)
 
-    def test_get_hub_mapping_with_external_source(self):
-        """Test hub mapping for external papers with reverse cache lookup."""
-        # Create a unified document with a primary hub that maps to external category
+    def test_get_hub_mapping_with_category_and_subcategory(self):
+        """Test hub mapping with both category and subcategory hubs."""
+        # Create a unified document with both category and subcategory hubs
         unified_doc = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
-        unified_doc.hubs.add(self.hub1)
+
+        # Set up category hub
+        self.hub1.namespace = Hub.Namespace.CATEGORY
+        self.hub1.save()
+
+        # Set up subcategory hub
+        self.hub2.namespace = Hub.Namespace.SUBCATEGORY
+        self.hub2.save()
+
+        unified_doc.hubs.add(self.hub1, self.hub2)
 
         paper = Paper.objects.create(
-            title="Test arXiv Paper",
+            title="Test Paper",
             uploaded_by=self.user,
             unified_document=unified_doc,
-            external_source="arxiv",
-            external_metadata={"category": "cs.ai"},
         )
 
         hub_l1, hub_l2 = get_hub_mapping(unified_doc, paper)
 
-        # Should return the primary hub as L1
+        # Should return category hub as L1 and subcategory hub as L2
         self.assertEqual(hub_l1, "computer-science")
-        # L2 should be None since we don't have the actual external category mapping
-        # in our test data (the reverse cache would need real mapping data)
-        self.assertIsNone(hub_l2)
+        self.assertEqual(hub_l2, "machine-learning")
 
-    def test_get_hub_mapping_cache_building(self):
-        """Test that the reverse cache is built correctly."""
-        from analytics.services.personalize_item_utils import (
-            _build_hub_to_category_cache,
+    def test_get_hub_mapping_with_subcategory_only(self):
+        """Test hub mapping with only subcategory hub."""
+        # Create a unified document with only subcategory hub
+        unified_doc = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
+
+        # Set up subcategory hub
+        self.hub2.namespace = Hub.Namespace.SUBCATEGORY
+        self.hub2.save()
+
+        unified_doc.hubs.add(self.hub2)
+
+        paper = Paper.objects.create(
+            title="Test Paper",
+            uploaded_by=self.user,
+            unified_document=unified_doc,
         )
 
-        # Build the cache
-        cache = _build_hub_to_category_cache()
+        hub_l1, hub_l2 = get_hub_mapping(unified_doc, paper)
 
-        # Should be a dictionary
-        self.assertIsInstance(cache, dict)
-
-        # Should have some entries (from the actual mapping files)
-        self.assertGreater(len(cache), 0)
-
-        # Check that cache entries have the right structure
-        for hub_slug, mappings in cache.items():
-            self.assertIsInstance(hub_slug, str)
-            self.assertTrue(hub_slug.strip())  # Ensure it's not empty
-            self.assertIsInstance(mappings, list)
-            for source, category in mappings:
-                self.assertIsInstance(source, str)
-                self.assertIsInstance(category, str)
+        # Should return None for L1 and subcategory hub as L2
+        self.assertIsNone(hub_l1)
+        self.assertEqual(hub_l2, "machine-learning")
 
 
 class GetAuthorIDsTest(TestCase):
@@ -167,7 +175,37 @@ class GetAuthorIDsTest(TestCase):
         self.user = User.objects.create(email="test@example.com", username="testuser")
 
     def test_get_author_ids_for_post(self):
-        """Test getting author ID for a post."""
+        """Test getting author ID for a post with authors ManyToMany."""
+        unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="DISCUSSION"
+        )
+
+        # Create additional users and authors
+        user2 = User.objects.create(email="author2@example.com", username="author2")
+        author1, _ = Author.objects.get_or_create(
+            user=self.user, defaults={"first_name": "Test", "last_name": "Author"}
+        )
+        author2, _ = Author.objects.get_or_create(
+            user=user2, defaults={"first_name": "Test2", "last_name": "Author2"}
+        )
+
+        post = ResearchhubPost.objects.create(
+            title="Test Post", created_by=self.user, unified_document=unified_doc
+        )
+        # Add authors via ManyToMany
+        post.authors.add(author1, author2)
+
+        result = get_author_ids(unified_doc, post)
+
+        # Should return the authors from ManyToMany field
+        self.assertIsNotNone(result)
+        author_ids = result.split(",")
+        self.assertEqual(len(author_ids), 2)
+        self.assertIn(str(author1.id), author_ids)
+        self.assertIn(str(author2.id), author_ids)
+
+    def test_get_author_ids_for_post_with_empty_authors(self):
+        """Test post with no authors falls back to created_by."""
         unified_doc = ResearchhubUnifiedDocument.objects.create(
             document_type="DISCUSSION"
         )
@@ -175,12 +213,119 @@ class GetAuthorIDsTest(TestCase):
         post = ResearchhubPost.objects.create(
             title="Test Post", created_by=self.user, unified_document=unified_doc
         )
+        # Don't add any authors - should fallback to created_by
 
         result = get_author_ids(unified_doc, post)
 
-        # Should return the author profile ID
+        # Should return the created_by author profile ID
         self.assertIsNotNone(result)
         self.assertEqual(result, str(self.user.author_profile.id))
+
+    def test_get_author_ids_for_preregistration(self):
+        """Test getting author IDs for a PREREGISTRATION document type."""
+        unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PREREGISTRATION"
+        )
+
+        # Create additional users and authors
+        user2 = User.objects.create(email="author2@example.com", username="author2")
+        author1, _ = Author.objects.get_or_create(
+            user=self.user, defaults={"first_name": "Test", "last_name": "Author"}
+        )
+        author2, _ = Author.objects.get_or_create(
+            user=user2, defaults={"first_name": "Test2", "last_name": "Author2"}
+        )
+
+        post = ResearchhubPost.objects.create(
+            title="Test Preregistration",
+            document_type="PREREGISTRATION",
+            created_by=self.user,
+            unified_document=unified_doc,
+        )
+        # Add authors via ManyToMany
+        post.authors.add(author1, author2)
+
+        result = get_author_ids(unified_doc, post)
+
+        # Should return the authors from ManyToMany field
+        self.assertIsNotNone(result)
+        author_ids = result.split(",")
+        self.assertEqual(len(author_ids), 2)
+        self.assertIn(str(author1.id), author_ids)
+        self.assertIn(str(author2.id), author_ids)
+
+    def test_get_author_ids_for_paper_with_authorships(self):
+        """Test getting author IDs for a paper with authorships."""
+        unified_doc = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
+
+        # Create additional users and authors
+        user2 = User.objects.create(email="author2@example.com", username="author2")
+        author1, _ = Author.objects.get_or_create(
+            user=self.user,
+            defaults={"first_name": "Test", "last_name": "Author", "claimed": True},
+        )
+        author2, _ = Author.objects.get_or_create(
+            user=user2,
+            defaults={"first_name": "Test2", "last_name": "Author2", "claimed": True},
+        )
+
+        paper = Paper.objects.create(
+            title="Test Paper", uploaded_by=self.user, unified_document=unified_doc
+        )
+
+        # Create authorships
+        Authorship.objects.create(paper=paper, author=author1)
+        Authorship.objects.create(paper=paper, author=author2)
+
+        result = get_author_ids(unified_doc, paper)
+
+        # Should return the authors from authorships
+        self.assertIsNotNone(result)
+        author_ids = result.split(",")
+        self.assertEqual(len(author_ids), 2)
+        self.assertIn(str(author1.id), author_ids)
+        self.assertIn(str(author2.id), author_ids)
+
+    def test_get_author_ids_for_paper_without_authorships(self):
+        """Test paper without authorships falls back to raw_authors."""
+        unified_doc = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
+
+        # Create an author that will be matched from raw_authors
+        author, created = Author.objects.get_or_create(
+            user=self.user,
+            defaults={
+                "first_name": "Test",
+                "last_name": "Author",
+                "claimed": True,
+                "orcid_id": "0000-0000-0000-0001",
+            },
+        )
+
+        # If author already exists, update the ORCID ID
+        if not created:
+            author.orcid_id = "0000-0000-0000-0001"
+            author.claimed = True
+            author.save()
+
+        paper = Paper.objects.create(
+            title="Test Paper",
+            uploaded_by=self.user,
+            unified_document=unified_doc,
+            raw_authors=[
+                {
+                    "first_name": "Test",
+                    "last_name": "Author",
+                    "orcid": "https://orcid.org/0000-0000-0000-0001",
+                }
+            ],
+        )
+        # Don't create any authorships - should fallback to raw_authors
+
+        result = get_author_ids(unified_doc, paper)
+
+        # Should return the author from raw_authors matching
+        self.assertIsNotNone(result)
+        self.assertEqual(result, str(author.id))
 
     def test_get_author_ids_for_grant(self):
         """Test getting author IDs for a GRANT document from grant's contacts."""

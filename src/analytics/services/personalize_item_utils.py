@@ -15,32 +15,9 @@ from django.db.models import Max
 
 from analytics.services.personalize_item_constants import MAX_TEXT_LENGTH
 from analytics.services.personalize_utils import datetime_to_epoch_seconds
-from hub.mappers import ExternalCategoryMapper
 from purchase.models import GrantApplication, Purchase
 from reputation.models import BountySolution
 from researchhub_comment.models import RhCommentModel
-
-_HUB_TO_CATEGORY_CACHE = None
-
-
-def _build_hub_to_category_cache():
-    """Build reverse lookup cache from hub slug to (source, category) mappings."""
-    global _HUB_TO_CATEGORY_CACHE
-    if _HUB_TO_CATEGORY_CACHE is not None:
-        return _HUB_TO_CATEGORY_CACHE
-
-    _HUB_TO_CATEGORY_CACHE = {}
-
-    for source, mappings in ExternalCategoryMapper.MAPPINGS.items():
-        for category, hub_slugs in mappings.items():
-            for hub_slug in hub_slugs:
-                # Filter out None and empty values
-                if hub_slug and hub_slug.strip():
-                    if hub_slug not in _HUB_TO_CATEGORY_CACHE:
-                        _HUB_TO_CATEGORY_CACHE[hub_slug] = []
-                    _HUB_TO_CATEGORY_CACHE[hub_slug].append((source, category))
-
-    return _HUB_TO_CATEGORY_CACHE
 
 
 def clean_text_for_csv(text: Optional[str]) -> Optional[str]:
@@ -84,8 +61,9 @@ def get_hub_mapping(unified_doc, document) -> Tuple[Optional[str], Optional[str]
     Get two-level hub categorization for a document.
 
     Strategy:
-    - For papers with external source: Use ExternalCategoryMapper
-    - For other documents: Use primary hub as L1, L2 is None
+    - Use hubs associated with the unified document
+    - HUB_L1: Hub with namespace='category'
+    - HUB_L2: Hub with namespace='subcategory'
 
     Args:
         unified_doc: ResearchhubUnifiedDocument instance
@@ -94,40 +72,20 @@ def get_hub_mapping(unified_doc, document) -> Tuple[Optional[str], Optional[str]
     Returns:
         Tuple of (HUB_L1, HUB_L2) as hub slugs or None
     """
+    from hub.models import Hub
+
     hub_l1 = None
     hub_l2 = None
 
-    # Get primary hub first
-    try:
-        primary_hub = unified_doc.get_primary_hub(fallback=True)
-        if primary_hub:
-            hub_l1 = primary_hub.slug
+    # Get all hubs associated with this unified document
+    hubs = unified_doc.hubs.all()
 
-            # For papers with external source, try to get HUB_L2 from external mapping
-            if hasattr(document, "external_source") and document.external_source:
-                external_source = document.external_source.lower()
-
-                # Try to find the external category that maps to this primary hub
-                if external_source in ["arxiv", "biorxiv", "medrxiv", "chemrxiv"]:
-                    try:
-                        cache = _build_hub_to_category_cache()
-
-                        # Fast O(1) lookup instead of O(m) loop
-                        if primary_hub.slug in cache:
-                            for source, category in cache[primary_hub.slug]:
-                                if source == external_source:
-                                    # Found the mapping for this external source
-                                    hubs = ExternalCategoryMapper.map(
-                                        category, external_source
-                                    )
-                                    if len(hubs) > 1:
-                                        # Use the second hub as HUB_L2
-                                        hub_l2 = hubs[1].slug
-                                    break
-                    except Exception:
-                        pass
-    except Exception:
-        pass
+    # Find category and subcategory hubs
+    for hub in hubs:
+        if hub.namespace == Hub.Namespace.CATEGORY:
+            hub_l1 = hub.slug
+        elif hub.namespace == Hub.Namespace.SUBCATEGORY:
+            hub_l2 = hub.slug
 
     return (hub_l1, hub_l2)
 
@@ -146,34 +104,40 @@ def get_author_ids(unified_doc, document) -> Optional[str]:
     author_ids = []
 
     try:
-        # For GRANT documents, use the grant's contacts (check this FIRST)
+        # CASE 1: GRANT documents - use grant's contacts
         if unified_doc.document_type == "GRANT":
             grant = unified_doc.grants.first()
             if grant:
-                # Get all contact users from grant_contacts table
                 for contact_user in grant.contacts.all():
                     if hasattr(contact_user, "author_profile"):
                         author_profile = contact_user.author_profile
                         if author_profile:
                             author_ids.append(str(author_profile.id))
-        # Papers - try multiple sources with fallback
+
+        # CASE 2: Papers - use authorships, fallback to raw_authors
         elif hasattr(document, "authorships"):
-            # OPTION 1: Use authorships (matches API)
             authorships = document.authorships.select_related("author").filter(
                 author__claimed=True
             )
             if authorships.exists():
                 author_ids = [str(a.author.id) for a in authorships]
             else:
-                # OPTION 2: Try many-to-many authors
-                if hasattr(document, "authors"):
-                    claimed_authors = document.authors.filter(claimed=True)
-                    if claimed_authors.exists():
-                        author_ids = [str(a.id) for a in claimed_authors]
-                    else:
-                        # OPTION 3: Fall back to raw_authors JSON
-                        author_ids = _extract_author_ids_from_raw(document)
-        # Other posts have created_by with author_profile
+                # Fallback to raw_authors JSON
+                author_ids = _extract_author_ids_from_raw(document)
+
+        # CASE 3: Posts - use authors ManyToMany
+        elif hasattr(document, "authors"):
+            post_authors = document.authors.all()
+            if post_authors.exists():
+                author_ids = [str(a.id) for a in post_authors]
+            # Fallback to created_by if no authors assigned
+            elif hasattr(document, "created_by") and document.created_by:
+                if hasattr(document.created_by, "author_profile"):
+                    author_profile = document.created_by.author_profile
+                    if author_profile:
+                        author_ids = [str(author_profile.id)]
+
+        # CASE 4: Fallback for any other document type - use created_by
         elif hasattr(document, "created_by") and document.created_by:
             if hasattr(document.created_by, "author_profile"):
                 author_profile = document.created_by.author_profile
