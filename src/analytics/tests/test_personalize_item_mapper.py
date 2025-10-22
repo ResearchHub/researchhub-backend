@@ -335,14 +335,38 @@ class ItemMapperTest(TestCase):
             title="Test Paper",
             uploaded_by=self.user,
             unified_document=unified_doc,
-            external_metadata={"bluesky_count": 10, "twitter_count": 25},
+            external_metadata={
+                "metrics": {
+                    "bluesky_count": 10,
+                    "twitter_count": 25,
+                    "score": 1.25,
+                    "altmetric_id": 182730539,
+                }
+            },
         )
 
         row = self.mapper.map_to_item_row(unified_doc)
 
-        # Check social metrics
+        # Check social metrics (now nested in "metrics" object)
         self.assertEqual(row["BLUESKY_COUNT_TOTAL"], 10)
         self.assertEqual(row["TWEET_COUNT_TOTAL"], 25)
+
+    def test_map_to_item_row_paper_without_metrics_object(self):
+        """Test mapping a paper with external_metadata but no metrics object."""
+        unified_doc = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
+
+        Paper.objects.create(
+            title="Test Paper",
+            uploaded_by=self.user,
+            unified_document=unified_doc,
+            external_metadata={"other_data": "value"},  # No "metrics" object
+        )
+
+        row = self.mapper.map_to_item_row(unified_doc)
+
+        # Should default to 0 when metrics object is missing
+        self.assertEqual(row["BLUESKY_COUNT_TOTAL"], 0)
+        self.assertEqual(row["TWEET_COUNT_TOTAL"], 0)
 
     def test_map_to_item_row_paper_without_publish_date(self):
         """Test that papers without paper_publish_date fall back to created_date."""

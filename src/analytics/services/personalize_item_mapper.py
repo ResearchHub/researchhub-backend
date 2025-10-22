@@ -266,8 +266,9 @@ class ItemMapper:
         # Social metrics from external_metadata (Altmetric data)
         if paper.external_metadata:
             metadata = paper.external_metadata
-            row[BLUESKY_COUNT_TOTAL] = metadata.get("bluesky_count", 0)
-            row[TWEET_COUNT_TOTAL] = metadata.get("twitter_count", 0)
+            metrics = metadata.get("metrics", {})
+            row[BLUESKY_COUNT_TOTAL] = metrics.get("bluesky_count", 0)
+            row[TWEET_COUNT_TOTAL] = metrics.get("twitter_count", 0)
 
     def _map_post_fields(self, row: Dict, unified_doc, post) -> None:
         """

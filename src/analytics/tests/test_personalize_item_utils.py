@@ -112,6 +112,52 @@ class GetHubMappingTest(TestCase):
         self.assertIsNone(hub_l1)
         self.assertIsNone(hub_l2)
 
+    def test_get_hub_mapping_with_external_source(self):
+        """Test hub mapping for external papers with reverse cache lookup."""
+        # Create a unified document with a primary hub that maps to external category
+        unified_doc = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
+        unified_doc.hubs.add(self.hub1)
+
+        paper = Paper.objects.create(
+            title="Test arXiv Paper",
+            uploaded_by=self.user,
+            unified_document=unified_doc,
+            external_source="arxiv",
+            external_metadata={"category": "cs.ai"},
+        )
+
+        hub_l1, hub_l2 = get_hub_mapping(unified_doc, paper)
+
+        # Should return the primary hub as L1
+        self.assertEqual(hub_l1, "computer-science")
+        # L2 should be None since we don't have the actual external category mapping
+        # in our test data (the reverse cache would need real mapping data)
+        self.assertIsNone(hub_l2)
+
+    def test_get_hub_mapping_cache_building(self):
+        """Test that the reverse cache is built correctly."""
+        from analytics.services.personalize_item_utils import (
+            _build_hub_to_category_cache,
+        )
+
+        # Build the cache
+        cache = _build_hub_to_category_cache()
+
+        # Should be a dictionary
+        self.assertIsInstance(cache, dict)
+
+        # Should have some entries (from the actual mapping files)
+        self.assertGreater(len(cache), 0)
+
+        # Check that cache entries have the right structure
+        for hub_slug, mappings in cache.items():
+            self.assertIsInstance(hub_slug, str)
+            self.assertTrue(hub_slug.strip())  # Ensure it's not empty
+            self.assertIsInstance(mappings, list)
+            for source, category in mappings:
+                self.assertIsInstance(source, str)
+                self.assertIsInstance(category, str)
+
 
 class GetAuthorIDsTest(TestCase):
     """Test author ID extraction."""

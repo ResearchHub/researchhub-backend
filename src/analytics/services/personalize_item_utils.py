@@ -20,6 +20,28 @@ from purchase.models import GrantApplication, Purchase
 from reputation.models import BountySolution
 from researchhub_comment.models import RhCommentModel
 
+_HUB_TO_CATEGORY_CACHE = None
+
+
+def _build_hub_to_category_cache():
+    """Build reverse lookup cache from hub slug to (source, category) mappings."""
+    global _HUB_TO_CATEGORY_CACHE
+    if _HUB_TO_CATEGORY_CACHE is not None:
+        return _HUB_TO_CATEGORY_CACHE
+
+    _HUB_TO_CATEGORY_CACHE = {}
+
+    for source, mappings in ExternalCategoryMapper.MAPPINGS.items():
+        for category, hub_slugs in mappings.items():
+            for hub_slug in hub_slugs:
+                # Filter out None and empty values
+                if hub_slug and hub_slug.strip():
+                    if hub_slug not in _HUB_TO_CATEGORY_CACHE:
+                        _HUB_TO_CATEGORY_CACHE[hub_slug] = []
+                    _HUB_TO_CATEGORY_CACHE[hub_slug].append((source, category))
+
+    return _HUB_TO_CATEGORY_CACHE
+
 
 def clean_text_for_csv(text: Optional[str]) -> Optional[str]:
     """
@@ -75,42 +97,35 @@ def get_hub_mapping(unified_doc, document) -> Tuple[Optional[str], Optional[str]
     hub_l1 = None
     hub_l2 = None
 
-    # Check if this is a paper with external source
-    if hasattr(document, "external_source") and document.external_source:
-        # Try to get external category mapping
-        external_source = document.external_source.lower()
-
-        # Try to get the category from open_alex_raw_json or other fields
-        if hasattr(document, "open_alex_raw_json") and document.open_alex_raw_json:
-            # OpenAlex data might have primary_topic
-            # We'll use primary hub instead for now
-            pass
-
-        # For arXiv papers, try to extract category from URL or metadata
-        if external_source in ["arxiv", "biorxiv", "medrxiv", "chemrxiv"]:
-            # Try to get category from paper metadata
-            category = None
-            if hasattr(document, "external_metadata"):
-                metadata = document.external_metadata or {}
-                category = metadata.get("category") or metadata.get("categories")
-
-            if category:
-                # Map using ExternalCategoryMapper
-                try:
-                    hubs = ExternalCategoryMapper.map(category, external_source)
-                    if hubs and len(hubs) > 0:
-                        hub_l1 = hubs[0].slug
-                        if len(hubs) > 1:
-                            hub_l2 = hubs[1].slug
-                        return (hub_l1, hub_l2)
-                except Exception:
-                    pass
-
-    # Fallback: Use primary hub
+    # Get primary hub first
     try:
         primary_hub = unified_doc.get_primary_hub(fallback=True)
         if primary_hub:
             hub_l1 = primary_hub.slug
+
+            # For papers with external source, try to get HUB_L2 from external mapping
+            if hasattr(document, "external_source") and document.external_source:
+                external_source = document.external_source.lower()
+
+                # Try to find the external category that maps to this primary hub
+                if external_source in ["arxiv", "biorxiv", "medrxiv", "chemrxiv"]:
+                    try:
+                        cache = _build_hub_to_category_cache()
+
+                        # Fast O(1) lookup instead of O(m) loop
+                        if primary_hub.slug in cache:
+                            for source, category in cache[primary_hub.slug]:
+                                if source == external_source:
+                                    # Found the mapping for this external source
+                                    hubs = ExternalCategoryMapper.map(
+                                        category, external_source
+                                    )
+                                    if len(hubs) > 1:
+                                        # Use the second hub as HUB_L2
+                                        hub_l2 = hubs[1].slug
+                                    break
+                    except Exception:
+                        pass
     except Exception:
         pass
 
