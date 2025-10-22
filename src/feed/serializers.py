@@ -999,7 +999,7 @@ class FundPostSerializer(serializers.Serializer):
 
 
 class FundFeedEntrySerializer(serializers.Serializer):
-    """Optimized feed entry serializer for fund-related feeds that bypasses Django REST Framework overhead"""
+    """Optimized feed entry serializer for fund-related feeds"""
 
     id = serializers.IntegerField()
     content_type = serializers.SerializerMethodField()
