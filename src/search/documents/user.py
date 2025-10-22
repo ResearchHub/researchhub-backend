@@ -102,7 +102,7 @@ class UserDocument(BaseDocument):
             weight += 500
 
         # Create ASCII-normalized version for better search matching
-        def normalize_for_search(text):
+        def _normalize_for_search(text):
             """Normalize text by removing accents for better search matching.
 
             This function converts accented characters to their ASCII equivalents,
@@ -117,7 +117,7 @@ class UserDocument(BaseDocument):
                 .lower()
             )
 
-        normalized_name = normalize_for_search(full_name_suggest)
+        normalized_name = _normalize_for_search(full_name_suggest)
 
         # Include both original and normalized versions in the input
         # Also include partial combinations for better matching
@@ -147,6 +147,24 @@ class UserDocument(BaseDocument):
             if item not in seen:
                 seen.add(item)
                 unique_input_list.append(item)
+
+        # Cap input size for performance - larger inputs slow down suggest
+        # Based on codebase patterns: query truncation to 50 chars
+        MAX_INPUT_SIZE = 10  # Reasonable limit based on typical name variations
+        if len(unique_input_list) > MAX_INPUT_SIZE:
+            # Prioritize full names over partial combinations
+            full_names = [item for item in unique_input_list if len(item.split()) >= 2]
+            partial_names = [
+                item for item in unique_input_list if len(item.split()) == 1
+            ]
+
+            # Take full names first, then fill remaining slots with partial names
+            prioritized_list = full_names[:MAX_INPUT_SIZE]
+            remaining_slots = MAX_INPUT_SIZE - len(prioritized_list)
+            if remaining_slots > 0:
+                prioritized_list.extend(partial_names[:remaining_slots])
+
+            unique_input_list = prioritized_list
 
         return {
             "input": unique_input_list,
