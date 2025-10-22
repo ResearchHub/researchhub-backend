@@ -58,9 +58,21 @@ class UserDocument(BaseDocument):
         profile = None
 
         try:
+            # Normalize headline to always be a string (mapping expects text field)
+            headline = instance.author_profile.headline
+            if isinstance(headline, dict):
+                # Object format: {"title": "...", "isPublic": true} -> extract title
+                headline_str = headline.get("title", "")
+            elif isinstance(headline, str):
+                # Already a string
+                headline_str = headline
+            else:
+                # Null or other type
+                headline_str = ""
+
             profile = {
                 "id": instance.author_profile.id,
-                "headline": instance.author_profile.headline,
+                "headline": headline_str,
             }
         except Exception as e:
             logger.warning(

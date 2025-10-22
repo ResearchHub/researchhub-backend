@@ -64,7 +64,22 @@ class PersonDocument(BaseDocument):
         )
 
     def prepare_headline(self, instance) -> dict[str, str]:
-        return {"title": instance.headline}
+        headline = instance.headline
+
+        # Normalize headline to object format (mapping expects object with title field)
+        if isinstance(headline, dict):
+            # Already in object format: {"title": "...", "isPublic": true}
+            # Ensure title field exists, add empty string if missing
+            if "title" not in headline:
+                headline = headline.copy()
+                headline["title"] = ""
+            return headline
+        elif isinstance(headline, str):
+            # Convert string to object format
+            return {"title": headline}
+        else:
+            # Null or other type - use empty object
+            return {"title": ""}
 
     def prepare_reputation_hubs(self, instance) -> list[str]:
         reputation_hubs = []
@@ -104,7 +119,8 @@ class PersonDocument(BaseDocument):
                     {"input": author_institution.institution.display_name, "weight": 3}
                 )
 
-                # Add full name + institution to account for people typing name + institution
+                # Add full name + institution to account for people typing
+                # name + institution
                 suggestions.append(
                     {
                         "input": instance.first_name
