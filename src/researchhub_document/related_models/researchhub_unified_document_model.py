@@ -22,7 +22,6 @@ from researchhub_document.related_models.constants.document_type import (
     QUESTION,
 )
 from researchhub_document.related_models.document_filter_model import DocumentFilter
-from researchhub_document.tasks import update_elastic_registry
 from user.models import Author
 from utils.models import DefaultModel, SoftDeletableModel
 
@@ -378,13 +377,6 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
         if getattr(self, "document_filter", None) is None:
             self.document_filter = DocumentFilter.objects.create()
         super().save(**kwargs)
-
-        # Update the Elastic Search index for post records.
-        try:
-            for post in self.posts.all():
-                update_elastic_registry.apply_async(post)
-        except Exception:
-            pass
 
 
 class UnifiedDocumentConcepts(DefaultModel):
