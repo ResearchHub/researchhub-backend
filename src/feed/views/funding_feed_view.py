@@ -27,6 +27,7 @@ from django.db.models import (
 )
 from django.db.models.functions import Coalesce
 from django.utils import timezone
+from rest_framework.filters import OrderingFilter
 from rest_framework.viewsets import ModelViewSet
 
 from feed.views.feed_view_mixin import FeedViewMixin
@@ -54,14 +55,17 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
     - created_by: Filter by user ID who created the funding post
     - ordering: Sort order
       Options:
-        - newest (default): Sort by creation date (newest first)
-        - hot_score: Sort by trending score (most engaging content)
-        - upvotes: Sort by score (most upvoted first)
-        - amount_raised: Sort by amount raised (highest first)
+        - -created_date (default): Sort by creation date (newest first)
+        - -unified_document__hot_score: Sort by trending score (most engaging content)
+        - -score: Sort by score (most upvoted first)
+        - -amount_raised: Sort by amount raised (highest first)
     """
 
     permission_classes = []
     pagination_class = FeedPagination
+    filter_backends = [OrderingFilter]
+    ordering_fields = ['created_date', 'score', 'unified_document__hot_score', 'amount_raised']
+    ordering = ['status_priority', '-created_date', 'id']
 
     def get_cache_key(self, request, feed_type=""):
         base_key = super().get_cache_key(request, feed_type)
@@ -74,7 +78,45 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         context.update(self.get_common_serializer_context())
         return context
 
+    def filter_queryset(self, queryset):
+        """
+        Override to ensure status_priority is always the primary sort field.
+        This maintains OPEN items before CLOSED items regardless of secondary sort.
+        """
+        queryset = super().filter_queryset(queryset)
+        
+        # Get the ordering parameter
+        ordering_param = self.request.query_params.get(self.ordering_param, '')
+        
+        # Handle special case for amount_raised (needs annotation)
+        if 'amount_raised' in ordering_param:
+            queryset = queryset.annotate(
+                amount_raised=Coalesce(
+                    Sum("unified_document__fundraises__escrow__amount_holding") +
+                    Sum("unified_document__fundraises__escrow__amount_paid"),
+                    0, output_field=DecimalField()
+                )
+            )
+        
+        # Get current ordering from queryset
+        current_ordering = list(queryset.query.order_by) if queryset.query.order_by else []
+        
+        # Ensure status_priority is always first
+        if current_ordering:
+            # Remove status_priority if it exists anywhere in the list
+            current_ordering = [f for f in current_ordering if f not in ['status_priority', '-status_priority']]
+            # Prepend status_priority
+            new_ordering = ['status_priority'] + current_ordering
+            # Ensure 'id' is last for consistent tie-breaking
+            if 'id' not in new_ordering and '-id' not in new_ordering:
+                new_ordering.append('id')
+            queryset = queryset.order_by(*new_ordering)
+        
+        return queryset
+
     def list(self, request, *args, **kwargs):
+        from django.conf import settings
+        
         page = request.query_params.get("page", "1")
         page_num = int(page)
         grant_id = request.query_params.get("grant_id", None)
@@ -83,11 +125,12 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         ordering = request.query_params.get("ordering", None)
         cache_key = self.get_cache_key(request, "funding")
         
-        cacheable_orderings = {None, "hot_score", "upvotes", "amount_raised"}
+        # Updated to match new OrderingFilter parameter format
+        cacheable_orderings = {None, "-created_date", "-unified_document__hot_score", "-score", "-amount_raised"}
         cacheable_statuses = {None, "OPEN", "CLOSED"}
         
         use_cache = (
-            page_num <= 4 and
+            page_num <= 4 and 
             grant_id is None and
             created_by is None and
             ordering in cacheable_orderings and
@@ -102,7 +145,6 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         created_by = self.request.query_params.get("created_by", None)
 
         queryset = self._build_base_queryset(created_by)
-        ordering = self.request.query_params.get("ordering")
         
         if grant_id:
             queryset = queryset.filter(grant_applications__grant_id=grant_id)
@@ -111,16 +153,18 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
             status_upper = fundraise_status.upper()
             if status_upper == "CLOSED":
                 queryset = queryset.filter(unified_document__fundraises__status=Fundraise.COMPLETED)
+            
+            # Annotate fundraise_end_date for status-specific ordering if needed
+            queryset = queryset.annotate(
+                fundraise_end_date=F("unified_document__fundraises__end_date")
+            )
         
-        return self._apply_ordering(queryset, ordering, fundraise_status)
+        return queryset
 
-    _fundraise_content_type = None
-    
-    @classmethod
-    def _get_fundraise_content_type(cls):
-        if cls._fundraise_content_type is None:
-            cls._fundraise_content_type = ContentType.objects.get_for_model(Fundraise)
-        return cls._fundraise_content_type
+    @property
+    def _fundraise_content_type(self):
+        """Get ContentType for Fundraise model using mixin's helper pattern"""
+        return self._get_content_type(Fundraise)
     
     def _build_base_queryset(self, created_by=None):
         now = timezone.now()
@@ -133,7 +177,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         
         # Subquery to count unique contributors for each fundraise
         contributor_count_subquery = Purchase.objects.filter(
-            content_type=self._get_fundraise_content_type(),
+            content_type=self._fundraise_content_type,
             object_id=OuterRef("pk")
         ).values('object_id').annotate(
             count=Count('user_id', distinct=True)
@@ -177,47 +221,3 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         )
         
         return queryset.filter(created_by__id=created_by) if created_by else queryset
-
-    def _apply_ordering(self, queryset, ordering, fundraise_status=None):
-        if ordering == "amount_raised":
-            return queryset.annotate(
-                amount_raised=Coalesce(
-                    Sum("unified_document__fundraises__escrow__amount_holding") +
-                    Sum("unified_document__fundraises__escrow__amount_paid"),
-                    0, output_field=DecimalField()
-                )
-            ).order_by("status_priority", "-amount_raised", "id")
-        
-        if ordering:
-            order_fields = {
-                "hot_score": ("status_priority", "-unified_document__hot_score", "id"),
-                "upvotes": ("status_priority", "-score", "id"),
-            }.get(ordering, ("status_priority", "-created_date", "id"))
-            return queryset.order_by(*order_fields)
-        
-        if fundraise_status:
-            status_upper = fundraise_status.upper()
-            if status_upper == "OPEN":
-                return queryset.annotate(
-                    fundraise_end_date=F("unified_document__fundraises__end_date")
-                ).order_by("status_priority", "fundraise_end_date", "id")
-            elif status_upper == "CLOSED":
-                return queryset.annotate(
-                    fundraise_end_date=F("unified_document__fundraises__end_date")
-                ).order_by("-fundraise_end_date", "id")
-        
-        return queryset.annotate(
-            fundraise_end_date=F("unified_document__fundraises__end_date"),
-            open_sort_date=Case(
-                When(unified_document__fundraises__status=Fundraise.OPEN, 
-                     then=F("fundraise_end_date")),
-                default=Value(None),
-                output_field=DateTimeField()
-            ),
-            closed_sort_date=Case(
-                When(unified_document__fundraises__status=Fundraise.COMPLETED, 
-                     then=F("fundraise_end_date")),
-                default=Value(None),
-                output_field=DateTimeField()
-            )
-        ).order_by("status_priority", "open_sort_date", "-closed_sort_date", "id")

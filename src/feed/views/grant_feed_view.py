@@ -7,6 +7,7 @@ and research grant postings.
 from django.db.models import Case, DecimalField, Exists, IntegerField, OuterRef, Prefetch, Q, Sum, Value, When
 from django.db.models.functions import Coalesce
 from django.utils import timezone
+from rest_framework.filters import OrderingFilter
 from rest_framework.viewsets import ModelViewSet
 
 from feed.views.feed_view_mixin import FeedViewMixin
@@ -33,29 +34,51 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
     - organization: Filter by granting organization name (partial match)
     - ordering: Sort order
       Options:
-        - newest (default): Sort by creation date (newest first)
-        - hot_score: Sort by trending score (most engaging content)
-        - upvotes: Sort by score (most upvoted first)
-        - amount_raised: Sort by amount raised (highest first)
+        - -created_date (default): Sort by creation date (newest first)
+        - -unified_document__hot_score: Sort by trending score (most engaging content)
+        - -score: Sort by score (most upvoted first)
+        - -grant_amount: Sort by grant amount (highest first)
     """
 
     permission_classes = []
     pagination_class = FeedPagination
+    filter_backends = [OrderingFilter]
+    ordering_fields = ['created_date', 'score', 'unified_document__hot_score', 'grant_amount']
+    ordering = ['status_priority', '-created_date', 'id']
 
-    def _apply_ordering(self, queryset, ordering):
-        if ordering == "amount_raised":
-            return queryset.annotate(
+    def filter_queryset(self, queryset):
+        """
+        Override to ensure status_priority is always the primary sort field.
+        This maintains OPEN items before CLOSED items regardless of secondary sort.
+        """
+        queryset = super().filter_queryset(queryset)
+        
+        # Get the ordering parameter
+        ordering_param = self.request.query_params.get(self.ordering_param, '')
+        
+        # Handle special case for grant_amount (needs annotation)
+        if 'grant_amount' in ordering_param:
+            queryset = queryset.annotate(
                 grant_amount=Coalesce(
                     Sum("unified_document__grants__amount"), 0, output_field=DecimalField()
                 )
-            ).order_by("status_priority", "-grant_amount", "id")
+            )
         
-        order_fields = {
-            "hot_score": ("status_priority", "-unified_document__hot_score", "id"),
-            "upvotes": ("status_priority", "-score", "id"),
-        }.get(ordering, ("status_priority", "-created_date", "id"))
+        # Get current ordering from queryset
+        current_ordering = list(queryset.query.order_by) if queryset.query.order_by else []
         
-        return queryset.order_by(*order_fields)
+        # Ensure status_priority is always first
+        if current_ordering:
+            # Remove status_priority if it exists anywhere in the list
+            current_ordering = [f for f in current_ordering if f not in ['status_priority', '-status_priority']]
+            # Prepend status_priority
+            new_ordering = ['status_priority'] + current_ordering
+            # Ensure 'id' is last for consistent tie-breaking
+            if 'id' not in new_ordering and '-id' not in new_ordering:
+                new_ordering.append('id')
+            queryset = queryset.order_by(*new_ordering)
+        
+        return queryset
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -70,6 +93,8 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         return f"{base_key}-{status}:{organization}:{ordering}"
 
     def list(self, request, *args, **kwargs):
+        from django.conf import settings
+        
         page = request.query_params.get("page", "1")
         page_num = int(page)
         status = request.query_params.get("status", None)
@@ -77,7 +102,8 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         ordering = request.query_params.get("ordering", None)
         cache_key = self.get_cache_key(request, "grants")
         
-        cacheable_orderings = {None, "hot_score", "upvotes", "amount_raised"}
+        # Updated to match new OrderingFilter parameter format
+        cacheable_orderings = {None, "-created_date", "-unified_document__hot_score", "-score", "-grant_amount"}
         cacheable_statuses = {None, "OPEN", "CLOSED"}
         
         use_cache = (
@@ -92,7 +118,6 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
     def get_queryset(self):
         status = self.request.query_params.get("status")
         organization = self.request.query_params.get("organization")
-        ordering = self.request.query_params.get("ordering")
 
         queryset = self._build_base_queryset()
         
@@ -102,7 +127,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         if organization:
             queryset = queryset.filter(unified_document__grants__organization__icontains=organization)
         
-        return self._apply_ordering(queryset, ordering)
+        return queryset
 
     def _build_base_queryset(self):
         now = timezone.now()
