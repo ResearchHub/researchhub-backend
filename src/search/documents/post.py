@@ -1,10 +1,12 @@
 import logging
 import math
+import re
 from typing import Any, override
 
 from django_opensearch_dsl import fields as es_fields
 from django_opensearch_dsl.registries import registry
 
+from researchhub_document.related_models.constants.document_type import GRANT
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -84,6 +86,13 @@ class PostDocument(BaseDocument):
             phrases.append(instance.title)
             phrases.extend(instance.title.split())
 
+            # For grant posts, add title without "Request For Proposals" prefix
+            if instance.document_type == GRANT:
+                stripped_title = self._strip_rfp_prefix(instance.title)
+                if stripped_title and stripped_title != instance.title:
+                    phrases.append(stripped_title)
+                    phrases.extend(stripped_title.split())
+
         if instance.doi:
             phrases.append(instance.doi)
 
@@ -125,6 +134,29 @@ class PostDocument(BaseDocument):
         if isinstance(related_instance, ResearchhubUnifiedDocument):
             return list(related_instance.posts.all())
         return []
+
+    def _strip_rfp_prefix(self, title: str) -> str:
+        """
+        Strip common "Request For Proposals" prefixes from grant titles.
+        Returns the stripped title or original title if no prefix found.
+        """
+        if not title:
+            return title
+
+        # Common RFP prefix patterns (case-insensitive)
+        rfp_patterns = [
+            r"^Request\s+For\s+Proposals\s*:?\s*",
+            r"^Request\s+for\s+Proposals\s*:?\s*",
+            r"^RFP\s*:?\s*",
+            r"^Request\s+for\s+proposals\s*:?\s*",
+        ]
+
+        for pattern in rfp_patterns:
+            stripped = re.sub(pattern, "", title, flags=re.IGNORECASE)
+            if stripped != title:
+                return stripped.strip()
+
+        return title
 
     @override
     def should_index_object(self, obj) -> bool:  # type: ignore[override]
