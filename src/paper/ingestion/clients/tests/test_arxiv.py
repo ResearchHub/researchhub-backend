@@ -4,9 +4,8 @@ Tests for ArXiv client.
 
 import os
 from datetime import datetime
+from unittest import TestCase
 from unittest.mock import MagicMock, patch
-
-from django.test import TestCase
 
 from paper.ingestion.clients.arxiv import ArXivClient, ArXivConfig
 
