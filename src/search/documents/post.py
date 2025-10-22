@@ -6,6 +6,9 @@ from django_opensearch_dsl import fields as es_fields
 from django_opensearch_dsl.registries import registry
 
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from search.analyzers import content_analyzer, title_analyzer
 
 from .base import BaseDocument
@@ -68,6 +71,8 @@ class PostDocument(BaseDocument):
             "id",
             "document_type",
         ]
+        # Update index when related unified document model is updated
+        related_models = [ResearchhubUnifiedDocument]
 
     # Used specifically for "autocomplete" style suggest feature.
     # Inlcudes a bunch of phrases the user may search by.
@@ -109,6 +114,17 @@ class PostDocument(BaseDocument):
             "input": list(set(phrases)),  # Dedupe using set
             "weight": weight,
         }
+
+    def get_instances_from_related(
+        self,
+        related_instance: ResearchhubUnifiedDocument,
+    ) -> list[ResearchhubPost]:
+        """
+        When a unified document changes, update all related posts.
+        """
+        if isinstance(related_instance, ResearchhubUnifiedDocument):
+            return list(related_instance.posts.all())
+        return []
 
     @override
     def should_index_object(self, obj) -> bool:  # type: ignore[override]
