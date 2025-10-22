@@ -792,3 +792,263 @@ class GrantFeedEntrySerializer(FeedEntrySerializer):
     class Meta:
         model = FeedEntry
         fields = FeedEntrySerializer.Meta.fields
+
+
+class FundAuthorSerializer(serializers.Serializer):
+    """Optimized author serializer for fund-related feeds"""
+
+    id = serializers.IntegerField()
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+    profile_image = serializers.SerializerMethodField()
+    headline = serializers.SerializerMethodField()
+    description = serializers.CharField()
+    user = serializers.SerializerMethodField()
+
+    def get_profile_image(self, obj):
+        if not obj:
+            return None
+        
+        if hasattr(obj, 'profile_image') and obj.profile_image:
+            try:
+                return obj.profile_image.url
+            except (AttributeError, ValueError):
+                return None
+        return None
+
+    def get_headline(self, obj):
+        if not obj:
+            return None
+        
+        headline = getattr(obj, 'headline', None)
+        if isinstance(headline, dict):
+            return headline.get('title')
+        return None
+
+    def get_user(self, obj):
+        if not obj:
+            return None
+        
+        user = getattr(obj, 'user', None)
+        if user:
+            return {
+                'id': user.id,
+                'is_verified': user.is_verified,
+            }
+        return None
+
+
+class FundHubSerializer(serializers.Serializer):
+    """Optimized hub serializer for fund-related feeds"""
+
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    slug = serializers.CharField()
+
+
+class FundFundraiseSerializer(serializers.Serializer):
+    """Optimized fundraise serializer for fund-related feeds"""
+
+    id = serializers.IntegerField()
+    status = serializers.CharField()
+    goal_currency = serializers.CharField()
+    start_date = serializers.DateTimeField()
+    end_date = serializers.DateTimeField()
+    created_date = serializers.DateTimeField()
+    updated_date = serializers.DateTimeField()
+    goal_amount = serializers.SerializerMethodField()
+    amount_raised = serializers.SerializerMethodField()
+    contributors = serializers.SerializerMethodField()
+
+    def get_goal_amount(self, obj):
+        from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+        
+        usd_goal = float(obj.goal_amount)
+        rsc_goal = RscExchangeRate.usd_to_rsc(usd_goal)
+        return {'usd': usd_goal, 'rsc': rsc_goal}
+
+    def get_amount_raised(self, obj):
+        from purchase.related_models.constants.currency import RSC, USD
+        
+        usd_raised = rsc_raised = 0
+        if obj.escrow_id:
+            usd_raised = obj.get_amount_raised(currency=USD)
+            rsc_raised = obj.get_amount_raised(currency=RSC)
+        
+        return {'usd': usd_raised, 'rsc': rsc_raised}
+
+    def get_contributors(self, obj):
+        contributor_count = 0
+        if obj.escrow_id:
+            contributor_count = getattr(obj, 'contributor_count', 0)
+        
+        return {'total': contributor_count, 'top': []}
+
+
+class FundGrantSerializer(serializers.Serializer):
+    """Optimized grant serializer for fund-related feeds"""
+
+    id = serializers.IntegerField()
+    status = serializers.CharField()
+    currency = serializers.CharField()
+    organization = serializers.CharField()
+    description = serializers.CharField()
+    start_date = serializers.DateTimeField()
+    end_date = serializers.DateTimeField()
+    is_expired = serializers.SerializerMethodField()
+    is_active = serializers.SerializerMethodField()
+    amount = serializers.SerializerMethodField()
+    created_by = serializers.SerializerMethodField()
+    applications = serializers.SerializerMethodField()
+
+    def get_is_expired(self, obj):
+        return bool(getattr(obj, 'is_expired_flag', 0))
+
+    def get_is_active(self, obj):
+        return bool(getattr(obj, 'is_active_flag', 0))
+
+    def get_amount(self, obj):
+        from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+        
+        usd_amount = float(obj.amount)
+        rsc_amount = RscExchangeRate.usd_to_rsc(usd_amount)
+        
+        return {
+            'usd': usd_amount,
+            'rsc': rsc_amount,
+            'formatted': f'{usd_amount:,.2f} {obj.currency}',
+        }
+
+    def get_created_by(self, obj):
+        if obj.created_by and hasattr(obj.created_by, 'author_profile'):
+            return FundAuthorSerializer(obj.created_by.author_profile).data
+        return None
+
+    def get_applications(self, obj):
+        applications = []
+        for app in obj.applications.all()[:5]:
+            if app.applicant and hasattr(app.applicant, 'author_profile'):
+                applications.append({
+                    'id': app.id,
+                    'created_date': app.created_date,
+                    'applicant': FundAuthorSerializer(app.applicant.author_profile).data,
+                    'preregistration_post_id': app.preregistration_post_id,
+                })
+        return applications
+
+
+class FundPostSerializer(serializers.Serializer):
+    """Optimized post serializer for fund-related feeds"""
+
+    id = serializers.IntegerField()
+    created_date = serializers.DateTimeField()
+    slug = serializers.CharField()
+    title = serializers.CharField()
+    renderable_text = serializers.SerializerMethodField()
+    type = serializers.CharField(source='document_type')
+    image_url = serializers.SerializerMethodField()
+    unified_document_id = serializers.SerializerMethodField()
+    hub = serializers.SerializerMethodField()
+    fundraise = serializers.SerializerMethodField()
+    grant = serializers.SerializerMethodField()
+    reviews = serializers.SerializerMethodField()
+
+    def get_renderable_text(self, obj):
+        text = obj.renderable_text
+        if len(text) > 255:
+            return text[:255] + '...'
+        return text
+
+    def get_image_url(self, obj):
+        if obj.image:
+            return default_storage.url(obj.image)
+        return None
+
+    def get_unified_document_id(self, obj):
+        if obj.unified_document:
+            return obj.unified_document.id
+        return None
+
+    def get_hub(self, obj):
+        if obj.unified_document:
+            hubs = list(obj.unified_document.hubs.all())
+            if hubs:
+                return FundHubSerializer(hubs[0]).data
+        return None
+
+    def get_fundraise(self, obj):
+        from researchhub_document.related_models.constants.document_type import PREREGISTRATION
+        
+        if obj.unified_document and obj.document_type == PREREGISTRATION:
+            fundraises = list(obj.unified_document.fundraises.all())
+            if fundraises:
+                return FundFundraiseSerializer(fundraises[0]).data
+        return None
+
+    def get_grant(self, obj):
+        from researchhub_document.related_models.constants.document_type import GRANT
+        
+        if obj.unified_document and obj.document_type == GRANT:
+            grants = list(obj.unified_document.grants.all())
+            if grants:
+                return FundGrantSerializer(grants[0]).data
+        return None
+
+    def get_reviews(self, obj):
+        return []
+
+
+class FundFeedEntrySerializer(serializers.Serializer):
+    """Optimized feed entry serializer for fund-related feeds that bypasses Django REST Framework overhead"""
+
+    id = serializers.IntegerField()
+    content_type = serializers.SerializerMethodField()
+    content_object = serializers.SerializerMethodField()
+    action = serializers.CharField()
+    action_date = serializers.DateTimeField()
+    created_date = serializers.SerializerMethodField()
+    author = serializers.SerializerMethodField()
+    metrics = serializers.SerializerMethodField()
+    is_nonprofit = serializers.SerializerMethodField()
+    user_vote = serializers.SerializerMethodField()
+
+    def get_content_type(self, obj):
+        return obj.content_type.model.upper()
+
+    def get_content_object(self, obj):
+        return FundPostSerializer(obj.item).data
+
+    def get_created_date(self, obj):
+        return obj.action_date
+
+    def get_author(self, obj):
+        if obj.item:
+            created_by = getattr(obj.item, 'created_by', None)
+            if created_by and hasattr(created_by, 'author_profile'):
+                return FundAuthorSerializer(created_by.author_profile).data
+        return None
+
+    def get_metrics(self, obj):
+        return {
+            'votes': getattr(obj.item, 'score', 0),
+            'comments': getattr(obj.item, 'discussion_count', 0),
+        }
+
+    def get_is_nonprofit(self, obj):
+        if obj.unified_document and hasattr(obj.unified_document, 'fundraises'):
+            fundraises = list(obj.unified_document.fundraises.all())
+            if fundraises:
+                return bool(list(fundraises[0].nonprofit_links.all()))
+        return False
+
+    def get_user_vote(self, obj):
+        request = self.context.get('request')
+        if request and getattr(request.user, 'is_authenticated', False):
+            vote = getattr(obj.item, '_user_vote', None)
+            if vote:
+                return {
+                    'id': vote.id,
+                    'vote_type': vote.vote_type,
+                    'created_date': vote.created_date,
+                }
+        return None

@@ -211,7 +211,7 @@ class FeedViewMixin:
         Handles caching, pagination, and serialization.
         """
         from feed.models import FeedEntry
-        from feed.views.fund_serializer import serialize_feed_entry_fund
+        from feed.serializers import FundFeedEntrySerializer
         from rest_framework.response import Response
         
         if use_cache:
@@ -224,7 +224,7 @@ class FeedViewMixin:
         queryset = self.get_queryset()
         page = self.paginate_queryset(queryset)
         
-        results = []
+        feed_entries = []
         for post in page:
             feed_entry = FeedEntry(
                 id=post.id,
@@ -236,10 +236,14 @@ class FeedViewMixin:
                 unified_document=post.unified_document,
             )
             feed_entry.item = post
-            serialized = serialize_feed_entry_fund(feed_entry, request)
-            results.append(serialized)
+            feed_entries.append(feed_entry)
         
-        response_data = self.get_paginated_response(results).data
+        serializer = FundFeedEntrySerializer(
+            feed_entries,
+            many=True,
+            context={'request': request}
+        )
+        response_data = self.get_paginated_response(serializer.data).data
         
         if request.user.is_authenticated:
             self.add_user_votes_to_response(request.user, response_data)
