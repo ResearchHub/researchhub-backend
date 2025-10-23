@@ -1,7 +1,6 @@
 from django.contrib.contenttypes.models import ContentType
-from django_opensearch_dsl.registries import registry
 
-from researchhub.celery import QUEUE_ELASTIC_SEARCH, QUEUE_HOT_SCORE, app
+from researchhub.celery import QUEUE_HOT_SCORE, app
 from utils import sentry
 
 
@@ -29,8 +28,3 @@ def recalc_hot_score_task(instance_content_type_id, instance_id):
 
     except Exception as error:
         sentry.log_error(error)
-
-
-@app.task(queue=QUEUE_ELASTIC_SEARCH)
-def update_elastic_registry(post):
-    registry.update(post)

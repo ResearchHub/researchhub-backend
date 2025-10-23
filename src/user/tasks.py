@@ -2,11 +2,10 @@ import logging
 
 from django.apps import apps
 from django.core.cache import cache
-from django_opensearch_dsl.registries import registry
 
 from discussion.models import Vote
 from paper.models import Paper
-from researchhub.celery import QUEUE_ELASTIC_SEARCH, app
+from researchhub.celery import app
 from user.editor_payout_tasks import editor_daily_payout_task
 from user.rsc_exchange_rate_record_tasks import rsc_exchange_rate_record_tasks
 
@@ -87,13 +86,6 @@ def get_authored_paper_updates(author, latest_actions):
             if item.paper in papers:
                 updates.append(action)
     return updates
-
-
-@app.task(queue=QUEUE_ELASTIC_SEARCH)
-def update_elastic_registry(user_id):
-    Author = apps.get_model("user.Author")
-    user_author = Author.objects.get(user_id=user_id)
-    registry.update(user_author)
 
 
 @app.task

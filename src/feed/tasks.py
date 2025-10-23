@@ -60,15 +60,15 @@ def create_feed_entry(
     # Create and return the feed entry
     try:
         feed_entry, created = FeedEntry.objects.update_or_create(
-            user=user,
             content_type=item_content_type,
             object_id=item_id,
             action=action,
             defaults={
-                "content": content,
                 "action_date": action_date,
+                "content": content,
                 "metrics": metrics,
                 "unified_document": unified_document,
+                "user": user,
             },
         )
         if hub_ids:
