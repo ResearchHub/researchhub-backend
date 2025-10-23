@@ -114,10 +114,34 @@ class Endorsement(DefaultModel):
         ]
 
 
+class Interest(DefaultModel):
+    DISMISSED = 1
+    INTEREST_TYPE_CHOICES = [
+        (DISMISSED, "Dismissed"),
+    ]
+    content_type = ForeignKey(ContentType, on_delete=CASCADE)
+    created_by = ForeignKey("user.User", on_delete=CASCADE, related_name="interests")
+    item = GenericForeignKey("content_type", "object_id")
+    object_id = PositiveIntegerField()
+    interest_type = IntegerField(choices=INTEREST_TYPE_CHOICES, default=DISMISSED)
+
+    class Meta:
+        constraints = [
+            UniqueConstraint(
+                fields=["content_type", "object_id", "created_by"],
+                name="unique_interest",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.created_by} - {self.get_interest_type_display()}"
+
+
 class AbstractGenericReactionModel(DefaultModel):
     endorsements = GenericRelation(Endorsement)
     flags = GenericRelation(Flag)
     votes = GenericRelation(Vote)
+    interests = GenericRelation(Interest)
     score = IntegerField(default=0)
 
     class Meta:

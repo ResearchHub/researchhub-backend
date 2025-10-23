@@ -6,7 +6,7 @@ from rest_framework.serializers import (
     SerializerMethodField,
 )
 
-from discussion.models import Endorsement, Flag, Vote
+from discussion.models import Endorsement, Flag, Interest, Vote
 from hub.serializers import DynamicHubSerializer
 from paper.models import Paper
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -121,6 +121,22 @@ class FlagSerializer(ModelSerializer):
             "object_id",
         ]
         model = Flag
+
+
+class InterestSerializer(ModelSerializer):
+    item = PrimaryKeyRelatedField(many=False, read_only=True)
+
+    class Meta:
+        fields = [
+            "content_type",
+            "created_by",
+            "created_date",
+            "id",
+            "item",
+            "object_id",
+            "interest_type",
+        ]
+        model = Interest
 
 
 class VoteSerializer(ModelSerializer):
