@@ -3,6 +3,7 @@ ArXiv OAI-PMH data mapper for transforming OAI-PMH responses to Paper model form
 """
 
 import logging
+import re
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -292,6 +293,8 @@ class ArXivOAIPMHMapper(BaseMapper):
             # License and access
             is_open_access=True,  # ArXiv is open access
             oa_status="gold",  # Gold open access for preprints
+            pdf_license=self._parse_license(record.get("license")),
+            pdf_license_url=record.get("license"),
             # External metadata
             external_metadata={
                 "external_id": arxiv_id,
@@ -385,6 +388,48 @@ class ArXivOAIPMHMapper(BaseMapper):
         except (ValueError, TypeError):
             logger.warning(f"Invalid date format: {date_str}")
             return None
+
+    def _parse_license(self, license_str: Optional[str]) -> Optional[str]:
+        """
+        Parse license string to standard format.
+
+        Converts Creative Commons and other license URLs to standardized
+        short format.
+        Example:
+        http://creativecommons.org/licenses/by-nc-nd/4.0/ -> cc-by-nc-nd-4.0
+
+        Args:
+            license_str: License URL or short format string
+
+        Returns:
+            Standardized license string or None
+        """
+        if not license_str:
+            return None
+
+        license_lower = license_str.lower().strip()
+        if not license_lower:
+            return None
+
+        # Handle Creative Commons URLs
+        # Example: http://creativecommons.org/licenses/by-nc-nd/4.0/
+        cc_match = re.search(
+            r"creativecommons\.org/licenses/([^/]+)/([^/]+)", license_lower
+        )
+        if cc_match:
+            license_type, version = cc_match.groups()
+            return f"cc-{license_type}-{version}"
+
+        # Handle arXiv-specific licenses
+        if "arxiv.org" in license_lower and "nonexclusive" in license_lower:
+            return "arxiv-nonexclusive-distrib-1.0"
+
+        # Handle public domain
+        if "publicdomain" in license_lower or "cc0" in license_lower:
+            return "cc0-1.0"
+
+        # Return the original string if no pattern matches
+        return license_lower.replace("_", "-").strip()
 
     def _extract_authors(
         self, authors_list: List[Dict[str, Any]]

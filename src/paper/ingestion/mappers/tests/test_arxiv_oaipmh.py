@@ -125,6 +125,13 @@ class TestArXivOAIPMHMapper(TestCase):
         self.assertTrue(paper.is_open_access)
         self.assertEqual(paper.oa_status, "gold")
 
+        # Check license
+        self.assertEqual(paper.pdf_license, "cc-by-4.0")
+        self.assertEqual(
+            paper.pdf_license_url,
+            "http://creativecommons.org/licenses/by/4.0/",  # NOSONAR - http
+        )
+
         # Check URLs
         self.assertEqual(
             paper.pdf_url, "http://arxiv.org/pdf/2507.00004.pdf"  # NOSONAR - http
@@ -418,6 +425,75 @@ class TestArXivOAIPMHMapper(TestCase):
         self.assertEqual(hubs.count(self.arxiv_hub), 1)  # Only appears once
         self.assertIn(cs_hub, hubs)
         self.assertIn(self.arxiv_hub, hubs)
+
+    def test_parse_license(self):
+        """
+        Test parsing various license formats.
+        """
+        # Arrange
+        mapper = ArXivOAIPMHMapper(None)
+
+        # Test cases: (input, expected_output, description)
+        test_cases = [
+            (
+                "CC BY-NC-ND 4.0",
+                "http://creativecommons.org/licenses/by-nc-nd/4.0/",  # NOSONAR - http
+                "cc-by-nc-nd-4.0",
+            ),
+            (
+                "CC BY 4.0",
+                "https://creativecommons.org/licenses/by/4.0/",  # NOSONAR - http
+                "cc-by-4.0",
+            ),
+            (
+                "CC BY-SA 3.0",
+                "http://creativecommons.org/licenses/by-sa/3.0/",  # NOSONAR - http
+                "cc-by-sa-3.0",
+            ),
+            (
+                "arXiv non-exclusive",
+                "http://arxiv.org/licenses/nonexclusive-distrib/1.0/",  # NOSONAR - http
+                "arxiv-nonexclusive-distrib-1.0",
+            ),
+            (
+                "Public domain URL",
+                "http://creativecommons.org/publicdomain/",  # NOSONAR - http
+                "cc0-1.0",
+            ),
+            (
+                "CC0 short form",
+                "CC0",
+                "cc0-1.0",
+            ),
+            (
+                "None",
+                None,
+                None,
+            ),
+            (
+                "Empty string",
+                "",
+                None,
+            ),
+            (
+                "Whitespace only",
+                "   ",
+                None,
+            ),
+            (
+                "Unknown format",
+                "Some_Custom_License",
+                "some-custom-license",
+            ),
+        ]
+
+        for name, given, expected in test_cases:
+            with self.subTest(license=name):
+                # Act
+                result = mapper._parse_license(given)
+
+                # Assert
+                self.assertEqual(result, expected)
 
     def test_map_to_hubs_without_primary_category(self):
         """
