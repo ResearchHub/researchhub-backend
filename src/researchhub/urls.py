@@ -16,7 +16,6 @@ from django.urls import include, path, re_path
 from rest_framework import routers
 
 import analytics.views
-import discussion.views
 import hub.views
 import invite.views as invite_views
 import mailing_list.views
@@ -53,11 +52,6 @@ from user_saved.views import UserSavedView
 
 router = routers.DefaultRouter()
 
-router.register(
-    r"paper/discussion/file",
-    discussion.views.CommentFileUpload,
-    basename="discussion_file_upload",
-)
 
 router.register(
     r"new_feature_release",
