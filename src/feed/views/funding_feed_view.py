@@ -1,9 +1,12 @@
 from django.db.models import (
     Case,
     Count,
+    DateTimeField,
     DecimalField,
     Exists,
+    F,
     IntegerField,
+    Min,
     OuterRef,
     Prefetch,
     Q,
@@ -92,7 +95,9 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         elif sort_by == "upvotes":
             queryset = queryset.order_by("status_priority", "-score", "id")
         else:
-            queryset = queryset.order_by("status_priority", "-created_date", "id")
+            queryset = queryset.annotate(
+                earliest_end_date=Min("unified_document__fundraises__end_date")
+            ).order_by("status_priority", F("earliest_end_date").asc(nulls_last=True), "id")
         
         return queryset
 

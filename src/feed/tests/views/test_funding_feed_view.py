@@ -299,7 +299,7 @@ class FundingFeedViewSetTests(TestCase):
         request.user = anon_user
 
         cache_key = viewset.get_cache_key(request, "funding")
-        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20-:")
+        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20:")
 
         # Authenticated user
         request = request_factory.get("/api/funding_feed/")
@@ -758,9 +758,9 @@ class FundingFeedViewSetTests(TestCase):
             post_ids.index(early_open_post.id), post_ids.index(later_open_post.id)
         )
 
-        # Within COMPLETED posts, verify more recent end dates come first
+        # Within COMPLETED posts, verify older end dates come first (ascending by end_date)
         self.assertLess(
-            post_ids.index(recent_closed_post.id), post_ids.index(old_closed_post.id)
+            post_ids.index(old_closed_post.id), post_ids.index(recent_closed_post.id)
         )
 
     def test_grant_id_filter(self):
@@ -1117,7 +1117,7 @@ class FundingFeedViewSetTests(TestCase):
         # Test ordering by amount_raised
         url = (
             reverse("funding_feed-list")
-            + f"?grant_id={grant.id}&ordering=amount_raised"
+            + f"?grant_id={grant.id}&sort_by=amount_raised"
         )
         response = self.client.get(url)
 

@@ -120,4 +120,4 @@ class StatusPrioritySortingTests(TestCase):
         response = self.client.get(f"{reverse('funding_feed-list')}?fundraise_status=CLOSED")
         ids = self._get_ids(response)
         
-        self.assertLess(ids.index(recent.id), ids.index(older.id))
+        self.assertLess(ids.index(older.id), ids.index(recent.id))
