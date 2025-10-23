@@ -20,27 +20,70 @@ def refresh_feed_entries_on_purchase(sender, instance, created, **kwargs):
     """
     Signal handler that refreshes feed entries when a purchase is created or updated.
     This ensures feed entries show the latest purchase information.
+
+    For fundraise contributions, we need to find feed entries via the unified document
+    since contributions are linked to Fundraise objects, but feed entries are created
+    for Post objects.
     """
     try:
-        # Get the a feed entry for this object, then get the unified document
-        # to find all feed entries that may be affected by the purchase
-        feed_entries = FeedEntry.objects.filter(
-            content_type=instance.content_type,
-            object_id=instance.object_id,
-        )
-        if not feed_entries.exists():
-            return
+        # Handle fundraise contributions differently
+        if instance.purchase_type == Purchase.FUNDRAISE_CONTRIBUTION:
+            # Import here to avoid circular imports
+            from purchase.models import Fundraise
 
-        # Update all matching feed entries
-        tasks = [
-            partial(
-                refresh_feed_entry.apply_async,
-                args=(entry.id,),
-                priority=1,
+            # Get the fundraise object
+            try:
+                fundraise = Fundraise.objects.get(id=instance.object_id)
+            except Fundraise.DoesNotExist:
+                logger.warning(
+                    f"Fundraise {instance.object_id} not found for purchase {instance.id}"
+                )
+                return
+
+            # Get the unified document
+            unified_document = fundraise.unified_document
+            if not unified_document:
+                logger.warning(
+                    f"No unified document found for fundraise {fundraise.id}"
+                )
+                return
+
+            # Find all feed entries for this unified document
+            feed_entries = FeedEntry.objects.filter(unified_document=unified_document)
+
+            if not feed_entries.exists():
+                return
+
+            # Update all matching feed entries
+            tasks = [
+                partial(
+                    refresh_feed_entry.apply_async,
+                    args=(entry.id,),
+                    priority=1,
+                )
+                for entry in feed_entries
+            ]
+            transaction.on_commit(lambda: [task() for task in tasks])
+
+        else:
+            # For non-fundraise purchases, use the original logic
+            feed_entries = FeedEntry.objects.filter(
+                content_type=instance.content_type,
+                object_id=instance.object_id,
             )
-            for entry in feed_entries
-        ]
-        transaction.on_commit(lambda: [task() for task in tasks])
+            if not feed_entries.exists():
+                return
+
+            # Update all matching feed entries
+            tasks = [
+                partial(
+                    refresh_feed_entry.apply_async,
+                    args=(entry.id,),
+                    priority=1,
+                )
+                for entry in feed_entries
+            ]
+            transaction.on_commit(lambda: [task() for task in tasks])
 
     except Exception as e:
         logger.error(
