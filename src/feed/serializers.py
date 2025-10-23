@@ -781,18 +781,11 @@ class FundingFeedEntrySerializer(FeedEntrySerializer):
         if (
             obj.unified_document
             and hasattr(obj.unified_document, "fundraises")
-            and obj.unified_document.fundraises.exists()
         ):
-            return obj.unified_document.fundraises.first().nonprofit_links.exists()
+            fundraise = obj.unified_document.fundraises.first()
+            if fundraise:
+                return fundraise.nonprofit_links.exists()
         return None
-
-
-class GrantFeedEntrySerializer(FeedEntrySerializer):
-    """Serializer for grant feed entries"""
-
-    class Meta:
-        model = FeedEntry
-        fields = FeedEntrySerializer.Meta.fields
 
 
 class FundHubSerializer(serializers.Serializer):
@@ -928,27 +921,27 @@ class FeedPostSerializer(serializers.Serializer):
 
     def get_hub(self, obj):
         if obj.unified_document:
-            hubs = list(obj.unified_document.hubs.all())
-            if hubs:
-                return FundHubSerializer(hubs[0]).data
+            hub = obj.unified_document.hubs.first()
+            if hub:
+                return FundHubSerializer(hub).data
         return None
 
     def get_fundraise(self, obj):
         from researchhub_document.related_models.constants.document_type import PREREGISTRATION
         
         if obj.unified_document and obj.document_type == PREREGISTRATION:
-            fundraises = list(obj.unified_document.fundraises.all())
-            if fundraises:
-                return FeedFundraiseSerializer(fundraises[0]).data
+            fundraise = obj.unified_document.fundraises.first()
+            if fundraise:
+                return FeedFundraiseSerializer(fundraise).data
         return None
 
     def get_grant(self, obj):
         from researchhub_document.related_models.constants.document_type import GRANT
         
         if obj.unified_document and obj.document_type == GRANT:
-            grants = list(obj.unified_document.grants.all())
-            if grants:
-                return FeedGrantSerializer(grants[0]).data
+            grant = obj.unified_document.grants.first()
+            if grant:
+                return FeedGrantSerializer(grant).data
         return None
 
     def get_reviews(self, obj):
@@ -993,9 +986,9 @@ class FeedFundingEntrySerializer(serializers.Serializer):
 
     def get_is_nonprofit(self, obj):
         if obj.unified_document and hasattr(obj.unified_document, 'fundraises'):
-            fundraises = list(obj.unified_document.fundraises.all())
-            if fundraises:
-                return bool(list(fundraises[0].nonprofit_links.all()))
+            fundraise = obj.unified_document.fundraises.first()
+            if fundraise:
+                return fundraise.nonprofit_links.exists()
         return False
 
     def get_user_vote(self, obj):
