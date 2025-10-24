@@ -5,10 +5,8 @@ and research grant postings.
 """
 
 from django.core.cache import cache
-from django.db.models import BooleanField, Case, F, Value, When
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
-
 from feed.models import FeedEntry
 from feed.serializers import GrantFeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
@@ -38,6 +36,11 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
     serializer_class = PostSerializer
     permission_classes = []
     pagination_class = FeedPagination
+    
+    # Funding status filtering configuration
+    model_class = Grant
+    status_field = "unified_document__grants__status"
+    end_date_field = "unified_document__grants__end_date"
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -125,51 +128,13 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             .filter(unified_document__is_removed=False)
         )
 
-        # Filter by status if specified
-        if status:
-            status_upper = status.upper()
-            if status_upper in [Grant.OPEN, Grant.CLOSED, Grant.COMPLETED]:
-                queryset = queryset.filter(
-                    unified_document__grants__status=status_upper
-                )
-
-                # Order based on status
-                if status_upper == Grant.OPEN:
-                    # Order by end_date ascending (closest deadline first)
-                    queryset = queryset.order_by("unified_document__grants__end_date")
-                else:
-                    # Order by end date descending (most recent deadlines first)
-                    queryset = queryset.order_by("-unified_document__grants__end_date")
-
         # Filter by organization if specified
         if organization:
             queryset = queryset.filter(
                 unified_document__grants__organization__icontains=organization
             )
 
-        if not status:
-            # For ALL tab: Sort by status (OPEN first), then by appropriate date order
-            queryset = queryset.annotate(
-                # Create a flag to identify OPEN grants
-                is_open=Case(
-                    When(
-                        unified_document__grants__status=Grant.OPEN,
-                        then=Value(True),
-                    ),
-                    default=Value(False),
-                    output_field=BooleanField(),
-                ),
-            ).order_by(
-                "-is_open",
-                # For OPEN (is_open=True): Sort by closest (earliest) end_date first
-                Case(
-                    When(is_open=True, then=F("unified_document__grants__end_date")),
-                ),
-                # For CLOSED/COMPLETED (is_open=False): Sort by most recent (latest) end_date first
-                Case(
-                    When(is_open=False, then=F("unified_document__grants__end_date")),
-                    default=None,
-                ).desc(),
-            )
+        # Apply funding status-based filtering using the mixin
+        queryset = self.apply_funding_status_filtering(queryset, status)
 
         return queryset

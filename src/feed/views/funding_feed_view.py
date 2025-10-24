@@ -9,19 +9,10 @@ This is done for three reasons:
 """
 
 from django.core.cache import cache
-from django.db.models import (
-    BooleanField,
-    Case,
-    DecimalField,
-    F,
-    Sum,
-    Value,
-    When,
-)
+from django.db.models import DecimalField, Sum
 from django.db.models.functions import Coalesce
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
-
 from feed.models import FeedEntry
 from feed.serializers import FundingFeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
@@ -58,6 +49,12 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
     serializer_class = PostSerializer
     permission_classes = []
     pagination_class = FeedPagination
+    
+    # Funding status filtering configuration
+    model_class = Fundraise
+    status_field = "unified_document__fundraises__status"
+    end_date_field = "unified_document__fundraises__end_date"
+    closed_status = Fundraise.COMPLETED  # Map CLOSED requests to COMPLETED status
 
     def _order_by_amount_raised(self, queryset):
         return queryset.annotate(
@@ -167,49 +164,8 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
 
             return queryset
 
-        if fundraise_status:
-            if fundraise_status.upper() == "OPEN":
-                queryset = queryset.filter(
-                    unified_document__fundraises__status=Fundraise.OPEN
-                )
-                # Order by end_date ascending (closest deadline first)
-                queryset = queryset.order_by("unified_document__fundraises__end_date")
-            elif fundraise_status.upper() == "CLOSED":
-                queryset = queryset.filter(
-                    unified_document__fundraises__status=Fundraise.COMPLETED
-                )
-                # Order by end date descending (most recent deadlines first)
-                queryset = queryset.order_by("-unified_document__fundraises__end_date")
-        else:
-            # For ALL tab: We need different sorting for OPEN vs CLOSED/COMPLETED
-            # Sort first by status (OPEN first), then apply different date sorts
-            # based on status
-            queryset = queryset.annotate(
-                # Create a flag to identify OPEN fundraises
-                is_open=Case(
-                    When(
-                        unified_document__fundraises__status=Fundraise.OPEN,
-                        then=Value(True),
-                    ),
-                    default=Value(False),
-                    output_field=BooleanField(),
-                ),
-            ).order_by(
-                "-is_open",
-                # For OPEN (is_open=True): Sort by closest (earliest) end_date first
-                Case(
-                    When(
-                        is_open=True, then=F("unified_document__fundraises__end_date")
-                    ),
-                ),
-                # For CLOSED (is_open=False): Sort by most recent end_date first
-                Case(
-                    When(
-                        is_open=False, then=F("unified_document__fundraises__end_date")
-                    ),
-                    default=None,
-                ).desc(),
-            )
+        # Apply funding status-based filtering using the mixin
+        queryset = self.apply_funding_status_filtering(queryset, fundraise_status)
 
         ordering = self.request.query_params.get("ordering")
         if ordering == "amount_raised":

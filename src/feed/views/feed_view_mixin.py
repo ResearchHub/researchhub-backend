@@ -1,5 +1,7 @@
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
+from django.db.models import Case, F, IntegerField, Value, When
+from django.utils import timezone
 from rest_framework.request import Request
 
 from discussion.models import Vote
@@ -244,3 +246,94 @@ class FeedViewMixin:
                             # Also with hot_score sort
                             cache_key_hot = f"{cache_key}-hot_score"
                             cache.delete(cache_key_hot)
+
+    def apply_funding_status_filtering(self, queryset, status_param):
+        """Apply funding status-based filtering and sorting to a queryset."""
+        if not status_param:
+            return self._filter_all_funding_statuses(queryset)
+        
+        status_upper = status_param.upper()
+        filter_methods = {
+            "OPEN": self._filter_funding_open_status,
+            "CLOSED": self._filter_funding_closed_status,
+            "COMPLETED": self._filter_funding_completed_status,
+        }
+        
+        filter_method = filter_methods.get(status_upper, self._filter_all_funding_statuses)
+        return filter_method(queryset)
+    
+    def _filter_funding_open_status(self, queryset):
+        """Filter for OPEN funding status with active/expired sorting."""
+        return queryset.filter(
+            **{self.status_field: self.model_class.OPEN}
+        ).annotate(
+            status=self._get_active_status_annotation()
+        ).order_by("status", F(self.end_date_field).asc(nulls_last=True))
+    
+    def _filter_funding_closed_status(self, queryset):
+        """Filter for CLOSED funding status with most recent first."""
+        closed_status = getattr(self, 'closed_status', self.model_class.CLOSED)
+        return queryset.filter(
+            **{self.status_field: closed_status}
+        ).order_by(F(self.end_date_field).desc(nulls_last=True))
+    
+    def _filter_funding_completed_status(self, queryset):
+        """Filter for COMPLETED funding status with most recent first."""
+        return queryset.filter(
+            **{self.status_field: self.model_class.COMPLETED}
+        ).order_by(F(self.end_date_field).desc(nulls_last=True))
+    
+    def _filter_all_funding_statuses(self, queryset):
+        """Filter all funding statuses with priority sorting: active open, expired open, completed."""
+        return queryset.annotate(
+            priority_sort=self._get_priority_annotation(),
+            sort_date_asc=Case(
+                When(priority_sort__in=[0, 1], then=F(self.end_date_field)),
+                default=None,
+            ),
+            sort_date_desc=Case(
+                When(priority_sort=2, then=F(self.end_date_field)),
+                default=None,
+            )
+        ).order_by(
+            "priority_sort",
+            F("sort_date_asc").asc(nulls_last=True),
+            F("sort_date_desc").desc(nulls_last=True)
+        )
+    
+    def _get_active_status_annotation(self):
+        """Get annotation for active/expired status in OPEN items."""
+        now = timezone.now()
+        return Case(
+            When(**{f"{self.end_date_field}__gt": now}, then=Value(0)),
+            When(**{f"{self.end_date_field}__isnull": True}, then=Value(0)),
+            default=Value(1),
+            output_field=IntegerField(),
+        )
+    
+    def _get_priority_annotation(self):
+        """Get annotation for priority sorting in ALL items."""
+        now = timezone.now()
+        return Case(
+            When(
+                **{self.status_field: self.model_class.OPEN},
+                **{f"{self.end_date_field}__gt": now},
+                then=Value(0)
+            ),
+            When(
+                **{self.status_field: self.model_class.OPEN},
+                **{f"{self.end_date_field}__isnull": True},
+                then=Value(0)
+            ),
+            When(
+                **{self.status_field: self.model_class.OPEN},
+                **{f"{self.end_date_field}__lte": now},
+                then=Value(1)
+            ),
+            When(
+                **{self.status_field: self.model_class.COMPLETED},
+                then=Value(2)
+            ),
+            default=Value(2),
+            output_field=IntegerField(),
+        )
