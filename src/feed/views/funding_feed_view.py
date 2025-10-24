@@ -170,11 +170,20 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
 
         if fundraise_status:
             if fundraise_status.upper() == "OPEN":
-                queryset = queryset.filter(
-                    unified_document__fundraises__status=Fundraise.OPEN
+                now = timezone.now()
+                has_active = Fundraise.objects.filter(
+                    unified_document=OuterRef("unified_document"),
+                    status=Fundraise.OPEN,
+                    end_date__gt=now
                 )
-                # Order by end_date ascending (closest deadline first)
-                queryset = queryset.order_by("unified_document__fundraises__end_date")
+                
+                queryset = queryset.annotate(
+                    status_priority=Case(
+                        When(Exists(has_active), then=Value(0)),
+                        default=Value(1),
+                        output_field=IntegerField(),
+                    ),
+                ).order_by("status_priority", "unified_document__fundraises__end_date")
             elif fundraise_status.upper() == "CLOSED":
                 queryset = queryset.filter(
                     unified_document__fundraises__status=Fundraise.COMPLETED
