@@ -69,6 +69,7 @@ class Fundraise(DefaultModel):
         indexes = [
             models.Index(fields=["status"]),
             models.Index(fields=["end_date"]),
+            models.Index(fields=["unified_document_id", "status", "end_date"], name="fundraise_unidoc_stat_idx"),
         ]
 
     def is_expired(self):

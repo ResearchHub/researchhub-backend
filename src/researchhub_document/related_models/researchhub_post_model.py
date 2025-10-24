@@ -126,6 +126,11 @@ class ResearchhubPost(AbstractGenericReactionModel):
         max_length=255, default=None, null=True, blank=True, unique=True
     )
 
+    class Meta:
+        indexes = [
+            models.Index(fields=["document_type", "unified_document_id"], name="post_doctype_idx"),
+        ]
+
     @property
     def is_latest_version(self):
         return self.next_version is None
