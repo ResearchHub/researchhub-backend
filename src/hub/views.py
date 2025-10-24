@@ -503,7 +503,7 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
 
         # Get all unique hubs, sorted by paper_count descending
         primary_hubs = Hub.objects.filter(
-            slug__in=all_hub_slugs, is_removed=False
+            slug__in=all_hub_slugs, is_removed=False, paper_count__gt=0
         ).order_by("-paper_count")
 
         # Serialize all results
