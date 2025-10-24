@@ -12,6 +12,9 @@ from .base import BaseDocument
 
 logger = logging.getLogger(__name__)
 
+# Weight bonus for verified users in search suggestions
+VERIFIED_USER_WEIGHT_BONUS = 500
+
 edge_ngram_filter = token_filter(
     "edge_ngram_filter",
     type="edge_ngram",
@@ -93,8 +96,11 @@ class UserDocument(BaseDocument):
         except Exception:
             full_name = f"{instance.first_name} {instance.last_name}"
 
-        weight = instance.reputation + (500 if instance.is_verified else 0)
+        weight = instance.reputation + (
+            VERIFIED_USER_WEIGHT_BONUS if instance.is_verified else 0
+        )
 
+        # Normalizes text for search by removing accents/diacritics
         def _normalize_for_search(text):
             if not text:
                 return ""
