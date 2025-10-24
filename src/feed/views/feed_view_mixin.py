@@ -1,5 +1,7 @@
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
+from django.db.models import Case, F, IntegerField, Value, When
+from django.utils import timezone
 from rest_framework.request import Request
 
 from discussion.models import Vote
@@ -244,3 +246,87 @@ class FeedViewMixin:
                             # Also with hot_score sort
                             cache_key_hot = f"{cache_key}-hot_score"
                             cache.delete(cache_key_hot)
+
+    def apply_fund_status_filtering(self, queryset, status_param):
+        """Apply fund status-based filtering and sorting to a queryset."""
+        if not status_param:
+            return self._filter_all_fund_statuses(queryset)
+        
+        status_upper = status_param.upper()
+        if status_upper == "OPEN":
+            return self._filter_fund_open_status(queryset)
+        elif status_upper == "CLOSED":
+            return self._filter_fund_closed_status(queryset)
+        elif status_upper == "COMPLETED":
+            return self._filter_fund_completed_status(queryset)
+        else:
+            return self._filter_all_fund_statuses(queryset)
+    
+    def _filter_fund_open_status(self, queryset):
+        """Filter for OPEN fund status with active/expired sorting."""
+        now = timezone.now()
+        return queryset.filter(
+            **{self.status_field: self.model_class.OPEN}
+        ).annotate(
+            status=Case(
+                When(**{f"{self.end_date_field}__gt": now}, then=Value(0)),
+                When(**{f"{self.end_date_field}__isnull": True}, then=Value(0)),
+                default=Value(1),
+                output_field=IntegerField(),
+            )
+        ).order_by("status", F(self.end_date_field).asc(nulls_last=True))
+    
+    def _filter_fund_closed_status(self, queryset):
+        """Filter for CLOSED fund status with most recent first."""
+        # Use configurable closed status mapping (defaults to CLOSED)
+        closed_status = getattr(self, 'closed_status', self.model_class.CLOSED)
+        return queryset.filter(
+            **{self.status_field: closed_status}
+        ).order_by(F(self.end_date_field).desc(nulls_last=True))
+    
+    def _filter_fund_completed_status(self, queryset):
+        """Filter for COMPLETED fund status with most recent first."""
+        return queryset.filter(
+            **{self.status_field: self.model_class.COMPLETED}
+        ).order_by(F(self.end_date_field).desc(nulls_last=True))
+    
+    def _filter_all_fund_statuses(self, queryset):
+        """Filter all fund statuses with priority sorting: active open, expired open, completed."""
+        now = timezone.now()
+        return queryset.annotate(
+            priority=Case(
+                When(
+                    **{self.status_field: self.model_class.OPEN},
+                    **{f"{self.end_date_field}__gt": now},
+                    then=Value(0)
+                ),
+                When(
+                    **{self.status_field: self.model_class.OPEN},
+                    **{f"{self.end_date_field}__isnull": True},
+                    then=Value(0)
+                ),
+                When(
+                    **{self.status_field: self.model_class.OPEN},
+                    **{f"{self.end_date_field}__lte": now},
+                    then=Value(1)
+                ),
+                When(
+                    **{self.status_field: self.model_class.COMPLETED},
+                    then=Value(2)
+                ),
+                default=Value(2),
+                output_field=IntegerField(),
+            ),
+            sort_date_asc=Case(
+                When(priority__in=[0, 1], then=F(self.end_date_field)),
+                default=None,
+            ),
+            sort_date_desc=Case(
+                When(priority=2, then=F(self.end_date_field)),
+                default=None,
+            )
+        ).order_by(
+            "priority",
+            F("sort_date_asc").asc(nulls_last=True),
+            F("sort_date_desc").desc(nulls_last=True)
+        )
