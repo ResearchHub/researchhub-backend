@@ -286,17 +286,17 @@ class FeedViewMixin:
     def _filter_all_funding_statuses(self, queryset):
         """Filter all funding statuses with priority sorting: active open, expired open, completed."""
         return queryset.annotate(
-            priority=self._get_priority_annotation(),
+            priority_sort=self._get_priority_annotation(),
             sort_date_asc=Case(
-                When(priority__in=[0, 1], then=F(self.end_date_field)),
+                When(priority_sort__in=[0, 1], then=F(self.end_date_field)),
                 default=None,
             ),
             sort_date_desc=Case(
-                When(priority=2, then=F(self.end_date_field)),
+                When(priority_sort=2, then=F(self.end_date_field)),
                 default=None,
             )
         ).order_by(
-            "priority",
+            "priority_sort",
             F("sort_date_asc").asc(nulls_last=True),
             F("sort_date_desc").desc(nulls_last=True)
         )
