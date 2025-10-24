@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://www.openarchives.org/OAI/2.0/ http://www.openarchives.org/OAI/2.0/OAI-PMH.xsd">
+    <responseDate>2025-01-15T12:00:00Z</responseDate>
+    <request verb="ListRecords" metadataPrefix="arXiv" from="2025-01-01" until="2025-01-07">http://oaipmh.arxiv.org/oai</request>
+    <ListRecords>
+        <record>
+            <header>
+                <identifier>oai:arXiv.org:2501.08827</identifier>
+                <datestamp>2025-01-15</datestamp>
+                <setSpec>cs:cs:CL</setSpec>
+            </header>
+            <metadata>
+                <arXiv xmlns="http://arxiv.org/OAI/arXiv/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://arxiv.org/OAI/arXiv/ https://oaipmh.arxiv.org/OAI/arXiv.xsd">
+                    <id>2501.08827</id>
+                    <created>2025-01-15</created>
+                    <authors>
+                        <author>
+                            <keyname>Zhang</keyname>
+                            <forenames>Kaiyan</forenames>
+                        </author>
+                    </authors>
+                    <title>A Survey of Reinforcement Learning for Large Reasoning Models</title>
+                    <categories>cs.CL cs.AI cs.LG</categories>
+                    <license>http://arxiv.org/licenses/nonexclusive-distrib/1.0/</license>
+                    <abstract>This paper surveys recent advances in reinforcement learning.</abstract>
+                </arXiv>
+            </metadata>
+        </record>
+        <resumptionToken>token123abc</resumptionToken>
+    </ListRecords>
+</OAI-PMH>

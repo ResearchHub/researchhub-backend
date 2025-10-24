@@ -142,8 +142,7 @@ class TestArXivMapper(TestCase):
         # Check flags
         self.assertTrue(paper.retrieved_from_external_source)
 
-    @patch("paper.models.Paper.save")
-    def test_map_to_paper_with_extras(self, mock_save):
+    def test_map_to_paper_with_extras(self):
         """Test mapping ArXiv record with additional fields."""
         paper = self.mapper.map_to_paper(self.sample_with_extras)
 

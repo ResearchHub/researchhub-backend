@@ -1,0 +1,25 @@
+<metadata xmlns="http://www.openarchives.org/OAI/2.0/">
+    <arXiv xmlns="http://arxiv.org/OAI/arXiv/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://arxiv.org/OAI/arXiv/ https://oaipmh.arxiv.org/OAI/arXiv.xsd">
+        <id>2507.00004</id>
+        <created>2025-07-10</created>
+        <updated>2025-07-11</updated>
+        <authors>
+            <author>
+                <keyname>Ellis-Mohr</keyname>
+                <forenames>Austin R.</forenames>
+            </author>
+            <author>
+                <keyname>Nayak</keyname>
+                <forenames>Anuj K.</forenames>
+            </author>
+            <author>
+                <keyname>Varshney</keyname>
+                <forenames>Lav R.</forenames>
+            </author>
+        </authors>
+        <title>A Theory of Inference Compute Scaling: Reasoning through Directed Stochastic Skill Search</title>
+        <categories>cs.LG cs.AI cs.CY cs.PF</categories>
+        <license>http://creativecommons.org/licenses/by/4.0/</license>
+        <abstract>Large language models (LLMs) demand considerable computational, energy, and financial resources during both training and deployment.</abstract>
+    </arXiv>
+</metadata>

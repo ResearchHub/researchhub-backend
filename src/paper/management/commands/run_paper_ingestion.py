@@ -8,6 +8,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.utils.dateparse import parse_date
 
 from paper.ingestion.clients.arxiv import ArXivClient, ArXivConfig
+from paper.ingestion.clients.arxiv_oaipmh import ArXivOAIPMHClient, ArXivOAIPMHConfig
 from paper.ingestion.clients.biorxiv import BioRxivClient, BioRxivConfig
 from paper.ingestion.clients.chemrxiv import ChemRxivClient, ChemRxivConfig
 from paper.ingestion.clients.medrxiv import MedRxivClient, MedRxivConfig
@@ -20,7 +21,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             "--source",
-            choices=["arxiv", "biorxiv", "chemrxiv", "medrxiv", "all"],
+            choices=["arxiv", "arxiv_oaipmh", "biorxiv", "chemrxiv", "medrxiv", "all"],
             default="all",
             help="Source to fetch papers from (default: all)",
         )
@@ -109,6 +110,16 @@ class Command(BaseCommand):
             clients["arxiv"] = ArXivClient(
                 ArXivConfig(
                     rate_limit=1.0,
+                    page_size=100,
+                    request_timeout=60.0,
+                    max_retries=3,
+                )
+            )
+
+        if source in ["arxiv_oaipmh", "all"]:
+            clients["arxiv_oaipmh"] = ArXivOAIPMHClient(
+                ArXivOAIPMHConfig(
+                    rate_limit=0.33,
                     page_size=100,
                     request_timeout=60.0,
                     max_retries=3,
