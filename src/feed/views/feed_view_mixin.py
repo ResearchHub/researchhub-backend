@@ -253,32 +253,25 @@ class FeedViewMixin:
             return self._filter_all_fund_statuses(queryset)
         
         status_upper = status_param.upper()
-        if status_upper == "OPEN":
-            return self._filter_fund_open_status(queryset)
-        elif status_upper == "CLOSED":
-            return self._filter_fund_closed_status(queryset)
-        elif status_upper == "COMPLETED":
-            return self._filter_fund_completed_status(queryset)
-        else:
-            return self._filter_all_fund_statuses(queryset)
+        filter_methods = {
+            "OPEN": self._filter_fund_open_status,
+            "CLOSED": self._filter_fund_closed_status,
+            "COMPLETED": self._filter_fund_completed_status,
+        }
+        
+        filter_method = filter_methods.get(status_upper, self._filter_all_fund_statuses)
+        return filter_method(queryset)
     
     def _filter_fund_open_status(self, queryset):
         """Filter for OPEN fund status with active/expired sorting."""
-        now = timezone.now()
         return queryset.filter(
             **{self.status_field: self.model_class.OPEN}
         ).annotate(
-            status=Case(
-                When(**{f"{self.end_date_field}__gt": now}, then=Value(0)),
-                When(**{f"{self.end_date_field}__isnull": True}, then=Value(0)),
-                default=Value(1),
-                output_field=IntegerField(),
-            )
+            status=self._get_active_status_annotation()
         ).order_by("status", F(self.end_date_field).asc(nulls_last=True))
     
     def _filter_fund_closed_status(self, queryset):
         """Filter for CLOSED fund status with most recent first."""
-        # Use configurable closed status mapping (defaults to CLOSED)
         closed_status = getattr(self, 'closed_status', self.model_class.CLOSED)
         return queryset.filter(
             **{self.status_field: closed_status}
@@ -292,31 +285,8 @@ class FeedViewMixin:
     
     def _filter_all_fund_statuses(self, queryset):
         """Filter all fund statuses with priority sorting: active open, expired open, completed."""
-        now = timezone.now()
         return queryset.annotate(
-            priority=Case(
-                When(
-                    **{self.status_field: self.model_class.OPEN},
-                    **{f"{self.end_date_field}__gt": now},
-                    then=Value(0)
-                ),
-                When(
-                    **{self.status_field: self.model_class.OPEN},
-                    **{f"{self.end_date_field}__isnull": True},
-                    then=Value(0)
-                ),
-                When(
-                    **{self.status_field: self.model_class.OPEN},
-                    **{f"{self.end_date_field}__lte": now},
-                    then=Value(1)
-                ),
-                When(
-                    **{self.status_field: self.model_class.COMPLETED},
-                    then=Value(2)
-                ),
-                default=Value(2),
-                output_field=IntegerField(),
-            ),
+            priority=self._get_priority_annotation(),
             sort_date_asc=Case(
                 When(priority__in=[0, 1], then=F(self.end_date_field)),
                 default=None,
@@ -329,4 +299,41 @@ class FeedViewMixin:
             "priority",
             F("sort_date_asc").asc(nulls_last=True),
             F("sort_date_desc").desc(nulls_last=True)
+        )
+    
+    def _get_active_status_annotation(self):
+        """Get annotation for active/expired status in OPEN items."""
+        now = timezone.now()
+        return Case(
+            When(**{f"{self.end_date_field}__gt": now}, then=Value(0)),
+            When(**{f"{self.end_date_field}__isnull": True}, then=Value(0)),
+            default=Value(1),
+            output_field=IntegerField(),
+        )
+    
+    def _get_priority_annotation(self):
+        """Get annotation for priority sorting in ALL items."""
+        now = timezone.now()
+        return Case(
+            When(
+                **{self.status_field: self.model_class.OPEN},
+                **{f"{self.end_date_field}__gt": now},
+                then=Value(0)
+            ),
+            When(
+                **{self.status_field: self.model_class.OPEN},
+                **{f"{self.end_date_field}__isnull": True},
+                then=Value(0)
+            ),
+            When(
+                **{self.status_field: self.model_class.OPEN},
+                **{f"{self.end_date_field}__lte": now},
+                then=Value(1)
+            ),
+            When(
+                **{self.status_field: self.model_class.COMPLETED},
+                then=Value(2)
+            ),
+            default=Value(2),
+            output_field=IntegerField(),
         )
