@@ -50,37 +50,17 @@ def refresh_feed_entries_on_purchase(sender, instance, created, **kwargs):
 
             # Find all feed entries for this unified document
             feed_entries = FeedEntry.objects.filter(unified_document=unified_document)
-
-            if not feed_entries.exists():
-                return
-
-            # Update all matching feed entries
-            tasks = [
-                partial(
-                    refresh_feed_entry.apply_async,
-                    args=(entry.id,),
-                    priority=1,
-                )
-                for entry in feed_entries
-            ]
-            transaction.on_commit(lambda: [task() for task in tasks])
-
         else:
-            # For non-fundraise purchases, use the original logic
+            # For non-fundraise purchases, use direct lookup
             feed_entries = FeedEntry.objects.filter(
                 content_type=instance.content_type,
                 object_id=instance.object_id,
             )
-            if not feed_entries.exists():
-                return
 
+        if feed_entries.exists():
             # Update all matching feed entries
             tasks = [
-                partial(
-                    refresh_feed_entry.apply_async,
-                    args=(entry.id,),
-                    priority=1,
-                )
+                partial(refresh_feed_entry.apply_async, args=(entry.id,), priority=1)
                 for entry in feed_entries
             ]
             transaction.on_commit(lambda: [task() for task in tasks])
