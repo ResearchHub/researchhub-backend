@@ -288,12 +288,19 @@ class TestPurchaseSignals(TestCase):
         self.assertIn("applications", grant_data)
         self.assertEqual(len(grant_data["applications"]), 0)
 
-    @patch("feed.tasks.refresh_feed_entry.apply_async")
-    def test_fundraise_contribution_triggers_feed_update(self, mock_refresh):
+    @patch("feed.signals.purchase_signals.refresh_feed_entry")
+    @patch("feed.signals.purchase_signals.transaction")
+    def test_fundraise_contribution_triggers_feed_update(
+        self, mock_transaction, mock_refresh
+    ):
         """
         Test that creating a fundraise contribution triggers
         feed entry refresh.
         """
+        # Arrange
+        mock_transaction.on_commit = lambda func: func()
+        mock_refresh.apply_async = MagicMock()
+
         # Create a preregistration post with fundraise
         post = create_post(created_by=self.user, document_type=PREREGISTRATION)
 
@@ -308,7 +315,7 @@ class TestPurchaseSignals(TestCase):
 
         # Create a feed entry for the post
         post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
-        FeedEntry.objects.create(
+        feed_entry = FeedEntry.objects.create(
             content_type=post_content_type,
             object_id=post.id,
             unified_document=post.unified_document,
@@ -317,6 +324,7 @@ class TestPurchaseSignals(TestCase):
             content={},
         )
 
+        # Act
         # Create a contribution
         contributor = create_random_authenticated_user("fundraise_contributor_1")
         fundraise_content_type = ContentType.objects.get_for_model(Fundraise)
@@ -330,15 +338,25 @@ class TestPurchaseSignals(TestCase):
             amount="100",
         )
 
-        # Verify that refresh_feed_entry task was called
-        self.assertTrue(mock_refresh.called or mock_refresh.call_count >= 0)
+        # Assert
+        mock_refresh.apply_async.assert_called_with(
+            args=(feed_entry.id,),
+            priority=1,
+        )
 
-    @patch("feed.tasks.refresh_feed_entry.apply_async")
-    def test_fundraise_contribution_update_triggers_feed_update(self, mock_refresh):
+    @patch("feed.signals.purchase_signals.refresh_feed_entry")
+    @patch("feed.signals.purchase_signals.transaction")
+    def test_fundraise_contribution_update_triggers_feed_update(
+        self, mock_transaction, mock_refresh
+    ):
         """
         Test that updating a fundraise contribution triggers
         feed entry refresh.
         """
+        # Arrange
+        mock_transaction.on_commit = lambda func: func()
+        mock_refresh.apply_async = MagicMock()
+
         # Create a preregistration post with fundraise
         post = create_post(created_by=self.user, document_type=PREREGISTRATION)
 
@@ -353,7 +371,7 @@ class TestPurchaseSignals(TestCase):
 
         # Create a feed entry for the post
         post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
-        FeedEntry.objects.create(
+        feed_entry = FeedEntry.objects.create(
             content_type=post_content_type,
             object_id=post.id,
             unified_document=post.unified_document,
@@ -375,14 +393,18 @@ class TestPurchaseSignals(TestCase):
             amount="100",
         )
 
+        # Reset mock to clear the call from creation
         mock_refresh.reset_mock()
 
-        # Update the purchase
+        # Act
         purchase.amount = "200"
-        purchase.save()
+        purchase.save()  # Update the purchase
 
-        # Verify that refresh_feed_entry task was called again
-        self.assertTrue(mock_refresh.called or mock_refresh.call_count >= 0)
+        # Assert
+        mock_refresh.apply_async.assert_called_with(
+            args=(feed_entry.id,),
+            priority=1,
+        )
 
     def test_fundraise_signal_handles_missing_fundraise(self):
         """
