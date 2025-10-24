@@ -141,3 +141,111 @@ class UserDocumentTests(TestCase):
         self.assertIn("doe", input_list)
         self.assertIn("John Doe", input_list)
         self.assertIn("john doe", input_list)
+
+    def test_prepare_full_name_suggest_with_non_ascii_names(self):
+        """Test that non-ASCII names (like Chinese) are preserved and don't crash"""
+        # Create a user with Chinese characters
+        chinese_user = User.objects.create_user(
+            username="chinese@test.com",
+            email="chinese@test.com",
+            first_name="李明",
+            last_name="王",
+            is_suspended=False,
+        )
+
+        result = self.document.prepare_full_name_suggest(chinese_user)
+        input_list = result["input"]
+
+        # Should contain original Chinese characters (most important)
+        self.assertIn("李明", input_list)
+        self.assertIn("王", input_list)
+        self.assertIn("李明 王", input_list)
+
+        # Should NOT crash when ASCII normalization produces empty results
+        # The function should gracefully handle this case
+        self.assertIsNotNone(result)
+        self.assertIsInstance(result, dict)
+        self.assertIn("input", result)
+        self.assertIn("weight", result)
+
+        # Verify that we have at least the original name components
+        self.assertGreater(
+            len(input_list), 0, "Should have at least some input suggestions"
+        )
+
+    def test_prepare_full_name_suggest_with_mixed_ascii_non_ascii(self):
+        """Test names that mix ASCII and non-ASCII characters"""
+        # Create a user with mixed characters
+        mixed_user = User.objects.create_user(
+            username="mixed@test.com",
+            email="mixed@test.com",
+            first_name="李小明",
+            last_name="Smith",
+            is_suspended=False,
+        )
+
+        result = self.document.prepare_full_name_suggest(mixed_user)
+        input_list = result["input"]
+
+        # Should contain original mixed characters
+        self.assertIn("李小明", input_list)
+        self.assertIn("Smith", input_list)
+        self.assertIn("李小明 Smith", input_list)
+
+        # Should contain ASCII normalized version for the ASCII part
+        self.assertIn("smith", input_list)
+        # Note: The mixed combination might not be generated due to input size limits
+        # The important thing is that both parts are preserved
+
+        # Should have first + last combination
+        self.assertIn("李小明 Smith", input_list)
+
+    def test_prepare_full_name_suggest_with_arabic_names(self):
+        """Test that Arabic names are preserved correctly"""
+        # Create a user with Arabic characters
+        arabic_user = User.objects.create_user(
+            username="arabic@test.com",
+            email="arabic@test.com",
+            first_name="محمد",
+            last_name="أحمد",
+            is_suspended=False,
+        )
+
+        result = self.document.prepare_full_name_suggest(arabic_user)
+        input_list = result["input"]
+
+        # Should contain original Arabic characters
+        self.assertIn("محمد", input_list)
+        self.assertIn("أحمد", input_list)
+        self.assertIn("محمد أحمد", input_list)
+
+        # Should NOT crash when ASCII normalization produces empty results
+        self.assertIsNotNone(result)
+        self.assertIsInstance(result, dict)
+        self.assertIn("input", result)
+        self.assertIn("weight", result)
+
+    def test_prepare_full_name_suggest_with_cyrillic_names(self):
+        """Test that Cyrillic names work correctly"""
+        # Create a user with Cyrillic characters
+        cyrillic_user = User.objects.create_user(
+            username="cyrillic@test.com",
+            email="cyrillic@test.com",
+            first_name="Владимир",
+            last_name="Путин",
+            is_suspended=False,
+        )
+
+        result = self.document.prepare_full_name_suggest(cyrillic_user)
+        input_list = result["input"]
+
+        # Should contain original Cyrillic characters
+        self.assertIn("Владимир", input_list)
+        self.assertIn("Путин", input_list)
+        self.assertIn("Владимир Путин", input_list)
+
+        # Should NOT crash when ASCII normalization produces empty results
+        self.assertIsNotNone(result)
+        self.assertIsInstance(result, dict)
+        self.assertIn("input", result)
+        self.assertIn("weight", result)

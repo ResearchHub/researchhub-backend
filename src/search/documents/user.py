@@ -99,19 +99,26 @@ class UserDocument(BaseDocument):
                 .lower()
             )
 
-        normalized_name = _normalize_for_search(full_name)
+        # Always include the original name for inclusivity
         original_words = full_name.split()
+        input_list = original_words + [full_name]
+
+        # Add ASCII normalization for broader searchability, but don't rely on it
+        normalized_name = _normalize_for_search(full_name)
         normalized_words = normalized_name.split()
 
-        input_list = original_words + [full_name] + normalized_words + [normalized_name]
+        # Only add normalized versions if they provide additional value
+        if normalized_words and normalized_name.strip():
+            input_list.extend(normalized_words + [normalized_name])
 
         if len(original_words) >= 2:
-            input_list.extend(
-                [
-                    f"{original_words[0]} {original_words[-1]}",
-                    f"{normalized_words[0]} {normalized_words[-1]}",
-                ]
-            )
+            input_list.append(f"{original_words[0]} {original_words[-1]}")
+            # Add normalized version if it exists and is different from original
+            if normalized_words and len(normalized_words) >= 2:
+                normalized_first_last = f"{normalized_words[0]} {normalized_words[-1]}"
+                original_first_last = f"{original_words[0]} {original_words[-1]}"
+                if normalized_first_last != original_first_last.lower():
+                    input_list.append(normalized_first_last)
 
         # Remove duplicates while preserving order
         unique_input_list = list(dict.fromkeys(input_list))
