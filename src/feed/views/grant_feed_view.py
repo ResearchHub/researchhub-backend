@@ -37,7 +37,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
     permission_classes = []
     pagination_class = FeedPagination
     
-    # Fund status filtering configuration
+    # Funding status filtering configuration
     model_class = Grant
     status_field = "unified_document__grants__status"
     end_date_field = "unified_document__grants__end_date"
@@ -134,7 +134,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
                 unified_document__grants__organization__icontains=organization
             )
 
-        # Apply fund status-based filtering using the mixin
-        queryset = self.apply_fund_status_filtering(queryset, status)
+        # Apply funding status-based filtering using the mixin
+        queryset = self.apply_funding_status_filtering(queryset, status)
 
         return queryset

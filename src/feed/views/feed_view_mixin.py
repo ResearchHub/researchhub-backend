@@ -247,44 +247,44 @@ class FeedViewMixin:
                             cache_key_hot = f"{cache_key}-hot_score"
                             cache.delete(cache_key_hot)
 
-    def apply_fund_status_filtering(self, queryset, status_param):
-        """Apply fund status-based filtering and sorting to a queryset."""
+    def apply_funding_status_filtering(self, queryset, status_param):
+        """Apply funding status-based filtering and sorting to a queryset."""
         if not status_param:
-            return self._filter_all_fund_statuses(queryset)
+            return self._filter_all_funding_statuses(queryset)
         
         status_upper = status_param.upper()
         filter_methods = {
-            "OPEN": self._filter_fund_open_status,
-            "CLOSED": self._filter_fund_closed_status,
-            "COMPLETED": self._filter_fund_completed_status,
+            "OPEN": self._filter_funding_open_status,
+            "CLOSED": self._filter_funding_closed_status,
+            "COMPLETED": self._filter_funding_completed_status,
         }
         
-        filter_method = filter_methods.get(status_upper, self._filter_all_fund_statuses)
+        filter_method = filter_methods.get(status_upper, self._filter_all_funding_statuses)
         return filter_method(queryset)
     
-    def _filter_fund_open_status(self, queryset):
-        """Filter for OPEN fund status with active/expired sorting."""
+    def _filter_funding_open_status(self, queryset):
+        """Filter for OPEN funding status with active/expired sorting."""
         return queryset.filter(
             **{self.status_field: self.model_class.OPEN}
         ).annotate(
             status=self._get_active_status_annotation()
         ).order_by("status", F(self.end_date_field).asc(nulls_last=True))
     
-    def _filter_fund_closed_status(self, queryset):
-        """Filter for CLOSED fund status with most recent first."""
+    def _filter_funding_closed_status(self, queryset):
+        """Filter for CLOSED funding status with most recent first."""
         closed_status = getattr(self, 'closed_status', self.model_class.CLOSED)
         return queryset.filter(
             **{self.status_field: closed_status}
         ).order_by(F(self.end_date_field).desc(nulls_last=True))
     
-    def _filter_fund_completed_status(self, queryset):
-        """Filter for COMPLETED fund status with most recent first."""
+    def _filter_funding_completed_status(self, queryset):
+        """Filter for COMPLETED funding status with most recent first."""
         return queryset.filter(
             **{self.status_field: self.model_class.COMPLETED}
         ).order_by(F(self.end_date_field).desc(nulls_last=True))
     
-    def _filter_all_fund_statuses(self, queryset):
-        """Filter all fund statuses with priority sorting: active open, expired open, completed."""
+    def _filter_all_funding_statuses(self, queryset):
+        """Filter all funding statuses with priority sorting: active open, expired open, completed."""
         return queryset.annotate(
             priority=self._get_priority_annotation(),
             sort_date_asc=Case(

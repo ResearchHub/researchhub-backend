@@ -50,7 +50,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
     permission_classes = []
     pagination_class = FeedPagination
     
-    # Fund status filtering configuration
+    # Funding status filtering configuration
     model_class = Fundraise
     status_field = "unified_document__fundraises__status"
     end_date_field = "unified_document__fundraises__end_date"
@@ -164,8 +164,8 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
 
             return queryset
 
-        # Apply fund status-based filtering using the mixin
-        queryset = self.apply_fund_status_filtering(queryset, fundraise_status)
+        # Apply funding status-based filtering using the mixin
+        queryset = self.apply_funding_status_filtering(queryset, fundraise_status)
 
         ordering = self.request.query_params.get("ordering")
         if ordering == "amount_raised":
