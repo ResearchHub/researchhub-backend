@@ -12,7 +12,9 @@ from django.core.cache import cache
 from django.db.models import (
     Case,
     DecimalField,
+    Exists,
     IntegerField,
+    OuterRef,
     Sum,
     Value,
     When,
@@ -183,17 +185,19 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
             # For ALL tab: Sort by status priority (OPEN first), then by date 
             now = timezone.now()
             
+            has_active = Fundraise.objects.filter(
+                unified_document=OuterRef("unified_document"),
+                status=Fundraise.OPEN,
+                end_date__gt=now
+            )
+            
             queryset = queryset.annotate(
                 status_priority=Case(
-                    When(
-                        unified_document__fundraises__status=Fundraise.OPEN,
-                        unified_document__fundraises__end_date__gt=now,
-                        then=Value(0)
-                    ),
+                    When(Exists(has_active), then=Value(0)),
                     default=Value(1),
                     output_field=IntegerField(),
                 ),
-            ).order_by("status_priority", "unified_document__fundraises__end_date")
+            ).order_by("status_priority", "-unified_document__fundraises__end_date")
 
         ordering = self.request.query_params.get("ordering")
         if ordering == "amount_raised":
