@@ -5,10 +5,10 @@ and research grant postings.
 """
 
 from django.core.cache import cache
-from django.db.models import BooleanField, Case, F, Value, When
+from django.db.models import Case, IntegerField, Value, When
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
-
+from django.utils import timezone
 from feed.models import FeedEntry
 from feed.serializers import GrantFeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
@@ -148,28 +148,19 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             )
 
         if not status:
-            # For ALL tab: Sort by status (OPEN first), then by appropriate date order
+            # For ALL tab: Sort by status priority (OPEN first), then by date
+            now = timezone.now()
+            
             queryset = queryset.annotate(
-                # Create a flag to identify OPEN grants
-                is_open=Case(
+                status_priority=Case(
                     When(
                         unified_document__grants__status=Grant.OPEN,
-                        then=Value(True),
+                        unified_document__grants__end_date__gt=now,
+                        then=Value(0)
                     ),
-                    default=Value(False),
-                    output_field=BooleanField(),
+                    default=Value(1),
+                    output_field=IntegerField(),
                 ),
-            ).order_by(
-                "-is_open",
-                # For OPEN (is_open=True): Sort by closest (earliest) end_date first
-                Case(
-                    When(is_open=True, then=F("unified_document__grants__end_date")),
-                ),
-                # For CLOSED/COMPLETED (is_open=False): Sort by most recent (latest) end_date first
-                Case(
-                    When(is_open=False, then=F("unified_document__grants__end_date")),
-                    default=None,
-                ).desc(),
-            )
+            ).order_by("status_priority", "unified_document__grants__end_date")
 
         return queryset
