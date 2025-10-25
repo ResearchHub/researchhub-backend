@@ -32,6 +32,7 @@ import researchhub_case.views as researchhub_case_views
 import researchhub_document.views as researchhub_document_views
 import search.urls
 import user.views
+from analytics.views import AmplitudeWebhookView
 from feed.views import (
     FeedV2ViewSet,
     FeedViewSet,
@@ -102,12 +103,6 @@ router.register(
 )
 
 router.register(r"figure", paper_views.FigureViewSet, basename="figure")
-
-router.register(
-    r"analytics/websiteviews",
-    analytics.views.WebsiteVisitsViewSet,
-    basename="websiteviews",
-)
 
 router.register(r"purchase", purchase.views.PurchaseViewSet, basename="purchase")
 
@@ -313,6 +308,11 @@ urlpatterns = [
         name="paper_upload",
     ),
     path("robots.txt", researchhub.views.robots_txt, name="robots_txt"),
+    path(
+        "webhooks/amplitude/",
+        AmplitudeWebhookView.as_view(),
+        name="amplitude_webhook",
+    ),
     path(
         "webhooks/persona/",
         persona_webhook_view.PersonaWebhookView.as_view(),
