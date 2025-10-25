@@ -8,12 +8,17 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from analytics.amplitude import track_event
-from discussion.models import Endorsement, Flag, Vote
+from discussion.models import Endorsement, Flag, Interest, Vote
 from discussion.permissions import CensorDiscussion as CensorDiscussionPermission
 from discussion.permissions import EditorCensorDiscussion
 from discussion.permissions import Endorse as EndorsePermission
 from discussion.permissions import Vote as VotePermission
-from discussion.serializers import EndorsementSerializer, FlagSerializer, VoteSerializer
+from discussion.serializers import (
+    EndorsementSerializer,
+    FlagSerializer,
+    InterestSerializer,
+    VoteSerializer,
+)
 from paper.models import Paper
 from purchase.models import RscExchangeRate
 from reputation.models import Contribution
@@ -134,6 +139,27 @@ class ReactionViewActionMixin:
             return Response(serialized.data, status=200)
         except Exception as e:
             return Response(f"Failed to delete flag: {e}", status=400)
+
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[IsAuthenticated],
+    )
+    def mark_not_interested(self, request, *args, pk=None, **kwargs):
+        item = self.get_object()
+        user = request.user
+
+        try:
+            interest, created = create_or_get_interest(user, item)
+            serialized = InterestSerializer(interest)
+            status_code = 201 if created else 200
+            return Response(serialized.data, status=status_code)
+        except Exception as e:
+            log_error(e)
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @action(
         detail=True,
@@ -282,6 +308,16 @@ def create_flag(user, item, reason, reason_choice, reason_memo=None):
         flag = serializer.save()
         flag.hubs.add(*item.unified_document.hubs.all())
         return flag, serializer.data
+
+
+def create_or_get_interest(user, item):
+    """Creates or retrieves existing interest record. Returns (interest, created)."""
+    interest, created = Interest.objects.get_or_create(
+        object_id=item.id,
+        content_type=get_content_type_for_model(item),
+        created_by=user,
+    )
+    return interest, created
 
 
 def find_vote(user, item, vote_type):

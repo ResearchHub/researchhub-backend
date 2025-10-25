@@ -23,3 +23,15 @@ def update_to_upvote(vote):
 def update_to_downvote(vote):
     vote.vote_type = Vote.DOWNVOTE
     vote.save(update_fields=["vote_type"])
+
+
+def create_interest(created_by, item):
+    from discussion.models import Interest
+
+    if created_by is None:
+        created_by = create_random_default_user("interest_user")
+    if item is None:
+        item = create_paper()
+    interest = Interest(item=item, created_by=created_by)
+    interest.save()
+    return interest
