@@ -28,6 +28,15 @@ edge_ngram_analyzer = analyzer(
     filter=["lowercase", edge_ngram_filter],
 )
 
+name_analyzer = analyzer(
+    "name_analyzer",
+    tokenizer="standard",
+    filter=[
+        "lowercase",
+        token_filter("asciifolding", type="asciifolding", preserve_original=True),
+    ],
+)
+
 
 @registry.register_document
 class UserDocument(BaseDocument):
@@ -35,7 +44,7 @@ class UserDocument(BaseDocument):
     profile_img = es_fields.TextField()
     full_name_suggest = es_fields.CompletionField()
     full_name = es_fields.TextField(
-        analyzer=edge_ngram_analyzer,
+        analyzer=name_analyzer,
         search_analyzer="standard",
     )
     created_date = es_fields.DateField()
@@ -77,68 +86,63 @@ class UserDocument(BaseDocument):
 
     # Used specifically for "autocomplete" style suggest feature
     def prepare_full_name_suggest(self, instance) -> dict[str, Any]:
+        MAX_INPUTS = 10
+        VERIFIED_USER_WEIGHT_BONUS = 500
+
+        # Get names with fallback to user model
         try:
-            first_name = instance.author_profile.first_name
-            last_name = instance.author_profile.last_name
-            full_name = f"{first_name} {last_name}"
-        except Exception:
-            full_name = f"{instance.first_name} {instance.last_name}"
+            first = (instance.author_profile.first_name or "").strip()
+            last = (instance.author_profile.last_name or "").strip()
+        except AttributeError:
+            first = (instance.first_name or "").strip()
+            last = (instance.last_name or "").strip()
+
+        full_name = f"{first} {last}".strip()
+        if not full_name:
+            return {"input": [], "weight": 0}
+
+        # Build input set with original and normalized versions
+        inputs = {full_name, first, last}
+
+        # Add normalized versions if they provide value
+        normalized_full = self._normalize_text(full_name)
+        if normalized_full:
+            inputs.add(normalized_full)
+
+        # Add individual normalized words
+        normalized_first = self._normalize_text(first)
+        normalized_last = self._normalize_text(last)
+        if normalized_first:
+            inputs.add(normalized_first)
+        if normalized_last:
+            inputs.add(normalized_last)
+
+        # Add first+last combinations for better searchability
+        if first and last:
+            inputs.add(f"{first} {last}")
+            normalized_first_last = f"{normalized_first} {normalized_last}"
+            if normalized_first_last.strip():
+                inputs.add(normalized_first_last)
+
+        # Remove empty strings and limit size
+        inputs.discard("")
+        input_list = list(inputs)[:MAX_INPUTS]
 
         weight = instance.reputation + (
             VERIFIED_USER_WEIGHT_BONUS if instance.is_verified else 0
         )
+        return {"input": input_list, "weight": weight}
 
-        # Normalizes text for search by removing accents/diacritics
-        def _normalize_for_search(text):
-            if not text:
-                return ""
-            return (
-                unicodedata.normalize("NFD", text)
-                .encode("ascii", "ignore")
-                .decode("ascii")
-                .lower()
-            )
-
-        # Always include the original name for inclusivity
-        original_words = full_name.split()
-        input_list = original_words + [full_name]
-
-        # Add ASCII normalization for broader searchability, but don't rely on it
-        normalized_name = _normalize_for_search(full_name)
-        normalized_words = normalized_name.split()
-
-        # Only add normalized versions if they provide additional value
-        if normalized_words and normalized_name.strip():
-            input_list.extend(normalized_words + [normalized_name])
-
-        if len(original_words) >= 2:
-            input_list.append(f"{original_words[0]} {original_words[-1]}")
-            # Add normalized version if it exists and is different from original
-            if normalized_words and len(normalized_words) >= 2:
-                normalized_first_last = f"{normalized_words[0]} {normalized_words[-1]}"
-                original_first_last = f"{original_words[0]} {original_words[-1]}"
-                if normalized_first_last != original_first_last.lower():
-                    input_list.append(normalized_first_last)
-
-        # Remove duplicates while preserving order
-        unique_input_list = list(dict.fromkeys(input_list))
-
-        # Cap input size for performance
-        MAX_INPUT_SIZE = 10
-        if len(unique_input_list) > MAX_INPUT_SIZE:
-            full_names = [item for item in unique_input_list if len(item.split()) >= 2]
-            partial_names = [
-                item for item in unique_input_list if len(item.split()) == 1
-            ]
-
-            prioritized_list = full_names[:MAX_INPUT_SIZE]
-            remaining_slots = MAX_INPUT_SIZE - len(prioritized_list)
-            if remaining_slots > 0:
-                prioritized_list.extend(partial_names[:remaining_slots])
-
-            unique_input_list = prioritized_list
-
-        return {"input": unique_input_list, "weight": weight}
+    def _normalize_text(self, text: str) -> str:
+        """Normalize text for search by removing accents/diacritics"""
+        if not text:
+            return ""
+        return (
+            unicodedata.normalize("NFD", text)
+            .encode("ascii", "ignore")
+            .decode("ascii")
+            .lower()
+        )
 
     def prepare_full_name(self, instance) -> str:
         try:
