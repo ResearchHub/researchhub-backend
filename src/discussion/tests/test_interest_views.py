@@ -10,6 +10,7 @@ from discussion.serializers import InterestSerializer
 from discussion.tests.helpers import create_interest
 from discussion.views import ReactionViewActionMixin, create_or_get_interest
 from paper.related_models.paper_model import Paper
+from researchhub_document.helpers import create_post
 from researchhub_document.models import ResearchhubPost
 from user.related_models.user_model import User
 
@@ -84,9 +85,7 @@ class InterestViewTests(TestCase):
 
     def test_mark_not_interested_with_different_content_types(self):
         # Test with ResearchhubPost
-        post = ResearchhubPost.objects.create(
-            title="Test Post", created_by=self.user, unified_document_id=1
-        )
+        post = create_post(title="Test Post", created_by=self.user)
 
         # Create a dummy view for posts
         class DummyPostView(ReactionViewActionMixin, GenericViewSet):
