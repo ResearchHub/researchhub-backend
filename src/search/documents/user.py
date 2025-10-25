@@ -101,32 +101,73 @@ class UserDocument(BaseDocument):
         if not full_name:
             return {"input": [], "weight": 0}
 
-        # Build input set with original and normalized versions
-        inputs = {full_name, first, last}
+        # Build input list with original and normalized versions
+        # Use a list to preserve priority order (most important first)
+        inputs = []
+        seen = set()
 
-        # Add normalized versions if they provide value
+        def add_unique(value):
+            if value and value not in seen:
+                inputs.append(value)
+                seen.add(value)
+
+        # Highest priority: full name
+        add_unique(full_name)
+
+        # Add first+last combinations for better searchability (high priority)
+        first_parts = first.split() if first else []
+        last_parts = last.split() if last else []
+
+        if first and last:
+            # Add first part of first name + last part of last name (high priority)
+            if first_parts and last_parts:
+                first_last_combination = f"{first_parts[0]} {last_parts[-1]}"
+                add_unique(first_last_combination)
+
+                # Add normalized version of first+last combination
+                normalized_first_part = self._normalize_text(first_parts[0])
+                normalized_last_part = self._normalize_text(last_parts[-1])
+                if normalized_first_part and normalized_last_part:
+                    norm_combo = f"{normalized_first_part} {normalized_last_part}"
+                    add_unique(norm_combo)
+
+        # Add normalized full name
         normalized_full = self._normalize_text(full_name)
-        if normalized_full:
-            inputs.add(normalized_full)
+        add_unique(normalized_full)
 
-        # Add individual normalized words
+        # Add first and last names
+        add_unique(first)
+        add_unique(last)
+
+        # Add individual normalized words for first and last
         normalized_first = self._normalize_text(first)
         normalized_last = self._normalize_text(last)
-        if normalized_first:
-            inputs.add(normalized_first)
-        if normalized_last:
-            inputs.add(normalized_last)
+        add_unique(normalized_first)
+        add_unique(normalized_last)
 
-        # Add first+last combinations for better searchability
-        if first and last:
-            inputs.add(f"{first} {last}")
-            normalized_first_last = f"{normalized_first} {normalized_last}"
-            if normalized_first_last.strip():
-                inputs.add(normalized_first_last)
+        # Add individual words from first and last names (medium priority)
+        # Prioritize first and last parts of the name
+        if first_parts:
+            add_unique(first_parts[0])  # First part of first name
+        if last_parts:
+            add_unique(last_parts[-1])  # Last part of last name
 
-        # Remove empty strings and limit size
-        inputs.discard("")
-        input_list = list(inputs)[:MAX_INPUTS]
+        # Add remaining individual words (lower priority)
+        for word in first_parts:
+            if word.strip():
+                add_unique(word)
+                normalized_word = self._normalize_text(word)
+                if normalized_word and normalized_word != word.lower():
+                    add_unique(normalized_word)
+        for word in last_parts:
+            if word.strip():
+                add_unique(word)
+                normalized_word = self._normalize_text(word)
+                if normalized_word and normalized_word != word.lower():
+                    add_unique(normalized_word)
+
+        # Limit size
+        input_list = inputs[:MAX_INPUTS]
 
         weight = instance.reputation + (
             VERIFIED_USER_WEIGHT_BONUS if instance.is_verified else 0
