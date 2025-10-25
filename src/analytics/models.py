@@ -22,6 +22,3 @@ class WebsiteVisits(models.Model):
 
     def __str__(self):
         return f"{self.uuid}"
-
-
-# TODO: Future database models for ML/Personalize integration

@@ -17,14 +17,8 @@ class AmplitudeWebhookView(APIView):
     """
     Webhook endpoint for receiving events from Amplitude.
 
-    This endpoint:
-    1. Receives all events from Amplitude
-    2. Processes and filters events relevant for ML/internal metrics
-    3. Assigns weights to different event types
-    4. Prepares data for AWS Personalize
-
-    Event Flow:
-    Website -> Amplitude -> Webhook -> EventProcessor -> AWS Personalize
+    This endpoint receives events from Amplitude and processes them through
+    EventProcessor.
     """
 
     permission_classes = [AllowAny]
