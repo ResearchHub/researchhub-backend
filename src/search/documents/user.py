@@ -12,9 +12,6 @@ from .base import BaseDocument
 
 logger = logging.getLogger(__name__)
 
-# Weight bonus for verified users in search suggestions
-VERIFIED_USER_WEIGHT_BONUS = 500
-
 edge_ngram_filter = token_filter(
     "edge_ngram_filter",
     type="edge_ngram",
