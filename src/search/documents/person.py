@@ -6,7 +6,7 @@ from django_opensearch_dsl import fields as es_fields
 from django_opensearch_dsl.registries import registry
 
 from search.analyzers import content_analyzer
-from user.models import Author
+from user.models import Author, User
 
 from .base import BaseDocument
 
@@ -49,6 +49,8 @@ class PersonDocument(BaseDocument):
             "first_name",
             "last_name",
         ]
+        # Update index when related User model is updated
+        related_models = [User]
 
     @override
     def get_queryset(
@@ -63,10 +65,10 @@ class PersonDocument(BaseDocument):
             .prefetch_related("institutions__institution")
         )
 
-    def prepare_headline(self, instance):
+    def prepare_headline(self, instance) -> dict[str, str]:
         return {"title": instance.headline}
 
-    def prepare_reputation_hubs(self, instance):
+    def prepare_reputation_hubs(self, instance) -> list[str]:
         reputation_hubs = []
         if instance.reputation_list:
             for rep in instance.reputation_list:
@@ -74,7 +76,7 @@ class PersonDocument(BaseDocument):
 
         return reputation_hubs
 
-    def prepare_education(self, instance):
+    def prepare_education(self, instance) -> list[str]:
         education = []
         if instance.education:
             for edu in instance.education:
@@ -83,7 +85,7 @@ class PersonDocument(BaseDocument):
 
         return education
 
-    def prepare_suggestion_phrases(self, instance):
+    def prepare_suggestion_phrases(self, instance) -> list[dict[str, int]]:
         suggestions = []
 
         if instance.full_name:
@@ -115,3 +117,15 @@ class PersonDocument(BaseDocument):
                 )
 
         return suggestions
+
+    def get_instances_from_related(
+        self,
+        related_instance: User,
+    ) -> list[Author]:
+        """
+        When a user changes, update the related author profile.
+        """
+        if isinstance(related_instance, User):
+            if hasattr(related_instance, "author_profile"):
+                return [related_instance.author_profile]
+        return []

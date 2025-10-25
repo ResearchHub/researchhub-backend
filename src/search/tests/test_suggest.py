@@ -217,15 +217,18 @@ class SuggestViewTests(TestCase):
     @patch("opensearchpy.Search.execute")
     def test_error_handling(self, mock_es_execute, mock_openalex):
         """Test handling of errors from both sources"""
-        # Mock OpenAlex error
+        # Mock OpenAlex error - should be caught and logged, not propagate
         mock_openalex.side_effect = Exception("OpenAlex API error")
 
-        # Mock Elasticsearch error
+        # Mock Elasticsearch error - also caught and logged
         mock_es_execute.side_effect = Exception("Elasticsearch error")
 
         response = self.client.get(self.url + "?q=test")
-        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
-        self.assertIn("error", response.data)
+        # With graceful error handling, we return empty results with 200
+        # instead of failing with 500
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should return empty results when both sources fail
+        self.assertEqual(response.data, [])
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
     @patch("opensearchpy.Search.execute")

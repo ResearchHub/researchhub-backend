@@ -1,3 +1,5 @@
+from typing import Any
+
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import default_storage
@@ -101,6 +103,8 @@ class ContentObjectSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     created_date = serializers.DateTimeField()
     hub = serializers.SerializerMethodField()
+    category = serializers.SerializerMethodField()
+    subcategory = serializers.SerializerMethodField()
     reviews = serializers.SerializerMethodField()
     slug = serializers.CharField()
     unified_document_id = serializers.SerializerMethodField()
@@ -110,6 +114,26 @@ class ContentObjectSerializer(serializers.Serializer):
             hub = obj.unified_document.get_primary_hub(fallback=True)
             if hub:
                 return SimpleHubSerializer(hub).data
+        return None
+
+    def get_category(self, obj):
+        """Return category hub if it exists"""
+        if hasattr(obj, "unified_document") and obj.unified_document:
+            category = obj.unified_document.hubs.filter(
+                namespace=Hub.Namespace.CATEGORY
+            ).first()
+            if category:
+                return SimpleHubSerializer(category).data
+        return None
+
+    def get_subcategory(self, obj):
+        """Return subcategory hub if it exists"""
+        if hasattr(obj, "unified_document") and obj.unified_document:
+            subcategory = obj.unified_document.hubs.filter(
+                namespace=Hub.Namespace.SUBCATEGORY
+            ).first()
+            if subcategory:
+                return SimpleHubSerializer(subcategory).data
         return None
 
     def get_unified_document_id(self, obj):
@@ -171,6 +195,8 @@ class ContentObjectSerializer(serializers.Serializer):
             "id",
             "created_date",
             "hub",
+            "category",
+            "subcategory",
             "reviews",
             "slug",
             "user",
@@ -400,6 +426,8 @@ class BountySerializer(serializers.Serializer):
     document_type = serializers.SerializerMethodField()
     expiration_date = serializers.DateTimeField()
     hub = serializers.SerializerMethodField()
+    category = serializers.SerializerMethodField()
+    subcategory = serializers.SerializerMethodField()
     id = serializers.IntegerField()
     status = serializers.CharField()
     contributions = serializers.SerializerMethodField()
@@ -447,6 +475,16 @@ class BountySerializer(serializers.Serializer):
             return SimpleHubSerializer(hub).data if hub else None
         return None
 
+    def get_category(self, obj):
+        """Return category hub if it exists"""
+        hub = _get_first_namespace_hub(obj, Hub.Namespace.CATEGORY)
+        return SimpleHubSerializer(hub).data if hub else None
+
+    def get_subcategory(self, obj):
+        """Return subcategory hub if it exists"""
+        hub = _get_first_namespace_hub(obj, Hub.Namespace.SUBCATEGORY)
+        return SimpleHubSerializer(hub).data if hub else None
+
     class Meta:
         fields = [
             "amount",
@@ -455,6 +493,8 @@ class BountySerializer(serializers.Serializer):
             "document_type",
             "expiration_date",
             "hub",
+            "category",
+            "subcategory",
             "id",
             "status",
             "contributions",
@@ -468,6 +508,8 @@ class CommentSerializer(serializers.Serializer):
     comment_type = serializers.CharField()
     document_type = serializers.SerializerMethodField()
     hub = serializers.SerializerMethodField()
+    category = serializers.SerializerMethodField()
+    subcategory = serializers.SerializerMethodField()
     id = serializers.IntegerField()
     paper = serializers.SerializerMethodField()
     parent_comment = serializers.SerializerMethodField()
@@ -493,6 +535,16 @@ class CommentSerializer(serializers.Serializer):
         return SimpleHubSerializer(
             obj.unified_document.get_primary_hub(fallback=True)
         ).data
+
+    def get_category(self, obj):
+        """Return category hub if it exists"""
+        hub = _get_first_namespace_hub(obj, Hub.Namespace.CATEGORY)
+        return SimpleHubSerializer(hub).data if hub else None
+
+    def get_subcategory(self, obj):
+        """Return subcategory hub if it exists"""
+        hub = _get_first_namespace_hub(obj, Hub.Namespace.SUBCATEGORY)
+        return SimpleHubSerializer(hub).data if hub else None
 
     def get_paper(self, obj):
         """Return the paper associated with this comment if it exists"""
@@ -559,6 +611,8 @@ class CommentSerializer(serializers.Serializer):
             "comment_type",
             "document_type",
             "hub",
+            "category",
+            "subcategory",
             "id",
             "paper",
             "parent_id",
@@ -579,6 +633,9 @@ class FeedEntrySerializer(serializers.ModelSerializer):
     action_date = serializers.DateTimeField()
     action = serializers.CharField()
     author = serializers.SerializerMethodField()
+    hot_score_v2 = serializers.IntegerField()
+    hot_score_breakdown = serializers.SerializerMethodField()
+    external_metadata = serializers.SerializerMethodField()
 
     class Meta:
         model = FeedEntry
@@ -591,12 +648,39 @@ class FeedEntrySerializer(serializers.ModelSerializer):
             "action",
             "author",
             "metrics",
+            "hot_score_v2",
+            "hot_score_breakdown",
+            "external_metadata",
         ]
 
     def get_author(self, obj):
         """Return author data only if feed entry has an associated user"""
         if obj.user and hasattr(obj.user, "author_profile"):
             return SimpleAuthorSerializer(obj.user.author_profile).data
+        return None
+
+    def get_hot_score_breakdown(self, obj):
+        """Return hot score breakdown if explicitly requested via query param."""
+        request = self.context.get("request")
+        if not request:
+            return None
+
+        # Only include if explicitly requested
+        include = request.query_params.get("include_hot_score_breakdown", "false")
+        if include.lower() != "true":
+            return None
+
+        # Return stored breakdown (already calculated)
+        return obj.hot_score_v2_breakdown if obj.hot_score_v2_breakdown else None
+
+    def get_external_metadata(self, obj):
+        """
+        Return external_metadata from Paper if content is a Paper.
+        Returns None for non-paper content.
+        """
+        if obj.item and obj.content_type.model == "paper":
+            if hasattr(obj.item, "external_metadata"):
+                return obj.item.external_metadata
         return None
 
     def get_content_object(self, obj):
@@ -630,6 +714,18 @@ def serialize_feed_metrics(item, item_content_type):
             metrics["review_metrics"] = item.unified_document.get_review_details()
         if hasattr(item, "citations"):
             metrics["citations"] = item.citations
+
+        # Add altmetric data from external_metadata for Papers
+        if item_content_type == ContentType.objects.get_for_model(Paper):
+            if hasattr(item, "external_metadata") and item.external_metadata:
+                altmetric_metrics = item.external_metadata.get("metrics", {})
+                if altmetric_metrics:
+                    metrics["altmetric_score"] = altmetric_metrics.get("score", 0.0)
+                    metrics["facebook_count"] = altmetric_metrics.get(
+                        "facebook_count", 0
+                    )
+                    metrics["twitter_count"] = altmetric_metrics.get("twitter_count", 0)
+                    metrics["bluesky_count"] = altmetric_metrics.get("bluesky_count", 0)
 
     return metrics
 
@@ -678,3 +774,15 @@ class GrantFeedEntrySerializer(FeedEntrySerializer):
     class Meta:
         model = FeedEntry
         fields = FeedEntrySerializer.Meta.fields
+
+
+def _get_first_namespace_hub(obj: Any, hub_namespace: Hub.Namespace) -> Hub | None:
+    """
+    Return the namespace hub of the unified document associated with the given object,
+    if it exists.
+    """
+    if hasattr(obj, "unified_document") and obj.unified_document:
+        hub = obj.unified_document.hubs.filter(namespace=hub_namespace).first()
+        if hub:
+            return hub
+    return None

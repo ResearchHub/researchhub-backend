@@ -63,26 +63,31 @@ class Command(BaseCommand):
         # Get mappings based on source
         mappings_to_process = self._get_mappings(source)
 
-        # Track what needs to be created
-        hubs_to_create = []
-        hubs_existing = []
+        # Track what needs to be created, updated, or already exists
+        hubs_to_create = {}  # {slug: namespace}
+        hubs_to_update = {}  # {slug: namespace}
+        hubs_existing = {}  # {slug: namespace}
 
         # Process all mappings
         for source_name, mappings in mappings_to_process.items():
             self.stdout.write(f"\nProcessing {source_name} mappings...")
 
             for external_category, hub_slugs in mappings.items():
-                # Process all hub slugs in the mapping
-                for hub_slug in hub_slugs:
+                # Process all hub slugs in the mapping with position-based namespace
+                for position, hub_slug in enumerate(hub_slugs):
                     if hub_slug:  # Skip None/empty values
-                        self._process_hub(hub_slug, hubs_to_create, hubs_existing)
-
-        # Remove duplicates while preserving order
-        hubs_to_create = list(dict.fromkeys(hubs_to_create))
-        hubs_existing = list(dict.fromkeys(hubs_existing))
+                        # Position 0 = category, position 1+ = subcategory
+                        namespace = "category" if position == 0 else "subcategory"
+                        self._process_hub(
+                            hub_slug,
+                            namespace,
+                            hubs_to_create,
+                            hubs_to_update,
+                            hubs_existing,
+                        )
 
         # Display summary
-        self._display_summary(hubs_to_create, hubs_existing, verbose)
+        self._display_summary(hubs_to_create, hubs_to_update, hubs_existing, verbose)
 
         if dry_run:
             self.stdout.write(
@@ -90,97 +95,140 @@ class Command(BaseCommand):
             )
             return
 
-        # Perform the actual creation
-        self._create_hubs(hubs_to_create, verbose)
+        # Perform the actual creation and updates
+        self._create_and_update_hubs(hubs_to_create, hubs_to_update, verbose)
 
     def _get_mappings(self, source):
         """Get the mappings based on the source parameter."""
         return self.MAPPINGS if source == "all" else {source: self.MAPPINGS[source]}
 
-    def _process_hub(self, hub_slug, to_create, existing):
-        """Process a hub - check if it exists or needs to be created."""
+    def _process_hub(self, hub_slug, namespace, to_create, to_update, existing):
+        """Process a hub - check if it exists, needs to be created, or updated."""
         # Check if a hub with this slug already exists
         existing_hub = Hub.objects.filter(slug=hub_slug).first()
 
         if existing_hub:
-            if hub_slug not in existing:
-                existing.append(hub_slug)
+            # Hub exists - check if namespace needs updating
+            if existing_hub.namespace != namespace:
+                # Needs update
+                if hub_slug not in to_update:
+                    to_update[hub_slug] = namespace
+            else:
+                # Already correct
+                if hub_slug not in existing:
+                    existing[hub_slug] = namespace
         else:
+            # Doesn't exist - needs creation
             if hub_slug not in to_create:
-                to_create.append(hub_slug)
+                to_create[hub_slug] = namespace
 
-    def _display_summary(self, hubs_to_create, hubs_existing, verbose):
-        """Display a comprehensive summary of what will be created vs what exists."""
+    def _display_summary(self, hubs_to_create, hubs_to_update, hubs_existing, verbose):
+        """Display a summary of what will be created, updated, or already correct."""
         self.stdout.write("\n" + "=" * 70)
         self.stdout.write(self.style.SUCCESS("SUMMARY"))
         self.stdout.write("=" * 70)
 
-        # Hubs summary (display slugs)
+        # Hubs to create
         self.stdout.write(f"\nHubs to create: {len(hubs_to_create)}")
         if verbose and hubs_to_create:
-            for hub_slug in hubs_to_create:
-                self.stdout.write(f"  + {hub_slug}")
+            for hub_slug, namespace in hubs_to_create.items():
+                self.stdout.write(f"  + {hub_slug} (namespace: {namespace})")
         if hubs_to_create:
-            self.stdout.write(f"List: {', '.join(hubs_to_create)}")
+            self.stdout.write(f"List: {', '.join(hubs_to_create.keys())}")
 
-        self.stdout.write(f"\nHubs already exist: {len(hubs_existing)}")
+        # Hubs to update
+        self.stdout.write(f"\nHubs to update: {len(hubs_to_update)}")
+        if verbose and hubs_to_update:
+            for hub_slug, namespace in hubs_to_update.items():
+                hub = Hub.objects.filter(slug=hub_slug).first()
+                old_namespace = hub.namespace if hub else "None"
+                self.stdout.write(f"  * {hub_slug} ({old_namespace} → {namespace})")
+        if hubs_to_update:
+            self.stdout.write(f"List: {', '.join(hubs_to_update.keys())}")
+
+        # Hubs already correct
+        self.stdout.write(f"\nHubs already correct: {len(hubs_existing)}")
         if verbose and hubs_existing:
-            for hub_slug in hubs_existing:
-                # Get the actual hub to show its name
+            for hub_slug, namespace in hubs_existing.items():
                 hub = Hub.objects.filter(slug=hub_slug).first()
                 if hub:
-                    self.stdout.write(f"  - {hub_slug} ({hub.name})")
+                    self.stdout.write(
+                        f"  - {hub_slug} ({hub.name}, namespace: {namespace})"
+                    )
                 else:
-                    self.stdout.write(f"  - {hub_slug}")
+                    self.stdout.write(f"  - {hub_slug} (namespace: {namespace})")
         if hubs_existing:
             # For existing hubs, show their actual names in the list
             existing_names = []
-            for slug in hubs_existing:
+            for slug in hubs_existing.keys():
                 hub = Hub.objects.filter(slug=slug).first()
                 if hub:
                     existing_names.append(hub.name)
                 else:
-                    existing_names.append(slug)  # Fallback to slug if hub not found
+                    existing_names.append(slug)
             self.stdout.write(f"List: {', '.join(existing_names)}")
 
         # Total summary
         self.stdout.write(f"\nTOTAL to create: {len(hubs_to_create)}")
-        self.stdout.write(f"TOTAL already exist: {len(hubs_existing)}")
+        self.stdout.write(f"TOTAL to update: {len(hubs_to_update)}")
+        self.stdout.write(f"TOTAL already correct: {len(hubs_existing)}")
         self.stdout.write("=" * 70)
 
-    def _create_hubs(self, hubs_to_create, verbose):
-        """Create the actual hubs using slugs."""
-        if not hubs_to_create:
+    def _create_and_update_hubs(self, hubs_to_create, hubs_to_update, verbose):
+        """Create new hubs and update existing hubs with namespace."""
+        if not hubs_to_create and not hubs_to_update:
             self.stdout.write(
-                self.style.SUCCESS("No new hubs need to be created. All already exist.")
+                self.style.SUCCESS(
+                    "No hubs need to be created or updated. All already correct."
+                )
             )
             return
 
         try:
             with transaction.atomic():
+                # Create new hubs
                 created_hubs = 0
-                for hub_slug in hubs_to_create:
+                for hub_slug, namespace in hubs_to_create.items():
                     # Create name from slug
                     hub_name = self._slug_to_display_name(hub_slug)
 
-                    # Create hub with explicit slug
+                    # Create hub with explicit slug and namespace
                     Hub.objects.create(
                         name=hub_name,
                         slug=hub_slug,
                         description=f"{hub_name} - research hub",
+                        namespace=namespace,
                     )
                     created_hubs += 1
                     if verbose:
-                        self.stdout.write(
-                            self.style.SUCCESS(f"Created hub: {hub_slug} ({hub_name})")
-                        )
+                        msg = f"Created hub: {hub_slug} ({hub_name}, "
+                        msg += f"namespace: {namespace})"
+                        self.stdout.write(self.style.SUCCESS(msg))
 
-                self.stdout.write(
-                    self.style.SUCCESS(f"\nSuccessfully created {created_hubs} hubs")
-                )
+                # Update existing hubs
+                updated_hubs = 0
+                for hub_slug, namespace in hubs_to_update.items():
+                    hub = Hub.objects.filter(slug=hub_slug).first()
+                    if hub:
+                        old_namespace = hub.namespace
+                        hub.namespace = namespace
+                        hub.save(update_fields=["namespace"])
+                        updated_hubs += 1
+                        if verbose:
+                            msg = f"Updated hub: {hub_slug} ({hub.name}, "
+                            msg += f"{old_namespace} → {namespace})"
+                            self.stdout.write(self.style.SUCCESS(msg))
+
+                # Summary
+                if created_hubs > 0:
+                    msg = f"\nSuccessfully created {created_hubs} hubs"
+                    self.stdout.write(self.style.SUCCESS(msg))
+                if updated_hubs > 0:
+                    msg = f"Successfully updated {updated_hubs} hubs"
+                    self.stdout.write(self.style.SUCCESS(msg))
 
         except Exception as e:
-            self.stdout.write(self.style.ERROR(f"Error during creation: {str(e)}"))
+            self.stdout.write(self.style.ERROR(f"Error during operation: {str(e)}"))
             raise
 
     def _slug_to_display_name(self, slug):

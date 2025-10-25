@@ -1,8 +1,8 @@
 import logging
 import re
-from typing import Optional, override
+from typing import Any, Optional, override
 
-from django.db.models import Q
+from django.db.models import Q, QuerySet
 from django_opensearch_dsl import fields as es_fields
 from django_opensearch_dsl.registries import registry
 from opensearchpy import analyzer, token_filter
@@ -56,7 +56,7 @@ class JournalDocument(BaseDocument):
         filter_: Optional[Q] = None,
         exclude: Optional[Q] = None,
         count: int = None,  # type: ignore[override]
-    ):
+    ) -> QuerySet:
         return (
             super()
             .get_queryset(filter_=filter_, exclude=exclude, count=count)
@@ -64,7 +64,7 @@ class JournalDocument(BaseDocument):
         )
 
     # Used specifically for "autocomplete" style suggest feature
-    def prepare_name_suggest(self, instance):
+    def prepare_name_suggest(self, instance) -> dict[str, Any]:
         cleaned_name = re.sub(r"[^\w\s]", "", instance.name)
         words = cleaned_name.split()
         # Prioritize results with less words: "Computer Science" > "Computer Science and Engineering"
@@ -76,5 +76,5 @@ class JournalDocument(BaseDocument):
         }
 
     @override
-    def should_index_object(self, obj):  # type: ignore[override]
+    def should_index_object(self, obj) -> bool:  # type: ignore[override]
         return not obj.is_removed

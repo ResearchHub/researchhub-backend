@@ -1,10 +1,10 @@
 import json
 import os
 from datetime import datetime
+from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
 import requests
-from django.test import TestCase
 
 from paper.ingestion.clients.openalex import OpenAlexClient, OpenAlexConfig
 from paper.ingestion.exceptions import FetchError, TimeoutError
@@ -60,7 +60,7 @@ class TestOpenAlexClient(TestCase):
 
         # Act
         client = OpenAlexClient(config)
-        
+
         # Assert
         self.assertEqual(client.headers["User-Agent"], "mailto:test@example.com")
 
@@ -73,7 +73,7 @@ class TestOpenAlexClient(TestCase):
 
         # Act
         client = OpenAlexClient(config)
-        
+
         # Assert
         self.assertEqual(client.api_key, "test-api-key-123")
         # API key should not be in headers
@@ -86,7 +86,7 @@ class TestOpenAlexClient(TestCase):
         # Arrange
         config = OpenAlexConfig(api_key="test-api-key-123", email="test@example.com")
         client = OpenAlexClient(config)
-        
+
         with patch("requests.Session.get") as mock_get:
             mock_response = MagicMock()
             mock_response.json.return_value = self.sample_list_response

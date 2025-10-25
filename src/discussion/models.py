@@ -123,10 +123,6 @@ class AbstractGenericReactionModel(DefaultModel):
     class Meta:
         abstract = True
 
-    @property
-    def score_indexing(self):
-        return self.calculate_score()
-
     def calculate_score(self):
         qs = self.votes.filter(
             created_by__is_suspended=False, created_by__probable_spammer=False

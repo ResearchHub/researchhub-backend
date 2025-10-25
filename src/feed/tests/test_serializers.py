@@ -1,6 +1,8 @@
+from datetime import datetime
 from decimal import Decimal
 from unittest.mock import patch
 
+import pytz
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import default_storage
@@ -17,6 +19,7 @@ from feed.serializers import (
     PostSerializer,
     SimpleReviewSerializer,
     SimpleUserSerializer,
+    serialize_feed_metrics,
 )
 from feed.views.feed_view_mixin import FeedViewMixin
 from hub.models import Hub
@@ -85,6 +88,10 @@ class ContentObjectSerializerTests(TestCase):
         self.author.save()
         self.user.refresh_from_db()
         self.hub = create_hub("Test Hub")
+        self.category = create_hub("Chemistry", namespace=Hub.Namespace.CATEGORY)
+        self.subcategory = create_hub(
+            "Organic Chemistry", namespace=Hub.Namespace.SUBCATEGORY
+        )
 
     @patch(
         "researchhub_document.related_models.researchhub_unified_document_model"
@@ -93,6 +100,8 @@ class ContentObjectSerializerTests(TestCase):
     def test_serializes_basic_content_fields(self, mock_get_primary_hub):
         paper = create_paper(uploaded_by=self.user)
         paper.hubs.add(self.hub)
+        paper.unified_document.hubs.add(self.category)
+        paper.unified_document.hubs.add(self.subcategory)
         paper.save()
 
         mock_get_primary_hub.return_value = self.hub
@@ -103,8 +112,15 @@ class ContentObjectSerializerTests(TestCase):
         self.assertIn("id", data)
         self.assertIn("created_date", data)
         self.assertIn("hub", data)
+        self.assertIn("category", data)
+        self.assertIn("subcategory", data)
         self.assertIn("slug", data)
         self.assertEqual(data["hub"]["name"], self.hub.name)
+        # Verify category and subcategory are properly serialized
+        self.assertIsNotNone(data["category"])
+        self.assertEqual(data["category"]["id"], self.category.id)
+        self.assertIsNotNone(data["subcategory"])
+        self.assertEqual(data["subcategory"]["id"], self.subcategory.id)
 
         mock_get_primary_hub.assert_called()
 
@@ -116,6 +132,10 @@ class PaperSerializerTests(TestCase):
         self.author.profile_image = "https://example.com/profile.jpg"
         self.author.save()
         self.journal = create_hub("Test Journal", namespace=Hub.Namespace.JOURNAL)
+        self.category = create_hub("Biology", namespace=Hub.Namespace.CATEGORY)
+        self.subcategory = create_hub(
+            "Molecular Biology", namespace=Hub.Namespace.SUBCATEGORY
+        )
 
         self.paper = create_paper(
             uploaded_by=self.user,
@@ -125,6 +145,8 @@ class PaperSerializerTests(TestCase):
         self.paper.abstract = "Test Abstract"
         self.paper.doi = "10.1234/test"
         self.paper.hubs.add(self.journal)
+        self.paper.unified_document.hubs.add(self.category)
+        self.paper.unified_document.hubs.add(self.subcategory)
         self.paper.authors.add(self.user.author_profile)
         self.paper.save()
 
@@ -171,8 +193,16 @@ class PaperSerializerTests(TestCase):
             self.assertIn("id", data)
             self.assertIn("created_date", data)
             self.assertIn("hub", data)
+            self.assertIn("category", data)
+            self.assertIn("subcategory", data)
             self.assertIn("slug", data)
             self.assertIn("reviews", data)
+
+            # Verify category and subcategory are properly serialized
+            self.assertIsNotNone(data["category"])
+            self.assertEqual(data["category"]["id"], self.category.id)
+            self.assertIsNotNone(data["subcategory"])
+            self.assertEqual(data["subcategory"]["id"], self.subcategory.id)
 
             # Test PaperSerializer specific fields
             self.assertEqual(data["title"], "Test Paper")
@@ -335,9 +365,15 @@ class PaperSerializerTests(TestCase):
 class PostSerializerTests(TestCase):
     def setUp(self):
         self.user = create_random_default_user("post_creator")
+        self.category = create_hub("Science", namespace=Hub.Namespace.CATEGORY)
+        self.subcategory = create_hub(
+            "Neuroscience", namespace=Hub.Namespace.SUBCATEGORY
+        )
         self.unified_document = ResearchhubUnifiedDocument.objects.create(
             document_type=document_type.DISCUSSION,
         )
+        self.unified_document.hubs.add(self.category)
+        self.unified_document.hubs.add(self.subcategory)
 
         self.post = ResearchhubPost.objects.create(
             title="title1",
@@ -374,7 +410,14 @@ class PostSerializerTests(TestCase):
         data = serializer.data
 
         self.assertEqual(data["id"], self.post.id)
-        self.assertEqual(data["hub"], None)
+        self.assertIn("hub", data)
+        self.assertIn("category", data)
+        self.assertIn("subcategory", data)
+        # Verify category and subcategory are properly serialized
+        self.assertIsNotNone(data["category"])
+        self.assertEqual(data["category"]["id"], self.category.id)
+        self.assertIsNotNone(data["subcategory"])
+        self.assertEqual(data["subcategory"]["id"], self.subcategory.id)
         self.assertEqual(data["renderable_text"], self.post.renderable_text)
         self.assertEqual(data["slug"], self.post.slug)
         self.assertEqual(data["title"], self.post.title)
@@ -1027,6 +1070,10 @@ class PostSerializerTests(TestCase):
 class CommentSerializerTests(TestCase):
     def setUp(self):
         self.user = create_random_default_user("user1")
+        self.category = create_hub("Physics", namespace=Hub.Namespace.CATEGORY)
+        self.subcategory = create_hub(
+            "Quantum Mechanics", namespace=Hub.Namespace.SUBCATEGORY
+        )
         self.unified_document = ResearchhubUnifiedDocument.objects.create(
             document_type=document_type.PAPER,
         )
@@ -1035,6 +1082,8 @@ class CommentSerializerTests(TestCase):
         )
         self.hub = create_hub("Test Hub")
         self.unified_document.hubs.add(self.hub)
+        self.unified_document.hubs.add(self.category)
+        self.unified_document.hubs.add(self.subcategory)
 
         self.thread = RhCommentThreadModel.objects.create(
             thread_type=rh_comment_thread_types.GENERIC_COMMENT,
@@ -1074,6 +1123,14 @@ class CommentSerializerTests(TestCase):
 
         # Test author field
         self.assertIn("author", data)
+        self.assertIn("hub", data)
+        self.assertIn("category", data)
+        self.assertIn("subcategory", data)
+        # Verify category and subcategory are properly serialized
+        self.assertIsNotNone(data["category"])
+        self.assertEqual(data["category"]["id"], self.category.id)
+        self.assertIsNotNone(data["subcategory"])
+        self.assertEqual(data["subcategory"]["id"], self.subcategory.id)
 
     def test_serializes_comment_with_review(self):
         review = Review.objects.create(
@@ -1711,7 +1768,7 @@ class FeedEntrySerializerTests(TestCase):
             content_type=ContentType.objects.get_for_model(Paper),
             object_id=paper.id,
             user=user,
-            action="CREATE",
+            action="PUBLISH",
             action_date=paper.created_date,
             unified_document=paper.unified_document,
         )
@@ -1738,6 +1795,118 @@ class FeedEntrySerializerTests(TestCase):
         self.assertEqual(purchase_data["id"], purchase.id)
         self.assertEqual(purchase_data["amount"], purchase.amount)
         self.assertIn("user", purchase_data)
+
+    @patch(
+        "researchhub_document.related_models.researchhub_unified_document_model."
+        "ResearchhubUnifiedDocument.get_primary_hub"
+    )
+    def test_feed_entry_includes_altmetric_data(self, mock_get_primary_hub):
+        """Test that paper feed entries include altmetric metrics from external_metadata"""
+        # Create a user and paper
+        user = create_random_default_user("altmetric_test_user")
+        paper = create_paper(uploaded_by=user, title="Test Paper with Altmetrics")
+
+        # Add altmetric data to external_metadata
+        paper.external_metadata = {
+            "metrics": {
+                "altmetric_id": 12345,
+                "score": 42.5,
+                "facebook_count": 15,
+                "twitter_count": 230,
+                "bluesky_count": 8,
+                "last_updated": datetime.now(pytz.UTC).isoformat(),
+            }
+        }
+        paper.save()
+
+        # Create a hub and set it as primary
+        hub = create_hub("Test Hub")
+        mock_get_primary_hub.return_value = hub
+
+        # Serialize metrics for the paper
+        paper_content_type = ContentType.objects.get_for_model(Paper)
+        metrics = serialize_feed_metrics(paper, paper_content_type)
+
+        # Create a feed entry with the serialized metrics
+        feed_entry = FeedEntry.objects.create(
+            content_type=paper_content_type,
+            object_id=paper.id,
+            user=user,
+            action="PUBLISH",
+            action_date=paper.created_date,
+            unified_document=paper.unified_document,
+            metrics=metrics,
+        )
+
+        # Force an empty cache in the serializer
+        feed_entry.content = {}
+        feed_entry.save()
+
+        # Serialize and check
+        serializer = FeedEntrySerializer(feed_entry)
+        data = serializer.data
+
+        # Verify metrics field exists and contains altmetric data
+        self.assertIn("metrics", data)
+        self.assertIsInstance(data["metrics"], dict)
+
+        # Verify altmetric fields are present in metrics (flat structure)
+        self.assertIn("altmetric_score", data["metrics"])
+        self.assertIn("facebook_count", data["metrics"])
+        self.assertIn("twitter_count", data["metrics"])
+        self.assertIn("bluesky_count", data["metrics"])
+
+        # Verify altmetric values are correct
+        self.assertEqual(data["metrics"]["altmetric_score"], 42.5)
+        self.assertEqual(data["metrics"]["facebook_count"], 15)
+        self.assertEqual(data["metrics"]["twitter_count"], 230)
+        self.assertEqual(data["metrics"]["bluesky_count"], 8)
+
+        # Verify altmetric_id and last_updated are not included
+        self.assertNotIn("altmetric_id", data["metrics"])
+        self.assertNotIn("last_updated", data["metrics"])
+
+    @patch(
+        "researchhub_document.related_models.researchhub_unified_document_model."
+        "ResearchhubUnifiedDocument.get_primary_hub"
+    )
+    def test_feed_entry_without_altmetric_data(self, mock_get_primary_hub):
+        """Test that paper feed entries without altmetric data don't include altmetric fields"""
+        # Create a user and paper without altmetric data
+        user = create_random_default_user("no_altmetric_user")
+        paper = create_paper(uploaded_by=user, title="Test Paper Without Altmetrics")
+
+        # Create a hub and set it as primary
+        hub = create_hub("Test Hub")
+        mock_get_primary_hub.return_value = hub
+
+        # Create a feed entry
+        feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=paper.id,
+            user=user,
+            action="PUBLISH",
+            action_date=paper.created_date,
+            unified_document=paper.unified_document,
+        )
+
+        # Force an empty cache in the serializer
+        feed_entry.content = {}
+        feed_entry.save()
+
+        # Serialize and check
+        serializer = FeedEntrySerializer(feed_entry)
+        data = serializer.data
+
+        # Verify metrics field exists but doesn't contain altmetric data
+        self.assertIn("metrics", data)
+        self.assertIsInstance(data["metrics"], dict)
+
+        # Verify altmetric fields are NOT present
+        self.assertNotIn("altmetric_score", data["metrics"])
+        self.assertNotIn("facebook_count", data["metrics"])
+        self.assertNotIn("twitter_count", data["metrics"])
+        self.assertNotIn("bluesky_count", data["metrics"])
 
 
 class FundingFeedEntrySerializerTests(TestCase):
@@ -1779,7 +1948,7 @@ class FundingFeedEntrySerializerTests(TestCase):
             content_type=ContentType.objects.get_for_model(ResearchhubPost),
             object_id=post.id,
             user=self.user,
-            action="CREATE",
+            action="PUBLISH",
             action_date=post.created_date,
             unified_document=unified_doc,
         )

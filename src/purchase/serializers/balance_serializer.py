@@ -1,3 +1,5 @@
+import logging
+
 import rest_framework.serializers as serializers
 from django.contrib.contenttypes.models import ContentType
 
@@ -9,9 +11,10 @@ from reputation.serializers import (
     WithdrawalSerializer,
 )
 from researchhub_document.models import ResearchhubUnifiedDocument
-from utils import sentry
 
 from .purchase_serializer import PurchaseSerializer
+
+logger = logging.getLogger(__name__)
 
 
 class BalanceSourceRelatedField(serializers.RelatedField):
@@ -32,7 +35,8 @@ class BalanceSourceRelatedField(serializers.RelatedField):
         elif isinstance(value, Bounty):
             return BountySerializer(value).data
 
-        sentry.log_info("No representation for " + str(value))
+        logger.info(f"No representation for {value} / id: {value.id}")
+
         return None
 
 

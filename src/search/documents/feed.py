@@ -1,4 +1,5 @@
 import json
+from typing import Any
 
 from django_opensearch_dsl import fields
 from django_opensearch_dsl.registries import registry
@@ -75,7 +76,7 @@ class FeedEntryDocument(BaseDocument):
     class Django:
         model = FeedEntry
 
-    def prepare_hubs(self, instance):
+    def prepare_hubs(self, instance) -> list[dict[str, Any]]:
         if instance.hubs.exists():
             return [
                 {
@@ -87,7 +88,7 @@ class FeedEntryDocument(BaseDocument):
             ]
         return []
 
-    def prepare_unified_document(self, instance):
+    def prepare_unified_document(self, instance) -> dict[str, Any] | None:
         if instance.unified_document:
             return {
                 "id": instance.unified_document.id,
@@ -95,7 +96,7 @@ class FeedEntryDocument(BaseDocument):
             }
         return None
 
-    def prepare_author(self, instance):
+    def prepare_author(self, instance) -> dict[str, Any] | None:
         if instance.user and hasattr(instance.user, "author_profile"):
             profile = instance.user.author_profile
 

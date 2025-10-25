@@ -53,7 +53,6 @@ from utils.http import POST, check_url_contains_pdf
 from utils.openalex import OpenAlex
 from utils.permissions import CreateOrUpdateIfAllowed, HasAPIKey, PostOnly
 from utils.sentry import log_error
-from utils.siftscience import SIFT_PAPER, decisions_api, events_api, sift_track
 from utils.throttles import THROTTLE_CLASSES
 
 
@@ -124,7 +123,6 @@ class PaperViewSet(
             return queryset
 
     @track_event
-    @sift_track(SIFT_PAPER)
     def create(self, request, *args, **kwargs):
         try:
             doi = request.data.get("doi", "")
@@ -832,7 +830,6 @@ class PaperViewSet(
         # Temporarily disabling endpoint
         return Response(status=200)
 
-    @sift_track(SIFT_PAPER, is_update=True)
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
 
@@ -860,18 +857,6 @@ class PaperViewSet(
         unified_doc = paper.unified_document
         cache_key = get_cache_key("paper", paper_id)
         cache.delete(cache_key)
-
-        content_id = f"{type(paper).__name__}_{paper_id}"
-        user = request.user
-        content_creator = paper.uploaded_by
-        if content_creator:
-            events_api.track_flag_content(content_creator, content_id, user.id)
-            decisions_api.apply_bad_content_decision(
-                content_creator, content_id, "MANUAL_REVIEW", user
-            )
-            decisions_api.apply_bad_user_decision(
-                content_creator, "MANUAL_REVIEW", user
-            )
 
         Contribution.objects.filter(unified_document=unified_doc).delete()
         paper.is_removed = True
@@ -908,21 +893,11 @@ class PaperViewSet(
     )
     def censor_pdf(self, request, pk=None):
         paper = self.get_object()
-        paper_id = paper.id
         paper.file = None
         paper.url = None
         paper.pdf_url = None
         paper.figures.all().delete()
         paper.save()
-
-        content_id = f"{type(paper).__name__}_{paper_id}"
-        user = request.user
-        content_creator = paper.uploaded_by
-        events_api.track_flag_content(content_creator, content_id, user.id)
-        decisions_api.apply_bad_content_decision(
-            content_creator, content_id, "MANUAL_REVIEW", user
-        )
-        decisions_api.apply_bad_user_decision(content_creator, "MANUAL_REVIEW", user)
 
         return Response(self.get_serializer(instance=paper).data, status=200)
 

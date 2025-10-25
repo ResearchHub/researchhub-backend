@@ -3,7 +3,7 @@ import logging
 import math
 import sys
 import time
-from typing import Iterable, Optional, override
+from typing import Any, Iterable, Optional, override
 
 from django.db.models import Q, QuerySet
 from django_opensearch_dsl import fields as es_fields
@@ -25,7 +25,7 @@ class PaperDocument(BaseDocument):
 
     citations = es_fields.IntegerField()
     paper_title = es_fields.TextField(analyzer=title_analyzer)
-    paper_publish_date = es_fields.DateField(format="yyyy-MM-dd")
+    paper_publish_date = es_fields.DateField()
     doi = es_fields.TextField(analyzer="keyword")
     openalex_id = es_fields.TextField()
     # TODO: Deprecate this field once we move over to new app. It should not longer be necessary since authors property will replace it.
@@ -67,12 +67,12 @@ class PaperDocument(BaseDocument):
         )
 
     @override
-    def should_index_object(self, obj):  # type: ignore[override]
+    def should_index_object(self, obj) -> bool:  # type: ignore[override]
         return not obj.is_removed
 
     # Used specifically for "autocomplete" style suggest feature.
     # Includes a bunch of phrases the user may search by.
-    def prepare_suggestion_phrases(self, instance):
+    def prepare_suggestion_phrases(self, instance) -> dict[str, Any]:
         phrases = []
 
         phrases.append(str(instance.id))
@@ -159,7 +159,7 @@ class PaperDocument(BaseDocument):
             "weight": weight,
         }
 
-    def prepare_raw_authors(self, instance):
+    def prepare_raw_authors(self, instance) -> list[dict[str, Any]]:
         authors = []
         if isinstance(instance.raw_authors, list) is False:
             return authors
@@ -176,7 +176,7 @@ class PaperDocument(BaseDocument):
 
         return authors
 
-    def prepare_doi_indexing(self, instance):
+    def prepare_doi_indexing(self, instance) -> str:
         return instance.doi or ""
 
     def get_indexing_queryset(
@@ -189,8 +189,8 @@ class PaperDocument(BaseDocument):
         stdout: io.FileIO = sys.stdout,
     ) -> Iterable:
         """
-        Divide the queryset into chunks. Overwrite django_opensearch_dsl default because it uses offsets instead of
-        filtering by greater than pk.
+        Divide the queryset into chunks. Overwrite django_opensearch_dsl default
+        because it uses offsets instead of filtering by greater than pk.
         """
         chunk_size = self.django.queryset_pagination
         qs = self.get_queryset(filter_=filter_, exclude=exclude, count=count)

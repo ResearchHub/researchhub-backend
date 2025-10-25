@@ -1,11 +1,14 @@
 import logging
 import math
-from typing import override
+from typing import Any, override
 
 from django_opensearch_dsl import fields as es_fields
 from django_opensearch_dsl.registries import registry
 
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from search.analyzers import content_analyzer, title_analyzer
 
 from .base import BaseDocument
@@ -68,10 +71,12 @@ class PostDocument(BaseDocument):
             "id",
             "document_type",
         ]
+        # Update index when related unified document model is updated
+        related_models = [ResearchhubUnifiedDocument]
 
     # Used specifically for "autocomplete" style suggest feature.
     # Inlcudes a bunch of phrases the user may search by.
-    def prepare_suggestion_phrases(self, instance):
+    def prepare_suggestion_phrases(self, instance) -> dict[str, Any]:
         phrases = []
 
         # Variation of title which may be searched by users
@@ -110,6 +115,17 @@ class PostDocument(BaseDocument):
             "weight": weight,
         }
 
+    def get_instances_from_related(
+        self,
+        related_instance: ResearchhubUnifiedDocument,
+    ) -> list[ResearchhubPost]:
+        """
+        When a unified document changes, update all related posts.
+        """
+        if isinstance(related_instance, ResearchhubUnifiedDocument):
+            return list(related_instance.posts.all())
+        return []
+
     @override
-    def should_index_object(self, obj):  # type: ignore[override]
+    def should_index_object(self, obj) -> bool:  # type: ignore[override]
         return not obj.is_removed

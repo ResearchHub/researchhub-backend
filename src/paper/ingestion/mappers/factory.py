@@ -6,6 +6,7 @@ from typing import Dict
 
 from hub.mappers.external_category_mapper import ExternalCategoryMapper
 from paper.ingestion.constants import IngestionSource
+from paper.ingestion.mappers.arxiv_oaipmh import ArXivOAIPMHMapper
 
 from .arxiv import ArXivMapper
 from .base import BaseMapper
@@ -27,9 +28,20 @@ class MapperFactory:
         Create all mapper instances.
         """
         return {
-            IngestionSource.ARXIV: ArXivMapper(hub_mapper=self._hub_mapper),
-            IngestionSource.BIORXIV: BioRxivMapper(hub_mapper=self._hub_mapper),
-            IngestionSource.CHEMRXIV: ChemRxivMapper(hub_mapper=self._hub_mapper),
-            IngestionSource.MEDRXIV: MedRxivMapper(hub_mapper=self._hub_mapper),
-            IngestionSource.OPENALEX: OpenAlexMapper(hub_mapper=self._hub_mapper),
+            IngestionSource.ARXIV: ArXivMapper(
+                hub_mapper=self._hub_mapper,
+            ),
+            IngestionSource.ARXIV_OAIPMH: ArXivOAIPMHMapper(
+                hub_mapper=self._hub_mapper
+            ),
+            IngestionSource.BIORXIV: BioRxivMapper(
+                hub_mapper=self._hub_mapper,
+            ),
+            IngestionSource.CHEMRXIV: ChemRxivMapper(
+                hub_mapper=self._hub_mapper,
+            ),
+            IngestionSource.MEDRXIV: MedRxivMapper(
+                hub_mapper=self._hub_mapper,
+            ),
+            IngestionSource.OPENALEX: OpenAlexMapper(),
         }

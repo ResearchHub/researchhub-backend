@@ -10,15 +10,13 @@ from django.utils import timezone
 from hub.models import Hub
 from mailing_list.models import EmailRecipient
 from reputation.models import Bounty, Distribution, PaidStatusModelMixin, Withdrawal
-from researchhub.settings import ASSETS_BASE_URL, BASE_FRONTEND_URL, NO_ELASTIC
+from researchhub.settings import ASSETS_BASE_URL, BASE_FRONTEND_URL
 from researchhub_access_group.constants import (
     ASSISTANT_EDITOR,
     ASSOCIATE_EDITOR,
     SENIOR_EDITOR,
 )
-from user.tasks import update_elastic_registry
 from utils.message import send_email_message
-from utils.siftscience import decisions_api
 from utils.throttles import UserSustainedRateThrottle
 
 FOUNDATION_EMAIL = "main@researchhub.foundation"
@@ -92,7 +90,6 @@ class User(AbstractUser):
     referral_code = models.CharField(max_length=36, default=uuid.uuid4, unique=True)
     reputation = models.IntegerField(default=100)
     should_display_rsc_balance_home = models.BooleanField(default=True)
-    sift_risk_score = models.FloatField(null=True, blank=True)
     spam_updated_date = models.DateTimeField(null=True)
     suspended_updated_date = models.DateTimeField(null=True)
     updated_date = models.DateTimeField(auto_now=True)
@@ -144,13 +141,6 @@ class User(AbstractUser):
             else:
                 EmailRecipient.objects.create(user=self, email=self.email)
 
-        # Update the Elastic Search index
-        if not NO_ELASTIC:
-            try:
-                update_elastic_registry.apply_async([self.id])
-            except Exception:
-                pass
-
         return user_to_save
 
     def set_has_seen_first_coin_modal(self, has_seen):
@@ -175,10 +165,6 @@ class User(AbstractUser):
             self.is_suspended = is_suspended
             self.suspended_updated_date = timezone.now()
             self.save(update_fields=["is_suspended", "suspended_updated_date"])
-
-        if is_suspended:
-            source = "MANUAL_REVIEW" if is_manual else "AUTOMATED_RULE"
-            decisions_api.apply_bad_user_decision(self, source)
 
     def get_balance_qs(self):
         user_balance = self.balances.all()

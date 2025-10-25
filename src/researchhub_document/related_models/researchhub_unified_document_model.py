@@ -1,7 +1,8 @@
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from django.db.models import Avg, Count, Q
+from django.db.models import Avg, Count, DecimalField, Q, Sum
+from django.db.models.functions import Cast
 from django.utils.functional import cached_property
 
 from hub.models import Hub
@@ -21,7 +22,6 @@ from researchhub_document.related_models.constants.document_type import (
     QUESTION,
 )
 from researchhub_document.related_models.document_filter_model import DocumentFilter
-from researchhub_document.tasks import update_elastic_registry
 from user.models import Author
 from utils.models import DefaultModel, SoftDeletableModel
 
@@ -266,17 +266,117 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
         url = f"{BASE_FRONTEND_URL}/{document_type.lower()}/{doc.id}/{doc.slug}"
         return url
 
+    # ========================================================================
+    # Comment Helper Methods for Hot Score Calculation
+    # ========================================================================
+
+    def get_all_comments(self, include_removed=False):
+        """
+        Get all comments on this document across all threads.
+
+        Threads are attached to Papers/Posts, not directly to UnifiedDocuments.
+        This method uses get_document() to access the underlying content item.
+
+        Args:
+            include_removed: If True, include soft-deleted comments
+
+        Returns:
+            QuerySet of RhCommentModel instances
+        """
+        try:
+            document = self.get_document()
+            if not document or not hasattr(document, "rh_threads"):
+                return RhCommentModel.objects.none()
+
+            thread_ids = document.rh_threads.values_list("id", flat=True)
+
+            if not thread_ids:
+                return RhCommentModel.objects.none()
+
+            if include_removed:
+                return RhCommentModel.all_objects.filter(thread_id__in=thread_ids)
+            else:
+                return RhCommentModel.objects.filter(thread_id__in=thread_ids)
+        except Exception:
+            return RhCommentModel.objects.none()
+
+    def get_peer_review_comments(self):
+        """
+        Get all peer review and community review comments.
+
+        Returns:
+            QuerySet of RhCommentModel instances
+        """
+        from researchhub_comment.constants.rh_comment_thread_types import (
+            COMMUNITY_REVIEW,
+            PEER_REVIEW,
+        )
+
+        return self.get_all_comments().filter(
+            Q(comment_type=PEER_REVIEW) | Q(comment_type=COMMUNITY_REVIEW)
+        )
+
+    def get_regular_comments(self):
+        """
+        Get all regular comments (excluding peer reviews).
+
+        Returns:
+            QuerySet of RhCommentModel instances
+        """
+        from researchhub_comment.constants.rh_comment_thread_types import (
+            COMMUNITY_REVIEW,
+            PEER_REVIEW,
+        )
+
+        return self.get_all_comments().exclude(
+            Q(comment_type=PEER_REVIEW) | Q(comment_type=COMMUNITY_REVIEW)
+        )
+
+    def get_comment_upvote_sum(self):
+        """
+        Get sum of all upvotes on comments.
+
+        Returns:
+            int: Total upvotes across all comments
+        """
+        comments = self.get_all_comments()
+        total = comments.aggregate(total_score=Sum("score"))["total_score"]
+        return total if total else 0
+
+    def get_comment_tip_sum(self):
+        """
+        Get sum of all tips/boosts on comments.
+
+        Returns:
+            float: Total tip amount across all comments
+        """
+        from purchase.models import Purchase
+
+        comments = self.get_all_comments()
+        comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
+
+        tips = Purchase.objects.filter(
+            content_type=comment_content_type,
+            object_id__in=comments.values_list("id", flat=True),
+            purchase_type=Purchase.BOOST,
+            paid_status=Purchase.PAID,
+        ).aggregate(
+            total=Sum(Cast("amount", DecimalField(max_digits=19, decimal_places=10)))
+        )[
+            "total"
+        ]
+
+        if tips:
+            try:
+                return float(tips)
+            except (ValueError, TypeError):
+                return 0
+        return 0
+
     def save(self, **kwargs):
         if getattr(self, "document_filter", None) is None:
             self.document_filter = DocumentFilter.objects.create()
         super().save(**kwargs)
-
-        # Update the Elastic Search index for post records.
-        try:
-            for post in self.posts.all():
-                update_elastic_registry.apply_async(post)
-        except Exception:
-            pass
 
 
 class UnifiedDocumentConcepts(DefaultModel):

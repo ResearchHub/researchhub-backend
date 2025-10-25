@@ -4,11 +4,9 @@ Tests for OpenAlex mapper.
 
 import json
 import os
-from unittest.mock import MagicMock
 
 from django.test import TestCase
 
-from hub.models import Hub
 from paper.ingestion.mappers.openalex import OpenAlexMapper
 from paper.models import Paper
 
@@ -19,7 +17,7 @@ class TestOpenAlexMapper(TestCase):
     """
 
     def setUp(self):
-        self.mapper = OpenAlexMapper(None)
+        self.mapper = OpenAlexMapper()
 
         # Load fixture files
         fixtures_dir = os.path.join(
@@ -198,6 +196,9 @@ class TestOpenAlexMapper(TestCase):
         self.assertIsNotNone(paper.external_metadata.get("cited_by_count"))
         self.assertIsNotNone(paper.raw_authors)
         self.assertGreater(len(paper.raw_authors), 0)
+        # Check that license fields are mapped (may be None depending on fixture)
+        self.assertTrue(hasattr(paper, "pdf_license"))
+        self.assertTrue(hasattr(paper, "pdf_license_url"))
 
     def test_extract_authors(self):
         """
@@ -272,8 +273,8 @@ class TestOpenAlexMapper(TestCase):
         self.assertEqual(first_authorship.paper, paper)
         self.assertIsNotNone(first_authorship.raw_author_name)
         self.assertIsNotNone(first_authorship.author_position)
-        self.assertTrue(hasattr(first_authorship, "_orcid_id"))
-        self.assertIsNotNone(first_authorship._orcid_id)
+        self.assertTrue(hasattr(first_authorship, "_author_openalex_id"))
+        self.assertIsNotNone(first_authorship._author_openalex_id)
 
     def test_map_batch(self):
         """
@@ -315,13 +316,116 @@ class TestOpenAlexMapper(TestCase):
             title="Test Paper",
             external_source="openalex",
         )
-        mock_hub = Hub(name="Test Hub", slug="test-hub")
-        mock_hub_mapper = MagicMock()
-        mock_hub_mapper.map.return_value = [mock_hub]
-        mapper = OpenAlexMapper(hub_mapper=mock_hub_mapper)
+        mapper = OpenAlexMapper()
 
         # Act
-        mapper.map_to_hubs(paper, self.sample_record)
+        hubs = mapper.map_to_hubs(paper, self.sample_record)
 
         # Assert
-        self.assertTrue(mock_hub_mapper.map.called)
+        self.assertEqual(len(hubs), 3)
+
+    def test_extract_license_info_full(self):
+        """
+        Test extracting license info with all fields from primary_location.
+        """
+        # Arrange
+        record = {
+            "primary_location": {
+                "license": "cc-by",
+                "license_id": "https://creativecommons.org/licenses/by/4.0",
+                "pdf_url": "https://arxiv.org/pdf/2301.00001.pdf",
+            }
+        }
+
+        # Act
+        license_info = self.mapper._extract_license_info(record)
+
+        # Assert
+        self.assertEqual(license_info["license"], "cc-by")
+        self.assertEqual(
+            license_info["license_url"], "https://creativecommons.org/licenses/by/4.0"
+        )
+        self.assertEqual(
+            license_info["pdf_url"], "https://arxiv.org/pdf/2301.00001.pdf"
+        )
+
+    def test_extract_license_info_partial(self):
+        """
+        Test extracting license info with only some fields from primary_location.
+        """
+        # Arrange
+        record = {
+            "primary_location": {
+                "license": "cc-by-sa",
+            }
+        }
+
+        # Act
+        license_info = self.mapper._extract_license_info(record)
+
+        # Assert
+        self.assertEqual(license_info["license"], "cc-by-sa")
+        self.assertIsNone(license_info["license_url"])
+        self.assertIsNone(license_info["pdf_url"])
+
+    def test_extract_license_info_empty_primary_location(self):
+        """
+        Test extracting license info when primary_location is empty.
+        """
+        # Arrange
+        record = {"primary_location": {}}
+
+        # Act
+        license_info = self.mapper._extract_license_info(record)
+
+        # Assert
+        self.assertIsNone(license_info["license"])
+        self.assertIsNone(license_info["license_url"])
+        self.assertIsNone(license_info["pdf_url"])
+
+    def test_extract_license_info_no_primary_location(self):
+        """
+        Test extracting license info when primary_location is missing.
+        """
+        # Arrange
+        record = {}
+
+        # Act
+        license_info = self.mapper._extract_license_info(record)
+
+        # Assert
+        self.assertIsNone(license_info["license"])
+        self.assertIsNone(license_info["license_url"])
+        self.assertIsNone(license_info["pdf_url"])
+
+    def test_map_to_paper_with_license_info(self):
+        """
+        Test that license fields are correctly mapped to Paper model.
+        """
+        # Arrange
+        record = {
+            "id": "https://openalex.org/W123456",
+            "title": "Test Paper",
+            "doi": "https://doi.org/10.1234/test",
+            "primary_location": {
+                "license": "cc-by-4.0",
+                "license_id": "https://creativecommons.org/licenses/by/4.0",
+                "pdf_url": "https://example.com/paper.pdf",
+            },
+            "publication_date": "2024-01-01",
+            "open_access": {
+                "is_oa": True,
+                "oa_status": "gold",
+            },
+            "authorships": [],
+        }
+
+        # Act
+        paper = self.mapper.map_to_paper(record)
+
+        # Assert
+        self.assertEqual(paper.pdf_license, "cc-by-4.0")
+        self.assertEqual(
+            paper.pdf_license_url, "https://creativecommons.org/licenses/by/4.0"
+        )
+        self.assertEqual(paper.pdf_url, "https://example.com/paper.pdf")

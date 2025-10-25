@@ -1,5 +1,5 @@
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase, override_settings
+from django.test import TestCase, TransactionTestCase, override_settings
 from django.utils import timezone
 
 from feed.models import FeedEntry
@@ -11,6 +11,9 @@ from user.related_models.user_model import User
 
 class DocumentSignalsTests(TestCase):
 
+    def setUp(self):
+        self.user = User.objects.create_user(username="testUser1")
+
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     def test_feed_entries_are_created_when_hubs_are_added_to_paper(self):
         """
@@ -19,7 +22,7 @@ class DocumentSignalsTests(TestCase):
         # Arrange
         hub1 = create_hub(name="testHub1")
         hub2 = create_hub(name="testHub2")
-        paper = create_paper(title="testPaper1")
+        paper = create_paper(title="testPaper1", uploaded_by=self.user)
 
         # Act
         paper.unified_document.hubs.add(hub1, hub2)
@@ -32,6 +35,7 @@ class DocumentSignalsTests(TestCase):
         )
         self.assertEqual(len(feed_entries), 1)
         self.assertEqual(feed_entries[0].hubs.count(), 2)
+        self.assertEqual(feed_entries[0].user, paper.uploaded_by)
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     def test_feed_entries_are_deleted_when_all_hubs_are_removed_from_paper(self):
@@ -41,7 +45,7 @@ class DocumentSignalsTests(TestCase):
         # Arrange
         hub1 = create_hub(name="testHub1")
         hub2 = create_hub(name="testHub2")
-        paper = create_paper(title="testPaper1")
+        paper = create_paper(title="testPaper1", uploaded_by=self.user)
         paper.unified_document.hubs.add(hub1, hub2)
         paper.save()
 
@@ -67,7 +71,7 @@ class DocumentSignalsTests(TestCase):
         # Arrange
         hub1 = create_hub(name="testHub1")
         hub2 = create_hub(name="testHub2")
-        paper = create_paper(title="testPaper1")
+        paper = create_paper(title="testPaper1", uploaded_by=self.user)
         paper.unified_document.hubs.add(hub1, hub2)
         paper.save()
 
@@ -92,7 +96,7 @@ class DocumentSignalsTests(TestCase):
         # Arrange
         hub1 = create_hub(name="testHub1")
         hub2 = create_hub(name="testHub2")
-        paper = create_paper(title="testPaper1")
+        paper = create_paper(title="testPaper1", uploaded_by=self.user)
         paper.hubs.add(hub2)
 
         # Act
@@ -115,8 +119,7 @@ class DocumentSignalsTests(TestCase):
         # Arrange
         hub1 = create_hub(name="testHub1")
         hub2 = create_hub(name="testHub2")
-        user = User.objects.create_user(username="testUser1")
-        post = create_post(title="testPaper1", created_by=user)
+        post = create_post(title="testPaper1", created_by=self.user)
 
         # Act
         post.unified_document.hubs.add(hub1, hub2)
@@ -129,6 +132,7 @@ class DocumentSignalsTests(TestCase):
         )
         self.assertEqual(len(feed_entries), 1)
         self.assertEqual(feed_entries[0].hubs.count(), 2)
+        self.assertEqual(feed_entries[0].user, post.created_by)
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     def test_feed_entries_are_deleted_when_all_hubs_are_removed_from_post(self):
@@ -138,8 +142,7 @@ class DocumentSignalsTests(TestCase):
         # Arrange
         hub1 = create_hub(name="testHub1")
         hub2 = create_hub(name="testHub2")
-        user = User.objects.create_user(username="testUser1")
-        post = create_post(title="testPaper1", created_by=user)
+        post = create_post(title="testPaper1", created_by=self.user)
 
         # Act
         post.unified_document.hubs.remove(hub1, hub2)  # remove all hubs
@@ -163,8 +166,7 @@ class DocumentSignalsTests(TestCase):
         # Arrange
         hub1 = create_hub(name="testHub1")
         hub2 = create_hub(name="testHub2")
-        user = User.objects.create_user(username="testUser1")
-        post = create_post(title="testPaper1", created_by=user)
+        post = create_post(title="testPaper1", created_by=self.user)
         post.unified_document.hubs.add(hub1, hub2)
 
         # Act
@@ -182,11 +184,18 @@ class DocumentSignalsTests(TestCase):
         self.assertEqual(feed_entries[0].hubs.first(), hub2)
 
 
-class DocumentRemovalSignalsTests(TestCase):
+class DocumentRemovalSignalsTests(TransactionTestCase):
+    """
+    Uses TransactionTestCase to allow transaction.on_commit() callbacks to execute.
+    This is necessary because TestCase wraps tests in an atomic transaction that
+    never commits, preventing on_commit hooks from firing.
+    """
+
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     def setUp(self):
         self.hub = create_hub(name="Test Hub")
-        self.paper = create_paper(title="Test Paper")
+        self.user = User.objects.create_user(username="testUser1")
+        self.paper = create_paper(title="Test Paper", uploaded_by=self.user)
         self.paper.paper_publish_date = timezone.now()
         self.paper.save()
 

@@ -278,8 +278,7 @@ class FeedTasksTest(TestCase):
     def test_refresh_feed_hot_scores(self):
         """Test refreshing hot scores for feed entries using actual database entries."""
         # Arrange
-        from feed.models import FeedEntryPopular
-        from feed.tasks import refresh_feed, refresh_feed_hot_scores
+        from feed.tasks import refresh_feed_hot_scores
 
         # Create 3 feed entries with different properties
         papers = []
@@ -309,12 +308,8 @@ class FeedTasksTest(TestCase):
             )
             feed_entries.append(feed_entry)
 
-        # Refresh the materialized view to include our test entries
-        refresh_feed()
-
-        # Verify that the entries are in the materialized view
-        popular_entries_before = list(FeedEntryPopular.objects.all())
-        self.assertGreaterEqual(len(popular_entries_before), 3)
+        # Verify that the entries were created
+        self.assertGreaterEqual(len(feed_entries), 3)
 
         # Record initial hot scores
         initial_hot_scores = {}

@@ -3,10 +3,10 @@ Tests for ChemRxiv API client.
 """
 
 from datetime import datetime
+from unittest import TestCase
 from unittest.mock import Mock, patch
 
 import requests
-from django.test import TestCase
 
 from paper.ingestion.clients.chemrxiv import ChemRxivClient, ChemRxivConfig
 from paper.ingestion.exceptions import FetchError, RetryExhaustedError, TimeoutError

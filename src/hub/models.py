@@ -15,21 +15,12 @@ HELP_TEXT_IS_REMOVED = "Hides the hub because it is not allowed."
 
 
 def get_default_hub_category():
-    """Get or create a default value for the hub categories"""
-
-    return HubCategory.objects.get_or_create(category_name="Other")[0]
-
-
-class HubCategory(models.Model):
-    """A grouping of hubs, organized by category"""
-
-    def __str__(self):
-        return self.category_name
-
-    def __int__(self):
-        return self.id
-
-    category_name = models.CharField(max_length=1024, unique=True)
+    """
+    Stub function for backwards compatibility with old migrations.
+    Returns 1 as a placeholder since the HubCategory model no longer exists.
+    This function is only used by migration 0011_auto_20200912_0350.py
+    """
+    return 1
 
 
 class Hub(models.Model):
@@ -42,6 +33,8 @@ class Hub(models.Model):
         """
 
         JOURNAL = "journal", _("Journal")
+        CATEGORY = "category", _("Category")
+        SUBCATEGORY = "subcategory", _("Subcategory")
 
     UNLOCK_AFTER = 14
 
@@ -67,9 +60,6 @@ class Hub(models.Model):
             Note this is different from HubMembership (subscribers)",
         related_name="hub",
         related_query_name="hub_source",
-    )
-    category = models.ForeignKey(
-        HubCategory, on_delete=models.CASCADE, default=get_default_hub_category
     )
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
@@ -176,21 +166,14 @@ class Hub(models.Model):
         ).all()
 
     # There are a handful of OpenAlex subfields that have duplicate names
-    # but different IDs. This method will ensure that a corresponding hub is returned properly
+    # but different IDs. This method will ensure that a corresponding hub
+    # is returned properly
     @classmethod
     def get_from_subfield(cls, subfield):
         return Hub.objects.get(
             (Q(name__iexact=subfield.display_name) | Q(subfield_id=subfield.id))
             & ~Q(namespace="journal")
         )
-
-    @property
-    def paper_count_indexing(self):
-        return self.get_paper_count()
-
-    @property
-    def subscriber_count_indexing(self):
-        return self.get_subscribers_count()
 
     @property
     def editor_permission_groups(self):

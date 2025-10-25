@@ -17,11 +17,7 @@ from hub.models import Hub
 from hub.serializers import DynamicHubSerializer
 from paper.lib import journal_hosts
 from paper.related_models.citation_model import Citation
-from paper.utils import (
-    get_csl_item,
-    parse_author_name,
-    populate_pdf_url_from_journal_url,
-)
+from paper.utils import get_csl_item, populate_pdf_url_from_journal_url
 from purchase.models import Purchase
 from reputation.models import Score, ScoreChange
 from reputation.related_models.paper_reward import HubCitationValue
@@ -125,7 +121,7 @@ class Paper(AbstractGenericReactionModel):
     paper_title = models.CharField(  # Official paper title
         max_length=1024, default=None, null=True, blank=True
     )
-    paper_publish_date = models.DateField(null=True, blank=True)
+    paper_publish_date = models.DateTimeField(null=True, blank=True)
     raw_authors = JSONField(blank=True, null=True)
     abstract = models.TextField(default=None, null=True, blank=True)
     abstract_src = models.FileField(
@@ -277,15 +273,6 @@ class Paper(AbstractGenericReactionModel):
         return users
 
     @property
-    def authors_indexing(self):
-        return [parse_author_name(author) for author in self.authors.all()]
-
-    @property
-    def discussion_count_indexing(self):
-        """Number of discussions."""
-        return self.get_discussion_count()
-
-    @property
     def hubs_indexing(self):
         serializer = DynamicHubSerializer(
             self.hubs.all(),
@@ -303,10 +290,6 @@ class Paper(AbstractGenericReactionModel):
     @property
     def hubs_indexing_flat(self):
         return [hub.name for hub in self.hubs.all()]
-
-    @property
-    def abstract_indexing(self):
-        return self.abstract if self.abstract else ""
 
     @property
     def hot_score(self):

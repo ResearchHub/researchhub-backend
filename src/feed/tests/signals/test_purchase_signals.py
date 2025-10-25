@@ -7,8 +7,9 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase, override_settings
 
 from feed.models import FeedEntry
-from purchase.models import Grant, GrantApplication
+from purchase.models import Fundraise, Grant, GrantApplication
 from purchase.related_models.purchase_model import Purchase
+from purchase.services.fundraise_service import FundraiseService
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants import document_type
 from researchhub_document.related_models.constants.document_type import (
@@ -286,3 +287,179 @@ class TestPurchaseSignals(TestCase):
         grant_data = feed_entry.content["grant"]
         self.assertIn("applications", grant_data)
         self.assertEqual(len(grant_data["applications"]), 0)
+
+    @patch("feed.signals.purchase_signals.refresh_feed_entry")
+    @patch("feed.signals.purchase_signals.transaction")
+    def test_fundraise_contribution_triggers_feed_update(
+        self, mock_transaction, mock_refresh
+    ):
+        """
+        Test that creating a fundraise contribution triggers
+        feed entry refresh.
+        """
+        # Arrange
+        mock_transaction.on_commit = lambda func: func()
+        mock_refresh.apply_async = MagicMock()
+
+        # Create a preregistration post with fundraise
+        post = create_post(created_by=self.user, document_type=PREREGISTRATION)
+
+        # Create fundraise
+        fundraise_service = FundraiseService()
+        fundraise = fundraise_service.create_fundraise_with_escrow(
+            user=self.user,
+            unified_document=post.unified_document,
+            goal_amount=Decimal("1000"),
+            goal_currency="USD",
+        )
+
+        # Create a feed entry for the post
+        post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
+        feed_entry = FeedEntry.objects.create(
+            content_type=post_content_type,
+            object_id=post.id,
+            unified_document=post.unified_document,
+            action=FeedEntry.PUBLISH,
+            action_date=datetime.now(pytz.UTC),
+            content={},
+        )
+
+        # Act
+        # Create a contribution
+        contributor = create_random_authenticated_user("fundraise_contributor_1")
+        fundraise_content_type = ContentType.objects.get_for_model(Fundraise)
+        Purchase.objects.create(
+            user=contributor,
+            content_type=fundraise_content_type,
+            object_id=fundraise.id,
+            purchase_method=Purchase.OFF_CHAIN,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            paid_status="PAID",
+            amount="100",
+        )
+
+        # Assert
+        mock_refresh.apply_async.assert_called_with(
+            args=(feed_entry.id,),
+            priority=1,
+        )
+
+    @patch("feed.signals.purchase_signals.refresh_feed_entry")
+    @patch("feed.signals.purchase_signals.transaction")
+    def test_fundraise_contribution_update_triggers_feed_update(
+        self, mock_transaction, mock_refresh
+    ):
+        """
+        Test that updating a fundraise contribution triggers
+        feed entry refresh.
+        """
+        # Arrange
+        mock_transaction.on_commit = lambda func: func()
+        mock_refresh.apply_async = MagicMock()
+
+        # Create a preregistration post with fundraise
+        post = create_post(created_by=self.user, document_type=PREREGISTRATION)
+
+        # Create fundraise
+        fundraise_service = FundraiseService()
+        fundraise = fundraise_service.create_fundraise_with_escrow(
+            user=self.user,
+            unified_document=post.unified_document,
+            goal_amount=Decimal("1000"),
+            goal_currency="USD",
+        )
+
+        # Create a feed entry for the post
+        post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
+        feed_entry = FeedEntry.objects.create(
+            content_type=post_content_type,
+            object_id=post.id,
+            unified_document=post.unified_document,
+            action=FeedEntry.PUBLISH,
+            action_date=datetime.now(pytz.UTC),
+            content={},
+        )
+
+        # Create a contribution
+        contributor = create_random_authenticated_user("fundraise_contributor_2")
+        fundraise_content_type = ContentType.objects.get_for_model(Fundraise)
+        purchase = Purchase.objects.create(
+            user=contributor,
+            content_type=fundraise_content_type,
+            object_id=fundraise.id,
+            purchase_method=Purchase.OFF_CHAIN,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            paid_status="PAID",
+            amount="100",
+        )
+
+        # Reset mock to clear the call from creation
+        mock_refresh.reset_mock()
+
+        # Act
+        purchase.amount = "200"
+        purchase.save()  # Update the purchase
+
+        # Assert
+        mock_refresh.apply_async.assert_called_with(
+            args=(feed_entry.id,),
+            priority=1,
+        )
+
+    def test_fundraise_signal_handles_missing_fundraise(self):
+        """
+        Test that signal handles gracefully when fundraise doesn't exist.
+        """
+        # Create a contribution with invalid fundraise ID
+        fundraise_content_type = ContentType.objects.get_for_model(Fundraise)
+
+        # This should not raise an exception
+        try:
+            Purchase.objects.create(
+                user=self.user,
+                content_type=fundraise_content_type,
+                object_id=99999,  # Non-existent fundraise ID
+                purchase_method=Purchase.OFF_CHAIN,
+                purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+                paid_status="PAID",
+                amount="100",
+            )
+            # Signal should log warning but not crash
+        except Exception as e:
+            msg = f"Signal should handle missing fundraise gracefully: {e}"
+            self.fail(msg)
+
+    def test_fundraise_signal_handles_no_feed_entries(self):
+        """
+        Test that signal handles gracefully when no feed entries exist.
+        """
+        # Create a post without a feed entry
+        post = create_post(created_by=self.user, document_type=PREREGISTRATION)
+
+        # Create fundraise
+        fundraise_service = FundraiseService()
+        fundraise = fundraise_service.create_fundraise_with_escrow(
+            user=self.user,
+            unified_document=post.unified_document,
+            goal_amount=Decimal("1000"),
+            goal_currency="USD",
+        )
+
+        fundraise_content_type = ContentType.objects.get_for_model(Fundraise)
+
+        # Create a contribution - this should not raise an exception
+        # even though no feed entries exist
+        try:
+            Purchase.objects.create(
+                user=self.user,
+                content_type=fundraise_content_type,
+                object_id=fundraise.id,
+                purchase_method=Purchase.OFF_CHAIN,
+                purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+                paid_status="PAID",
+                amount="100",
+            )
+            # Signal should handle missing feed entries gracefully
+        except Exception as e:
+            msg = f"Signal should handle missing feed entries gracefully: {e}"
+            self.fail(msg)
