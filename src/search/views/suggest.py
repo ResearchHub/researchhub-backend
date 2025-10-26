@@ -48,7 +48,7 @@ class SuggestView(APIView):
                 "id": result.get("_source", {}).get("id"),
                 "display_name": result.get("_source", {}).get("full_name", ""),
                 "profile_image": result.get("_source", {}).get("profile_image"),
-                "headline": result.get("_source", {}).get("headline", {}),
+                "headline": result.get("_source", {}).get("headline"),
                 "created_date": result.get("_source", {}).get("created_date"),
                 "user_id": result.get("_source", {}).get("user_id"),
                 "source": "researchhub",

@@ -49,9 +49,7 @@ class SimpleAuthorSerializer(serializers.ModelSerializer):
     user = SimpleUserSerializer()
 
     def get_headline(self, obj):
-        if obj.headline and isinstance(obj.headline, dict) and "title" in obj.headline:
-            return obj.headline.get("title")
-        return None
+        return obj.headline if obj.headline else None
 
     def get_profile_image(self, obj):
         if (

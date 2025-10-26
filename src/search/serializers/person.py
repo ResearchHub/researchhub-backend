@@ -72,5 +72,4 @@ class PersonDocumentSerializer(serializers.ModelSerializer):
             return document.profile_image
 
     def get_headline(self, document):
-        if document.headline is not None:
-            return document.headline.to_dict()
+        return document.headline if document.headline else None
