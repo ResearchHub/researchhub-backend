@@ -3,6 +3,8 @@ Utilities for Elasticsearch integration.
 Replaces utilities from django_elasticsearch_dsl_drf.
 """
 
+import unicodedata
+
 # Constants
 MATCHING_OPTION_MUST = "must"
 MATCHING_OPTION_SHOULD = "should"
@@ -55,3 +57,19 @@ def obj_to_dict(obj):
         return obj.__dict__.copy()
     else:
         return obj
+
+
+def normalize_text(text: str) -> str:
+    """Normalize text for search by removing accents/diacritics and lowercasing.
+
+    This uses NFD decomposition and ASCII folding to strip diacritics
+    (e.g., "José" -> "jose").
+    """
+    if not text:
+        return ""
+    return (
+        unicodedata.normalize("NFD", text)
+        .encode("ascii", "ignore")
+        .decode("ascii")
+        .lower()
+    )

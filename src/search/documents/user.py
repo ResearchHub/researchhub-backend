@@ -1,11 +1,11 @@
 import logging
-import unicodedata
 from typing import Any, override
 
 from django_opensearch_dsl import fields as es_fields
 from django_opensearch_dsl.registries import registry
 from opensearchpy import analyzer, token_filter
 
+from search.base.utils import normalize_text
 from user.models import User
 
 from .base import BaseDocument
@@ -107,22 +107,27 @@ class UserDocument(BaseDocument):
                 seen.add(value)
 
         # Add core names and combinations
+        # Example: full name 'José María García López' yields both original
+        # and normalized values in the suggester inputs, e.g.,
+        # 'José María García López' and 'jose maria garcia lopez'.
         add_unique(full_name)
         first_parts = first.split() if first else []
         last_parts = last.split() if last else []
 
         if first_parts and last_parts:
+            # Prioritize first token + last token for multi-word names,
+            # e.g., 'José María' + 'García López' -> 'José López'
             add_unique(f"{first_parts[0]} {last_parts[-1]}")
-            norm_first = self._normalize_text(first_parts[0])
-            norm_last = self._normalize_text(last_parts[-1])
+            norm_first = normalize_text(first_parts[0])
+            norm_last = normalize_text(last_parts[-1])
             if norm_first and norm_last:
                 add_unique(f"{norm_first} {norm_last}")
 
-        add_unique(self._normalize_text(full_name))
+        add_unique(normalize_text(full_name))
         add_unique(first)
         add_unique(last)
-        add_unique(self._normalize_text(first))
-        add_unique(self._normalize_text(last))
+        add_unique(normalize_text(first))
+        add_unique(normalize_text(last))
 
         if first_parts:
             add_unique(first_parts[0])
@@ -143,20 +148,9 @@ class UserDocument(BaseDocument):
         for word in words:
             if word.strip():
                 add_unique(word)
-                normalized = self._normalize_text(word)
+                normalized = normalize_text(word)
                 if normalized and normalized != word.lower():
                     add_unique(normalized)
-
-    def _normalize_text(self, text: str) -> str:
-        """Normalize text for search by removing accents/diacritics"""
-        if not text:
-            return ""
-        return (
-            unicodedata.normalize("NFD", text)
-            .encode("ascii", "ignore")
-            .decode("ascii")
-            .lower()
-        )
 
     def prepare_full_name(self, instance) -> str:
         try:
