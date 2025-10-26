@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from analytics.services.event_processor import EventProcessor
-from utils.sentry import log_error
+from utils.sentry import log_error, log_info
 
 logger = logging.getLogger(__name__)
 
@@ -43,12 +43,14 @@ class AmplitudeWebhookView(APIView):
             if "events" in payload:
                 events = payload.get("events", [])
                 if not events:
+                    log_info("Empty events array received in webhook payload")
                     return Response(
                         {"message": "No events in payload"},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
             else:
                 if not payload.get("event_type"):
+                    log_info("Invalid event format - missing event_type")
                     return Response(
                         {"message": "Invalid event format - missing event_type"},
                         status=status.HTTP_400_BAD_REQUEST,
