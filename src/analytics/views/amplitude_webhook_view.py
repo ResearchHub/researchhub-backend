@@ -23,6 +23,10 @@ class AmplitudeWebhookView(APIView):
 
     permission_classes = [AllowAny]
 
+    def dispatch(self, request, *args, **kwargs):
+        self.processor = kwargs.pop("processor", EventProcessor())
+        return super().dispatch(request, *args, **kwargs)
+
     def post(self, request: Request, *args, **kwargs) -> Response:
         """
         Process incoming webhook from Amplitude.
@@ -57,14 +61,13 @@ class AmplitudeWebhookView(APIView):
                     )
                 events = [payload]
 
-            processor = EventProcessor()
             processed_count = 0
             skipped_count = 0
 
             for event in events:
                 try:
-                    if processor.should_process_event(event):
-                        processor.process_event(event)
+                    if self.processor.should_process_event(event):
+                        self.processor.process_event(event)
                         processed_count += 1
                     else:
                         skipped_count += 1
@@ -94,6 +97,7 @@ class AmplitudeWebhookView(APIView):
 
         except json.JSONDecodeError as e:
             logger.error(f"Invalid JSON payload: {e}")
+            log_info("Invalid JSON payload received", error=e)
             return Response(
                 {"message": "Invalid JSON payload"}, status=status.HTTP_400_BAD_REQUEST
             )
