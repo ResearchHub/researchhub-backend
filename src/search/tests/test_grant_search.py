@@ -14,30 +14,51 @@ class GrantSearchTests(TestCase):
     def setUp(self):
         self.user = create_random_default_user("test_user")
 
-    def test_strip_rfp_prefix_method(self):
-        """Test the _strip_rfp_prefix method with various RFP prefix patterns"""
+    def test_strip_rfp_prefix_patterns(self):
+        """Unified test of _strip_rfp_prefix across comprehensive RFP prefix patterns"""
         post_doc = PostDocument()
 
         test_cases = [
             # (input_title, expected_output)
+            # Colon-separated prefixes
             ("Request For Proposals: AI Research Grant", "AI Research Grant"),
             ("Request for Proposals: Machine Learning Study", "Machine Learning Study"),
             ("RFP: Data Science Initiative", "Data Science Initiative"),
             ("Request for proposals: Climate Research", "Climate Research"),
-            ("Request For Proposals AI Grant", "AI Grant"),
-            ("RFP Data Science Project", "Data Science Project"),
-            # New patterns with dashes and spaces
+            ("Request For Proposals: Grant Title", "Grant Title"),
+            ("Request for Proposals: Grant Title", "Grant Title"),
+            ("RFP: Grant Title", "Grant Title"),
+            ("Request for proposals: Grant Title", "Grant Title"),
+            # Dash-separated prefixes
             ("Request For Proposals - AI Research Grant", "AI Research Grant"),
             ("Request For Proposals -Machine Learning Study", "Machine Learning Study"),
             ("RFP - Data Science Initiative", "Data Science Initiative"),
             ("Request for Proposals - Climate Research", "Climate Research"),
-            # Extra space
+            ("Request For Proposals - Grant Title", "Grant Title"),
+            ("Request for Proposals - Grant Title", "Grant Title"),
+            ("RFP - Grant Title", "Grant Title"),
+            ("Request for proposals - Grant Title", "Grant Title"),
+            # Space-only prefixes
+            ("Request For Proposals AI Grant", "AI Grant"),
+            ("RFP Data Science Project", "Data Science Project"),
+            ("Request For Proposals Grant Title", "Grant Title"),
+            ("Request for Proposals Grant Title", "Grant Title"),
+            ("RFP Grant Title", "Grant Title"),
+            ("Request for proposals Grant Title", "Grant Title"),
+            # Edge spacing/format variations
             ("Request For Proposals  AI Research Grant", "AI Research Grant"),
-            # Extra space
             ("RFP  Data Science Project", "Data Science Project"),
-            ("Regular Grant Title", "Regular Grant Title"),  # No prefix
-            ("", ""),  # Empty string
-            ("Request For Proposals", ""),  # Only prefix
+            # Edge cases: only prefix (with/without separator)
+            ("Request For Proposals:", ""),
+            ("RFP:", ""),
+            ("Request For Proposals -", ""),
+            ("RFP -", ""),
+            ("Request For Proposals", ""),
+            ("RFP", ""),
+            ("", ""),
+            # No prefix passthrough
+            ("Regular Grant Title", "Regular Grant Title"),
+            ("AI Research Grant", "AI Research Grant"),
         ]
 
         for input_title, expected_output in test_cases:
@@ -103,43 +124,6 @@ class GrantSearchTests(TestCase):
         phrases = result["input"]
         self.assertIn("Request For Proposals: Discussion Topic", phrases)
         self.assertNotIn("Discussion Topic", phrases)  # Should not be stripped
-
-    def test_rfp_prefix_patterns_comprehensive(self):
-        """Test all RFP prefix patterns comprehensively"""
-        post_doc = PostDocument()
-
-        test_cases = [
-            # Various RFP prefix formats with colons
-            ("Request For Proposals: Grant Title", "Grant Title"),
-            ("Request for Proposals: Grant Title", "Grant Title"),
-            ("RFP: Grant Title", "Grant Title"),
-            ("Request for proposals: Grant Title", "Grant Title"),
-            # Various RFP prefix formats with dashes
-            ("Request For Proposals - Grant Title", "Grant Title"),
-            ("Request for Proposals - Grant Title", "Grant Title"),
-            ("RFP - Grant Title", "Grant Title"),
-            ("Request for proposals - Grant Title", "Grant Title"),
-            # Various RFP prefix formats with spaces only
-            ("Request For Proposals Grant Title", "Grant Title"),
-            ("Request for Proposals Grant Title", "Grant Title"),
-            ("RFP Grant Title", "Grant Title"),
-            ("Request for proposals Grant Title", "Grant Title"),
-            # Edge cases
-            ("Request For Proposals:", ""),
-            ("RFP:", ""),
-            ("Request For Proposals -", ""),
-            ("RFP -", ""),
-            ("Request For Proposals", ""),
-            ("RFP", ""),
-            # No prefix cases
-            ("Regular Grant Title", "Regular Grant Title"),
-            ("AI Research Grant", "AI Research Grant"),
-        ]
-
-        for input_title, expected_output in test_cases:
-            with self.subTest(input_title=input_title):
-                result = post_doc._strip_rfp_prefix(input_title)
-                self.assertEqual(result, expected_output)
 
     def test_suggestion_phrases_weight_assignment(self):
         """Test that suggestion phrases maintain proper weight assignment"""
