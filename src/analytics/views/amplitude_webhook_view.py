@@ -24,7 +24,6 @@ class AmplitudeWebhookView(APIView):
     permission_classes = [AllowAny]
 
     def dispatch(self, request, *args, **kwargs):
-        """Allow EventProcessor to be injected for testing."""
         self.processor = kwargs.pop("processor", EventProcessor())
         return super().dispatch(request, *args, **kwargs)
 
