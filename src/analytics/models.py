@@ -1,6 +1,7 @@
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
+from django.db.models.functions import TruncDate
 
 from analytics.constants import EVENT_CHOICES
 from researchhub_document.related_models.researchhub_unified_document_model import (
@@ -54,8 +55,12 @@ class UserInteractions(DefaultModel):
             models.Index(fields=["user"]),
             models.Index(fields=["event"]),
             models.Index(fields=["event_timestamp"]),
+            models.Index(
+                fields=["is_synced_with_personalize"], name="idx_synced_personalize"
+            ),
         ]
         constraints = [
+            # Strict uniqueness for one-time actions
             models.UniqueConstraint(
                 fields=[
                     "user",
@@ -64,8 +69,28 @@ class UserInteractions(DefaultModel):
                     "content_type",
                     "object_id",
                 ],
-                name="unique_user_event_interaction",
-            )
+                condition=models.Q(
+                    event__in=[
+                        "ITEM_UPVOTED",
+                        "BOUNTY_SOLUTION_SUBMITTED",
+                        "BOUNTY_SOLUTION_AWARDED",
+                        "BOUNTY_CREATED",
+                        "BOUNTY_CONTRIBUTED",
+                    ]
+                ),
+                name="unique_non_repeatable_interactions",
+            ),
+            # Daily uniqueness for repeatable events
+            models.UniqueConstraint(
+                TruncDate("event_timestamp"),
+                "user",
+                "event",
+                "unified_document",
+                "content_type",
+                "object_id",
+                condition=models.Q(event__in=["FEED_ITEM_CLICK", "PAGE_VIEW"]),
+                name="unique_daily_repeatable_interactions",
+            ),
         ]
 
     def __str__(self):
