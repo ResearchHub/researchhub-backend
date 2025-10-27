@@ -26,9 +26,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
     permission_classes = []
     pagination_class = FeedPagination
     filter_backends = [DjangoFilterBackend, FundOrderingFilter]
-    ordering_fields = []  # Prepared for future ordering options
-    ordering = None  # No ordering param = "best" behavior via FundOrderingFilter
-    is_grant_view = True  # Flag for FundOrderingFilter to identify grant vs fundraise view
+    is_grant_view = True
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
