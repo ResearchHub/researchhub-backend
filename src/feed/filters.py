@@ -63,6 +63,12 @@ class FundOrderingFilter(OrderingFilter):
         """
         now = datetime.now(pytz.UTC)
         
+        # Check if there's any OPEN item (for items with no end_date)
+        has_open_item = model_class.objects.filter(
+            unified_document_id=OuterRef("unified_document_id"),
+            status=open_status
+        ).values("id")[:1]
+        
         # Get earliest end_date from OPEN items
         earliest_open_end_date = model_class.objects.filter(
             unified_document_id=OuterRef("unified_document_id"),
@@ -76,13 +82,15 @@ class FundOrderingFilter(OrderingFilter):
         ).values("end_date").order_by("-end_date")[:1]
         
         queryset = queryset.annotate(
+            has_open=Subquery(has_open_item, output_field=IntegerField()),
             earliest_open_end=Subquery(earliest_open_end_date, output_field=DateTimeField()),
             latest_closed_end=Subquery(latest_closed_end_date, output_field=DateTimeField()),
             priority_sort=Case(
-                # Priority 0: OPEN + Active (end_date >= now)
-                When(earliest_open_end__gte=now, then=Value(0)),
+                # Priority 0: OPEN + Active (end_date >= now or no end_date)
+                When(has_open__isnull=False, earliest_open_end__gte=now, then=Value(0)),
+                When(has_open__isnull=False, earliest_open_end__isnull=True, then=Value(0)),
                 # Priority 1: OPEN + Expired (end_date < now)
-                When(earliest_open_end__isnull=False, then=Value(1)),
+                When(has_open__isnull=False, earliest_open_end__lt=now, then=Value(1)),
                 # Priority 2: CLOSED/COMPLETED (no open items)
                 default=Value(2),
                 output_field=IntegerField(),
