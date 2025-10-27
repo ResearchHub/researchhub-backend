@@ -5,10 +5,11 @@ and research grant postings.
 """
 
 from django.core.cache import cache
-from django.db.models import BooleanField, Case, F, Value, When
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
+from django_filters.rest_framework import DjangoFilterBackend
 
+from feed.filters import FundOrderingFilter
 from feed.models import FeedEntry
 from feed.serializers import GrantFeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
@@ -21,23 +22,13 @@ from .common import FeedPagination
 
 
 class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
-    """
-    ViewSet for accessing entries specifically related to grant documents.
-    This provides a dedicated endpoint for clients to fetch and display grant
-    content in the Research Hub platform.
-
-    Query Parameters:
-    - status: Filter by grant status
-      Options:
-        - OPEN: Only show posts with open grants
-        - CLOSED: Only show posts with closed grants
-        - COMPLETED: Only show posts with completed grants
-    - organization: Filter by granting organization name (partial match)
-    """
-
     serializer_class = PostSerializer
     permission_classes = []
     pagination_class = FeedPagination
+    filter_backends = [DjangoFilterBackend, FundOrderingFilter]
+    ordering_fields = []  # Prepared for future ordering options
+    ordering = None  # No ordering param = "best" behavior via FundOrderingFilter
+    is_grant_view = True  # Flag for FundOrderingFilter to identify grant vs fundraise view
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -70,7 +61,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
                 return Response(cached_response)
 
         # Get paginated posts
-        queryset = self.get_queryset()
+        queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
 
         feed_entries = []
@@ -102,12 +93,8 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         return Response(response_data)
 
     def get_queryset(self):
-        """
-        Filter to only include posts that are grants.
-        Additionally filter by grant status or organization if specified.
-        """
-        status = self.request.query_params.get("status", None)
-        organization = self.request.query_params.get("organization", None)
+        status = self.request.query_params.get("status")
+        organization = self.request.query_params.get("organization")
 
         queryset = (
             ResearchhubPost.objects.all()
@@ -121,55 +108,15 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
                 "unified_document__grants",
                 "unified_document__grants__applications__applicant__author_profile",
             )
-            .filter(document_type=GRANT)
-            .filter(unified_document__is_removed=False)
+            .filter(document_type=GRANT, unified_document__is_removed=False)
         )
 
-        # Filter by status if specified
         if status:
             status_upper = status.upper()
             if status_upper in [Grant.OPEN, Grant.CLOSED, Grant.COMPLETED]:
-                queryset = queryset.filter(
-                    unified_document__grants__status=status_upper
-                )
+                queryset = queryset.filter(unified_document__grants__status=status_upper)
 
-                # Order based on status
-                if status_upper == Grant.OPEN:
-                    # Order by end_date ascending (closest deadline first)
-                    queryset = queryset.order_by("unified_document__grants__end_date")
-                else:
-                    # Order by end date descending (most recent deadlines first)
-                    queryset = queryset.order_by("-unified_document__grants__end_date")
-
-        # Filter by organization if specified
         if organization:
-            queryset = queryset.filter(
-                unified_document__grants__organization__icontains=organization
-            )
-
-        if not status:
-            # For ALL tab: Sort by status (OPEN first), then by appropriate date order
-            queryset = queryset.annotate(
-                # Create a flag to identify OPEN grants
-                is_open=Case(
-                    When(
-                        unified_document__grants__status=Grant.OPEN,
-                        then=Value(True),
-                    ),
-                    default=Value(False),
-                    output_field=BooleanField(),
-                ),
-            ).order_by(
-                "-is_open",
-                # For OPEN (is_open=True): Sort by closest (earliest) end_date first
-                Case(
-                    When(is_open=True, then=F("unified_document__grants__end_date")),
-                ),
-                # For CLOSED/COMPLETED (is_open=False): Sort by most recent (latest) end_date first
-                Case(
-                    When(is_open=False, then=F("unified_document__grants__end_date")),
-                    default=None,
-                ).desc(),
-            )
+            queryset = queryset.filter(unified_document__grants__organization__icontains=organization)
 
         return queryset
