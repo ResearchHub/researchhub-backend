@@ -147,9 +147,7 @@ class Author(models.Model):
             if not sorted_topics:
                 return None
 
-            return {
-                "title": "Author with expertise in " + sorted_topics[0].display_name
-            }
+            return "Author with expertise in " + sorted_topics[0].display_name
         except Exception:
             return None
 
