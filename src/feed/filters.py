@@ -76,9 +76,16 @@ class FundOrderingFilter(OrderingFilter):
             status=open_status
         ).values("end_date").order_by("end_date")[:1]
         
+        # Get latest end_date from CLOSED/COMPLETED items
+        latest_closed_end_date = model_class.objects.filter(
+            unified_document_id=OuterRef("unified_document_id"),
+            status__in=closed_statuses
+        ).values("end_date").order_by("-end_date")[:1]
+        
         queryset = queryset.annotate(
             has_open=has_open_item,
             earliest_open_end_date=Subquery(earliest_open_end_date, output_field=DateTimeField()),
+            latest_closed_end_date=Subquery(latest_closed_end_date, output_field=DateTimeField()),
             sort_option=Case(
                 # 0: OPEN + Active (end_date >= now or no end_date)
                 When(has_open=True, earliest_open_end_date__gte=now, then=Value(0)),
@@ -89,11 +96,25 @@ class FundOrderingFilter(OrderingFilter):
                 default=Value(2),
                 output_field=IntegerField(),
             ),
+            # For active items, use ascending (soonest first)
+            # For expired/closed, we'll sort descending (most recent first)
+            sort_date_active=Case(
+                When(sort_option=0, then=F("earliest_open_end_date")),
+                default=None,
+                output_field=DateTimeField(),
+            ),
+            sort_date_expired_or_closed=Case(
+                When(sort_option=1, then=F("earliest_open_end_date")),
+                When(sort_option=2, then=F("latest_closed_end_date")),
+                default=None,
+                output_field=DateTimeField(),
+            ),
         )
         
         return queryset.order_by(
             "sort_option",
-            F("earliest_open_end_date").asc(nulls_last=True),
+            F("sort_date_active").asc(nulls_last=True),
+            F("sort_date_expired_or_closed").desc(nulls_last=True),
             "-created_date"
         )
 
