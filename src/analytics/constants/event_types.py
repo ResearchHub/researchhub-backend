@@ -1,5 +1,5 @@
 """
-User interaction event types for analytics tracking.
+User interaction event types for tracking and ML processing via Personalize.
 """
 
 BOUNTY_SOLUTION_SUBMITTED = "BOUNTY_SOLUTION_SUBMITTED"
