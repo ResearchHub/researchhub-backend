@@ -1,6 +1,3 @@
-from datetime import datetime
-
-import pytz
 from django.db.models import (
     Case,
     DateTimeField,
@@ -12,6 +9,7 @@ from django.db.models import (
     Value,
     When,
 )
+from django.utils import timezone
 from rest_framework.filters import OrderingFilter
 
 from purchase.related_models.fundraise_model import Fundraise
@@ -62,7 +60,7 @@ class FundOrderingFilter(OrderingFilter):
             open_status: The OPEN status value for the model
             closed_statuses: List of CLOSED/COMPLETED status values
         """
-        now = datetime.now(pytz.UTC)
+        now = timezone.now()
         
         # Check if there's any OPEN item (for items with no end_date)
         has_open_item = Exists(
@@ -86,32 +84,32 @@ class FundOrderingFilter(OrderingFilter):
         
         queryset = queryset.annotate(
             has_open=has_open_item,
-            earliest_open_end=Subquery(earliest_open_end_date, output_field=DateTimeField()),
-            latest_closed_end=Subquery(latest_closed_end_date, output_field=DateTimeField()),
-            priority_sort=Case(
-                # Priority 0: OPEN + Active (end_date >= now or no end_date)
-                When(has_open=True, earliest_open_end__gte=now, then=Value(0)),
-                When(has_open=True, earliest_open_end__isnull=True, then=Value(0)),
-                # Priority 1: OPEN + Expired (end_date < now)
-                When(has_open=True, earliest_open_end__lt=now, then=Value(1)),
-                # Priority 2: CLOSED/COMPLETED (no open items)
+            earliest_open_end_date=Subquery(earliest_open_end_date, output_field=DateTimeField()),
+            latest_closed_end_date=Subquery(latest_closed_end_date, output_field=DateTimeField()),
+            sort_option=Case(
+                # 0: OPEN + Active (end_date >= now or no end_date)
+                When(has_open=True, earliest_open_end_date__gte=now, then=Value(0)),
+                When(has_open=True, earliest_open_end_date__isnull=True, then=Value(0)),
+                # 1: OPEN + Expired (end_date < now)
+                When(has_open=True, earliest_open_end_date__lt=now, then=Value(1)),
+                # 2: CLOSED/COMPLETED (no open items)
                 default=Value(2),
                 output_field=IntegerField(),
             ),
             sort_date_asc=Case(
-                When(priority_sort__in=[0, 1], then=F("earliest_open_end")),
+                When(sort_option__in=[0, 1], then=F("earliest_open_end_date")),
                 default=None,
                 output_field=DateTimeField(),
             ),
             sort_date_desc=Case(
-                When(priority_sort=2, then=F("latest_closed_end")),
+                When(sort_option=2, then=F("latest_closed_end_date")),
                 default=None,
                 output_field=DateTimeField(),
             ),
         )
         
         return queryset.order_by(
-            "priority_sort",
+            "sort_option",
             F("sort_date_asc").asc(nulls_last=True),
             F("sort_date_desc").desc(nulls_last=True),
             "-created_date"
