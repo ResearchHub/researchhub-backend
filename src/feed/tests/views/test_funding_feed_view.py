@@ -664,8 +664,12 @@ class FundingFeedViewSetTests(TestCase):
             created_by=self.user,
             document_type=PREREGISTRATION,
             unified_document=recent_closed_doc,
-            created_date=timezone.now(),
         )
+        # Update created_date after creation since auto_now_add=True ignores the value in create()
+        ResearchhubPost.objects.filter(id=recent_closed_post.id).update(
+            created_date=timezone.now() + timezone.timedelta(seconds=10)
+        )
+        recent_closed_post.refresh_from_db()
 
         escrow_recent_closed = Escrow.objects.create(
             amount_holding=0,
@@ -693,8 +697,12 @@ class FundingFeedViewSetTests(TestCase):
             created_by=self.user,
             document_type=PREREGISTRATION,
             unified_document=old_closed_doc,
-            created_date=timezone.now(),
         )
+        # Update created_date after creation since auto_now_add=True ignores the value in create()
+        ResearchhubPost.objects.filter(id=old_closed_post.id).update(
+            created_date=timezone.now() - timezone.timedelta(seconds=5)
+        )
+        old_closed_post.refresh_from_db()
 
         escrow_old_closed = Escrow.objects.create(
             amount_holding=0,
