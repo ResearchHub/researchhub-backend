@@ -38,10 +38,9 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         base_key = super().get_cache_key(request, feed_type)
 
         # Add grant-specific parameters to cache key
-        status = request.query_params.get("status", "")
-        organization = request.query_params.get("organization", "")
+        sort_by = request.query_params.get("sort_by", "")
 
-        grant_params = f"-status:{status}-org:{organization}"
+        grant_params = f"-sort_by:{sort_by}"
         return base_key + grant_params
 
     def list(self, request, *args, **kwargs):
@@ -91,9 +90,6 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         return Response(response_data)
 
     def get_queryset(self):
-        status = self.request.query_params.get("status")
-        organization = self.request.query_params.get("organization")
-
         queryset = (
             ResearchhubPost.objects.all()
             .select_related(
@@ -108,13 +104,5 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             )
             .filter(document_type=GRANT, unified_document__is_removed=False)
         )
-
-        if status:
-            status_upper = status.upper()
-            if status_upper in [Grant.OPEN, Grant.CLOSED, Grant.COMPLETED]:
-                queryset = queryset.filter(unified_document__grants__status=status_upper)
-
-        if organization:
-            queryset = queryset.filter(unified_document__grants__organization__icontains=organization)
 
         return queryset

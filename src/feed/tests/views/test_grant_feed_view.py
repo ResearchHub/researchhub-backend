@@ -93,62 +93,16 @@ class GrantFeedViewTests(APITestCase):
         response = self.client.get("/api/grant_feed/")
         self.assertEqual(response.status_code, 200)
 
-    def test_grant_feed_filter_by_status_open(self):
-        """Test filtering grant feed by OPEN status"""
+    def test_grant_feed_returns_all_grants(self):
+        """Test that grant feed returns all grants (no filtering by status/organization)"""
         self.client.force_authenticate(self.user)
-        response = self.client.get("/api/grant_feed/?status=OPEN")
+        response = self.client.get("/api/grant_feed/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["results"]), 1)
+        # Should return all 3 grants since we removed filtering
+        self.assertEqual(len(response.data["results"]), 3)
 
-        result = response.data["results"][0]
-        self.assertEqual(result["content_object"]["title"], "Open Grant")
 
-    def test_grant_feed_filter_by_status_closed(self):
-        """Test filtering grant feed by CLOSED status"""
-        self.client.force_authenticate(self.user)
-        response = self.client.get("/api/grant_feed/?status=CLOSED")
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["results"]), 1)
-
-        result = response.data["results"][0]
-        self.assertEqual(result["content_object"]["title"], "Closed Grant")
-
-    def test_grant_feed_filter_by_status_completed(self):
-        """Test filtering grant feed by COMPLETED status"""
-        self.client.force_authenticate(self.user)
-        response = self.client.get("/api/grant_feed/?status=COMPLETED")
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["results"]), 1)
-
-        result = response.data["results"][0]
-        self.assertEqual(result["content_object"]["title"], "Completed Grant")
-
-    def test_grant_feed_filter_by_organization(self):
-        """Test filtering grant feed by organization"""
-        self.client.force_authenticate(self.user)
-        response = self.client.get("/api/grant_feed/?organization=NSF")
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["results"]), 1)
-
-        result = response.data["results"][0]
-        self.assertEqual(result["content_object"]["title"], "Open Grant")
-
-    def test_grant_feed_filter_by_organization_partial_match(self):
-        """Test filtering grant feed by partial organization name"""
-        self.client.force_authenticate(self.user)
-        response = self.client.get(
-            "/api/grant_feed/?organization=NI"
-        )  # Should match NIH
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["results"]), 1)
-
-        result = response.data["results"][0]
-        self.assertEqual(result["content_object"]["title"], "Closed Grant")
 
     def test_grant_feed_order_open_first(self):
         """Test that grant feed orders OPEN grants first"""
@@ -211,23 +165,38 @@ class GrantFeedViewTests(APITestCase):
         """Test that the is_expired field is correctly populated"""
         self.client.force_authenticate(self.user)
 
+        # Get all grants and find the specific ones we want to test
+        response = self.client.get("/api/grant_feed/")
+        results = response.data["results"]
+        
+        # Find open grant (not expired)
+        open_grant = None
+        closed_grant = None
+        
+        for result in results:
+            grant_data = result["content_object"]["grant"]
+            if grant_data["status"] == "OPEN":
+                open_grant = grant_data
+            elif grant_data["status"] == "CLOSED":
+                closed_grant = grant_data
+        
         # Test open grant (not expired)
-        response = self.client.get("/api/grant_feed/?status=OPEN")
-        result = response.data["results"][0]
-        grant_data = result["content_object"]["grant"]
-        self.assertFalse(grant_data["is_expired"])
+        self.assertIsNotNone(open_grant, "Open grant not found in results")
+        self.assertFalse(open_grant["is_expired"])
 
         # Test closed grant (expired)
-        response = self.client.get("/api/grant_feed/?status=CLOSED")
-        result = response.data["results"][0]
-        grant_data = result["content_object"]["grant"]
-        self.assertTrue(grant_data["is_expired"])
+        self.assertIsNotNone(closed_grant, "Closed grant not found in results")
+        self.assertTrue(closed_grant["is_expired"])
 
     def test_grant_feed_content_object_includes_grant_data(self):
         """Test that the content object includes grant-specific data"""
         self.client.force_authenticate(self.user)
-        response = self.client.get("/api/grant_feed/?status=OPEN")
+        response = self.client.get("/api/grant_feed/")
 
+        # Should have results since we return all grants
+        self.assertGreater(len(response.data["results"]), 0)
+        
+        # Check that grant data is included in the first result
         result = response.data["results"][0]
         content_object = result["content_object"]
 
@@ -235,9 +204,11 @@ class GrantFeedViewTests(APITestCase):
         self.assertIn("grant", content_object)
         grant_data = content_object["grant"]
 
-        self.assertEqual(grant_data["organization"], "NSF")
-        self.assertEqual(grant_data["amount"]["usd"], 50000.0)
-        self.assertEqual(grant_data["status"], "OPEN")
+        # Check that grant data has the expected fields
+        self.assertIn("organization", grant_data)
+        self.assertIn("amount", grant_data)
+        self.assertIn("status", grant_data)
+        self.assertIn("is_expired", grant_data)
 
     def test_grant_feed_pagination(self):
         """Test that grant feed supports pagination"""
@@ -386,23 +357,20 @@ class GrantFeedViewTests(APITestCase):
         # Should return 200 but with no results (invalid status filter is ignored)
         self.assertEqual(response.status_code, 200)
 
-    def test_grant_feed_multiple_filters(self):
-        """Test grant feed with multiple filters combined"""
+    def test_grant_feed_ignores_unknown_parameters(self):
+        """Test grant feed ignores unknown parameters (status/organization filtering removed)"""
         self.client.force_authenticate(self.user)
         response = self.client.get("/api/grant_feed/?status=OPEN&organization=NSF")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["results"]), 1)
+        # Should return all grants since filtering was removed
+        self.assertEqual(len(response.data["results"]), 3)
 
-        result = response.data["results"][0]
-        self.assertEqual(result["content_object"]["title"], "Open Grant")
-        grant_data = result["content_object"]["grant"]
-        self.assertEqual(grant_data["organization"], "NSF")
-
-    def test_grant_feed_no_grants(self):
-        """Test grant feed when no grants match the filter"""
+    def test_grant_feed_returns_all_grants_with_unknown_params(self):
+        """Test grant feed returns all grants even with unknown parameters"""
         self.client.force_authenticate(self.user)
         response = self.client.get("/api/grant_feed/?organization=NONEXISTENT")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["results"]), 0)
+        # Should return all grants since filtering was removed
+        self.assertEqual(len(response.data["results"]), 3)

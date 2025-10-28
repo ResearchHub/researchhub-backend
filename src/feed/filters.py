@@ -1,6 +1,8 @@
 from django.db.models import (
     Case,
+    Count,
     DateTimeField,
+    DecimalField,
     Exists,
     F,
     IntegerField,
@@ -9,6 +11,7 @@ from django.db.models import (
     Value,
     When,
 )
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 from rest_framework.filters import OrderingFilter
 
@@ -29,28 +32,36 @@ class FundOrderingFilter(OrderingFilter):
     """
 
     def filter_queryset(self, request, queryset, view):
-        ordering = self.get_ordering(request, queryset, view)
+        # Get the sort_by parameter from the request
+        sort_by_param = request.query_params.get('sort_by', '')
         
         # Apply include_ended filtering BEFORE any ordering logic
         queryset = self._apply_include_ended_filter(request, queryset, view)
         
-        # If no ordering parameter specified, apply "best" sorting
-        if not ordering:
-            # Check view type using an explicit attribute (defaults to fundraise view)
-            if getattr(view, 'is_grant_view', False):
-                model_class = Grant
-                open_status = Grant.OPEN
-                closed_statuses = [Grant.CLOSED, Grant.COMPLETED]
-            else:
-                model_class = Fundraise
-                open_status = Fundraise.OPEN
-                closed_statuses = [Fundraise.CLOSED, Fundraise.COMPLETED]
-            
+        # Check view type using an explicit attribute (defaults to fundraise view)
+        if getattr(view, 'is_grant_view', False):
+            model_class = Grant
+            open_status = Grant.OPEN
+            closed_statuses = [Grant.CLOSED, Grant.COMPLETED]
+        else:
+            model_class = Fundraise
+            open_status = Fundraise.OPEN
+            closed_statuses = [Fundraise.CLOSED, Fundraise.COMPLETED]
+        
+        # Handle different sorting options
+        if not sort_by_param or sort_by_param == 'best':
+            # Default "best" sorting
             return self._apply_best_sorting(
                 queryset, model_class, open_status, closed_statuses
             )
+        elif sort_by_param == 'upvotes':
+            return self._apply_upvotes_sorting(queryset)
+        elif sort_by_param == 'most_applicants':
+            return self._apply_most_applicants_sorting(queryset, model_class)
+        elif sort_by_param == 'amount_raised':
+            return self._apply_amount_raised_sorting(queryset, model_class)
         
-        # Fall back to default ordering behavior for any explicit ordering parameters
+        # Fall back to default ordering behavior for any other sorting parameters
         return super().filter_queryset(request, queryset, view)
     
     def _apply_include_ended_filter(self, request, queryset, view):
@@ -162,4 +173,76 @@ class FundOrderingFilter(OrderingFilter):
             F("sort_date_expired_or_closed").desc(nulls_last=True),
             "-created_date"
         )
+    
+    def _apply_upvotes_sorting(self, queryset):
+        """
+        Apply upvotes sorting for grants or fundraises.
+        Sorts by document filter upvoted_all field (descending).
+        
+        Args:
+            queryset: The queryset to sort
+        """
+        return queryset.annotate(
+            upvotes=Coalesce(
+                F("unified_document__document_filter__upvoted_all"), 
+                0
+            )
+        ).order_by("-upvotes", "-created_date")
+    
+    def _apply_most_applicants_sorting(self, queryset, model_class):
+        """
+        Apply most applicants sorting for grants or fundraises.
+        For grants: sorts by number of applications (descending)
+        For fundraises: sorts by number of contributors (descending)
+        
+        Args:
+            queryset: The queryset to sort
+            model_class: Grant or Fundraise model
+        """
+        if model_class == Grant:
+            # For grants, count applications
+            return queryset.annotate(
+                application_count=Count(
+                    "unified_document__grants__applications",
+                    distinct=True
+                )
+            ).order_by("-application_count", "-created_date")
+        else:
+            # For fundraises, count contributors (purchases)
+            return queryset.annotate(
+                contributor_count=Count(
+                    "unified_document__fundraises__purchases__user",
+                    distinct=True
+                )
+            ).order_by("-contributor_count", "-created_date")
+    
+    def _apply_amount_raised_sorting(self, queryset, model_class):
+        """
+        Apply amount raised sorting for grants or fundraises.
+        For grants: sorts by grant amount (descending)
+        For fundraises: sorts by amount raised from escrow (descending)
+        
+        Args:
+            queryset: The queryset to sort
+            model_class: Grant or Fundraise model
+        """
+        if model_class == Grant:
+            # For grants, sort by the grant amount
+            return queryset.annotate(
+                amount_value=Coalesce(
+                    F("unified_document__grants__amount"), 
+                    0,
+                    output_field=DecimalField(max_digits=19, decimal_places=2)
+                )
+            ).order_by("-amount_value", "-created_date")
+        else:
+            # For fundraises, sort by amount raised (escrow amount_holding + amount_paid)
+            return queryset.annotate(
+                amount_raised=Coalesce(
+                    F("unified_document__fundraises__escrow__amount_holding") + 
+                    F("unified_document__fundraises__escrow__amount_paid"),
+                    0,
+                    output_field=DecimalField(max_digits=19, decimal_places=10)
+                )
+            ).order_by("-amount_raised", "-created_date")
 

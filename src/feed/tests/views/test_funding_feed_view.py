@@ -18,6 +18,7 @@ from purchase.related_models.constants.rsc_exchange_currency import MORALIS
 from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
+from purchase.related_models.purchase_model import Purchase
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import Escrow
 from researchhub_document.related_models.constants.document_type import GRANT, PREREGISTRATION
@@ -76,6 +77,17 @@ class FundingFeedViewSetTests(TestCase):
             slug="other-preregistration",
             unified_document=self.other_unified_document,
             created_date=timezone.now(),
+        )
+
+        # Create a grant for testing applications
+        self.grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=self.unified_document,
+            amount=1000,
+            currency=USD,
+            organization="Test Organization",
+            description="Test grant description",
+            status=Grant.OPEN,
         )
 
         # Create a non-preregistration post (should not appear in feed)
@@ -1124,4 +1136,274 @@ class FundingFeedViewSetTests(TestCase):
         
         # Should return all items (default behavior)
         self.assertEqual(len(response.data["results"]), 2)  # self.post and self.other_post
+
+    def test_upvotes_sorting(self):
+        """Test sorting by upvotes (descending)"""
+        # Create posts with different upvote counts
+        from researchhub_document.related_models.document_filter_model import DocumentFilter
+        
+        # Post with high upvotes
+        high_upvotes_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        high_upvotes_filter = DocumentFilter.objects.create(
+            upvoted_all=100
+        )
+        high_upvotes_doc.document_filter = high_upvotes_filter
+        high_upvotes_doc.save()
+        
+        high_upvotes_post = ResearchhubPost.objects.create(
+            title="High Upvotes Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=high_upvotes_doc,
+        )
+        
+        # Post with low upvotes
+        low_upvotes_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        low_upvotes_filter = DocumentFilter.objects.create(
+            upvoted_all=10
+        )
+        low_upvotes_doc.document_filter = low_upvotes_filter
+        low_upvotes_doc.save()
+        
+        low_upvotes_post = ResearchhubPost.objects.create(
+            title="Low Upvotes Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=low_upvotes_doc,
+        )
+        
+        # Test sorting by upvotes
+        url = reverse("funding_feed-list")
+        response = self.client.get(url, {"sort_by": "upvotes"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Should be sorted by upvotes descending
+        results = response.data["results"]
+        self.assertGreaterEqual(len(results), 2)
+        
+        # Find our test posts in the results
+        high_upvotes_found = False
+        low_upvotes_found = False
+        high_upvotes_index = -1
+        low_upvotes_index = -1
+        
+        for i, result in enumerate(results):
+            # Check both direct title and content_object title
+            title = result.get("title") or result.get("content_object", {}).get("title", "")
+            if title == "High Upvotes Post":
+                high_upvotes_found = True
+                high_upvotes_index = i
+            elif title == "Low Upvotes Post":
+                low_upvotes_found = True
+                low_upvotes_index = i
+        
+        self.assertTrue(high_upvotes_found)
+        self.assertTrue(low_upvotes_found)
+        self.assertLess(high_upvotes_index, low_upvotes_index)
+
+    def test_most_applicants_sorting(self):
+        """Test sorting by most applicants (descending)"""
+        # Create posts with different application counts
+        # Post with many applications
+        many_apps_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        many_apps_post = ResearchhubPost.objects.create(
+            title="Many Applications Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=many_apps_doc,
+        )
+        
+        # Create a fundraise for this post
+        many_apps_fundraise = Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=many_apps_doc,
+            goal_amount=1000,
+            goal_currency=USD,
+        )
+        
+        # Create multiple contributors for the fundraise
+        for i in range(3):
+            # Create a separate user for each contribution
+            contributor = User.objects.create_user(
+                username=f"contributor{i}",
+                password=uuid.uuid4().hex
+            )
+            # Create a purchase/contribution to the fundraise
+            Purchase.objects.create(
+                user=contributor,
+                item=many_apps_fundraise,
+                purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+                purchase_method=Purchase.OFF_CHAIN,
+                amount="100",
+            )
+        
+        # Post with few applications
+        few_apps_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        few_apps_post = ResearchhubPost.objects.create(
+            title="Few Applications Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=few_apps_doc,
+        )
+        
+        # Create a fundraise for this post
+        few_apps_fundraise = Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=few_apps_doc,
+            goal_amount=500,
+            goal_currency=USD,
+        )
+        
+        # Create one contributor for the fundraise
+        contributor = User.objects.create_user(
+            username="few_contributor",
+            password=uuid.uuid4().hex
+        )
+        # Create a purchase/contribution to the fundraise
+        Purchase.objects.create(
+            user=contributor,
+            item=few_apps_fundraise,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            purchase_method=Purchase.OFF_CHAIN,
+            amount="50",
+        )
+        
+        # Test sorting by most applicants
+        url = reverse("funding_feed-list")
+        response = self.client.get(url, {"sort_by": "most_applicants"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Should be sorted by application count descending
+        results = response.data["results"]
+        self.assertGreaterEqual(len(results), 2)
+        
+        # Find our test posts in the results
+        many_apps_found = False
+        few_apps_found = False
+        many_apps_index = -1
+        few_apps_index = -1
+        
+        for i, result in enumerate(results):
+            # Check both direct title and content_object title
+            title = result.get("title") or result.get("content_object", {}).get("title", "")
+            if title == "Many Applications Post":
+                many_apps_found = True
+                many_apps_index = i
+            elif title == "Few Applications Post":
+                few_apps_found = True
+                few_apps_index = i
+        
+        self.assertTrue(many_apps_found)
+        self.assertTrue(few_apps_found)
+        self.assertLess(many_apps_index, few_apps_index)
+
+    def test_amount_raised_sorting(self):
+        """Test sorting by amount raised (descending)"""
+        from reputation.models import Escrow
+        
+        # Post with high amount raised
+        high_amount_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        high_amount_post = ResearchhubPost.objects.create(
+            title="High Amount Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=high_amount_doc,
+        )
+        
+        # Create fundraise first
+        high_amount_fundraise = Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=high_amount_doc,
+            goal_amount=1000,
+            goal_currency=USD,
+        )
+        
+        # Create escrow with high amount
+        from django.contrib.contenttypes.models import ContentType
+        fundraise_content_type = ContentType.objects.get_for_model(Fundraise)
+        
+        high_amount_escrow = Escrow.objects.create(
+            created_by=self.user,
+            hold_type=Escrow.FUNDRAISE,
+            amount_holding=500,
+            amount_paid=300,
+            content_type=fundraise_content_type,
+            object_id=high_amount_fundraise.id,
+        )
+        
+        # Link escrow to fundraise
+        high_amount_fundraise.escrow = high_amount_escrow
+        high_amount_fundraise.save()
+        
+        # Post with low amount raised
+        low_amount_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        low_amount_post = ResearchhubPost.objects.create(
+            title="Low Amount Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=low_amount_doc,
+        )
+        
+        # Create fundraise first
+        low_amount_fundraise = Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=low_amount_doc,
+            goal_amount=500,
+            goal_currency=USD,
+        )
+        
+        # Create escrow with low amount
+        low_amount_escrow = Escrow.objects.create(
+            created_by=self.user,
+            hold_type=Escrow.FUNDRAISE,
+            amount_holding=100,
+            amount_paid=50,
+            content_type=fundraise_content_type,
+            object_id=low_amount_fundraise.id,
+        )
+        
+        # Link escrow to fundraise
+        low_amount_fundraise.escrow = low_amount_escrow
+        low_amount_fundraise.save()
+        
+        # Test sorting by amount raised
+        url = reverse("funding_feed-list")
+        response = self.client.get(url, {"sort_by": "amount_raised"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Should be sorted by amount raised descending
+        results = response.data["results"]
+        self.assertGreaterEqual(len(results), 2)
+        
+        # Find our test posts in the results
+        high_amount_found = False
+        low_amount_found = False
+        high_amount_index = -1
+        low_amount_index = -1
+        
+        for i, result in enumerate(results):
+            # Check both direct title and content_object title
+            title = result.get("title") or result.get("content_object", {}).get("title", "")
+            if title == "High Amount Post":
+                high_amount_found = True
+                high_amount_index = i
+            elif title == "Low Amount Post":
+                low_amount_found = True
+                low_amount_index = i
+        
+        self.assertTrue(high_amount_found)
+        self.assertTrue(low_amount_found)
+        self.assertLess(high_amount_index, low_amount_index)
 
