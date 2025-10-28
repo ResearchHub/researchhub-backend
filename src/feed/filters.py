@@ -42,10 +42,7 @@ class FundOrderingFilter(OrderingFilter):
         # Kept the check in, just in case, for if the FUNDING is closed
         # we do not want to apply the include_ended filter
         fundraise_status = request.query_params.get('fundraise_status', '').upper()
-        is_closed_funding = fundraise_status == 'CLOSED'
-        include_ended = request.query_params.get('include_ended', 'true').lower() == 'true'
-        if is_closed_funding:
-            include_ended = True
+        include_ended = request.query_params.get('include_ended', 'true').lower() == 'true' or fundraise_status == 'CLOSED'
         if include_ended:
             return queryset
         
