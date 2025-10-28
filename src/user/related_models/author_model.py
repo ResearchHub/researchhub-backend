@@ -64,7 +64,7 @@ class Author(models.Model):
     education = ArrayField(
         JSONField(blank=True, null=True), default=list, blank=True, null=True
     )
-    headline = JSONField(blank=True, null=True)
+    headline = models.TextField(blank=True, null=True)
     facebook = models.URLField(max_length=255, default=None, null=True, blank=True)
     twitter = models.URLField(max_length=255, default=None, null=True, blank=True)
     linkedin = models.URLField(max_length=255, default=None, null=True, blank=True)
