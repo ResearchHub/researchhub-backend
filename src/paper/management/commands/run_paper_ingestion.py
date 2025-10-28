@@ -110,7 +110,7 @@ class Command(BaseCommand):
             clients["arxiv"] = ArXivClient(
                 ArXivConfig(
                     rate_limit=1.0,
-                    page_size=100,
+                    page_size=25,
                     request_timeout=60.0,
                     max_retries=3,
                 )
