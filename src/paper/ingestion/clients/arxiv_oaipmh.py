@@ -85,9 +85,9 @@ class ArXivOAIPMHClient(BaseClient):
             )
             response.raise_for_status()
 
-            # Explicitly set encoding to UTF-8 to prevent double-encoding issues
-            # The requests library may incorrectly decode UTF-8 bytes as Latin-1
-            # if the server doesn't specify charset in Content-Type header
+            # Explicitly set encoding to UTF-8 to prevent double-encoding issues.
+            # The response header does not specify any character encoding.
+            # The response library assumes Latin-1 by default.
             response.encoding = "utf-8"
 
             # Check for OAI-PMH errors in response
