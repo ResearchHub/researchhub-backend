@@ -33,13 +33,13 @@ class PersonDocumentView(ElasticsearchViewSet):
     search_fields = {
         "full_name": {"boost": 2, "fuzziness": 1},
         "description": {"boost": 1, "fuzziness": 1},
-        "headline.title": {"boost": 1, "fuzziness": 1},
+        "headline": {"boost": 1, "fuzziness": 1},
     }
 
     multi_match_search_fields = {
         "full_name": {"boost": 2},
         "description": {"boost": 1},
-        "headline.title": {"boost": 1},
+        "headline": {"boost": 1},
     }
 
     multi_match_options = {

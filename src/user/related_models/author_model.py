@@ -64,7 +64,7 @@ class Author(models.Model):
     education = ArrayField(
         JSONField(blank=True, null=True), default=list, blank=True, null=True
     )
-    headline = JSONField(blank=True, null=True)
+    headline = models.TextField(blank=True, null=True)
     facebook = models.URLField(max_length=255, default=None, null=True, blank=True)
     twitter = models.URLField(max_length=255, default=None, null=True, blank=True)
     linkedin = models.URLField(max_length=255, default=None, null=True, blank=True)
@@ -147,9 +147,7 @@ class Author(models.Model):
             if not sorted_topics:
                 return None
 
-            return {
-                "title": "Author with expertise in " + sorted_topics[0].display_name
-            }
+            return "Author with expertise in " + sorted_topics[0].display_name
         except Exception:
             return None
 

@@ -21,11 +21,7 @@ class PersonDocument(BaseDocument):
     description = es_fields.TextField(attr="description", analyzer=content_analyzer)
     full_name = es_fields.TextField(attr="full_name", analyzer=content_analyzer)
     person_types = es_fields.KeywordField(attr="person_types_indexing")
-    headline = es_fields.ObjectField(
-        properties={
-            "title": es_fields.TextField(),
-        },
-    )
+    headline = es_fields.TextField(attr="headline", analyzer=content_analyzer)
     institutions = es_fields.ObjectField(
         attr="institutions_indexing",
         properties={
@@ -65,9 +61,6 @@ class PersonDocument(BaseDocument):
             .prefetch_related("institutions__institution")
         )
 
-    def prepare_headline(self, instance) -> dict[str, str]:
-        return {"title": instance.headline}
-
     def prepare_reputation_hubs(self, instance) -> list[str]:
         reputation_hubs = []
         if instance.reputation_list:
@@ -106,7 +99,8 @@ class PersonDocument(BaseDocument):
                     {"input": author_institution.institution.display_name, "weight": 3}
                 )
 
-                # Add full name + institution to account for people typing name + institution
+                # Add full name + institution to account for people typing
+                # name + institution
                 suggestions.append(
                     {
                         "input": instance.first_name
