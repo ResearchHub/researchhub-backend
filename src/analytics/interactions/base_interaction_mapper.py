@@ -36,6 +36,6 @@ class BaseInteractionMapper(ABC):
 
         Returns:
             Event type constant from analytics.constants.event_types
-            (e.g., ITEM_UPVOTED, BOUNTY_CREATED)
+            (e.g., UPVOTE, ..)
         """
         pass
