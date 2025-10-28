@@ -143,18 +143,13 @@ class PostDocument(BaseDocument):
         if not title:
             return title
 
-        # Common RFP prefix patterns (case-insensitive)
+        # Common RFP prefix patterns (case-insensitive matching applied below)
         # Handles variations like:
-        # - "Request For Proposals:"
-        # - "Request For Proposals -"
-        # - "Request For Proposals "
-        # - "RFP:"
-        # - "RFP -"
-        # - "RFP "
+        # - "Request For Proposals:", "request for proposals:", etc.
+        # - "Request For Proposals -", "REQUEST FOR PROPOSALS -", etc.
+        # - "RFP:", "rfp:", etc.
         rfp_patterns = [
-            r"^Request\s+For\s+Proposals\s*[:-]?\s*",
             r"^Request\s+for\s+Proposals\s*[:-]?\s*",
-            r"^Request\s+for\s+proposals\s*[:-]?\s*",
             r"^RFP\s*[:-]?\s*",
         ]
 
