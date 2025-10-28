@@ -1237,7 +1237,7 @@ class FundingFeedViewSetTests(TestCase):
         
         # Test sorting by upvotes
         url = reverse("funding_feed-list")
-        response = self.client.get(url, {"sort_by": "upvotes"})
+        response = self.client.get(url, {"ordering": "upvotes"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         
         # Should be sorted by upvotes descending
@@ -1337,7 +1337,7 @@ class FundingFeedViewSetTests(TestCase):
         
         # Test sorting by most applicants
         url = reverse("funding_feed-list")
-        response = self.client.get(url, {"sort_by": "most_applicants"})
+        response = self.client.get(url, {"ordering": "most_applicants"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         
         # Should be sorted by application count descending
@@ -1439,7 +1439,7 @@ class FundingFeedViewSetTests(TestCase):
         
         # Test sorting by amount raised
         url = reverse("funding_feed-list")
-        response = self.client.get(url, {"sort_by": "amount_raised"})
+        response = self.client.get(url, {"ordering": "amount_raised"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         
         # Should be sorted by amount raised descending

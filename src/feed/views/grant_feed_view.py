@@ -38,9 +38,9 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         base_key = super().get_cache_key(request, feed_type)
 
         # Add grant-specific parameters to cache key
-        sort_by = request.query_params.get("sort_by", "")
+        ordering = request.query_params.get("ordering", "")
 
-        grant_params = f"-sort_by:{sort_by}"
+        grant_params = f"-ordering:{ordering}"
         return base_key + grant_params
 
     def list(self, request, *args, **kwargs):

@@ -10,6 +10,7 @@ from django.db.models import (
     OuterRef,
     QuerySet,
     Subquery,
+    Sum,
     Value,
     When,
 )
@@ -24,23 +25,16 @@ from purchase.related_models.grant_model import Grant
 
 class FundOrderingFilter(OrderingFilter):
     """Custom ordering filter for grants and fundraises with best sorting logic."""
+    
 
     def filter_queryset(self, request: Request, queryset: QuerySet, view: Any) -> QuerySet:
-        # Get the sort_by parameter from the request
-        sort_by_param = request.query_params.get('sort_by', '')
+        """Apply filtering and sorting to the queryset."""
+        ordering = request.query_params.get('ordering', '')
         model_config = self._get_model_config(view)
         queryset = self._apply_include_ended_filter(request, queryset, view, model_config)
-        
-        if sort_by_param == 'upvotes':
-            return self._apply_upvotes_sorting(queryset)
-        elif sort_by_param == 'most_applicants':
-            return self._apply_most_applicants_sorting(queryset, model_config['model_class'])
-        elif sort_by_param == 'amount_raised':
-            return self._apply_amount_raised_sorting(queryset, model_config['model_class'])
-        else:
-            # Default to "best" sorting for empty, 'best', or any other value
-            return self._apply_best_sorting(queryset, model_config)
-    
+         
+        return self._apply_custom_sorting(ordering, queryset, model_config)
+     
     def _get_model_config(self, view: Any) -> dict[str, Union[Type[Grant], Type[Fundraise], str]]:
         if getattr(view, 'is_grant_view', False):
             return {
@@ -72,7 +66,19 @@ class FundOrderingFilter(OrderingFilter):
                 end_date__lt=now
             ).values_list('unified_document_id', flat=True)
         )
-    
+
+    def _apply_custom_sorting(self, ordering: str, queryset: QuerySet, model_config: dict) -> QuerySet:
+        """Apply custom sorting based on order value."""
+        if ordering == 'upvotes':
+            return self._apply_upvotes_sorting(queryset)
+        elif ordering == 'most_applicants':
+            return self._apply_most_applicants_sorting(queryset, model_config['model_class'])
+        elif ordering == 'amount_raised':
+            return self._apply_amount_raised_sorting(queryset, model_config['model_class'])
+        else:
+            # Fallback to best sorting for any other value
+            return self._apply_best_sorting(queryset, model_config)
+
     def _apply_best_sorting(self, queryset: QuerySet, model_config: dict[str, Union[Type[Grant], Type[Fundraise], str]]) -> QuerySet:
         model_class = model_config['model_class']
         open_status = model_config['open_status']
@@ -154,18 +160,26 @@ class FundOrderingFilter(OrderingFilter):
     
     def _apply_amount_raised_sorting(self, queryset: QuerySet, model_class: Union[Type[Grant], Type[Fundraise]]) -> QuerySet:
         if model_class == Grant:
+            # Aggregate total amount across all grants for each post
             return queryset.annotate(
                 amount_value=Coalesce(
-                    F("unified_document__grants__amount"), 
+                    Sum(
+                        F("unified_document__grants__amount"),
+                        output_field=DecimalField(max_digits=19, decimal_places=2)
+                    ),
                     0,
                     output_field=DecimalField(max_digits=19, decimal_places=2)
                 )
             ).order_by("-amount_value", "-created_date")
         else:
+            # Aggregate total amount raised across all fundraises for each post
             return queryset.annotate(
                 amount_raised=Coalesce(
-                    F("unified_document__fundraises__escrow__amount_holding") + 
-                    F("unified_document__fundraises__escrow__amount_paid"),
+                    Sum(
+                        F("unified_document__fundraises__escrow__amount_holding") + 
+                        F("unified_document__fundraises__escrow__amount_paid"),
+                        output_field=DecimalField(max_digits=19, decimal_places=10)
+                    ),
                     0,
                     output_field=DecimalField(max_digits=19, decimal_places=10)
                 )

@@ -157,7 +157,7 @@ class FeedViewMixin:
         hub_slug = request.query_params.get("hub_slug")
         user_id = request.user.id if request.user.is_authenticated else None
         fundraise_status = request.query_params.get("fundraise_status", None)
-        sort_by = request.query_params.get("sort_by", "latest")
+        ordering = request.query_params.get("ordering", "latest")
         include_ended = request.query_params.get("include_ended", "true")
 
         page = request.query_params.get("page", "1")
@@ -175,7 +175,7 @@ class FeedViewMixin:
         pagination_part = f"{page}-{page_size}"
         status_part = f"-{fundraise_status}" if fundraise_status else ""
         feed_type_part = f"{feed_type}_" if feed_type else ""
-        sort_part = f"-{sort_by}" if sort_by != "latest" else ""
+        sort_part = f"-{ordering}" if ordering != "latest" else ""
         include_ended_part = f"-include_ended-{include_ended}" if include_ended != "true" else ""
 
         source = request.query_params.get("source")
