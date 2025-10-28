@@ -245,6 +245,7 @@ class TestPaperIngestionService(TestCase):
         self.mock_arxiv_mapper.validate.side_effect = [True, False, True]
 
         mock_paper1 = Mock(spec=Paper)
+        mock_paper1.id = 1
         mock_paper1.doi = None
         mock_paper1.save = Mock()
 
@@ -537,6 +538,39 @@ class TestPaperIngestionService(TestCase):
         authorship = Authorship.objects.filter(paper=paper).first()
         self.assertIsNotNone(authorship)
         self.assertEqual(authorship.institutions.count(), 0)
-        authorship = Authorship.objects.filter(paper=paper).first()
-        self.assertIsNotNone(authorship)
-        self.assertEqual(authorship.institutions.count(), 0)
+
+    @patch("paper.tasks.download_pdf")
+    def test_pdf_download_triggered_for_arxiv_papers(self, mock_download_pdf):
+        """Test that PDF download task is triggered for arXiv papers with pdf_url."""
+        # Create a paper with pdf_url
+        paper = Paper(
+            title="Test arXiv Paper",
+            doi="10.48550/arXiv.2507.00004",
+            abstract="Test abstract",
+            external_source="arxiv",
+            pdf_url="http://arxiv.org/pdf/2507.00004.pdf",  # NOSONAR - http
+        )
+
+        # Mock the arXiv OAI-PMH mapper
+        mock_mapper = Mock()
+        mock_mapper.validate.return_value = True
+        mock_mapper.map_to_paper.return_value = paper
+        mock_mapper.map_to_hubs.return_value = []
+
+        # Create service with mock mapper
+        service = PaperIngestionService({IngestionSource.ARXIV_OAI: mock_mapper})
+
+        # Ingest arXiv paper
+        papers, failures = service.ingest_papers(
+            [{"id": "2507.00004", "title": "Test arXiv Paper"}],
+            IngestionSource.ARXIV_OAI,
+        )
+
+        # Verify paper was created successfully
+        self.assertEqual(len(papers), 1)
+        self.assertEqual(len(failures), 0)
+
+        # Verify download_pdf task was called with correct params
+        mock_download_pdf.apply_async.assert_called_once_with(
+            (papers[0].id,), priority=5
+        )

@@ -230,6 +230,14 @@ class PaperIngestionService:
                     continue
 
                 paper = self._save_paper(paper)
+
+                # Trigger PDF download for arXiv papers
+                if paper.pdf_url and self._supports_pdf_download(source):
+                    from paper.tasks import download_pdf
+
+                    download_pdf.apply_async((paper.id,), priority=5)
+                    logger.info(f"Queued PDF download for paper {paper.id}")
+
                 # Create hubs
                 hubs = mapper.map_to_hubs(paper, record)
                 if hubs:
@@ -273,6 +281,12 @@ class PaperIngestionService:
         )
 
         return successful_papers, failed_records
+
+    def _supports_pdf_download(self, source: IngestionSource) -> bool:
+        """
+        Check if the ingestion source supports PDF download.
+        """
+        return source in [IngestionSource.ARXIV, IngestionSource.ARXIV_OAI]
 
     def _save_paper(self, paper: Paper) -> Paper:
         """
