@@ -337,6 +337,8 @@ class PaperIngestionService:
             "paper_publish_date",
             "raw_authors",
             "external_metadata",
+            "pdf_license",
+            "pdf_license_url",
             "pdf_url",
             "url",
             "is_open_access",

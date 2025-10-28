@@ -1245,7 +1245,7 @@ class SuggestViewTests(TestCase):
                     "id": 123,
                     "full_name": "Test Author",
                     "profile_image": "https://example.com/image.jpg",
-                    "headline": {"title": "Test Headline"},
+                    "headline": "Test Headline",
                     "created_date": "2023-01-01",
                     "user_id": 456,
                 },
@@ -1280,6 +1280,6 @@ class SuggestViewTests(TestCase):
         self.assertEqual(result["id"], 123)
         self.assertEqual(result["display_name"], "Test Author")
         self.assertEqual(result["profile_image"], "https://example.com/image.jpg")
-        self.assertEqual(result["headline"], {"title": "Test Headline"})
+        self.assertEqual(result["headline"], "Test Headline")
         self.assertEqual(result["created_date"], "2023-01-01")
         self.assertEqual(result["source"], "researchhub")

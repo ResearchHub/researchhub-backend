@@ -99,11 +99,7 @@ class FeedEntryDocument(BaseDocument):
                     if profile.profile_image and profile.profile_image.name
                     else None
                 ),
-                "headline": (
-                    profile.headline.get("title")
-                    if isinstance(profile.headline, dict)
-                    else profile.headline
-                ),
+                "headline": profile.headline,
                 "user": {
                     "id": instance.user.id,
                     "first_name": instance.user.first_name,
