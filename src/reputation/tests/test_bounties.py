@@ -1529,3 +1529,73 @@ class BountyViewTests(APITestCase):
             distribution_type="BOUNTY_DAO_FEE"
         ).latest("created_date")
         self.assertEqual(dao_fee_distribution.recipient, community_revenue_user)
+
+    def test_order_by_open_and_expiration_puts_open_bounties_first(self):
+        """Test that order_by_open_and_expiration sorts bounties correctly"""
+        paper = create_paper()
+        self.client.force_authenticate(self.user)
+        comment1 = create_rh_comment(created_by=self.user, paper=paper)
+        comment2 = create_rh_comment(created_by=self.user, paper=paper)
+        comment3 = create_rh_comment(created_by=self.user, paper=paper)
+        comment4 = create_rh_comment(created_by=self.user, paper=paper)
+
+        bounty1_res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 100,
+                "item_content_type": comment1._meta.model_name,
+                "item_object_id": comment1.id,
+                "expiration_date": "2040-01-01T00:00:00Z",
+            },
+        )
+        bounty1 = Bounty.objects.get(id=bounty1_res.data["id"])
+
+        bounty2_res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 200,
+                "item_content_type": comment2._meta.model_name,
+                "item_object_id": comment2.id,
+                "expiration_date": "2030-01-01T00:00:00Z",
+            },
+        )
+        bounty2 = Bounty.objects.get(id=bounty2_res.data["id"])
+
+        bounty3_res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 300,
+                "item_content_type": comment3._meta.model_name,
+                "item_object_id": comment3.id,
+                "expiration_date": "2035-01-01T00:00:00Z",
+            },
+        )
+        bounty3 = Bounty.objects.get(id=bounty3_res.data["id"])
+
+        bounty4_res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 400,
+                "item_content_type": comment4._meta.model_name,
+                "item_object_id": comment4.id,
+                "expiration_date": "2025-01-01T00:00:00Z",
+            },
+        )
+        bounty4 = Bounty.objects.get(id=bounty4_res.data["id"])
+
+        bounty2.status = Bounty.CLOSED
+        bounty2.save()
+        bounty4.status = Bounty.EXPIRED
+        bounty4.save()
+
+        ordered_bounties = Bounty.objects.filter(
+            id__in=[bounty1.id, bounty2.id, bounty3.id, bounty4.id]
+        ).order_by_open_and_expiration()
+
+        bounty_ids = list(ordered_bounties.values_list("id", flat=True))
+
+        self.assertEqual(len(bounty_ids), 4)
+        self.assertEqual(bounty_ids[0], bounty3.id)
+        self.assertEqual(bounty_ids[1], bounty1.id)
+        self.assertIn(bounty2.id, bounty_ids[2:])
+        self.assertIn(bounty4.id, bounty_ids[2:])
