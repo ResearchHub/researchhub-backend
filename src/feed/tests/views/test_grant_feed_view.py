@@ -357,20 +357,64 @@ class GrantFeedViewTests(APITestCase):
         # Should return 200 but with no results (invalid status filter is ignored)
         self.assertEqual(response.status_code, 200)
 
-    def test_grant_feed_ignores_unknown_parameters(self):
-        """Test grant feed ignores unknown parameters (status/organization filtering removed)"""
+    def test_grant_feed_filter_by_status_open(self):
+        """Test grant feed filtering by OPEN status"""
+        self.client.force_authenticate(self.user)
+        response = self.client.get("/api/grant_feed/?status=OPEN")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(response.data["results"][0]["content_object"]["title"], "Open Grant")
+
+    def test_grant_feed_filter_by_status_closed(self):
+        """Test grant feed filtering by CLOSED status"""
+        self.client.force_authenticate(self.user)
+        response = self.client.get("/api/grant_feed/?status=CLOSED")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(response.data["results"][0]["content_object"]["title"], "Closed Grant")
+
+    def test_grant_feed_filter_by_status_completed(self):
+        """Test grant feed filtering by COMPLETED status"""
+        self.client.force_authenticate(self.user)
+        response = self.client.get("/api/grant_feed/?status=COMPLETED")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(response.data["results"][0]["content_object"]["title"], "Completed Grant")
+
+    def test_grant_feed_filter_by_organization(self):
+        """Test grant feed filtering by organization"""
+        self.client.force_authenticate(self.user)
+        response = self.client.get("/api/grant_feed/?organization=NSF")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(response.data["results"][0]["content_object"]["title"], "Open Grant")
+
+    def test_grant_feed_filter_by_organization_partial_match(self):
+        """Test grant feed filtering by organization with partial match"""
+        self.client.force_authenticate(self.user)
+        response = self.client.get("/api/grant_feed/?organization=NS")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(response.data["results"][0]["content_object"]["title"], "Open Grant")
+
+    def test_grant_feed_multiple_filters(self):
+        """Test grant feed with multiple filters"""
         self.client.force_authenticate(self.user)
         response = self.client.get("/api/grant_feed/?status=OPEN&organization=NSF")
 
         self.assertEqual(response.status_code, 200)
-        # Should return all grants since filtering was removed
-        self.assertEqual(len(response.data["results"]), 3)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(response.data["results"][0]["content_object"]["title"], "Open Grant")
 
-    def test_grant_feed_returns_all_grants_with_unknown_params(self):
-        """Test grant feed returns all grants even with unknown parameters"""
+    def test_grant_feed_no_grants(self):
+        """Test grant feed with filters that return no results"""
         self.client.force_authenticate(self.user)
-        response = self.client.get("/api/grant_feed/?organization=NONEXISTENT")
+        response = self.client.get("/api/grant_feed/?status=OPEN&organization=NONEXISTENT")
 
         self.assertEqual(response.status_code, 200)
-        # Should return all grants since filtering was removed
-        self.assertEqual(len(response.data["results"]), 3)
+        self.assertEqual(len(response.data["results"]), 0)
