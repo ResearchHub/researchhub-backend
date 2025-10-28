@@ -11,7 +11,7 @@ from django_opensearch_dsl.registries import registry
 
 from paper.models import Paper
 from paper.utils import format_raw_authors
-from search.analyzers import title_analyzer
+from search.analyzers import content_analyzer, title_analyzer
 from utils.doi import DOI
 
 from .base import BaseDocument
@@ -28,7 +28,10 @@ class PaperDocument(BaseDocument):
     paper_publish_date = es_fields.DateField()
     doi = es_fields.TextField(analyzer="keyword")
     openalex_id = es_fields.TextField()
-    # TODO: Deprecate this field once we move over to new app. It should not longer be necessary since authors property will replace it.
+    abstract = es_fields.TextField(analyzer=content_analyzer)
+    is_open_access = es_fields.BooleanField()
+    # TODO: Deprecate this field once we move over to new app.
+    # It should not longer be necessary since authors property will replace it.
     raw_authors = es_fields.ObjectField(
         properties={
             "first_name": es_fields.TextField(),
@@ -36,6 +39,17 @@ class PaperDocument(BaseDocument):
             "full_name": es_fields.TextField(),
         },
     )
+    hubs = es_fields.ObjectField(
+        attr="hubs_indexing",
+        properties={
+            "id": es_fields.IntegerField(),
+            "name": es_fields.KeywordField(),
+            "slug": es_fields.TextField(),
+        },
+    )
+    hot_score = es_fields.IntegerField()
+    score = es_fields.IntegerField()
+    created_date = es_fields.DateField(attr="created_date")
     suggestion_phrases = es_fields.CompletionField()
 
     class Index:
@@ -116,7 +130,7 @@ class PaperDocument(BaseDocument):
 
         except Exception as e:
             logger.warning(
-                f"Failed to prepare OpenAlex keywords for paper {instance.id}: {e}"
+                f"Failed to prepare OpenAlex keywords for " f"paper {instance.id}: {e}"
             )
 
         try:
@@ -176,7 +190,9 @@ class PaperDocument(BaseDocument):
                     {
                         "first_name": author.get("first_name"),
                         "last_name": author.get("last_name"),
-                        "full_name": f'{author.get("first_name")} {author.get("last_name")}',
+                        "full_name": (
+                            f'{author.get("first_name")} ' f'{author.get("last_name")}'
+                        ),
                     }
                 )
 
@@ -184,6 +200,16 @@ class PaperDocument(BaseDocument):
 
     def prepare_doi_indexing(self, instance) -> str:
         return instance.doi or ""
+
+    def prepare_hot_score(self, instance) -> int:
+        if instance.unified_document:
+            return instance.unified_document.hot_score
+        return 0
+
+    def prepare_score(self, instance) -> int:
+        if instance.unified_document:
+            return instance.unified_document.score
+        return 0
 
     def get_indexing_queryset(
         self,
@@ -209,12 +235,14 @@ class PaperDocument(BaseDocument):
         start = time.time()
         last_pk = None
         if verbose:
-            stdout.write(f"{action} {model}: 0% ({self._eta(start, done, count)})\r")
+            eta = self._eta(start, done, count)
+            stdout.write(f"{action} {model}: 0% ({eta})\r")
+
         while done < count:
             if verbose:
-                stdout.write(
-                    f"{action} {model}: {round(done / count * 100)}% ({self._eta(start, done, count)})\r"
-                )
+                pct = round(done / count * 100)
+                eta = self._eta(start, done, count)
+                stdout.write(f"{action} {model}: {pct}% ({eta})\r")
 
             if last_pk is not None:
                 current_qs = qs.filter(pk__gt=last_pk)[:chunk_size]
