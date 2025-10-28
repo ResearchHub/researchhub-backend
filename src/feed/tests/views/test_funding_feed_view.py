@@ -1211,7 +1211,7 @@ class FundingFeedViewSetTests(TestCase):
         high_upvotes_doc.document_filter = high_upvotes_filter
         high_upvotes_doc.save()
         
-        high_upvotes_post = ResearchhubPost.objects.create(
+        ResearchhubPost.objects.create(
             title="High Upvotes Post",
             created_by=self.user,
             document_type=PREREGISTRATION,
@@ -1228,7 +1228,7 @@ class FundingFeedViewSetTests(TestCase):
         low_upvotes_doc.document_filter = low_upvotes_filter
         low_upvotes_doc.save()
         
-        low_upvotes_post = ResearchhubPost.objects.create(
+        ResearchhubPost.objects.create(
             title="Low Upvotes Post",
             created_by=self.user,
             document_type=PREREGISTRATION,
@@ -1271,7 +1271,7 @@ class FundingFeedViewSetTests(TestCase):
         many_apps_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION
         )
-        many_apps_post = ResearchhubPost.objects.create(
+        ResearchhubPost.objects.create(
             title="Many Applications Post",
             created_by=self.user,
             document_type=PREREGISTRATION,
@@ -1306,7 +1306,7 @@ class FundingFeedViewSetTests(TestCase):
         few_apps_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION
         )
-        few_apps_post = ResearchhubPost.objects.create(
+        ResearchhubPost.objects.create(
             title="Few Applications Post",
             created_by=self.user,
             document_type=PREREGISTRATION,
@@ -1372,7 +1372,7 @@ class FundingFeedViewSetTests(TestCase):
         high_amount_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION
         )
-        high_amount_post = ResearchhubPost.objects.create(
+        ResearchhubPost.objects.create(
             title="High Amount Post",
             created_by=self.user,
             document_type=PREREGISTRATION,
@@ -1408,7 +1408,7 @@ class FundingFeedViewSetTests(TestCase):
         low_amount_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION
         )
-        low_amount_post = ResearchhubPost.objects.create(
+        ResearchhubPost.objects.create(
             title="Low Amount Post",
             created_by=self.user,
             document_type=PREREGISTRATION,
