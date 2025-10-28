@@ -8,6 +8,7 @@ from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from search.backends.multi_match_query import MultiMatchQueryBackend
 from search.documents.hub import HubDocument
 from search.documents.paper import PaperDocument
 from search.documents.person import PersonDocument
@@ -30,6 +31,18 @@ class SuggestView(APIView):
         "user": 2.5,  # Increased weight for users
         "person": 2.5,  # Authors same as users
         "post": 1.0,  # Regular posts
+    }
+
+    # Field mappings for hybrid multi_match search
+    MULTI_MATCH_FIELDS = {
+        "paper": [
+            ("paper_title", 3.0),
+            ("raw_authors.full_name", 2.0),
+        ],
+        "post": [
+            ("title", 3.0),
+            ("authors.full_name", 2.0),
+        ],
     }
 
     # Map of index names to their document classes and transform functions
@@ -454,6 +467,58 @@ class SuggestView(APIView):
                         results.extend(es_results)
                 except Exception as e:
                     logger.error(f"Error retrieving suggestions for {index}: {str(e)}")
+
+                # Hybrid search: Add multi_match fallback for flexible word
+                # order when completion suggester fails
+                if (
+                    len(query.split()) >= 3
+                    and len(results) < 3
+                    and index in self.MULTI_MATCH_FIELDS
+                ):
+                    try:
+                        search_fields = self.MULTI_MATCH_FIELDS[index]
+                        multi_match_query = (
+                            MultiMatchQueryBackend.construct_hybrid_bool_query(
+                                query, search_fields
+                            )
+                        )
+
+                        # Execute multi_match search
+                        multi_match_search = Search(index=document._index._name).query(
+                            multi_match_query
+                        )[:limit_per_index]
+                        multi_match_response = multi_match_search.execute()
+
+                        # Deduplicate and add results
+                        existing_ids = {r.get("id") for r in results if r.get("id")}
+
+                        for hit in multi_match_response.hits:
+                            hit_data = {
+                                "_source": hit.to_dict(),
+                                "_score": getattr(hit.meta, "score", 1.0),
+                            }
+                            hit_id = hit_data["_source"].get("id")
+
+                            if not hit_id or hit_id in existing_ids:
+                                continue
+
+                            transformed = self.safe_transform(
+                                transform_func, hit_data, index
+                            )
+                            transformed["_search_method"] = "multi_match"
+                            results.append(transformed)
+                            existing_ids.add(hit_id)
+
+                        if multi_match_response.hits:
+                            logger.info(
+                                f"Multi_match added {len(multi_match_response.hits)} "
+                                f"results for '{query}' in {index}"
+                            )
+
+                    except Exception as e:
+                        logger.warning(
+                            f"Multi_match fallback error for {index}: {str(e)}"
+                        )
 
             # Handle paper-specific deduplication
             if index == "paper":

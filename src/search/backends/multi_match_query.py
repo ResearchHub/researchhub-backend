@@ -105,6 +105,79 @@ class MultiMatchQueryBackend(BaseSearchQueryBackend):
             request, view, [field], search_term, complex_query_opts
         )
 
+    @staticmethod
+    def construct_hybrid_bool_query(
+        query,
+        search_fields,
+        phrase_multiplier=1.0,
+        match_all_multiplier=0.7,
+        fuzzy_multiplier=0.3,
+    ):
+        """
+        Build a hybrid bool query with multiple match strategies for flexible
+        searching. Combines phrase match, match with AND operator, and fuzzy
+        match for comprehensive coverage.
+
+        Args:
+            query (str): Search query string
+            search_fields (list): List of (field_name, base_boost) tuples
+            phrase_multiplier (float): Multiplier for phrase match boost
+            match_all_multiplier (float): Multiplier for match-all boost
+            fuzzy_multiplier (float): Multiplier for fuzzy match boost
+
+        Returns:
+            Q: OpenSearch Q object with combined should clauses
+
+        Example:
+            >>> fields = [("title", 3.0), ("authors.full_name", 2.0)]
+            >>> query = MultiMatchQueryBackend.construct_hybrid_bool_query(
+            ...     "development testing aroma", fields
+            ... )
+        """
+        should_clauses = []
+
+        for field_name, base_boost in search_fields:
+            # Strategy 1: Phrase match (highest relevance)
+            should_clauses.append(
+                Q(
+                    "match_phrase",
+                    **{
+                        field_name: {
+                            "query": query,
+                            "boost": base_boost * phrase_multiplier,
+                        }
+                    },
+                )
+            )
+            # Strategy 2: All words present, any order
+            should_clauses.append(
+                Q(
+                    "match",
+                    **{
+                        field_name: {
+                            "query": query,
+                            "operator": "and",
+                            "boost": base_boost * match_all_multiplier,
+                        }
+                    },
+                )
+            )
+            # Strategy 3: Fuzzy match for typos
+            should_clauses.append(
+                Q(
+                    "match",
+                    **{
+                        field_name: {
+                            "query": query,
+                            "fuzziness": "AUTO",
+                            "boost": base_boost * fuzzy_multiplier,
+                        }
+                    },
+                )
+            )
+
+        return Q("bool", should=should_clauses, minimum_should_match=1)
+
     """
     Returns all fields that do not have "options" key
     specified on a per-field basis.
