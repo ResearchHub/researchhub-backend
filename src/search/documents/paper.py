@@ -159,6 +159,12 @@ class PaperDocument(BaseDocument):
             "weight": weight,
         }
 
+    def prepare_paper_publish_date(self, instance):
+        """Convert datetime to date for OpenSearch indexing."""
+        if instance.paper_publish_date:
+            return instance.paper_publish_date.date()
+        return None
+
     def prepare_raw_authors(self, instance) -> list[dict[str, Any]]:
         authors = []
         if isinstance(instance.raw_authors, list) is False:
