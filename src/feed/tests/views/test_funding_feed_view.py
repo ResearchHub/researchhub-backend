@@ -1076,7 +1076,7 @@ class FundingFeedViewSetTests(TestCase):
         )
 
     def test_include_ended_parameter(self):
-        """Test include_ended parameter behavior""" 
+        """Test include_ended parameter behavior and fundraise_status=CLOSED override""" 
         
         # Create an expired OPEN fundraise (past end_date but status still OPEN)
         expired_doc = ResearchhubUnifiedDocument.objects.create(
@@ -1117,7 +1117,7 @@ class FundingFeedViewSetTests(TestCase):
         self.assertIn(self.other_post.id, post_ids)
         self.assertIn(expired_post.id, post_ids)
 
-        # Test include_ended=false
+        # Test include_ended=false (should exclude expired items)
         url = reverse("funding_feed-list") + "?include_ended=false"
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1127,6 +1127,65 @@ class FundingFeedViewSetTests(TestCase):
         self.assertIn(self.post.id, post_ids)
         self.assertIn(self.other_post.id, post_ids)
         self.assertNotIn(expired_post.id, post_ids)
+
+        # Create a unified document with BOTH completed and open-expired fundraises
+        # This is needed to properly test the include_ended override regression
+        mixed_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        mixed_post = ResearchhubPost.objects.create(
+            title="Mixed Status Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=mixed_doc,
+        )
+        
+        # Create completed fundraise (will be included by fundraise_status=CLOSED)
+        completed_escrow = Escrow.objects.create(
+            amount_holding=0,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=mixed_doc.id,
+        )
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=mixed_doc,
+            escrow=completed_escrow,
+            status=Fundraise.COMPLETED,
+            goal_amount=100,
+            end_date=timezone.now() - timezone.timedelta(days=5),
+        )
+        
+        # Create open-expired fundraise (would be excluded by include_ended=false without override)
+        open_expired_escrow = Escrow.objects.create(
+            amount_holding=50,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=mixed_doc.id,
+        )
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=mixed_doc,
+            escrow=open_expired_escrow,
+            status=Fundraise.OPEN,
+            goal_amount=200,
+            end_date=timezone.now() - timezone.timedelta(days=3),  # Expired 3 days ago
+        )
+
+        # Test fundraise_status=CLOSED overrides include_ended=false
+        url = reverse("funding_feed-list") + "?fundraise_status=CLOSED&include_ended=false"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Should include the mixed_post because it has a COMPLETED fundraise
+        # The include_ended override prevents filtering out the open-expired fundraise
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertNotIn(self.post.id, post_ids)  # OPEN fundraise - filtered out by fundraise_status=CLOSED
+        self.assertIn(self.other_post.id, post_ids)  # COMPLETED fundraise - included
+        self.assertNotIn(expired_post.id, post_ids)  # OPEN fundraise - filtered out by fundraise_status=CLOSED
+        self.assertIn(mixed_post.id, post_ids)  # Has COMPLETED fundraise - included despite open-expired one
 
     def test_include_ended_default_behavior(self):
         """Test that include_ended defaults to true when not specified"""
