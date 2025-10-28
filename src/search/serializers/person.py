@@ -7,7 +7,6 @@ from user.serializers import AuthorSerializer, UserSerializer
 
 class PersonDocumentSerializer(serializers.ModelSerializer):
     profile_image = serializers.SerializerMethodField()
-    headline = serializers.SerializerMethodField()
     user_reputation = serializers.SerializerMethodField()
     person_types = serializers.SerializerMethodField()
     author_profile = serializers.SerializerMethodField()
@@ -70,6 +69,3 @@ class PersonDocumentSerializer(serializers.ModelSerializer):
     def get_profile_image(self, document):
         if document.profile_image is not None:
             return document.profile_image
-
-    def get_headline(self, document):
-        return document.headline if document.headline else None
