@@ -1,4 +1,3 @@
-from .base_interaction_mapper import BaseInteractionMapper
-from .upvote_interaction_mapper import UpvoteInteractionMapper
+from .interaction_mapper import map_from_upvote
 
-__all__ = ["BaseInteractionMapper", "UpvoteInteractionMapper"]
+__all__ = ["map_from_upvote"]
