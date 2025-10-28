@@ -1,7 +1,9 @@
+from datetime import date, datetime
 from unittest.mock import patch
 
 from django.db.models import Q
 from django.test import TestCase
+from django.utils import timezone
 
 from paper.tests.helpers import create_paper
 from search.documents.paper import PaperDocument
@@ -218,3 +220,22 @@ class PaperDocumentTests(TestCase):
         small_pks = sorted([obj.pk for obj in objects_small_chunks])
         large_pks = sorted([obj.pk for obj in objects_large_chunks])
         self.assertEqual(small_pks, large_pks)
+
+    def test_prepare_paper_publish_date_converts_datetime_to_date(self):
+        """Test that prepare_paper_publish_date converts datetime to date"""
+        # arrange
+        paper = create_paper(title="Test Paper")
+        paper.paper_publish_date = timezone.make_aware(
+            datetime(2025, 10, 27, 14, 30, 0)
+        )
+        paper.save()
+
+        # act
+        result = self.document.prepare_paper_publish_date(paper)
+
+        # assert
+        self.assertIsNotNone(result)
+        self.assertIsInstance(result, date)
+        self.assertEqual(result.year, 2025)
+        self.assertEqual(result.month, 10)
+        self.assertEqual(result.day, 27)
