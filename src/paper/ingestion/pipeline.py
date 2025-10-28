@@ -288,7 +288,6 @@ def fetch_papers_from_source(
                     page_size=100,
                     request_timeout=60.0,
                     max_retries=3,
-                    use_oaipmh=True,
                 )
             )
         elif source == "biorxiv":
