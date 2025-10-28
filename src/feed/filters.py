@@ -31,33 +31,8 @@ class FundOrderingFilter(OrderingFilter):
     def filter_queryset(self, request, queryset, view):
         ordering = self.get_ordering(request, queryset, view)
         
-        # Check include_ended parameter - only apply if not on "Previously Funded" tab
-        fundraise_status = request.query_params.get('fundraise_status', '').upper()
-        is_previously_funded_tab = fundraise_status == 'CLOSED'
-        
-        include_ended = request.query_params.get('include_ended', 'true').lower() == 'true'
-        # Don't apply include_ended filter on Previously Funded tab
-        if is_previously_funded_tab:
-            include_ended = True
-        
         # Apply include_ended filtering BEFORE any ordering logic
-        if not include_ended:
-            # Check view type to determine which model to filter
-            if getattr(view, 'is_grant_view', False):
-                model_class = Grant
-                open_status = Grant.OPEN
-            else:
-                model_class = Fundraise
-                open_status = Fundraise.OPEN
-            
-            # Exclude OPEN items that are past their end_date
-            now = timezone.now()
-            queryset = queryset.exclude(
-                unified_document__in=model_class.objects.filter(
-                    status=open_status,
-                    end_date__lt=now
-                ).values_list('unified_document_id', flat=True)
-            )
+        queryset = self._apply_include_ended_filter(request, queryset, view)
         
         # If no ordering parameter specified, apply "best" sorting
         if not ordering:
@@ -77,6 +52,48 @@ class FundOrderingFilter(OrderingFilter):
         
         # Fall back to default ordering behavior for any explicit ordering parameters
         return super().filter_queryset(request, queryset, view)
+    
+    def _apply_include_ended_filter(self, request, queryset, view):
+        """
+        Apply include_ended filtering to exclude OPEN items past their end_date.
+        
+        Args:
+            request: The request object
+            queryset: The queryset to filter
+            view: The view instance
+            
+        Returns:
+            Filtered queryset
+        """
+        # Check include_ended parameter - only apply if not on "Previously Funded" tab
+        fundraise_status = request.query_params.get('fundraise_status', '').upper()
+        is_previously_funded_tab = fundraise_status == 'CLOSED'
+        
+        include_ended = request.query_params.get('include_ended', 'true').lower() == 'true'
+        # Don't apply include_ended filter on Previously Funded tab
+        if is_previously_funded_tab:
+            include_ended = True
+        
+        # Apply include_ended filtering
+        if not include_ended:
+            # Check view type to determine which model to filter
+            if getattr(view, 'is_grant_view', False):
+                model_class = Grant
+                open_status = Grant.OPEN
+            else:
+                model_class = Fundraise
+                open_status = Fundraise.OPEN
+            
+            # Exclude OPEN items that are past their end_date
+            now = timezone.now()
+            queryset = queryset.exclude(
+                unified_document__in=model_class.objects.filter(
+                    status=open_status,
+                    end_date__lt=now
+                ).values_list('unified_document_id', flat=True)
+            )
+        
+        return queryset
     
     def _apply_best_sorting(self, queryset, model_class, open_status, closed_statuses):
         """
