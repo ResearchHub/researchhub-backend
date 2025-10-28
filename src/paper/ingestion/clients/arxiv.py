@@ -139,8 +139,12 @@ class ArXivClient(BaseClient):
         """
         Fetch recent papers from ArXiv within date range.
 
+        Note: The ArXiv API does not return any results if the date range between
+        since and until is less than 3 days. If a smaller window is provided,
+        it will be automatically extended.
+
         Args:
-            since: Start date (defaults to 7 days ago)
+            since: Start date (defaults to 7 days ago, minimum 3 days before until)
             until: End date (defaults to today)
             max_results: Maximum number of results to return
             **kwargs: Additional parameters
@@ -153,6 +157,12 @@ class ArXivClient(BaseClient):
             until = datetime.now()
         if since is None:
             since = until - timedelta(days=7)
+
+        # ArXiv API requires at least 3 days between since and until dates.
+        min_days_required = 3
+        if (until - since).days < min_days_required:
+            logger.warning(f"Extending date range to minimum {min_days_required} days.")
+            since = until - timedelta(days=min_days_required)
 
         # Format dates for ArXiv query (YYYYMMDDHHMM format)
         since_str = since.strftime("%Y%m%d%H%M")

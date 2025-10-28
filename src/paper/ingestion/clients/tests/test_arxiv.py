@@ -121,6 +121,29 @@ class TestArXivClient(TestCase):
             params["search_query"], "lastUpdatedDate:[202501010000 TO 202501070000]"
         )
 
+    @patch.object(ArXivClient, "fetch_with_retry")
+    def test_fetch_recent_enforces_minimum_date_window(self, mock_fetch):
+        """
+        Test that ArXiv enforces minimum 3-day window between since and until.
+        """
+        # Arrange
+        mock_fetch.return_value = self.empty_xml_response
+
+        # Act
+        self.client.fetch_recent(
+            since=datetime(2025, 1, 26),
+            until=datetime(2025, 1, 27),
+        )
+
+        # Assert
+        # Verify the query was adjusted to 3-day window
+        first_call_args = mock_fetch.call_args_list[0]
+        params = first_call_args[0][1]
+        # Should be adjusted from Jan 26 to Jan 24 (3 days before Jan 27)
+        self.assertEqual(
+            params["search_query"], "lastUpdatedDate:[202501240000 TO 202501270000]"
+        )
+
     def _create_test_response(self, start_idx, count, total=None):
         """Helper to create test XML responses."""
         response = '<?xml version="1.0" encoding="UTF-8"?>\n'
