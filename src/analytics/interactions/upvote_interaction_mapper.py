@@ -3,7 +3,7 @@ from typing import Optional
 
 from django.db.models import QuerySet
 
-from analytics.constants.event_types import ITEM_UPVOTED
+from analytics.constants.event_types import UPVOTE
 from analytics.interactions.base_interaction_mapper import BaseInteractionMapper
 from analytics.models import UserInteractions
 from discussion.models import Vote
@@ -16,7 +16,7 @@ class UpvoteInteractionMapper(BaseInteractionMapper):
 
     @property
     def event_type_name(self) -> str:
-        return ITEM_UPVOTED
+        return UPVOTE
 
     def get_queryset(
         self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
