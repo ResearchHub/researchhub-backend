@@ -38,9 +38,9 @@ class EventProcessorTestCase(TestCase):
         self.assertTrue(self.processor.should_process_event(event))
 
     def test_should_process_event_with_page_viewed(self):
-        """Test that should_process_event returns True for page_viewed events."""
+        """Test that should_process_event returns True for page viewed events."""
         event = {
-            "event_type": "page_viewed",
+            "event_type": "work_document_viewed",
             "event_properties": {
                 "user_id": str(self.user.id),
                 "related_work": {
@@ -148,9 +148,9 @@ class EventProcessorTestCase(TestCase):
         self.assertEqual(final_count, initial_count)
 
     def test_process_event_with_page_viewed_creates_interaction(self):
-        """Test that process_event creates UserInteractions for page_viewed events."""
+        """Test that process_event creates UserInteractions for work_document_viewed events."""
         event = {
-            "event_type": "page_viewed",
+            "event_type": "work_document_viewed",
             "event_properties": {
                 "user_id": str(self.user.id),
                 "related_work": {

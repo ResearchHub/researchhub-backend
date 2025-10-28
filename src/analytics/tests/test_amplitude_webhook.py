@@ -80,7 +80,7 @@ class AmplitudeWebhookTestCase(TestCase):
                     "time": 1234567890000,
                 },
                 {
-                    "event_type": "page_viewed",
+                    "event_type": "work_document_viewed",
                     "event_properties": {
                         "user_id": str(self.user.id),
                         "related_work": {
@@ -118,7 +118,7 @@ class AmplitudeWebhookTestCase(TestCase):
                     "time": 1234567890000,
                 },
                 {
-                    "event_type": "page_viewed",
+                    "event_type": "work_document_viewed",
                     "event_properties": {
                         "user_id": str(self.user.id),
                         "related_work": {

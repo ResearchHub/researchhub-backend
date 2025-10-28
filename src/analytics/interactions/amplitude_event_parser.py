@@ -5,8 +5,7 @@ from typing import Dict, Optional
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 
-from analytics.interactions.constants import AMPLITUDE_TO_DB_EVENT_MAP
-from analytics.models import UserInteractions
+from analytics.constants.event_types import AMPLITUDE_TO_DB_EVENT_MAP
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -15,7 +14,33 @@ User = get_user_model()
 logger = logging.getLogger(__name__)
 
 
-class AmplitudeEventMapper:
+class AmplitudeEvent:
+    """
+    Represents a parsed Amplitude event with all necessary fields for creating
+    UserInteractions.
+
+    This is a non-database model that holds pre-fetched Django model instances
+    to avoid repeated database queries during mapping.
+    """
+
+    def __init__(
+        self,
+        user: User,
+        event_type: str,
+        unified_document: ResearchhubUnifiedDocument,
+        content_type: ContentType,
+        object_id: int,
+        event_timestamp: datetime,
+    ):
+        self.user = user
+        self.event_type = event_type
+        self.unified_document = unified_document
+        self.content_type = content_type
+        self.object_id = object_id
+        self.event_timestamp = event_timestamp
+
+
+class AmplitudeEventParser:
     """
     Maps raw Amplitude events to UserInteractions model instances.
 
@@ -39,17 +64,15 @@ class AmplitudeEventMapper:
             )
         return cls._content_type_cache[model_name]
 
-    def map_amplitude_event_to_interaction(
-        self, event: Dict
-    ) -> Optional[UserInteractions]:
+    def parse_amplitude_event(self, event: Dict) -> Optional[AmplitudeEvent]:
         """
-        Convert an Amplitude event to a UserInteractions instance.
+        Parse an Amplitude event and return an AmplitudeEvent dataclass.
 
         Args:
             event: Raw event dictionary from Amplitude webhook
 
         Returns:
-            UserInteractions instance (unsaved) or None if event is invalid
+            AmplitudeEvent instance (not saved to database) or None if event is invalid
         """
         try:
             # Extract basic event data
@@ -95,7 +118,7 @@ class AmplitudeEventMapper:
                     if not content_type_str or not object_id:
                         return None
 
-                    content_type = AmplitudeEventMapper.get_content_type(
+                    content_type = AmplitudeEventParser.get_content_type(
                         content_type_str
                     )
                     object_id = int(object_id)
@@ -104,7 +127,7 @@ class AmplitudeEventMapper:
             elif content_type_str and object_id:
                 # Construct item_id from content_type and id
                 try:
-                    content_type = AmplitudeEventMapper.get_content_type(
+                    content_type = AmplitudeEventParser.get_content_type(
                         content_type_str
                     )
                     # Get the actual object to find its unified_document
@@ -130,21 +153,17 @@ class AmplitudeEventMapper:
             else:
                 event_timestamp = datetime.now()
 
-            # Create UserInteractions instance using get_or_create to handle duplicates
-            interaction, created = UserInteractions.objects.get_or_create(
+            # Create AmplitudeEvent instance (not saved to database)
+            amplitude_event = AmplitudeEvent(
                 user=user,
-                event=db_event_type,
+                event_type=db_event_type,
                 unified_document=unified_document,
                 content_type=content_type,
                 object_id=object_id,
-                defaults={
-                    "event_timestamp": event_timestamp,
-                    "is_synced_with_personalize": False,
-                    "personalize_rec_id": None,
-                },
+                event_timestamp=event_timestamp,
             )
 
-            return interaction
+            return amplitude_event
 
         except Exception:
             # Return None for any unexpected errors during mapping
