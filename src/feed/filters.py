@@ -1,4 +1,4 @@
-from typing import Any, List, Type, Union
+from typing import Any, Type, Union
 from django.db.models import (
     Case,
     DateTimeField,
@@ -24,29 +24,38 @@ class FundOrderingFilter(OrderingFilter):
 
     def filter_queryset(self, request: Request, queryset: QuerySet, view: Any) -> QuerySet:
         ordering = self.get_ordering(request, queryset, view)
-        
-        queryset = self._apply_include_ended_filter(request, queryset, view)
+        model_config = self._get_model_config(view)
+        queryset = self._apply_include_ended_filter(request, queryset, view, model_config)
         
         if not ordering:
-            model_class, open_status, closed_statuses = self._get_model_config(view)
-            return self._apply_best_sorting(queryset, model_class, open_status, closed_statuses)
+            return self._apply_best_sorting(queryset, model_config)
         
         return super().filter_queryset(request, queryset, view)
     
-    def _get_model_config(self, view: Any) -> tuple[Union[Type[Grant], Type[Fundraise]], str, List[str]]:
+    def _get_model_config(self, view: Any) -> dict[str, Union[Type[Grant], Type[Fundraise], str]]:
         if getattr(view, 'is_grant_view', False):
-            return Grant, Grant.OPEN, [Grant.CLOSED, Grant.COMPLETED]
-        return Fundraise, Fundraise.OPEN, [Fundraise.CLOSED, Fundraise.COMPLETED]
+            return {
+                'model_class': Grant,
+                'open_status': Grant.OPEN,
+                'closed_status': Grant.CLOSED,
+                'completed_status': Grant.COMPLETED
+            }
+        return {
+            'model_class': Fundraise,
+            'open_status': Fundraise.OPEN,
+            'closed_status': Fundraise.CLOSED,
+            'completed_status': Fundraise.COMPLETED
+        }
     
-    def _apply_include_ended_filter(self, request: Request, queryset: QuerySet, view: Any) -> QuerySet:
-        # Kept the check in, just in case, for if the FUNDING is closed
-        # we do not want to apply the include_ended filter
-        fundraise_status_filter_value  = request.query_params.get('fundraise_status', '').upper()
-        include_ended = request.query_params.get('include_ended', 'true').upper() == 'TRUE' or fundraise_status_filter_value  == 'CLOSED'
-        if include_ended:
+    def _apply_include_ended_filter(self, request: Request, queryset: QuerySet, view: Any, model_config: dict[str, Union[Type[Grant], Type[Fundraise], str]]) -> QuerySet:
+        fundraise_status_filter_value = request.query_params.get('fundraise_status', '').upper()
+        include_ended_filter_value  = request.query_params.get('include_ended', 'true').upper()
+        should_apply_filter = include_ended_filter_value == 'TRUE' or fundraise_status_filter_value == 'CLOSED'
+        if should_apply_filter:
             return queryset
         
-        model_class, open_status, _ = self._get_model_config(view)
+        model_class = model_config['model_class']
+        open_status = model_config['open_status']
         now = timezone.now()
         return queryset.exclude(
             unified_document__in=model_class.objects.filter(
@@ -55,8 +64,11 @@ class FundOrderingFilter(OrderingFilter):
             ).values_list('unified_document_id', flat=True)
         )
     
-    def _apply_best_sorting(self, queryset: QuerySet, model_class: Union[Type[Grant], Type[Fundraise]], 
-                           open_status: str, closed_statuses: List[str]) -> QuerySet:
+    def _apply_best_sorting(self, queryset: QuerySet, model_config: dict[str, Union[Type[Grant], Type[Fundraise], str]]) -> QuerySet:
+        model_class = model_config['model_class']
+        open_status = model_config['open_status']
+        closed_statuses = [model_config['closed_status'], model_config['completed_status']]
+        
         now = timezone.now()
         
         has_open_item = Exists(
