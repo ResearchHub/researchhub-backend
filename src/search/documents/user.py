@@ -5,6 +5,7 @@ from django_opensearch_dsl import fields as es_fields
 from django_opensearch_dsl.registries import registry
 from opensearchpy import analyzer, token_filter
 
+from search.base.utils import normalize_text
 from user.models import User
 
 from .base import BaseDocument
@@ -24,6 +25,15 @@ edge_ngram_analyzer = analyzer(
     filter=["lowercase", edge_ngram_filter],
 )
 
+name_analyzer = analyzer(
+    "name_analyzer",
+    tokenizer="standard",
+    filter=[
+        "lowercase",
+        token_filter("asciifolding", type="asciifolding", preserve_original=True),
+    ],
+)
+
 
 @registry.register_document
 class UserDocument(BaseDocument):
@@ -31,7 +41,7 @@ class UserDocument(BaseDocument):
     profile_img = es_fields.TextField()
     full_name_suggest = es_fields.CompletionField()
     full_name = es_fields.TextField(
-        analyzer=edge_ngram_analyzer,
+        analyzer=name_analyzer,
         search_analyzer="standard",
     )
     created_date = es_fields.DateField()
@@ -73,25 +83,74 @@ class UserDocument(BaseDocument):
 
     # Used specifically for "autocomplete" style suggest feature
     def prepare_full_name_suggest(self, instance) -> dict[str, Any]:
-        full_name_suggest = ""
+        MAX_INPUTS = 10
+        VERIFIED_USER_WEIGHT_BONUS = 500
+
+        # Get names with fallback to user model
         try:
-            full_name_suggest = (
-                f"{instance.author_profile.first_name} "
-                f"{instance.author_profile.last_name}"
-            )
-        except Exception:
-            # Some legacy users don't have an author profile
-            full_name_suggest = f"{instance.first_name} {instance.last_name}"
+            first = (instance.author_profile.first_name or "").strip()
+            last = (instance.author_profile.last_name or "").strip()
+        except AttributeError:
+            first = (instance.first_name or "").strip()
+            last = (instance.last_name or "").strip()
 
-        weight = instance.reputation
+        full_name = f"{first} {last}".strip()
+        if not full_name:
+            return {"input": [], "weight": 0}
 
-        if instance.is_verified:
-            weight += 500
+        # Build input list with priority order
+        inputs, seen = [], set()
 
-        return {
-            "input": full_name_suggest.split() + [full_name_suggest],
-            "weight": weight,
-        }
+        def add_unique(value):
+            if value and value not in seen:
+                inputs.append(value)
+                seen.add(value)
+
+        # Add core names and combinations
+        # Example: full name 'José María García López' yields both original
+        # and normalized values in the suggester inputs, e.g.,
+        # 'José María García López' and 'jose maria garcia lopez'.
+        add_unique(full_name)
+        first_parts = first.split() if first else []
+        last_parts = last.split() if last else []
+
+        if first_parts and last_parts:
+            # Prioritize first token + last token for multi-word names,
+            # e.g., 'José María' + 'García López' -> 'José López'
+            add_unique(f"{first_parts[0]} {last_parts[-1]}")
+            norm_first = normalize_text(first_parts[0])
+            norm_last = normalize_text(last_parts[-1])
+            if norm_first and norm_last:
+                add_unique(f"{norm_first} {norm_last}")
+
+        add_unique(normalize_text(full_name))
+        add_unique(first)
+        add_unique(last)
+        add_unique(normalize_text(first))
+        add_unique(normalize_text(last))
+
+        if first_parts:
+            add_unique(first_parts[0])
+        if last_parts:
+            add_unique(last_parts[-1])
+
+        # Add all individual name parts with their normalized versions for
+        # comprehensive search coverage
+        self._add_words_with_normalized(first_parts + last_parts, add_unique)
+
+        weight = instance.reputation + (
+            VERIFIED_USER_WEIGHT_BONUS if instance.is_verified else 0
+        )
+        return {"input": inputs[:MAX_INPUTS], "weight": weight}
+
+    def _add_words_with_normalized(self, words, add_unique):
+        """Add words and their normalized versions, avoiding duplicates"""
+        for word in words:
+            if word.strip():
+                add_unique(word)
+                normalized = normalize_text(word)
+                if normalized and normalized != word.lower():
+                    add_unique(normalized)
 
     def prepare_full_name(self, instance) -> str:
         try:
