@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
@@ -42,74 +42,54 @@ class AmplitudeEvent:
 
 class AmplitudeEventParser:
     """
-    Maps raw Amplitude events to UserInteractions model instances.
-
-    Unlike other interaction mappers that work with Django QuerySets,
-    this mapper works directly with raw event dictionaries from Amplitude webhooks.
+    Parses raw Amplitude events into structured AmplitudeEvent objects.
     """
 
-    # Class-level cache shared across all instances
     _content_type_cache = {}
 
     def __init__(self):
-        # No instance-level cache needed - using class-level cache
         pass
 
     @classmethod
     def get_content_type(cls, model_name: str) -> ContentType:
-        """Get ContentType with class-level caching to avoid repeated DB queries."""
+        """Get ContentType with caching."""
         if model_name not in cls._content_type_cache:
             cls._content_type_cache[model_name] = ContentType.objects.get(
                 model=model_name.lower()
             )
         return cls._content_type_cache[model_name]
 
-    def parse_amplitude_event(self, event: Dict) -> Optional[AmplitudeEvent]:
-        """
-        Parse an Amplitude event and return an AmplitudeEvent dataclass.
-
-        Args:
-            event: Raw event dictionary from Amplitude webhook
-
-        Returns:
-            AmplitudeEvent instance (not saved to database) or None if event is invalid
-        """
+    def parse_amplitude_event(self, event: Dict[str, Any]) -> Optional[AmplitudeEvent]:
+        """Parse an Amplitude event and return an AmplitudeEvent object."""
         try:
-            # Extract basic event data
             event_type = event.get("event_type", "").lower()
             event_props = event.get("event_properties", {})
 
-            # Validate event type
             if event_type not in AMPLITUDE_TO_DB_EVENT_MAP:
                 return None
 
             db_event_type = AMPLITUDE_TO_DB_EVENT_MAP[event_type]
 
-            # Extract user_id
             user_id = event_props.get("user_id")
             if not user_id:
                 return None
 
             try:
-                # Convert to int in case it's passed as string
                 user_id = int(user_id)
                 user = User.objects.get(id=user_id)
             except (ValueError, User.DoesNotExist):
                 return None
 
-            # Extract related work data
             related_work = event_props.get("related_work", {})
             if not related_work:
                 return None
 
-            # Get unified_document_id or construct from content_type + id
             unified_doc_id = related_work.get("unified_document_id")
             content_type_str = related_work.get("content_type")
             object_id = related_work.get("id")
 
             if unified_doc_id:
                 try:
-                    # Convert to int in case it's passed as string
                     unified_doc_id = int(unified_doc_id)
                     unified_document = ResearchhubUnifiedDocument.objects.get(
                         id=unified_doc_id
@@ -125,14 +105,11 @@ class AmplitudeEventParser:
                 except (ValueError, ResearchhubUnifiedDocument.DoesNotExist):
                     return None
             elif content_type_str and object_id:
-                # Construct item_id from content_type and id
                 try:
                     content_type = AmplitudeEventParser.get_content_type(
                         content_type_str
                     )
-                    # Get the actual object to find its unified_document
                     model_class = content_type.model_class()
-                    # Convert to int in case it's passed as string
                     object_id = int(object_id)
                     obj = model_class.objects.get(id=object_id)
                     unified_document = obj.unified_document
@@ -146,14 +123,12 @@ class AmplitudeEventParser:
             else:
                 return None
 
-            # Convert timestamp from milliseconds to datetime
             timestamp_ms = event.get("time")
             if timestamp_ms:
                 event_timestamp = datetime.fromtimestamp(timestamp_ms / 1000)
             else:
                 event_timestamp = datetime.now()
 
-            # Create AmplitudeEvent instance (not saved to database)
             amplitude_event = AmplitudeEvent(
                 user=user,
                 event_type=db_event_type,
@@ -166,5 +141,4 @@ class AmplitudeEventParser:
             return amplitude_event
 
         except Exception:
-            # Return None for any unexpected errors during mapping
             return None

@@ -12,9 +12,7 @@ from user.tests.helpers import create_random_default_user
 
 
 class EventProcessorTestCase(TestCase):
-    """
-    Test cases for the EventProcessor service.
-    """
+    """Test cases for the EventProcessor service."""
 
     def setUp(self):
         self.processor = EventProcessor()
