@@ -6,7 +6,7 @@ from django.db import IntegrityError
 from django.test import TestCase
 from django.utils import timezone
 
-from analytics.constants.event_types import ITEM_UPVOTED, PAGE_VIEW
+from analytics.constants.event_types import PAGE_VIEW, UPVOTE
 from analytics.models import UserInteractions
 from researchhub_document.helpers import create_post
 
@@ -31,11 +31,11 @@ class UserInteractionsModelTests(TestCase):
         self.content_type = ContentType.objects.get_for_model(self.post)
 
     def test_non_repeatable_event_prevents_duplicates(self):
-        """Test that ITEM_UPVOTED cannot be duplicated"""
+        """Test that UPVOTE cannot be duplicated"""
         # Create first upvote
         UserInteractions.objects.create(
             user=self.user,
-            event=ITEM_UPVOTED,
+            event=UPVOTE,
             unified_document=self.unified_document,
             content_type=self.content_type,
             object_id=self.post.id,
@@ -46,7 +46,7 @@ class UserInteractionsModelTests(TestCase):
         with self.assertRaises(IntegrityError):
             UserInteractions.objects.create(
                 user=self.user,
-                event=ITEM_UPVOTED,
+                event=UPVOTE,
                 unified_document=self.unified_document,
                 content_type=self.content_type,
                 object_id=self.post.id,

@@ -34,11 +34,7 @@ class Migration(migrations.Migration):
                     "event",
                     models.CharField(
                         choices=[
-                            ("BOUNTY_SOLUTION_SUBMITTED", "BOUNTY_SOLUTION_SUBMITTED"),
-                            ("BOUNTY_SOLUTION_AWARDED", "BOUNTY_SOLUTION_AWARDED"),
-                            ("BOUNTY_CREATED", "BOUNTY_CREATED"),
-                            ("BOUNTY_CONTRIBUTED", "BOUNTY_CONTRIBUTED"),
-                            ("ITEM_UPVOTED", "ITEM_UPVOTED"),
+                            ("UPVOTE", "UPVOTE"),
                             ("FEED_ITEM_CLICK", "FEED_ITEM_CLICK"),
                             ("PAGE_VIEW", "PAGE_VIEW"),
                         ],
@@ -99,18 +95,7 @@ class Migration(migrations.Migration):
         migrations.AddConstraint(
             model_name="userinteractions",
             constraint=models.UniqueConstraint(
-                condition=models.Q(
-                    (
-                        "event__in",
-                        [
-                            "ITEM_UPVOTED",
-                            "BOUNTY_SOLUTION_SUBMITTED",
-                            "BOUNTY_SOLUTION_AWARDED",
-                            "BOUNTY_CREATED",
-                            "BOUNTY_CONTRIBUTED",
-                        ],
-                    )
-                ),
+                condition=models.Q(("event__in", ["UPVOTE"])),
                 fields=(
                     "user",
                     "event",

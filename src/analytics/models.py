@@ -71,11 +71,7 @@ class UserInteractions(DefaultModel):
                 ],
                 condition=models.Q(
                     event__in=[
-                        "ITEM_UPVOTED",
-                        "BOUNTY_SOLUTION_SUBMITTED",
-                        "BOUNTY_SOLUTION_AWARDED",
-                        "BOUNTY_CREATED",
-                        "BOUNTY_CONTRIBUTED",
+                        "UPVOTE",
                     ]
                 ),
                 name="unique_non_repeatable_interactions",
