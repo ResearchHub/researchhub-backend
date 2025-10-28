@@ -12,6 +12,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from paper.ingestion.clients.arxiv import ArXivClient, ArXivConfig
+from paper.ingestion.clients.arxiv_oaipmh import ArXivOAIPMHClient, ArXivOAIPMHConfig
 from paper.ingestion.clients.biorxiv import BioRxivClient, BioRxivConfig
 from paper.ingestion.clients.chemrxiv import ChemRxivClient, ChemRxivConfig
 from paper.ingestion.clients.medrxiv import MedRxivClient, MedRxivConfig
@@ -281,8 +282,8 @@ def fetch_papers_from_source(
                 )
             )
         elif source == "arxiv_oaipmh":
-            clients["arxiv_oaipmh"] = ArXivClient(
-                ArXivConfig(
+            clients["arxiv_oaipmh"] = ArXivOAIPMHClient(
+                ArXivOAIPMHConfig(
                     rate_limit=0.33,
                     page_size=100,
                     request_timeout=60.0,
