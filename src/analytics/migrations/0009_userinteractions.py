@@ -37,7 +37,7 @@ class Migration(migrations.Migration):
                             ("BOUNTY_SOLUTION_AWARDED", "BOUNTY_SOLUTION_AWARDED"),
                             ("BOUNTY_CREATED", "BOUNTY_CREATED"),
                             ("BOUNTY_CONTRIBUTED", "BOUNTY_CONTRIBUTED"),
-                            ("ITEM_UPVOTED", "ITEM_UPVOTED"),
+                            ("UPVOTE", "UPVOTE"),
                             ("FEED_ITEM_CLICK", "FEED_ITEM_CLICK"),
                             ("PAGE_VIEW", "PAGE_VIEW"),
                         ],
