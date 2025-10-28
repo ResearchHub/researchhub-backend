@@ -1,7 +1,7 @@
 import uuid
 from unittest.mock import MagicMock, patch
 
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model 
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.test import TestCase
@@ -1062,4 +1062,125 @@ class FundingFeedViewSetTests(TestCase):
         self.assertEqual(
             response.data["results"][0]["content_object"]["id"], self.post.id
         )
+
+    def test_include_ended_parameter(self):
+        """Test include_ended parameter behavior and fundraise_status=CLOSED override""" 
+        
+        # Create an expired OPEN fundraise (past end_date but status still OPEN)
+        expired_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        expired_post = ResearchhubPost.objects.create(
+            title="Expired Open Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=expired_doc,
+        )
+        
+        escrow_expired = Escrow.objects.create(
+            amount_holding=0,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=expired_doc.id,
+        )
+        
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=expired_doc,
+            escrow=escrow_expired,
+            status=Fundraise.OPEN,
+            goal_amount=100,
+            end_date=timezone.now() - timezone.timedelta(days=10),  # Expired 10 days ago
+        )
+
+        # Test default behavior (include_ended=true)
+        url = reverse("funding_feed-list")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Should include all items: self.post (OPEN), self.other_post (COMPLETED), expired_post (OPEN+Expired)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertIn(self.post.id, post_ids)
+        self.assertIn(self.other_post.id, post_ids)
+        self.assertIn(expired_post.id, post_ids)
+
+        # Test include_ended=false (should exclude expired items)
+        url = reverse("funding_feed-list") + "?include_ended=false"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Should exclude expired_post but include self.post (OPEN+Active) and self.other_post (COMPLETED)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertIn(self.post.id, post_ids)
+        self.assertIn(self.other_post.id, post_ids)
+        self.assertNotIn(expired_post.id, post_ids)
+
+        # Create a unified document with BOTH completed and open-expired fundraises
+        # This is needed to properly test the include_ended override regression
+        mixed_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        mixed_post = ResearchhubPost.objects.create(
+            title="Mixed Status Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=mixed_doc,
+        )
+        
+        # Create completed fundraise (will be included by fundraise_status=CLOSED)
+        completed_escrow = Escrow.objects.create(
+            amount_holding=0,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=mixed_doc.id,
+        )
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=mixed_doc,
+            escrow=completed_escrow,
+            status=Fundraise.COMPLETED,
+            goal_amount=100,
+            end_date=timezone.now() - timezone.timedelta(days=5),
+        )
+        
+        # Create open-expired fundraise (would be excluded by include_ended=false without override)
+        open_expired_escrow = Escrow.objects.create(
+            amount_holding=50,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=mixed_doc.id,
+        )
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=mixed_doc,
+            escrow=open_expired_escrow,
+            status=Fundraise.OPEN,
+            goal_amount=200,
+            end_date=timezone.now() - timezone.timedelta(days=3),  # Expired 3 days ago
+        )
+
+        # Test fundraise_status=CLOSED overrides include_ended=false
+        url = reverse("funding_feed-list") + "?fundraise_status=CLOSED&include_ended=false"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Should include the mixed_post because it has a COMPLETED fundraise
+        # The include_ended override prevents filtering out the open-expired fundraise
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertNotIn(self.post.id, post_ids)  # OPEN fundraise - filtered out by fundraise_status=CLOSED
+        self.assertIn(self.other_post.id, post_ids)  # COMPLETED fundraise - included
+        self.assertNotIn(expired_post.id, post_ids)  # OPEN fundraise - filtered out by fundraise_status=CLOSED
+        self.assertIn(mixed_post.id, post_ids)  # Has COMPLETED fundraise - included despite open-expired one
+
+    def test_include_ended_default_behavior(self):
+        """Test that include_ended defaults to true when not specified"""
+        url = reverse("funding_feed-list")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Should return all items (default behavior)
+        self.assertEqual(len(response.data["results"]), 2)  # self.post and self.other_post
 
