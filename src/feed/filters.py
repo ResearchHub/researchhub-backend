@@ -52,7 +52,7 @@ class FundOrderingFilter(OrderingFilter):
         model_config = self._get_model_config(view)
         queryset = self._apply_include_ended_filter(request, queryset, view, model_config)
          
-        return self._apply_custom_sorting(ordering, queryset, model_config)
+        return self._apply_custom_sorting(ordering, queryset, model_config, request, view)
      
     def _get_model_config(self, view: Any) -> dict[str, Union[Type[Grant], Type[Fundraise], str]]:
         if getattr(view, 'is_grant_view', False):
@@ -86,7 +86,7 @@ class FundOrderingFilter(OrderingFilter):
             ).values_list('unified_document_id', flat=True)
         )
 
-    def _apply_custom_sorting(self, ordering: str, queryset: QuerySet, model_config: dict) -> QuerySet:
+    def _apply_custom_sorting(self, ordering: str, queryset: QuerySet, model_config: dict, request: Request, view: Any) -> QuerySet:
         """Apply custom sorting based on order value."""
         if ordering == 'upvotes':
             return self._apply_upvotes_sorting(queryset)
@@ -94,9 +94,12 @@ class FundOrderingFilter(OrderingFilter):
             return self._apply_most_applicants_sorting(queryset, model_config['model_class'])
         elif ordering == 'amount_raised':
             return self._apply_amount_raised_sorting(queryset, model_config['model_class'])
-        else:
-            # Fallback to best sorting for any other value
+        elif ordering == 'best':
             return self._apply_best_sorting(queryset, model_config)
+        else:
+            # Fallback to DRF's standard ordering for any other value
+            return super().filter_queryset(request, queryset, view)
+            
 
     def _apply_best_sorting(self, queryset: QuerySet, model_config: dict[str, Union[Type[Grant], Type[Fundraise], str]]) -> QuerySet:
         model_class = model_config['model_class']
