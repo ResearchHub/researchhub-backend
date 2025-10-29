@@ -15,7 +15,7 @@ class TestArXivClient(TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.config = ArXivConfig()
+        self.config = ArXivConfig(page_size=25)
         self.client = ArXivClient(self.config)
 
         # Load fixture files
@@ -36,7 +36,7 @@ class TestArXivClient(TestCase):
             "https://export.arxiv.org/api",
         )
         self.assertEqual(config.rate_limit, 0.33)  # 3 second delay
-        self.assertEqual(config.page_size, 100)
+        self.assertEqual(config.page_size, 25)
         self.assertEqual(config.request_timeout, 30.0)
         self.assertEqual(config.max_results_per_query, 2000)
 
@@ -186,7 +186,7 @@ class TestArXivClient(TestCase):
         # Should have fetched all 150 papers
         self.assertEqual(len(papers), 150)
         self.assertEqual(
-            mock_fetch.call_count, 2
+            mock_fetch.call_count, 3
         )  # Two pages (second page returns < page_size, so stops)
 
     @patch.object(ArXivClient, "fetch_with_retry")
@@ -207,8 +207,8 @@ class TestArXivClient(TestCase):
 
         # Should have fetched papers from first and third pages
         self.assertEqual(len(papers), 150)
-        # Should have made 3 calls (skipped through empty response)
-        self.assertEqual(mock_fetch.call_count, 3)
+        # Should have made 4 calls (skipped through empty response)
+        self.assertEqual(mock_fetch.call_count, 4)
 
     def test_rate_limiter(self):
         """Test that rate limiter enforces delays between requests."""
