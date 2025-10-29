@@ -24,11 +24,17 @@ class Command(BaseCommand):
             action="store_true",
             help="Only analyze the data, don't make changes",
         )
+        parser.add_argument(
+            "--remove-quotes",
+            action="store_true",
+            help="Remove quotation marks from headlines that are wrapped in quotes",
+        )
 
     def handle(self, *args, **options):
         start_id = options["start_id"]
         batch_size = options["batch_size"]
         analyze_only = options["analyze"]
+        remove_quotes = options["remove_quotes"]
 
         authors = Author.objects.filter(
             id__gt=start_id, headline__isnull=False
@@ -38,7 +44,11 @@ class Command(BaseCommand):
         self.stdout.write(f"Found {total} authors with headlines to process")
 
         if analyze_only:
-            self._analyze_headlines(authors)
+            self._analyze_headlines(authors, check_quotes=remove_quotes)
+            return
+
+        if remove_quotes:
+            self._remove_quotes_from_headlines(authors, batch_size, start_id)
             return
 
         updated_authors = []
@@ -64,7 +74,42 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(f"Fixed {fixed_count} author headlines"))
 
-    def _analyze_headlines(self, authors):
+    def _remove_quotes_from_headlines(self, authors, batch_size, start_id):
+        """Remove quotation marks from headlines that are wrapped in quotes."""
+        self.stdout.write("=== Removing Quotation Marks from Headlines ===")
+
+        updated_authors = []
+        fixed_count = 0
+        last_id = start_id
+
+        for author in authors.iterator(chunk_size=batch_size):
+            last_id = author.id
+            headline = author.headline
+
+            if isinstance(headline, str):
+                # Check if headline is wrapped in quotes (both single and double)
+                stripped = headline.strip()
+                if (stripped.startswith('"') and stripped.endswith('"')) or (
+                    stripped.startswith("'") and stripped.endswith("'")
+                ):
+                    # Remove the outer quotes
+                    author.headline = stripped[1:-1]
+                    updated_authors.append(author)
+                    fixed_count += 1
+
+            if len(updated_authors) >= batch_size:
+                Author.objects.bulk_update(updated_authors, ["headline"])
+                self.stdout.write(f"Updated batch. Last ID: {last_id}")
+                updated_authors = []
+
+        if updated_authors:
+            Author.objects.bulk_update(updated_authors, ["headline"])
+
+        self.stdout.write(
+            self.style.SUCCESS(f"Removed quotes from {fixed_count} author headlines")
+        )
+
+    def _analyze_headlines(self, authors, check_quotes=False):
         """Analyze the current state of headline data."""
         self.stdout.write("=== Analyzing Headline Data ===")
 
@@ -72,11 +117,18 @@ class Command(BaseCommand):
         object_count = 0
         null_count = 0
         other_count = 0
+        quoted_count = 0
 
         for author in authors.iterator():
             headline = author.headline
             if isinstance(headline, str):
                 string_count += 1
+                if check_quotes:
+                    stripped = headline.strip()
+                    if (stripped.startswith('"') and stripped.endswith('"')) or (
+                        stripped.startswith("'") and stripped.endswith("'")
+                    ):
+                        quoted_count += 1
             elif isinstance(headline, dict):
                 object_count += 1
             elif headline is None:
@@ -88,6 +140,19 @@ class Command(BaseCommand):
         self.stdout.write(f"  Object headlines: {object_count}")
         self.stdout.write(f"  Null headlines: {null_count}")
         self.stdout.write(f"  Other types: {other_count}")
+
+        if check_quotes:
+            self.stdout.write(f"  Quoted headlines: {quoted_count}")
+            if quoted_count > 0:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Found {quoted_count} authors with quoted headlines that need fixing"  # noqa: E501
+                    )
+                )
+            else:
+                self.stdout.write(
+                    self.style.SUCCESS("No headlines are wrapped in quotes")
+                )
 
         if object_count > 0:
             self.stdout.write(
