@@ -172,7 +172,6 @@ class PaperIngestionService:
         raw_response: List[Dict[str, Any]],
         source: IngestionSource,
         validate: bool = True,
-        save_to_db: bool = True,
         update_existing: bool = False,
     ) -> Tuple[List[Paper], List[Dict[str, Any]]]:
         """
@@ -182,7 +181,6 @@ class PaperIngestionService:
             raw_response: List of raw paper records from the ingestion client
             source: The source of the papers (e.g., ArXiv, BioRxiv)
             validate: Whether to validate records before processing
-            save_to_db: Whether to save the papers to the database
             update_existing: Whether to update existing papers (by DOI)
 
         Returns:
@@ -233,32 +231,28 @@ class PaperIngestionService:
                     )
                     continue
 
-                # Save to database if requested
-                if save_to_db:
-                    paper = self._save_paper(paper, update_existing)
+                paper = self._save_paper(paper, update_existing)
 
-                    # Create hubs
-                    hubs = mapper.map_to_hubs(paper, record)
-                    if hubs:
-                        paper.unified_document.hubs.add(*hubs)
+                # Create hubs
+                hubs = mapper.map_to_hubs(paper, record)
+                if hubs:
+                    paper.unified_document.hubs.add(*hubs)
 
-                    # Create authors and institutions after paper is saved
-                    if paper and paper.id:
-                        try:
-                            authors, institutions, authorships = (
-                                self._create_authors_and_institutions(
-                                    paper, record, mapper
-                                )
-                            )
-                            logger.debug(
-                                f"Created {len(authors)} authors, "
-                                f"{len(institutions)} institutions, and "
-                                f"{len(authorships)} authorships for paper {paper.id}"
-                            )
-                        except Exception as e:
-                            logger.warning(
-                                f"Failed to create authors/institutions for paper {paper.id}: {e}"
-                            )
+                # Create authors and institutions after paper is saved
+                if paper and paper.id:
+                    try:
+                        authors, institutions, authorships = (
+                            self._create_authors_and_institutions(paper, record, mapper)
+                        )
+                        logger.debug(
+                            f"Created {len(authors)} authors, "
+                            f"{len(institutions)} institutions, and "
+                            f"{len(authorships)} authorships for paper {paper.id}"
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to create authors/institutions for paper {paper.id}: {e}"
+                        )
 
                 successful_papers.append(paper)
 
@@ -361,7 +355,6 @@ class PaperIngestionService:
         raw_record: Dict[str, Any],
         source: IngestionSource,
         validate: bool = True,
-        save_to_db: bool = True,
         update_existing: bool = False,
     ) -> Optional[Paper]:
         """
@@ -371,7 +364,6 @@ class PaperIngestionService:
             raw_record: Raw paper record from the ingestion client
             source: The source of the paper
             validate: Whether to validate the record before processing
-            save_to_db: Whether to save the paper to the database
             update_existing: Whether to update if paper exists
 
         Returns:
@@ -381,7 +373,6 @@ class PaperIngestionService:
             [raw_record],
             source,
             validate=validate,
-            save_to_db=save_to_db,
             update_existing=update_existing,
         )
 
