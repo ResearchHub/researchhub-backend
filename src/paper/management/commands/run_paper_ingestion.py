@@ -103,7 +103,7 @@ class Command(BaseCommand):
         """
         # Sources to use when "all" is specified (excludes duplicates)
         default_sources = [
-            IngestionSource.ARXIV,
+            IngestionSource.ARXIV_OAIPMH,
             IngestionSource.BIORXIV,
             IngestionSource.CHEMRXIV,
             IngestionSource.MEDRXIV,

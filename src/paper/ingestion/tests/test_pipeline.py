@@ -474,7 +474,15 @@ class TestPaperIngestionTasks(TestCase):
 
         # Assert
         self.assertEqual(result["status"], "initiated")
-        self.assertEqual(result["sources"], ["arxiv", "biorxiv", "chemrxiv", "medrxiv"])
+        self.assertEqual(
+            result["sources"],
+            [
+                IngestionSource.ARXIV_OAIPMH,
+                IngestionSource.BIORXIV,
+                IngestionSource.CHEMRXIV,
+                IngestionSource.MEDRXIV,
+            ],
+        )
         self.assertEqual(result["job_id"], "test-job-id")
 
     def test_process_batch_task(self):
