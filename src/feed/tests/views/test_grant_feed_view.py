@@ -420,9 +420,9 @@ class GrantFeedViewTests(APITestCase):
         self.assertEqual(len(response.data["results"]), 0)
 
     def test_ordering_validation(self):
-        """Test that FundOrderingFilter validates ordering fields correctly for grants."""
+        """Test that FundOrderingFilter handles different ordering scenarios correctly for grants."""
         from feed.filters import FundOrderingFilter
-        from unittest.mock import Mock
+        from unittest.mock import Mock, patch, ANY
         from rest_framework.test import APIRequestFactory
         from rest_framework.request import Request
         
@@ -436,23 +436,39 @@ class GrantFeedViewTests(APITestCase):
         mock_view.ordering = 'best'
         mock_view.is_grant_view = True
         
-        # Test valid field
+        # Test custom sorting (upvotes)
         request = factory.get('/?ordering=upvotes')
-        drf_request = Request(request)  # Wrap with DRF Request
-        result = filter_instance.get_ordering(drf_request, mock_queryset, mock_view)
-        self.assertEqual(result, 'upvotes')
+        drf_request = Request(request)
+        with patch.object(filter_instance, '_apply_custom_sorting') as mock_custom:
+            mock_custom.return_value = mock_queryset
+            filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
+            # Use ANY for model_config since it's a real dict
+            mock_custom.assert_called_once_with('upvotes', mock_queryset, ANY, drf_request, mock_view)
         
-        # Test invalid field - should fall back to default
-        request = factory.get('/?ordering=invalid_field')
-        drf_request = Request(request)  # Wrap with DRF Request
-        result = filter_instance.get_ordering(drf_request, mock_queryset, mock_view)
-        self.assertEqual(result, 'best')
+        # Test best sorting (default - no ordering param)
+        request = factory.get('/')
+        drf_request = Request(request)
+        with patch.object(filter_instance, '_apply_custom_sorting') as mock_custom:
+            mock_custom.return_value = mock_queryset
+            filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
+            mock_custom.assert_called_once_with('', mock_queryset, ANY, drf_request, mock_view)
         
-        # Test with '-' prefix - should be accepted and prefix removed
+        # Test with '-' prefix - should be stripped
         request = factory.get('/?ordering=-upvotes')
-        drf_request = Request(request)  # Wrap with DRF Request
-        result = filter_instance.get_ordering(drf_request, mock_queryset, mock_view)
-        self.assertEqual(result, 'upvotes')
+        drf_request = Request(request)
+        with patch.object(filter_instance, '_apply_custom_sorting') as mock_custom:
+            mock_custom.return_value = mock_queryset
+            filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
+            mock_custom.assert_called_once_with('upvotes', mock_queryset, ANY, drf_request, mock_view)
+        
+        # Test fallback to best for invalid fields
+        request = factory.get('/?ordering=invalid_field')
+        drf_request = Request(request)
+        with patch.object(filter_instance, '_apply_custom_sorting') as mock_custom:
+            mock_custom.return_value = mock_queryset
+            filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
+            # Invalid field should default to 'best'
+            mock_custom.assert_called_once_with('best', mock_queryset, ANY, drf_request, mock_view)
 
     def test_ordering_validation_integration(self):
         """Test ordering validation through the actual grant feed API endpoint."""
