@@ -7,6 +7,8 @@ from django.db.models import (
     Exists,
     F,
     IntegerField,
+    Max,
+    Min,
     OuterRef,
     QuerySet,
     Subquery,
@@ -58,12 +60,16 @@ class FundOrderingFilter(OrderingFilter):
         model_class = model_config['model_class']
         open_status = model_config['open_status']
         now = timezone.now()
-        return queryset.exclude(
-            unified_document__in=model_class.objects.filter(
-                status=open_status,
-                end_date__lt=now
-            ).values_list('unified_document_id', flat=True)
-        )
+        
+        return queryset.annotate(
+            has_expired_open=Exists(
+                model_class.objects.filter(
+                    unified_document_id=OuterRef('unified_document_id'),
+                    status=open_status,
+                    end_date__lt=now
+                )
+            )
+        ).filter(has_expired_open=False)
 
     def _apply_custom_sorting(self, queryset: QuerySet, model_config: dict, request: Request, view: Any) -> QuerySet:
         """Apply custom sorting based on order value."""
@@ -107,27 +113,38 @@ class FundOrderingFilter(OrderingFilter):
         
         now = timezone.now()
         
-        has_open_item = Exists(
-            model_class.objects.filter(
-                unified_document_id=OuterRef("unified_document_id"),
-                status=open_status
-            )
-        )
+        # Determine the relationship path based on model type
+        if model_class == Grant:
+            relation_path = 'unified_document__grants'
+        else:
+            relation_path = 'unified_document__fundraises'
         
-        earliest_open_end_date = model_class.objects.filter(
-            unified_document_id=OuterRef("unified_document_id"),
-            status=open_status
-        ).values("end_date").order_by("end_date")[:1]
-        
-        latest_closed_end_date = model_class.objects.filter(
-            unified_document_id=OuterRef("unified_document_id"),
-            status__in=closed_statuses
-        ).values("end_date").order_by("-end_date")[:1]
-        
+        # Single annotation with conditional aggregates - much faster than subqueries
         queryset = queryset.annotate(
-            has_open=has_open_item,
-            earliest_open_end_date=Subquery(earliest_open_end_date, output_field=DateTimeField()),
-            latest_closed_end_date=Subquery(latest_closed_end_date, output_field=DateTimeField()),
+            has_open=Exists(
+                model_class.objects.filter(
+                    unified_document_id=OuterRef('unified_document_id'),
+                    status=open_status
+                )
+            ),
+            earliest_open_end_date=Min(
+                Case(
+                    When(**{f'{relation_path}__status': open_status}, 
+                         then=F(f'{relation_path}__end_date')),
+                    default=None,
+                    output_field=DateTimeField()
+                )
+            ),
+            latest_closed_end_date=Max(
+                Case(
+                    When(**{f'{relation_path}__status__in': closed_statuses}, 
+                         then=F(f'{relation_path}__end_date')),
+                    default=None,
+                    output_field=DateTimeField()
+                )
+            )
+        ).annotate(
+            # Compute sort priority (0 = active, 1 = expired, 2 = closed)
             sort_option=Case(
                 When(has_open=True, earliest_open_end_date__gte=now, then=Value(0)),
                 When(has_open=True, earliest_open_end_date__isnull=True, then=Value(0)),
@@ -136,23 +153,23 @@ class FundOrderingFilter(OrderingFilter):
                 output_field=IntegerField(),
             ),
             sort_date_active=Case(
-                When(sort_option=0, then=F("earliest_open_end_date")),
+                When(sort_option=0, then=F('earliest_open_end_date')),
                 default=None,
                 output_field=DateTimeField(),
             ),
             sort_date_expired_or_closed=Case(
-                When(sort_option=1, then=F("earliest_open_end_date")),
-                When(sort_option=2, then=F("latest_closed_end_date")),
+                When(sort_option=1, then=F('earliest_open_end_date')),
+                When(sort_option=2, then=F('latest_closed_end_date')),
                 default=None,
                 output_field=DateTimeField(),
             ),
         )
         
         return queryset.order_by(
-            "sort_option",
-            F("sort_date_active").asc(nulls_last=True),
-            F("sort_date_expired_or_closed").desc(nulls_last=True),
-            "-created_date"
+            'sort_option',
+            F('sort_date_active').asc(nulls_last=True),
+            F('sort_date_expired_or_closed').desc(nulls_last=True),
+            '-created_date'
         )
     
     def _apply_upvotes_sorting(self, queryset: QuerySet) -> QuerySet:

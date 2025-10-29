@@ -20,6 +20,8 @@ from feed.views.feed_view_mixin import FeedViewMixin
 from purchase.related_models.fundraise_model import Fundraise
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from django.db.models import Prefetch 
+from purchase.models import Purchase
 
 from ..serializers import PostSerializer, serialize_feed_metrics
 from .common import FeedPagination
@@ -86,7 +88,8 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
 
         return Response(response_data)
 
-    def get_queryset(self):
+    def get_queryset(self): 
+        
         fundraise_status = self.request.query_params.get("fundraise_status")
         grant_id = self.request.query_params.get("grant_id")
         created_by = self.request.query_params.get("created_by")
@@ -96,11 +99,32 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
             .select_related(
                 "created_by",
                 "created_by__author_profile",
+                "created_by__userverification",
                 "unified_document",
+                "unified_document__document_filter",
             )
             .prefetch_related(
+                # Prefetch hubs
                 "unified_document__hubs",
-                "unified_document__fundraises",
+                Prefetch(
+                    "unified_document__fundraises",
+                    queryset=Fundraise.objects.select_related(
+                        "created_by",
+                        "created_by__author_profile",
+                        "created_by__userverification",
+                        "escrow",
+                    ).prefetch_related(
+                        Prefetch(
+                            "purchases",
+                            queryset=Purchase.objects.select_related(
+                                "user",
+                                "user__author_profile",
+                                "user__userverification",
+                            )
+                        ),
+                    ).order_by("id")
+                ),
+                "unified_document__topics",
             )
             .filter(document_type=PREREGISTRATION, unified_document__is_removed=False)
         )

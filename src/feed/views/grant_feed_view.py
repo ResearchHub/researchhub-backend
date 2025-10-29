@@ -13,9 +13,13 @@ from feed.filters import FundOrderingFilter
 from feed.models import FeedEntry
 from feed.serializers import GrantFeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
+from hub.models import Hub
+from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
 from researchhub_document.related_models.constants.document_type import GRANT
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from user.models import User
+from django.db.models import Prefetch 
 
 from ..serializers import PostSerializer, serialize_feed_metrics
 from .common import FeedPagination
@@ -102,12 +106,37 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             .select_related(
                 "created_by",
                 "created_by__author_profile",
+                "created_by__userverification",
                 "unified_document",
+                "unified_document__document_filter",
             )
             .prefetch_related(
                 "unified_document__hubs",
-                "unified_document__grants",
-                "unified_document__grants__applications__applicant__author_profile",
+                Prefetch(
+                    "unified_document__grants",
+                    queryset=Grant.objects.select_related(
+                        "created_by",
+                        "created_by__author_profile",
+                        "created_by__userverification",
+                    ).prefetch_related(
+                        Prefetch(
+                            "contacts",
+                            queryset=User.objects.select_related(
+                                "author_profile",
+                                "userverification",
+                            )
+                        ),
+                        Prefetch(
+                            "applications",
+                            queryset=GrantApplication.objects.select_related(
+                                "applicant",
+                                "applicant__author_profile",
+                                "applicant__userverification",
+                            )
+                        ),
+                    ).order_by("id")
+                ),
+                "unified_document__topics",
             )
             .filter(document_type=GRANT, unified_document__is_removed=False)
         )
