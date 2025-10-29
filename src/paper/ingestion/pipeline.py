@@ -231,15 +231,15 @@ def fetch_all_papers() -> Dict[str, Any]:
         logger.info("Paper ingestion is disabled in settings. Skipping.")
         return {}
 
-    sources = [
-        IngestionSource.ARXIV_OAIPMH,
-        IngestionSource.BIORXIV,
-        IngestionSource.CHEMRXIV,
-        IngestionSource.MEDRXIV,
+    sources = [  # string values to avoid Celery serialization issues
+        IngestionSource.ARXIV_OAIPMH.value,
+        IngestionSource.BIORXIV.value,
+        IngestionSource.CHEMRXIV.value,
+        IngestionSource.MEDRXIV.value,
     ]
 
     # Create a group of parallel tasks
-    job = group(fetch_papers_from_source.s(source.value) for source in sources)
+    job = group(fetch_papers_from_source.s(source) for source in sources)
 
     # Execute the group
     result = job.delay()

@@ -7,6 +7,7 @@ from datetime import datetime
 from django.core.management.base import BaseCommand, CommandError
 from django.utils.dateparse import parse_date
 
+from paper.ingestion.clients.base import BaseClient
 from paper.ingestion.clients.client_factory import ClientFactory
 from paper.ingestion.constants import IngestionSource
 from paper.ingestion.pipeline import PaperIngestionPipeline
@@ -97,7 +98,7 @@ class Command(BaseCommand):
             self.stdout.write(f"  Updated: {status.total_updated}")
             self.stdout.write(f"  Errors: {status.total_errors}")
 
-    def _get_clients(self, source):
+    def _get_clients(self, source: str) -> dict[str, BaseClient]:
         """
         Get clients based on the given source argument.
         """

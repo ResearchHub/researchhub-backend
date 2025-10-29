@@ -477,10 +477,10 @@ class TestPaperIngestionTasks(TestCase):
         self.assertEqual(
             result["sources"],
             [
-                IngestionSource.ARXIV_OAIPMH,
-                IngestionSource.BIORXIV,
-                IngestionSource.CHEMRXIV,
-                IngestionSource.MEDRXIV,
+                IngestionSource.ARXIV_OAIPMH.value,
+                IngestionSource.BIORXIV.value,
+                IngestionSource.CHEMRXIV.value,
+                IngestionSource.MEDRXIV.value,
             ],
         )
         self.assertEqual(result["job_id"], "test-job-id")
