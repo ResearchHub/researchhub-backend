@@ -29,16 +29,9 @@ class FundOrderingFilter(OrderingFilter):
 
     def filter_queryset(self, request: Request, queryset: QuerySet, view: Any) -> QuerySet:
         """Apply filtering and sorting to the queryset."""
-        ordering_param = request.query_params.get(self.ordering_param, '')
-        ordering = ordering_param.lstrip('-') if ordering_param else ''
-        ordering_fields = getattr(view, 'ordering_fields', None)
-        if ordering and ordering_fields and ordering not in ordering_fields:
-            ordering = 'best'
-        
         model_config = self._get_model_config(view)
         queryset = self._apply_include_ended_filter(request, queryset, view, model_config)
-         
-        return self._apply_custom_sorting(ordering, queryset, model_config, request, view)
+        return self._apply_custom_sorting(queryset, model_config, request, view)
      
     def _get_model_config(self, view: Any) -> dict[str, Union[Type[Grant], Type[Fundraise], str]]:
         if getattr(view, 'is_grant_view', False):
@@ -72,10 +65,12 @@ class FundOrderingFilter(OrderingFilter):
             ).values_list('unified_document_id', flat=True)
         )
 
-    def _apply_custom_sorting(self, ordering: str, queryset: QuerySet, model_config: dict, request: Request, view: Any) -> QuerySet:
+    def _apply_custom_sorting(self, queryset: QuerySet, model_config: dict, request: Request, view: Any) -> QuerySet:
         """Apply custom sorting based on order value."""
-        # Default to 'best' if no ordering specified
-        if not ordering or ordering == 'best':
+        ordering_list = self.get_ordering(request, queryset, view)
+        ordering = ordering_list[0].lstrip('-') if ordering_list else 'best'
+ 
+        if ordering == 'best':
             return self._apply_best_sorting(queryset, model_config)
         elif ordering == 'upvotes':
             return self._apply_upvotes_sorting(queryset)
@@ -84,9 +79,26 @@ class FundOrderingFilter(OrderingFilter):
         elif ordering == 'amount_raised':
             return self._apply_amount_raised_sorting(queryset, model_config['model_class'])
         else:
-            # Fallback to DRF's standard ordering for any other value
+            # For any other ordering field, fall back to DRF's standard ordering
             return super().filter_queryset(request, queryset, view)
             
+    def get_ordering(self, request: Request, queryset: QuerySet, view: Any):
+        """Get ordering from request with DRF-compatible signature."""
+        ordering_param = request.query_params.get(self.ordering_param, '')
+        
+        if ordering_param:
+            fields = [field.strip() for field in ordering_param.split(',')]
+            if fields:
+                field = fields[0]
+                field_name = field.lstrip('-') 
+                custom_fields = ['best', 'upvotes', 'most_applicants', 'amount_raised']
+                if field_name in custom_fields:
+                    return [field] 
+                ordering_fields = getattr(view, 'ordering_fields', None)
+                if ordering_fields and field_name in ordering_fields:
+                    return [field] 
+                return ['best'] 
+        return ['best']
 
     def _apply_best_sorting(self, queryset: QuerySet, model_config: dict[str, Union[Type[Grant], Type[Fundraise], str]]) -> QuerySet:
         model_class = model_config['model_class']

@@ -1469,7 +1469,7 @@ class FundingFeedViewSetTests(TestCase):
     def test_ordering_validation(self):
         """Test that FundOrderingFilter handles different ordering scenarios correctly."""
         from feed.filters import FundOrderingFilter
-        from unittest.mock import Mock, patch, ANY
+        from unittest.mock import Mock, patch
         
         filter_instance = FundOrderingFilter()
         factory = APIRequestFactory()
@@ -1481,47 +1481,53 @@ class FundingFeedViewSetTests(TestCase):
         mock_view.ordering = 'best'
         mock_view.is_grant_view = False
         
-        # Test custom sorting (upvotes)
+        # Test custom sorting (upvotes) - patch the specific sorting method
         request = factory.get('/?ordering=upvotes')
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_custom_sorting') as mock_custom:
-            mock_custom.return_value = mock_queryset
+        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes:
+            mock_upvotes.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
-            # Use ANY for model_config since it's a real dict
-            mock_custom.assert_called_once_with('upvotes', mock_queryset, ANY, drf_request, mock_view)
+            mock_upvotes.assert_called_once_with(mock_queryset)
         
         # Test best sorting (default - no ordering param)
         request = factory.get('/')
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_custom_sorting') as mock_custom:
-            mock_custom.return_value = mock_queryset
+        with patch.object(filter_instance, '_apply_best_sorting') as mock_best:
+            mock_best.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
-            mock_custom.assert_called_once_with('', mock_queryset, ANY, drf_request, mock_view)
+            mock_best.assert_called_once()
         
         # Test best sorting (explicit best)
         request = factory.get('/?ordering=best')
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_custom_sorting') as mock_custom:
-            mock_custom.return_value = mock_queryset
+        with patch.object(filter_instance, '_apply_best_sorting') as mock_best:
+            mock_best.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
-            mock_custom.assert_called_once_with('best', mock_queryset, ANY, drf_request, mock_view)
+            mock_best.assert_called_once()
         
-        # Test with '-' prefix - should be stripped
+        # Test with '-' prefix - should be stripped and work
         request = factory.get('/?ordering=-upvotes')
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_custom_sorting') as mock_custom:
-            mock_custom.return_value = mock_queryset
+        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes:
+            mock_upvotes.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
-            mock_custom.assert_called_once_with('upvotes', mock_queryset, ANY, drf_request, mock_view)
+            mock_upvotes.assert_called_once_with(mock_queryset)
         
-        # Test fallback to best for invalid fields
-        request = factory.get('/?ordering=invalid_field')
+        # Test comma-separated values - should take first field
+        request = factory.get('/?ordering=upvotes,created_date')
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_custom_sorting') as mock_custom:
-            mock_custom.return_value = mock_queryset
+        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes:
+            mock_upvotes.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
-            # Invalid field should default to 'best'
-            mock_custom.assert_called_once_with('best', mock_queryset, ANY, drf_request, mock_view)
+            mock_upvotes.assert_called_once_with(mock_queryset)
+        
+        # Test whitespace handling
+        request = factory.get('/?ordering= upvotes ')
+        drf_request = Request(request)
+        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes:
+            mock_upvotes.return_value = mock_queryset
+            filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
+            mock_upvotes.assert_called_once_with(mock_queryset)
 
     def test_ordering_validation_integration(self):
         """Test ordering validation through the actual API endpoint."""
