@@ -19,7 +19,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             "--source",
-            choices=["arxiv", "arxiv_oaipmh", "biorxiv", "chemrxiv", "medrxiv", "all"],
+            choices=["arxiv", "arxiv_oai", "biorxiv", "chemrxiv", "medrxiv", "all"],
             default="all",
             help="Source to fetch papers from (default: all)",
         )
@@ -104,7 +104,7 @@ class Command(BaseCommand):
         """
         # Sources to use when "all" is specified (excludes duplicates)
         default_sources = [
-            IngestionSource.ARXIV_OAIPMH,
+            IngestionSource.ARXIV_OAI,
             IngestionSource.BIORXIV,
             IngestionSource.CHEMRXIV,
             IngestionSource.MEDRXIV,

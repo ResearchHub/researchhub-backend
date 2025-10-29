@@ -5,7 +5,7 @@ class IngestionSource(Enum):
     """Supported ingestion sources."""
 
     ARXIV = "arxiv"
-    ARXIV_OAIPMH = "arxiv_oaipmh"
+    ARXIV_OAI = "arxiv_oai"
     BIORXIV = "biorxiv"
     CHEMRXIV = "chemrxiv"
     MEDRXIV = "medrxiv"

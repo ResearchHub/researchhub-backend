@@ -1,5 +1,5 @@
 from paper.ingestion.clients.arxiv import ArXivClient, ArXivConfig
-from paper.ingestion.clients.arxiv_oaipmh import ArXivOAIPMHClient, ArXivOAIPMHConfig
+from paper.ingestion.clients.arxiv_oai import ArXivOAIClient, ArXivOAIConfig
 from paper.ingestion.clients.base import BaseClient
 from paper.ingestion.clients.biorxiv import BioRxivClient, BioRxivConfig
 from paper.ingestion.clients.chemrxiv import ChemRxivClient, ChemRxivConfig
@@ -22,9 +22,9 @@ class ClientFactory:
                 max_retries=3,
             ),
         ),
-        IngestionSource.ARXIV_OAIPMH: (
-            ArXivOAIPMHClient,
-            ArXivOAIPMHConfig(
+        IngestionSource.ARXIV_OAI: (
+            ArXivOAIClient,
+            ArXivOAIConfig(
                 rate_limit=0.33,
                 page_size=100,
                 request_timeout=60.0,

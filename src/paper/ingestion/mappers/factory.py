@@ -6,7 +6,7 @@ from typing import Dict
 
 from hub.mappers.external_category_mapper import ExternalCategoryMapper
 from paper.ingestion.constants import IngestionSource
-from paper.ingestion.mappers.arxiv_oaipmh import ArXivOAIPMHMapper
+from paper.ingestion.mappers.arxiv_oai import ArXivOAIMapper
 
 from .arxiv import ArXivMapper
 from .base import BaseMapper
@@ -31,9 +31,7 @@ class MapperFactory:
             IngestionSource.ARXIV: ArXivMapper(
                 hub_mapper=self._hub_mapper,
             ),
-            IngestionSource.ARXIV_OAIPMH: ArXivOAIPMHMapper(
-                hub_mapper=self._hub_mapper
-            ),
+            IngestionSource.ARXIV_OAI: ArXivOAIMapper(hub_mapper=self._hub_mapper),
             IngestionSource.BIORXIV: BioRxivMapper(
                 hub_mapper=self._hub_mapper,
             ),
