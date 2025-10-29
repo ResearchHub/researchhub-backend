@@ -269,3 +269,85 @@ class AmplitudeEventParserTests(TestCase):
         interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsNone(interaction)
+
+    def test_maps_feed_item_clicked_with_flat_format(self):
+        """Test mapping feed_item_clicked event with flat dot-notation format."""
+        event = {
+            "event_type": "feed_item_clicked",
+            "event_properties": {
+                "user_id": self.user.id,
+                "related_work.content_type": "researchhubpost",
+                "related_work.id": self.post.id,
+                "related_work.unified_document_id": self.post.unified_document.id,
+                "author_id": "153397",
+                "device_type": "desktop",
+            },
+            "time": int(timezone.now().timestamp() * 1000),
+        }
+
+        interaction = self.parser.parse_amplitude_event(event)
+
+        self.assertIsInstance(interaction, AmplitudeEvent)
+        self.assertEqual(interaction.user, self.user)
+        self.assertEqual(interaction.event_type, FEED_ITEM_CLICK)
+        self.assertEqual(interaction.unified_document, self.post.unified_document)
+        self.assertEqual(interaction.content_type, self.content_type)
+        self.assertEqual(interaction.object_id, self.post.id)
+
+    def test_maps_page_viewed_with_flat_format(self):
+        """Test mapping page_viewed event with flat dot-notation format."""
+        event = {
+            "event_type": "work_document_viewed",
+            "event_properties": {
+                "user_id": self.user.id,
+                "related_work.content_type": "researchhubpost",
+                "related_work.id": self.post.id,
+                "related_work.unified_document_id": self.post.unified_document.id,
+            },
+            "time": int(timezone.now().timestamp() * 1000),
+        }
+
+        interaction = self.parser.parse_amplitude_event(event)
+
+        self.assertIsInstance(interaction, AmplitudeEvent)
+        self.assertEqual(interaction.user, self.user)
+        self.assertEqual(interaction.event_type, PAGE_VIEW)
+        self.assertEqual(interaction.unified_document, self.post.unified_document)
+        self.assertEqual(interaction.content_type, self.content_type)
+        self.assertEqual(interaction.object_id, self.post.id)
+
+    def test_maps_feed_item_clicked_with_flat_format_content_type_and_id_only(self):
+        """Test mapping feed_item_clicked with flat format using content_type + id."""
+        event = {
+            "event_type": "feed_item_clicked",
+            "event_properties": {
+                "user_id": self.user.id,
+                "related_work.content_type": "researchhubpost",
+                "related_work.id": self.post.id,
+            },
+            "time": int(timezone.now().timestamp() * 1000),
+        }
+
+        interaction = self.parser.parse_amplitude_event(event)
+
+        self.assertIsInstance(interaction, AmplitudeEvent)
+        self.assertEqual(interaction.user, self.user)
+        self.assertEqual(interaction.event_type, FEED_ITEM_CLICK)
+        self.assertEqual(interaction.unified_document, self.post.unified_document)
+        self.assertEqual(interaction.content_type, self.content_type)
+        self.assertEqual(interaction.object_id, self.post.id)
+
+    def test_flat_format_without_related_work_returns_none(self):
+        """Test that flat format events without related_work keys return None."""
+        event = {
+            "event_type": "feed_item_clicked",
+            "event_properties": {
+                "user_id": self.user.id,
+                "author_id": "153397",
+            },
+            "time": int(timezone.now().timestamp() * 1000),
+        }
+
+        interaction = self.parser.parse_amplitude_event(event)
+
+        self.assertIsNone(interaction)

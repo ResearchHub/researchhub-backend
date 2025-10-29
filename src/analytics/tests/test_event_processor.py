@@ -146,7 +146,7 @@ class EventProcessorTestCase(TestCase):
         self.assertEqual(final_count, initial_count)
 
     def test_process_event_with_page_viewed_creates_interaction(self):
-        """Test that process_event creates UserInteractions for work_document_viewed events."""
+        """Test process_event creates UserInteractions for work_document_viewed."""
         event = {
             "event_type": "work_document_viewed",
             "event_properties": {
@@ -216,3 +216,56 @@ class EventProcessorTestCase(TestCase):
                 f"Successfully processed interaction: feed_item_clicked for user "
                 f"{self.user.id}"
             )
+
+    def test_should_process_event_with_flat_format(self):
+        """Test that should_process_event returns True for flat format events."""
+        event = {
+            "event_type": "feed_item_clicked",
+            "event_properties": {
+                "user_id": str(self.user.id),
+                "related_work.content_type": "researchhubpost",
+                "related_work.id": str(self.post.id),
+                "related_work.unified_document_id": str(self.post.unified_document.id),
+                "author_id": "153397",
+                "device_type": "desktop",
+            },
+        }
+        self.assertTrue(self.processor.should_process_event(event))
+
+    def test_should_process_event_rejects_flat_format_missing_related_work(self):
+        """Test should_process_event returns False for flat format missing keys."""
+        event = {
+            "event_type": "feed_item_clicked",
+            "event_properties": {
+                "user_id": str(self.user.id),
+                "author_id": "153397",
+            },
+        }
+        self.assertFalse(self.processor.should_process_event(event))
+
+    def test_process_event_creates_user_interaction_with_flat_format(self):
+        """Test that process_event creates UserInteractions record with flat format."""
+        event = {
+            "event_type": "feed_item_clicked",
+            "event_properties": {
+                "user_id": str(self.user.id),
+                "related_work.content_type": "researchhubpost",
+                "related_work.id": str(self.post.id),
+                "related_work.unified_document_id": str(self.post.unified_document.id),
+            },
+            "time": int(datetime.now().timestamp() * 1000),
+        }
+
+        initial_count = UserInteractions.objects.count()
+        self.processor.process_event(event)
+        final_count = UserInteractions.objects.count()
+
+        self.assertEqual(final_count, initial_count + 1)
+
+        # Verify the created interaction
+        interaction = UserInteractions.objects.latest("created_date")
+        self.assertEqual(interaction.user, self.user)
+        self.assertEqual(interaction.event, FEED_ITEM_CLICK)
+        self.assertEqual(interaction.unified_document, self.post.unified_document)
+        self.assertEqual(interaction.content_type, self.content_type)
+        self.assertEqual(interaction.object_id, self.post.id)

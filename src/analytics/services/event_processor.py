@@ -2,7 +2,10 @@ import logging
 from typing import Any, Dict
 
 from analytics.constants.event_types import FEED_ITEM_CLICKED, PAGE_VIEWED
-from analytics.interactions.amplitude_event_parser import AmplitudeEventParser
+from analytics.interactions.amplitude_event_parser import (
+    AmplitudeEventParser,
+    extract_related_work,
+)
 from analytics.interactions.interaction_mapper import map_from_amplitude_event
 from analytics.models import UserInteractions
 
@@ -29,10 +32,12 @@ class EventProcessor:
 
         event_props = event.get("event_properties", {})
         if not event_props.get("user_id"):
+
             return False
 
-        related_work = event_props.get("related_work", {})
+        related_work = extract_related_work(event_props)
         if not related_work:
+
             return False
 
         content_type = related_work.get("content_type")

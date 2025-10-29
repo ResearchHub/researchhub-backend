@@ -14,6 +14,47 @@ User = get_user_model()
 logger = logging.getLogger(__name__)
 
 
+def extract_related_work(event_props: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Extract related_work data from event_properties.
+
+    Supports two formats:
+    1. Nested: {"related_work": {"content_type": "...", "id": "...", ...}}
+    2. Flat: {"related_work.content_type": "...", "related_work.id": "...", ...}
+
+    Returns a dict with unified_document_id, content_type, and id if found,
+    None otherwise.
+    """
+    # Check for nested format first
+    related_work = event_props.get("related_work")
+    if related_work and isinstance(related_work, dict):
+        return {
+            "unified_document_id": related_work.get("unified_document_id"),
+            "content_type": related_work.get("content_type"),
+            "id": related_work.get("id"),
+        }
+
+    # Check for flat format with dot notation
+    flat_keys = {
+        "unified_document_id": "related_work.unified_document_id",
+        "content_type": "related_work.content_type",
+        "id": "related_work.id",
+    }
+
+    flat_related_work = {}
+    has_any_key = False
+    for key, flat_key in flat_keys.items():
+        value = event_props.get(flat_key)
+        if value is not None:
+            flat_related_work[key] = value
+            has_any_key = True
+
+    if has_any_key:
+        return flat_related_work
+
+    return None
+
+
 class AmplitudeEvent:
     """
     Represents a parsed Amplitude event with all necessary fields for creating
@@ -80,7 +121,7 @@ class AmplitudeEventParser:
             except (ValueError, User.DoesNotExist):
                 return None
 
-            related_work = event_props.get("related_work", {})
+            related_work = extract_related_work(event_props)
             if not related_work:
                 return None
 
