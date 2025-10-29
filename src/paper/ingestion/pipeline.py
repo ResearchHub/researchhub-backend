@@ -11,11 +11,7 @@ from celery import group
 from django.conf import settings
 from django.utils import timezone
 
-from paper.ingestion.clients.arxiv import ArXivClient, ArXivConfig
-from paper.ingestion.clients.arxiv_oaipmh import ArXivOAIPMHClient, ArXivOAIPMHConfig
-from paper.ingestion.clients.biorxiv import BioRxivClient, BioRxivConfig
-from paper.ingestion.clients.chemrxiv import ChemRxivClient, ChemRxivConfig
-from paper.ingestion.clients.medrxiv import MedRxivClient, MedRxivConfig
+from paper.ingestion.clients.client_factory import ClientFactory
 from paper.ingestion.constants import IngestionSource
 from paper.ingestion.exceptions import FetchError, RetryExhaustedError
 from paper.ingestion.mappers.factory import MapperFactory
@@ -270,55 +266,8 @@ def fetch_papers_from_source(
     """
     try:
         # Initialize the appropriate client for this source
-        clients = {}
-
-        if source == "arxiv":
-            clients["arxiv"] = ArXivClient(
-                ArXivConfig(
-                    rate_limit=1.0,
-                    page_size=25,
-                    request_timeout=60.0,
-                    max_retries=3,
-                )
-            )
-        elif source == "arxiv_oaipmh":
-            clients["arxiv_oaipmh"] = ArXivOAIPMHClient(
-                ArXivOAIPMHConfig(
-                    rate_limit=0.33,
-                    page_size=100,
-                    request_timeout=60.0,
-                    max_retries=3,
-                )
-            )
-        elif source == "biorxiv":
-            clients["biorxiv"] = BioRxivClient(
-                BioRxivConfig(
-                    rate_limit=1.0,
-                    page_size=100,
-                    request_timeout=60.0,
-                    max_retries=3,
-                )
-            )
-        elif source == "chemrxiv":
-            clients["chemrxiv"] = ChemRxivClient(
-                ChemRxivConfig(
-                    rate_limit=0.5,
-                    page_size=50,
-                    request_timeout=60.0,
-                    max_retries=3,
-                )
-            )
-        elif source == "medrxiv":
-            clients["medrxiv"] = MedRxivClient(
-                MedRxivConfig(
-                    rate_limit=1.0,
-                    page_size=100,
-                    request_timeout=60.0,
-                    max_retries=3,
-                )
-            )
-        else:
-            raise ValueError(f"Unknown source: {source}")
+        client = ClientFactory.create_client(IngestionSource(source))
+        clients = {source: client}
 
         pipeline = PaperIngestionPipeline(clients)
 
