@@ -250,12 +250,6 @@ class Author(models.Model):
         return paper_count_res.get("paper_count") or 0
 
     @property
-    def university_indexing(self):
-        if self.university is not None:
-            return self.university
-        return None
-
-    @property
     def achievements(self):
         upvote_count = getattr(self.user, "upvote_count", 0)
         peer_review_count = getattr(self.user, "peer_review_count", 0)
