@@ -7,11 +7,9 @@ from datetime import datetime
 from django.core.management.base import BaseCommand, CommandError
 from django.utils.dateparse import parse_date
 
-from paper.ingestion.clients.arxiv import ArXivClient, ArXivConfig
-from paper.ingestion.clients.arxiv_oaipmh import ArXivOAIPMHClient, ArXivOAIPMHConfig
-from paper.ingestion.clients.biorxiv import BioRxivClient, BioRxivConfig
-from paper.ingestion.clients.chemrxiv import ChemRxivClient, ChemRxivConfig
-from paper.ingestion.clients.medrxiv import MedRxivClient, MedRxivConfig
+from paper.ingestion.clients.base import BaseClient
+from paper.ingestion.clients.client_factory import ClientFactory
+from paper.ingestion.constants import IngestionSource
 from paper.ingestion.pipeline import PaperIngestionPipeline
 
 
@@ -100,60 +98,24 @@ class Command(BaseCommand):
             self.stdout.write(f"  Updated: {status.total_updated}")
             self.stdout.write(f"  Errors: {status.total_errors}")
 
-    def _get_clients(self, source):
+    def _get_clients(self, source: str) -> dict[str, BaseClient]:
         """
-        Client factory to instantiate clients based on the given source argument.
+        Get clients based on the given source argument.
         """
+        # Sources to use when "all" is specified (excludes duplicates)
+        default_sources = [
+            IngestionSource.ARXIV_OAIPMH,
+            IngestionSource.BIORXIV,
+            IngestionSource.CHEMRXIV,
+            IngestionSource.MEDRXIV,
+        ]
+
         clients = {}
 
-        if source in ["arxiv", "all"]:
-            clients["arxiv"] = ArXivClient(
-                ArXivConfig(
-                    rate_limit=1.0,
-                    page_size=25,
-                    request_timeout=60.0,
-                    max_retries=3,
-                )
-            )
-
-        if source in ["arxiv_oaipmh", "all"]:
-            clients["arxiv_oaipmh"] = ArXivOAIPMHClient(
-                ArXivOAIPMHConfig(
-                    rate_limit=0.33,
-                    page_size=100,
-                    request_timeout=60.0,
-                    max_retries=3,
-                )
-            )
-
-        if source in ["biorxiv", "all"]:
-            clients["biorxiv"] = BioRxivClient(
-                BioRxivConfig(
-                    rate_limit=1.0,
-                    page_size=100,
-                    request_timeout=60.0,
-                    max_retries=3,
-                )
-            )
-
-        if source in ["chemrxiv", "all"]:
-            clients["chemrxiv"] = ChemRxivClient(
-                ChemRxivConfig(
-                    rate_limit=0.5,
-                    page_size=50,
-                    request_timeout=60.0,
-                    max_retries=3,
-                )
-            )
-
-        if source in ["medrxiv", "all"]:
-            clients["medrxiv"] = MedRxivClient(
-                MedRxivConfig(
-                    rate_limit=1.0,
-                    page_size=100,
-                    request_timeout=60.0,
-                    max_retries=3,
-                )
-            )
+        if source == "all":
+            for src in default_sources:
+                clients[src.value] = ClientFactory.create_client(src)
+        else:
+            clients[source] = ClientFactory.create_client(IngestionSource(source))
 
         return clients

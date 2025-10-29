@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
+from paper.ingestion.constants import IngestionSource
 from paper.ingestion.exceptions import FetchError, RetryExhaustedError
 from paper.ingestion.pipeline import (
     IngestionStatus,
@@ -411,14 +412,17 @@ class TestPaperIngestionTasks(TestCase):
     """
 
     @patch("paper.ingestion.pipeline.PaperIngestionPipeline")
-    @patch("paper.ingestion.pipeline.ArXivClient")
+    @patch("paper.ingestion.pipeline.ClientFactory.create_client")
     def test_fetch_papers_from_source_arxiv(
-        self, mock_client_class, mock_pipeline_class
+        self, mock_create_client, mock_pipeline_class
     ):
         """
         Test fetch_papers_from_source task for ArXiv.
         """
         # Arrange
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+
         mock_pipeline = MagicMock()
         mock_pipeline.run_ingestion.return_value = {
             "arxiv": IngestionStatus(
@@ -434,8 +438,11 @@ class TestPaperIngestionTasks(TestCase):
         result = fetch_papers_from_source("arxiv")
 
         # Assert
-        # Verify pipeline was created and called
-        mock_pipeline_class.assert_called_once()
+        # Verify ClientFactory was called to create the client
+        mock_create_client.assert_called_once_with(IngestionSource.ARXIV)
+
+        # Verify pipeline was created with the mocked client
+        mock_pipeline_class.assert_called_once_with({"arxiv": mock_client})
         mock_pipeline.run_ingestion.assert_called_once()
 
         self.assertEqual(result["source"], "arxiv")
@@ -467,7 +474,15 @@ class TestPaperIngestionTasks(TestCase):
 
         # Assert
         self.assertEqual(result["status"], "initiated")
-        self.assertEqual(result["sources"], ["arxiv", "biorxiv", "chemrxiv", "medrxiv"])
+        self.assertEqual(
+            result["sources"],
+            [
+                IngestionSource.ARXIV_OAIPMH.value,
+                IngestionSource.BIORXIV.value,
+                IngestionSource.CHEMRXIV.value,
+                IngestionSource.MEDRXIV.value,
+            ],
+        )
         self.assertEqual(result["job_id"], "test-job-id")
 
     def test_process_batch_task(self):
