@@ -27,23 +27,24 @@ from analytics.constants.personalize_constants import (
     TWEET_COUNT_TOTAL,
     UPVOTE_SCORE,
 )
-from analytics.services.personalize_item_utils import (
-    clean_text_for_csv,
-    get_author_ids,
-    get_bounty_metrics,
-    get_hub_mapping,
-    get_proposal_metrics,
-    get_rfp_metrics,
-)
+from analytics.services.personalize_item_utils import clean_text_for_csv, get_author_ids
 from analytics.services.personalize_utils import datetime_to_epoch_seconds
 
 
-def map_to_item(unified_doc) -> Dict[str, Optional[str]]:
+def map_to_item(
+    unified_doc,
+    bounty_data: dict,
+    proposal_data: dict,
+    rfp_data: dict,
+) -> Dict[str, Optional[str]]:
     """
     Map a ResearchhubUnifiedDocument to a Personalize item dictionary.
 
     Args:
-        unified_doc: ResearchhubUnifiedDocument instance
+        unified_doc: ResearchhubUnifiedDocument instance (with prefetched relations)
+        bounty_data: Dict with has_active_bounty and has_solutions flags
+        proposal_data: Dict with is_open and has_funders flags
+        rfp_data: Dict with is_open and has_applicants flags
 
     Returns:
         Dictionary with keys matching CSV_HEADERS
@@ -61,35 +62,34 @@ def map_to_item(unified_doc) -> Dict[str, Optional[str]]:
         return row
 
     # Map common fields
-    _map_common_fields(row, unified_doc, document)
+    row.update(_map_common_fields(unified_doc, document))
 
     # Map document-type-specific fields
     if unified_doc.document_type == "PAPER":
-        _map_paper_fields(row, unified_doc, document)
+        row.update(_map_paper_fields(unified_doc, document))
     else:
-        # Post types (DISCUSSION, GRANT, QUESTION, PREREGISTRATION)
-        _map_post_fields(row, unified_doc, document)
+        row.update(_map_post_fields(unified_doc, document))
 
-    # Add optional metrics
-    _add_optional_metrics(row, unified_doc)
+    # Add batch-fetched metrics
+    row.update(
+        {
+            HAS_ACTIVE_BOUNTY: bounty_data.get("has_active_bounty", False),
+            BOUNTY_HAS_SOLUTIONS: bounty_data.get("has_solutions", False),
+            PROPOSAL_IS_OPEN: proposal_data.get("is_open", False),
+            PROPOSAL_HAS_FUNDERS: proposal_data.get("has_funders", False),
+            RFP_IS_OPEN: rfp_data.get("is_open", False),
+            RFP_HAS_APPLICANTS: rfp_data.get("has_applicants", False),
+        }
+    )
 
     return row
 
 
-def _map_common_fields(row: Dict, unified_doc, document) -> None:
-    """
-    Map fields common to all document types.
+def _map_common_fields(unified_doc, document) -> dict:
+    """Map fields common to all document types."""
+    from hub.models import Hub
 
-    Args:
-        row: Row dictionary to update
-        unified_doc: ResearchhubUnifiedDocument instance
-        document: The concrete document (Paper or Post)
-    """
-    # Basic IDs
-    row[ITEM_ID] = str(unified_doc.id)
-    row[ITEM_TYPE] = unified_doc.document_type
-
-    # Timestamp - use paper_publish_date for papers if available
+    # Timestamp
     if (
         unified_doc.document_type == "PAPER"
         and hasattr(document, "paper_publish_date")
@@ -98,103 +98,62 @@ def _map_common_fields(row: Dict, unified_doc, document) -> None:
         timestamp = datetime_to_epoch_seconds(document.paper_publish_date)
     else:
         timestamp = datetime_to_epoch_seconds(unified_doc.created_date)
-    row[CREATION_TIMESTAMP] = timestamp
 
-    # Upvote score
-    row[UPVOTE_SCORE] = unified_doc.score
+    # Hub processing
+    hub_ids = []
+    hub_l1 = None
+    hub_l2 = None
 
-    # Hub mapping
-    hub_l1, hub_l2 = get_hub_mapping(unified_doc, document)
-    row[HUB_L1] = hub_l1
-    row[HUB_L2] = hub_l2
+    for hub in unified_doc.hubs.all():
+        hub_ids.append(str(hub.id))
+        if hub.namespace == Hub.Namespace.CATEGORY:
+            hub_l1 = str(hub.id)
+        elif hub.namespace == Hub.Namespace.SUBCATEGORY:
+            hub_l2 = str(hub.id)
 
-    # Hub IDs
-    hub_ids = [str(hub.id) for hub in unified_doc.hubs.all()]
-    row[HUB_IDS] = DELIMITER.join(hub_ids) if hub_ids else None
+    return {
+        ITEM_ID: str(unified_doc.id),
+        ITEM_TYPE: unified_doc.document_type,
+        CREATION_TIMESTAMP: timestamp,
+        UPVOTE_SCORE: unified_doc.score,
+        HUB_L1: hub_l1,
+        HUB_L2: hub_l2,
+        HUB_IDS: DELIMITER.join(hub_ids) if hub_ids else None,
+        AUTHOR_IDS: get_author_ids(unified_doc, document),
+    }
 
-    # Author IDs
-    row[AUTHOR_IDS] = get_author_ids(unified_doc, document)
 
-
-def _map_paper_fields(row: Dict, unified_doc, paper) -> None:
-    """
-    Map paper-specific fields.
-
-    Args:
-        row: Row dictionary to update
-        unified_doc: ResearchhubUnifiedDocument instance
-        paper: Paper instance
-    """
-    # Get title and abstract
+def _map_paper_fields(unified_doc, paper) -> dict:
+    """Map paper-specific fields."""
     title = paper.paper_title or paper.title or ""
     abstract = paper.abstract or ""
-
-    # Get hub names for concatenation
     hub_names = unified_doc.get_hub_names()
 
-    # TITLE field: just the title
-    row[TITLE] = clean_text_for_csv(title)
-
-    # TEXT field: title + abstract + hubs
     text_concat = f"{title} {abstract} {hub_names}"
-    row[TEXT] = clean_text_for_csv(text_concat)
 
-    # Citation count
-    row[CITATION_COUNT_TOTAL] = paper.citations
+    fields = {
+        TITLE: clean_text_for_csv(title),
+        TEXT: clean_text_for_csv(text_concat),
+        CITATION_COUNT_TOTAL: paper.citations,
+    }
 
-    # Social metrics from external_metadata (Altmetric data)
     if paper.external_metadata:
-        metadata = paper.external_metadata
-        metrics = metadata.get("metrics", {})
-        row[BLUESKY_COUNT_TOTAL] = metrics.get("bluesky_count", 0)
-        row[TWEET_COUNT_TOTAL] = metrics.get("twitter_count", 0)
+        metrics = paper.external_metadata.get("metrics", {})
+        fields[BLUESKY_COUNT_TOTAL] = metrics.get("bluesky_count", 0)
+        fields[TWEET_COUNT_TOTAL] = metrics.get("twitter_count", 0)
+
+    return fields
 
 
-def _map_post_fields(row: Dict, unified_doc, post) -> None:
-    """
-    Map post-specific fields.
-
-    Args:
-        row: Row dictionary to update
-        unified_doc: ResearchhubUnifiedDocument instance
-        post: ResearchhubPost instance
-    """
-    # Get title and renderable_text
+def _map_post_fields(unified_doc, post) -> dict:
+    """Map post-specific fields."""
     title = post.title or ""
     renderable_text = post.renderable_text or ""
-
-    # Get hub names for concatenation
     hub_names = unified_doc.get_hub_names()
 
-    # TITLE field: just the title
-    row[TITLE] = clean_text_for_csv(title)
-
-    # TEXT field: title + renderable_text + hubs
     text_concat = f"{title} {renderable_text} {hub_names}"
-    row[TEXT] = clean_text_for_csv(text_concat)
 
-
-def _add_optional_metrics(row: Dict, unified_doc) -> None:
-    """
-    Add optional metrics (bounty, proposal, RFP, comments).
-
-    Args:
-        row: Row dictionary to update
-        unified_doc: ResearchhubUnifiedDocument instance
-    """
-    # Bounty metrics (can apply to any document type)
-    bounty_metrics = get_bounty_metrics(unified_doc)
-    row[HAS_ACTIVE_BOUNTY] = bounty_metrics["HAS_ACTIVE_BOUNTY"]
-    row[BOUNTY_HAS_SOLUTIONS] = bounty_metrics["BOUNTY_HAS_SOLUTIONS"]
-
-    # Proposal metrics (for PREREGISTRATION type)
-    if unified_doc.document_type == "PREREGISTRATION":
-        proposal_metrics = get_proposal_metrics(unified_doc)
-        row[PROPOSAL_IS_OPEN] = proposal_metrics["PROPOSAL_IS_OPEN"]
-        row[PROPOSAL_HAS_FUNDERS] = proposal_metrics["PROPOSAL_HAS_FUNDERS"]
-
-    # RFP metrics (for GRANT type)
-    if unified_doc.document_type == "GRANT":
-        rfp_metrics = get_rfp_metrics(unified_doc)
-        row[RFP_IS_OPEN] = rfp_metrics["RFP_IS_OPEN"]
-        row[RFP_HAS_APPLICANTS] = rfp_metrics["RFP_HAS_APPLICANTS"]
+    return {
+        TITLE: clean_text_for_csv(title),
+        TEXT: clean_text_for_csv(text_concat),
+    }

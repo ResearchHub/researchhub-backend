@@ -1,15 +1,11 @@
-import csv
 from datetime import datetime
 from typing import Optional
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import QuerySet
 
-from analytics.constants.personalize_constants import (
-    CSV_HEADERS,
-    SUPPORTED_DOCUMENT_TYPES,
-)
-from analytics.items.personalize_item_mapper import map_to_item
+from analytics.constants.personalize_constants import SUPPORTED_DOCUMENT_TYPES
+from analytics.services.personalize_export_service import PersonalizeExportService
 from researchhub_document.models import ResearchhubUnifiedDocument
 
 
@@ -59,30 +55,8 @@ class Command(BaseCommand):
 
         self.stdout.write(f"Exporting {total} items to {filename}...")
 
-        exported = 0
-        skipped = 0
-
-        with open(filename, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=CSV_HEADERS)
-            writer.writeheader()
-
-            for unified_doc in queryset.iterator(chunk_size=1000):
-                try:
-                    item_row = map_to_item(unified_doc)
-                    writer.writerow(item_row)
-                    exported += 1
-
-                    if exported % 1000 == 0:
-                        self.stdout.write(f"Progress: {exported}/{total}", ending="\r")
-
-                except Exception as e:
-                    self.stdout.write(
-                        self.style.WARNING(
-                            f"\nError processing item {unified_doc.id}: {e}"
-                        )
-                    )
-                    skipped += 1
-                    continue
+        service = PersonalizeExportService(chunk_size=1000)
+        exported, skipped = service.export_to_csv(queryset, filename)
 
         self.stdout.write(
             self.style.SUCCESS(
@@ -107,8 +81,10 @@ class Command(BaseCommand):
                 "hubs",
                 "related_bounties",
                 "fundraises",
+                "grants",
                 "grants__contacts__author_profile",
                 "paper__authorships__author",
+                "posts__authors",
             )
             .filter(
                 is_removed=False,

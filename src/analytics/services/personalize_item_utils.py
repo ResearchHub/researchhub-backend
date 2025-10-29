@@ -6,13 +6,9 @@ and metrics aggregation.
 """
 
 import re
-from typing import Dict, List, Optional, Tuple
-
-from django.contrib.contenttypes.models import ContentType
+from typing import List, Optional
 
 from analytics.constants.personalize_constants import DELIMITER, MAX_TEXT_LENGTH
-from purchase.models import GrantApplication, Purchase
-from reputation.models import BountySolution
 
 
 def clean_text_for_csv(text: Optional[str]) -> Optional[str]:
@@ -49,40 +45,6 @@ def clean_text_for_csv(text: Optional[str]) -> Optional[str]:
         text = text[:MAX_TEXT_LENGTH]
 
     return text if text else None
-
-
-def get_hub_mapping(unified_doc, document) -> Tuple[Optional[str], Optional[str]]:
-    """
-    Get two-level hub categorization for a document.
-
-    Strategy:
-    - Use hubs associated with the unified document
-    - HUB_L1: Hub with namespace='category'
-    - HUB_L2: Hub with namespace='subcategory'
-
-    Args:
-        unified_doc: ResearchhubUnifiedDocument instance
-        document: The concrete document (Paper or Post)
-
-    Returns:
-        Tuple of (HUB_L1, HUB_L2) as hub IDs or None
-    """
-    from hub.models import Hub
-
-    hub_l1 = None
-    hub_l2 = None
-
-    # Get all hubs associated with this unified document
-    hubs = unified_doc.hubs.all()
-
-    # Find category and subcategory hubs
-    for hub in hubs:
-        if hub.namespace == Hub.Namespace.CATEGORY:
-            hub_l1 = str(hub.id)
-        elif hub.namespace == Hub.Namespace.SUBCATEGORY:
-            hub_l2 = str(hub.id)
-
-    return (hub_l1, hub_l2)
 
 
 def get_author_ids(unified_doc, document) -> Optional[str]:
@@ -195,110 +157,3 @@ def _extract_author_ids_from_raw(paper) -> List[str]:
             author_ids.append(str(author.id))
 
     return author_ids
-
-
-def get_bounty_metrics(unified_doc) -> Dict[str, bool]:
-    """
-    Get bounty-related metrics for a unified document.
-
-    Args:
-        unified_doc: ResearchhubUnifiedDocument instance
-
-    Returns:
-        Dict with HAS_ACTIVE_BOUNTY, BOUNTY_HAS_SOLUTIONS (boolean flags)
-    """
-    result = {
-        "HAS_ACTIVE_BOUNTY": False,
-        "BOUNTY_HAS_SOLUTIONS": False,
-    }
-
-    try:
-        # Check if document has any open bounties
-        has_open_bounties = unified_doc.related_bounties.filter(status="OPEN").exists()
-        result["HAS_ACTIVE_BOUNTY"] = has_open_bounties
-
-        # Check if any bounties have solutions
-        all_bounty_ids = unified_doc.related_bounties.values_list("id", flat=True)
-        has_solutions = BountySolution.objects.filter(
-            bounty_id__in=all_bounty_ids
-        ).exists()
-        result["BOUNTY_HAS_SOLUTIONS"] = has_solutions
-
-    except Exception:
-        pass
-
-    return result
-
-
-def get_proposal_metrics(unified_doc) -> Dict[str, bool]:
-    """
-    Get proposal (fundraise) metrics for a unified document.
-
-    Args:
-        unified_doc: ResearchhubUnifiedDocument instance
-
-    Returns:
-        Dict with PROPOSAL_IS_OPEN, PROPOSAL_HAS_FUNDERS (boolean flags)
-    """
-    result = {
-        "PROPOSAL_IS_OPEN": False,
-        "PROPOSAL_HAS_FUNDERS": False,
-    }
-
-    try:
-        # Get any fundraise
-        fundraise = unified_doc.fundraises.first()
-
-        if fundraise:
-            # Check if fundraise is open
-            result["PROPOSAL_IS_OPEN"] = fundraise.status == "OPEN"
-
-            # Check if fundraise has any funders
-            fundraise_content_type = ContentType.objects.get_for_model(fundraise)
-            has_funders = Purchase.objects.filter(
-                content_type=fundraise_content_type,
-                object_id=fundraise.id,
-                purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
-            ).exists()
-
-            result["PROPOSAL_HAS_FUNDERS"] = has_funders
-
-    except Exception:
-        pass
-
-    return result
-
-
-def get_rfp_metrics(unified_doc) -> Dict[str, bool]:
-    """
-    Get RFP (Request for Proposal) metrics for a unified document.
-
-    RFP = Grant. Query the Grant model directly.
-
-    Args:
-        unified_doc: ResearchhubUnifiedDocument instance
-
-    Returns:
-        Dict with RFP_IS_OPEN, RFP_HAS_APPLICANTS (boolean flags)
-    """
-    result = {
-        "RFP_IS_OPEN": False,
-        "RFP_HAS_APPLICANTS": False,
-    }
-
-    try:
-        # Get any grant
-        grant = unified_doc.grants.first()
-
-        if grant:
-            # Check if grant is open
-            result["RFP_IS_OPEN"] = grant.status == "OPEN"
-
-            # Check if grant has any applications
-            has_applicants = GrantApplication.objects.filter(grant=grant).exists()
-            result["RFP_HAS_APPLICANTS"] = has_applicants
-
-    except Exception:
-        pass
-
-    return result
