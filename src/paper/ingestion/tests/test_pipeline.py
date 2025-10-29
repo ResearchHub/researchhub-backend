@@ -477,7 +477,7 @@ class TestPaperIngestionTasks(TestCase):
         self.assertEqual(
             result["sources"],
             [
-                IngestionSource.ARXIV_OAIPMH.value,
+                IngestionSource.ARXIV_OAI.value,
                 IngestionSource.BIORXIV.value,
                 IngestionSource.CHEMRXIV.value,
                 IngestionSource.MEDRXIV.value,
