@@ -1,5 +1,4 @@
 from django.core.management.base import BaseCommand
-from django.db import connection
 
 from user.models import Author
 
@@ -79,94 +78,6 @@ class Command(BaseCommand):
         """Remove quotation marks from headlines that are wrapped in quotes."""
         self.stdout.write("=== Removing Quotation Marks from Headlines ===")
 
-        # Check if the column is JSONB or TEXT
-        column_type = self._get_headline_column_type()
-        self.stdout.write(f"Column type detected: {column_type}")
-
-        if column_type == "jsonb":
-            self._remove_quotes_jsonb(authors, batch_size, start_id)
-        else:
-            self._remove_quotes_text(authors, batch_size, start_id)
-
-    def _get_headline_column_type(self):
-        """Check if the headline column is JSONB or TEXT."""
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT data_type
-                FROM information_schema.columns
-                WHERE table_name = 'user_author'
-                AND column_name = 'headline'
-                """
-            )
-            result = cursor.fetchone()
-            return result[0] if result else "text"
-
-    def _remove_quotes_jsonb(self, authors, batch_size, start_id):
-        """Remove quotes from JSONB headlines using raw SQL with proper casting."""
-        self.stdout.write("Using JSONB-compatible update method...")
-
-        fixed_count = 0
-        last_id = start_id
-        ids_to_update = []
-
-        for author in authors.iterator(chunk_size=batch_size):
-            last_id = author.id
-            headline = author.headline
-
-            if isinstance(headline, str):
-                # Check if headline is wrapped in quotes
-                stripped = headline.strip()
-                if (stripped.startswith('"') and stripped.endswith('"')) or (
-                    stripped.startswith("'") and stripped.endswith("'")
-                ):
-                    ids_to_update.append(author.id)
-                    fixed_count += 1
-
-            if len(ids_to_update) >= batch_size:
-                self._update_jsonb_headlines(ids_to_update)
-                self.stdout.write(f"Updated batch. Last ID: {last_id}")
-                ids_to_update = []
-
-        if ids_to_update:
-            self._update_jsonb_headlines(ids_to_update)
-
-        self.stdout.write(
-            self.style.SUCCESS(f"Removed quotes from {fixed_count} author headlines")
-        )
-
-    def _update_jsonb_headlines(self, author_ids):
-        """Update JSONB headlines using raw SQL to strip outer quotes."""
-        with connection.cursor() as cursor:
-            # Use JSONB operations to strip quotes:
-            # headline #>> '{}' extracts the text value from JSONB
-            # Then we cast it back to JSONB with to_jsonb()
-            # Note: '{}' in PostgreSQL JSONB means extract the top-level value
-            sql = """
-                UPDATE user_author
-                SET headline = to_jsonb(
-                    CASE
-                        WHEN (headline #>> '{}') ~ '^".*"$'
-                        THEN substring(
-                            headline #>> '{}' from 2
-                            for length(headline #>> '{}') - 2
-                        )
-                        WHEN (headline #>> '{}') ~ '^''.*''$'
-                        THEN substring(
-                            headline #>> '{}' from 2
-                            for length(headline #>> '{}') - 2
-                        )
-                        ELSE headline #>> '{}'
-                    END
-                )
-                WHERE id = ANY(%s)
-                """
-            cursor.execute(sql, [author_ids])
-
-    def _remove_quotes_text(self, authors, batch_size, start_id):
-        """Remove quotes from TEXT headlines using Django ORM."""
-        self.stdout.write("Using TEXT-compatible update method...")
-
         updated_authors = []
         fixed_count = 0
         last_id = start_id
@@ -176,7 +87,7 @@ class Command(BaseCommand):
             headline = author.headline
 
             if isinstance(headline, str):
-                # Check if headline is wrapped in quotes
+                # Check if headline is wrapped in quotes (both single and double)
                 stripped = headline.strip()
                 if (stripped.startswith('"') and stripped.endswith('"')) or (
                     stripped.startswith("'") and stripped.endswith("'")
