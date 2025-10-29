@@ -27,9 +27,28 @@ class FundOrderingFilter(OrderingFilter):
     """Custom ordering filter for grants and fundraises with best sorting logic."""
     
 
+    def get_ordering(self, request, queryset, view):
+        """Get ordering from request with proper DRF validation."""
+        params = request.query_params.get(self.ordering_param)
+        
+        if params:
+            fields = [param.strip() for param in params.split(',')]
+            ordering_fields = getattr(view, 'ordering_fields', None)
+            if ordering_fields:
+                valid_fields = []
+                for field in fields:
+                    field_name = field.lstrip('-')
+                    if field_name in ordering_fields:
+                        valid_fields.append(field)
+                fields = valid_fields
+            
+            if fields:
+                return fields[0].lstrip('-')
+        return getattr(view, 'ordering', 'best')
+
     def filter_queryset(self, request: Request, queryset: QuerySet, view: Any) -> QuerySet:
         """Apply filtering and sorting to the queryset."""
-        ordering = request.query_params.get('ordering', '')
+        ordering = self.get_ordering(request, queryset, view)
         model_config = self._get_model_config(view)
         queryset = self._apply_include_ended_filter(request, queryset, view, model_config)
          

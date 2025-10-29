@@ -1466,3 +1466,65 @@ class FundingFeedViewSetTests(TestCase):
         self.assertTrue(low_amount_found)
         self.assertLess(high_amount_index, low_amount_index)
 
+    def test_ordering_validation(self):
+        """Test that FundOrderingFilter validates ordering fields correctly."""
+        from feed.filters import FundOrderingFilter
+        from unittest.mock import Mock
+        
+        filter_instance = FundOrderingFilter()
+        factory = APIRequestFactory()
+        mock_queryset = Mock()
+        mock_view = Mock()
+        
+        # Setup view with ordering_fields
+        mock_view.ordering_fields = ['best', 'upvotes', 'most_applicants', 'amount_raised']
+        mock_view.ordering = 'best'
+        
+        # Test valid field
+        request = factory.get('/?ordering=upvotes')
+        drf_request = Request(request)  # Wrap with DRF Request
+        result = filter_instance.get_ordering(drf_request, mock_queryset, mock_view)
+        self.assertEqual(result, 'upvotes')
+        
+        # Test invalid field - should fall back to default
+        request = factory.get('/?ordering=invalid_field')
+        drf_request = Request(request)  # Wrap with DRF Request
+        result = filter_instance.get_ordering(drf_request, mock_queryset, mock_view)
+        self.assertEqual(result, 'best')
+        
+        # Test with '-' prefix - should be accepted and prefix removed
+        request = factory.get('/?ordering=-upvotes')
+        drf_request = Request(request)  # Wrap with DRF Request
+        result = filter_instance.get_ordering(drf_request, mock_queryset, mock_view)
+        self.assertEqual(result, 'upvotes')
+        
+        # Test multiple fields - should take first valid one
+        request = factory.get('/?ordering=invalid_field,upvotes,most_applicants')
+        drf_request = Request(request)  # Wrap with DRF Request
+        result = filter_instance.get_ordering(drf_request, mock_queryset, mock_view)
+        self.assertEqual(result, 'upvotes')
+        
+        # Test no ordering param - should use default
+        request = factory.get('/')
+        drf_request = Request(request)  # Wrap with DRF Request
+        result = filter_instance.get_ordering(drf_request, mock_queryset, mock_view)
+        self.assertEqual(result, 'best')
+
+    def test_ordering_validation_integration(self):
+        """Test ordering validation through the actual API endpoint."""
+        # Test valid ordering
+        response = self.client.get(reverse("funding_feed-list"), {"ordering": "upvotes"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Test invalid ordering - should fall back to default (best)
+        response = self.client.get(reverse("funding_feed-list"), {"ordering": "invalid_field"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Test with '-' prefix - should work
+        response = self.client.get(reverse("funding_feed-list"), {"ordering": "-upvotes"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Test multiple fields - should take first valid one
+        response = self.client.get(reverse("funding_feed-list"), {"ordering": "invalid_field,upvotes"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+

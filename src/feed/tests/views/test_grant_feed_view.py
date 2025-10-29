@@ -418,3 +418,54 @@ class GrantFeedViewTests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["results"]), 0)
+
+    def test_ordering_validation(self):
+        """Test that FundOrderingFilter validates ordering fields correctly for grants."""
+        from feed.filters import FundOrderingFilter
+        from unittest.mock import Mock
+        from rest_framework.test import APIRequestFactory
+        from rest_framework.request import Request
+        
+        filter_instance = FundOrderingFilter()
+        factory = APIRequestFactory()
+        mock_queryset = Mock()
+        mock_view = Mock()
+        
+        # Setup view with ordering_fields and is_grant_view
+        mock_view.ordering_fields = ['best', 'upvotes', 'most_applicants', 'amount_raised']
+        mock_view.ordering = 'best'
+        mock_view.is_grant_view = True
+        
+        # Test valid field
+        request = factory.get('/?ordering=upvotes')
+        drf_request = Request(request)  # Wrap with DRF Request
+        result = filter_instance.get_ordering(drf_request, mock_queryset, mock_view)
+        self.assertEqual(result, 'upvotes')
+        
+        # Test invalid field - should fall back to default
+        request = factory.get('/?ordering=invalid_field')
+        drf_request = Request(request)  # Wrap with DRF Request
+        result = filter_instance.get_ordering(drf_request, mock_queryset, mock_view)
+        self.assertEqual(result, 'best')
+        
+        # Test with '-' prefix - should be accepted and prefix removed
+        request = factory.get('/?ordering=-upvotes')
+        drf_request = Request(request)  # Wrap with DRF Request
+        result = filter_instance.get_ordering(drf_request, mock_queryset, mock_view)
+        self.assertEqual(result, 'upvotes')
+
+    def test_ordering_validation_integration(self):
+        """Test ordering validation through the actual grant feed API endpoint."""
+        self.client.force_authenticate(self.user)
+        
+        # Test valid ordering
+        response = self.client.get("/api/grant_feed/?ordering=upvotes")
+        self.assertEqual(response.status_code, 200)
+        
+        # Test invalid ordering - should fall back to default (best)
+        response = self.client.get("/api/grant_feed/?ordering=invalid_field")
+        self.assertEqual(response.status_code, 200)
+        
+        # Test with '-' prefix - should work
+        response = self.client.get("/api/grant_feed/?ordering=-upvotes")
+        self.assertEqual(response.status_code, 200)
