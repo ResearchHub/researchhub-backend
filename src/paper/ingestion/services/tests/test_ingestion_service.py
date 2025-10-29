@@ -107,12 +107,12 @@ class TestPaperIngestionService(TestCase):
         raw_response = [{"id": "test123", "title": "Test Paper"}]
 
         papers, failures = self.service.ingest_papers(
-            raw_response, IngestionSource.ARXIV, update_existing=False
+            raw_response, IngestionSource.ARXIV
         )
 
         self.assertEqual(len(papers), 1)
         self.assertEqual(len(failures), 0)
-        mock_save_paper.assert_called_once_with(mock_paper, False)
+        mock_save_paper.assert_called_once_with(mock_paper)
 
     def test_ingest_papers_mapping_exception(self):
         """Test handling of exceptions during mapping."""
@@ -142,7 +142,7 @@ class TestPaperIngestionService(TestCase):
         mock_paper.title = "New Paper"
         mock_paper.save = Mock()
 
-        result = self.service._save_paper(mock_paper, update_existing=False)
+        result = self.service._save_paper(mock_paper)
 
         mock_paper.save.assert_called_once()
         self.assertEqual(result, mock_paper)
@@ -159,7 +159,7 @@ class TestPaperIngestionService(TestCase):
         mock_paper.doi = "10.1234/test"
         mock_paper.save = Mock()
 
-        result = self.service._save_paper(mock_paper, update_existing=False)
+        result = self.service._save_paper(mock_paper)
 
         mock_paper.save.assert_not_called()
         self.assertEqual(result, existing_paper)
@@ -179,7 +179,7 @@ class TestPaperIngestionService(TestCase):
         mock_paper = Mock(spec=Paper)
         mock_paper.doi = "10.1234/test"
 
-        result = self.service._save_paper(mock_paper, update_existing=True)
+        result = self.service._save_paper(mock_paper)
 
         mock_update.assert_called_once_with(existing_paper, mock_paper)
         self.assertEqual(result, updated_paper)
@@ -221,7 +221,7 @@ class TestPaperIngestionService(TestCase):
 
         self.assertEqual(result, mock_paper)
         mock_ingest_papers.assert_called_once_with(
-            [raw_record], IngestionSource.ARXIV, validate=True, update_existing=False
+            [raw_record], IngestionSource.ARXIV, validate=True
         )
 
     @patch("paper.ingestion.services.PaperIngestionService.ingest_papers")

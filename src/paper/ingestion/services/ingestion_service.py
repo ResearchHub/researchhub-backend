@@ -172,7 +172,6 @@ class PaperIngestionService:
         raw_response: List[Dict[str, Any]],
         source: IngestionSource,
         validate: bool = True,
-        update_existing: bool = False,
     ) -> Tuple[List[Paper], List[Dict[str, Any]]]:
         """
         Process and save papers from raw ingestion client response.
@@ -181,7 +180,6 @@ class PaperIngestionService:
             raw_response: List of raw paper records from the ingestion client
             source: The source of the papers (e.g., ArXiv, BioRxiv)
             validate: Whether to validate records before processing
-            update_existing: Whether to update existing papers (by DOI)
 
         Returns:
             Tuple of (successfully processed papers, failed records with error info)
@@ -231,8 +229,7 @@ class PaperIngestionService:
                     )
                     continue
 
-                paper = self._save_paper(paper, update_existing)
-
+                paper = self._save_paper(paper)
                 # Create hubs
                 hubs = mapper.map_to_hubs(paper, record)
                 if hubs:
@@ -277,13 +274,12 @@ class PaperIngestionService:
 
         return successful_papers, failed_records
 
-    def _save_paper(self, paper: Paper, update_existing: bool = False) -> Paper:
+    def _save_paper(self, paper: Paper) -> Paper:
         """
         Save or update a paper in the database.
 
         Args:
             paper: Paper model instance to save
-            update_existing: Whether to update if paper exists (by DOI)
 
         Returns:
             Saved Paper instance
@@ -297,15 +293,9 @@ class PaperIngestionService:
                 existing_paper = Paper.objects.filter(doi=paper.doi).first()
 
                 if existing_paper:
-                    if update_existing:
-                        # Update existing paper
-                        logger.info(f"Updating existing paper with DOI {paper.doi}")
-                        return self._update_paper(existing_paper, paper)
-                    else:
-                        logger.info(
-                            f"Paper with DOI {paper.doi} already exists, skipping"
-                        )
-                        return existing_paper
+                    # Update existing paper
+                    logger.info(f"Updating existing paper with DOI {paper.doi}")
+                    return self._update_paper(existing_paper, paper)
 
             # Save new paper
             paper.save()
@@ -355,7 +345,6 @@ class PaperIngestionService:
         raw_record: Dict[str, Any],
         source: IngestionSource,
         validate: bool = True,
-        update_existing: bool = False,
     ) -> Optional[Paper]:
         """
         Process and save a single paper from raw ingestion client response.
@@ -364,7 +353,6 @@ class PaperIngestionService:
             raw_record: Raw paper record from the ingestion client
             source: The source of the paper
             validate: Whether to validate the record before processing
-            update_existing: Whether to update if paper exists
 
         Returns:
             Processed Paper instance or None if failed
@@ -373,7 +361,6 @@ class PaperIngestionService:
             [raw_record],
             source,
             validate=validate,
-            update_existing=update_existing,
         )
 
         if papers:
