@@ -112,6 +112,9 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             )
             .prefetch_related(
                 "unified_document__hubs",
+                "unified_document__reviews",
+                "unified_document__bounties",
+                "unified_document__topics",
                 Prefetch(
                     "unified_document__grants",
                     queryset=Grant.objects.select_related(
@@ -136,7 +139,6 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
                         ),
                     ).order_by("id")
                 ),
-                "unified_document__topics",
             )
             .filter(document_type=GRANT, unified_document__is_removed=False)
         )

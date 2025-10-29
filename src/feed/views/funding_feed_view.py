@@ -104,8 +104,10 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
                 "unified_document__document_filter",
             )
             .prefetch_related(
-                # Prefetch hubs
                 "unified_document__hubs",
+                "unified_document__reviews",
+                "unified_document__bounties",
+                "unified_document__topics",
                 Prefetch(
                     "unified_document__fundraises",
                     queryset=Fundraise.objects.select_related(
@@ -114,6 +116,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
                         "created_by__userverification",
                         "escrow",
                     ).prefetch_related(
+                        "nonprofit_links",
                         Prefetch(
                             "purchases",
                             queryset=Purchase.objects.select_related(
@@ -124,7 +127,6 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
                         ),
                     ).order_by("id")
                 ),
-                "unified_document__topics",
             )
             .filter(document_type=PREREGISTRATION, unified_document__is_removed=False)
         )

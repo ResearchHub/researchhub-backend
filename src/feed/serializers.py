@@ -104,30 +104,39 @@ class ContentObjectSerializer(serializers.Serializer):
     unified_document_id = serializers.SerializerMethodField()
 
     def get_hub(self, obj):
+        """Return primary hub if it exists. Optimized to use prefetch cache and avoid get_primary_hub() which triggers queries."""
         if hasattr(obj, "unified_document") and obj.unified_document:
-            hub = obj.unified_document.get_primary_hub(fallback=True)
-            if hub:
-                return SimpleHubSerializer(hub).data
+            topics = obj.unified_document.topics.all() if hasattr(obj.unified_document, 'topics') else []
+            primary_topic = None
+            for topic in topics:
+                if hasattr(topic, 'is_primary') and topic.is_primary:
+                    primary_topic = topic
+                    break
+            if primary_topic and hasattr(primary_topic, 'topic') and hasattr(primary_topic.topic, 'subfield_id'):
+                for hub in obj.unified_document.hubs.all():
+                    if hasattr(hub, 'subfield_id') and hub.subfield_id == primary_topic.topic.subfield_id:
+                        return SimpleHubSerializer(hub).data
+            
+            hubs = obj.unified_document.hubs.all()
+            if hubs:
+                return SimpleHubSerializer(hubs[0]).data
+        
         return None
 
     def get_category(self, obj):
         """Return category hub if it exists"""
         if hasattr(obj, "unified_document") and obj.unified_document:
-            category = obj.unified_document.hubs.filter(
-                namespace=Hub.Namespace.CATEGORY
-            ).first()
-            if category:
-                return SimpleHubSerializer(category).data
+            for hub in obj.unified_document.hubs.all():
+                if hub.namespace == Hub.Namespace.CATEGORY:
+                    return SimpleHubSerializer(hub).data
         return None
 
     def get_subcategory(self, obj):
         """Return subcategory hub if it exists"""
         if hasattr(obj, "unified_document") and obj.unified_document:
-            subcategory = obj.unified_document.hubs.filter(
-                namespace=Hub.Namespace.SUBCATEGORY
-            ).first()
-            if subcategory:
-                return SimpleHubSerializer(subcategory).data
+            for hub in obj.unified_document.hubs.all():
+                if hub.namespace == Hub.Namespace.SUBCATEGORY:
+                    return SimpleHubSerializer(hub).data
         return None
 
     def get_unified_document_id(self, obj):
@@ -139,9 +148,10 @@ class ContentObjectSerializer(serializers.Serializer):
     def get_bounty_data(self, obj):
         """Return bounty data from the unified document if it exists"""
         if hasattr(obj, "unified_document") and obj.unified_document:
-            bounties = obj.unified_document.related_bounties.filter(parent__isnull=True)
+            all_bounties = obj.unified_document.bounties.all() if hasattr(obj.unified_document, 'bounties') else []
+            bounties = [b for b in all_bounties if not b.parent_id]
 
-            if not bounties.exists():
+            if not bounties:
                 return []
 
             return BountySerializer(bounties, many=True).data
@@ -177,11 +187,13 @@ class ContentObjectSerializer(serializers.Serializer):
         """Return reviews from the unified document if it exists"""
         if hasattr(obj, "unified_document") and obj.unified_document:
             reviews = obj.unified_document.reviews.all()
-
-            if not reviews.exists():
+            
+            # Use list() to evaluate without extra exists() query
+            reviews_list = list(reviews)
+            if not reviews_list:
                 return []
 
-            return SimpleReviewSerializer(reviews, many=True).data
+            return SimpleReviewSerializer(reviews_list, many=True).data
         return []
 
     class Meta:
@@ -348,9 +360,12 @@ class PostSerializer(ContentObjectSerializer):
             and hasattr(obj, "unified_document")
             and obj.unified_document
             and hasattr(obj.unified_document, "grants")
-            and obj.unified_document.grants.exists()
         ):
-            grant = obj.unified_document.grants.first()
+            # Use all() instead of exists() to avoid extra query (prefetch cache is used)
+            grants = obj.unified_document.grants.all()
+            if not grants:
+                return None
+            grant = grants[0]
             context = getattr(self, "context", {})
             # Prevent circular reference by limiting user serializer fields
             context["pch_dgs_get_created_by"] = {
@@ -690,12 +705,17 @@ class FeedEntrySerializer(serializers.ModelSerializer):
 def serialize_feed_metrics(item, item_content_type):
     """
     Serialize metrics for a feed item based on its content type.
+    Optimized to use cached fields instead of methods that trigger queries.
     """
     metrics = {}
     if hasattr(item, "score"):
         metrics["votes"] = getattr(item, "score", 0)
 
-    if hasattr(item, "get_discussion_count"):
+    # Use cached discussion_count field instead of get_discussion_count() method
+    if hasattr(item, "discussion_count"):
+        metrics["replies"] = getattr(item, "discussion_count", 0)
+    elif hasattr(item, "get_discussion_count"):
+        # Fallback to method only if field doesn't exist
         metrics["replies"] = item.get_discussion_count()
 
     if hasattr(item, "children_count"):
@@ -756,9 +776,13 @@ class FundingFeedEntrySerializer(FeedEntrySerializer):
         if (
             obj.unified_document
             and hasattr(obj.unified_document, "fundraises")
-            and obj.unified_document.fundraises.exists()
         ):
-            return obj.unified_document.fundraises.first().nonprofit_links.exists()
+            # Use all() instead of exists() to avoid extra query (prefetch cache is used)
+            fundraises = obj.unified_document.fundraises.all()
+            if fundraises:
+                # Use all() for nonprofit_links too
+                nonprofit_links = fundraises[0].nonprofit_links.all()
+                return len(nonprofit_links) > 0
         return None
 
 

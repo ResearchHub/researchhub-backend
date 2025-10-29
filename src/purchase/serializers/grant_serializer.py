@@ -38,10 +38,12 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
         return serializer.data
 
     def get_contacts(self, grant):
+        """Return contact users for this grant."""
         context = self.context
         _context_fields = context.get("pch_dgs_get_contacts", {})
+        contacts = grant.contacts.all()
         serializer = DynamicUserSerializer(
-            grant.contacts.all(), context=context, many=True, **_context_fields
+            contacts, context=context, many=True, **_context_fields
         )
         return serializer.data
 
@@ -77,11 +79,8 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
         return grant.is_active()
 
     def get_applications(self, grant):
-        """Return grant applications with applicant information"""
-
-        applications = grant.applications.select_related(
-            "applicant__author_profile"
-        ).all()
+        """Return grant applications with applicant information""" 
+        applications = grant.applications.all()
 
         application_data = []
         for application in applications:
