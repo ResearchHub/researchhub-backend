@@ -1,7 +1,7 @@
 import uuid
 from unittest.mock import MagicMock, patch
 
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model 
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.test import TestCase
@@ -18,6 +18,7 @@ from purchase.related_models.constants.rsc_exchange_currency import MORALIS
 from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
+from purchase.related_models.purchase_model import Purchase
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import Escrow
 from researchhub_document.related_models.constants.document_type import GRANT, PREREGISTRATION
@@ -76,6 +77,17 @@ class FundingFeedViewSetTests(TestCase):
             slug="other-preregistration",
             unified_document=self.other_unified_document,
             created_date=timezone.now(),
+        )
+
+        # Create a grant for testing applications
+        self.grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=self.unified_document,
+            amount=1000,
+            currency=USD,
+            organization="Test Organization",
+            description="Test grant description",
+            status=Grant.OPEN,
         )
 
         # Create a non-preregistration post (should not appear in feed)
@@ -1062,4 +1074,476 @@ class FundingFeedViewSetTests(TestCase):
         self.assertEqual(
             response.data["results"][0]["content_object"]["id"], self.post.id
         )
+
+    def test_include_ended_parameter(self):
+        """Test include_ended parameter behavior and fundraise_status=CLOSED override""" 
+        
+        # Create an expired OPEN fundraise (past end_date but status still OPEN)
+        expired_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        expired_post = ResearchhubPost.objects.create(
+            title="Expired Open Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=expired_doc,
+        )
+        
+        escrow_expired = Escrow.objects.create(
+            amount_holding=0,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=expired_doc.id,
+        )
+        
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=expired_doc,
+            escrow=escrow_expired,
+            status=Fundraise.OPEN,
+            goal_amount=100,
+            end_date=timezone.now() - timezone.timedelta(days=10),  # Expired 10 days ago
+        )
+
+        # Test default behavior (include_ended=true)
+        url = reverse("funding_feed-list")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Should include all items: self.post (OPEN), self.other_post (COMPLETED), expired_post (OPEN+Expired)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertIn(self.post.id, post_ids)
+        self.assertIn(self.other_post.id, post_ids)
+        self.assertIn(expired_post.id, post_ids)
+
+        # Test include_ended=false (should exclude expired items)
+        url = reverse("funding_feed-list") + "?include_ended=false"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Should exclude expired_post but include self.post (OPEN+Active) and self.other_post (COMPLETED)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertIn(self.post.id, post_ids)
+        self.assertIn(self.other_post.id, post_ids)
+        self.assertNotIn(expired_post.id, post_ids)
+
+        # Create a unified document with BOTH completed and open-expired fundraises
+        # This is needed to properly test the include_ended override regression
+        mixed_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        mixed_post = ResearchhubPost.objects.create(
+            title="Mixed Status Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=mixed_doc,
+        )
+        
+        # Create completed fundraise (will be included by fundraise_status=CLOSED)
+        completed_escrow = Escrow.objects.create(
+            amount_holding=0,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=mixed_doc.id,
+        )
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=mixed_doc,
+            escrow=completed_escrow,
+            status=Fundraise.COMPLETED,
+            goal_amount=100,
+            end_date=timezone.now() - timezone.timedelta(days=5),
+        )
+        
+        # Create open-expired fundraise (would be excluded by include_ended=false without override)
+        open_expired_escrow = Escrow.objects.create(
+            amount_holding=50,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=mixed_doc.id,
+        )
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=mixed_doc,
+            escrow=open_expired_escrow,
+            status=Fundraise.OPEN,
+            goal_amount=200,
+            end_date=timezone.now() - timezone.timedelta(days=3),  # Expired 3 days ago
+        )
+
+        # Test fundraise_status=CLOSED overrides include_ended=false
+        url = reverse("funding_feed-list") + "?fundraise_status=CLOSED&include_ended=false"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Should include the mixed_post because it has a COMPLETED fundraise
+        # The include_ended override prevents filtering out the open-expired fundraise
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertNotIn(self.post.id, post_ids)  # OPEN fundraise - filtered out by fundraise_status=CLOSED
+        self.assertIn(self.other_post.id, post_ids)  # COMPLETED fundraise - included
+        self.assertNotIn(expired_post.id, post_ids)  # OPEN fundraise - filtered out by fundraise_status=CLOSED
+        self.assertIn(mixed_post.id, post_ids)  # Has COMPLETED fundraise - included despite open-expired one
+
+    def test_include_ended_default_behavior(self):
+        """Test that include_ended defaults to true when not specified"""
+        url = reverse("funding_feed-list")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Should return all items (default behavior)
+        self.assertEqual(len(response.data["results"]), 2)  # self.post and self.other_post
+
+    def test_upvotes_sorting(self):
+        """Test sorting by upvotes (descending)"""
+        # Create posts with different upvote counts
+        from researchhub_document.related_models.document_filter_model import DocumentFilter
+        
+        # Post with high upvotes
+        high_upvotes_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        high_upvotes_filter = DocumentFilter.objects.create(
+            upvoted_all=100
+        )
+        high_upvotes_doc.document_filter = high_upvotes_filter
+        high_upvotes_doc.save()
+        
+        ResearchhubPost.objects.create(
+            title="High Upvotes Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=high_upvotes_doc,
+        )
+        
+        # Post with low upvotes
+        low_upvotes_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        low_upvotes_filter = DocumentFilter.objects.create(
+            upvoted_all=10
+        )
+        low_upvotes_doc.document_filter = low_upvotes_filter
+        low_upvotes_doc.save()
+        
+        ResearchhubPost.objects.create(
+            title="Low Upvotes Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=low_upvotes_doc,
+        )
+        
+        # Test sorting by upvotes
+        url = reverse("funding_feed-list")
+        response = self.client.get(url, {"ordering": "upvotes"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Should be sorted by upvotes descending
+        results = response.data["results"]
+        self.assertGreaterEqual(len(results), 2)
+        
+        # Find our test posts in the results
+        high_upvotes_found = False
+        low_upvotes_found = False
+        high_upvotes_index = -1
+        low_upvotes_index = -1
+        
+        for i, result in enumerate(results):
+            # Check both direct title and content_object title
+            title = result.get("title") or result.get("content_object", {}).get("title", "")
+            if title == "High Upvotes Post":
+                high_upvotes_found = True
+                high_upvotes_index = i
+            elif title == "Low Upvotes Post":
+                low_upvotes_found = True
+                low_upvotes_index = i
+        
+        self.assertTrue(high_upvotes_found)
+        self.assertTrue(low_upvotes_found)
+        self.assertLess(high_upvotes_index, low_upvotes_index)
+
+    def test_most_applicants_sorting(self):
+        """Test sorting by most applicants (descending)"""
+        # Create posts with different application counts
+        # Post with many applications
+        many_apps_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        ResearchhubPost.objects.create(
+            title="Many Applications Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=many_apps_doc,
+        )
+        
+        # Create a fundraise for this post
+        many_apps_fundraise = Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=many_apps_doc,
+            goal_amount=1000,
+            goal_currency=USD,
+        )
+        
+        # Create multiple contributors for the fundraise
+        for i in range(3):
+            # Create a separate user for each contribution
+            contributor = User.objects.create_user(
+                username=f"contributor{i}",
+                password=uuid.uuid4().hex
+            )
+            # Create a purchase/contribution to the fundraise
+            Purchase.objects.create(
+                user=contributor,
+                item=many_apps_fundraise,
+                purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+                purchase_method=Purchase.OFF_CHAIN,
+                amount="100",
+            )
+        
+        # Post with few applications
+        few_apps_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        ResearchhubPost.objects.create(
+            title="Few Applications Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=few_apps_doc,
+        )
+        
+        # Create a fundraise for this post
+        few_apps_fundraise = Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=few_apps_doc,
+            goal_amount=500,
+            goal_currency=USD,
+        )
+        
+        # Create one contributor for the fundraise
+        contributor = User.objects.create_user(
+            username="few_contributor",
+            password=uuid.uuid4().hex
+        )
+        # Create a purchase/contribution to the fundraise
+        Purchase.objects.create(
+            user=contributor,
+            item=few_apps_fundraise,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            purchase_method=Purchase.OFF_CHAIN,
+            amount="50",
+        )
+        
+        # Test sorting by most applicants
+        url = reverse("funding_feed-list")
+        response = self.client.get(url, {"ordering": "most_applicants"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Should be sorted by application count descending
+        results = response.data["results"]
+        self.assertGreaterEqual(len(results), 2)
+        
+        # Find our test posts in the results
+        many_apps_found = False
+        few_apps_found = False
+        many_apps_index = -1
+        few_apps_index = -1
+        
+        for i, result in enumerate(results):
+            # Check both direct title and content_object title
+            title = result.get("title") or result.get("content_object", {}).get("title", "")
+            if title == "Many Applications Post":
+                many_apps_found = True
+                many_apps_index = i
+            elif title == "Few Applications Post":
+                few_apps_found = True
+                few_apps_index = i
+        
+        self.assertTrue(many_apps_found)
+        self.assertTrue(few_apps_found)
+        self.assertLess(many_apps_index, few_apps_index)
+
+    def test_amount_raised_sorting(self):
+        """Test sorting by amount raised (descending)"""
+        from reputation.models import Escrow
+        
+        # Post with high amount raised
+        high_amount_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        ResearchhubPost.objects.create(
+            title="High Amount Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=high_amount_doc,
+        )
+        
+        # Create fundraise first
+        high_amount_fundraise = Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=high_amount_doc,
+            goal_amount=1000,
+            goal_currency=USD,
+        )
+        
+        # Create escrow with high amount
+        from django.contrib.contenttypes.models import ContentType
+        fundraise_content_type = ContentType.objects.get_for_model(Fundraise)
+        
+        high_amount_escrow = Escrow.objects.create(
+            created_by=self.user,
+            hold_type=Escrow.FUNDRAISE,
+            amount_holding=500,
+            amount_paid=300,
+            content_type=fundraise_content_type,
+            object_id=high_amount_fundraise.id,
+        )
+        
+        # Link escrow to fundraise
+        high_amount_fundraise.escrow = high_amount_escrow
+        high_amount_fundraise.save()
+        
+        # Post with low amount raised
+        low_amount_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        ResearchhubPost.objects.create(
+            title="Low Amount Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=low_amount_doc,
+        )
+        
+        # Create fundraise first
+        low_amount_fundraise = Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=low_amount_doc,
+            goal_amount=500,
+            goal_currency=USD,
+        )
+        
+        # Create escrow with low amount
+        low_amount_escrow = Escrow.objects.create(
+            created_by=self.user,
+            hold_type=Escrow.FUNDRAISE,
+            amount_holding=100,
+            amount_paid=50,
+            content_type=fundraise_content_type,
+            object_id=low_amount_fundraise.id,
+        )
+        
+        # Link escrow to fundraise
+        low_amount_fundraise.escrow = low_amount_escrow
+        low_amount_fundraise.save()
+        
+        # Test sorting by amount raised
+        url = reverse("funding_feed-list")
+        response = self.client.get(url, {"ordering": "amount_raised"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Should be sorted by amount raised descending
+        results = response.data["results"]
+        self.assertGreaterEqual(len(results), 2)
+        
+        # Find our test posts in the results
+        high_amount_found = False
+        low_amount_found = False
+        high_amount_index = -1
+        low_amount_index = -1
+        
+        for i, result in enumerate(results):
+            # Check both direct title and content_object title
+            title = result.get("title") or result.get("content_object", {}).get("title", "")
+            if title == "High Amount Post":
+                high_amount_found = True
+                high_amount_index = i
+            elif title == "Low Amount Post":
+                low_amount_found = True
+                low_amount_index = i
+        
+        self.assertTrue(high_amount_found)
+        self.assertTrue(low_amount_found)
+        self.assertLess(high_amount_index, low_amount_index)
+
+    def test_ordering_validation(self):
+        """Test that FundOrderingFilter handles different ordering scenarios correctly."""
+        from feed.filters import FundOrderingFilter
+        from unittest.mock import Mock, patch
+        
+        filter_instance = FundOrderingFilter()
+        factory = APIRequestFactory()
+        mock_queryset = Mock()
+        mock_view = Mock()
+        
+        # Setup view with ordering_fields
+        mock_view.ordering_fields = ['best', 'upvotes', 'most_applicants', 'amount_raised']
+        mock_view.ordering = 'best'
+        mock_view.is_grant_view = False
+        
+        # Test custom sorting (upvotes) - patch the specific sorting method
+        request = factory.get('/?ordering=upvotes')
+        drf_request = Request(request)
+        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes:
+            mock_upvotes.return_value = mock_queryset
+            filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
+            mock_upvotes.assert_called_once_with(mock_queryset)
+        
+        # Test best sorting (default - no ordering param)
+        request = factory.get('/')
+        drf_request = Request(request)
+        with patch.object(filter_instance, '_apply_best_sorting') as mock_best:
+            mock_best.return_value = mock_queryset
+            filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
+            mock_best.assert_called_once()
+        
+        # Test best sorting (explicit best)
+        request = factory.get('/?ordering=best')
+        drf_request = Request(request)
+        with patch.object(filter_instance, '_apply_best_sorting') as mock_best:
+            mock_best.return_value = mock_queryset
+            filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
+            mock_best.assert_called_once()
+        
+        # Test with '-' prefix - should be stripped and work
+        request = factory.get('/?ordering=-upvotes')
+        drf_request = Request(request)
+        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes:
+            mock_upvotes.return_value = mock_queryset
+            filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
+            mock_upvotes.assert_called_once_with(mock_queryset)
+        
+        # Test comma-separated values - should take first field
+        request = factory.get('/?ordering=upvotes,created_date')
+        drf_request = Request(request)
+        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes:
+            mock_upvotes.return_value = mock_queryset
+            filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
+            mock_upvotes.assert_called_once_with(mock_queryset)
+        
+        # Test whitespace handling
+        request = factory.get('/?ordering= upvotes ')
+        drf_request = Request(request)
+        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes:
+            mock_upvotes.return_value = mock_queryset
+            filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
+            mock_upvotes.assert_called_once_with(mock_queryset)
+
+    def test_ordering_validation_integration(self):
+        """Test ordering validation through the actual API endpoint."""
+        # Test valid ordering
+        response = self.client.get(reverse("funding_feed-list"), {"ordering": "upvotes"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Test invalid ordering - should fall back to default (best)
+        response = self.client.get(reverse("funding_feed-list"), {"ordering": "invalid_field"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Test with '-' prefix - should work
+        response = self.client.get(reverse("funding_feed-list"), {"ordering": "-upvotes"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Test multiple fields - should take first valid one
+        response = self.client.get(reverse("funding_feed-list"), {"ordering": "invalid_field,upvotes"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 

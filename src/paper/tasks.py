@@ -68,8 +68,6 @@ def download_pdf(paper_id, retry=0):
                 filename += ".pdf"
             paper.file.save(filename, pdf)
             paper.save(update_fields=["file"])
-            paper.extract_pdf_preview(use_celery=True)
-            paper.compress_and_linearize_file()
             return True
         except Exception as e:
             sentry.log_info(e)

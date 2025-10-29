@@ -27,6 +27,8 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
     pagination_class = FeedPagination
     filter_backends = [DjangoFilterBackend, FundOrderingFilter]
     is_grant_view = True
+    ordering_fields = ['best', 'upvotes', 'most_applicants', 'amount_raised']
+    ordering = 'best'  # Default ordering
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -38,10 +40,11 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         base_key = super().get_cache_key(request, feed_type)
 
         # Add grant-specific parameters to cache key
+        ordering = request.query_params.get("ordering", "")
         status = request.query_params.get("status", "")
         organization = request.query_params.get("organization", "")
 
-        grant_params = f"-status:{status}-org:{organization}"
+        grant_params = f"-ordering:{ordering}-status:{status}-organization:{organization}"
         return base_key + grant_params
 
     def list(self, request, *args, **kwargs):

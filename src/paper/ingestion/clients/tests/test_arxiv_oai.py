@@ -1,5 +1,5 @@
 """
-Tests for ArXiv OAI-PMH client.
+Tests for ArXiv OAI client.
 """
 
 import os
@@ -7,42 +7,40 @@ from datetime import datetime
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
-from paper.ingestion.clients.arxiv_oaipmh import ArXivOAIPMHClient, ArXivOAIPMHConfig
+from paper.ingestion.clients.arxiv_oai import ArXivOAIClient, ArXivOAIConfig
 
 
-class TestArXivOAIPMHClient(TestCase):
+class TestArXivOAIClient(TestCase):
 
     def setUp(self):
-        self.config = ArXivOAIPMHConfig()
-        self.client = ArXivOAIPMHClient(self.config)
+        self.config = ArXivOAIConfig()
+        self.client = ArXivOAIClient(self.config)
 
         # Load fixture files
         fixtures_dir = os.path.join(os.path.dirname(__file__), "fixtures")
 
         with open(
-            os.path.join(fixtures_dir, "arxiv_oaipmh_sample_response.xml"), "r"
+            os.path.join(fixtures_dir, "arxiv_oai_sample_response.xml"), "r"
         ) as f:
             self.sample_xml_response = f.read()
 
-        with open(
-            os.path.join(fixtures_dir, "arxiv_oaipmh_empty_response.xml"), "r"
-        ) as f:
+        with open(os.path.join(fixtures_dir, "arxiv_oai_empty_response.xml"), "r") as f:
             self.empty_xml_response = f.read()
 
         with open(
-            os.path.join(fixtures_dir, "arxiv_oaipmh_with_resumption.xml"), "r"
+            os.path.join(fixtures_dir, "arxiv_oai_with_resumption.xml"), "r"
         ) as f:
             self.resumption_xml_response = f.read()
 
     def test_config_defaults(self):
         """
-        Test ArXiv OAI-PMH config has correct defaults.
+        Test ArXiv OAI config has correct defaults.
         """
         # Act
-        config = ArXivOAIPMHConfig()
+        config = ArXivOAIConfig()
 
         # Assert
-        self.assertEqual(config.source_name, "arxiv_oaipmh")
+        self.assertEqual(config.source_name, "arxiv_oai")
         self.assertEqual(config.base_url, "https://oaipmh.arxiv.org/oai")
         self.assertEqual(config.rate_limit, 0.33)  # 3 second delay
         self.assertEqual(config.request_timeout, 60.0)
@@ -50,7 +48,7 @@ class TestArXivOAIPMHClient(TestCase):
 
     def test_parse(self):
         """
-        Test parsing of ArXiv OAI-PMH XML response.
+        Test parsing of ArXiv OAI XML response.
         """
         # Act
         papers = self.client.parse(self.sample_xml_response)
@@ -61,7 +59,7 @@ class TestArXivOAIPMHClient(TestCase):
         # Check that papers contain raw XML
         paper1 = papers[0]
         self.assertIn("raw_xml", paper1)
-        self.assertEqual(paper1["source"], "arxiv_oaipmh")
+        self.assertEqual(paper1["source"], "arxiv_oai")
 
         # Verify the raw XML contains expected content
         self.assertIn("2501.08827", paper1["raw_xml"])
@@ -75,7 +73,7 @@ class TestArXivOAIPMHClient(TestCase):
         # Check second paper
         paper2 = papers[1]
         self.assertIn("raw_xml", paper2)
-        self.assertEqual(paper2["source"], "arxiv_oaipmh")
+        self.assertEqual(paper2["source"], "arxiv_oai")
         self.assertIn("2501.08817", paper2["raw_xml"])
         self.assertIn("Quantum Cardinality", paper2["raw_xml"])
 
@@ -139,7 +137,7 @@ class TestArXivOAIPMHClient(TestCase):
         self.assertEqual(result, self.sample_xml_response)
         mock_get.assert_called_once()
 
-    @patch.object(ArXivOAIPMHClient, "fetch_with_retry")
+    @patch.object(ArXivOAIClient, "fetch_with_retry")
     def test_fetch_recent(self, mock_fetch):
         """
         Test fetching recent papers.
@@ -168,7 +166,7 @@ class TestArXivOAIPMHClient(TestCase):
         self.assertEqual(params["from"], "2025-01-01")
         self.assertEqual(params["until"], "2025-01-07")
 
-    @patch.object(ArXivOAIPMHClient, "fetch_with_retry")
+    @patch.object(ArXivOAIClient, "fetch_with_retry")
     def test_fetch_recent_with_resumption_token(self, mock_fetch):
         """
         Test pagination with resumption token.
