@@ -62,16 +62,14 @@ class AmplitudeWebhookView(APIView):
                 events = [payload]
 
             processed_count = 0
-            skipped_count = 0
+            failed_count = 0
 
             for event in events:
                 try:
-                    if self.processor.should_process_event(event):
-                        self.processor.process_event(event)
-                        processed_count += 1
-                    else:
-                        skipped_count += 1
+                    self.processor.process_event(event)
+                    processed_count += 1
                 except Exception as e:
+                    failed_count += 1
                     log_error(
                         e,
                         message=(
@@ -83,14 +81,14 @@ class AmplitudeWebhookView(APIView):
 
             logger.info(
                 f"Amplitude webhook processed: {processed_count} events, "
-                f"{skipped_count} skipped"
+                f"{failed_count} failed"
             )
 
             return Response(
                 {
                     "message": "Webhook successfully processed",
                     "processed": processed_count,
-                    "skipped": skipped_count,
+                    "failed": failed_count,
                 },
                 status=status.HTTP_200_OK,
             )
