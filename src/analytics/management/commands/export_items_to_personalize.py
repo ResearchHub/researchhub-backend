@@ -2,9 +2,10 @@ from datetime import datetime
 from typing import Optional
 
 from django.core.management.base import BaseCommand, CommandError
-from django.db.models import QuerySet
+from django.db.models import Q, QuerySet
 
 from analytics.constants.personalize_constants import SUPPORTED_DOCUMENT_TYPES
+from analytics.models import UserInteractions
 from analytics.services.personalize_export_service import PersonalizeExportService
 from researchhub_document.models import ResearchhubUnifiedDocument
 
@@ -13,8 +14,10 @@ class Command(BaseCommand):
     help = "Export ResearchHub documents as Personalize items to CSV"
 
     def add_arguments(self, parser):
-        parser.add_argument("--start-date", help="YYYY-MM-DD (UTC)")
-        parser.add_argument("--end-date", help="YYYY-MM-DD (UTC)")
+        parser.add_argument(
+            "--since-publish-date",
+            help="Include items published/created after this date (YYYY-MM-DD)",
+        )
         parser.add_argument(
             "--ids",
             nargs="+",
@@ -23,30 +26,23 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        start_date = self._parse_date(options.get("start_date"))
-        end_date = self._parse_date(options.get("end_date"))
+        since_publish_date = self._parse_date(options.get("since_publish_date"))
         ids = options.get("ids")
 
-        if start_date and end_date and start_date > end_date:
-            raise CommandError("start-date must be before end-date")
-
-        self.export_items(start_date, end_date, ids)
+        self.export_items(since_publish_date, ids)
 
     def export_items(
         self,
-        start_date: Optional[datetime],
-        end_date: Optional[datetime],
+        since_publish_date: Optional[datetime],
         ids: Optional[list] = None,
     ):
         """Export items from ResearchhubUnifiedDocument to CSV."""
         self.stdout.write("Exporting items...")
 
-        # Generate filename with timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"personalize_items_{timestamp}.csv"
 
-        # Build queryset with optimizations
-        queryset = self._get_queryset(start_date, end_date, ids)
+        queryset = self._get_queryset(since_publish_date, ids)
 
         total = queryset.count()
         if total == 0:
@@ -68,11 +64,10 @@ class Command(BaseCommand):
 
     def _get_queryset(
         self,
-        start_date: Optional[datetime],
-        end_date: Optional[datetime],
+        since_publish_date: Optional[datetime],
         ids: Optional[list] = None,
     ) -> QuerySet[ResearchhubUnifiedDocument]:
-        queryset = (
+        base_queryset = (
             ResearchhubUnifiedDocument.objects.select_related(
                 "document_filter",
                 "paper",
@@ -90,15 +85,33 @@ class Command(BaseCommand):
                 is_removed=False,
                 document_type__in=SUPPORTED_DOCUMENT_TYPES,
             )
-            .exclude(document_filter__is_excluded_in_feed=True)
         )
 
         if ids:
-            queryset = queryset.filter(id__in=ids)
-        if start_date:
-            queryset = queryset.filter(created_date__gte=start_date)
-        if end_date:
-            queryset = queryset.filter(created_date__lte=end_date)
+            return base_queryset.filter(id__in=ids).distinct().order_by("id")
+
+        item_ids_with_interactions = set(
+            UserInteractions.objects.values_list(
+                "unified_document_id", flat=True
+            ).distinct()
+        )
+
+        if since_publish_date:
+            papers_since_date = Q(
+                document_type="PAPER",
+                paper__paper_publish_date__gte=since_publish_date,
+            )
+            non_papers_since_date = Q(
+                ~Q(document_type="PAPER"),
+                created_date__gte=since_publish_date,
+            )
+            items_since_date = papers_since_date | non_papers_since_date
+
+            queryset = base_queryset.filter(
+                Q(id__in=item_ids_with_interactions) | items_since_date
+            )
+        else:
+            queryset = base_queryset.filter(id__in=item_ids_with_interactions)
 
         return queryset.distinct().order_by("id")
 

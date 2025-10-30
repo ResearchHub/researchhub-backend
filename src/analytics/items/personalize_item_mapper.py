@@ -2,7 +2,11 @@
 Functional mapper for converting ResearchhubUnifiedDocument to AWS Personalize items.
 """
 
-from typing import Dict, Optional
+import logging
+from typing import Dict, Optional, Protocol, runtime_checkable
+
+from django.conf import settings
+from django.db import connection
 
 from analytics.constants.personalize_constants import (
     AUTHOR_IDS,
@@ -27,21 +31,44 @@ from analytics.constants.personalize_constants import (
     TWEET_COUNT_TOTAL,
     UPVOTE_SCORE,
 )
-from analytics.services.personalize_item_utils import clean_text_for_csv, get_author_ids
+from analytics.services.personalize_item_utils import (
+    assert_no_queries,
+    clean_text_for_csv,
+)
 from analytics.services.personalize_utils import datetime_to_epoch_seconds
+
+logger = logging.getLogger(__name__)
+
+
+@runtime_checkable
+class PrefetchedUnifiedDocument(Protocol):
+    """
+    UnifiedDocument with required prefetched relations.
+
+    Required prefetch_related:
+    - hubs
+    - grants, grants__contacts__author_profile
+    - fundraises, related_bounties
+    - paper__authorships__author
+    - posts__authors
+    """
+
+    id: int
+    document_type: str
+    score: int
 
 
 def map_to_item(
-    unified_doc,
+    prefetched_doc: PrefetchedUnifiedDocument,
     bounty_data: dict,
     proposal_data: dict,
     rfp_data: dict,
 ) -> Dict[str, Optional[str]]:
     """
-    Map a ResearchhubUnifiedDocument to a Personalize item dictionary.
+    Map a prefetched ResearchhubUnifiedDocument to a Personalize item dictionary.
 
     Args:
-        unified_doc: ResearchhubUnifiedDocument instance (with prefetched relations)
+        prefetched_doc: UnifiedDocument with prefetched relations
         bounty_data: Dict with has_active_bounty and has_solutions flags
         proposal_data: Dict with is_open and has_funders flags
         rfp_data: Dict with is_open and has_applicants flags
@@ -49,26 +76,30 @@ def map_to_item(
     Returns:
         Dictionary with keys matching CSV_HEADERS
     """
+    # Track queries to warn if prefetch is missing
+    if settings.DEBUG:
+        query_count_before = len(connection.queries)
+
     # Initialize row with None values
     row = {header: None for header in CSV_HEADERS}
 
     # Get the concrete document
     try:
-        document = unified_doc.get_document()
+        document = prefetched_doc.get_document()
     except Exception:
         # If we can't get the document, return minimal row
-        row[ITEM_ID] = str(unified_doc.id)
-        row[ITEM_TYPE] = unified_doc.document_type
+        row[ITEM_ID] = str(prefetched_doc.id)
+        row[ITEM_TYPE] = prefetched_doc.document_type
         return row
 
     # Map common fields
-    row.update(_map_common_fields(unified_doc, document))
+    row.update(_map_common_fields(prefetched_doc, document))
 
     # Map document-type-specific fields
-    if unified_doc.document_type == "PAPER":
-        row.update(_map_paper_fields(unified_doc, document))
+    if prefetched_doc.document_type == "PAPER":
+        row.update(_map_paper_fields(prefetched_doc, document))
     else:
-        row.update(_map_post_fields(unified_doc, document))
+        row.update(_map_post_fields(prefetched_doc, document))
 
     # Add batch-fetched metrics
     row.update(
@@ -82,52 +113,82 @@ def map_to_item(
         }
     )
 
+    # Log warning if queries were made (indicates missing prefetch)
+    if settings.DEBUG:
+        query_count_after = len(connection.queries)
+        new_queries = query_count_after - query_count_before
+        if new_queries > 0:
+            logger.warning(
+                f"map_to_item made {new_queries} unexpected queries for document {prefetched_doc.id}! "
+                f"This indicates missing prefetch_related. "
+                f"Queries: {[q['sql'][:100] for q in connection.queries[query_count_before:query_count_after]]}"
+            )
+
     return row
 
 
-def _map_common_fields(unified_doc, document) -> dict:
-    """Map fields common to all document types."""
+def _map_common_fields(prefetched_doc: PrefetchedUnifiedDocument, document) -> dict:
+    """Map fields common to all document types using prefetched data."""
     from hub.models import Hub
 
     # Timestamp
     if (
-        unified_doc.document_type == "PAPER"
+        prefetched_doc.document_type == "PAPER"
         and hasattr(document, "paper_publish_date")
         and document.paper_publish_date
     ):
         timestamp = datetime_to_epoch_seconds(document.paper_publish_date)
     else:
-        timestamp = datetime_to_epoch_seconds(unified_doc.created_date)
+        timestamp = datetime_to_epoch_seconds(prefetched_doc.created_date)
 
     # Hub processing
     hub_ids = []
     hub_l1 = None
     hub_l2 = None
 
-    for hub in unified_doc.hubs.all():
+    for hub in prefetched_doc.hubs.all():
         hub_ids.append(str(hub.id))
         if hub.namespace == Hub.Namespace.CATEGORY:
             hub_l1 = str(hub.id)
         elif hub.namespace == Hub.Namespace.SUBCATEGORY:
             hub_l2 = str(hub.id)
 
+    # Author extraction (using prefetched data only)
+    author_ids = []
+
+    if prefetched_doc.document_type == "GRANT":
+        grant = prefetched_doc.grants.first()
+        if grant:
+            for contact in grant.contacts.all():
+                if hasattr(contact, "author_profile") and contact.author_profile:
+                    author_ids.append(str(contact.author_profile.id))
+
+    elif prefetched_doc.document_type == "PAPER":
+        for authorship in document.authorships.all():
+            if authorship.author:
+                author_ids.append(str(authorship.author.id))
+
+    else:
+        for author in document.authors.all():
+            author_ids.append(str(author.id))
+
     return {
-        ITEM_ID: str(unified_doc.id),
-        ITEM_TYPE: unified_doc.document_type,
+        ITEM_ID: str(prefetched_doc.id),
+        ITEM_TYPE: prefetched_doc.document_type,
         CREATION_TIMESTAMP: timestamp,
-        UPVOTE_SCORE: unified_doc.score,
+        UPVOTE_SCORE: prefetched_doc.score,
         HUB_L1: hub_l1,
         HUB_L2: hub_l2,
         HUB_IDS: DELIMITER.join(hub_ids) if hub_ids else None,
-        AUTHOR_IDS: get_author_ids(unified_doc, document),
+        AUTHOR_IDS: DELIMITER.join(author_ids) if author_ids else None,
     }
 
 
-def _map_paper_fields(unified_doc, paper) -> dict:
+def _map_paper_fields(prefetched_doc: PrefetchedUnifiedDocument, paper) -> dict:
     """Map paper-specific fields."""
     title = paper.paper_title or paper.title or ""
     abstract = paper.abstract or ""
-    hub_names = unified_doc.get_hub_names()
+    hub_names = prefetched_doc.get_hub_names()
 
     text_concat = f"{title} {abstract} {hub_names}"
 
@@ -145,11 +206,11 @@ def _map_paper_fields(unified_doc, paper) -> dict:
     return fields
 
 
-def _map_post_fields(unified_doc, post) -> dict:
+def _map_post_fields(prefetched_doc: PrefetchedUnifiedDocument, post) -> dict:
     """Map post-specific fields."""
     title = post.title or ""
     renderable_text = post.renderable_text or ""
-    hub_names = unified_doc.get_hub_names()
+    hub_names = prefetched_doc.get_hub_names()
 
     text_concat = f"{title} {renderable_text} {hub_names}"
 

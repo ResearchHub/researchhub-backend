@@ -5,7 +5,7 @@ from django.db.models import QuerySet
 
 from analytics.constants.personalize_constants import CSV_HEADERS
 from analytics.items.personalize_item_mapper import map_to_item
-from analytics.services.personalize_batch_fetcher import PersonalizeBatchFetcher
+from analytics.services.personalize_batch_queries import PersonalizeBatchQueries
 from researchhub_document.models import ResearchhubUnifiedDocument
 
 
@@ -14,7 +14,7 @@ class PersonalizeExportService:
 
     def __init__(self, chunk_size: int = 1000):
         self.chunk_size = chunk_size
-        self.fetcher = PersonalizeBatchFetcher()
+        self.fetcher = PersonalizeBatchQueries()
 
     def export_items(
         self, queryset: QuerySet[ResearchhubUnifiedDocument]
