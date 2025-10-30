@@ -232,13 +232,16 @@ class BatchFetchingTests(TestCase):
         fetcher = PersonalizeBatchQueries()
 
         # Act
-        # Expected queries: 2 bounty + 3 proposal (includes ContentType lookup) + 2 rfp = 7 total
-        with self.assertNumQueries(7):
+        # Expected queries:
+        # 2 bounty + 3 proposal (includes ContentType lookup)
+        # + 2 rfp + 1 review_count = 8 total
+        with self.assertNumQueries(8):
             result = fetcher.fetch_all(doc_ids)
 
         # Assert
-        # Since none of the papers have bounties/proposals/rfps, results will be empty
-        # The important part is that it doesn't do N+1 queries
+        # Since none of the papers have bounties/proposals/rfps/reviews,
+        # results will be empty. The important part is no N+1 queries
         self.assertIsInstance(result["bounty"], dict)
         self.assertIsInstance(result["proposal"], dict)
         self.assertIsInstance(result["rfp"], dict)
+        self.assertIsInstance(result["review_count"], dict)

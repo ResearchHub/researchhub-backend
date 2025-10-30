@@ -64,6 +64,7 @@ class PersonalizeExportService:
         bounty_data = batch_data["bounty"]
         proposal_data = batch_data["proposal"]
         rfp_data = batch_data["rfp"]
+        review_count_data = batch_data["review_count"]
 
         items = []
         for unified_doc in chunk:
@@ -73,6 +74,7 @@ class PersonalizeExportService:
                     bounty_data=bounty_data.get(unified_doc.id, {}),
                     proposal_data=proposal_data.get(unified_doc.id, {}),
                     rfp_data=rfp_data.get(unified_doc.id, {}),
+                    review_count_data=review_count_data,
                 )
                 items.append(item_row)
             except Exception:

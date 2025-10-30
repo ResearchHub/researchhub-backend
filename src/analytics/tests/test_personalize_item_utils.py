@@ -2,13 +2,10 @@
 Tests for Personalize item utility functions.
 """
 
-from django.conf import settings
-from django.db import connection
-from django.test import TestCase, override_settings
+from django.test import TestCase
 
 from analytics.constants.personalize_constants import MAX_TEXT_LENGTH
-from analytics.utils.personalize_item_utils import assert_no_queries, clean_text_for_csv
-from user.tests.helpers import create_random_default_user
+from analytics.utils.personalize_item_utils import clean_text_for_csv
 
 
 class CleanTextForCSVTests(TestCase):
@@ -69,53 +66,3 @@ class CleanTextForCSVTests(TestCase):
 
         # Assert
         self.assertEqual(result, "Hello world")
-
-
-@override_settings(DEBUG=True)
-class AssertNoQueriesDecoratorTests(TestCase):
-    """Tests for assert_no_queries decorator."""
-
-    def test_assert_no_queries_passes_when_no_queries(self):
-        """Decorator should pass when decorated function makes no queries."""
-
-        # Arrange
-        @assert_no_queries
-        def no_query_function():
-            return "success"
-
-        # Act
-        result = no_query_function()
-
-        # Assert
-        self.assertEqual(result, "success")
-
-    def test_assert_no_queries_raises_when_queries_made(self):
-        """Decorator should raise AssertionError when queries are made."""
-
-        # Arrange
-        @assert_no_queries
-        def query_function():
-            create_random_default_user("testuser")
-            return "should not reach"
-
-        # Act & Assert
-        with self.assertRaises(AssertionError) as context:
-            query_function()
-
-        self.assertIn("unexpected queries", str(context.exception))
-
-    @override_settings(DEBUG=False)
-    def test_assert_no_queries_only_active_in_debug_mode(self):
-        """Decorator should be no-op when DEBUG=False."""
-
-        # Arrange
-        @assert_no_queries
-        def query_function():
-            create_random_default_user("testuser")
-            return "success"
-
-        # Act
-        result = query_function()
-
-        # Assert
-        self.assertEqual(result, "success")

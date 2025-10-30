@@ -2,11 +2,7 @@
 Functional mapper for converting ResearchhubUnifiedDocument to AWS Personalize items.
 """
 
-import logging
 from typing import Dict, Optional, Protocol, runtime_checkable
-
-from django.conf import settings
-from django.db import connection
 
 from analytics.constants.personalize_constants import (
     AUTHOR_IDS,
@@ -22,6 +18,8 @@ from analytics.constants.personalize_constants import (
     HUB_L2,
     ITEM_ID,
     ITEM_TYPE,
+    ITEM_TYPE_MAPPING,
+    PEER_REVIEW_COUNT_TOTAL,
     PROPOSAL_HAS_FUNDERS,
     PROPOSAL_IS_OPEN,
     RFP_HAS_APPLICANTS,
@@ -33,8 +31,6 @@ from analytics.constants.personalize_constants import (
 )
 from analytics.utils.personalize_item_utils import clean_text_for_csv
 from utils.time import datetime_to_epoch_seconds
-
-logger = logging.getLogger(__name__)
 
 
 @runtime_checkable
@@ -60,6 +56,7 @@ def map_to_item(
     bounty_data: dict,
     proposal_data: dict,
     rfp_data: dict,
+    review_count_data: dict,
 ) -> Dict[str, Optional[str]]:
     """
     Map a prefetched ResearchhubUnifiedDocument to a Personalize item dictionary.
@@ -69,14 +66,11 @@ def map_to_item(
         bounty_data: Dict with has_active_bounty and has_solutions flags
         proposal_data: Dict with is_open and has_funders flags
         rfp_data: Dict with is_open and has_applicants flags
+        review_count_data: Dict mapping doc_id to review count
 
     Returns:
         Dictionary with keys matching CSV_HEADERS
     """
-    # Track queries to warn if prefetch is missing
-    if settings.DEBUG:
-        query_count_before = len(connection.queries)
-
     # Initialize row with default values from constants
     row = {field: default for field, default in FIELD_DEFAULTS.items()}
 
@@ -107,21 +101,9 @@ def map_to_item(
             PROPOSAL_HAS_FUNDERS: proposal_data.get("has_funders", False),
             RFP_IS_OPEN: rfp_data.get("is_open", False),
             RFP_HAS_APPLICANTS: rfp_data.get("has_applicants", False),
+            PEER_REVIEW_COUNT_TOTAL: review_count_data.get(prefetched_doc.id, 0),
         }
     )
-
-    # Log warning if queries were made (indicates missing prefetch)
-    if settings.DEBUG:
-        query_count_after = len(connection.queries)
-        new_queries = query_count_after - query_count_before
-        if new_queries > 0:
-            queries = connection.queries[query_count_before:query_count_after]
-            logger.warning(
-                f"map_to_item made {new_queries} unexpected queries "
-                f"for document {prefetched_doc.id}! "
-                f"This indicates missing prefetch_related. "
-                f"Queries: {[q['sql'][:100] for q in queries]}"
-            )
 
     return row
 
@@ -173,7 +155,9 @@ def _map_common_fields(prefetched_doc: PrefetchedUnifiedDocument, document) -> d
 
     return {
         ITEM_ID: str(prefetched_doc.id),
-        ITEM_TYPE: prefetched_doc.document_type,
+        ITEM_TYPE: ITEM_TYPE_MAPPING.get(
+            prefetched_doc.document_type, prefetched_doc.document_type
+        ),
         CREATION_TIMESTAMP: timestamp,
         UPVOTE_SCORE: prefetched_doc.score if prefetched_doc.score is not None else 0,
         HUB_L1: hub_l1,

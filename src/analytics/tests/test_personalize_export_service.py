@@ -291,10 +291,11 @@ class IntegrationTests(TestCase):
         self.assertEqual(exported, 5)
         self.assertEqual(len(rows), 5)
         item_types = {row["ITEM_TYPE"] for row in rows}
+        # Check for mapped ITEM_TYPE values
         self.assertIn("PAPER", item_types)
-        self.assertIn("GRANT", item_types)
-        self.assertIn("PREREGISTRATION", item_types)
-        self.assertIn("DISCUSSION", item_types)
+        self.assertIn("RFP", item_types)  # GRANT maps to RFP
+        self.assertIn("PROPOSAL", item_types)  # PREREGISTRATION maps to PROPOSAL
+        self.assertIn("POST", item_types)  # DISCUSSION maps to POST
         self.assertIn("QUESTION", item_types)
 
     def test_export_with_batch_data_integration(self):

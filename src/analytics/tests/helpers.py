@@ -315,6 +315,7 @@ def create_batch_data(
             "is_open": rfp_is_open,
             "has_applicants": rfp_has_applicants,
         },
+        "review_count": {},
     }
 
 

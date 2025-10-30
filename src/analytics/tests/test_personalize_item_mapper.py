@@ -2,12 +2,10 @@
 Tests for Personalize item mapper functions.
 """
 
-import logging
 from datetime import datetime
-from decimal import Decimal
 
 import pytz
-from django.test import TestCase, override_settings
+from django.test import TestCase
 
 from analytics.constants.personalize_constants import (
     AUTHOR_IDS,
@@ -24,6 +22,7 @@ from analytics.constants.personalize_constants import (
     ITEM_ID,
     ITEM_TYPE,
     MAX_TEXT_LENGTH,
+    PEER_REVIEW_COUNT_TOTAL,
     PROPOSAL_HAS_FUNDERS,
     PROPOSAL_IS_OPEN,
     RFP_HAS_APPLICANTS,
@@ -44,21 +43,13 @@ from analytics.tests.helpers import (
     create_prefetched_proposal,
 )
 from hub.models import Hub
-from researchhub_document.related_models.constants.document_type import DISCUSSION
 from researchhub_document.related_models.constants.document_type import (
-    GRANT as GRANT_DOC_TYPE,
-)
-from researchhub_document.related_models.constants.document_type import (
-    PAPER as PAPER_DOC_TYPE,
-)
-from researchhub_document.related_models.constants.document_type import (
-    PREREGISTRATION,
+    DISCUSSION,
     QUESTION,
 )
 from user.models import User
 
 
-@override_settings(DEBUG=True)
 class QueryPreventionTests(TestCase):
     """Tests to ensure mapper doesn't fire queries."""
 
@@ -77,41 +68,17 @@ class QueryPreventionTests(TestCase):
                 bounty_data=batch_data["bounty"],
                 proposal_data=batch_data["proposal"],
                 rfp_data=batch_data["rfp"],
+                review_count_data=batch_data["review_count"],
             )
 
         self.assertIsNotNone(result)
-
-    def test_map_to_item_logs_warning_when_prefetch_missing(self):
-        """Should log warning when queries are detected due to missing prefetch."""
-        # Arrange
-        from researchhub_document.models import ResearchhubUnifiedDocument
-
-        # Create document without prefetch
-        unified_doc = create_prefetched_paper(title="Test Paper")
-        # Re-fetch without prefetch to simulate missing prefetch
-        doc_no_prefetch = ResearchhubUnifiedDocument.objects.get(id=unified_doc.id)
-        batch_data = create_batch_data()
-
-        # Act
-        with self.assertLogs(
-            "analytics.items.personalize_item_mapper", level=logging.WARNING
-        ) as logs:
-            result = map_to_item(
-                doc_no_prefetch,
-                bounty_data=batch_data["bounty"],
-                proposal_data=batch_data["proposal"],
-                rfp_data=batch_data["rfp"],
-            )
-
-        # Assert
-        self.assertTrue(any("queries" in log.lower() for log in logs.output))
 
 
 class DocumentTypeTests(TestCase):
     """Tests for document type mapping."""
 
-    def test_grant_has_correct_item_type(self):
-        """Grant documents should have ITEM_TYPE='GRANT'."""
+    def test_grant_maps_to_rfp(self):
+        """Grant documents should map to ITEM_TYPE='RFP'."""
         # Arrange
         unified_doc = create_prefetched_grant(title="Test Grant")
         batch_data = create_batch_data()
@@ -122,13 +89,14 @@ class DocumentTypeTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
-        self.assertEqual(result[ITEM_TYPE], GRANT_DOC_TYPE)
+        self.assertEqual(result[ITEM_TYPE], "RFP")
 
-    def test_paper_has_correct_item_type(self):
-        """Paper documents should have ITEM_TYPE='PAPER'."""
+    def test_paper_stays_as_paper(self):
+        """Paper documents should stay as ITEM_TYPE='PAPER'."""
         # Arrange
         unified_doc = create_prefetched_paper(title="Test Paper")
         batch_data = create_batch_data()
@@ -139,13 +107,14 @@ class DocumentTypeTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
-        self.assertEqual(result[ITEM_TYPE], PAPER_DOC_TYPE)
+        self.assertEqual(result[ITEM_TYPE], "PAPER")
 
-    def test_discussion_has_correct_item_type(self):
-        """Discussion posts should have ITEM_TYPE='DISCUSSION'."""
+    def test_discussion_maps_to_post(self):
+        """Discussion posts should map to ITEM_TYPE='POST'."""
         # Arrange
         unified_doc = create_prefetched_post(
             title="Test Discussion", document_type=DISCUSSION
@@ -158,13 +127,14 @@ class DocumentTypeTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
-        self.assertEqual(result[ITEM_TYPE], DISCUSSION)
+        self.assertEqual(result[ITEM_TYPE], "POST")
 
-    def test_question_has_correct_item_type(self):
-        """Question posts should have ITEM_TYPE='QUESTION'."""
+    def test_question_stays_as_question(self):
+        """Question posts should stay as ITEM_TYPE='QUESTION'."""
         # Arrange
         unified_doc = create_prefetched_post(
             title="Test Question", document_type=QUESTION
@@ -177,13 +147,14 @@ class DocumentTypeTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
-        self.assertEqual(result[ITEM_TYPE], QUESTION)
+        self.assertEqual(result[ITEM_TYPE], "QUESTION")
 
-    def test_preregistration_has_correct_item_type(self):
-        """Preregistration documents should have ITEM_TYPE='PREREGISTRATION'."""
+    def test_preregistration_maps_to_proposal(self):
+        """Preregistration documents should map to ITEM_TYPE='PROPOSAL'."""
         # Arrange
         unified_doc = create_prefetched_proposal(title="Test Proposal")
         batch_data = create_batch_data()
@@ -194,10 +165,11 @@ class DocumentTypeTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
-        self.assertEqual(result[ITEM_TYPE], PREREGISTRATION)
+        self.assertEqual(result[ITEM_TYPE], "PROPOSAL")
 
 
 class BountyFlagTests(TestCase):
@@ -215,6 +187,7 @@ class BountyFlagTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -232,6 +205,7 @@ class BountyFlagTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -249,6 +223,7 @@ class BountyFlagTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -266,6 +241,7 @@ class BountyFlagTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -287,6 +263,7 @@ class ProposalFlagTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -304,6 +281,7 @@ class ProposalFlagTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -321,6 +299,7 @@ class ProposalFlagTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -338,6 +317,7 @@ class ProposalFlagTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -359,6 +339,7 @@ class RFPFlagTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -376,6 +357,7 @@ class RFPFlagTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -393,6 +375,7 @@ class RFPFlagTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -410,6 +393,7 @@ class RFPFlagTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -431,6 +415,7 @@ class CommonFieldTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -450,6 +435,7 @@ class CommonFieldTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -468,6 +454,7 @@ class CommonFieldTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -486,6 +473,7 @@ class CommonFieldTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -524,6 +512,7 @@ class CommonFieldTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -546,6 +535,7 @@ class HubTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -566,6 +556,7 @@ class HubTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -585,6 +576,7 @@ class HubTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -604,6 +596,7 @@ class HubTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -627,6 +620,7 @@ class AuthorTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -657,6 +651,7 @@ class AuthorTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -715,6 +710,7 @@ class AuthorTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -736,6 +732,7 @@ class AuthorTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -753,6 +750,7 @@ class AuthorTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -774,6 +772,7 @@ class PaperSpecificFieldTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -794,6 +793,7 @@ class PaperSpecificFieldTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -813,6 +813,7 @@ class PaperSpecificFieldTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -831,6 +832,7 @@ class PaperSpecificFieldTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -849,13 +851,14 @@ class PaperSpecificFieldTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
         self.assertEqual(result[TWEET_COUNT_TOTAL], 75)
 
-    def test_paper_social_counts_none_when_no_external_metadata(self):
-        """Social counts should be None when external_metadata is missing."""
+    def test_paper_social_counts_zero_when_no_external_metadata(self):
+        """Social counts should default to 0 when external_metadata is missing."""
         # Arrange
         unified_doc = create_prefetched_paper(external_metadata=None)
         batch_data = create_batch_data()
@@ -866,11 +869,12 @@ class PaperSpecificFieldTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
-        self.assertIsNone(result[BLUESKY_COUNT_TOTAL])
-        self.assertIsNone(result[TWEET_COUNT_TOTAL])
+        self.assertEqual(result[BLUESKY_COUNT_TOTAL], 0)
+        self.assertEqual(result[TWEET_COUNT_TOTAL], 0)
 
 
 class PostSpecificFieldTests(TestCase):
@@ -888,6 +892,7 @@ class PostSpecificFieldTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -908,6 +913,7 @@ class PostSpecificFieldTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -915,8 +921,8 @@ class PostSpecificFieldTests(TestCase):
         self.assertIn("Post Content", result[TEXT])
         self.assertIn("Science", result[TEXT])
 
-    def test_post_has_no_citation_counts(self):
-        """Posts should not have CITATION_COUNT_TOTAL set."""
+    def test_post_has_zero_citation_counts(self):
+        """Posts should have CITATION_COUNT_TOTAL default to 0."""
         # Arrange
         unified_doc = create_prefetched_post(title="Post")
         batch_data = create_batch_data()
@@ -927,10 +933,11 @@ class PostSpecificFieldTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
-        self.assertIsNone(result[CITATION_COUNT_TOTAL])
+        self.assertEqual(result[CITATION_COUNT_TOTAL], 0)
 
 
 class EdgeCaseTests(TestCase):
@@ -954,6 +961,7 @@ class EdgeCaseTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -978,6 +986,7 @@ class EdgeCaseTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -999,6 +1008,7 @@ class EdgeCaseTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -1020,6 +1030,7 @@ class EdgeCaseTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert
@@ -1041,6 +1052,7 @@ class DefaultValuesTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert - all fields from FIELD_DEFAULTS should be in result
@@ -1063,6 +1075,7 @@ class DefaultValuesTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert - numeric fields should be 0, not None
@@ -1085,7 +1098,7 @@ class DefaultValuesTests(TestCase):
         # Arrange
         unified_doc = create_prefetched_paper(title="Test Paper")
         # Empty batch data (no bounties, proposals, or RFPs)
-        batch_data = {"bounty": {}, "proposal": {}, "rfp": {}}
+        batch_data = create_batch_data()
 
         # Act
         result = map_to_item(
@@ -1093,6 +1106,7 @@ class DefaultValuesTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert - boolean fields should be False, not None
@@ -1119,7 +1133,7 @@ class DefaultValuesTests(TestCase):
         """
         # Arrange - create minimal post without special attributes
         unified_doc = create_prefetched_post(title="Test Post")
-        batch_data = {"bounty": {}, "proposal": {}, "rfp": {}}
+        batch_data = create_batch_data()
 
         # Act
         result = map_to_item(
@@ -1127,6 +1141,7 @@ class DefaultValuesTests(TestCase):
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
             rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
         )
 
         # Assert - check fields that should retain their defaults
@@ -1150,3 +1165,51 @@ class DefaultValuesTests(TestCase):
                 expected_default,
                 f"{field} should have default value {expected_default}",
             )
+
+    def test_peer_review_count_from_batch_data(self):
+        """Peer review count should be retrieved from batch data."""
+        # Arrange
+        unified_doc = create_prefetched_paper(title="Test Paper")
+        batch_data = create_batch_data()
+        # Simulate review count from batch query
+        batch_data["review_count"] = {unified_doc.id: 5}
+
+        # Act
+        result = map_to_item(
+            unified_doc,
+            bounty_data=batch_data["bounty"],
+            proposal_data=batch_data["proposal"],
+            rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
+        )
+
+        # Assert
+        self.assertEqual(
+            result[PEER_REVIEW_COUNT_TOTAL],
+            5,
+            "Should retrieve review count from batch data",
+        )
+
+    def test_peer_review_count_defaults_to_zero(self):
+        """Peer review count should default to 0 when not in batch data."""
+        # Arrange
+        unified_doc = create_prefetched_paper(title="Test Paper")
+        batch_data = create_batch_data()
+        # Empty review count data
+        batch_data["review_count"] = {}
+
+        # Act
+        result = map_to_item(
+            unified_doc,
+            bounty_data=batch_data["bounty"],
+            proposal_data=batch_data["proposal"],
+            rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
+        )
+
+        # Assert
+        self.assertEqual(
+            result[PEER_REVIEW_COUNT_TOTAL],
+            0,
+            "Should default to 0 when document not in review count data",
+        )

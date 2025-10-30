@@ -1,6 +1,7 @@
 from collections import defaultdict
 
 from django.contrib.contenttypes.models import ContentType
+from django.db.models import Count, Q
 
 from purchase.models import GrantApplication, Purchase
 from reputation.models import BountySolution
@@ -16,6 +17,7 @@ class PersonalizeBatchQueries:
             "bounty": self.fetch_bounty_data(doc_ids),
             "proposal": self.fetch_proposal_data(doc_ids),
             "rfp": self.fetch_rfp_data(doc_ids),
+            "review_count": self.fetch_review_count_data(doc_ids),
         }
 
     def fetch_bounty_data(self, doc_ids: list[int]) -> dict[int, dict]:
@@ -116,3 +118,15 @@ class PersonalizeBatchQueries:
             rfp_map[doc_id]["has_applicants"] = True
 
         return dict(rfp_map)
+
+    def fetch_review_count_data(self, doc_ids: list[int]) -> dict[int, int]:
+        """Fetch peer review counts for document IDs."""
+        review_counts = (
+            ResearchhubUnifiedDocument.objects.filter(id__in=doc_ids)
+            .annotate(
+                review_count=Count("reviews", filter=Q(reviews__is_removed=False))
+            )
+            .values("id", "review_count")
+        )
+
+        return {item["id"]: item["review_count"] for item in review_counts}
