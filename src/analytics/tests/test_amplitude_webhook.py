@@ -49,7 +49,7 @@ class AmplitudeWebhookTestCase(TestCase):
                 "user_id": str(self.user.id),
                 "related_work": {
                     "unified_document_id": str(self.post.unified_document.id),
-                    "content_type": "post",
+                    "content_type": "researchhubpost",
                     "id": str(self.post.id),
                 },
             },
@@ -118,9 +118,9 @@ class AmplitudeWebhookTestCase(TestCase):
                     "time": 1234567890000,
                 },
                 {
-                    "event_type": "work_document_viewed",
+                    "event_type": "feed_item_clicked",
                     "event_properties": {
-                        "user_id": str(self.user.id),
+                        "user_id": "99999",  # Non-existent user - will fail
                         "related_work": {
                             "unified_document_id": str(self.post.unified_document.id),
                             "content_type": "researchhubpost",
@@ -136,6 +136,31 @@ class AmplitudeWebhookTestCase(TestCase):
             self.url, data=json.dumps(payload), content_type="application/json"
         )
 
-        # Should still return 200 OK and process what it can
+        # Should still return 200 OK and track processed vs failed separately
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["processed"], 2)
+        self.assertEqual(response.data["processed"], 1)
+        self.assertEqual(response.data["failed"], 1)
+
+    def test_webhook_tracks_failed_events(self):
+        """Test that the webhook properly tracks failed events."""
+        payload = {
+            "event_type": "feed_item_clicked",
+            "event_properties": {
+                "user_id": "99999",  # Non-existent user
+                "related_work": {
+                    "unified_document_id": str(self.post.unified_document.id),
+                    "content_type": "researchhubpost",
+                    "id": str(self.post.id),
+                },
+            },
+            "time": 1234567890000,
+        }
+
+        response = self.client.post(
+            self.url, data=json.dumps(payload), content_type="application/json"
+        )
+
+        # Should return 200 OK and track as failed
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["processed"], 0)
+        self.assertEqual(response.data["failed"], 1)

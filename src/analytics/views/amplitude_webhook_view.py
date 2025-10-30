@@ -62,35 +62,40 @@ class AmplitudeWebhookView(APIView):
                 events = [payload]
 
             processed_count = 0
-            skipped_count = 0
+            failed_count = 0
 
             for event in events:
                 try:
-                    if self.processor.should_process_event(event):
-                        self.processor.process_event(event)
-                        processed_count += 1
-                    else:
-                        skipped_count += 1
+                    self.processor.process_event(event)
+                    processed_count += 1
                 except Exception as e:
-                    log_error(
-                        e,
-                        message=(
-                            f"Failed to process individual event: "
-                            f"{event.get('event_type')}"
-                        ),
-                    )
+                    failed_count += 1
+                    try:
+                        log_error(
+                            e,
+                            message=(
+                                f"Failed to process individual event: "
+                                f"{event.get('event_type', 'unknown')}"
+                            ),
+                        )
+                    except Exception as sentry_error:
+                        event_type = event.get("event_type", "unknown")
+                        logger.error(
+                            f"Failed to process event {event_type}: {e}. "
+                            f"Also failed to log to Sentry: {sentry_error}"
+                        )
                     continue
 
             logger.info(
                 f"Amplitude webhook processed: {processed_count} events, "
-                f"{skipped_count} skipped"
+                f"{failed_count} failed"
             )
 
             return Response(
                 {
                     "message": "Webhook successfully processed",
                     "processed": processed_count,
-                    "skipped": skipped_count,
+                    "failed": failed_count,
                 },
                 status=status.HTTP_200_OK,
             )
