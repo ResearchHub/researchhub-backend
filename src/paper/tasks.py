@@ -76,30 +76,6 @@ def download_pdf(paper_id, retry=0):
             )
             return False
 
-    csl_item = None
-    pdf_url = None
-    if paper_url:
-        csl_item = get_csl_item(paper_url)
-    elif paper_pdf_url:
-        csl_item = get_csl_item(paper_pdf_url)
-
-    if csl_item:
-        oa_result = get_pdf_location_for_csl_item(csl_item)
-        if oa_result:
-            oa_url_1 = oa_result.get("url", None)
-            oa_url_2 = oa_result.get("url_for_pdf", None)
-            oa_pdf_url = oa_url_1 or oa_url_2
-            pdf_url = oa_pdf_url
-            pdf_url_contains_pdf = check_url_contains_pdf(pdf_url)
-
-            if pdf_url_contains_pdf:
-                paper.pdf_url = pdf_url
-                paper.save()
-                download_pdf.apply_async(
-                    (paper.id, retry + 1), priority=7, countdown=15 * (retry + 1)
-                )
-        return
-
     return False
 
 
