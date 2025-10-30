@@ -85,11 +85,6 @@ LOGGING = {
             "level": os.environ.get("DJANGO_LOG_LEVEL", "ERROR"),
             "propagate": False,
         },
-        "analytics": {
-            "handlers": ["console"],
-            "level": os.environ.get("ANALYTICS_LOG_LEVEL", "DEBUG"),
-            "propagate": False,
-        },
     },
 }
 

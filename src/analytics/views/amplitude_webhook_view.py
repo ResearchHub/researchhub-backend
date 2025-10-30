@@ -70,13 +70,20 @@ class AmplitudeWebhookView(APIView):
                     processed_count += 1
                 except Exception as e:
                     failed_count += 1
-                    log_error(
-                        e,
-                        message=(
-                            f"Failed to process individual event: "
-                            f"{event.get('event_type')}"
-                        ),
-                    )
+                    try:
+                        log_error(
+                            e,
+                            message=(
+                                f"Failed to process individual event: "
+                                f"{event.get('event_type', 'unknown')}"
+                            ),
+                        )
+                    except Exception as sentry_error:
+                        event_type = event.get("event_type", "unknown")
+                        logger.error(
+                            f"Failed to process event {event_type}: {e}. "
+                            f"Also failed to log to Sentry: {sentry_error}"
+                        )
                     continue
 
             logger.info(
