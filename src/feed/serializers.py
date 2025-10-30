@@ -104,23 +104,12 @@ class ContentObjectSerializer(serializers.Serializer):
     unified_document_id = serializers.SerializerMethodField()
 
     def get_hub(self, obj):
-        """Return primary hub if it exists. Optimized to use prefetch cache and avoid get_primary_hub() which triggers queries."""
+        """Return primary hub if it exists"""
         if hasattr(obj, "unified_document") and obj.unified_document:
-            topics = obj.unified_document.topics.all() if hasattr(obj.unified_document, 'topics') else []
-            primary_topic = None
-            for topic in topics:
-                if hasattr(topic, 'is_primary') and topic.is_primary:
-                    primary_topic = topic
-                    break
-            if primary_topic and hasattr(primary_topic, 'topic') and hasattr(primary_topic.topic, 'subfield_id'):
-                for hub in obj.unified_document.hubs.all():
-                    if hasattr(hub, 'subfield_id') and hub.subfield_id == primary_topic.topic.subfield_id:
-                        return SimpleHubSerializer(hub).data
-            
-            hubs = obj.unified_document.hubs.all()
-            if hubs:
-                return SimpleHubSerializer(hubs[0]).data
-        
+            # Use get_primary_hub with fallback - this properly queries UnifiedDocumentTopics
+            hub = obj.unified_document.get_primary_hub(fallback=True)
+            if hub:
+                return SimpleHubSerializer(hub).data
         return None
 
     def get_category(self, obj):
@@ -148,8 +137,10 @@ class ContentObjectSerializer(serializers.Serializer):
     def get_bounty_data(self, obj):
         """Return bounty data from the unified document if it exists"""
         if hasattr(obj, "unified_document") and obj.unified_document:
-            all_bounties = obj.unified_document.bounties.all() if hasattr(obj.unified_document, 'bounties') else []
-            bounties = [b for b in all_bounties if not b.parent_id]
+            # Use related_bounties (FK relationship), filter for parent bounties only in SQL
+            bounties = list(
+                obj.unified_document.related_bounties.filter(parent_id__isnull=True)
+            ) if hasattr(obj.unified_document, 'related_bounties') else []
 
             if not bounties:
                 return []
@@ -361,8 +352,8 @@ class PostSerializer(ContentObjectSerializer):
             and obj.unified_document
             and hasattr(obj.unified_document, "grants")
         ):
-            # Use all() instead of exists() to avoid extra query (prefetch cache is used)
-            grants = obj.unified_document.grants.all()
+            # Convert to list to check safely (avoids QuerySet truthiness ambiguity)
+            grants = list(obj.unified_document.grants.all())
             if not grants:
                 return None
             grant = grants[0]
@@ -777,11 +768,11 @@ class FundingFeedEntrySerializer(FeedEntrySerializer):
             obj.unified_document
             and hasattr(obj.unified_document, "fundraises")
         ):
-            # Use all() instead of exists() to avoid extra query (prefetch cache is used)
-            fundraises = obj.unified_document.fundraises.all()
+            # Convert to list to check safely (avoids QuerySet truthiness ambiguity)
+            fundraises = list(obj.unified_document.fundraises.all())
             if fundraises:
-                # Use all() for nonprofit_links too
-                nonprofit_links = fundraises[0].nonprofit_links.all()
+                # Use all() for nonprofit_links too - convert to list for len()
+                nonprofit_links = list(fundraises[0].nonprofit_links.all())
                 return len(nonprofit_links) > 0
         return None
 

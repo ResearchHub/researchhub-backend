@@ -13,7 +13,6 @@ from feed.filters import FundOrderingFilter
 from feed.models import FeedEntry
 from feed.serializers import GrantFeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
-from hub.models import Hub
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
 from researchhub_document.related_models.constants.document_type import GRANT
@@ -122,13 +121,9 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
                         "created_by__author_profile",
                         "created_by__userverification",
                     ).prefetch_related(
-                        Prefetch(
-                            "contacts",
-                            queryset=User.objects.select_related(
-                                "author_profile",
-                                "userverification",
-                            )
-                        ),
+                        "contacts",  # Simple prefetch without nested select_related
+                        "contacts__author_profile",  # Prefetch related data separately
+                        "contacts__userverification",
                         Prefetch(
                             "applications",
                             queryset=GrantApplication.objects.select_related(

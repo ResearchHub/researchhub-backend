@@ -80,7 +80,16 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
 
     def get_applications(self, grant):
         """Return grant applications with applicant information""" 
-        applications = grant.applications.all()
+        # Always use select_related for safety - Django will use prefetch if available
+        applications = list(
+            grant.applications
+            .select_related(
+                "applicant",
+                "applicant__author_profile",
+                "preregistration_post"
+            )
+            .all()
+        )
 
         application_data = []
         for application in applications:

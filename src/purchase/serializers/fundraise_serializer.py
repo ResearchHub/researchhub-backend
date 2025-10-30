@@ -61,9 +61,11 @@ class DynamicFundraiseSerializer(DynamicModelFieldSerializer):
         }
 
     def get_contributors(self, fundraise):
-        # Get all contributions in a single query with prefetched user data
-        contributions = fundraise.purchases.select_related("user").order_by(
-            "-created_date"
+        # Always use select_related for safety - Django will use prefetch if available
+        contributions = list(
+            fundraise.purchases
+            .select_related("user", "user__author_profile", "user__userverification")
+            .order_by("-created_date")
         )
 
         # Process all contributions to build user data

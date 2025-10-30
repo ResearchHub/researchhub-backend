@@ -131,6 +131,10 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
             .filter(document_type=PREREGISTRATION, unified_document__is_removed=False)
         )
 
+        # Add conditional prefetch for grant applications
+        if grant_id:
+            queryset = queryset.prefetch_related("grant_applications")
+
         if created_by:
             queryset = queryset.filter(created_by__id=created_by)
 

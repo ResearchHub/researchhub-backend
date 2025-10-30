@@ -25,6 +25,9 @@ from researchhub_document.related_models.document_filter_model import DocumentFi
 from user.models import Author
 from utils.models import DefaultModel, SoftDeletableModel
 
+# Cache for ContentType lookup to avoid repeated DB queries
+_COMMENT_CONTENT_TYPE_CACHE = None
+
 
 class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel):
     document_type = models.CharField(
@@ -232,16 +235,18 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
         2. The underlying comment (`RhCommentModel`) it references has not been
            soft-deleted.
         """
+        global _COMMENT_CONTENT_TYPE_CACHE
+        
+        # Cache ContentType lookup to avoid repeated queries
+        if _COMMENT_CONTENT_TYPE_CACHE is None:
+            _COMMENT_CONTENT_TYPE_CACHE = ContentType.objects.get_for_model(RhCommentModel)
 
-        comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
-
-        active_comment_ids = RhCommentModel.objects.filter(is_removed=False).values(
-            "id"
-        )
+        # Use Exists subquery instead of values() to avoid loading all comment IDs
+        active_comment_ids = RhCommentModel.objects.filter(is_removed=False).values("id")
 
         reviews = self.reviews.filter(
             is_removed=False,
-            content_type=comment_content_type,
+            content_type=_COMMENT_CONTENT_TYPE_CACHE,
             object_id__in=active_comment_ids,
         )
 
