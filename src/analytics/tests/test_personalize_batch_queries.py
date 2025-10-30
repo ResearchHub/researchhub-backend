@@ -137,6 +137,24 @@ class ProposalDataTests(TestCase):
         # Non-PREREGISTRATION docs won't have an entry in the result
         self.assertNotIn(post_doc.id, result)
 
+    def test_fetch_proposal_data_false_for_expired_end_date(self):
+        """Should return is_open=False for fundraise with end_date in past."""
+        # Arrange
+        from django.utils import timezone
+
+        past_date = timezone.now() - timedelta(days=1)
+        unified_doc = create_prefetched_proposal(
+            status=Fundraise.OPEN, end_date=past_date
+        )
+        fetcher = PersonalizeBatchQueries()
+
+        # Act
+        result = fetcher.fetch_proposal_data([unified_doc.id])
+
+        # Assert
+        # Expired fundraises shouldn't appear in results even if status=OPEN
+        self.assertNotIn(unified_doc.id, result)
+
 
 class RFPDataTests(TestCase):
     """Tests for fetch_rfp_data method."""
@@ -179,6 +197,22 @@ class RFPDataTests(TestCase):
 
         # Assert
         self.assertTrue(result[unified_doc.id]["has_applicants"])
+
+    def test_fetch_rfp_data_false_for_expired_end_date(self):
+        """Should return is_open=False for grant with end_date in past."""
+        # Arrange
+        from django.utils import timezone
+
+        past_date = timezone.now() - timedelta(days=1)
+        unified_doc = create_prefetched_grant(status=Grant.OPEN, end_date=past_date)
+        fetcher = PersonalizeBatchQueries()
+
+        # Act
+        result = fetcher.fetch_rfp_data([unified_doc.id])
+
+        # Assert
+        # Expired grants shouldn't appear in results even if status=OPEN
+        self.assertNotIn(unified_doc.id, result)
 
     def test_fetch_rfp_data_only_for_grant_type(self):
         """Should only process GRANT documents."""

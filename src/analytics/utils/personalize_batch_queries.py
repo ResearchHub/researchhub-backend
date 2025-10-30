@@ -2,6 +2,7 @@ from collections import defaultdict
 
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Count, Q
+from django.utils import timezone
 
 from purchase.models import GrantApplication, Purchase
 from reputation.models import BountySolution
@@ -61,6 +62,10 @@ class PersonalizeBatchQueries:
                 document_type="PREREGISTRATION",
                 fundraises__status="OPEN",
             )
+            .filter(
+                Q(fundraises__end_date__isnull=True)
+                | Q(fundraises__end_date__gte=timezone.now())
+            )
             .values_list("id", flat=True)
             .distinct()
         )
@@ -100,6 +105,10 @@ class PersonalizeBatchQueries:
         open_grants = (
             ResearchhubUnifiedDocument.objects.filter(
                 id__in=doc_ids, document_type="GRANT", grants__status="OPEN"
+            )
+            .filter(
+                Q(grants__end_date__isnull=True)
+                | Q(grants__end_date__gte=timezone.now())
             )
             .values_list("id", flat=True)
             .distinct()
