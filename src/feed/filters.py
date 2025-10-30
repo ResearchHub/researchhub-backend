@@ -19,6 +19,7 @@ from django.utils import timezone
 from rest_framework.filters import OrderingFilter
 from rest_framework.request import Request
 
+from feed.fund_best_score import calculate_fund_best_score_annotations
 from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.grant_model import Grant
 
@@ -72,6 +73,8 @@ class FundOrderingFilter(OrderingFilter):
  
         if ordering == 'newest':
             return self._apply_newest_sorting(queryset)
+        elif ordering == 'best':
+            return self._apply_best_sorting(queryset, model_config)
         elif ordering == 'upvotes':
             return self._apply_upvotes_sorting(queryset)
         elif ordering == 'most_applicants':
@@ -91,7 +94,7 @@ class FundOrderingFilter(OrderingFilter):
             if fields:
                 field = fields[0]
                 field_name = field.lstrip('-') 
-                custom_fields = ['newest', 'upvotes', 'most_applicants', 'amount_raised']
+                custom_fields = ['newest', 'best', 'upvotes', 'most_applicants', 'amount_raised']
                 if field_name in custom_fields:
                     return [field] 
                 ordering_fields = getattr(view, 'ordering_fields', None)
@@ -154,6 +157,12 @@ class FundOrderingFilter(OrderingFilter):
             F("sort_date_expired_or_closed").desc(nulls_last=True),
             "-created_date"
         )
+
+    def _apply_best_sorting(self, queryset: QuerySet, model_config: dict[str, Union[Type[Grant], Type[Fundraise], str]]) -> QuerySet:
+        """Sort by composite 'best' score using the fund_best_score module."""
+        model_class = model_config['model_class']
+        queryset = calculate_fund_best_score_annotations(queryset, model_class)
+        return queryset.order_by('-best_score', '-created_date')
     
     def _apply_upvotes_sorting(self, queryset: QuerySet) -> QuerySet:
         return queryset.annotate(
