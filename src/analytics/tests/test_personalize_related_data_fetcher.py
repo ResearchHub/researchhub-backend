@@ -1,5 +1,5 @@
 """
-Tests for PersonalizeBatchQueries service.
+Tests for PersonalizeRelatedDataFetcher service.
 """
 
 from datetime import datetime, timedelta
@@ -18,7 +18,9 @@ from analytics.tests.helpers import (
     create_prefetched_post,
     create_prefetched_proposal,
 )
-from analytics.utils.personalize_batch_queries import PersonalizeBatchQueries
+from analytics.utils.personalize_related_data_fetcher import (
+    PersonalizeRelatedDataFetcher,
+)
 from purchase.models import Fundraise, Grant
 from reputation.models import Bounty
 from researchhub_document.related_models.constants.document_type import DISCUSSION
@@ -32,7 +34,7 @@ class BountyDataTests(TestCase):
         # Arrange
         unified_doc = create_prefetched_paper()
         create_bounty_for_document(unified_doc, status=Bounty.OPEN)
-        fetcher = PersonalizeBatchQueries()
+        fetcher = PersonalizeRelatedDataFetcher()
 
         # Act
         result = fetcher.fetch_bounty_data([unified_doc.id])
@@ -45,7 +47,7 @@ class BountyDataTests(TestCase):
         # Arrange
         unified_doc = create_prefetched_paper()
         create_bounty_for_document(unified_doc, status=Bounty.CLOSED)
-        fetcher = PersonalizeBatchQueries()
+        fetcher = PersonalizeRelatedDataFetcher()
 
         # Act
         result = fetcher.fetch_bounty_data([unified_doc.id])
@@ -60,7 +62,7 @@ class BountyDataTests(TestCase):
         unified_doc = create_prefetched_paper()
         bounty = create_bounty_for_document(unified_doc, status=Bounty.OPEN)
         create_bounty_solution(bounty)
-        fetcher = PersonalizeBatchQueries()
+        fetcher = PersonalizeRelatedDataFetcher()
 
         # Act
         result = fetcher.fetch_bounty_data([unified_doc.id])
@@ -72,7 +74,7 @@ class BountyDataTests(TestCase):
         """Should return default False flags for documents without bounties."""
         # Arrange
         unified_doc = create_prefetched_paper()
-        fetcher = PersonalizeBatchQueries()
+        fetcher = PersonalizeRelatedDataFetcher()
 
         # Act
         result = fetcher.fetch_bounty_data([unified_doc.id])
@@ -89,7 +91,7 @@ class ProposalDataTests(TestCase):
         """Should return is_open=True for PREREGISTRATION with OPEN fundraises."""
         # Arrange
         unified_doc = create_prefetched_proposal(status=Fundraise.OPEN)
-        fetcher = PersonalizeBatchQueries()
+        fetcher = PersonalizeRelatedDataFetcher()
 
         # Act
         result = fetcher.fetch_proposal_data([unified_doc.id])
@@ -101,7 +103,7 @@ class ProposalDataTests(TestCase):
         """Should return is_open=False for closed or expired fundraises."""
         # Arrange - Test CLOSED status
         closed_doc = create_prefetched_proposal(status=Fundraise.CLOSED)
-        fetcher = PersonalizeBatchQueries()
+        fetcher = PersonalizeRelatedDataFetcher()
 
         # Act
         closed_result = fetcher.fetch_proposal_data([closed_doc.id])
@@ -116,7 +118,7 @@ class ProposalDataTests(TestCase):
         unified_doc = create_prefetched_proposal(status=Fundraise.OPEN)
         fundraise = unified_doc.fundraises.first()
         create_fundraise_contribution(fundraise)
-        fetcher = PersonalizeBatchQueries()
+        fetcher = PersonalizeRelatedDataFetcher()
 
         # Act
         result = fetcher.fetch_proposal_data([unified_doc.id])
@@ -128,7 +130,7 @@ class ProposalDataTests(TestCase):
         """Should only flag PREREGISTRATION documents, not other types."""
         # Arrange
         post_doc = create_prefetched_post(document_type=DISCUSSION)
-        fetcher = PersonalizeBatchQueries()
+        fetcher = PersonalizeRelatedDataFetcher()
 
         # Act
         result = fetcher.fetch_proposal_data([post_doc.id])
@@ -146,7 +148,7 @@ class ProposalDataTests(TestCase):
         unified_doc = create_prefetched_proposal(
             status=Fundraise.OPEN, end_date=past_date
         )
-        fetcher = PersonalizeBatchQueries()
+        fetcher = PersonalizeRelatedDataFetcher()
 
         # Act
         result = fetcher.fetch_proposal_data([unified_doc.id])
@@ -163,7 +165,7 @@ class RFPDataTests(TestCase):
         """Should return is_open=True for GRANT documents with OPEN status."""
         # Arrange
         unified_doc = create_prefetched_grant(status=Grant.OPEN)
-        fetcher = PersonalizeBatchQueries()
+        fetcher = PersonalizeRelatedDataFetcher()
 
         # Act
         result = fetcher.fetch_rfp_data([unified_doc.id])
@@ -175,7 +177,7 @@ class RFPDataTests(TestCase):
         """Should return is_open=False for closed or expired grants."""
         # Arrange - Test CLOSED status
         closed_doc = create_prefetched_grant(status=Grant.CLOSED)
-        fetcher = PersonalizeBatchQueries()
+        fetcher = PersonalizeRelatedDataFetcher()
 
         # Act
         closed_result = fetcher.fetch_rfp_data([closed_doc.id])
@@ -190,7 +192,7 @@ class RFPDataTests(TestCase):
         unified_doc = create_prefetched_grant(status=Grant.OPEN)
         grant = unified_doc.grants.first()
         create_grant_application(grant)
-        fetcher = PersonalizeBatchQueries()
+        fetcher = PersonalizeRelatedDataFetcher()
 
         # Act
         result = fetcher.fetch_rfp_data([unified_doc.id])
@@ -205,7 +207,7 @@ class RFPDataTests(TestCase):
 
         past_date = timezone.now() - timedelta(days=1)
         unified_doc = create_prefetched_grant(status=Grant.OPEN, end_date=past_date)
-        fetcher = PersonalizeBatchQueries()
+        fetcher = PersonalizeRelatedDataFetcher()
 
         # Act
         result = fetcher.fetch_rfp_data([unified_doc.id])
@@ -218,7 +220,7 @@ class RFPDataTests(TestCase):
         """Should only process GRANT documents."""
         # Arrange
         post_doc = create_prefetched_post(document_type=DISCUSSION)
-        fetcher = PersonalizeBatchQueries()
+        fetcher = PersonalizeRelatedDataFetcher()
 
         # Act
         result = fetcher.fetch_rfp_data([post_doc.id])
@@ -231,11 +233,11 @@ class RFPDataTests(TestCase):
 class BatchFetchingTests(TestCase):
     """Tests for batch fetching functionality."""
 
-    def test_fetch_all_returns_all_three_data_types(self):
-        """fetch_all should return dict with bounty, proposal, and rfp keys."""
+    def test_fetch_all_returns_all_four_data_types(self):
+        """fetch_all should return dict with bounty, proposal, rfp, and review_count keys."""
         # Arrange
         unified_doc = create_prefetched_paper()
-        fetcher = PersonalizeBatchQueries()
+        fetcher = PersonalizeRelatedDataFetcher()
 
         # Act
         result = fetcher.fetch_all([unified_doc.id])
@@ -244,11 +246,12 @@ class BatchFetchingTests(TestCase):
         self.assertIn("bounty", result)
         self.assertIn("proposal", result)
         self.assertIn("rfp", result)
+        self.assertIn("review_count", result)
 
     def test_fetch_all_handles_empty_doc_ids(self):
         """Should handle empty list gracefully."""
         # Arrange
-        fetcher = PersonalizeBatchQueries()
+        fetcher = PersonalizeRelatedDataFetcher()
 
         # Act
         result = fetcher.fetch_all([])
@@ -258,17 +261,20 @@ class BatchFetchingTests(TestCase):
         self.assertEqual(result["proposal"], {})
         self.assertEqual(result["rfp"], {})
 
-    def test_batch_queries_efficient_with_large_id_lists(self):
+    def test_fetcher_efficient_with_large_id_lists(self):
         """Should handle large batches efficiently without N+1 queries."""
         # Arrange
         docs = [create_prefetched_paper() for _ in range(10)]
         doc_ids = [doc.id for doc in docs]
-        fetcher = PersonalizeBatchQueries()
+        fetcher = PersonalizeRelatedDataFetcher()
 
         # Act
         # Expected queries:
-        # 2 bounty + 3 proposal (includes ContentType lookup)
-        # + 2 rfp + 1 review_count = 8 total
+        # 2 for bounty (open bounties + solutions)
+        # 3 for proposal (open fundraises + ContentType lookup + funders)
+        # 2 for rfp (open grants + applicants)
+        # 1 for review_count
+        # Total: 8 queries regardless of number of documents
         with self.assertNumQueries(8):
             result = fetcher.fetch_all(doc_ids)
 

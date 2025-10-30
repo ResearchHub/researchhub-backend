@@ -9,8 +9,8 @@ from reputation.models import BountySolution
 from researchhub_document.models import ResearchhubUnifiedDocument
 
 
-class PersonalizeBatchQueries:
-    """Executes batch queries for Personalize item auxiliary data."""
+class PersonalizeRelatedDataFetcher:
+    """Fetches related data for Personalize item auxiliary data."""
 
     def fetch_all(self, doc_ids: list[int]) -> dict:
         """Fetch all auxiliary data for a batch of document IDs."""
