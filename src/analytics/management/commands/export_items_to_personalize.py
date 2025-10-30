@@ -30,19 +30,43 @@ class Command(BaseCommand):
             default=True,
             help="Only export items that have user interactions (default: True)",
         )
+        parser.add_argument(
+            "--with-posts",
+            action="store_true",
+            default=False,
+            help=(
+                "Include all ResearchHub posts regardless of interactions "
+                "(can be filtered with --post-types)"
+            ),
+        )
+        parser.add_argument(
+            "--post-types",
+            nargs="+",
+            choices=["DISCUSSION", "QUESTION", "GRANT", "PREREGISTRATION"],
+            help=(
+                "Filter posts to specific types (only works with --with-posts). "
+                "Choices: DISCUSSION, QUESTION, GRANT, PREREGISTRATION"
+            ),
+        )
 
     def handle(self, *args, **options):
         since_publish_date = self._parse_date(options.get("since_publish_date"))
         ids = options.get("ids")
         with_interactions = options.get("with_interactions", True)
+        with_posts = options.get("with_posts", False)
+        post_types = options.get("post_types")
 
-        self.export_items(since_publish_date, ids, with_interactions)
+        self.export_items(
+            since_publish_date, ids, with_interactions, with_posts, post_types
+        )
 
     def export_items(
         self,
         since_publish_date: Optional[datetime],
         ids: Optional[list] = None,
         with_interactions: bool = True,
+        with_posts: bool = False,
+        post_types: Optional[list] = None,
     ):
         """Export items from ResearchhubUnifiedDocument to CSV."""
         self.stdout.write("Exporting items...")
@@ -50,7 +74,9 @@ class Command(BaseCommand):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"personalize_items_{timestamp}.csv"
 
-        queryset = self._get_queryset(since_publish_date, ids, with_interactions)
+        queryset = self._get_queryset(
+            since_publish_date, ids, with_interactions, with_posts, post_types
+        )
 
         total = queryset.count()
         if total == 0:
@@ -101,6 +127,18 @@ class Command(BaseCommand):
         )
         return Q(id__in=item_ids_with_interactions)
 
+    def _get_posts_filter(self, post_types: Optional[list] = None) -> Q:
+        """Get Q filter for all ResearchHub post documents.
+
+        Args:
+            post_types: Optional list of specific post types to filter.
+                       If None, includes all post types.
+        """
+        # Default to all post types if not specified
+        if not post_types:
+            post_types = ["DISCUSSION", "QUESTION", "GRANT", "PREREGISTRATION"]
+        return Q(document_type__in=post_types)
+
     def _get_date_filter(self, since_publish_date: datetime) -> Q:
         """Get Q filter for documents published/created since the given date."""
         papers_since_date = Q(
@@ -118,17 +156,22 @@ class Command(BaseCommand):
         since_publish_date: Optional[datetime],
         ids: Optional[list] = None,
         with_interactions: bool = True,
+        with_posts: bool = False,
+        post_types: Optional[list] = None,
     ) -> QuerySet[ResearchhubUnifiedDocument]:
         base_queryset = self._build_base_queryset()
 
         if ids:
             return base_queryset.filter(id__in=ids).distinct().order_by("id")
 
-        # Combine filters using Q objects
+        # Combine filters using Q objects (union of sets)
         combined_filter = Q()
 
         if with_interactions:
             combined_filter |= self._get_interactions_filter()
+
+        if with_posts:
+            combined_filter |= self._get_posts_filter(post_types)
 
         if since_publish_date:
             combined_filter |= self._get_date_filter(since_publish_date)
