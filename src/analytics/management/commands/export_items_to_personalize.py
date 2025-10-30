@@ -1,3 +1,4 @@
+import argparse
 from datetime import datetime
 from typing import Optional
 
@@ -26,9 +27,9 @@ class Command(BaseCommand):
         )
         parser.add_argument(
             "--with-interactions",
-            action="store_true",
+            action=argparse.BooleanOptionalAction,
             default=True,
-            help="Only export items that have user interactions (default: True)",
+            help="Export items that have user interactions (default: True)",
         )
         parser.add_argument(
             "--with-posts",
