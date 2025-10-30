@@ -31,13 +31,13 @@ class Command(BaseCommand):
         social_app.sites.add(site)
 
         manage_py_path = os.path.join(settings.BASE_DIR, "manage.py")
-        os.system(f"python {manage_py_path} create-categories")
 
         hub_csv_path = os.path.join(settings.BASE_DIR, "..", "misc", "hub_hub.csv")
         hub_df = pd.read_csv(hub_csv_path)
         hub_df = hub_df.drop("slug_index", axis=1)
         hub_df = hub_df.drop("acronym", axis=1)
         hub_df = hub_df.drop("hub_image", axis=1)
+        hub_df = hub_df.drop("category_id", axis=1)
         hubs = [Hub(**row.to_dict()) for _, row in hub_df.iterrows()]
         Hub.objects.bulk_create(hubs)
 

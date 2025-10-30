@@ -107,22 +107,38 @@ class AmplitudeEventParser:
             event_props = event.get("event_properties", {})
 
             if event_type not in AMPLITUDE_TO_DB_EVENT_MAP:
+                available_types = list(AMPLITUDE_TO_DB_EVENT_MAP.keys())
+                logger.debug(
+                    f"Event type '{event_type}' not in mapping. "
+                    f"Available: {available_types}"
+                )
                 return None
 
             db_event_type = AMPLITUDE_TO_DB_EVENT_MAP[event_type]
 
             user_id = event_props.get("user_id")
             if not user_id:
+                logger.debug(
+                    f"No user_id in event_properties for event_type '{event_type}'. "
+                    f"Event: {event}"
+                )
                 return None
 
             try:
                 user_id = int(user_id)
                 user = User.objects.get(id=user_id)
-            except (ValueError, User.DoesNotExist):
+            except (ValueError, User.DoesNotExist) as e:
+                logger.debug(
+                    f"Invalid user_id '{user_id}' for event_type '{event_type}': {e}"
+                )
                 return None
 
             related_work = extract_related_work(event_props)
             if not related_work:
+                logger.debug(
+                    f"No related_work data found for event_type '{event_type}', "
+                    f"user_id '{user_id}'. Event: {event}"
+                )
                 return None
 
             unified_doc_id = related_work.get("unified_document_id")
@@ -137,13 +153,23 @@ class AmplitudeEventParser:
                     )
 
                     if not content_type_str or not object_id:
+                        logger.debug(
+                            f"Missing content_type or object_id for "
+                            f"unified_doc_id '{unified_doc_id}'. "
+                            f"content_type: '{content_type_str}', "
+                            f"object_id: '{object_id}'"
+                        )
                         return None
 
                     content_type = AmplitudeEventParser.get_content_type(
                         content_type_str
                     )
                     object_id = int(object_id)
-                except (ValueError, ResearchhubUnifiedDocument.DoesNotExist):
+                except (ValueError, ResearchhubUnifiedDocument.DoesNotExist) as e:
+                    logger.debug(
+                        f"Invalid unified_document_id '{unified_doc_id}' "
+                        f"or related data: {e}"
+                    )
                     return None
             elif content_type_str and object_id:
                 try:
@@ -159,9 +185,18 @@ class AmplitudeEventParser:
                     ContentType.DoesNotExist,
                     model_class.DoesNotExist,
                     AttributeError,
-                ):
+                ) as e:
+                    logger.debug(
+                        f"Invalid content_type '{content_type_str}' or "
+                        f"object_id '{object_id}': {e}"
+                    )
                     return None
             else:
+                logger.debug(
+                    f"Neither unified_document_id nor content_type+id provided. "
+                    f"unified_doc_id: '{unified_doc_id}', "
+                    f"content_type: '{content_type_str}', id: '{object_id}'"
+                )
                 return None
 
             timestamp_ms = event.get("time")
@@ -181,5 +216,7 @@ class AmplitudeEventParser:
 
             return amplitude_event
 
-        except Exception:
+        except Exception as e:
+            event_type = event.get("event_type", "unknown")
+            logger.debug(f"Unexpected error parsing event '{event_type}': {e}")
             return None

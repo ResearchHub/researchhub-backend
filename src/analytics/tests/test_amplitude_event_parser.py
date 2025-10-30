@@ -351,3 +351,19 @@ class AmplitudeEventParserTests(TestCase):
         interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsNone(interaction)
+
+    def test_flat_format_handles_invalid_content_type(self):
+        """Test that flat format with invalid content_type returns None."""
+        event = {
+            "event_type": "feed_item_clicked",
+            "event_properties": {
+                "user_id": self.user.id,
+                "related_work.content_type": "invalid_model",
+                "related_work.id": self.post.id,
+            },
+            "time": int(timezone.now().timestamp() * 1000),
+        }
+
+        interaction = self.parser.parse_amplitude_event(event)
+
+        self.assertIsNone(interaction)
