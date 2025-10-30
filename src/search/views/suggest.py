@@ -24,6 +24,15 @@ class SuggestView(APIView):
     permission_classes = [AllowAny]
     renderer_classes = [JSONRenderer]
 
+    # Search result limits
+    DEFAULT_LIMIT = 10  # Default number of results to return
+    MIN_LIMIT = 1  # Minimum number of results allowed
+    QUERY_MAX_LENGTH = 50  # Maximum query length for ES completion suggester
+
+    # Multi_match fallback thresholds
+    MULTI_MATCH_MIN_WORDS = 3  # Minimum words in query to trigger multi_match
+    MULTI_MATCH_MIN_RESULTS_THRESHOLD = 3  # Trigger if fewer results from suggester
+
     # Default entity type weights to ensure fair representation
     DEFAULT_WEIGHTS = {
         "hub": 3.0,  # Prioritize hubs (communities)
@@ -198,13 +207,13 @@ class SuggestView(APIView):
         index_param = request.query_params.get("index", "paper")
         indexes = [idx.strip() for idx in index_param.split(",")]
 
-        # Get limit parameter (default to 10)
+        # Get limit parameter
         try:
-            limit = int(request.query_params.get("limit", 10))
-            if limit < 1:
-                limit = 10  # Minimum of 1 result
+            limit = int(request.query_params.get("limit", self.DEFAULT_LIMIT))
+            if limit < self.MIN_LIMIT:
+                limit = self.DEFAULT_LIMIT
         except ValueError:
-            limit = 10  # Default if invalid value
+            limit = self.DEFAULT_LIMIT
 
         # Validate all indexes
         invalid_indexes = [idx for idx in indexes if idx not in self.INDEX_MAP]
@@ -428,8 +437,8 @@ class SuggestView(APIView):
                     suggest_field = "name_suggest"
 
                 try:
-                    # Truncate query to 50 characters for ES completion suggester
-                    truncated_query = query[:50]
+                    # Truncate query for ES completion suggester
+                    truncated_query = query[: self.QUERY_MAX_LENGTH]
                     suggest = search.suggest(
                         "suggestions",
                         truncated_query,
@@ -470,10 +479,16 @@ class SuggestView(APIView):
 
                 # Hybrid search: Add multi_match fallback for flexible word
                 # order when completion suggester fails
+                num_input_words = len(query.split())
+                suggest_results_below_threshold = (
+                    len(results) < self.MULTI_MATCH_MIN_RESULTS_THRESHOLD
+                )
+                index_supports_multi_match = index in self.MULTI_MATCH_FIELDS
+
                 if (
-                    len(query.split()) >= 3
-                    and len(results) < 3
-                    and index in self.MULTI_MATCH_FIELDS
+                    num_input_words >= self.MULTI_MATCH_MIN_WORDS
+                    and suggest_results_below_threshold
+                    and index_supports_multi_match
                 ):
                     try:
                         search_fields = self.MULTI_MATCH_FIELDS[index]
@@ -489,17 +504,34 @@ class SuggestView(APIView):
                         )[:limit_per_index]
                         multi_match_response = multi_match_search.execute()
 
-                        # Deduplicate and add results
-                        existing_ids = {r.get("id") for r in results if r.get("id")}
+                        # Build set of existing IDs for deduplication
+                        # All results MUST have IDs - fail fast if they don't
+                        try:
+                            existing_ids = {r["id"] for r in results}
+                        except KeyError as e:
+                            logger.error(
+                                f"Result missing required 'id' field in "
+                                f"{index} results: {e}"
+                            )
+                            raise
 
                         for hit in multi_match_response.hits:
                             hit_data = {
                                 "_source": hit.to_dict(),
                                 "_score": getattr(hit.meta, "score", 1.0),
                             }
-                            hit_id = hit_data["_source"].get("id")
 
-                            if not hit_id or hit_id in existing_ids:
+                            # Strict ID extraction - documents MUST have IDs
+                            try:
+                                hit_id = hit_data["_source"]["id"]
+                            except KeyError:
+                                logger.error(
+                                    f"Multi_match hit missing required 'id' "
+                                    f"field in {index}: {hit_data['_source']}"
+                                )
+                                continue  # Skip this malformed result
+
+                            if hit_id in existing_ids:
                                 continue
 
                             transformed = self.safe_transform(
