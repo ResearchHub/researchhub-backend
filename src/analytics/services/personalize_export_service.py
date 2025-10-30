@@ -4,7 +4,7 @@ from typing import Iterator
 from django.db.models import QuerySet
 
 from analytics.constants.personalize_constants import CSV_HEADERS
-from analytics.items.personalize_item_mapper import map_to_item
+from analytics.items.personalize_item_mapper import PersonalizeItemMapper
 from analytics.utils.personalize_batch_queries import PersonalizeBatchQueries
 from researchhub_document.models import ResearchhubUnifiedDocument
 
@@ -15,6 +15,7 @@ class PersonalizeExportService:
     def __init__(self, chunk_size: int = 1000):
         self.chunk_size = chunk_size
         self.fetcher = PersonalizeBatchQueries()
+        self.mapper = PersonalizeItemMapper()
 
     def export_items(
         self, queryset: QuerySet[ResearchhubUnifiedDocument]
@@ -69,7 +70,7 @@ class PersonalizeExportService:
         items = []
         for unified_doc in chunk:
             try:
-                item_row = map_to_item(
+                item_row = self.mapper.map_to_item(
                     unified_doc,
                     bounty_data=bounty_data.get(unified_doc.id, {}),
                     proposal_data=proposal_data.get(unified_doc.id, {}),

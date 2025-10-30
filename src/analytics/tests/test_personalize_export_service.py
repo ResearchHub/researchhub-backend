@@ -4,7 +4,7 @@ Tests for PersonalizeExportService.
 
 import csv
 import tempfile
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from django.test import TestCase
 
@@ -113,8 +113,9 @@ class ExportItemsIteratorTests(TestCase):
         service = PersonalizeExportService(chunk_size=10)
 
         # Act
-        with patch(
-            "analytics.services.personalize_export_service.map_to_item",
+        with patch.object(
+            service.mapper,
+            "map_to_item",
             side_effect=[Exception("Error"), {"ITEM_ID": "123"}],
         ):
             items = list(service.export_items(queryset))
