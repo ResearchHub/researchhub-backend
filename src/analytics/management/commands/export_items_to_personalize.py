@@ -24,17 +24,25 @@ class Command(BaseCommand):
             type=int,
             help="Specific unified document IDs to export (space-separated)",
         )
+        parser.add_argument(
+            "--with-interactions",
+            action="store_true",
+            default=True,
+            help="Only export items that have user interactions (default: True)",
+        )
 
     def handle(self, *args, **options):
         since_publish_date = self._parse_date(options.get("since_publish_date"))
         ids = options.get("ids")
+        with_interactions = options.get("with_interactions", True)
 
-        self.export_items(since_publish_date, ids)
+        self.export_items(since_publish_date, ids, with_interactions)
 
     def export_items(
         self,
         since_publish_date: Optional[datetime],
         ids: Optional[list] = None,
+        with_interactions: bool = True,
     ):
         """Export items from ResearchhubUnifiedDocument to CSV."""
         self.stdout.write("Exporting items...")
@@ -42,7 +50,7 @@ class Command(BaseCommand):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"personalize_items_{timestamp}.csv"
 
-        queryset = self._get_queryset(since_publish_date, ids)
+        queryset = self._get_queryset(since_publish_date, ids, with_interactions)
 
         total = queryset.count()
         if total == 0:
@@ -62,12 +70,9 @@ class Command(BaseCommand):
             )
         )
 
-    def _get_queryset(
-        self,
-        since_publish_date: Optional[datetime],
-        ids: Optional[list] = None,
-    ) -> QuerySet[ResearchhubUnifiedDocument]:
-        base_queryset = (
+    def _build_base_queryset(self) -> QuerySet[ResearchhubUnifiedDocument]:
+        """Build base queryset with all necessary relations and filters."""
+        return (
             ResearchhubUnifiedDocument.objects.select_related(
                 "document_filter",
                 "paper",
@@ -87,33 +92,51 @@ class Command(BaseCommand):
             )
         )
 
-        if ids:
-            return base_queryset.filter(id__in=ids).distinct().order_by("id")
-
+    def _get_interactions_filter(self) -> Q:
+        """Get Q filter for documents with user interactions."""
         item_ids_with_interactions = set(
             UserInteractions.objects.values_list(
                 "unified_document_id", flat=True
             ).distinct()
         )
+        return Q(id__in=item_ids_with_interactions)
+
+    def _get_date_filter(self, since_publish_date: datetime) -> Q:
+        """Get Q filter for documents published/created since the given date."""
+        papers_since_date = Q(
+            document_type="PAPER",
+            paper__paper_publish_date__gte=since_publish_date,
+        )
+        non_papers_since_date = Q(
+            ~Q(document_type="PAPER"),
+            created_date__gte=since_publish_date,
+        )
+        return papers_since_date | non_papers_since_date
+
+    def _get_queryset(
+        self,
+        since_publish_date: Optional[datetime],
+        ids: Optional[list] = None,
+        with_interactions: bool = True,
+    ) -> QuerySet[ResearchhubUnifiedDocument]:
+        base_queryset = self._build_base_queryset()
+
+        if ids:
+            return base_queryset.filter(id__in=ids).distinct().order_by("id")
+
+        # Combine filters using Q objects
+        combined_filter = Q()
+
+        if with_interactions:
+            combined_filter |= self._get_interactions_filter()
 
         if since_publish_date:
-            papers_since_date = Q(
-                document_type="PAPER",
-                paper__paper_publish_date__gte=since_publish_date,
-            )
-            non_papers_since_date = Q(
-                ~Q(document_type="PAPER"),
-                created_date__gte=since_publish_date,
-            )
-            items_since_date = papers_since_date | non_papers_since_date
+            combined_filter |= self._get_date_filter(since_publish_date)
 
-            queryset = base_queryset.filter(
-                Q(id__in=item_ids_with_interactions) | items_since_date
-            )
-        else:
-            queryset = base_queryset.filter(id__in=item_ids_with_interactions)
+        if not combined_filter:
+            return base_queryset.distinct().order_by("id")
 
-        return queryset.distinct().order_by("id")
+        return base_queryset.filter(combined_filter).distinct().order_by("id")
 
     def _parse_date(self, date_str: Optional[str]) -> Optional[datetime]:
         """Parse date string to datetime object."""

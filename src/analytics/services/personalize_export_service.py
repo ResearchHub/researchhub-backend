@@ -5,7 +5,7 @@ from django.db.models import QuerySet
 
 from analytics.constants.personalize_constants import CSV_HEADERS
 from analytics.items.personalize_item_mapper import map_to_item
-from analytics.services.personalize_batch_queries import PersonalizeBatchQueries
+from analytics.utils.personalize_batch_queries import PersonalizeBatchQueries
 from researchhub_document.models import ResearchhubUnifiedDocument
 
 
@@ -35,16 +35,21 @@ class PersonalizeExportService:
         exported = 0
         skipped = 0
 
-        with open(filename, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=CSV_HEADERS)
-            writer.writeheader()
+        try:
+            with open(filename, "w", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=CSV_HEADERS)
+                writer.writeheader()
 
-            for item_row in self.export_items(queryset):
-                try:
-                    writer.writerow(item_row)
-                    exported += 1
-                except Exception:
-                    skipped += 1
+                for item_row in self.export_items(queryset):
+                    try:
+                        writer.writerow(item_row)
+                        exported += 1
+                    except Exception:
+                        skipped += 1
+        except PermissionError as e:
+            raise PermissionError(f"Permission denied writing to {filename}: {e}")
+        except OSError as e:
+            raise OSError(f"Error writing to {filename}: {e}")
 
         return (exported, skipped)
 

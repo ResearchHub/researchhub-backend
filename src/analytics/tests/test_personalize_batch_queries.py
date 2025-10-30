@@ -8,7 +8,6 @@ from decimal import Decimal
 import pytz
 from django.test import TestCase
 
-from analytics.services.personalize_batch_queries import PersonalizeBatchQueries
 from analytics.tests.helpers import (
     create_bounty_for_document,
     create_bounty_solution,
@@ -19,6 +18,7 @@ from analytics.tests.helpers import (
     create_prefetched_post,
     create_prefetched_proposal,
 )
+from analytics.utils.personalize_batch_queries import PersonalizeBatchQueries
 from purchase.models import Fundraise, Grant
 from reputation.models import Bounty
 from researchhub_document.related_models.constants.document_type import DISCUSSION

@@ -31,11 +31,8 @@ from analytics.constants.personalize_constants import (
     TWEET_COUNT_TOTAL,
     UPVOTE_SCORE,
 )
-from analytics.services.personalize_item_utils import (
-    assert_no_queries,
-    clean_text_for_csv,
-)
-from analytics.services.personalize_utils import datetime_to_epoch_seconds
+from analytics.utils.personalize_item_utils import assert_no_queries, clean_text_for_csv
+from utils.time import datetime_to_epoch_seconds
 
 logger = logging.getLogger(__name__)
 

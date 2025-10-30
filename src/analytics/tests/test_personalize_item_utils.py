@@ -7,10 +7,7 @@ from django.db import connection
 from django.test import TestCase, override_settings
 
 from analytics.constants.personalize_constants import MAX_TEXT_LENGTH
-from analytics.services.personalize_item_utils import (
-    assert_no_queries,
-    clean_text_for_csv,
-)
+from analytics.utils.personalize_item_utils import assert_no_queries, clean_text_for_csv
 from user.tests.helpers import create_random_default_user
 
 

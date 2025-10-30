@@ -40,9 +40,6 @@ def assert_no_queries(func):
 def clean_text_for_csv(text: Optional[str]) -> Optional[str]:
     """
     Prepare text for CSV export.
-
-    Strips HTML tags and truncates to maximum length.
-    CSV module handles quotes, newlines, and special characters automatically.
     """
     if not text:
         return None
