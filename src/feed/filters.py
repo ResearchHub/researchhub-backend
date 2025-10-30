@@ -68,10 +68,10 @@ class FundOrderingFilter(OrderingFilter):
     def _apply_custom_sorting(self, queryset: QuerySet, model_config: dict, request: Request, view: Any) -> QuerySet:
         """Apply custom sorting based on order value."""
         ordering_list = self.get_ordering(request, queryset, view)
-        ordering = ordering_list[0].lstrip('-') if ordering_list else 'best'
+        ordering = ordering_list[0].lstrip('-') if ordering_list else 'newest'
  
-        if ordering == 'best':
-            return self._apply_best_sorting(queryset, model_config)
+        if ordering == 'newest':
+            return self._apply_newest_sorting(queryset)
         elif ordering == 'upvotes':
             return self._apply_upvotes_sorting(queryset)
         elif ordering == 'most_applicants':
@@ -91,16 +91,16 @@ class FundOrderingFilter(OrderingFilter):
             if fields:
                 field = fields[0]
                 field_name = field.lstrip('-') 
-                custom_fields = ['best', 'upvotes', 'most_applicants', 'amount_raised']
+                custom_fields = ['newest', 'upvotes', 'most_applicants', 'amount_raised']
                 if field_name in custom_fields:
                     return [field] 
                 ordering_fields = getattr(view, 'ordering_fields', None)
                 if ordering_fields and field_name in ordering_fields:
                     return [field] 
-                return ['best'] 
-        return ['best']
+                return ['newest'] 
+        return ['newest'] 
 
-    def _apply_best_sorting(self, queryset: QuerySet, model_config: dict[str, Union[Type[Grant], Type[Fundraise], str]]) -> QuerySet:
+    def _apply_newest_sorting(self, queryset: QuerySet, model_config: dict[str, Union[Type[Grant], Type[Fundraise], str]]) -> QuerySet:
         model_class = model_config['model_class']
         open_status = model_config['open_status']
         closed_statuses = [model_config['closed_status'], model_config['completed_status']]
