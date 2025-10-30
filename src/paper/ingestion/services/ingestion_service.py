@@ -235,7 +235,7 @@ class PaperIngestionService:
                 if (
                     paper.pdf_url
                     and self._supports_pdf_download(source)
-                    and paper.file is None
+                    and not paper.file
                 ):
                     from paper.tasks import download_pdf
 
