@@ -16,6 +16,7 @@ from analytics.constants.personalize_constants import (
     CITATION_COUNT_TOTAL,
     CREATION_TIMESTAMP,
     DELIMITER,
+    FIELD_DEFAULTS,
     HAS_ACTIVE_BOUNTY,
     HUB_IDS,
     HUB_L1,
@@ -1023,3 +1024,129 @@ class EdgeCaseTests(TestCase):
 
         # Assert
         self.assertLessEqual(len(result[TEXT]), MAX_TEXT_LENGTH)
+
+
+class DefaultValuesTests(TestCase):
+    """Tests to ensure mapped items have proper default values."""
+
+    def test_all_fields_have_default_values(self):
+        """All fields defined in FIELD_DEFAULTS should be present in result."""
+        # Arrange
+        unified_doc = create_prefetched_paper(title="Test Paper")
+        batch_data = create_batch_data()
+
+        # Act
+        result = map_to_item(
+            unified_doc,
+            bounty_data=batch_data["bounty"],
+            proposal_data=batch_data["proposal"],
+            rfp_data=batch_data["rfp"],
+        )
+
+        # Assert - all fields from FIELD_DEFAULTS should be in result
+        for field in FIELD_DEFAULTS.keys():
+            self.assertIn(
+                field,
+                result,
+                f"Field {field} from FIELD_DEFAULTS missing in result",
+            )
+
+    def test_numeric_fields_default_to_zero_not_none(self):
+        """Numeric fields should default to 0, not None."""
+        # Arrange - create minimal document without external metadata
+        unified_doc = create_prefetched_post(title="Test Post")
+        batch_data = create_batch_data()
+
+        # Act
+        result = map_to_item(
+            unified_doc,
+            bounty_data=batch_data["bounty"],
+            proposal_data=batch_data["proposal"],
+            rfp_data=batch_data["rfp"],
+        )
+
+        # Assert - numeric fields should be 0, not None
+        numeric_fields = [
+            UPVOTE_SCORE,
+            BLUESKY_COUNT_TOTAL,
+            TWEET_COUNT_TOTAL,
+            CITATION_COUNT_TOTAL,
+        ]
+        for field in numeric_fields:
+            self.assertIsNotNone(result[field], f"{field} should not be None")
+            self.assertIsInstance(
+                result[field],
+                int,
+                f"{field} should be an integer",
+            )
+
+    def test_boolean_fields_default_to_false_not_none(self):
+        """Boolean fields should default to False, not None."""
+        # Arrange
+        unified_doc = create_prefetched_paper(title="Test Paper")
+        # Empty batch data (no bounties, proposals, or RFPs)
+        batch_data = {"bounty": {}, "proposal": {}, "rfp": {}}
+
+        # Act
+        result = map_to_item(
+            unified_doc,
+            bounty_data=batch_data["bounty"],
+            proposal_data=batch_data["proposal"],
+            rfp_data=batch_data["rfp"],
+        )
+
+        # Assert - boolean fields should be False, not None
+        boolean_fields = [
+            HAS_ACTIVE_BOUNTY,
+            BOUNTY_HAS_SOLUTIONS,
+            RFP_IS_OPEN,
+            RFP_HAS_APPLICANTS,
+            PROPOSAL_IS_OPEN,
+            PROPOSAL_HAS_FUNDERS,
+        ]
+        for field in boolean_fields:
+            self.assertIsNotNone(result[field], f"{field} should not be None")
+            self.assertIsInstance(
+                result[field],
+                bool,
+                f"{field} should be a boolean",
+            )
+
+    def test_defaults_match_field_defaults_constant(self):
+        """
+        Verify defaults in result match FIELD_DEFAULTS for fields
+        that weren't explicitly set.
+        """
+        # Arrange - create minimal post without special attributes
+        unified_doc = create_prefetched_post(title="Test Post")
+        batch_data = {"bounty": {}, "proposal": {}, "rfp": {}}
+
+        # Act
+        result = map_to_item(
+            unified_doc,
+            bounty_data=batch_data["bounty"],
+            proposal_data=batch_data["proposal"],
+            rfp_data=batch_data["rfp"],
+        )
+
+        # Assert - check fields that should retain their defaults
+        # (fields that are not set by common/post/paper mappings)
+        fields_that_use_defaults = [
+            BLUESKY_COUNT_TOTAL,
+            TWEET_COUNT_TOTAL,
+            CITATION_COUNT_TOTAL,
+            HAS_ACTIVE_BOUNTY,
+            BOUNTY_HAS_SOLUTIONS,
+            RFP_IS_OPEN,
+            RFP_HAS_APPLICANTS,
+            PROPOSAL_IS_OPEN,
+            PROPOSAL_HAS_FUNDERS,
+        ]
+
+        for field in fields_that_use_defaults:
+            expected_default = FIELD_DEFAULTS[field]
+            self.assertEqual(
+                result[field],
+                expected_default,
+                f"{field} should have default value {expected_default}",
+            )

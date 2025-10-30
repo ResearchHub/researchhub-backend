@@ -51,6 +51,32 @@ CSV_HEADERS = [
     PROPOSAL_HAS_FUNDERS,
 ]
 
+# Default values for each field
+FIELD_DEFAULTS = {
+    # String/ID fields (nullable)
+    ITEM_ID: None,
+    ITEM_TYPE: None,
+    HUB_L1: None,
+    HUB_L2: None,
+    HUB_IDS: None,
+    AUTHOR_IDS: None,
+    CREATION_TIMESTAMP: None,
+    TEXT: None,
+    TITLE: None,
+    # Integer fields (counts, scores)
+    UPVOTE_SCORE: 0,
+    BLUESKY_COUNT_TOTAL: 0,
+    TWEET_COUNT_TOTAL: 0,
+    CITATION_COUNT_TOTAL: 0,
+    # Boolean fields (flags)
+    HAS_ACTIVE_BOUNTY: False,
+    BOUNTY_HAS_SOLUTIONS: False,
+    RFP_IS_OPEN: False,
+    RFP_HAS_APPLICANTS: False,
+    PROPOSAL_IS_OPEN: False,
+    PROPOSAL_HAS_FUNDERS: False,
+}
+
 # Document types to exclude from export
 EXCLUDED_DOCUMENT_TYPES = ["NOTE", "HYPOTHESIS"]
 

@@ -14,8 +14,8 @@ from analytics.constants.personalize_constants import (
     BOUNTY_HAS_SOLUTIONS,
     CITATION_COUNT_TOTAL,
     CREATION_TIMESTAMP,
-    CSV_HEADERS,
     DELIMITER,
+    FIELD_DEFAULTS,
     HAS_ACTIVE_BOUNTY,
     HUB_IDS,
     HUB_L1,
@@ -31,7 +31,7 @@ from analytics.constants.personalize_constants import (
     TWEET_COUNT_TOTAL,
     UPVOTE_SCORE,
 )
-from analytics.utils.personalize_item_utils import assert_no_queries, clean_text_for_csv
+from analytics.utils.personalize_item_utils import clean_text_for_csv
 from utils.time import datetime_to_epoch_seconds
 
 logger = logging.getLogger(__name__)
@@ -77,8 +77,8 @@ def map_to_item(
     if settings.DEBUG:
         query_count_before = len(connection.queries)
 
-    # Initialize row with None values
-    row = {header: None for header in CSV_HEADERS}
+    # Initialize row with default values from constants
+    row = {field: default for field, default in FIELD_DEFAULTS.items()}
 
     # Get the concrete document
     try:
@@ -115,10 +115,12 @@ def map_to_item(
         query_count_after = len(connection.queries)
         new_queries = query_count_after - query_count_before
         if new_queries > 0:
+            queries = connection.queries[query_count_before:query_count_after]
             logger.warning(
-                f"map_to_item made {new_queries} unexpected queries for document {prefetched_doc.id}! "
+                f"map_to_item made {new_queries} unexpected queries "
+                f"for document {prefetched_doc.id}! "
                 f"This indicates missing prefetch_related. "
-                f"Queries: {[q['sql'][:100] for q in connection.queries[query_count_before:query_count_after]]}"
+                f"Queries: {[q['sql'][:100] for q in queries]}"
             )
 
     return row
@@ -173,7 +175,7 @@ def _map_common_fields(prefetched_doc: PrefetchedUnifiedDocument, document) -> d
         ITEM_ID: str(prefetched_doc.id),
         ITEM_TYPE: prefetched_doc.document_type,
         CREATION_TIMESTAMP: timestamp,
-        UPVOTE_SCORE: prefetched_doc.score,
+        UPVOTE_SCORE: prefetched_doc.score if prefetched_doc.score is not None else 0,
         HUB_L1: hub_l1,
         HUB_L2: hub_l2,
         HUB_IDS: DELIMITER.join(hub_ids) if hub_ids else None,
@@ -192,7 +194,7 @@ def _map_paper_fields(prefetched_doc: PrefetchedUnifiedDocument, paper) -> dict:
     fields = {
         TITLE: clean_text_for_csv(title),
         TEXT: clean_text_for_csv(text_concat),
-        CITATION_COUNT_TOTAL: paper.citations,
+        CITATION_COUNT_TOTAL: paper.citations if paper.citations is not None else 0,
     }
 
     if paper.external_metadata:
