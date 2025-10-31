@@ -54,7 +54,14 @@ class FundOrderingFilter(OrderingFilter):
         Filter by open/ended status based on ordering parameter.
         - Grants: active = OPEN + not expired, ended = OPEN + expired
         - Fundraises: active = OPEN, ended = CLOSED/COMPLETED only
+        - Skip filter if status parameter is explicitly provided (for grants)
         """
+        # For grants, skip this filter if status param is explicitly provided
+        if getattr(view, 'is_grant_view', False):
+            status_param = request.query_params.get("status")
+            if status_param:
+                return queryset
+        
         ordering_param = request.query_params.get(self.ordering_param, '')
         ordering = ordering_param.split(',')[0].lstrip('-').strip() if ordering_param else ''
         

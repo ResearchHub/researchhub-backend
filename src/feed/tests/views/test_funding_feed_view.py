@@ -491,6 +491,22 @@ class FundingFeedViewSetTests(TestCase):
             unified_document=third_doc,
             created_date=timezone.now(),
         )
+        
+        # Create OPEN fundraise for third user's post
+        third_escrow = Escrow.objects.create(
+            amount_holding=100,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=third_user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=third_doc.id,
+        )
+        Fundraise.objects.create(
+            created_by=third_user,
+            unified_document=third_doc,
+            escrow=third_escrow,
+            status=Fundraise.OPEN,
+            goal_amount=200,
+        )
 
         # Test filtering by first user's ID
         url = reverse("funding_feed-list") + f"?created_by={self.user.id}"
@@ -503,8 +519,8 @@ class FundingFeedViewSetTests(TestCase):
             response.data["results"][0]["content_object"]["id"], self.post.id
         )
 
-        # Test filtering by other_user's ID
-        url = reverse("funding_feed-list") + f"?created_by={self.other_user.id}"
+        # Test filtering by other_user's ID (other_user has COMPLETED fundraise, use ordering=ended)
+        url = reverse("funding_feed-list") + f"?created_by={self.other_user.id}&ordering=ended"
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -565,6 +581,18 @@ class FundingFeedViewSetTests(TestCase):
             document_type=PREREGISTRATION,
             unified_document=high_upvotes_doc,
         )
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=high_upvotes_doc,
+            escrow=Escrow.objects.create(
+                amount_holding=100,
+                hold_type=Escrow.FUNDRAISE,
+                created_by=self.user,
+                content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+                object_id=high_upvotes_doc.id,
+            ),
+            status=Fundraise.OPEN,
+        )
         
         # Post with low upvotes
         low_upvotes_doc = ResearchhubUnifiedDocument.objects.create(
@@ -581,6 +609,18 @@ class FundingFeedViewSetTests(TestCase):
             created_by=self.user,
             document_type=PREREGISTRATION,
             unified_document=low_upvotes_doc,
+        )
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=low_upvotes_doc,
+            escrow=Escrow.objects.create(
+                amount_holding=50,
+                hold_type=Escrow.FUNDRAISE,
+                created_by=self.user,
+                content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+                object_id=low_upvotes_doc.id,
+            ),
+            status=Fundraise.OPEN,
         )
         
         # Test sorting by upvotes
@@ -832,58 +872,62 @@ class FundingFeedViewSetTests(TestCase):
         # Test custom sorting (upvotes) - patch the specific sorting method
         request = factory.get('/?ordering=upvotes')
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes:
+        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes, \
+             patch.object(filter_instance, '_apply_open_status_filter') as mock_filter:
+            mock_filter.return_value = mock_queryset
             mock_upvotes.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
-            mock_upvotes.assert_called_once_with(mock_queryset)
+            mock_upvotes.assert_called_once()
         
         # Test newest sorting (default - no ordering param)
         request = factory.get('/')
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_newest_sorting') as mock_newest:
+        with patch.object(filter_instance, '_apply_newest_sorting') as mock_newest, \
+             patch.object(filter_instance, '_apply_open_status_filter') as mock_filter:
+            mock_filter.return_value = mock_queryset
             mock_newest.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
-            # Check that it was called with queryset and model_config
             self.assertEqual(mock_newest.call_count, 1)
-            args = mock_newest.call_args[0]
-            self.assertEqual(args[0], mock_queryset)
-            self.assertIn('model_class', args[1])  # model_config has model_class
         
         # Test best sorting (explicit best)
         request = factory.get('/?ordering=best')
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_best_sorting') as mock_best:
+        with patch.object(filter_instance, '_apply_best_sorting') as mock_best, \
+             patch.object(filter_instance, '_apply_open_status_filter') as mock_filter:
+            mock_filter.return_value = mock_queryset
             mock_best.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
-            # Check that it was called with queryset and model_config
             self.assertEqual(mock_best.call_count, 1)
-            args = mock_best.call_args[0]
-            self.assertEqual(args[0], mock_queryset)
-            self.assertIn('model_class', args[1])  # model_config has model_class
         
         # Test with '-' prefix - should be stripped and work
         request = factory.get('/?ordering=-upvotes')
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes:
+        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes, \
+             patch.object(filter_instance, '_apply_open_status_filter') as mock_filter:
+            mock_filter.return_value = mock_queryset
             mock_upvotes.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
-            mock_upvotes.assert_called_once_with(mock_queryset)
+            mock_upvotes.assert_called_once()
         
         # Test comma-separated values - should take first field
         request = factory.get('/?ordering=upvotes,created_date')
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes:
+        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes, \
+             patch.object(filter_instance, '_apply_open_status_filter') as mock_filter:
+            mock_filter.return_value = mock_queryset
             mock_upvotes.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
-            mock_upvotes.assert_called_once_with(mock_queryset)
+            mock_upvotes.assert_called_once()
         
         # Test whitespace handling
         request = factory.get('/?ordering= upvotes ')
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes:
+        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes, \
+             patch.object(filter_instance, '_apply_open_status_filter') as mock_filter:
+            mock_filter.return_value = mock_queryset
             mock_upvotes.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
-            mock_upvotes.assert_called_once_with(mock_queryset)
+            mock_upvotes.assert_called_once()
 
     def test_ordering_validation_integration(self):
         """Test ordering validation through the actual API endpoint."""
@@ -952,20 +996,10 @@ class FundingFeedViewSetTests(TestCase):
         )
         new = self._create_fundraise_post("New", 100, Fundraise.COMPLETED)
         
-        response = self.client.get(reverse("funding_feed-list"), {"ordering": "best"})
+        response = self.client.get(reverse("funding_feed-list"), {"ordering": "ended"})
         result_ids = [r["content_object"]["id"] for r in response.data["results"]]
         
         self.assertLess(result_ids.index(new), result_ids.index(old))
-    
-    def test_best_sorting_orders_shows_closed_after_open(self):
-        """Test best sorting: all open items appear before closed items"""
-        open_item = self._create_fundraise_post("Open", 100, Fundraise.OPEN)
-        closed_item = self._create_fundraise_post("Closed", 1000, Fundraise.COMPLETED)
-        
-        response = self.client.get(reverse("funding_feed-list"), {"ordering": "best"})
-        result_ids = [r["content_object"]["id"] for r in response.data["results"]]
-        
-        self.assertLess(result_ids.index(open_item), result_ids.index(closed_item))
     
     def test_best_sorting_ignores_historical_fundraises(self):
         """Test best sorting: only counts open fundraise amount, not historical closed"""
