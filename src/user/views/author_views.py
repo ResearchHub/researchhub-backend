@@ -348,30 +348,6 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
                     "author_profile",
                 ]
             },
-            "dis_dts_get_created_by": {
-                "_include_fields": [
-                    "id",
-                    "author_profile",
-                ]
-            },
-            "dis_dts_get_review": {
-                "_include_fields": [
-                    "id",
-                    "score",
-                ]
-            },
-            "dis_dcs_get_created_by": {
-                "_include_fields": [
-                    "author_profile",
-                    "id",
-                ]
-            },
-            "dis_drs_get_created_by": {
-                "_include_fields": [
-                    "author_profile",
-                    "id",
-                ]
-            },
             "pap_dps_get_user_vote": {
                 "_include_fields": [
                     "id",
@@ -395,81 +371,6 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
                     "created_date",
                     "vote_type",
                     "item",
-                ]
-            },
-            "dis_drs_get_user_vote": {
-                "_include_fields": [
-                    "id",
-                    "content_type",
-                    "created_by",
-                    "created_date",
-                    "vote_type",
-                    "item",
-                ]
-            },
-            "dis_dcs_get_user_vote": {
-                "_include_fields": [
-                    "id",
-                    "content_type",
-                    "created_by",
-                    "created_date",
-                    "vote_type",
-                    "item",
-                ]
-            },
-            "dis_dts_get_user_vote": {
-                "_include_fields": [
-                    "id",
-                    "content_type",
-                    "created_by",
-                    "created_date",
-                    "vote_type",
-                    "item",
-                ]
-            },
-            "dis_dts_get_comments": {
-                "_include_fields": [
-                    "created_by",
-                    "created_date",
-                    "updated_date",
-                    "created_location",
-                    "external_metadata",
-                    "id",
-                    "is_public",
-                    "is_removed",
-                    "paper_id",
-                    "parent",
-                    "plain_text",
-                    "promoted",
-                    "replies",
-                    "reply_count",
-                    "score",
-                    "source",
-                    "text",
-                    "thread_id",
-                    "user_flag",
-                    "user_vote",
-                    "was_edited",
-                ]
-            },
-            "dis_dcs_get_replies": {
-                "_include_fields": [
-                    "created_by",
-                    "created_location",
-                    "id",
-                    "is_public",
-                    "is_removed",
-                    "paper_id",
-                    "parent",
-                    "plain_text",
-                    "promoted",
-                    "score",
-                    "text",
-                    "thread_id",
-                    "user_flag",
-                    "user_vote",
-                    "created_date",
-                    "updated_date",
                 ]
             },
             "doc_duds_get_documents": {
@@ -614,24 +515,6 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
                 ]
             },
             "rep_dbs_get_created_by": {"_include_fields": ["author_profile", "id"]},
-            "dis_dts_get_bounties": {
-                "_include_fields": [
-                    "amount",
-                    "created_by",
-                ]
-            },
-            "dis_dts_get_paper": {
-                "_include_fields": [
-                    "id",
-                    "slug",
-                ]
-            },
-            "dis_dts_get_post": {
-                "_include_fields": [
-                    "id",
-                    "slug",
-                ]
-            },
             "doc_duds_get_hubs": {
                 "_include_fields": [
                     "name",
