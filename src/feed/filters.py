@@ -19,7 +19,6 @@ from django.utils import timezone
 from rest_framework.filters import OrderingFilter
 from rest_framework.request import Request
 
-from feed.fund_best_score import calculate_fund_best_score_annotations
 from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.grant_model import Grant
 
@@ -159,10 +158,53 @@ class FundOrderingFilter(OrderingFilter):
         )
 
     def _apply_best_sorting(self, queryset: QuerySet, model_config: dict[str, Union[Type[Grant], Type[Fundraise], str]]) -> QuerySet:
-        """Sort by composite 'best' score with status penalties (active > expired > closed)."""
+        """
+        Sort by best with conditional logic:
+        - Open items: sort by amount raised (desc), then created date (desc)
+        - Closed items: sort by created date (desc) only
+        """
         model_class = model_config['model_class']
-        queryset = calculate_fund_best_score_annotations(queryset, model_class)
-        return queryset.order_by('-adjusted_best_score', '-created_date')
+        open_status = model_config['open_status']
+        
+        if model_class == Grant:
+            amount_expr = Coalesce(
+                Sum(F('unified_document__grants__amount')),
+                Value(0),
+                output_field=DecimalField(max_digits=19, decimal_places=2)
+            )
+        else:  # Fundraise
+            amount_expr = Coalesce(
+                Sum(
+                    F('unified_document__fundraises__escrow__amount_holding') + 
+                    F('unified_document__fundraises__escrow__amount_paid')
+                ),
+                Value(0),
+                output_field=DecimalField(max_digits=19, decimal_places=10)
+            )
+        
+        has_open = Exists(
+            model_class.objects.filter(
+                unified_document_id=OuterRef("unified_document_id"),
+                status=open_status
+            )
+        )
+        
+        queryset = queryset.annotate(
+            amount_value=amount_expr,
+            has_open_status=has_open,
+            status_tier=Case(
+                When(has_open_status=True, then=Value(0)),  # Open
+                default=Value(1),  # Closed
+                output_field=IntegerField(),
+            ),
+            sort_amount=Case(
+                When(has_open_status=True, then=F('amount_value')),
+                default=Value(0),
+                output_field=DecimalField(max_digits=19, decimal_places=10),
+            ),
+        )
+        
+        return queryset.order_by('status_tier', '-sort_amount', '-created_date')
     
     def _apply_upvotes_sorting(self, queryset: QuerySet) -> QuerySet:
         return queryset.annotate(
@@ -190,7 +232,6 @@ class FundOrderingFilter(OrderingFilter):
     
     def _apply_amount_raised_sorting(self, queryset: QuerySet, model_class: Union[Type[Grant], Type[Fundraise]]) -> QuerySet:
         if model_class == Grant:
-            # Aggregate total amount across all grants for each post
             return queryset.annotate(
                 amount_value=Coalesce(
                     Sum(
@@ -202,7 +243,6 @@ class FundOrderingFilter(OrderingFilter):
                 )
             ).order_by("-amount_value", "-created_date")
         else:
-            # Aggregate total amount raised across all fundraises for each post
             return queryset.annotate(
                 amount_raised=Coalesce(
                     Sum(

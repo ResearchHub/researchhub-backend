@@ -1556,114 +1556,126 @@ class FundingFeedViewSetTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_best_sorting(self):
-        """Test sorting by best score (engagement-based ranking with status penalties)"""
-        from researchhub_document.related_models.document_filter_model import DocumentFilter
+        """
+        Test best sorting with conditional logic:
+        - Open items: sorted by amount (desc), then date (desc)
+        - Closed items: sorted by date (desc) only
+        """
         
-        today = timezone.now()
-        
-        # Create active high-engagement post
-        active_doc = ResearchhubUnifiedDocument.objects.create(
+        # Create open fundraise with high amount
+        open_high_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION
         )
-        active_filter = DocumentFilter.objects.create(upvoted_all=50)
-        active_doc.document_filter = active_filter
-        active_doc.save()
-        
-        active_post = ResearchhubPost.objects.create(
-            title="Active High Engagement",
+        open_high_post = ResearchhubPost.objects.create(
+            title="Open High Amount",
             created_by=self.user,
             document_type=PREREGISTRATION,
-            unified_document=active_doc,
-            discussion_count=10,
+            unified_document=open_high_doc,
         )
-        
-        active_escrow = Escrow.objects.create(
-            amount_holding=500,
-            amount_paid=300,
+        open_high_escrow = Escrow.objects.create(
+            amount_holding=800,
+            amount_paid=200,
             hold_type=Escrow.FUNDRAISE,
             created_by=self.user,
             content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
-            object_id=active_doc.id,
+            object_id=open_high_doc.id,
         )
-        
         Fundraise.objects.create(
             created_by=self.user,
-            unified_document=active_doc,
-            escrow=active_escrow,
+            unified_document=open_high_doc,
+            escrow=open_high_escrow,
             status=Fundraise.OPEN,
-            goal_amount=1000,
+            goal_amount=1500,
             goal_currency=USD,
-            end_date=today + timezone.timedelta(days=30),
         )
         
-        # Create expired high-engagement post
-        expired_doc = ResearchhubUnifiedDocument.objects.create(
+        # Create open fundraise with low amount
+        open_low_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION
         )
-        expired_filter = DocumentFilter.objects.create(upvoted_all=50)
-        expired_doc.document_filter = expired_filter
-        expired_doc.save()
-        
-        expired_post = ResearchhubPost.objects.create(
-            title="Expired High Engagement",
+        open_low_post = ResearchhubPost.objects.create(
+            title="Open Low Amount",
             created_by=self.user,
             document_type=PREREGISTRATION,
-            unified_document=expired_doc,
-            discussion_count=10,
+            unified_document=open_low_doc,
         )
-        
-        expired_escrow = Escrow.objects.create(
-            amount_holding=500,
-            amount_paid=300,
+        open_low_escrow = Escrow.objects.create(
+            amount_holding=50,
+            amount_paid=0,
             hold_type=Escrow.FUNDRAISE,
             created_by=self.user,
             content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
-            object_id=expired_doc.id,
+            object_id=open_low_doc.id,
         )
-        
         Fundraise.objects.create(
             created_by=self.user,
-            unified_document=expired_doc,
-            escrow=expired_escrow,
+            unified_document=open_low_doc,
+            escrow=open_low_escrow,
             status=Fundraise.OPEN,
-            goal_amount=1000,
+            goal_amount=100,
             goal_currency=USD,
-            end_date=today - timezone.timedelta(days=5),
         )
         
-        # Create closed high-engagement post
-        closed_doc = ResearchhubUnifiedDocument.objects.create(
+        # Create closed fundraise with high amount (older)
+        closed_high_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION
         )
-        closed_filter = DocumentFilter.objects.create(upvoted_all=50)
-        closed_doc.document_filter = closed_filter
-        closed_doc.save()
-        
-        closed_post = ResearchhubPost.objects.create(
-            title="Closed High Engagement",
+        closed_high_post = ResearchhubPost.objects.create(
+            title="Closed High Amount Old",
             created_by=self.user,
             document_type=PREREGISTRATION,
-            unified_document=closed_doc,
-            discussion_count=10,
+            unified_document=closed_high_doc,
         )
+        # Make this post older
+        ResearchhubPost.objects.filter(id=closed_high_post.id).update(
+            created_date=timezone.now() - timezone.timedelta(days=10)
+        )
+        closed_high_post.refresh_from_db()
         
-        closed_escrow = Escrow.objects.create(
-            amount_holding=500,
-            amount_paid=300,
+        closed_high_escrow = Escrow.objects.create(
+            amount_holding=0,
+            amount_paid=2000,  # Highest amount
             hold_type=Escrow.FUNDRAISE,
             created_by=self.user,
             content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
-            object_id=closed_doc.id,
+            object_id=closed_high_doc.id,
         )
-        
         Fundraise.objects.create(
             created_by=self.user,
-            unified_document=closed_doc,
-            escrow=closed_escrow,
+            unified_document=closed_high_doc,
+            escrow=closed_high_escrow,
             status=Fundraise.COMPLETED,
-            goal_amount=1000,
+            goal_amount=2000,
             goal_currency=USD,
-            end_date=today - timezone.timedelta(days=10),
+        )
+        
+        # Create closed fundraise with low amount (newer)
+        closed_low_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        closed_low_post = ResearchhubPost.objects.create(
+            title="Closed Low Amount New",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=closed_low_doc,
+        )
+        # This post is newer (just created)
+        
+        closed_low_escrow = Escrow.objects.create(
+            amount_holding=0,
+            amount_paid=100,  # Lower amount
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=closed_low_doc.id,
+        )
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=closed_low_doc,
+            escrow=closed_low_escrow,
+            status=Fundraise.COMPLETED,
+            goal_amount=100,
+            goal_currency=USD,
         )
         
         # Test best sorting
@@ -1672,29 +1684,44 @@ class FundingFeedViewSetTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         
         results = response.data["results"]
-        self.assertGreaterEqual(len(results), 3)
+        self.assertGreaterEqual(len(results), 4)
         
         # Find posts in results
-        active_index = next(
+        open_high_index = next(
             (i for i, r in enumerate(results) 
-             if r.get("content_object", {}).get("title") == "Active High Engagement"),
+             if r.get("content_object", {}).get("title") == "Open High Amount"),
             None
         )
-        expired_index = next(
+        open_low_index = next(
             (i for i, r in enumerate(results) 
-             if r.get("content_object", {}).get("title") == "Expired High Engagement"),
+             if r.get("content_object", {}).get("title") == "Open Low Amount"),
             None
         )
-        closed_index = next(
+        closed_high_old_index = next(
             (i for i, r in enumerate(results) 
-             if r.get("content_object", {}).get("title") == "Closed High Engagement"),
+             if r.get("content_object", {}).get("title") == "Closed High Amount Old"),
+            None
+        )
+        closed_low_new_index = next(
+            (i for i, r in enumerate(results) 
+             if r.get("content_object", {}).get("title") == "Closed Low Amount New"),
             None
         )
         
-        # Verify ordering: active > expired > closed
-        self.assertIsNotNone(active_index)
-        self.assertIsNotNone(expired_index)
-        self.assertIsNotNone(closed_index)
-        self.assertLess(active_index, expired_index)
-        self.assertLess(expired_index, closed_index)
+        # Verify ordering
+        self.assertIsNotNone(open_high_index)
+        self.assertIsNotNone(open_low_index)
+        self.assertIsNotNone(closed_high_old_index)
+        self.assertIsNotNone(closed_low_new_index)
+        
+        # Open items: sorted by amount (high amount first)
+        self.assertLess(open_high_index, open_low_index)
+        
+        # All open items before closed items
+        self.assertLess(open_low_index, closed_low_new_index)
+        self.assertLess(open_low_index, closed_high_old_index)
+        
+        # Closed items: sorted by date (newer first), NOT by amount
+        # Closed low amount (new) should come before closed high amount (old)
+        self.assertLess(closed_low_new_index, closed_high_old_index)
 
