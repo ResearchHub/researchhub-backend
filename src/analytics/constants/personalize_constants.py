@@ -29,8 +29,9 @@ PROPOSAL_HAS_FUNDERS = "PROPOSAL_HAS_FUNDERS"
 # Delimiter for list fields (HUB_IDS, AUTHOR_IDS)
 DELIMITER = "|"
 
-# Limits for list fields to prevent data bloat
+# Limits for fields to prevent data bloat
 MAX_HUB_IDS = 20
+MAX_TITLE_LENGTH = 950  # Character limit for TITLE field
 
 # CSV Headers (in order for the CSV file)
 CSV_HEADERS = [
