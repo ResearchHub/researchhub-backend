@@ -45,9 +45,6 @@ class Paper(AbstractGenericReactionModel):
 
     PAPER_TYPE_CHOICES = [(REGULAR, REGULAR), (PRE_REGISTRATION, PRE_REGISTRATION)]
 
-    CREATED_LOCATION_PROGRESS = CREATED_LOCATIONS["PROGRESS"]
-    CREATED_LOCATION_CHOICES = [(CREATED_LOCATION_PROGRESS, "Progress")]
-
     rh_threads = GenericRelation(
         RhCommentThreadModel,
         help_text="New Comment-Thread module as of Jan 2023",
@@ -82,13 +79,6 @@ class Paper(AbstractGenericReactionModel):
         null=True,
         blank=True,
         validators=[FileExtensionValidator(["pdf"])],
-    )
-    file_created_location = models.CharField(
-        choices=CREATED_LOCATION_CHOICES,
-        max_length=255,
-        default=None,
-        null=True,
-        blank=True,
     )
     retrieved_from_external_source = models.BooleanField(default=False)
     is_open_access = models.BooleanField(default=None, null=True, blank=True)
