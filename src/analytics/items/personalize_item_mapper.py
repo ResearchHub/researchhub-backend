@@ -132,11 +132,13 @@ class PersonalizeItemMapper:
             timestamp = datetime_to_epoch_seconds(prefetched_doc.created_date)
 
         # Hub processing
+        from analytics.constants.personalize_constants import MAX_HUB_IDS
+
         hub_ids = []
         hub_l1 = None
         hub_l2 = None
 
-        for hub in prefetched_doc.hubs.all():
+        for hub in list(prefetched_doc.hubs.all())[:MAX_HUB_IDS]:
             hub_ids.append(str(hub.id))
             if hub.namespace == Hub.Namespace.CATEGORY:
                 hub_l1 = str(hub.id)
@@ -164,18 +166,27 @@ class PersonalizeItemMapper:
     def _map_author_ids(
         self, prefetched_doc: PrefetchedUnifiedDocument, document
     ) -> list:
-        """Extract author IDs from the document using prefetched data."""
+        """Extract author IDs (first, second, last) using prefetched data."""
+        from analytics.constants.personalize_constants import MAX_AUTHOR_IDS
+
         author_ids = []
 
         if prefetched_doc.document_type == "PAPER":
             # Access through unified document to use prefetch
-            for authorship in prefetched_doc.paper.authorships.all():
-                if authorship.author:
-                    author_ids.append(str(authorship.author.id))
+            if hasattr(prefetched_doc, "paper") and prefetched_doc.paper:
+                all_authorships = list(prefetched_doc.paper.authorships.all())
+                # Get first, second, last
+                if len(all_authorships) > 0 and all_authorships[0].author:
+                    author_ids.append(str(all_authorships[0].author.id))
+                if len(all_authorships) > 1 and all_authorships[1].author:
+                    author_ids.append(str(all_authorships[1].author.id))
+                if len(all_authorships) > 2 and all_authorships[-1].author:
+                    author_ids.append(str(all_authorships[-1].author.id))
         else:
-            # Access through unified document to use prefetch
+            # For posts, get first 3 authors
             for post in prefetched_doc.posts.all():
-                for author in post.authors.all():
+                all_authors = list(post.authors.all())[:MAX_AUTHOR_IDS]
+                for author in all_authors:
                     author_ids.append(str(author.id))
                 break  # Only process first post
 
