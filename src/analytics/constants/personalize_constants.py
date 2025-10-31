@@ -31,7 +31,6 @@ DELIMITER = "|"
 
 # Limits for fields to prevent data bloat
 MAX_HUB_IDS = 20
-MAX_TITLE_LENGTH = 950  # Character limit for TITLE field
 
 # CSV Headers (in order for the CSV file)
 CSV_HEADERS = [
@@ -95,7 +94,8 @@ SUPPORTED_DOCUMENT_TYPES = [
 ]
 
 # Text field maximum length (to prevent CSV cell overflow)
-MAX_TEXT_LENGTH = 10000
+# Applied to both TITLE and TEXT fields
+MAX_TEXT_LENGTH = 950
 
 # ITEM_TYPE mapping for Personalize export
 # Maps internal document_type to Personalize-friendly type names
