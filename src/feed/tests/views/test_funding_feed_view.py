@@ -1555,48 +1555,67 @@ class FundingFeedViewSetTests(TestCase):
         response = self.client.get(reverse("funding_feed-list"), {"ordering": "invalid_field,upvotes"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    def test_best_sorting(self):
-        """Test best sorting: open by amount, closed by date"""
-        # Helper to create fundraise post
-        def create_post(title, amount, status):
-            doc = ResearchhubUnifiedDocument.objects.create(document_type=PREREGISTRATION)
-            post = ResearchhubPost.objects.create(
-                title=title,
-                created_by=self.user,
-                document_type=PREREGISTRATION,
-                unified_document=doc,
-            )
-            escrow = Escrow.objects.create(
-                amount_holding=amount,
-                amount_paid=0,
-                hold_type=Escrow.FUNDRAISE,
-                created_by=self.user,
-                content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
-                object_id=doc.id,
-            )
-            Fundraise.objects.create(
-                created_by=self.user,
-                unified_document=doc,
-                escrow=escrow,
-                status=status,
-                goal_amount=amount * 2,
-                goal_currency=USD,
-            )
-            return post.id
+    def _create_fundraise_post(self, title, amount, status, created_date=None):
+        """Helper to create a fundraise post for testing"""
+        doc = ResearchhubUnifiedDocument.objects.create(document_type=PREREGISTRATION)
+        post = ResearchhubPost.objects.create(
+            title=title,
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=doc,
+        )
+        if created_date:
+            ResearchhubPost.objects.filter(id=post.id).update(created_date=created_date)
+            post.refresh_from_db()
         
-        # Create test posts
-        open_high = create_post("Open $1000", 1000, Fundraise.OPEN)
-        open_low = create_post("Open $100", 100, Fundraise.OPEN)
-        closed = create_post("Closed $500", 500, Fundraise.COMPLETED)
+        escrow = Escrow.objects.create(
+            amount_holding=amount,
+            amount_paid=0,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=doc.id,
+        )
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=doc,
+            escrow=escrow,
+            status=status,
+            goal_amount=amount * 2,
+            goal_currency=USD,
+        )
+        return post.id
+    
+    def test_best_sorting_orders_by_open_and_amount_first(self):
+        """Test best sorting: open items sorted by amount descending"""
+        high = self._create_fundraise_post("High", 1000, Fundraise.OPEN)
+        low = self._create_fundraise_post("Low", 100, Fundraise.OPEN)
         
-        # Test best sorting
         response = self.client.get(reverse("funding_feed-list"), {"ordering": "best"})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
-        # Extract post IDs in order
         result_ids = [r["content_object"]["id"] for r in response.data["results"]]
         
-        # Verify: open high > open low > closed
-        self.assertLess(result_ids.index(open_high), result_ids.index(open_low))
-        self.assertLess(result_ids.index(open_low), result_ids.index(closed))
+        self.assertLess(result_ids.index(high), result_ids.index(low))
+    
+    def test_best_sorting_orders_closed_by_date(self):
+        """Test best sorting: closed items sorted by date descending"""
+        old = self._create_fundraise_post(
+            "Old", 1000, Fundraise.COMPLETED, 
+            timezone.now() - timezone.timedelta(days=5)
+        )
+        new = self._create_fundraise_post("New", 100, Fundraise.COMPLETED)
+        
+        response = self.client.get(reverse("funding_feed-list"), {"ordering": "best"})
+        result_ids = [r["content_object"]["id"] for r in response.data["results"]]
+        
+        self.assertLess(result_ids.index(new), result_ids.index(old))
+    
+    def test_best_sorting_orders_shows_closed_after_open(self):
+        """Test best sorting: all open items appear before closed items"""
+        open_item = self._create_fundraise_post("Open", 100, Fundraise.OPEN)
+        closed_item = self._create_fundraise_post("Closed", 1000, Fundraise.COMPLETED)
+        
+        response = self.client.get(reverse("funding_feed-list"), {"ordering": "best"})
+        result_ids = [r["content_object"]["id"] for r in response.data["results"]]
+        
+        self.assertLess(result_ids.index(open_item), result_ids.index(closed_item))
 
