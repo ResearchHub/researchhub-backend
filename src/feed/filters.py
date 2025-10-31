@@ -180,21 +180,20 @@ class FundOrderingFilter(OrderingFilter):
         )
         
         queryset = queryset.annotate(
-            amount_value=amount_expr,
             has_open_status=has_open,
             status_tier=Case(
                 When(has_open_status=True, then=Value(0)),  # Open
                 default=Value(1),  # Closed
                 output_field=IntegerField(),
             ),
-            sort_amount=Case(
-                When(has_open_status=True, then=F('amount_value')),
+            amount=Case(
+                When(has_open_status=True, then=amount_expr),
                 default=Value(0),
                 output_field=DecimalField(max_digits=19, decimal_places=10),
             ),
         )
         
-        return queryset.order_by('status_tier', '-sort_amount', '-created_date')
+        return queryset.order_by('status_tier', '-amount', '-created_date')
     
     def _apply_upvotes_sorting(self, queryset: QuerySet) -> QuerySet:
         return queryset.annotate(

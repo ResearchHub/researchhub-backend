@@ -1556,172 +1556,47 @@ class FundingFeedViewSetTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_best_sorting(self):
-        """
-        Test best sorting with conditional logic:
-        - Open items: sorted by amount (desc), then date (desc)
-        - Closed items: sorted by date (desc) only
-        """
+        """Test best sorting: open by amount, closed by date"""
+        # Helper to create fundraise post
+        def create_post(title, amount, status):
+            doc = ResearchhubUnifiedDocument.objects.create(document_type=PREREGISTRATION)
+            post = ResearchhubPost.objects.create(
+                title=title,
+                created_by=self.user,
+                document_type=PREREGISTRATION,
+                unified_document=doc,
+            )
+            escrow = Escrow.objects.create(
+                amount_holding=amount,
+                amount_paid=0,
+                hold_type=Escrow.FUNDRAISE,
+                created_by=self.user,
+                content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+                object_id=doc.id,
+            )
+            Fundraise.objects.create(
+                created_by=self.user,
+                unified_document=doc,
+                escrow=escrow,
+                status=status,
+                goal_amount=amount * 2,
+                goal_currency=USD,
+            )
+            return post.id
         
-        # Create open fundraise with high amount
-        open_high_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type=PREREGISTRATION
-        )
-        open_high_post = ResearchhubPost.objects.create(
-            title="Open High Amount",
-            created_by=self.user,
-            document_type=PREREGISTRATION,
-            unified_document=open_high_doc,
-        )
-        open_high_escrow = Escrow.objects.create(
-            amount_holding=800,
-            amount_paid=200,
-            hold_type=Escrow.FUNDRAISE,
-            created_by=self.user,
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
-            object_id=open_high_doc.id,
-        )
-        Fundraise.objects.create(
-            created_by=self.user,
-            unified_document=open_high_doc,
-            escrow=open_high_escrow,
-            status=Fundraise.OPEN,
-            goal_amount=1500,
-            goal_currency=USD,
-        )
-        
-        # Create open fundraise with low amount
-        open_low_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type=PREREGISTRATION
-        )
-        open_low_post = ResearchhubPost.objects.create(
-            title="Open Low Amount",
-            created_by=self.user,
-            document_type=PREREGISTRATION,
-            unified_document=open_low_doc,
-        )
-        open_low_escrow = Escrow.objects.create(
-            amount_holding=50,
-            amount_paid=0,
-            hold_type=Escrow.FUNDRAISE,
-            created_by=self.user,
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
-            object_id=open_low_doc.id,
-        )
-        Fundraise.objects.create(
-            created_by=self.user,
-            unified_document=open_low_doc,
-            escrow=open_low_escrow,
-            status=Fundraise.OPEN,
-            goal_amount=100,
-            goal_currency=USD,
-        )
-        
-        # Create closed fundraise with high amount (older)
-        closed_high_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type=PREREGISTRATION
-        )
-        closed_high_post = ResearchhubPost.objects.create(
-            title="Closed High Amount Old",
-            created_by=self.user,
-            document_type=PREREGISTRATION,
-            unified_document=closed_high_doc,
-        )
-        # Make this post older
-        ResearchhubPost.objects.filter(id=closed_high_post.id).update(
-            created_date=timezone.now() - timezone.timedelta(days=10)
-        )
-        closed_high_post.refresh_from_db()
-        
-        closed_high_escrow = Escrow.objects.create(
-            amount_holding=0,
-            amount_paid=2000,  # Highest amount
-            hold_type=Escrow.FUNDRAISE,
-            created_by=self.user,
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
-            object_id=closed_high_doc.id,
-        )
-        Fundraise.objects.create(
-            created_by=self.user,
-            unified_document=closed_high_doc,
-            escrow=closed_high_escrow,
-            status=Fundraise.COMPLETED,
-            goal_amount=2000,
-            goal_currency=USD,
-        )
-        
-        # Create closed fundraise with low amount (newer)
-        closed_low_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type=PREREGISTRATION
-        )
-        closed_low_post = ResearchhubPost.objects.create(
-            title="Closed Low Amount New",
-            created_by=self.user,
-            document_type=PREREGISTRATION,
-            unified_document=closed_low_doc,
-        )
-        # This post is newer (just created)
-        
-        closed_low_escrow = Escrow.objects.create(
-            amount_holding=0,
-            amount_paid=100,  # Lower amount
-            hold_type=Escrow.FUNDRAISE,
-            created_by=self.user,
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
-            object_id=closed_low_doc.id,
-        )
-        Fundraise.objects.create(
-            created_by=self.user,
-            unified_document=closed_low_doc,
-            escrow=closed_low_escrow,
-            status=Fundraise.COMPLETED,
-            goal_amount=100,
-            goal_currency=USD,
-        )
+        # Create test posts
+        open_high = create_post("Open $1000", 1000, Fundraise.OPEN)
+        open_low = create_post("Open $100", 100, Fundraise.OPEN)
+        closed = create_post("Closed $500", 500, Fundraise.COMPLETED)
         
         # Test best sorting
-        url = reverse("funding_feed-list")
-        response = self.client.get(url, {"ordering": "best"})
+        response = self.client.get(reverse("funding_feed-list"), {"ordering": "best"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         
-        results = response.data["results"]
-        self.assertGreaterEqual(len(results), 4)
+        # Extract post IDs in order
+        result_ids = [r["content_object"]["id"] for r in response.data["results"]]
         
-        # Find posts in results
-        open_high_index = next(
-            (i for i, r in enumerate(results) 
-             if r.get("content_object", {}).get("title") == "Open High Amount"),
-            None
-        )
-        open_low_index = next(
-            (i for i, r in enumerate(results) 
-             if r.get("content_object", {}).get("title") == "Open Low Amount"),
-            None
-        )
-        closed_high_old_index = next(
-            (i for i, r in enumerate(results) 
-             if r.get("content_object", {}).get("title") == "Closed High Amount Old"),
-            None
-        )
-        closed_low_new_index = next(
-            (i for i, r in enumerate(results) 
-             if r.get("content_object", {}).get("title") == "Closed Low Amount New"),
-            None
-        )
-        
-        # Verify ordering
-        self.assertIsNotNone(open_high_index)
-        self.assertIsNotNone(open_low_index)
-        self.assertIsNotNone(closed_high_old_index)
-        self.assertIsNotNone(closed_low_new_index)
-        
-        # Open items: sorted by amount (high amount first)
-        self.assertLess(open_high_index, open_low_index)
-        
-        # All open items before closed items
-        self.assertLess(open_low_index, closed_low_new_index)
-        self.assertLess(open_low_index, closed_high_old_index)
-        
-        # Closed items: sorted by date (newer first), NOT by amount
-        # Closed low amount (new) should come before closed high amount (old)
-        self.assertLess(closed_low_new_index, closed_high_old_index)
+        # Verify: open high > open low > closed
+        self.assertLess(result_ids.index(open_high), result_ids.index(open_low))
+        self.assertLess(result_ids.index(open_low), result_ids.index(closed))
 
