@@ -235,19 +235,22 @@ class UnifiedSearchViewTests(TestCase):
         """Test that missing query parameter returns 400."""
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("error", response.data)
+        self.assertIn("q", response.data)
+        self.assertEqual(str(response.data["q"][0]), "This field is required.")
 
     def test_empty_query_parameter(self):
         """Test that empty query parameter returns 400."""
         response = self.client.get(self.url, {"q": ""})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("error", response.data)
+        self.assertIn("q", response.data)
+        self.assertEqual(str(response.data["q"][0]), "This field may not be blank.")
 
     def test_invalid_sort_parameter(self):
         """Test that invalid sort parameter returns 400."""
         response = self.client.get(self.url, {"q": "test", "sort": "invalid"})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("error", response.data)
+        self.assertIn("sort", response.data)
+        self.assertIn("is not a valid choice", str(response.data["sort"][0]))
 
     def test_valid_search_requires_opensearch(self):
         """

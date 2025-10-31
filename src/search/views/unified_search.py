@@ -9,7 +9,10 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from search.serializers.search import UnifiedSearchResultSerializer
+from search.serializers.search import (
+    UnifiedSearchRequestSerializer,
+    UnifiedSearchResultSerializer,
+)
 from search.services.unified_search_service import UnifiedSearchService
 
 logger = logging.getLogger(__name__)
@@ -39,47 +42,15 @@ class UnifiedSearchView(APIView):
         """
         Handle GET request for unified search.
         """
-        # Get and validate query parameter
-        query = request.query_params.get("q", "").strip()
-        if not query:
-            return Response(
-                {"error": "Query parameter 'q' is required"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        # Validate request data
+        serializer = UnifiedSearchRequestSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
 
-        # Get pagination parameters
-        try:
-            page = int(request.query_params.get("page", 1))
-            if page < 1:
-                page = 1
-        except (TypeError, ValueError):
-            page = 1
-
-        try:
-            page_size = int(request.query_params.get("page_size", 10))
-            # Enforce reasonable limits
-            if page_size < 1:
-                page_size = 10
-            elif page_size > 100:
-                page_size = 100
-        except (TypeError, ValueError):
-            page_size = 10
-
-        # Get sort parameter
-        sort = request.query_params.get("sort", "relevance").lower()
-
-        # Validate sort parameter
-        valid_sorts = UnifiedSearchService.VALID_SORT_OPTIONS
-        if sort not in valid_sorts:
-            valid_sorts_str = ", ".join(valid_sorts)
-            return Response(
-                {
-                    "error": (
-                        f"Invalid sort parameter. " f"Must be one of: {valid_sorts_str}"
-                    )
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        # Get validated data
+        query = serializer.validated_data["q"]
+        page = serializer.validated_data["page"]
+        page_size = serializer.validated_data["page_size"]
+        sort = serializer.validated_data["sort"]
 
         # Perform search
         try:
@@ -91,8 +62,8 @@ class UnifiedSearchView(APIView):
             )
 
             # Serialize and return results
-            serializer = UnifiedSearchResultSerializer(results)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            result_serializer = UnifiedSearchResultSerializer(results)
+            return Response(result_serializer.data, status=status.HTTP_200_OK)
 
         except Exception as e:
             logger.error(f"Unified search error: {str(e)}", exc_info=True)
