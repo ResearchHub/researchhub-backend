@@ -528,9 +528,7 @@ class CommonFieldTests(TestCase):
         from researchhub_document.models import ResearchhubUnifiedDocument
 
         unified_doc = (
-            ResearchhubUnifiedDocument.objects.select_related(
-                "document_filter", "paper"
-            )
+            ResearchhubUnifiedDocument.objects.select_related("paper")
             .prefetch_related(
                 "hubs",
                 "related_bounties",
@@ -732,9 +730,7 @@ class AuthorTests(TestCase):
         from researchhub_document.models import ResearchhubUnifiedDocument
 
         unified_doc = (
-            ResearchhubUnifiedDocument.objects.select_related(
-                "document_filter", "paper"
-            )
+            ResearchhubUnifiedDocument.objects.select_related("paper")
             .prefetch_related(
                 "hubs",
                 "related_bounties",

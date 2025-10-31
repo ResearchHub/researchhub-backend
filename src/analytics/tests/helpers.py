@@ -99,7 +99,6 @@ def create_prefetched_paper(
     # Return with proper prefetch
     return (
         ResearchhubUnifiedDocument.objects.select_related(
-            "document_filter",
             "paper",
         )
         .prefetch_related(
@@ -164,7 +163,6 @@ def create_prefetched_grant(
     # Return with proper prefetch
     return (
         ResearchhubUnifiedDocument.objects.select_related(
-            "document_filter",
             "paper",
         )
         .prefetch_related(
@@ -221,7 +219,6 @@ def create_prefetched_proposal(
     # Return with proper prefetch
     return (
         ResearchhubUnifiedDocument.objects.select_related(
-            "document_filter",
             "paper",
         )
         .prefetch_related(
@@ -274,7 +271,6 @@ def create_prefetched_post(
     # Return with proper prefetch
     return (
         ResearchhubUnifiedDocument.objects.select_related(
-            "document_filter",
             "paper",
         )
         .prefetch_related(

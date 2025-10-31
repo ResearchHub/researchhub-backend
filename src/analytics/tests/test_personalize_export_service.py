@@ -33,7 +33,7 @@ class ExportItemsIteratorTests(TestCase):
         doc2 = create_prefetched_paper(title="Paper 2")
         queryset = (
             ResearchhubUnifiedDocument.objects.filter(id__in=[doc1.id, doc2.id])
-            .select_related("document_filter", "paper")
+            .select_related("paper")
             .prefetch_related(
                 "hubs",
                 "related_bounties",
@@ -60,7 +60,7 @@ class ExportItemsIteratorTests(TestCase):
         doc_ids = [doc.id for doc in docs]
         queryset = (
             ResearchhubUnifiedDocument.objects.filter(id__in=doc_ids)
-            .select_related("document_filter", "paper")
+            .select_related("paper")
             .prefetch_related(
                 "hubs",
                 "related_bounties",
@@ -97,7 +97,7 @@ class ExportItemsIteratorTests(TestCase):
         doc2 = create_prefetched_paper(title="Paper 2")
         queryset = (
             ResearchhubUnifiedDocument.objects.filter(id__in=[doc1.id, doc2.id])
-            .select_related("document_filter", "paper")
+            .select_related("paper")
             .prefetch_related(
                 "hubs",
                 "related_bounties",
@@ -130,7 +130,7 @@ class ExportToCSVTests(TestCase):
         doc = create_prefetched_paper()
         queryset = (
             ResearchhubUnifiedDocument.objects.filter(id=doc.id)
-            .select_related("document_filter", "paper")
+            .select_related("paper")
             .prefetch_related(
                 "hubs",
                 "related_bounties",
@@ -164,7 +164,7 @@ class ExportToCSVTests(TestCase):
         doc_ids = [doc.id for doc in docs]
         queryset = (
             ResearchhubUnifiedDocument.objects.filter(id__in=doc_ids)
-            .select_related("document_filter", "paper")
+            .select_related("paper")
             .prefetch_related(
                 "hubs",
                 "related_bounties",
@@ -191,7 +191,7 @@ class ExportToCSVTests(TestCase):
         doc = create_prefetched_paper(title="Paper")
         queryset = (
             ResearchhubUnifiedDocument.objects.filter(id=doc.id)
-            .select_related("document_filter", "paper")
+            .select_related("paper")
             .prefetch_related(
                 "hubs",
                 "related_bounties",
@@ -219,7 +219,7 @@ class ExportToCSVTests(TestCase):
         doc_ids = [doc.id for doc in docs]
         queryset = (
             ResearchhubUnifiedDocument.objects.filter(id__in=doc_ids)
-            .select_related("document_filter", "paper")
+            .select_related("paper")
             .prefetch_related(
                 "hubs",
                 "related_bounties",
@@ -258,7 +258,7 @@ class IntegrationTests(TestCase):
         doc_ids = [paper.id, grant.id, proposal.id, discussion.id, question.id]
         queryset = (
             ResearchhubUnifiedDocument.objects.filter(id__in=doc_ids)
-            .select_related("document_filter", "paper")
+            .select_related("paper")
             .prefetch_related(
                 "hubs",
                 "related_bounties",
@@ -297,7 +297,7 @@ class IntegrationTests(TestCase):
         doc = create_prefetched_paper()
         queryset = (
             ResearchhubUnifiedDocument.objects.filter(id=doc.id)
-            .select_related("document_filter", "paper")
+            .select_related("paper")
             .prefetch_related(
                 "hubs",
                 "related_bounties",

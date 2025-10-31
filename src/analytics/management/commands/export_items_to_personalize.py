@@ -101,7 +101,6 @@ class Command(BaseCommand):
         """Build base queryset with all necessary relations and filters."""
         return (
             ResearchhubUnifiedDocument.objects.select_related(
-                "document_filter",
                 "paper",
             )
             .prefetch_related(
