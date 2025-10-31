@@ -1618,4 +1618,40 @@ class FundingFeedViewSetTests(TestCase):
         result_ids = [r["content_object"]["id"] for r in response.data["results"]]
         
         self.assertLess(result_ids.index(open_item), result_ids.index(closed_item))
+    
+    def test_best_sorting_ignores_historical_fundraises(self):
+        """Test best sorting: only counts open fundraise amount, not historical closed"""
+        # Post with $10k closed + $50 open
+        doc = ResearchhubUnifiedDocument.objects.create(document_type=PREREGISTRATION)
+        post_historical = ResearchhubPost.objects.create(
+            title="Historical", created_by=self.user, 
+            document_type=PREREGISTRATION, unified_document=doc
+        )
+        ct = ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
+        
+        # Closed fundraise $10k
+        Fundraise.objects.create(
+            created_by=self.user, unified_document=doc, status=Fundraise.COMPLETED,
+            escrow=Escrow.objects.create(
+                amount_holding=0, amount_paid=10000, hold_type=Escrow.FUNDRAISE,
+                created_by=self.user, content_type=ct, object_id=doc.id
+            )
+        )
+        # Open fundraise $50
+        Fundraise.objects.create(
+            created_by=self.user, unified_document=doc, status=Fundraise.OPEN,
+            escrow=Escrow.objects.create(
+                amount_holding=50, amount_paid=0, hold_type=Escrow.FUNDRAISE,
+                created_by=self.user, content_type=ct, object_id=doc.id
+            )
+        )
+        
+        # Post with $500 open only
+        post_current = self._create_fundraise_post("Current", 500, Fundraise.OPEN)
+        
+        response = self.client.get(reverse("funding_feed-list"), {"ordering": "best"})
+        result_ids = [r["content_object"]["id"] for r in response.data["results"]]
+        
+        # $500 open should rank higher than $50 open (ignoring $10k closed)
+        self.assertLess(result_ids.index(post_current), result_ids.index(post_historical.id))
 

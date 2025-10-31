@@ -13,6 +13,7 @@ from django.db.models import (
     Sum,
     Value,
     When,
+    Q,
 )
 from django.db.models.functions import Coalesce
 from django.utils import timezone
@@ -162,11 +163,12 @@ class FundOrderingFilter(OrderingFilter):
         Sort by best with conditional logic (for fundraises/proposals only):
         - Open items: sort by amount raised (desc), then created date (desc)
         - Closed items: sort by created date (desc) only
-        """
+        """ 
         amount_expr = Coalesce(
             Sum(
                 F('unified_document__fundraises__escrow__amount_holding') + 
-                F('unified_document__fundraises__escrow__amount_paid')
+                F('unified_document__fundraises__escrow__amount_paid'),
+                filter=Q(unified_document__fundraises__status=Fundraise.OPEN)
             ),
             Value(0),
             output_field=DecimalField(max_digits=19, decimal_places=10)
