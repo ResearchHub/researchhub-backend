@@ -111,26 +111,6 @@ class Paper(AbstractGenericReactionModel):
     paper_publish_date = models.DateTimeField(null=True, blank=True)
     raw_authors = JSONField(blank=True, null=True)
     abstract = models.TextField(default=None, null=True, blank=True)
-    abstract_src = models.FileField(
-        blank=True,
-        default=None,
-        help_text="""
-            Abstract_src is different field than abstract field.
-            Abstract is legacy text field where as abstract_src field is a src field that is
-            intended to be used along with different types of text editors from the frontend.
-        """,
-        max_length=512,
-        null=True,
-        upload_to="uploads/paper_abstract_src/%Y/%m/%d/",
-    )
-    abstract_src_type = models.CharField(
-        blank=False,
-        choices=EDITOR_TYPES,
-        default=TEXT_FIELD,
-        help_text="Indicates which text editor was used for abstract section.",
-        max_length=32,
-        null=True,
-    )
     references = models.ManyToManyField(
         "self", symmetrical=False, related_name="referenced_by", blank=True
     )
