@@ -39,7 +39,6 @@ class ExportItemsIteratorTests(TestCase):
                 "related_bounties",
                 "fundraises",
                 "grants",
-                "grants__contacts__author_profile",
                 "paper__authorships__author",
                 "posts__authors",
             )
@@ -67,7 +66,6 @@ class ExportItemsIteratorTests(TestCase):
                 "related_bounties",
                 "fundraises",
                 "grants",
-                "grants__contacts__author_profile",
                 "paper__authorships__author",
                 "posts__authors",
             )
@@ -105,7 +103,6 @@ class ExportItemsIteratorTests(TestCase):
                 "related_bounties",
                 "fundraises",
                 "grants",
-                "grants__contacts__author_profile",
                 "paper__authorships__author",
                 "posts__authors",
             )
@@ -139,7 +136,6 @@ class ExportToCSVTests(TestCase):
                 "related_bounties",
                 "fundraises",
                 "grants",
-                "grants__contacts__author_profile",
                 "paper__authorships__author",
                 "posts__authors",
             )
@@ -174,7 +170,6 @@ class ExportToCSVTests(TestCase):
                 "related_bounties",
                 "fundraises",
                 "grants",
-                "grants__contacts__author_profile",
                 "paper__authorships__author",
                 "posts__authors",
             )
@@ -202,7 +197,6 @@ class ExportToCSVTests(TestCase):
                 "related_bounties",
                 "fundraises",
                 "grants",
-                "grants__contacts__author_profile",
                 "paper__authorships__author",
                 "posts__authors",
             )
@@ -231,7 +225,6 @@ class ExportToCSVTests(TestCase):
                 "related_bounties",
                 "fundraises",
                 "grants",
-                "grants__contacts__author_profile",
                 "paper__authorships__author",
                 "posts__authors",
             )
@@ -271,7 +264,6 @@ class IntegrationTests(TestCase):
                 "related_bounties",
                 "fundraises",
                 "grants",
-                "grants__contacts__author_profile",
                 "paper__authorships__author",
                 "posts__authors",
             )
@@ -311,7 +303,6 @@ class IntegrationTests(TestCase):
                 "related_bounties",
                 "fundraises",
                 "grants",
-                "grants__contacts__author_profile",
                 "paper__authorships__author",
                 "posts__authors",
             )

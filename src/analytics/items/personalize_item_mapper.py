@@ -40,7 +40,6 @@ class PrefetchedUnifiedDocument(Protocol):
 
     Required prefetch_related:
     - hubs
-    - grants, grants__contacts__author_profile
     - fundraises, related_bounties
     - paper__authorships__author
     - posts__authors
@@ -139,24 +138,8 @@ class PersonalizeItemMapper:
             elif hub.namespace == Hub.Namespace.SUBCATEGORY:
                 hub_l2 = str(hub.id)
 
-        # Author extraction (using prefetched data only)
-        author_ids = []
-
-        if prefetched_doc.document_type == "GRANT":
-            grant = prefetched_doc.grants.first()
-            if grant:
-                for contact in grant.contacts.all():
-                    if hasattr(contact, "author_profile") and contact.author_profile:
-                        author_ids.append(str(contact.author_profile.id))
-
-        elif prefetched_doc.document_type == "PAPER":
-            for authorship in document.authorships.all():
-                if authorship.author:
-                    author_ids.append(str(authorship.author.id))
-
-        else:
-            for author in document.authors.all():
-                author_ids.append(str(author.id))
+        # Author extraction
+        author_ids = self._map_author_ids(prefetched_doc, document)
 
         return {
             ITEM_ID: str(prefetched_doc.id),
@@ -172,6 +155,22 @@ class PersonalizeItemMapper:
             HUB_IDS: DELIMITER.join(hub_ids) if hub_ids else None,
             AUTHOR_IDS: DELIMITER.join(author_ids) if author_ids else None,
         }
+
+    def _map_author_ids(
+        self, prefetched_doc: PrefetchedUnifiedDocument, document
+    ) -> list:
+        """Extract author IDs from the document using prefetched data."""
+        author_ids = []
+
+        if prefetched_doc.document_type == "PAPER":
+            for authorship in document.authorships.all():
+                if authorship.author:
+                    author_ids.append(str(authorship.author.id))
+        else:
+            for author in document.authors.all():
+                author_ids.append(str(author.id))
+
+        return author_ids
 
     def _map_paper_fields(
         self, prefetched_doc: PrefetchedUnifiedDocument, paper

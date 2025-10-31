@@ -107,7 +107,6 @@ def create_prefetched_paper(
             "related_bounties",
             "fundraises",
             "grants",
-            "grants__contacts__author_profile",
             "paper__authorships__author",
             "posts__authors",
         )
@@ -173,7 +172,6 @@ def create_prefetched_grant(
             "related_bounties",
             "fundraises",
             "grants",
-            "grants__contacts__author_profile",
             "paper__authorships__author",
             "posts__authors",
         )
@@ -231,7 +229,6 @@ def create_prefetched_proposal(
             "related_bounties",
             "fundraises",
             "grants",
-            "grants__contacts__author_profile",
             "paper__authorships__author",
             "posts__authors",
         )
@@ -285,7 +282,6 @@ def create_prefetched_post(
             "related_bounties",
             "fundraises",
             "grants",
-            "grants__contacts__author_profile",
             "paper__authorships__author",
             "posts__authors",
         )

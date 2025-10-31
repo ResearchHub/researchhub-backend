@@ -271,11 +271,11 @@ class BatchFetchingTests(TestCase):
         # Act
         # Expected queries:
         # 2 for bounty (open bounties + solutions)
-        # 3 for proposal (open fundraises + ContentType lookup + funders)
+        # 2 for proposal (open fundraises + funders) - ContentType is cached
         # 2 for rfp (open grants + applicants)
         # 1 for review_count
-        # Total: 8 queries regardless of number of documents
-        with self.assertNumQueries(8):
+        # Total: 7 queries regardless of number of documents
+        with self.assertNumQueries(7):
             result = fetcher.fetch_all(doc_ids)
 
         # Assert

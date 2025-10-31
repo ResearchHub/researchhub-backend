@@ -536,7 +536,6 @@ class CommonFieldTests(TestCase):
                 "related_bounties",
                 "fundraises",
                 "grants",
-                "grants__contacts__author_profile",
                 "paper__authorships__author",
                 "posts__authors",
             )
@@ -741,7 +740,6 @@ class AuthorTests(TestCase):
                 "related_bounties",
                 "fundraises",
                 "grants",
-                "grants__contacts__author_profile",
                 "paper__authorships__author",
                 "posts__authors",
             )
