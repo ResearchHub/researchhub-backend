@@ -37,7 +37,7 @@ class UserVerification(models.Model):
         unique=True,
     )
     first_name = models.TextField()
-    last_name = models.TextField()
+    last_name = models.TextField(null=True, blank=True)
     status = models.TextField(choices=Status.choices)
     verified_by = models.TextField(choices=Type.choices)
     external_id = models.TextField()
