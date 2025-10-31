@@ -87,7 +87,18 @@ class Command(BaseCommand):
         self.stdout.write(f"Exporting {total} items to {filename}...")
 
         service = PersonalizeExportService(chunk_size=1000)
-        exported, skipped = service.export_to_csv(queryset, filename)
+
+        def progress_callback(chunk_num: int, total_chunks: int, items_processed: int):
+            """Display progress after each chunk."""
+            self.stdout.write(
+                f"Processing chunk {chunk_num}/{total_chunks} "
+                f"({items_processed} items processed)",
+                ending="\r",
+            )
+
+        exported, skipped = service.export_to_csv(
+            queryset, filename, progress_callback=progress_callback, total_items=total
+        )
 
         self.stdout.write(
             self.style.SUCCESS(

@@ -1,5 +1,5 @@
 import csv
-from typing import Iterator
+from typing import Callable, Iterator, Optional
 
 from django.db.models import QuerySet
 
@@ -20,21 +20,51 @@ class PersonalizeExportService:
         self.mapper = PersonalizeItemMapper()
 
     def export_items(
-        self, queryset: QuerySet[ResearchhubUnifiedDocument]
+        self,
+        queryset: QuerySet[ResearchhubUnifiedDocument],
+        progress_callback: Optional[Callable[[int, int, int], None]] = None,
+        total_items: Optional[int] = None,
     ) -> Iterator[dict]:
-        """Export items from queryset as an iterator of CSV row dictionaries."""
-        total = queryset.count()
+        """Export items from queryset as an iterator of CSV row dicts.
 
-        for chunk_start in range(0, total, self.chunk_size):
+        Args:
+            queryset: The queryset to export
+            progress_callback: Optional callback(chunk_num, total_chunks,
+                items_processed) called after each chunk is processed
+            total_items: Pre-calculated total count (avoids redundant query)
+        """
+        total = total_items if total_items is not None else queryset.count()
+        total_chunks = (total + self.chunk_size - 1) // self.chunk_size
+        items_processed = 0
+
+        for chunk_num, chunk_start in enumerate(
+            range(0, total, self.chunk_size), start=1
+        ):
             chunk = list(queryset[chunk_start : chunk_start + self.chunk_size])
 
             for item_row in self._process_chunk(chunk):
                 yield item_row
+                items_processed += 1
+
+            if progress_callback:
+                progress_callback(chunk_num, total_chunks, items_processed)
 
     def export_to_csv(
-        self, queryset: QuerySet[ResearchhubUnifiedDocument], filename: str
+        self,
+        queryset: QuerySet[ResearchhubUnifiedDocument],
+        filename: str,
+        progress_callback: Optional[Callable[[int, int, int], None]] = None,
+        total_items: Optional[int] = None,
     ) -> tuple[int, int]:
-        """Export items directly to CSV file."""
+        """Export items directly to CSV file.
+
+        Args:
+            queryset: The queryset to export
+            filename: Output CSV filename
+            progress_callback: Optional callback(chunk_num, total_chunks,
+                items_processed) called after each chunk is processed
+            total_items: Pre-calculated total count (avoids redundant query)
+        """
         exported = 0
         skipped = 0
 
@@ -43,7 +73,9 @@ class PersonalizeExportService:
                 writer = csv.DictWriter(f, fieldnames=CSV_HEADERS)
                 writer.writeheader()
 
-                for item_row in self.export_items(queryset):
+                for item_row in self.export_items(
+                    queryset, progress_callback, total_items
+                ):
                     try:
                         writer.writerow(item_row)
                         exported += 1
