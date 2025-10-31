@@ -159,33 +159,23 @@ class FundOrderingFilter(OrderingFilter):
 
     def _apply_best_sorting(self, queryset: QuerySet, model_config: dict[str, Union[Type[Grant], Type[Fundraise], str]]) -> QuerySet:
         """
-        Sort by best with conditional logic:
+        Sort by best with conditional logic (for fundraises/proposals only):
         - Open items: sort by amount raised (desc), then created date (desc)
         - Closed items: sort by created date (desc) only
         """
-        model_class = model_config['model_class']
-        open_status = model_config['open_status']
-        
-        if model_class == Grant:
-            amount_expr = Coalesce(
-                Sum(F('unified_document__grants__amount')),
-                Value(0),
-                output_field=DecimalField(max_digits=19, decimal_places=2)
-            )
-        else:  # Fundraise
-            amount_expr = Coalesce(
-                Sum(
-                    F('unified_document__fundraises__escrow__amount_holding') + 
-                    F('unified_document__fundraises__escrow__amount_paid')
-                ),
-                Value(0),
-                output_field=DecimalField(max_digits=19, decimal_places=10)
-            )
+        amount_expr = Coalesce(
+            Sum(
+                F('unified_document__fundraises__escrow__amount_holding') + 
+                F('unified_document__fundraises__escrow__amount_paid')
+            ),
+            Value(0),
+            output_field=DecimalField(max_digits=19, decimal_places=10)
+        )
         
         has_open = Exists(
-            model_class.objects.filter(
+            Fundraise.objects.filter(
                 unified_document_id=OuterRef("unified_document_id"),
-                status=open_status
+                status=Fundraise.OPEN
             )
         )
         

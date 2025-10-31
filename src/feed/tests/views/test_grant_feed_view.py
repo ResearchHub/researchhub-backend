@@ -432,8 +432,8 @@ class GrantFeedViewTests(APITestCase):
         mock_view = Mock()
         
         # Setup view with ordering_fields and is_grant_view
-        mock_view.ordering_fields = ['best', 'upvotes', 'most_applicants', 'amount_raised']
-        mock_view.ordering = 'best'
+        mock_view.ordering_fields = ['newest', 'upvotes', 'most_applicants', 'amount_raised']
+        mock_view.ordering = 'newest'
         mock_view.is_grant_view = True
         
         # Test custom sorting (upvotes) - patch the specific sorting method
@@ -472,7 +472,7 @@ class GrantFeedViewTests(APITestCase):
         response = self.client.get("/api/grant_feed/?ordering=upvotes")
         self.assertEqual(response.status_code, 200)
         
-        # Test invalid ordering - should fall back to default (best)
+        # Test invalid ordering - should fall back to default (newest)
         response = self.client.get("/api/grant_feed/?ordering=invalid_field")
         self.assertEqual(response.status_code, 200)
         
