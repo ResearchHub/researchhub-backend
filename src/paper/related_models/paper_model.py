@@ -1,6 +1,5 @@
 import regex as re
 import requests
-from bs4 import BeautifulSoup
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.indexes import HashIndex
@@ -29,7 +28,6 @@ from researchhub_document.related_models.constants.editor_type import (
     TEXT_FIELD,
 )
 from utils.aws import lambda_compress_and_linearize_pdf
-from utils.http import scraper_get_url
 
 DOI_IDENTIFIER = "10."
 ARXIV_IDENTIFIER = "arXiv:"
@@ -459,29 +457,6 @@ class Paper(AbstractGenericReactionModel):
             self.pdf_license = license
             self.save()
         return license
-
-    def get_abstract_backup(self, should_save=False):
-        if not self.abstract:
-            if self.url and "cell.com" in self.url:
-                try:
-                    url_resp = scraper_get_url(self.url)
-                    soup = BeautifulSoup(url_resp.text, "lxml")
-                    summary = soup.find(
-                        "h2", {"data-left-hand-nav": "Summary"}
-                    ).find_next_sibling()
-                    summary.find("h3").decompose()
-                    summary.find("div", {"class": "mediaPlayer"}).decompose()
-                except Exception as e:
-                    sentry.log_error(e)
-                    return None
-
-                self.abstract = summary.text
-
-                if should_save:
-                    self.save()
-
-                return self.abstract
-        return None
 
     def get_pdf_link(self, should_save=False):
         if not self.url:
