@@ -30,7 +30,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
     permission_classes = []
     pagination_class = FeedPagination
     filter_backends = [DjangoFilterBackend, FundOrderingFilter]
-    ordering_fields = ['newest', 'best', 'upvotes', 'most_applicants', 'amount_raised']
+    ordering_fields = ['newest', 'best', 'ended', 'upvotes', 'most_applicants', 'amount_raised']
     ordering = 'newest'  # Default ordering
 
     def get_serializer_context(self):
@@ -86,8 +86,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
 
         return Response(response_data)
 
-    def get_queryset(self):
-        fundraise_status = self.request.query_params.get("fundraise_status")
+    def get_queryset(self): 
         grant_id = self.request.query_params.get("grant_id")
         created_by = self.request.query_params.get("created_by")
 
@@ -109,12 +108,5 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
             queryset = queryset.filter(created_by__id=created_by)
 
         if grant_id:
-            queryset = queryset.filter(grant_applications__grant_id=grant_id)
-
-        if fundraise_status:
-            if fundraise_status.upper() == "OPEN":
-                queryset = queryset.filter(unified_document__fundraises__status=Fundraise.OPEN)
-            elif fundraise_status.upper() == "CLOSED":
-                queryset = queryset.filter(unified_document__fundraises__status=Fundraise.COMPLETED)
-
+            queryset = queryset.filter(grant_applications__grant_id=grant_id) 
         return queryset

@@ -479,3 +479,34 @@ class GrantFeedViewTests(APITestCase):
         # Test with '-' prefix - should work
         response = self.client.get("/api/grant_feed/?ordering=-upvotes")
         self.assertEqual(response.status_code, 200)
+
+    def test_ended_ordering_shows_closed_grants(self):
+        """Test that ordering=ended shows only closed/completed grants"""
+        # Create an open grant post
+        open_post = create_post(created_by=self.user, document_type=GRANT, title="Open Test Grant")
+        Grant.objects.create(
+            created_by=self.user,
+            unified_document=open_post.unified_document,
+            amount=Decimal("1000.00"),
+            currency="USD",
+            organization="Open Org",
+            status=Grant.OPEN,
+        )
+        
+        # Create a completed grant post
+        closed_post = create_post(created_by=self.user, document_type=GRANT, title="Closed Test Grant")
+        Grant.objects.create(
+            created_by=self.user,
+            unified_document=closed_post.unified_document,
+            amount=Decimal("2000.00"),
+            currency="USD",
+            organization="Closed Org",
+            status=Grant.COMPLETED,
+        )
+        
+        self.client.force_authenticate(self.user)
+        response = self.client.get("/api/grant_feed/?ordering=ended")
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(response.data["results"][0]["content_object"]["id"], closed_post.id)

@@ -31,7 +31,7 @@ class FundOrderingFilter(OrderingFilter):
     def filter_queryset(self, request: Request, queryset: QuerySet, view: Any) -> QuerySet:
         """Apply filtering and sorting to the queryset."""
         model_config = self._get_model_config(view)
-        queryset = self._apply_include_ended_filter(request, queryset, view, model_config)
+        queryset = self._apply_open_status_filter(request, queryset, view, model_config)
         return self._apply_custom_sorting(queryset, model_config, request, view)
      
     def _get_model_config(self, view: Any) -> dict[str, Union[Type[Grant], Type[Fundraise], str]]:
@@ -49,29 +49,40 @@ class FundOrderingFilter(OrderingFilter):
             'completed_status': Fundraise.COMPLETED
         }
     
-    def _apply_include_ended_filter(self, request: Request, queryset: QuerySet, view: Any, model_config: dict[str, Union[Type[Grant], Type[Fundraise], str]]) -> QuerySet:
-        fundraise_status_filter_value = request.query_params.get('fundraise_status', '').upper()
-        include_ended_filter_value = request.query_params.get('include_ended', 'true').upper()
-        should_apply_filter = include_ended_filter_value == 'TRUE' or fundraise_status_filter_value == 'CLOSED'
-        if should_apply_filter:
-            return queryset
+    def _apply_open_status_filter(self, request: Request, queryset: QuerySet, view: Any, model_config: dict[str, Union[Type[Grant], Type[Fundraise], str]]) -> QuerySet:
+        """
+        Filter by open/ended status based on ordering parameter.
+        - Default: show only OPEN items
+        - ordering=ended: show only CLOSED and COMPLETED items
+        """
+        ordering_param = request.query_params.get(self.ordering_param, '')
+        ordering = ordering_param.split(',')[0].lstrip('-').strip() if ordering_param else ''
         
         model_class = model_config['model_class']
-        open_status = model_config['open_status']
-        now = timezone.now()
-        return queryset.exclude(
-            unified_document__in=model_class.objects.filter(
-                status=open_status,
-                end_date__lt=now
-            ).values_list('unified_document_id', flat=True)
-        )
+        
+        if ordering == 'ended':
+            # Show only closed/completed items
+            closed_statuses = [model_config['closed_status'], model_config['completed_status']]
+            return queryset.filter(
+                unified_document__in=model_class.objects.filter(
+                    status__in=closed_statuses
+                ).values_list('unified_document_id', flat=True)
+            )
+        else:
+            # Default: show only open items
+            open_status = model_config['open_status']
+            return queryset.filter(
+                unified_document__in=model_class.objects.filter(
+                    status=open_status
+                ).values_list('unified_document_id', flat=True)
+            )
 
     def _apply_custom_sorting(self, queryset: QuerySet, model_config: dict, request: Request, view: Any) -> QuerySet:
         """Apply custom sorting based on order value."""
         ordering_list = self.get_ordering(request, queryset, view)
         ordering = ordering_list[0].lstrip('-') if ordering_list else 'newest'
  
-        if ordering == 'newest':
+        if (ordering == 'newest' or ordering == 'ended'):
             return self._apply_newest_sorting(queryset, model_config)
         elif ordering == 'best':
             return self._apply_best_sorting(queryset, model_config)
@@ -94,7 +105,7 @@ class FundOrderingFilter(OrderingFilter):
             if fields:
                 field = fields[0]
                 field_name = field.lstrip('-') 
-                custom_fields = ['newest', 'best', 'upvotes', 'most_applicants', 'amount_raised']
+                custom_fields = ['newest', 'best', 'ended', 'upvotes', 'most_applicants', 'amount_raised']
                 if field_name in custom_fields:
                     return [field] 
                 ordering_fields = getattr(view, 'ordering_fields', None)
