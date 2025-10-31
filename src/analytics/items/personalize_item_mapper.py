@@ -163,12 +163,16 @@ class PersonalizeItemMapper:
         author_ids = []
 
         if prefetched_doc.document_type == "PAPER":
-            for authorship in document.authorships.all():
+            # Access through unified document to use prefetch
+            for authorship in prefetched_doc.paper.authorships.all():
                 if authorship.author:
                     author_ids.append(str(authorship.author.id))
         else:
-            for author in document.authors.all():
-                author_ids.append(str(author.id))
+            # Access through unified document to use prefetch
+            for post in prefetched_doc.posts.all():
+                for author in post.authors.all():
+                    author_ids.append(str(author.id))
+                break  # Only process first post
 
         return author_ids
 
@@ -178,7 +182,8 @@ class PersonalizeItemMapper:
         """Map paper-specific fields."""
         title = paper.paper_title or paper.title or ""
         abstract = paper.abstract or ""
-        hub_names = prefetched_doc.get_hub_names()
+        # Build hub names from prefetched hubs to avoid query
+        hub_names = ",".join(hub.name for hub in prefetched_doc.hubs.all())
 
         text_concat = f"{title} {abstract} {hub_names}"
 
@@ -199,7 +204,8 @@ class PersonalizeItemMapper:
         """Map post-specific fields."""
         title = post.title or ""
         renderable_text = post.renderable_text or ""
-        hub_names = prefetched_doc.get_hub_names()
+        # Build hub names from prefetched hubs to avoid query
+        hub_names = ",".join(hub.name for hub in prefetched_doc.hubs.all())
 
         text_concat = f"{title} {renderable_text} {hub_names}"
 
