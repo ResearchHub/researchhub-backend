@@ -1,6 +1,8 @@
 import csv
+import time
 from typing import Callable, Iterator, Optional
 
+from django.db import connection, reset_queries
 from django.db.models import QuerySet
 
 from analytics.constants.personalize_constants import CSV_HEADERS
@@ -14,10 +16,12 @@ from researchhub_document.models import ResearchhubUnifiedDocument
 class PersonalizeExportService:
     """Service for exporting ResearchHub documents to Personalize format."""
 
-    def __init__(self, chunk_size: int = 1000):
+    def __init__(self, chunk_size: int = 1000, debug: bool = False):
         self.chunk_size = chunk_size
+        self.debug = debug
         self.fetcher = PersonalizeRelatedDataFetcher()
         self.mapper = PersonalizeItemMapper()
+        self.chunk_timings = []  # Store timing details for debugging
 
     def export_items(
         self,
@@ -40,9 +44,35 @@ class PersonalizeExportService:
         for chunk_num, chunk_start in enumerate(
             range(0, total, self.chunk_size), start=1
         ):
+            chunk_timing = {"chunk_num": chunk_num}
+
+            # Time chunk evaluation
+            if self.debug:
+                reset_queries()
+                start = time.time()
+
             chunk = list(queryset[chunk_start : chunk_start + self.chunk_size])
 
-            for item_row in self._process_chunk(chunk):
+            if self.debug:
+                chunk_timing["eval_time"] = time.time() - start
+                chunk_timing["eval_queries"] = len(connection.queries)
+                chunk_timing["chunk_size"] = len(chunk)
+
+            # Time chunk processing
+            if self.debug:
+                reset_queries()
+                start = time.time()
+
+            processed_items = self._process_chunk(
+                chunk, chunk_timing if self.debug else None
+            )
+
+            if self.debug:
+                chunk_timing["process_time"] = time.time() - start
+                chunk_timing["process_queries"] = len(connection.queries)
+                self.chunk_timings.append(chunk_timing)
+
+            for item_row in processed_items:
                 yield item_row
                 items_processed += 1
 
@@ -88,18 +118,37 @@ class PersonalizeExportService:
 
         return (exported, skipped)
 
-    def _process_chunk(self, chunk: list[ResearchhubUnifiedDocument]) -> list[dict]:
+    def _process_chunk(
+        self,
+        chunk: list[ResearchhubUnifiedDocument],
+        timing: Optional[dict] = None,
+    ) -> list[dict]:
         """Process a chunk of documents with batch fetching."""
         if not chunk:
             return []
 
         chunk_ids = [doc.id for doc in chunk]
 
+        # Time the fetch_all operation
+        if timing is not None:
+            reset_queries()
+            start = time.time()
+
         batch_data = self.fetcher.fetch_all(chunk_ids)
+
+        if timing is not None:
+            timing["fetch_time"] = time.time() - start
+            timing["fetch_queries"] = len(connection.queries)
+
         bounty_data = batch_data["bounty"]
         proposal_data = batch_data["proposal"]
         rfp_data = batch_data["rfp"]
         review_count_data = batch_data["review_count"]
+
+        # Time the mapping operation
+        if timing is not None:
+            reset_queries()
+            start = time.time()
 
         items = []
         for unified_doc in chunk:
@@ -114,5 +163,10 @@ class PersonalizeExportService:
                 items.append(item_row)
             except Exception:
                 continue
+
+        if timing is not None:
+            timing["map_time"] = time.time() - start
+            timing["map_queries"] = len(connection.queries)
+            timing["items_mapped"] = len(items)
 
         return items
