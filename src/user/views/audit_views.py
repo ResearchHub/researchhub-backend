@@ -119,39 +119,6 @@ class AuditViewSet(viewsets.GenericViewSet):
             "pap_dps_get_uploaded_by": {
                 "_include_fields": ["author_profile", "first_name", "last_name"]
             },
-            "dis_dts_get_unified_document": {
-                "_include_fields": [
-                    "id",
-                    "document_type",
-                    "documents",
-                    "slug",
-                ]
-            },
-            "dis_dts_get_created_by": {
-                "_include_fields": ["author_profile", "first_name", "last_name"]
-            },
-            "dis_dcs_get_unified_document": {
-                "_include_fields": [
-                    "id",
-                    "document_type",
-                    "documents",
-                    "slug",
-                ]
-            },
-            "dis_dcs_get_created_by": {
-                "_include_fields": ["author_profile", "first_name", "last_name"]
-            },
-            "dis_drs_get_unified_document": {
-                "_include_fields": [
-                    "id",
-                    "document_type",
-                    "documents",
-                    "slug",
-                ]
-            },
-            "dis_drs_get_created_by": {
-                "_include_fields": ["author_profile", "first_name", "last_name"]
-            },
             "dis_dfs_get_verdict": {
                 "_include_fields": ["verdict_choice", "created_by", "created_date"]
             },
