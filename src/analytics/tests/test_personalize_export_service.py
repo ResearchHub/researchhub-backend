@@ -155,11 +155,12 @@ class ExportToCSVTests(TestCase):
         # Assert
         self.assertEqual(headers, CSV_HEADERS)
         self.assertEqual(result["exported"], 1)
-        self.assertEqual(result["skipped"], 0)
+        self.assertEqual(result["csv_errors"], 0)
         self.assertEqual(result["failed_ids"], [])
+        self.assertEqual(result["filtered_by_date_ids"], [])
 
     def test_export_to_csv_returns_correct_counts(self):
-        """Should return dict with exported, skipped, and failed_ids."""
+        """Should return dict with all count fields."""
         # Arrange
         docs = [create_prefetched_paper(title=f"Paper {i}") for i in range(3)]
         doc_ids = [doc.id for doc in docs]
@@ -184,8 +185,9 @@ class ExportToCSVTests(TestCase):
 
         # Assert
         self.assertEqual(result["exported"], 3)
-        self.assertEqual(result["skipped"], 0)
+        self.assertEqual(result["csv_errors"], 0)
         self.assertEqual(result["failed_ids"], [])
+        self.assertEqual(result["filtered_by_date_ids"], [])
 
     def test_export_to_csv_handles_write_errors_gracefully(self):
         """Should handle errors during export gracefully."""
@@ -212,8 +214,9 @@ class ExportToCSVTests(TestCase):
 
         # Assert - export should work without errors
         self.assertEqual(result["exported"], 1)
-        self.assertEqual(result["skipped"], 0)
+        self.assertEqual(result["csv_errors"], 0)
         self.assertEqual(result["failed_ids"], [])
+        self.assertEqual(result["filtered_by_date_ids"], [])
 
     def test_export_to_csv_with_multiple_chunks(self):
         """Should correctly export across multiple chunks."""
@@ -241,8 +244,9 @@ class ExportToCSVTests(TestCase):
 
         # Assert
         self.assertEqual(result["exported"], 5)
-        self.assertEqual(result["skipped"], 0)
+        self.assertEqual(result["csv_errors"], 0)
         self.assertEqual(result["failed_ids"], [])
+        self.assertEqual(result["filtered_by_date_ids"], [])
 
 
 class IntegrationTests(TestCase):

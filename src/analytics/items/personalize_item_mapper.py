@@ -77,14 +77,19 @@ class PersonalizeItemMapper:
         # Initialize row with default values from constants
         row = {field: default for field, default in FIELD_DEFAULTS.items()}
 
-        # Get the concrete document
-        try:
-            document = prefetched_doc.get_document()
-        except Exception:
-            # If we can't get the document, return minimal row
-            row[ITEM_ID] = str(prefetched_doc.id)
-            row[ITEM_TYPE] = prefetched_doc.document_type
-            return row
+        # Get the concrete document from prefetched data (avoids N+1 queries)
+        if prefetched_doc.document_type == "PAPER":
+            # For papers, use select_related paper (no query)
+            document = prefetched_doc.paper
+            if not document:
+                raise ValueError(f"Paper not found for unified_doc {prefetched_doc.id}")
+        else:
+            # For posts, get from prefetched posts (no query)
+            # Access the prefetch cache directly to avoid posts.first() query
+            posts = prefetched_doc.posts.all()
+            if not posts:
+                raise ValueError(f"Post not found for unified_doc {prefetched_doc.id}")
+            document = posts[0]  # Get first from cached list
 
         # Map common fields
         row.update(self._map_common_fields(prefetched_doc, document))

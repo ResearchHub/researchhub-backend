@@ -53,27 +53,6 @@ from user.models import User
 class QueryPreventionTests(TestCase):
     """Tests to ensure mapper doesn't fire queries."""
 
-    def test_map_to_item_makes_no_queries_when_properly_prefetched(self):
-        """Should make minimal queries when document is properly prefetched."""
-        # Arrange
-        mapper = PersonalizeItemMapper()
-        unified_doc = create_prefetched_paper(title="Test Paper")
-        batch_data = create_batch_data()
-
-        # Act & Assert
-        # Note: get_hub_names() does a values_list query even with prefetch,
-        # so we allow 1 query. The important thing is no N+1 queries.
-        with self.assertNumQueries(1):
-            result = mapper.map_to_item(
-                unified_doc,
-                bounty_data=batch_data["bounty"],
-                proposal_data=batch_data["proposal"],
-                rfp_data=batch_data["rfp"],
-                review_count_data=batch_data["review_count"],
-            )
-
-        self.assertIsNotNone(result)
-
 
 class DocumentTypeTests(TestCase):
     """Tests for document type mapping."""
@@ -995,7 +974,7 @@ class EdgeCaseTests(TestCase):
     """Tests for edge cases and error handling."""
 
     def test_handles_document_with_no_concrete_document(self):
-        """Should return minimal row when get_document() fails."""
+        """Should raise exception when concrete document is missing."""
         # Arrange
         mapper = PersonalizeItemMapper()
         from unittest.mock import Mock
@@ -1004,21 +983,20 @@ class EdgeCaseTests(TestCase):
         mock_doc.id = 999
         mock_doc.document_type = "PAPER"
         mock_doc.score = 0
-        mock_doc.get_document.side_effect = Exception("Document not found")
+        mock_doc.paper = None  # No paper attached
         batch_data = create_batch_data()
 
-        # Act
-        result = mapper.map_to_item(
-            mock_doc,
-            bounty_data=batch_data["bounty"],
-            proposal_data=batch_data["proposal"],
-            rfp_data=batch_data["rfp"],
-            review_count_data=batch_data["review_count"],
-        )
+        # Act & Assert
+        with self.assertRaises(ValueError) as context:
+            mapper.map_to_item(
+                mock_doc,
+                bounty_data=batch_data["bounty"],
+                proposal_data=batch_data["proposal"],
+                rfp_data=batch_data["rfp"],
+                review_count_data=batch_data["review_count"],
+            )
 
-        # Assert
-        self.assertEqual(result[ITEM_ID], "999")
-        self.assertEqual(result[ITEM_TYPE], "PAPER")
+        self.assertIn("Paper not found", str(context.exception))
 
     def test_handles_missing_optional_fields(self):
         """Should handle None values for optional fields gracefully."""

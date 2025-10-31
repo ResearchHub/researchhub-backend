@@ -10,19 +10,24 @@ from analytics.items.personalize_item_mapper import PersonalizeItemMapper
 from analytics.utils.personalize_related_data_fetcher import (
     PersonalizeRelatedDataFetcher,
 )
+from paper.models import Paper
 from researchhub_document.models import ResearchhubUnifiedDocument
 
 
 class PersonalizeExportService:
     """Service for exporting ResearchHub documents to Personalize format."""
 
-    def __init__(self, chunk_size: int = 1000, debug: bool = False):
+    def __init__(
+        self, chunk_size: int = 1000, debug: bool = False, since_publish_date=None
+    ):
         self.chunk_size = chunk_size
         self.debug = debug
+        self.since_publish_date = since_publish_date
         self.fetcher = PersonalizeRelatedDataFetcher()
         self.mapper = PersonalizeItemMapper()
         self.chunk_timings = []  # Store timing details for debugging
         self.failed_ids = []  # Track IDs of items that failed to map
+        self.filtered_by_date_ids = []  # Track IDs filtered by publish date
 
     def export_items(
         self,
@@ -53,6 +58,20 @@ class PersonalizeExportService:
                 start = time.time()
 
             chunk = list(queryset[chunk_start : chunk_start + self.chunk_size])
+
+            # Batch load papers for this chunk
+            paper_doc_ids = [doc.id for doc in chunk if doc.document_type == "PAPER"]
+            if paper_doc_ids:
+
+                papers = (
+                    Paper.objects.filter(unified_document_id__in=paper_doc_ids)
+                    .prefetch_related("authorships__author")
+                    .in_bulk(field_name="unified_document_id")
+                )
+                # Attach papers to their unified documents
+                for doc in chunk:
+                    if doc.document_type == "PAPER" and doc.id in papers:
+                        doc.paper = papers[doc.id]
 
             if self.debug:
                 chunk_timing["eval_time"] = time.time() - start
@@ -100,11 +119,12 @@ class PersonalizeExportService:
         Returns:
             Dict with keys:
                 - exported: Number of items successfully exported
-                - skipped: Number of items that failed to write to CSV
+                - csv_errors: Number of items that failed to write to CSV
                 - failed_ids: List of unified document IDs that failed to map
+                - filtered_by_date_ids: List of paper IDs filtered by publish date
         """
         exported = 0
-        skipped = 0
+        csv_errors = 0
 
         try:
             with open(filename, "w", newline="", encoding="utf-8") as f:
@@ -118,7 +138,7 @@ class PersonalizeExportService:
                         writer.writerow(item_row)
                         exported += 1
                     except Exception:
-                        skipped += 1
+                        csv_errors += 1
         except PermissionError as e:
             raise PermissionError(f"Permission denied writing to {filename}: {e}")
         except OSError as e:
@@ -126,8 +146,9 @@ class PersonalizeExportService:
 
         return {
             "exported": exported,
-            "skipped": skipped,
+            "csv_errors": csv_errors,
             "failed_ids": self.failed_ids,
+            "filtered_by_date_ids": self.filtered_by_date_ids,
         }
 
     def _process_chunk(
@@ -165,6 +186,14 @@ class PersonalizeExportService:
 
         items = []
         for unified_doc in chunk:
+            # Pre-filter papers by publish date
+            if unified_doc.document_type == "PAPER" and self.since_publish_date:
+                if hasattr(unified_doc, "paper") and unified_doc.paper:
+                    paper_date = unified_doc.paper.paper_publish_date
+                    if paper_date and paper_date < self.since_publish_date:
+                        self.filtered_by_date_ids.append(unified_doc.id)
+                        continue  # Skip - filtered by publish date
+
             try:
                 item_row = self.mapper.map_to_item(
                     unified_doc,

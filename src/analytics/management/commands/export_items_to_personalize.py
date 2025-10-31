@@ -95,6 +95,11 @@ class Command(BaseCommand):
         post_types: Optional[list] = None,
     ):
         """Export items from ResearchhubUnifiedDocument to CSV."""
+        # Force enable query tracking for debugging
+        from django.conf import settings
+
+        settings.DEBUG = True
+
         self.stdout.write("Exporting items...")
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -146,7 +151,11 @@ class Command(BaseCommand):
 
         self.stdout.write(f"Exporting {total} items to {filename}...")
 
-        service = PersonalizeExportService(chunk_size=1000, debug=self.debug_mode)
+        service = PersonalizeExportService(
+            chunk_size=1000,
+            debug=self.debug_mode,
+            since_publish_date=since_publish_date,
+        )
 
         # Track chunk-level metrics
         chunk_metrics = []
@@ -198,10 +207,12 @@ class Command(BaseCommand):
 
         # Build success message
         success_msg = f"\nExport complete: {result['exported']} exported"
-        if result["skipped"]:
-            success_msg += f", {result['skipped']} skipped"
+        if result["csv_errors"]:
+            success_msg += f", {result['csv_errors']} csv_errors"
         if result["failed_ids"]:
             success_msg += f", {len(result['failed_ids'])} failed to map"
+        if result["filtered_by_date_ids"]:
+            success_msg += f", {len(result['filtered_by_date_ids'])} filtered by date"
         success_msg += f"\nFile: {filename}"
 
         self.stdout.write(self.style.SUCCESS(success_msg))
@@ -215,36 +226,35 @@ class Command(BaseCommand):
                 )
             )
 
+        # Display filtered IDs if any
+        if result["filtered_by_date_ids"]:
+            date_str = since_publish_date.date() if since_publish_date else "N/A"
+            self.stdout.write(
+                f"\nFiltered {len(result['filtered_by_date_ids'])} papers "
+                f"by publish date (< {date_str})"
+            )
+
         # Print debug summary
         if self.debug_mode:
             self._print_debug_summary(perf_metrics, total, service)
 
     def _build_base_queryset(self) -> QuerySet[ResearchhubUnifiedDocument]:
         """Build base queryset with all necessary relations and filters."""
-        return (
-            ResearchhubUnifiedDocument.objects.select_related(
-                "paper",
-            )
-            .prefetch_related(
-                "hubs",
-                "related_bounties",
-                "fundraises",
-                "grants",
-                "paper__authorships__author",
-                "posts__authors",
-            )
-            .filter(
-                is_removed=False,
-                document_type__in=SUPPORTED_DOCUMENT_TYPES,
-            )
+        return ResearchhubUnifiedDocument.objects.prefetch_related(
+            "hubs",
+            "related_bounties",
+            "fundraises",
+            "grants",
+            "posts__authors",
+        ).filter(
+            is_removed=False,
+            document_type__in=SUPPORTED_DOCUMENT_TYPES,
         )
 
     def _get_interactions_filter(self) -> Q:
         """Get Q filter for documents with user interactions."""
         item_ids_with_interactions = set(
-            UserInteractions.objects.values_list(
-                "unified_document_id", flat=True
-            ).distinct()
+            UserInteractions.objects.values_list("unified_document_id", flat=True)
         )
         return Q(id__in=item_ids_with_interactions)
 
@@ -260,18 +270,6 @@ class Command(BaseCommand):
             post_types = ["DISCUSSION", "QUESTION", "GRANT", "PREREGISTRATION"]
         return Q(document_type__in=post_types)
 
-    def _get_date_filter(self, since_publish_date: datetime) -> Q:
-        """Get Q filter for documents published/created since the given date."""
-        papers_since_date = Q(
-            document_type="PAPER",
-            paper__paper_publish_date__gte=since_publish_date,
-        )
-        non_papers_since_date = Q(
-            ~Q(document_type="PAPER"),
-            created_date__gte=since_publish_date,
-        )
-        return papers_since_date | non_papers_since_date
-
     def _get_queryset(
         self,
         since_publish_date: Optional[datetime],
@@ -283,7 +281,7 @@ class Command(BaseCommand):
         base_queryset = self._build_base_queryset()
 
         if ids:
-            return base_queryset.filter(id__in=ids).distinct().order_by("id")
+            return base_queryset.filter(id__in=ids).order_by("id")
 
         # Combine filters using Q objects (union of sets)
         combined_filter = Q()
@@ -295,19 +293,23 @@ class Command(BaseCommand):
             combined_filter |= self._get_posts_filter(post_types)
 
         if since_publish_date:
-            combined_filter |= self._get_date_filter(since_publish_date)
+            combined_filter |= Q(created_date__gte=since_publish_date)
 
         if not combined_filter:
-            return base_queryset.distinct().order_by("id")
+            return base_queryset.order_by("id")
 
-        return base_queryset.filter(combined_filter).distinct().order_by("id")
+        return base_queryset.filter(combined_filter).order_by("id")
 
     def _parse_date(self, date_str: Optional[str]) -> Optional[datetime]:
-        """Parse date string to datetime object."""
+        """Parse date string to timezone-aware datetime object."""
         if not date_str:
             return None
         try:
-            return datetime.strptime(date_str, "%Y-%m-%d")
+            from django.utils import timezone
+
+            naive_date = datetime.strptime(date_str, "%Y-%m-%d")
+            # Make timezone-aware to match database datetimes
+            return timezone.make_aware(naive_date)
         except ValueError:
             raise CommandError(f"Invalid date: {date_str}. Use YYYY-MM-DD")
 
