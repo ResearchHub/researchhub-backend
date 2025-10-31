@@ -166,7 +166,6 @@ class FundOrderingFilter(OrderingFilter):
         - Closed items: sort by created date (desc) only
         """ 
         open_status = Fundraise.OPEN
-        closed_statuses = [Fundraise.CLOSED, Fundraise.COMPLETED]
         now = timezone.now()
         
         amount_expr = Coalesce(
