@@ -1183,10 +1183,6 @@ class FigureViewSet(viewsets.ModelViewSet):
         if user.is_anonymous:
             user = None
 
-        created_location = None
-        if request.query_params.get("created_location") == "progress":
-            created_location = Figure.CREATED_LOCATION_PROGRESS
-
         paper = self.get_object()
         figures = request.FILES.values()
         figure_type = request.data.get("figure_type")
@@ -1198,7 +1194,6 @@ class FigureViewSet(viewsets.ModelViewSet):
                     file=figure,
                     figure_type=figure_type,
                     created_by=user,
-                    created_location=created_location,
                 )
                 urls.append({"id": fig.id, "file": fig.file.url})
             return Response({"files": urls}, status=200)
