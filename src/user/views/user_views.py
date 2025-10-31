@@ -453,8 +453,6 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
             page,
             _include_fields=[
                 "bounty",
-                # "content_type",
-                # "item",
             ],
             context=context,
             many=True,
