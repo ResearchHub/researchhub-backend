@@ -5,6 +5,36 @@ Serializers for unified search results.
 from rest_framework import serializers
 
 
+class UnifiedSearchRequestSerializer(serializers.Serializer):
+    """Serializer for validating unified search request parameters."""
+
+    q = serializers.CharField(
+        required=True,
+        allow_blank=False,
+        trim_whitespace=True,
+        help_text="Search query string",
+    )
+    page = serializers.IntegerField(
+        required=False,
+        default=1,
+        min_value=1,
+        help_text="Page number",
+    )
+    page_size = serializers.IntegerField(
+        required=False,
+        default=10,
+        min_value=1,
+        max_value=100,
+        help_text="Number of results per page (max 100)",
+    )
+    sort = serializers.ChoiceField(
+        choices=["relevance", "newest", "hot", "upvoted"],
+        required=False,
+        default="relevance",
+        help_text="Sort option",
+    )
+
+
 class HubSerializer(serializers.Serializer):
     """Serializer for hub information in search results."""
 
