@@ -16,14 +16,13 @@ logger = logging.getLogger(__name__)
 @registry.register_document
 class PersonDocument(BaseDocument):
     profile_image = es_fields.TextField(attr="profile_image_indexing")
-    user_reputation = es_fields.IntegerField(attr="user_reputation_indexing")
+    user_reputation = es_fields.IntegerField()
     author_score = es_fields.IntegerField(attr="author_score")
     description = es_fields.TextField(attr="description", analyzer=content_analyzer)
     full_name = es_fields.TextField(attr="full_name", analyzer=content_analyzer)
-    person_types = es_fields.KeywordField(attr="person_types_indexing")
+    person_types = es_fields.KeywordField()
     headline = es_fields.TextField(attr="headline", analyzer=content_analyzer)
     institutions = es_fields.ObjectField(
-        attr="institutions_indexing",
         properties={
             "id": es_fields.IntegerField(),
             "name": es_fields.TextField(),
@@ -60,6 +59,29 @@ class PersonDocument(BaseDocument):
             .get_queryset(filter_, exclude, count)
             .prefetch_related("institutions__institution")
         )
+
+    def prepare_person_types(self, instance) -> list[str]:
+        person_types = ["author"]
+        if instance.user is not None:
+            person_types.append("user")
+
+        return person_types
+
+    def prepare_institutions(self, instance) -> list[dict] | None:
+        if instance.institutions is not None:
+            return [
+                {
+                    "id": author_institution.institution.id,
+                    "name": author_institution.institution.display_name,
+                }
+                for author_institution in instance.institutions.all()
+            ]
+        return None
+
+    def prepare_user_reputation(self, instance) -> int:
+        if instance.user is not None:
+            return instance.user.reputation
+        return 0
 
     def prepare_reputation_hubs(self, instance) -> list[str]:
         reputation_hubs = []
