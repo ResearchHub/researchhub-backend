@@ -115,7 +115,7 @@ class FundOrderingFilter(OrderingFilter):
         if (ordering == 'newest' or ordering == 'ended'):
             return self._apply_newest_sorting(queryset, model_config)
         elif ordering == 'best':
-            return self._apply_best_sorting(queryset, model_config)
+            return self._apply_best_sorting(queryset)
         elif ordering == 'upvotes':
             return self._apply_upvotes_sorting(queryset)
         elif ordering == 'most_applicants':
@@ -199,7 +199,7 @@ class FundOrderingFilter(OrderingFilter):
             "-created_date"
         )
 
-    def _apply_best_sorting(self, queryset: QuerySet, model_config: dict[str, Union[Type[Grant], Type[Fundraise], str]]) -> QuerySet:
+    def _apply_best_sorting(self, queryset: QuerySet) -> QuerySet:
         """
         Sort by best with conditional logic (for fundraises/proposals only):
         - Active open items: sort by amount raised (desc), then created date (desc)
