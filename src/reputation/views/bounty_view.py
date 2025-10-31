@@ -218,10 +218,6 @@ class BountyViewSet(viewsets.ModelViewSet):
         context["rep_dbs_get_hubs"] = {
             "_include_fields": ("id", "name", "namespace", "slug", "is_used_for_rep")
         }
-        context["dis_dts_get_created_by"] = {"_include_fields": ("author_profile",)}
-        context["dis_dts_get_unified_document"] = {
-            "_include_fields": ("documents", "document_type")
-        }
         context["rhc_dcs_get_created_by"] = {"_include_fields": ("author_profile",)}
         return context
 
