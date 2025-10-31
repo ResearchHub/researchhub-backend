@@ -5,64 +5,64 @@ Tests for Personalize item utility functions.
 from django.test import TestCase
 
 from analytics.constants.personalize_constants import MAX_TEXT_LENGTH
-from analytics.utils.personalize_item_utils import clean_text_for_csv
+from analytics.utils.personalize_item_utils import prepare_text_for_personalize
 
 
 class CleanTextForCSVTests(TestCase):
-    """Tests for clean_text_for_csv function."""
+    """Tests for prepare_text_for_personalize function."""
 
-    def test_clean_text_for_csv_removes_html_tags(self):
+    def test_prepare_text_for_personalize_removes_html_tags(self):
         """Should strip all HTML tags from text."""
         # Arrange
         text = "<p>Hello <strong>world</strong>!</p>"
 
         # Act
-        result = clean_text_for_csv(text)
+        result = prepare_text_for_personalize(text)
 
         # Assert
         self.assertEqual(result, "Hello world!")
 
-    def test_clean_text_for_csv_truncates_long_text(self):
+    def test_prepare_text_for_personalize_truncates_long_text(self):
         """Should truncate text longer than MAX_TEXT_LENGTH."""
         # Arrange
         text = "x" * (MAX_TEXT_LENGTH + 100)
 
         # Act
-        result = clean_text_for_csv(text)
+        result = prepare_text_for_personalize(text)
 
         # Assert
         self.assertEqual(len(result), MAX_TEXT_LENGTH)
         self.assertEqual(result, "x" * MAX_TEXT_LENGTH)
 
-    def test_clean_text_for_csv_returns_none_for_empty_string(self):
+    def test_prepare_text_for_personalize_returns_none_for_empty_string(self):
         """Should return None for empty or whitespace-only strings."""
         # Arrange
         text = "   "
 
         # Act
-        result = clean_text_for_csv(text)
+        result = prepare_text_for_personalize(text)
 
         # Assert
         self.assertIsNone(result)
 
-    def test_clean_text_for_csv_handles_none_input(self):
+    def test_prepare_text_for_personalize_handles_none_input(self):
         """Should return None when input is None."""
         # Arrange
         text = None
 
         # Act
-        result = clean_text_for_csv(text)
+        result = prepare_text_for_personalize(text)
 
         # Assert
         self.assertIsNone(result)
 
-    def test_clean_text_for_csv_strips_whitespace(self):
+    def test_prepare_text_for_personalize_strips_whitespace(self):
         """Should strip leading and trailing whitespace."""
         # Arrange
         text = "  Hello world  "
 
         # Act
-        result = clean_text_for_csv(text)
+        result = prepare_text_for_personalize(text)
 
         # Assert
         self.assertEqual(result, "Hello world")
