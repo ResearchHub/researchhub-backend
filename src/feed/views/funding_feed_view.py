@@ -9,6 +9,7 @@ This is done for three reasons:
 """
 
 from django.core.cache import cache
+from django.db.models import Prefetch
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -17,6 +18,7 @@ from feed.filters import FundOrderingFilter
 from feed.models import FeedEntry
 from feed.serializers import FundingFeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
+from purchase.models import Purchase
 from purchase.related_models.fundraise_model import Fundraise
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -30,7 +32,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
     permission_classes = []
     pagination_class = FeedPagination
     filter_backends = [DjangoFilterBackend, FundOrderingFilter]
-    ordering_fields = ['newest', 'best', 'upvotes', 'most_applicants', 'amount_raised']
+    ordering_fields = ['newest', 'best', 'ended', 'upvotes', 'most_applicants', 'amount_raised']
     ordering = 'newest'  # Default ordering
 
     def get_serializer_context(self):
@@ -43,8 +45,9 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         page_num = int(page)
         grant_id = request.query_params.get("grant_id", None)
         created_by = request.query_params.get("created_by", None)
+        ordering = request.query_params.get("ordering", "newest")
         cache_key = self.get_cache_key(request, "funding")
-        use_cache = page_num < 4 and grant_id is None and created_by is None
+        use_cache = page_num < 4 and grant_id is None and created_by is None and ordering == "newest"
 
         if use_cache:
             # try to get cached response
@@ -87,7 +90,6 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         return Response(response_data)
 
     def get_queryset(self):
-        fundraise_status = self.request.query_params.get("fundraise_status")
         grant_id = self.request.query_params.get("grant_id")
         created_by = self.request.query_params.get("created_by")
 
@@ -96,11 +98,34 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
             .select_related(
                 "created_by",
                 "created_by__author_profile",
+                "created_by__userverification",
                 "unified_document",
+                "unified_document__document_filter",
             )
             .prefetch_related(
                 "unified_document__hubs",
-                "unified_document__fundraises",
+                "unified_document__reviews",
+                "unified_document__bounties",
+                "unified_document__topics",
+                Prefetch(
+                    "unified_document__fundraises",
+                    queryset=Fundraise.objects.select_related(
+                        "created_by",
+                        "created_by__author_profile",
+                        "created_by__userverification",
+                        "escrow",
+                    ).prefetch_related(
+                        "nonprofit_links",
+                        Prefetch(
+                            "purchases",
+                            queryset=Purchase.objects.select_related(
+                                "user",
+                                "user__author_profile",
+                                "user__userverification",
+                            )
+                        ),
+                    ).order_by("id")
+                ),
             )
             .filter(document_type=PREREGISTRATION, unified_document__is_removed=False)
         )
@@ -110,11 +135,5 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
 
         if grant_id:
             queryset = queryset.filter(grant_applications__grant_id=grant_id)
-
-        if fundraise_status:
-            if fundraise_status.upper() == "OPEN":
-                queryset = queryset.filter(unified_document__fundraises__status=Fundraise.OPEN)
-            elif fundraise_status.upper() == "CLOSED":
-                queryset = queryset.filter(unified_document__fundraises__status=Fundraise.COMPLETED)
 
         return queryset

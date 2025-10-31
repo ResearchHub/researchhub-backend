@@ -5,17 +5,20 @@ and research grant postings.
 """
 
 from django.core.cache import cache
+from django.db.models import Prefetch
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
-from django_filters.rest_framework import DjangoFilterBackend
 
 from feed.filters import FundOrderingFilter
 from feed.models import FeedEntry
 from feed.serializers import GrantFeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
+from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
 from researchhub_document.related_models.constants.document_type import GRANT
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from user.models import User
 
 from ..serializers import PostSerializer, serialize_feed_metrics
 from .common import FeedPagination
@@ -27,7 +30,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
     pagination_class = FeedPagination
     filter_backends = [DjangoFilterBackend, FundOrderingFilter]
     is_grant_view = True
-    ordering_fields = ['newest', 'best', 'upvotes', 'most_applicants', 'amount_raised']
+    ordering_fields = ['newest', 'best', 'ended', 'upvotes', 'most_applicants', 'amount_raised']
     ordering = 'newest'  # Default ordering
 
     def get_serializer_context(self):
@@ -50,8 +53,9 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
     def list(self, request, *args, **kwargs):
         page = request.query_params.get("page", "1")
         page_num = int(page)
+        ordering = request.query_params.get("ordering", "newest")
         cache_key = self.get_cache_key(request, "grants")
-        use_cache = page_num < 4
+        use_cache = page_num < 4 and ordering == "newest"
 
         if use_cache:
             # try to get cached response
@@ -94,7 +98,6 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         return Response(response_data)
 
     def get_queryset(self):
-        status = self.request.query_params.get("status")
         organization = self.request.query_params.get("organization")
 
         queryset = (
@@ -102,22 +105,39 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             .select_related(
                 "created_by",
                 "created_by__author_profile",
+                "created_by__userverification",
                 "unified_document",
+                "unified_document__document_filter",
             )
             .prefetch_related(
                 "unified_document__hubs",
-                "unified_document__grants",
-                "unified_document__grants__applications__applicant__author_profile",
+                "unified_document__reviews",
+                "unified_document__topics",
+                Prefetch(
+                    "unified_document__grants",
+                    queryset=Grant.objects.select_related(
+                        "created_by",
+                        "created_by__author_profile",
+                        "created_by__userverification",
+                    ).prefetch_related(
+                        "contacts",
+                        "contacts__author_profile",
+                        "contacts__userverification",
+                        Prefetch(
+                            "applications",
+                            queryset=GrantApplication.objects.select_related(
+                                "applicant",
+                                "applicant__author_profile",
+                                "applicant__userverification",
+                            )
+                        ),
+                    ).order_by("id")
+                ),
             )
             .filter(document_type=GRANT, unified_document__is_removed=False)
         )
 
-        if status:
-            status_upper = status.upper()
-            if status_upper in [Grant.OPEN, Grant.CLOSED, Grant.COMPLETED]:
-                queryset = queryset.filter(unified_document__grants__status=status_upper)
-
         if organization:
-            queryset = queryset.filter(unified_document__grants__organization__icontains=organization)
+            queryset = queryset.filter(unified_document__grants__organization__icontains=organization).distinct()
 
         return queryset

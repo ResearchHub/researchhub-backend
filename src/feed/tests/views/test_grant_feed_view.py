@@ -432,8 +432,8 @@ class GrantFeedViewTests(APITestCase):
         mock_view = Mock()
         
         # Setup view with ordering_fields and is_grant_view
-        mock_view.ordering_fields = ['best', 'upvotes', 'most_applicants', 'amount_raised']
-        mock_view.ordering = 'best'
+        mock_view.ordering_fields = ['newest', 'best', 'ended', 'upvotes', 'most_applicants', 'amount_raised']
+        mock_view.ordering = 'newest'
         mock_view.is_grant_view = True
         
         # Test custom sorting (upvotes) - patch the specific sorting method
@@ -444,13 +444,13 @@ class GrantFeedViewTests(APITestCase):
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
             mock_upvotes.assert_called_once_with(mock_queryset)
         
-        # Test best sorting (default - no ordering param)
+        # Test newest sorting (default - no ordering param)
         request = factory.get('/')
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_best_sorting') as mock_best:
-            mock_best.return_value = mock_queryset
+        with patch.object(filter_instance, '_apply_newest_sorting') as mock_newest:
+            mock_newest.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
-            mock_best.assert_called_once()
+            mock_newest.assert_called_once()
         
         # Test with '-' prefix - should be stripped and work
         request = factory.get('/?ordering=-upvotes')
@@ -468,7 +468,7 @@ class GrantFeedViewTests(APITestCase):
         response = self.client.get("/api/grant_feed/?ordering=upvotes")
         self.assertEqual(response.status_code, 200)
         
-        # Test invalid ordering - should fall back to default (best)
+        # Test invalid ordering - should fall back to default (newest)
         response = self.client.get("/api/grant_feed/?ordering=invalid_field")
         self.assertEqual(response.status_code, 200)
         

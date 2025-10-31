@@ -355,26 +355,25 @@ class FundingFeedViewSetTests(TestCase):
         # Discussion post should not be included
         self.assertNotIn(self.non_preregistration_post.id, result_ids)
 
-    def test_fundraise_status_filter(self):
-        """Test filtering feed by fundraise status"""
-        # Test each filter option to ensure they can be passed without errors
-
-        # Test filtering by OPEN status
-        url = reverse("funding_feed-list") + "?fundraise_status=OPEN"
+    def test_status_filter_with_ordering(self):
+        """Test that default shows only OPEN, and ordering=ended shows only CLOSED/COMPLETED"""
+        
+        # Test default behavior (should show only OPEN)
+        url = reverse("funding_feed-list")
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 1)
         self.assertEqual(
-            response.data["results"][0]["content_object"]["id"], self.post.id
+            response.data["results"][0]["content_object"]["id"], self.post.id  # OPEN fundraise
         )
 
-        # Test filtering by CLOSED status
-        url = reverse("funding_feed-list") + "?fundraise_status=CLOSED"
+        # Test ordering=ended (should show only CLOSED/COMPLETED)
+        url = reverse("funding_feed-list") + "?ordering=ended"
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 1)
         self.assertEqual(
-            response.data["results"][0]["content_object"]["id"], self.other_post.id
+            response.data["results"][0]["content_object"]["id"], self.other_post.id  # COMPLETED fundraise
         )
 
     def test_open_fundraise_sorting(self):
@@ -476,8 +475,8 @@ class FundingFeedViewSetTests(TestCase):
             end_date=today + timezone.timedelta(days=30),
         )
 
-        # Query the OPEN fundraises
-        url = reverse("funding_feed-list") + "?fundraise_status=OPEN"
+        # Query the OPEN fundraises (default behavior)
+        url = reverse("funding_feed-list")
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -588,8 +587,8 @@ class FundingFeedViewSetTests(TestCase):
             end_date=today - timezone.timedelta(days=3),  # Most recent end date
         )
 
-        # Query the CLOSED fundraises
-        url = reverse("funding_feed-list") + "?fundraise_status=CLOSED"
+        # Query the CLOSED fundraises using ordering=ended
+        url = reverse("funding_feed-list") + "?ordering=ended"
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -968,8 +967,8 @@ class FundingFeedViewSetTests(TestCase):
         # Cache should be None since created_by disables caching
         self.assertIsNone(cached_response)
 
-    def test_created_by_filter_with_fundraise_status(self):
-        """Test created_by filter combined with fundraise_status filter"""
+    def test_created_by_filter_with_ordering(self):
+        """Test created_by filter combined with ordering parameter"""
         # Create another user with posts and fundraises
         fourth_user = User.objects.create_user(
             username="fourthuser", password=uuid.uuid4().hex
@@ -1033,11 +1032,8 @@ class FundingFeedViewSetTests(TestCase):
             goal_amount=100,
         )
 
-        # Test created_by + OPEN fundraise_status
-        url = (
-            reverse("funding_feed-list")
-            + f"?created_by={fourth_user.id}&fundraise_status=OPEN"
-        )
+        # Test created_by + default (shows OPEN)
+        url = reverse("funding_feed-list") + f"?created_by={fourth_user.id}"
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1047,11 +1043,8 @@ class FundingFeedViewSetTests(TestCase):
             response.data["results"][0]["content_object"]["id"], fourth_post_open.id
         )
 
-        # Test created_by + CLOSED fundraise_status
-        url = (
-            reverse("funding_feed-list")
-            + f"?created_by={fourth_user.id}&fundraise_status=CLOSED"
-        )
+        # Test created_by + ordering=ended
+        url = reverse("funding_feed-list") + f"?created_by={fourth_user.id}&ordering=ended"
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1061,11 +1054,8 @@ class FundingFeedViewSetTests(TestCase):
             response.data["results"][0]["content_object"]["id"], fourth_post_closed.id
         )
 
-        # Test created_by filter for different user
-        url = (
-            reverse("funding_feed-list")
-            + f"?created_by={self.user.id}&fundraise_status=OPEN"
-        )
+        # Test created_by filter for different user (default shows OPEN)
+        url = reverse("funding_feed-list") + f"?created_by={self.user.id}"
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1075,126 +1065,28 @@ class FundingFeedViewSetTests(TestCase):
             response.data["results"][0]["content_object"]["id"], self.post.id
         )
 
-    def test_include_ended_parameter(self):
-        """Test include_ended parameter behavior and fundraise_status=CLOSED override""" 
+    def test_default_shows_only_open(self):
+        """Test that default behavior shows only OPEN fundraises"""
         
-        # Create an expired OPEN fundraise (past end_date but status still OPEN)
-        expired_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type=PREREGISTRATION
-        )
-        expired_post = ResearchhubPost.objects.create(
-            title="Expired Open Post",
-            created_by=self.user,
-            document_type=PREREGISTRATION,
-            unified_document=expired_doc,
-        )
-        
-        escrow_expired = Escrow.objects.create(
-            amount_holding=0,
-            hold_type=Escrow.FUNDRAISE,
-            created_by=self.user,
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
-            object_id=expired_doc.id,
-        )
-        
-        Fundraise.objects.create(
-            created_by=self.user,
-            unified_document=expired_doc,
-            escrow=escrow_expired,
-            status=Fundraise.OPEN,
-            goal_amount=100,
-            end_date=timezone.now() - timezone.timedelta(days=10),  # Expired 10 days ago
-        )
-
-        # Test default behavior (include_ended=true)
+        # Test default behavior (shows only OPEN)
         url = reverse("funding_feed-list")
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         
-        # Should include all items: self.post (OPEN), self.other_post (COMPLETED), expired_post (OPEN+Expired)
+        # Should only include OPEN fundraises
         post_ids = [item["content_object"]["id"] for item in response.data["results"]]
-        self.assertIn(self.post.id, post_ids)
-        self.assertIn(self.other_post.id, post_ids)
-        self.assertIn(expired_post.id, post_ids)
+        self.assertIn(self.post.id, post_ids)  # OPEN fundraise
+        self.assertNotIn(self.other_post.id, post_ids)  # COMPLETED fundraise - excluded by default
 
-        # Test include_ended=false (should exclude expired items)
-        url = reverse("funding_feed-list") + "?include_ended=false"
+        # Test ordering=ended shows only CLOSED/COMPLETED
+        url = reverse("funding_feed-list") + "?ordering=ended"
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         
-        # Should exclude expired_post but include self.post (OPEN+Active) and self.other_post (COMPLETED)
+        # Should only include completed fundraises
         post_ids = [item["content_object"]["id"] for item in response.data["results"]]
-        self.assertIn(self.post.id, post_ids)
-        self.assertIn(self.other_post.id, post_ids)
-        self.assertNotIn(expired_post.id, post_ids)
-
-        # Create a unified document with BOTH completed and open-expired fundraises
-        # This is needed to properly test the include_ended override regression
-        mixed_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type=PREREGISTRATION
-        )
-        mixed_post = ResearchhubPost.objects.create(
-            title="Mixed Status Post",
-            created_by=self.user,
-            document_type=PREREGISTRATION,
-            unified_document=mixed_doc,
-        )
-        
-        # Create completed fundraise (will be included by fundraise_status=CLOSED)
-        completed_escrow = Escrow.objects.create(
-            amount_holding=0,
-            hold_type=Escrow.FUNDRAISE,
-            created_by=self.user,
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
-            object_id=mixed_doc.id,
-        )
-        Fundraise.objects.create(
-            created_by=self.user,
-            unified_document=mixed_doc,
-            escrow=completed_escrow,
-            status=Fundraise.COMPLETED,
-            goal_amount=100,
-            end_date=timezone.now() - timezone.timedelta(days=5),
-        )
-        
-        # Create open-expired fundraise (would be excluded by include_ended=false without override)
-        open_expired_escrow = Escrow.objects.create(
-            amount_holding=50,
-            hold_type=Escrow.FUNDRAISE,
-            created_by=self.user,
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
-            object_id=mixed_doc.id,
-        )
-        Fundraise.objects.create(
-            created_by=self.user,
-            unified_document=mixed_doc,
-            escrow=open_expired_escrow,
-            status=Fundraise.OPEN,
-            goal_amount=200,
-            end_date=timezone.now() - timezone.timedelta(days=3),  # Expired 3 days ago
-        )
-
-        # Test fundraise_status=CLOSED overrides include_ended=false
-        url = reverse("funding_feed-list") + "?fundraise_status=CLOSED&include_ended=false"
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
-        # Should include the mixed_post because it has a COMPLETED fundraise
-        # The include_ended override prevents filtering out the open-expired fundraise
-        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
-        self.assertNotIn(self.post.id, post_ids)  # OPEN fundraise - filtered out by fundraise_status=CLOSED
+        self.assertNotIn(self.post.id, post_ids)  # OPEN fundraise - excluded
         self.assertIn(self.other_post.id, post_ids)  # COMPLETED fundraise - included
-        self.assertNotIn(expired_post.id, post_ids)  # OPEN fundraise - filtered out by fundraise_status=CLOSED
-        self.assertIn(mixed_post.id, post_ids)  # Has COMPLETED fundraise - included despite open-expired one
-
-    def test_include_ended_default_behavior(self):
-        """Test that include_ended defaults to true when not specified"""
-        url = reverse("funding_feed-list")
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
-        # Should return all items (default behavior)
-        self.assertEqual(len(response.data["results"]), 2)  # self.post and self.other_post
 
     def test_upvotes_sorting(self):
         """Test sorting by upvotes (descending)"""
@@ -1477,8 +1369,8 @@ class FundingFeedViewSetTests(TestCase):
         mock_view = Mock()
         
         # Setup view with ordering_fields
-        mock_view.ordering_fields = ['best', 'upvotes', 'most_applicants', 'amount_raised']
-        mock_view.ordering = 'best'
+        mock_view.ordering_fields = ['newest', 'best', 'ended', 'upvotes', 'most_applicants', 'amount_raised']
+        mock_view.ordering = 'newest'
         mock_view.is_grant_view = False
         
         # Test custom sorting (upvotes) - patch the specific sorting method
@@ -1535,7 +1427,7 @@ class FundingFeedViewSetTests(TestCase):
         response = self.client.get(reverse("funding_feed-list"), {"ordering": "upvotes"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         
-        # Test invalid ordering - should fall back to default (best)
+        # Test invalid ordering - should fall back to default (newest)
         response = self.client.get(reverse("funding_feed-list"), {"ordering": "invalid_field"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         
