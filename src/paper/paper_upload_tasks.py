@@ -12,7 +12,6 @@ from celery.utils.log import get_task_logger
 from cloudscraper.exceptions import CloudflareChallengeError
 from django.apps import apps
 from django.contrib.admin.options import get_content_type_for_model
-from django.contrib.postgres.search import SearchQuery
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Q
