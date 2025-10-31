@@ -245,7 +245,6 @@ class Command(BaseCommand):
             "related_bounties",
             "fundraises",
             "grants",
-            "posts__authors",
         ).filter(
             is_removed=False,
             document_type__in=SUPPORTED_DOCUMENT_TYPES,

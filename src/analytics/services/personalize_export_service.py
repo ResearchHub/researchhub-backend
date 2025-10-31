@@ -10,7 +10,6 @@ from analytics.items.personalize_item_mapper import PersonalizeItemMapper
 from analytics.utils.personalize_related_data_fetcher import (
     PersonalizeRelatedDataFetcher,
 )
-from paper.models import Paper
 from researchhub_document.models import ResearchhubUnifiedDocument
 
 
@@ -62,12 +61,11 @@ class PersonalizeExportService:
             # Batch load papers for this chunk
             paper_doc_ids = [doc.id for doc in chunk if doc.document_type == "PAPER"]
             if paper_doc_ids:
+                from paper.models import Paper
 
-                papers = (
-                    Paper.objects.filter(unified_document_id__in=paper_doc_ids)
-                    .prefetch_related("authorships__author")
-                    .in_bulk(field_name="unified_document_id")
-                )
+                papers = Paper.objects.filter(
+                    unified_document_id__in=paper_doc_ids
+                ).in_bulk(field_name="unified_document_id")
                 # Attach papers to their unified documents
                 for doc in chunk:
                     if doc.document_type == "PAPER" and doc.id in papers:

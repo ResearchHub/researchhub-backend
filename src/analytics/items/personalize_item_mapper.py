@@ -5,7 +5,6 @@ Mapper class for converting ResearchhubUnifiedDocument to AWS Personalize items.
 from typing import Dict, Optional, Protocol, runtime_checkable
 
 from analytics.constants.personalize_constants import (
-    AUTHOR_IDS,
     BLUESKY_COUNT_TOTAL,
     BOUNTY_HAS_SOLUTIONS,
     CITATION_COUNT_TOTAL,
@@ -40,9 +39,7 @@ class PrefetchedUnifiedDocument(Protocol):
 
     Required prefetch_related:
     - hubs
-    - fundraises, related_bounties
-    - paper__authorships__author
-    - posts__authors
+    - fundraises, related_bounties, grants
     """
 
     id: int
@@ -145,9 +142,6 @@ class PersonalizeItemMapper:
             elif hub.namespace == Hub.Namespace.SUBCATEGORY:
                 hub_l2 = str(hub.id)
 
-        # Author extraction
-        author_ids = self._map_author_ids(prefetched_doc, document)
-
         return {
             ITEM_ID: str(prefetched_doc.id),
             ITEM_TYPE: ITEM_TYPE_MAPPING.get(
@@ -160,37 +154,7 @@ class PersonalizeItemMapper:
             HUB_L1: hub_l1,
             HUB_L2: hub_l2,
             HUB_IDS: DELIMITER.join(hub_ids) if hub_ids else None,
-            AUTHOR_IDS: DELIMITER.join(author_ids) if author_ids else None,
         }
-
-    def _map_author_ids(
-        self, prefetched_doc: PrefetchedUnifiedDocument, document
-    ) -> list:
-        """Extract author IDs (first, second, last) using prefetched data."""
-        from analytics.constants.personalize_constants import MAX_AUTHOR_IDS
-
-        author_ids = []
-
-        if prefetched_doc.document_type == "PAPER":
-            # Access through unified document to use prefetch
-            if hasattr(prefetched_doc, "paper") and prefetched_doc.paper:
-                all_authorships = list(prefetched_doc.paper.authorships.all())
-                # Get first, second, last
-                if len(all_authorships) > 0 and all_authorships[0].author:
-                    author_ids.append(str(all_authorships[0].author.id))
-                if len(all_authorships) > 1 and all_authorships[1].author:
-                    author_ids.append(str(all_authorships[1].author.id))
-                if len(all_authorships) > 2 and all_authorships[-1].author:
-                    author_ids.append(str(all_authorships[-1].author.id))
-        else:
-            # For posts, get first 3 authors
-            for post in prefetched_doc.posts.all():
-                all_authors = list(post.authors.all())[:MAX_AUTHOR_IDS]
-                for author in all_authors:
-                    author_ids.append(str(author.id))
-                break  # Only process first post
-
-        return author_ids
 
     def _map_paper_fields(
         self, prefetched_doc: PrefetchedUnifiedDocument, paper

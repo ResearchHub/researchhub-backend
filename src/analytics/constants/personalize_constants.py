@@ -30,7 +30,6 @@ PROPOSAL_HAS_FUNDERS = "PROPOSAL_HAS_FUNDERS"
 DELIMITER = "|"
 
 # Limits for list fields to prevent data bloat
-MAX_AUTHOR_IDS = 3  # First, second, last
 MAX_HUB_IDS = 20
 
 # CSV Headers (in order for the CSV file)
@@ -40,7 +39,6 @@ CSV_HEADERS = [
     HUB_L1,
     HUB_L2,
     HUB_IDS,
-    AUTHOR_IDS,
     CREATION_TIMESTAMP,
     TEXT,
     TITLE,
@@ -65,7 +63,6 @@ FIELD_DEFAULTS = {
     HUB_L1: None,
     HUB_L2: None,
     HUB_IDS: None,
-    AUTHOR_IDS: None,
     CREATION_TIMESTAMP: None,
     TEXT: None,
     TITLE: None,
