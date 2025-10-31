@@ -250,38 +250,6 @@ class Author(models.Model):
         return paper_count_res.get("paper_count") or 0
 
     @property
-    def person_types_indexing(self):
-        person_types = ["author"]
-        if self.user is not None:
-            person_types.append("user")
-
-        return person_types
-
-    @property
-    def institutions_indexing(self):
-        if self.institutions is not None:
-            return [
-                {
-                    "id": author_institution.institution.id,
-                    "name": author_institution.institution.display_name,
-                }
-                for author_institution in self.institutions.all()
-            ]
-        return None
-
-    @property
-    def university_indexing(self):
-        if self.university is not None:
-            return self.university
-        return None
-
-    @property
-    def user_reputation_indexing(self):
-        if self.user is not None:
-            return self.user.reputation
-        return 0
-
-    @property
     def achievements(self):
         upvote_count = getattr(self.user, "upvote_count", 0)
         peer_review_count = getattr(self.user, "peer_review_count", 0)

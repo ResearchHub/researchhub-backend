@@ -57,3 +57,85 @@ class PersonDocumentTests(TestCase):
         self.assertIn({"input": "Jane", "weight": 5}, result)
         self.assertIn({"input": "Smith", "weight": 5}, result)
         self.assertEqual(len(result), 3)
+
+    def test_prepare_person_types_with_user(self):
+        """
+        Test person types includes user when user exists.
+        """
+        # Arrange
+        document = PersonDocument()
+        author = Mock()
+        author.user = Mock()
+
+        # Act
+        result = document.prepare_person_types(author)
+
+        # Assert
+        self.assertEqual(result, ["author", "user"])
+
+    def test_prepare_person_types_without_user(self):
+        """
+        Test person types excludes 'user' when user doesn't exist.
+        """
+        # Arrange
+        document = PersonDocument()
+        author = Mock()
+        author.user = None
+
+        # Act
+        result = document.prepare_person_types(author)
+
+        # Assert
+        self.assertEqual(result, ["author"])
+
+    def test_prepare_institutions(self):
+        """
+        Test institutions preparation.
+        """
+        # Arrange
+        document = PersonDocument()
+        author = Mock()
+        institution = Mock()
+        institution.id = 1
+        institution.display_name = "Stanford University"
+        author_institution = Mock()
+        author_institution.institution = institution
+        author.institutions = Mock()
+        author.institutions.all.return_value = [author_institution]
+
+        # Act
+        result = document.prepare_institutions(author)
+
+        # Assert
+        self.assertEqual(result, [{"id": 1, "name": "Stanford University"}])
+
+    def test_prepare_user_reputation_with_user(self):
+        """
+        Test user reputation returns reputation when user exists.
+        """
+        # Arrange
+        document = PersonDocument()
+        author = Mock()
+        author.user = Mock()
+        author.user.reputation = 1500
+
+        # Act
+        result = document.prepare_user_reputation(author)
+
+        # Assert
+        self.assertEqual(result, 1500)
+
+    def test_prepare_user_reputation_without_user(self):
+        """
+        Test user reputation returns 0 when user doesn't exist.
+        """
+        # Arrange
+        document = PersonDocument()
+        author = Mock()
+        author.user = None
+
+        # Act
+        result = document.prepare_user_reputation(author)
+
+        # Assert
+        self.assertEqual(result, 0)

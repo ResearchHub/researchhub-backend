@@ -232,7 +232,11 @@ class PaperIngestionService:
                 paper = self._save_paper(paper)
 
                 # Trigger PDF download for arXiv papers
-                if paper.pdf_url and self._supports_pdf_download(source):
+                if (
+                    paper.pdf_url
+                    and self._supports_pdf_download(source)
+                    and not paper.file
+                ):
                     from paper.tasks import download_pdf
 
                     download_pdf.apply_async((paper.id,), priority=5)
