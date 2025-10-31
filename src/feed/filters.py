@@ -72,7 +72,7 @@ class FundOrderingFilter(OrderingFilter):
         ordering = ordering_list[0].lstrip('-') if ordering_list else 'newest'
  
         if ordering == 'newest':
-            return self._apply_newest_sorting(queryset)
+            return self._apply_newest_sorting(queryset, model_config)
         elif ordering == 'best':
             return self._apply_best_sorting(queryset, model_config)
         elif ordering == 'upvotes':
@@ -159,10 +159,10 @@ class FundOrderingFilter(OrderingFilter):
         )
 
     def _apply_best_sorting(self, queryset: QuerySet, model_config: dict[str, Union[Type[Grant], Type[Fundraise], str]]) -> QuerySet:
-        """Sort by composite 'best' score using the fund_best_score module."""
+        """Sort by composite 'best' score with status penalties (active > expired > closed)."""
         model_class = model_config['model_class']
         queryset = calculate_fund_best_score_annotations(queryset, model_class)
-        return queryset.order_by('-best_score', '-created_date')
+        return queryset.order_by('-adjusted_best_score', '-created_date')
     
     def _apply_upvotes_sorting(self, queryset: QuerySet) -> QuerySet:
         return queryset.annotate(

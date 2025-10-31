@@ -1489,13 +1489,17 @@ class FundingFeedViewSetTests(TestCase):
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
             mock_upvotes.assert_called_once_with(mock_queryset)
         
-        # Test best sorting (default - no ordering param)
+        # Test newest sorting (default - no ordering param)
         request = factory.get('/')
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_best_sorting') as mock_best:
-            mock_best.return_value = mock_queryset
+        with patch.object(filter_instance, '_apply_newest_sorting') as mock_newest:
+            mock_newest.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
-            mock_best.assert_called_once()
+            # Check that it was called with queryset and model_config
+            self.assertEqual(mock_newest.call_count, 1)
+            args = mock_newest.call_args[0]
+            self.assertEqual(args[0], mock_queryset)
+            self.assertIn('model_class', args[1])  # model_config has model_class
         
         # Test best sorting (explicit best)
         request = factory.get('/?ordering=best')
@@ -1503,7 +1507,11 @@ class FundingFeedViewSetTests(TestCase):
         with patch.object(filter_instance, '_apply_best_sorting') as mock_best:
             mock_best.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
-            mock_best.assert_called_once()
+            # Check that it was called with queryset and model_config
+            self.assertEqual(mock_best.call_count, 1)
+            args = mock_best.call_args[0]
+            self.assertEqual(args[0], mock_queryset)
+            self.assertIn('model_class', args[1])  # model_config has model_class
         
         # Test with '-' prefix - should be stripped and work
         request = factory.get('/?ordering=-upvotes')
@@ -1546,4 +1554,147 @@ class FundingFeedViewSetTests(TestCase):
         # Test multiple fields - should take first valid one
         response = self.client.get(reverse("funding_feed-list"), {"ordering": "invalid_field,upvotes"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_best_sorting(self):
+        """Test sorting by best score (engagement-based ranking with status penalties)"""
+        from researchhub_document.related_models.document_filter_model import DocumentFilter
+        
+        today = timezone.now()
+        
+        # Create active high-engagement post
+        active_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        active_filter = DocumentFilter.objects.create(upvoted_all=50)
+        active_doc.document_filter = active_filter
+        active_doc.save()
+        
+        active_post = ResearchhubPost.objects.create(
+            title="Active High Engagement",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=active_doc,
+            discussion_count=10,
+        )
+        
+        active_escrow = Escrow.objects.create(
+            amount_holding=500,
+            amount_paid=300,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=active_doc.id,
+        )
+        
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=active_doc,
+            escrow=active_escrow,
+            status=Fundraise.OPEN,
+            goal_amount=1000,
+            goal_currency=USD,
+            end_date=today + timezone.timedelta(days=30),
+        )
+        
+        # Create expired high-engagement post
+        expired_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        expired_filter = DocumentFilter.objects.create(upvoted_all=50)
+        expired_doc.document_filter = expired_filter
+        expired_doc.save()
+        
+        expired_post = ResearchhubPost.objects.create(
+            title="Expired High Engagement",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=expired_doc,
+            discussion_count=10,
+        )
+        
+        expired_escrow = Escrow.objects.create(
+            amount_holding=500,
+            amount_paid=300,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=expired_doc.id,
+        )
+        
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=expired_doc,
+            escrow=expired_escrow,
+            status=Fundraise.OPEN,
+            goal_amount=1000,
+            goal_currency=USD,
+            end_date=today - timezone.timedelta(days=5),
+        )
+        
+        # Create closed high-engagement post
+        closed_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        closed_filter = DocumentFilter.objects.create(upvoted_all=50)
+        closed_doc.document_filter = closed_filter
+        closed_doc.save()
+        
+        closed_post = ResearchhubPost.objects.create(
+            title="Closed High Engagement",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=closed_doc,
+            discussion_count=10,
+        )
+        
+        closed_escrow = Escrow.objects.create(
+            amount_holding=500,
+            amount_paid=300,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=closed_doc.id,
+        )
+        
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=closed_doc,
+            escrow=closed_escrow,
+            status=Fundraise.COMPLETED,
+            goal_amount=1000,
+            goal_currency=USD,
+            end_date=today - timezone.timedelta(days=10),
+        )
+        
+        # Test best sorting
+        url = reverse("funding_feed-list")
+        response = self.client.get(url, {"ordering": "best"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        results = response.data["results"]
+        self.assertGreaterEqual(len(results), 3)
+        
+        # Find posts in results
+        active_index = next(
+            (i for i, r in enumerate(results) 
+             if r.get("content_object", {}).get("title") == "Active High Engagement"),
+            None
+        )
+        expired_index = next(
+            (i for i, r in enumerate(results) 
+             if r.get("content_object", {}).get("title") == "Expired High Engagement"),
+            None
+        )
+        closed_index = next(
+            (i for i, r in enumerate(results) 
+             if r.get("content_object", {}).get("title") == "Closed High Engagement"),
+            None
+        )
+        
+        # Verify ordering: active > expired > closed
+        self.assertIsNotNone(active_index)
+        self.assertIsNotNone(expired_index)
+        self.assertIsNotNone(closed_index)
+        self.assertLess(active_index, expired_index)
+        self.assertLess(expired_index, closed_index)
 

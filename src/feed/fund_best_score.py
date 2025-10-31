@@ -5,12 +5,17 @@ from typing import Union
 from django.db.models import (
     Case,
     Count,
+    DateTimeField,
     DecimalField,
     DurationField,
+    Exists,
     ExpressionWrapper,
     F,
     FloatField,
+    IntegerField,
+    OuterRef,
     QuerySet,
+    Subquery,
     Sum,
     Value,
     When,
@@ -51,6 +56,11 @@ FUND_BEST_SCORE_CONFIG = {
         "base_hours": 2.0,
         "min_age_hours": 0.1,
     },
+    "status_penalties": {
+        "expired": 10000.0,
+        "closed": 20000.0,
+        "description": "Penalties to ensure active > expired > closed ordering",
+    },
 }
  
 def calculate_fund_best_score_annotations(
@@ -61,7 +71,7 @@ def calculate_fund_best_score_annotations(
     config = FUND_BEST_SCORE_CONFIG
     now = timezone.now()
     
-    # Determine relationship paths and expressions for grants vs fundraises
+    # Determine relationship paths, expressions, and status constants for grants vs fundraises
     if model_class == Grant:
         relation_path = 'unified_document__grants'
         applicant_count_expr = Count(f'{relation_path}__applications', distinct=True)
@@ -70,6 +80,8 @@ def calculate_fund_best_score_annotations(
             Value(0),
             output_field=DecimalField(max_digits=19, decimal_places=2)
         )
+        open_status = Grant.OPEN
+        closed_statuses = [Grant.CLOSED, Grant.COMPLETED]
     else:  # Fundraise
         relation_path = 'unified_document__fundraises'
         applicant_count_expr = Count(f'{relation_path}__purchases__user', distinct=True)
@@ -78,6 +90,8 @@ def calculate_fund_best_score_annotations(
             Value(0),
             output_field=DecimalField(max_digits=19, decimal_places=10)
         )
+        open_status = Fundraise.OPEN
+        closed_statuses = [Fundraise.CLOSED, Fundraise.COMPLETED]
     
     # Calculate age in hours
     age_duration = ExpressionWrapper(now - F('created_date'), output_field=DurationField())
@@ -129,6 +143,45 @@ def calculate_fund_best_score_annotations(
         ),
         best_score=ExpressionWrapper(
             (F('engagement_score') / F('time_decay_denominator')) * Value(100.0),
+            output_field=FloatField()
+        )
+    )
+    
+    # Add status categorization (active, expired, closed) to apply penalties
+    has_open_item = Exists(
+        model_class.objects.filter(
+            unified_document_id=OuterRef("unified_document_id"),
+            status=open_status
+        )
+    )
+    
+    earliest_open_end_date = model_class.objects.filter(
+        unified_document_id=OuterRef("unified_document_id"),
+        status=open_status
+    ).values("end_date").order_by("end_date")[:1]
+    
+    queryset = queryset.annotate(
+        has_open=has_open_item,
+        earliest_open_end_date=Subquery(earliest_open_end_date, output_field=DateTimeField()),
+        sort_option=Case(
+            When(has_open=True, earliest_open_end_date__gte=now, then=Value(0)),  # Active
+            When(has_open=True, earliest_open_end_date__isnull=True, then=Value(0)),  # Active (no end date)
+            When(has_open=True, earliest_open_end_date__lt=now, then=Value(1)),  # Expired
+            default=Value(2),  # Closed
+            output_field=IntegerField(),
+        ),
+    )
+    
+    # Apply status penalties: expired gets -10000, closed gets -20000
+    queryset = queryset.annotate(
+        status_penalty=Case(
+            When(sort_option=1, then=Value(config['status_penalties']['expired'])),
+            When(sort_option=2, then=Value(config['status_penalties']['closed'])),
+            default=Value(0.0),
+            output_field=FloatField(),
+        ),
+        adjusted_best_score=ExpressionWrapper(
+            F('best_score') - F('status_penalty'),
             output_field=FloatField()
         )
     )

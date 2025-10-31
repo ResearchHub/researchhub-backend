@@ -444,13 +444,17 @@ class GrantFeedViewTests(APITestCase):
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
             mock_upvotes.assert_called_once_with(mock_queryset)
         
-        # Test best sorting (default - no ordering param)
+        # Test newest sorting (default - no ordering param)
         request = factory.get('/')
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_best_sorting') as mock_best:
-            mock_best.return_value = mock_queryset
+        with patch.object(filter_instance, '_apply_newest_sorting') as mock_newest:
+            mock_newest.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
-            mock_best.assert_called_once()
+            # Check that it was called with queryset and model_config
+            assert mock_newest.call_count == 1
+            args = mock_newest.call_args[0]
+            assert args[0] == mock_queryset
+            assert 'model_class' in args[1]  # model_config has model_class
         
         # Test with '-' prefix - should be stripped and work
         request = factory.get('/?ordering=-upvotes')
