@@ -544,8 +544,6 @@ class PaperViewSet(
                     "title": previous_paper.title,
                     "paper_title": previous_paper.paper_title or previous_paper.title,
                     "abstract": previous_paper.abstract,
-                    "abstract_src": previous_paper.abstract_src,
-                    "abstract_src_type": previous_paper.abstract_src_type,
                     "uploaded_by": previous_paper.uploaded_by,
                     "paper_publish_date": timezone.now(),
                     "pdf_license": "cc-by",
@@ -781,7 +779,6 @@ class PaperViewSet(
             context=context,
             _include_fields=[
                 "abstract",
-                "abstract_src_markdown",
                 "authors",
                 "boost_amount",
                 "created_date",
