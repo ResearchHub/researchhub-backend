@@ -81,40 +81,42 @@ class GrantFeedViewTests(APITestCase):
         cache.clear()  # Clear cache to avoid test interference
 
     def test_grant_feed_list_authenticated(self):
-        """Test that authenticated users can access the grant feed"""
+        """Test that authenticated users can access the grant feed and see only active grants"""
         self.client.force_authenticate(self.user)
         response = self.client.get("/api/grant_feed/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["results"]), 3)
+        # Should only return 1 active OPEN grant (not expired)
+        self.assertEqual(len(response.data["results"]), 1)
 
     def test_grant_feed_list_unauthenticated(self):
         """Test that unauthenticated users can access the grant feed (public access)"""
         response = self.client.get("/api/grant_feed/")
         self.assertEqual(response.status_code, 200)
 
-    def test_grant_feed_returns_all_grants(self):
-        """Test that grant feed returns all grants (no filtering by status/organization)"""
+    def test_grant_feed_returns_only_active_grants(self):
+        """Test that grant feed returns only active grants by default"""
         self.client.force_authenticate(self.user)
         response = self.client.get("/api/grant_feed/")
 
         self.assertEqual(response.status_code, 200)
-        # Should return all 3 grants since we removed filtering
-        self.assertEqual(len(response.data["results"]), 3)
+        # Should return only 1 active OPEN grant (not expired)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(response.data["results"][0]["content_object"]["title"], "Open Grant")
 
 
 
-    def test_grant_feed_order_open_first(self):
-        """Test that grant feed orders OPEN grants first"""
+    def test_grant_feed_shows_only_active_open_grants(self):
+        """Test that grant feed shows only active (non-expired) OPEN grants by default"""
         self.client.force_authenticate(self.user)
         response = self.client.get("/api/grant_feed/")
 
         self.assertEqual(response.status_code, 200)
         results = response.data["results"]
 
-        # First result should be the OPEN grant
-        first_result = results[0]
-        self.assertEqual(first_result["content_object"]["title"], "Open Grant")
+        # Should only show 1 active OPEN grant
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["content_object"]["title"], "Open Grant")
 
     def test_grant_feed_entry_serializer_fields(self):
         """Test that grant feed entries include the expected fields"""
@@ -480,28 +482,30 @@ class GrantFeedViewTests(APITestCase):
         response = self.client.get("/api/grant_feed/?ordering=-upvotes")
         self.assertEqual(response.status_code, 200)
 
-    def test_ended_ordering_shows_closed_grants(self):
-        """Test that ordering=ended shows only closed/completed grants"""
-        # Create an open grant post
-        open_post = create_post(created_by=self.user, document_type=GRANT, title="Open Test Grant")
+    def test_ended_ordering_shows_expired_open_grants(self):
+        """Test that ordering=ended shows only OPEN grants that are expired"""
+        # Create an active grant (OPEN + future end_date)
+        active_post = create_post(created_by=self.user, document_type=GRANT, title="Active Grant")
         Grant.objects.create(
             created_by=self.user,
-            unified_document=open_post.unified_document,
+            unified_document=active_post.unified_document,
             amount=Decimal("1000.00"),
             currency="USD",
-            organization="Open Org",
+            organization="Active Org",
             status=Grant.OPEN,
+            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
         )
         
-        # Create a completed grant post
-        closed_post = create_post(created_by=self.user, document_type=GRANT, title="Closed Test Grant")
+        # Create an expired grant (OPEN + past end_date)
+        expired_post = create_post(created_by=self.user, document_type=GRANT, title="Expired Grant")
         Grant.objects.create(
             created_by=self.user,
-            unified_document=closed_post.unified_document,
+            unified_document=expired_post.unified_document,
             amount=Decimal("2000.00"),
             currency="USD",
-            organization="Closed Org",
-            status=Grant.COMPLETED,
+            organization="Expired Org",
+            status=Grant.OPEN,
+            end_date=datetime.now(pytz.UTC) - timedelta(days=5),
         )
         
         self.client.force_authenticate(self.user)
@@ -509,4 +513,4 @@ class GrantFeedViewTests(APITestCase):
         
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["results"]), 1)
-        self.assertEqual(response.data["results"][0]["content_object"]["id"], closed_post.id)
+        self.assertEqual(response.data["results"][0]["content_object"]["id"], expired_post.id)

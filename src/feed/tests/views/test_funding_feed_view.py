@@ -162,23 +162,22 @@ class FundingFeedViewSetTests(TestCase):
         cache.clear()
 
     def test_list_funding_feed(self):
-        """Test that funding feed only returns preregistration posts"""
+        """Test that funding feed only returns OPEN preregistration posts by default"""
         url = reverse("funding_feed-list")
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        # Should only include non-removed preregistration posts (2 posts)
-        self.assertEqual(len(response.data["results"]), 2)
+        # Should only include OPEN fundraises (1 post - self.post is OPEN, self.other_post is COMPLETED)
+        self.assertEqual(len(response.data["results"]), 1)
 
         self.assertEqual(response.data["results"][0]["content_type"], "RESEARCHHUBPOST")
 
-        post_ids = []
-        for item in response.data["results"]:
-            post_ids.append(item["content_object"]["id"])
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
 
+        # Only OPEN fundraise should be included
         self.assertIn(self.post.id, post_ids)
-        self.assertIn(self.other_post.id, post_ids)
+        self.assertNotIn(self.other_post.id, post_ids)
 
         # Verify non-preregistration and removed posts are not included
         self.assertNotIn(self.non_preregistration_post.id, post_ids)
@@ -197,7 +196,7 @@ class FundingFeedViewSetTests(TestCase):
         self.assertTrue(mock_cache.set.called)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data["results"]), 2)
+        self.assertEqual(len(response.data["results"]), 1)  # Only OPEN fundraises
 
         # Return a "cached" response on second request
         mock_cache.get.return_value = mock_cache.set.call_args[0][1]
@@ -209,7 +208,7 @@ class FundingFeedViewSetTests(TestCase):
         self.assertFalse(mock_cache.set.called)
 
         self.assertEqual(response2.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response2.data["results"]), 2)
+        self.assertEqual(len(response2.data["results"]), 1)  # Only OPEN fundraises
         self.assertEqual(response.data["results"], response2.data["results"])
 
     def test_add_user_votes_and_metrics(self):

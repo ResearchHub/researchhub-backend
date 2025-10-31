@@ -52,30 +52,53 @@ class FundOrderingFilter(OrderingFilter):
     def _apply_open_status_filter(self, request: Request, queryset: QuerySet, view: Any, model_config: dict[str, Union[Type[Grant], Type[Fundraise], str]]) -> QuerySet:
         """
         Filter by open/ended status based on ordering parameter.
-        - Default: show only OPEN items
-        - ordering=ended: show only CLOSED and COMPLETED items
+        - Grants: active = OPEN + not expired, ended = OPEN + expired
+        - Fundraises: active = OPEN, ended = CLOSED/COMPLETED only
         """
         ordering_param = request.query_params.get(self.ordering_param, '')
         ordering = ordering_param.split(',')[0].lstrip('-').strip() if ordering_param else ''
         
         model_class = model_config['model_class']
+        open_status = model_config['open_status']
+        closed_statuses = [model_config['closed_status'], model_config['completed_status']]
+        now = timezone.now()
         
-        if ordering == 'ended':
-            # Show only closed/completed items
-            closed_statuses = [model_config['closed_status'], model_config['completed_status']]
-            return queryset.filter(
-                unified_document__in=model_class.objects.filter(
+        if model_class == Grant:
+            if ordering == 'ended':
+                # Show OPEN grants that are expired (past end_date)
+                return queryset.filter(
+                    unified_document_id__in=Grant.objects.filter(
+                        status=open_status,
+                        end_date__lt=now
+                    ).values_list('unified_document_id', flat=True)
+                )
+            else:
+                # Show OPEN grants that are NOT expired (future end_date or no end_date)
+                return queryset.filter(
+                    unified_document_id__in=Grant.objects.filter(
+                        status=open_status
+                    ).filter(
+                        Q(end_date__gte=now) | Q(end_date__isnull=True)
+                    ).values_list('unified_document_id', flat=True)
+                )
+        else:  # Fundraise
+            if ordering == 'ended':
+                # Show only CLOSED/COMPLETED fundraises (no OPEN ones)
+                has_closed = set(Fundraise.objects.filter(
                     status__in=closed_statuses
-                ).values_list('unified_document_id', flat=True)
-            )
-        else:
-            # Default: show only open items
-            open_status = model_config['open_status']
-            return queryset.filter(
-                unified_document__in=model_class.objects.filter(
+                ).values_list('unified_document_id', flat=True))
+                has_open = set(Fundraise.objects.filter(
                     status=open_status
-                ).values_list('unified_document_id', flat=True)
-            )
+                ).values_list('unified_document_id', flat=True))
+                ended_ids = list(has_closed - has_open)
+                return queryset.filter(unified_document_id__in=ended_ids)
+            else:
+                # Show OPEN fundraises (including expired ones)
+                return queryset.filter(
+                    unified_document_id__in=Fundraise.objects.filter(
+                        status=open_status
+                    ).values_list('unified_document_id', flat=True)
+                )
 
     def _apply_custom_sorting(self, queryset: QuerySet, model_config: dict, request: Request, view: Any) -> QuerySet:
         """Apply custom sorting based on order value."""
