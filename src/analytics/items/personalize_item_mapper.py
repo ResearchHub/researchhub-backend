@@ -29,7 +29,7 @@ from analytics.constants.personalize_constants import (
     TWEET_COUNT_TOTAL,
     UPVOTE_SCORE,
 )
-from analytics.utils.personalize_item_utils import clean_text_for_csv
+from analytics.utils.personalize_item_utils import prepare_text_for_personalize
 from utils.time import datetime_to_epoch_seconds
 
 
@@ -184,8 +184,8 @@ class PersonalizeItemMapper:
         text_concat = f"{title} {abstract} {hub_names}"
 
         fields = {
-            TITLE: clean_text_for_csv(title),
-            TEXT: clean_text_for_csv(text_concat),
+            TITLE: prepare_text_for_personalize(title),
+            TEXT: prepare_text_for_personalize(text_concat),
             CITATION_COUNT_TOTAL: paper.citations if paper.citations is not None else 0,
         }
 
@@ -205,6 +205,6 @@ class PersonalizeItemMapper:
         text_concat = f"{title} {renderable_text} {hub_names}"
 
         return {
-            TITLE: clean_text_for_csv(title),
-            TEXT: clean_text_for_csv(text_concat),
+            TITLE: prepare_text_for_personalize(title),
+            TEXT: prepare_text_for_personalize(text_concat),
         }

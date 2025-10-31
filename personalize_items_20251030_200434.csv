@@ -1,0 +1,668 @@
+ITEM_ID,ITEM_TYPE,HUB_L1,HUB_L2,HUB_IDS,AUTHOR_IDS,CREATION_TIMESTAMP,TEXT,TITLE,UPVOTE_SCORE,BLUESKY_COUNT_TOTAL,TWEET_COUNT_TOTAL,CITATION_COUNT_TOTAL,PEER_REVIEW_COUNT_TOTAL,HAS_ACTIVE_BOUNTY,BOUNTY_HAS_SOLUTIONS,RFP_IS_OPEN,RFP_HAS_APPLICANTS,PROPOSAL_IS_OPEN,PROPOSAL_HAS_FUNDERS
+4602,PROPOSAL,,,7159,4,1718678049,asdfafadsfadsfadsfasf asdf asdf dsafadf asdf adsf dsafa fa faf ads fdasasd fadsf asdf asdf dsafadf asdf adsf dsafa fa faf ads fdasasd fadsf  bioassay,asdfafadsfadsfadsfasf,1,0,0,0,0,False,False,False,False,False,True
+4604,PROPOSAL,,,6795|11892,4,1718678162,"meow meow meow meow meow meow meow meow meowmeow meow meowmeow meow meowmeow meow meowmeow meow meowmeow meow meowmeow meow meowmeow meow meowmeow meow meowmeow meow meow computational biology,bioavailability",meow meow meow meow meow meow,1,0,0,0,0,False,False,False,False,False,True
+4883,PROPOSAL,,8172,6986|8172,4,1737398489,"Development of HLBT-100: a highly Potent Flavonoid as an Anticancer Agent against Non-melanoma and melanoma skin Cancers Development of HLBT-100: a highly Potent Flavonoid as an Anticancer Agent against Non-melanoma and melanoma skin Cancers
+
+Authors & Affiliations
+
+Joseph Bryant, DVM[1]; Maulik Dhandha, MD[2]; Henry Lowe, Ph.D[1,3,4] and Ngeh Toyang, Ph.D[1,4]
+
+[1] Educational & Scientific LLC, Baltimore, MD
+
+[2] Sun Protection Inc, Newark, DE
+
+[3] University of Maryland School of Medicine, Baltimore, MD
+
+[4] LTN Pharmaceuticals, Inc. Baltimore, MD
+
+Abstract
+
+There is an alarming increase in skin cancer incidence in the US and worldwide (1). Skin cancers are classified as non-melanoma and melanoma skin cancers (2). Non-melanoma (NMSC) skin cancers are a major health problem in the US, with over two million new cases diagnosed yearly, making it the most common cancer in the US (3). Non-melanoma skin carcinoma can be treated effectively if it is detected early and current treatment options include surgery, laser therapy, cryotherapy, creams, radiotherapy, chemotherapy, and photodynamic therapy (4). Despite the high incidence of these cancers, there are only about 4 common FDA approved drugs for use in the chemotherapeutic treatment of non-melanoma skin cancer. These drugs include 5-Flourouracil (marketed under different brand and generic names), Imiquimod, Sonidegib, and Vismodegib. Known for their strong antioxidant properties, a growing number of reports indicate that some flavonoids do possess potent anticancer effects (5). Flavonoids have been shown to have an effect in numerous cellular pathways, suppressing carcinogenesis, which allows for new strategies to fight skin cancer (6). HLBT-100, a flavonoid isolated in our lab represents one of the new potential strategies to fight skin cancer (7). The primary goal of this project is to develop a topical formulation with HLBT-100 as a treatment for NMSC and the secondary aim is to explore the utility of this agent as an adjuvant therapy for melanoma.
+
+Introduction
+
+Motivation
+
+Despite recent advancements in therapies, such as immunotherapies and Hedgehog inhibitors that have transformed treatment options in oncology, significantly benefiting patients with common skin cancers leading to improved survival rates, a substantial number of patients do not achieve a cure with these treatments (1). Therefore, additional research is imperative to further enhance treatment outcomes. For example, the non-melanoma skin cancer market is estimated to be valued at US$ 5,068.7 million in 2024 with a CAGR of 5.7% from 2024 to 2034 reaching a value of US$ 8,859.6 million by 2034 signifying a continuous rise in the number of cases (8). There has been a significant rise in the number of nonmelanoma skin cancer over the past few decades due to a combination of better skin cancer detection, people getting more sun/UV exposure and people living longer (9)
+
+With increasing forecasts for NMSC, there is an ongoing effort to develop new and more effective and safe therapies for NMSC.  Based on preclinical findings, HLBT-100 (Fig 1) - a potential drug candidate that can be used therapeutically in the prevention or treatment of cancer alone or in combination with other anticancer agents was discovered in our lab (7).  HLBT-100 has demonstrated significant in vitro effect against NMSC and melanoma cell lines at low nanomolar concentrations (Table 1). We also had the compound screened at the National Cancer Institute (NCI) on the NC160 cancer cell lines panel and demonstrated anticancer activity against 23 of the 60 cancer cell lines (7). Following the successful synthesis of HLBT-100 with similar activity to the naturally occurring molecule, we believe that this molecule can be developed into a novel topical treatment for NMSC saving many patients that do not respond to current therapies. 
+
+
+
+Figure 1. HLBT-100
+
+ 
+
+ 
+
+ 
+
+Table 1: Anticancer activity of HLBT-100 on skin cancer cell lines: IC50 (µM)
+
+
+
+
+
+
+
+Cell Lines
+
+
+
+TE354.T
+
+
+
+FaDu
+
+
+
+A431
+
+
+
+A375
+
+
+
+Neuro-2a
+
+
+
+
+
+HLBT-001
+
+
+
+0.152
+
+
+
+0.019
+
+
+
+3.37
+
+
+
+0.003
+
+
+
+No effect
+
+
+
+
+
+STAURUSPOURINE
+
+
+
+1.8
+
+
+
+0.008
+
+
+
+<0.0001
+
+
+
+NT
+
+
+
+0.0062
+
+TE354.T (Basal Cell Carcinoma); FaDu (Squamous Cell Carcinoma); A431 (Epidermoid cell Carcinoma); A375 (Melanoma); Neuro-2a (Normal cell line)
+
+ 
+
+Hypothesis/Aims
+
+We hypothesize that HLBT-100 is a potent anticancer agent against NMSC due to its multifaceted cancer targets including BRAF mutations which implicate the resistance to skin cancer treatment.
+
+We propose the following specific Aims to move this compound forward.
+
+Aim 1. Synthesize HLBT-100 for in vivo studies
+
+Aim 2. In vivo efficacy studies in an appropriate mouse model of NMSC using topical formulation of HLBT-100
+
+Aim 3. Establish preliminary topical safety of HLBT-100 formulation.
+
+ 
+
+Impact/Significance
+
+Skin cancer is a global threat to the healthcare system. It is our expectation that we will develop a novel flavonoid compound that is highly effective against NMSC. The results are expected to have an important positive impact because current therapeutics have several limitations.  Our interdisciplinary team is well equipped with the knowledge and experience to successfully develop HLBT-100 as an effective cosmeceutical product for NMSC.
+
+ 
+
+Materials/Methods
+
+Study Type
+
+Preclinical proof-of-concept study of HLBT-100 formulation in the treatment of NMSC.
+
+The chemical induced model of NMSC using Dimethylbenz[a]Anthracene and 12-O-Tetradecanoyl Phorbol-13-Acetate (DMBA-TPA) as described by Vähätupa, et al., 2019 with some modification will be used (10).
+
+A summary of the protocol is as follows:
+
+1. C57BL/6 mice. Shave the back skin and weigh the animal. Later, shave the skin whenever needed but not at the time of the chemical exposure.
+
+2. Apply 50 μg of DMBA in 200 μL of acetone topically on the shaved area using a pipette 48 h after shaving the fur.
+
+3. After 7 days, give the first TPA dose. Apply 5 μg of TPA in 200 μL of acetone with a pipette 2x a week, preferably Monday and Thursday or Tuesday and Friday.
+
+4. Count, record, and photograph the papillomas every week. A palpable mass greater than 1 mm in diameter is considered a papilloma if it stays longer than 1 week.
+
+5. Monitor for papilloma formation and start treatment on week 12 or as soon as papillomas form in the induction area.
+
+ 
+
+ Groups
+
+
+
+
+
+
+
+Group(n=7)
+
+
+
+Description
+
+
+
+
+
+Group 1
+
+
+
+Vehicle
+
+
+
+
+
+Group 2
+
+
+
+3% HLBT-100
+
+
+
+
+
+Group 3
+
+
+
+6% HLBT-100
+
+
+
+
+
+Group 4
+
+
+
+9% HLBT-100
+
+
+
+
+
+Group 5
+
+
+
+5% Fluorouracil
+
+ 
+
+Drug and method of application
+
+HLBT-100 (10 grams) and formulated for topical application to NMSC model
+
+Sample collection and analysis
+
+Tissue samples from treated mice will be collected for histology and other relevant analysis to gain more insights into the effect of the HLBT-100 treatment.
+
+Statistical analysis.
+
+A biostatistician will work with us to design the studies and analysis of generated data.
+
+Existing Data
+
+See table 1.
+
+ 
+
+BUDGET
+
+Costs
+
+The estimated costs for this project are summarized in Table 2.
+
+Table 2. Project costs
+
+
+
+
+
+
+
+ 
+
+
+
+Item and Description
+
+
+
+Cost ($US)
+
+
+
+
+
+1
+
+
+
+Synthesis of HLBT-100
+
+
+
+15,000.00
+
+
+
+
+
+2
+
+
+
+Formulation supplies
+
+
+
+1,500.00
+
+
+
+
+
+3
+
+
+
+In vivo proof-of-concept studies
+
+
+
+40,000.00
+
+
+
+
+
+4
+
+
+
+Miscellaneous
+
+
+
+3,500.00
+
+
+
+
+
+Total
+
+
+
+60,000.00
+
+
+
+ 
+
+This budget covers the synthesis of HLBT-100, formulation into a basic topical formulation, basic stability of formulation, proof-of-concept studies in an appropriate model of NMSC, analysis of tissue samples collected and data processing and publications.
+
+ 
+
+References
+
+
+
+
+
+Attal, Zoe Gabrielle, Walid Shalata, Arina Soklakova, Lena Tourkey, Sondos Shalata, Omar Abu Saleh, Fahed Abu Salamah, Ibrahim Alatawneh, and Alexander Yakobson. 2024. ""Advanced and Metastatic Non-Melanoma Skin Cancer: Epidemiology, Risk Factors, Clinical Features, and Treatment Options"" Biomedicines 12, no. 7: 1448. https://doi.org/10.3390/biomedicines12071448
+
+
+
+Roky, Amdad Hossain, Mohammed Murshedul Islam, Abu Mohammed Fuad Ahasan, Md Saqline Mostaq, Md Zihad Mahmud, Mohammad Nurul Amin, and Md Ashiq Mahmud. ""Overview of skin cancer types and prevalence rates across continents."" Cancer Pathogenesis and Therapy 2 (2024): E01-E36.
+
+
+
+Kao, Szu-Yu Zoe, Donatus U. Ekwueme, Dawn M. Holman, Sun Hee Rim, Cheryll C. Thomas, and Mona Saraiya. ""Economic burden of skin cancer treatment in the USA: An analysis of the Medical Expenditure Panel Survey Data, 2012–2018."" Cancer Causes & Control 34, no. 3 (2023): 205-212.
+
+
+
+Sol, Stefano, Fabiana Boncimino, Kristina Todorova, Sarah Elizabeth Waszyn, and Anna Mandinova. ""Therapeutic approaches for Non-melanoma skin Cancer: Standard of Care and Emerging modalities."" International Journal of Molecular Sciences 25, no. 13 (2024): 7056.
+
+
+
+Parchami, Ghazaee, and Kateryna Marchenko-Tolsta. ""A REVIEW OF THE ANTICANCER NATURAL PRODUCTS: ALKALOIDS, FLAVONOIDS.""
+
+
+
+Grail of Science 18-19 (2022): 391-393. Mizgała-Izworska, Elżbieta. ""The use of flavonoids in skin cancer prevention and treatment."" Journal of Pre-Clinical and Clinical Research 16, no. 3 (2022): 108-113.
+
+
+
+Lowe, Henry IC, Ngeh J. Toyang, Charah T. Watson, Kenneth N. Ayeah, and Joseph Bryant. ""HLBT-100: a highly potent anti-cancer flavanone from Tillandsia recurvata (L.) L."" Cancer Cell International 17 (2017): 1-12.
+
+
+
+Fact MRC Report. https://www.factmr.com/report/non-melanoma-skin-cancer-market#:~:text=The%20non%2Dmelanoma%20skin%20cancer,US%24%208%2C859.6%20million%20by%202034. Last accessed Dec 17, 2024.
+
+
+
+American Cancer Society Statisticshttps://www.cancer.org/cancer/types/basal-and-squamous-cell-skin-cancer/about/key-statistics.html#:~:text=The%20number%20of%20these%20cancers,from%20these%20cancers%20are%20not.
+
+
+
+Vähätupa, M., Pemmari, T., Junttila, I., Pesu, M., Järvinen, T.A. Chemical-Induced Skin Carcinogenesis Model Using Dimethylbenz[a]Anthracene and 12-O-Tetradecanoyl Phorbol-13-Acetate (DMBA-TPA). J. Vis. E",Development of HLBT-100: a highly Potent Flavonoid as an Anticancer Agent against Non-melanoma and melanoma skin Cancers,1,0,0,0,0,False,False,False,False,False,True
+4887,PROPOSAL,,,,,1740513246,"Preregistration Template Preregistration Template
+
+1. Overview
+
+Provide a brief overview of: (1) scientific rationale and importance, (2) confirmation of funding/facilities/ethics approvals, (3) estimated timeline, and (4) data sharing commitment.
+
+2. Introduction
+
+Summarize theoretical background, key literature, research questions, and numbered hypotheses (H1, H2, etc.). Explain the study's importance  with an impact statement, regardless of potential outcomes.
+
+3. Methods
+
+Participants/Sample
+
+Define target sample, inclusion/exclusion criteria, recruitment strategy, and sample size justification (including power analysis).
+
+Materials and Procedures
+
+Describe experimental/observational procedures, stimuli, tasks, equipment, and data collection settings with sufficient detail for replication.
+
+Planned Analyses
+
+Outline analysis pipeline, preprocessing steps, statistical tests, and hypothesis-specific predictions. Include any contingent analysis decisions as IF-THEN statements.
+
+Ethics and Data Management
+
+State ethical approval status or plan, confidentiality measures, and data sharing/archiving plan.
+
+4. Pilot Data (Optional)
+
+Summarize any pilot data or simulations that demonstrate method feasibility and inform power analysis. Clearly distinguish from main study.
+
+5. Budget
+
+Provide an itemized list of anticipated costs (materials, personnel, etc.). These are not binding and are able to be adjusted based on the results of the pilot data.
+
+6. References
+
+List all references used in the manuscript using Nature style (e.g. numbered in-text citations and alphabetical references at the end of the manuscript).",Preregistration Template,1,0,0,0,0,False,False,False,False,False,True
+4898,PROPOSAL,,,6916,,1742399816,"Preregistration Template Preregistration Template
+
+1. Overview
+
+Provide a brief overview of: (1) scientific rationale and importance, (2) confirmation of funding/facilities/ethics approvals, (3) estimated timeline, and (4) data sharing commitment.
+
+2. Introduction
+
+Summarize theoretical background, key literature, research questions, and numbered hypotheses (H1, H2, etc.). Explain the study's importance  with an impact statement, regardless of potential outcomes.
+
+3. Methods
+
+Participants/Sample
+
+Define target sample, inclusion/exclusion criteria, recruitment strategy, and sample size justification (including power analysis).
+
+Materials and Procedures
+
+Describe experimental/observational procedures, stimuli, tasks, equipment, and data collection settings with sufficient detail for replication.
+
+Planned Analyses
+
+Outline analysis pipeline, preprocessing steps, statistical tests, and hypothesis-specific predictions. Include any contingent analysis decisions as IF-THEN statements.
+
+Ethics and Data Management
+
+State ethical approval status or plan, confidentiality measures, and data sharing/archiving plan.
+
+4. Pilot Data (Optional)
+
+Summarize any pilot data or simulations that demonstrate method feasibility and inform power analysis. Clearly distinguish from main study.
+
+5. Budget
+
+Provide an itemized list of anticipated costs (materials, personnel, etc.). These are not binding and are able to be adjusted based on the results of the pilot data.
+
+6. References
+
+List all references used in the manuscript using Nature style (e.g. numbered in-text citations and alphabetical references at the end of the manuscript). sequence (biology)",Preregistration Template,0,0,0,0,0,False,False,False,False,False,True
+6156,PROPOSAL,6781,,6781,4,1749606120,"Preregistration Template Preregistration Template
+
+1. Overview
+
+Provide a brief overview of: (1) scientific rationale and importance, (2) confirmation of funding/facilities/ethics approvals, (3) estimated timeline, and (4) data sharing commitment.
+
+2. Introduction
+
+Summarize theoretical background, key literature, research questions, and numbered hypotheses (H1, H2, etc.). Explain the study's importance  with an impact statement, regardless of potential outcomes.
+
+3. Methods
+
+Participants/Sample
+
+Define target sample, inclusion/exclusion criteria, recruitment strategy, and sample size justification (including power analysis).
+
+Materials and Procedures
+
+Describe experimental/observational procedures, stimuli, tasks, equipment, and data collection settings with sufficient detail for replication.
+
+Planned Analyses
+
+Outline analysis pipeline, preprocessing steps, statistical tests, and hypothesis-specific predictions. Include any contingent analysis decisions as IF-THEN statements.
+
+Ethics and Data Management
+
+State ethical approval status or plan, confidentiality measures, and data sharing/archiving plan.
+
+4. Pilot Data (Optional)
+
+Summarize any pilot data or simulations that demonstrate method feasibility and inform power analysis. Clearly distinguish from main study.
+
+5. Budget
+
+Provide an itemized list of anticipated costs (materials, personnel, etc.). These are not binding and are able to be adjusted based on the results of the pilot data.
+
+6. References
+
+List all references used in the manuscript using Nature style (e.g. numbered in-text citations and alphabetical references at the end of the manuscript). biology",Preregistration Template,1,0,0,0,0,False,False,False,False,False,False
+6158,PROPOSAL,6781,,6781,4,1749952897,"Fundraise Example #1 Fundraise Example #1
+
+1. Overview
+
+Provide a brief overview of: (1) scientific rationale and importance, (2) confirmation of funding/facilities/ethics approvals, (3) estimated timeline, and (4) data sharing commitment.
+
+2. Introduction
+
+Summarize theoretical background, key literature, research questions, and numbered hypotheses (H1, H2, etc.). Explain the study's importance  with an impact statement, regardless of potential outcomes.
+
+3. Methods
+
+Participants/Sample
+
+Define target sample, inclusion/exclusion criteria, recruitment strategy, and sample size justification (including power analysis).
+
+Materials and Procedures
+
+Describe experimental/observational procedures, stimuli, tasks, equipment, and data collection settings with sufficient detail for replication.
+
+Planned Analyses
+
+Outline analysis pipeline, preprocessing steps, statistical tests, and hypothesis-specific predictions. Include any contingent analysis decisions as IF-THEN statements.
+
+Ethics and Data Management
+
+State ethical approval status or plan, confidentiality measures, and data sharing/archiving plan.
+
+4. Pilot Data (Optional)
+
+Summarize any pilot data or simulations that demonstrate method feasibility and inform power analysis. Clearly distinguish from main study.
+
+5. Budget
+
+Provide an itemized list of anticipated costs (materials, personnel, etc.). These are not binding and are able to be adjusted based on the results of the pilot data.
+
+6. References
+
+List all references used in the manuscript using Nature style (e.g. numbered in-text citations and alphabetical references at the end of the manuscript). biology",Fundraise Example #1,1,0,0,0,1,False,False,False,False,False,True
+11397,PROPOSAL,,,7719,38203,1760595732,"Proposal Template testset testestse Proposal Template testset testestse
+
+1. Overview
+
+Provide a brief overview of: (1) scientific rationale and importance, (2) confirmation of funding/facilities/ethics approvals, (3) estimated timeline, and (4) data sharing commitment.
+
+2. Introduction
+
+Summarize theoretical background, key literature, research questions, and numbered hypotheses (H1, H2, etc.). Explain the study's importance  with an impact statement, regardless of potential outcomes.
+
+3. Methods
+
+Participants/Sample
+
+Define target sample, inclusion/exclusion criteria, recruitment strategy, and sample size justification (including power analysis).
+
+Materials and Procedures
+
+Describe experimental/observational procedures, stimuli, tasks, equipment, and data collection settings with sufficient detail for replication.
+
+Planned Analyses
+
+Outline analysis pipeline, preprocessing steps, statistical tests, and hypothesis-specific predictions. Include any contingent analysis decisions as IF-THEN statements.
+
+Ethics and Data Management
+
+State ethical approval status or plan, confidentiality measures, and data sharing/archiving plan.
+
+4. Pilot Data (Optional)
+
+Summarize any pilot data or simulations that demonstrate method feasibility and inform power analysis. Clearly distinguish from main study.
+
+5. Budget
+
+Provide an itemized list of anticipated costs (materials, personnel, etc.). These are not binding and are able to be adjusted based on the results of the pilot data.
+
+6. References
+
+List all references used in the manuscript using Nature style (e.g. numbered in-text citations and alphabetical references at the end of the manuscript). bioaerosol",Proposal Template testset testestse,1,0,0,0,0,False,False,False,False,True,False
+11399,PROPOSAL,6781,14933,6781|14933,38203,1760637969,"test test test 10/16/25 test test test 10/16/25
+
+1. Overview
+
+Provide a brief overview of: (1) scientific rationale and importance, (2) confirmation of funding/facilities/ethics approvals, (3) estimated timeline, and (4) data sharing commitment.
+
+2. Introduction
+
+Summarize theoretical background, key literature, research questions, and numbered hypotheses (H1, H2, etc.). Explain the study's importance  with an impact statement, regardless of potential outcomes.
+
+3. Methods
+
+Participants/Sample
+
+Define target sample, inclusion/exclusion criteria, recruitment strategy, and sample size justification (including power analysis).
+
+Materials and Procedures
+
+Describe experimental/observational procedures, stimuli, tasks, equipment, and data collection settings with sufficient detail for replication.
+
+Planned Analyses
+
+Outline analysis pipeline, preprocessing steps, statistical tests, and hypothesis-specific predictions. Include any contingent analysis decisions as IF-THEN statements.
+
+Ethics and Data Management
+
+State ethical approval status or plan, confidentiality measures, and data sharing/archiving plan.
+
+4. Pilot Data (Optional)
+
+Summarize any pilot data or simulations that demonstrate method feasibility and inform power analysis. Clearly distinguish from main study.
+
+5. Budget
+
+Provide an itemized list of anticipated costs (materials, personnel, etc.). These are not binding and are able to be adjusted based on the results of the pilot data.
+
+6. References
+
+List all references used in the manuscript using Nature style (e.g. numbered in-text citations and alphabetical references at the end of the manuscript). biology,Quantitative Biology",test test test 10/16/25,1,0,0,0,0,False,False,False,False,True,True
+14800,PAPER,,,,,1761790490,Test Paper Test abstract,Test Paper,0,0,0,0,0,False,False,False,False,False,False
+14801,POST,,,,,1761790491,Test Post Test content,Test Post,0,0,0,0,0,False,False,False,False,False,False
+14802,RFP,,,,40125,1761790928,Test Grant some text,Test Grant,0,0,0,0,0,False,False,True,False,False,False
+14804,PROPOSAL,,,7478,4,1761849713,"New proposal test 10/30 New proposal test 10/30
+
+1. Overview
+
+Provide a brief overview of: (1) scientific rationale and importance, (2) confirmation of funding/facilities/ethics approvals, (3) estimated timeline, and (4) data sharing commitment.
+
+2. Introduction
+
+Summarize theoretical background, key literature, research questions, and numbered hypotheses (H1, H2, etc.). Explain the study's importance  with an impact statement, regardless of potential outcomes.
+
+3. Methods
+
+Participants/Sample
+
+Define target sample, inclusion/exclusion criteria, recruitment strategy, and sample size justification (including power analysis).
+
+Materials and Procedures
+
+Describe experimental/observational procedures, stimuli, tasks, equipment, and data collection settings with sufficient detail for replication.
+
+Planned Analyses
+
+Outline analysis pipeline, preprocessing steps, statistical tests, and hypothesis-specific predictions. Include any contingent analysis decisions as IF-THEN statements.
+
+Ethics and Data Management
+
+State ethical approval status or plan, confidentiality measures, and data sharing/archiving plan.
+
+4. Pilot Data (Optional)
+
+Summarize any pilot data or simulations that demonstrate method feasibility and inform power analysis. Clearly distinguish from main study.
+
+5. Budget
+
+Provide an itemized list of anticipated costs (materials, personnel, etc.). These are not binding and are able to be adjusted based on the results of the pilot data.
+
+6. References
+
+List all references used in the manuscript using Nature style (e.g. numbered in-text citations and alphabetical references at the end of the manuscript). biobank",New proposal test 10/30,1,0,0,0,1,True,False,False,False,True,True

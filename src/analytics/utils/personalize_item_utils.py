@@ -8,7 +8,7 @@ from typing import Optional
 from analytics.constants.personalize_constants import MAX_TEXT_LENGTH
 
 
-def clean_text_for_csv(text: Optional[str]) -> Optional[str]:
+def prepare_text_for_personalize(text: Optional[str]) -> Optional[str]:
     """
     Prepare text for CSV export.
     """

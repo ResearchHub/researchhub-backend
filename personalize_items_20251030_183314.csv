@@ -1,0 +1,123 @@
+ITEM_ID,ITEM_TYPE,HUB_L1,HUB_L2,HUB_IDS,AUTHOR_IDS,CREATION_TIMESTAMP,TEXT,TITLE,UPVOTE_SCORE,BLUESKY_COUNT_TOTAL,TWEET_COUNT_TOTAL,CITATION_COUNT_TOTAL,HAS_ACTIVE_BOUNTY,BOUNTY_HAS_SOLUTIONS,RFP_IS_OPEN,RFP_HAS_APPLICANTS,PROPOSAL_IS_OPEN,PROPOSAL_HAS_FUNDERS
+6148,GRANT,,7020,7020|7822,2,1749080499,"Grant Proposal Template Grant Proposal Template
+
+1. Overview
+
+Provide a brief overview of: (1) scientific rationale and importance, (2) confirmation of funding/facilities/ethics approvals, (3) estimated timeline, and (4) data sharing commitment.
+
+2. Introduction
+
+Summarize theoretical background, key literature, research questions, and numbered hypotheses (H1, H2, etc.). Explain the study's importance  with an impact statement, regardless of potential outcomes.
+
+3. Methods
+
+Participants/Sample
+
+Define target sample, inclusion/exclusion criteria, recruitment strategy, and sample size justification (including power analysis).
+
+Materials and Procedures
+
+Describe experimental/observational procedures, stimuli, tasks, equipment, and data collection settings with sufficient detail for replication.
+
+Planned Analyses
+
+Outline analysis pipeline, preprocessing steps, statistical tests, and hypothesis-specific predictions. Include any contingent analysis decisions as IF-THEN statements.
+
+Ethics and Data Management
+
+State ethical approval status or plan, confidentiality measures, and data sharing/archiving plan.
+
+4. Pilot Data (Optional)
+
+Summarize any pilot data or simulations that demonstrate method feasibility and inform power analysis. Clearly distinguish from main study.
+
+5. Budget
+
+Provide an itemized list of anticipated costs (materials, personnel, etc.). These are not binding and are able to be adjusted based on the results of the pilot data.
+
+6. References
+
+List all references used in the manuscript using Nature style (e.g. numbered in-text citations and alphabetical references at the end of the manuscript). neuroscience,cerebrospinal fluid",Grant Proposal Template,1,0,0,0,False,False,True,False,False,False
+6152,GRANT,,6794,6794,3,1749083271,"Grant Proposal Template Grant Proposal Template
+
+1. Overview
+
+Provide a brief overview of: (1) scientific rationale and importance, (2) confirmation of funding/facilities/ethics approvals, (3) estimated timeline, and (4) data sharing commitment.
+
+2. Introduction
+
+Summarize theoretical background, key literature, research questions, and numbered hypotheses (H1, H2, etc.). Explain the study's importance  with an impact statement, regardless of potential outcomes.
+
+3. Methods
+
+Participants/Sample
+
+Define target sample, inclusion/exclusion criteria, recruitment strategy, and sample size justification (including power analysis).
+
+Materials and Procedures
+
+Describe experimental/observational procedures, stimuli, tasks, equipment, and data collection settings with sufficient detail for replication.
+
+Planned Analyses
+
+Outline analysis pipeline, preprocessing steps, statistical tests, and hypothesis-specific predictions. Include any contingent analysis decisions as IF-THEN statements.
+
+Ethics and Data Management
+
+State ethical approval status or plan, confidentiality measures, and data sharing/archiving plan.
+
+4. Pilot Data (Optional)
+
+Summarize any pilot data or simulations that demonstrate method feasibility and inform power analysis. Clearly distinguish from main study.
+
+5. Budget
+
+Provide an itemized list of anticipated costs (materials, personnel, etc.). These are not binding and are able to be adjusted based on the results of the pilot data.
+
+6. References
+
+List all references used in the manuscript using Nature style (e.g. numbered in-text citations and alphabetical references at the end of the manuscript). biochemistry",Grant Proposal Template,1,0,0,0,False,False,True,True,False,False
+6163,GRANT,,6794,6794,4,1750162354,"Funding new Innovations Funding new Innovations
+
+About this funding
+
+Briefly introduce your organization and explain why you are issuing this RFP now, including the overarching problem or topic you're targeting.
+
+[Insert background and rationale here]
+
+Topics of interest
+
+State your overall goal briefly, then list a few high‐level ""areas of interest"" that applicants may address. These should be broad, non‐exhaustive topics.
+
+Overall goal: [Insert one‐sentence goal]
+
+Specific areas of interest (not exhaustive):
+
+
+
+
+
+[Area of interest 1]
+
+
+
+[Area of interest 2]
+
+
+
+…
+
+Funding details
+
+State the total budget available for this RFP and the award range per project. Indicate whether multiple projects will be funded.
+
+Total RFP budget: [Insert total amount]
+
+Individual award range: [Insert minimum] – [Insert maximum]
+
+[Optional: Indicate number of projects expected to be funded]
+
+Additional details
+
+Optionally include any additional details to guide submissions or generate discussion. biochemistry",Funding new Innovations,1,0,0,0,False,False,True,False,False,False
+14802,GRANT,,,,40125,1761790928,Test Grant some text,Test Grant,0,0,0,0,False,False,True,False,False,False

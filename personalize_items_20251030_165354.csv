@@ -1,0 +1,1203 @@
+ITEM_ID,ITEM_TYPE,HUB_L1,HUB_L2,HUB_IDS,AUTHOR_IDS,CREATION_TIMESTAMP,TEXT,TITLE,UPVOTE_SCORE,BLUESKY_COUNT_TOTAL,TWEET_COUNT_TOTAL,CITATION_COUNT_TOTAL,HAS_ACTIVE_BOUNTY,BOUNTY_HAS_SOLUTIONS,RFP_IS_OPEN,RFP_HAS_APPLICANTS,PROPOSAL_IS_OPEN,PROPOSAL_HAS_FUNDERS
+2,PAPER,6781,6835,6835|12919|7120|8996|9985|6836|6781|8967|6990|6793,35216|35217|35218,1671580800,"Inheritance of paternal DNA damage by histone-mediated repair restriction How paternal exposure to ionizing radiation affects genetic inheritance and disease risk in the offspring has been a long-standing question in radiation biology. In humans, nearly 80% of transmitted mutations arise in the paternal germline1, but the transgenerational effects of ionizing radiation exposure has remained controversial and the mechanisms are unknown. Here we show that in sex-separated Caenorhabditis elegans strains, paternal, but not maternal, exposure to ionizing radiation leads to transgenerational embryonic lethality. The offspring of irradiated males displayed various genome instability phenotypes, including DNA fragmentation, chromosomal rearrangement and aneuploidy. Paternal DNA double strand breaks were repaired by maternally provided error-prone polymerase theta-mediated end joining. Mechanistically, we show that depletion of an orthologue of human histone H1.0, HIS-24, or the heterochromatin protein HPL-1, could significantly reverse the transgenerational embryonic lethality. Removal of HIS-24 or HPL-1 reduced histone 3 lysine 9 dimethylation and enabled error-free homologous recombination repair in the germline of the F1 generation from ionizing radiation-treated P0 males, consequently improving the viability of the F2 generation. This work establishes the mechanistic underpinnings of the heritable consequences of paternal radiation exposure on the health of offspring, which may lead to congenital disorders and cancer in humans. biology,gene,molecular biology,genetics,dna,dna damage,dna repair,histone,inheritance (genetic algorithm),pediatrics, perinatology and child health",Inheritance of paternal DNA damage by histone-mediated repair restriction,1,,,29,False,False,False,False,False,False
+3,PAPER,6854,7363,12836|12840|8175|8262|6807|7754|13242|9381|7208|13243|8176|6987|6781|6810|6794|8177|6793|7241|6854|6971|7363|6836,35148|35149|35150|35151|8642|168|5512|389,1694563200,"Quantifying the causal impact of biological risk factors on healthcare costs Abstract Understanding the causal impact that clinical risk factors have on healthcare-related costs is critical to evaluate healthcare interventions. Here, we used a genetically-informed design, Mendelian Randomization (MR), to infer the causal impact of 15 risk factors on annual total healthcare costs. We calculated healthcare costs for 373,160 participants from the FinnGen Study and replicated our results in 323,774 individuals from the United Kingdom and Netherlands. Robust causal effects were observed for waist circumference (WC), adult body mass index, and systolic blood pressure, in which a standard deviation increase corresponded to 22.78% [95% CI: 18.75-26.95], 13.64% [10.26-17.12], and 13.08% [8.84-17.48] increased healthcare costs, respectively. A lack of causal effects was observed for certain clinically relevant biomarkers, such as albumin, C-reactive protein, and vitamin D. Our results indicated that increased WC is a major contributor to annual total healthcare costs and more attention may be given to WC screening, surveillance, and mitigation. biology,gene,biochemistry,medicine,pathology,genetics,economics,economic growth,internal medicine,environmental health,genotype,psychiatry,psychological intervention,mendelian randomization,causal inference,genetic variants,health care,body mass index,economics and econometrics,statistics and probability,waist,marginal structural model",Quantifying the causal impact of biological risk factors on healthcare costs,0,,,4,False,False,False,False,False,False
+6,PAPER,,,,,1698796800,"The Relationship Between Cardiac Troponin in People Hospitalised for Exacerbation of COPD and Major Adverse Cardiac Events (MACE) and COPD Readmissions Background No single biomarker currently risk stratifies chronic obstructive pulmonary disease (COPD) patients at the time of an exacerbation, though previous studies have suggested that patients with elevated troponin at exacerbation have worse outcomes. This study evaluated the relationship between peak cardiac troponin and subsequent major adverse cardiac events (MACE) including all-cause mortality and COPD hospital readmission, among patients admitted with COPD exacerbation. Methods Data from five cross-regional hospitals in England were analysed using the National Institute of Health Research Health Informatics Collaborative (NIHR-HIC) acute coronary syndrome database (2008–2017). People hospitalised with a COPD exacerbation were included, and peak troponin levels were standardised relative to the 99th percentile (upper limit of normal). We used Cox Proportional Hazard models adjusting for age, sex, laboratory results and clinical risk factors, and implemented logarithmic transformation (base-10 logarithm). The primary outcome was risk of MACE within 90 days from peak troponin measurement. Secondary outcome was risk of COPD readmission within 90 days from peak troponin measurement. Results There were 2487 patients included. Of these, 377 (15.2%) patients had a MACE event and 203 (8.2%) were readmitted within 90 days from peak troponin measurement. A total of 1107 (44.5%) patients had an elevated troponin level. Of 1107 patients with elevated troponin at exacerbation, 256 (22.8%) had a MACE event and 101 (9.0%) a COPD readmission within 90 days from peak troponin measurement. Patients with troponin above the upper limit of normal had a higher risk of MACE (adjusted HR 2.20, 95% CI 1.75–2.77) and COPD hospital readmission (adjusted HR 1.37, 95% CI 1.02–1.83) when compared with patients without elevated troponin. Conclusion An elevated troponin level at the time of COPD exacerbation may be a useful tool for predicting MACE in COPD patients. The relationship between degree of troponin elevation and risk of future events is complex and requires further investigation.",The Relationship Between Cardiac Troponin in People Hospitalised for Exacerbation of COPD and Major Adverse Cardiac Events (MACE) and COPD Readmissions,0,,,0,False,True,False,False,False,False
+8,PAPER,6782,,7553|6782|6827|6828,566,1649289600,"Are there any absolute truths left?  mathematics,philosophy,epistemology,absolute (philosophy)",Are there any absolute truths left?,0,,,0,False,False,False,False,False,False
+9,PAPER,6834,6788,7276|6834|7542|6797|6788,567,1658275200,"test post  organic chemistry,paleontology,computer science,test (biology),geology",test post,2,,,0,False,False,False,False,False,False
+11,QUESTION,,,,,1701812249,test 00000001 ets fsdf dsfds,test 00000001,3,,,,False,False,False,False,False,False
+13,QUESTION,,,,,1701815032,Test 0000002 sdf asdf adsfd asfadsfafsa,Test 0000002,0,,,,False,True,False,False,False,False
+15,QUESTION,,,,,1701891190,sf dsf dsfdsf ddfs sd sdfdsf,sf dsf dsfdsf ddfs sd,1,,,,False,False,False,False,False,False
+22,QUESTION,,,,,1702482433,ABCDEDFGsdfdsfsfd HELLOW&nbsp;,ABCDEDFGsdfdsfsfd,0,,,,False,False,False,False,False,False
+24,QUESTION,,,,,1702570392,This is a test question test question yo yo yo,This is a test question,0,,,,False,False,False,False,False,False
+26,DISCUSSION,,,,,1702572558,This Is A Test Post LLM post sdfjdlksjflks post sdfjdlksjflkspost sdfjdlksjflks post sdfjdlksjflkspost sdfjdlksjflkspost sdfjdlksjflks,This Is A Test Post LLM,0,,,,False,True,False,False,False,False
+28,QUESTION,,,,,1702586625,TESTESTETESTSTESTESTSETSE asdfasfdsafdasfsddfa,TESTESTETESTSTESTESTSETSE,0,,,,False,False,False,False,False,False
+31,PAPER,6807,7705,7073|13001|12844|13235|8221|8397|7808|9142|7730|7072|13236|12006|6862|11077|6807|7015|7735|7705,35136|35137|35138|35139,1638921600,"Peer Review in Law Journals The field of law has retained its distinctiveness regarding peer review to this day, and reviews are often conducted without following standardized rules and principles. External and independent evaluation of submissions has recently become adopted by European law journals, and peer review procedures are still poorly defined, investigated, and attuned to the legal science publishing landscape. The aim of our study was to gain a better insight into current editorial policies on peer review in law journals by exploring editorial documents (instructions, guidelines, policies) issued by 119 Croatian, Italian, and Spanish law journals. We relied on automatic content analysis of 135 publicly available documents collected from the journal websites to analyze the basic features of the peer review processes, manuscript evaluation criteria, and related ethical issues using WordStat8. Differences in covered topics between the countries were compared using the chi-square test. Our findings reveal that most law journals have adopted a traditional approach, in which the editorial board manages mostly anonymized peer review (104, 77%) engaging independent/external reviewers (65, 48%). Submissions are evaluated according to their originality and relevance (113, 84%), quality of writing and presentation (94, 70%), comprehensiveness of literature references (93, 69%), and adequacy of methods (57, 42%). The main ethical issues related to peer review addressed by these journals are reviewer’s competing interests (42, 31%), plagiarism (35, 26%), and biases (30, 22%). We observed statistically significant differences between countries in mentioning key concepts such as “Peer review ethics”, “Reviewer”, “Transparency of identities”, “Publication type”, and “Research misconduct”. Spanish journals favor reviewers’ “Independence” and “Competence” and “Anonymized” peer review process. Also, some manuscript types popular in one country are rarely mentioned in other countries. Even though peer review is equally conventional in all three countries, high transparency in Croatian law journals, respect for research integrity in Spanish ones, and diversity and inclusion in Italian are promising indicators of future development. medicine,psychology,social psychology,political science,law,radiology,originality,creativity,transparency (behavior),peer review,publishing,relevance (law),public relations,presentation (obstetrics),safety research,political science and international relations,optimal distinctiveness theory,misconduct",Peer Review in Law Journals,2,,,2,False,False,False,False,False,False
+32,PAPER,6781,6797,6840|12821|6834|13237|7340|13238|7346|13239|6897|13240|7285|13241|6797|6781,35140|35141|35142|35143|35144|35145|35146|35147,1672531200,"LLM in a flash: Efficient Large Language Model Inference with Limited Memory Large language models (LLMs) are central to modern natural language processing, delivering exceptional performance in various tasks. However, their substantial computational and memory requirements present challenges, especially for devices with limited DRAM capacity. This paper tackles the challenge of efficiently running LLMs that exceed the available DRAM capacity by storing the model parameters in flash memory, but bringing them on demand to DRAM. Our method involves constructing an inference cost model that takes into account the characteristics of flash memory, guiding us to optimize in two critical areas: reducing the volume of data transferred from flash and reading data in larger, more contiguous chunks. Within this hardware-informed framework, we introduce two principal techniques. First, ""windowing"" strategically reduces data transfer by reusing previously activated neurons, and second, ""row-column bundling"", tailored to the sequential data access strengths of flash memory, increases the size of data chunks read from flash memory. These methods collectively enable running models up to twice the size of the available DRAM, with a 4-5x and 20-25x increase in inference speed compared to naive loading approaches in CPU and GPU, respectively. Our integration of sparsity awareness, context-adaptive loading, and a hardware-oriented design paves the way for effective inference of LLMs on devices with limited memory. biology,paleontology,computer science,artificial intelligence,parallel computing,computer hardware,inference,context (archaeology),computer vision and pattern recognition,dram,universal memory,memory management,semiconductor memory,interleaved memory",LLM in a flash: Efficient Large Language Model Inference with Limited Memory,0,,,2,False,False,False,False,False,False
+33,PAPER,6809,6788,12828|12820|12847|6785|13248|6879|13249|6817|6823|6809|6788|6824,35199|35200|35201|35202|36152|36153|36154|36155,1672531200,"Red shift effect on the zero field splitting for negatively charged nitrogen-vacancy centers in diamond The zero field splitting (ZFS) quantifies the energy difference for the ground electron spin-triplet of a nitrogen-vacancy center in the absence of external fields. The values of the ZFS play a key role in determining the Larmor precession of the Bloch sphere and the Rabi oscillation of a spin system. The ZFS is generally detected using coherent spin manipulation by sweeping microwaves (MWs) at frequencies close to resonance with the ZFS. In this letter, we report our experimental observations of the red-shift effect on the ZFS as a function of the MW power for two different thermal environments of a sample. We find an asymptotic property of the red shifts of the ZFS. Given the identical initial thermal equilibrium states of the sample, the differences in the raw values of the ZFS between the two cases randomly vary from 47 kHz to 1505 kHz over the entire experimental range. According to the asymptotic approximation, the differences are reduced to 29-166 kHz with a standard deviation of 49 kHz, suggesting a significant elimination of the red-shift effect. To the best of our knowledge, no other study has addressed the quantification and elimination of the red shift-effect of the MW field dependence using the asymptotic approximation. chemistry,organic chemistry,physics,spin (aerodynamics),condensed matter physics,thermodynamics,atomic physics,atomic and molecular physics, and optics,materials chemistry,electrical and electronic engineering,diamond,vacancy defect",Red shift effect on the zero field splitting for negatively charged nitrogen-vacancy centers in diamond,-1,,,0,False,False,False,False,False,False
+34,PAPER,6782,6987,12839|12871|12831|7225|7452|9383|13244|13245|8399|6834|6940|13246|6807|7009|7072|7150|6987|6783|6782|8397|7073|7183,13066|13067|1776|35191|35192|35193|35194|35195|35196,1518480000,"The state of OA: a large-scale analysis of the prevalence and impact of Open Access articles Despite growing interest in Open Access (OA) to scholarly literature, there is an unmet need for large-scale, up-to-date, and reproducible studies assessing the prevalence and characteristics of OA. We address this need using oaDOI, an open online service that determines OA status for 67 million articles. We use three samples, each of 100,000 articles, to investigate OA in three populations: (1) all journal articles assigned a Crossref DOI, (2) recent journal articles indexed in Web of Science, and (3) articles viewed by users of Unpaywall, an open-source browser extension that lets users find OA articles using oaDOI. We estimate that at least 28% of the scholarly literature is OA (19M in total) and that this proportion is growing, driven particularly by growth in Gold and Hybrid. The most recent year analyzed (2015) also has the highest percentage of OA (45%). Because of this growth, and the fact that readers disproportionately access newer articles, we find that Unpaywall users encounter OA quite frequently: 47% of articles they view are OA. Notably, the most common mechanism for OA is not Gold, Green, or Hybrid OA, but rather an under-discussed category we dub Bronze: articles made free-to-read on the publisher website, without an explicit Open license. We also examine the citation impact of OA articles, corroborating the so-called open-access citation advantage: accounting for age and discipline, OA articles receive 18% more citations than average, an effect driven primarily by Green and Hybrid OA. We encourage further research using the free oaDOI service, as a way to inform OA policy and practice. mathematics,statistics,medicine,computer science,world wide web,internal medicine,library science,political science,law,meta-analysis,operating system,citation,license,publishing,open science,scholarly communication,information systems,statistics, probability and uncertainty,information systems and management,web of science,bibliometrics,citation analysis",The state of OA: a large-scale analysis of the prevalence and impact of Open Access articles,1,,,785,False,False,False,False,False,False
+35,PAPER,6834,,6834,35207|35208|35209,1688515200,P07_List  computer science,P07_List,0,,,0,False,False,False,False,False,False
+36,PAPER,6809,6840,6840|12829|13252|6834|13253|10903|6891|6820|6809,27661|35210|479|35211,1672531200,"Improved Quantum Circuits for AES: Reducing the Depth and the Number of Qubits Quantum computers hold the potential to solve problems that are intractable for classical computers, thereby driving increased interest in the development of new cryptanalytic ciphers. In NIST's post-quantum standardization process, the security categories are defined by the costs of quantum key search against AES. However, the cost estimates provided by Grassl et al. for the search are high. NIST has acknowledged that these initial classifications should be approached cautiously, since the costs of the most advanced attacks can be significantly reduced. Therefore, accurate resource estimations are crucial for evaluating the security of ciphers against quantum adversaries. This paper presents a set of generic techniques for implementing AES quantum oracles, which are essential for quantum attacks such as Grover's algorithms. Firstly, we introduce the mixing-XOR technique to reuse the ancilla qubits. At ASIACRYPT 2022, Huang et al. proposed an S-box structure with 120 ancilla qubits. We are able to reduce the number of ancilla qubits to 83 without increasing the T-depth. Secondly, we propose the combined pipeline architecture with the share technique to combine the S-box and its reverse, which achieves it with only 98 ancilla qubits, resulting in a significant reduction of 59% compared to the independent structure. Thirdly, we use a general algorithm to determine the depth of quantum circuits, searching for the in-place circuit of AES MixColumns with depth 16. Applying these improvements, we achieve the lower quantum depth of AES circuits, obtaining more precise resource estimates for Grover's algorithm. For AES-128, -192, and -256, we only require the depth of 730, 876, and 1,018, respectively. Recently, the community has also focused on the trade-off of the time and space cost of quantum circuits for AES. In this regard, we present quantum implementations of AES circuits with a lower DW-cost on the zig-zag architecture. Compared with the circuit proposed by Huang et al., the DW-cost is reduced by 35%. physics,quantum mechanics,computer science,artificial intelligence,quantum,quantum computer,computational theory and mathematics,qubit,electronic circuit",Improved Quantum Circuits for AES: Reducing the Depth and the Number of Qubits,0,,,2,False,False,False,False,False,False
+37,PAPER,6898,6849,6840|12848|7262|6834|7181|13250|6852|6849|13251|6898|6901|7058|7184|7185|7017,35203|35204|35205|35206,1672531200,"Looped Transformers are Better at Learning Learning Algorithms Transformers have demonstrated effectiveness in in-context solving data-fitting problems from various (latent) models, as reported by Garg et al. However, the absence of an inherent iterative structure in the transformer architecture presents a challenge in emulating the iterative algorithms, which are commonly employed in traditional machine learning methods. To address this, we propose the utilization of looped transformer architecture and its associated training methodology, with the aim of incorporating iterative characteristics into the transformer architectures. Experimental results suggest that the looped transformer achieves performance comparable to the standard transformer in solving various data-fitting problems, while utilizing less than 10% of the parameter count. computer science,artificial intelligence,machine learning,algorithm,engineering,electrical engineering,control (management),voltage,architecture,art,visual arts,transformer,signal processing,iterative learning control,iterative method",Looped Transformers are Better at Learning Learning Algorithms,0,,,0,False,False,False,False,False,False
+38,PAPER,,,,,1708793103,This is a paper test,This is a paper test,0,,,0,False,False,False,False,False,False
+39,PAPER,6781,6986,7545|7546|6976|7547|7548|7154|7549|7550|6785|7551|6835|7116|6781|6794|6972|7119|7552|6806|6793|7118|6836|9964|6986,559|561|562|563|564|565,1697846400,"Design and Characterization of pMyc/pMax Peptide-Coupled Gold Nanosystems for Targeting Myc in Prostate Cancer Cell Lines Myc and Max are essential proteins in the development of prostate cancer. They act by dimerizing and binding to E-box sequences. Disrupting the Myc:Max heterodimer interaction or its binding to E-box sequences to interrupt gene transcription represent promising strategies for treating cancer. We designed novel pMyc and pMax peptides from reference sequences, and we evaluated their ability to bind specifically to E-box sequences using an electrophoretic mobility shift assay (EMSA). Then, we assembled nanosystems (NSs) by coupling pMyc and pMax peptides to AuNPs, and determined peptide conjugation using UV-Vis spectroscopy. After that, we characterized the NS to obtain the nanoparticle’s size, hydrodynamic diameter, and zeta potential. Finally, we evaluated hemocompatibility and cytotoxic effects in three different prostate adenocarcinoma cell lines (LNCaP, PC-3, and DU145) and a non-cancerous cell line (Vero CCL-81). EMSA results suggests peptide–nucleic acid interactions between the pMyc:pMax dimer and the E-box. The hemolysis test showed little hemolytic activity for the NS at the concentrations (5, 0.5, and 0.05 ng/µL) we evaluated. Cell viability assays showed NS cytotoxicity. Overall, results suggest that the NS with pMyc and pMax peptides might be suitable for further research regarding Myc-driven prostate adenocarcinomas. biology,chemistry,gene,biochemistry,in vitro,molecular biology,genetics,cancer,prostate cancer,oncology,cancer research,immunology,cell,cytotoxicity,du145,lncap,peptide,electrophoretic mobility shift assay,viability assay,hemolysis,peptide nucleic acid,transcription factor,spectroscopy",Design and Characterization of pMyc/pMax Peptide-Coupled Gold Nanosystems for Targeting Myc in Prostate Cancer Cell Lines,2,,,0,False,False,False,False,False,False
+40,PAPER,6807,6881,7513|7302|7049|7045|7514|7515|7312|7516|6785|6807|6881,541|542|543|544,1611273600,"Implantable Fiber Biosensors Based on Carbon Nanotubes ConspectusImplantable biosensors represent a rapidly developing direction with a wide range of applications in biotechnology and life science. For example, the detection of neurotransmitters in the brain has attracted a lot of attention because of their essential effects for neural activity. The in vivo acute detection of chemicals has been developed for decades, but there are few reports about in vivo chronic monitoring of chemicals probably due to two reasons. First, it is difficult to form stable interfaces between biosensors and tissues. Specifically, most of implantable biosensors are based on stiff electrode materials such as carbon fibers, whose moduli are several orders of magnitude higher than these of soft biological tissues. The mechanical mismatch between them will cause severe inflammatory response during chronic applications. Although some flexible neural probes with mesh geometry consisting of polymer and metal and polymer composite fibers have been employed in chronic electrophysiological recording, they are rarely employed for chronic monitoring of chemicals. Second, electrode deteriorations associated with degradation and fouling of functional materials make chemical recognitions difficult in dynamic environment. Generally, biosensors usually need to be modified with several functional materials including a recognition layer in order to identify specific chemicals from various untargeted chemicals. Although nanomaterials with high surface areas are reported to enhance the loading and immobilization of recognition layers so as to improve the sensitivity of biosensors, nanostructured and soft microelectrodes with high specific surface areas are rarely employed for long-term monitoring of chemicals in vivo.In this Account, we highlight our efforts toward flexible and miniaturized implantable fiber biosensors based on carbon nanotube (CNT) fibers for stable interfaces in vivo. We first summarize the assembly structure of CNT fiber electrodes and their mechanical, electrical, electrochemical, and biocompatible properties. Then we present a family of fiber biosensors by modifying CNT fibers with different recognition materials to detect multiple chemicals in vivo. After that, all-in-one fiber organic electrochemical transistors are described with higher sensitivity and lower detection limit, aiming to detect chemicals with low concentrations and trace changes in the deep brain. Finally, considering that soft implantable biosensors are difficult to be implanted without assistance, we introduce a neural probe with alterable moduli for direct implantation into the mouse brain and forming a stable interface with brain tissues. All three kinds of fiber biosensors are soft with mechanical properties matching biological tissues, remaining stable under deformation and showing high biocompatibility for long-term in vivo applications. Finally, a brief summary of challenges and outlooks in this field is presented. chemistry,medicine,physical chemistry,materials science,nanotechnology,carbon nanotube,electrode,biosensor,nanomaterials,microelectrode,biomedical engineering",Implantable Fiber Biosensors Based on Carbon Nanotubes,0,,,34,False,False,False,False,False,False
+41,DISCUSSION,,,,2,1710807326,"Welcome to your new lab notebook! Do research with your lab-mates and collaborators in real-timeGet started by:Clicking the (+) button in the sidebar to create a new noteBrowsing the sidebar to see all of your lab's notesSelecting a templateIf you have any ideas or issues to share send a message to hello@ResearchHub.com. We love all of the feedback we can get our hands on :)How it worksResearchHub's ELN can help you and your labmates (1) draft notes and (2) gain visibility into all of the projects happening in your lab. This text editor is designed to help you collaboratively edit research lab notes with your teammates. Think of it like Google docs for science. Here's an overview of the most useful features:`Highlight` text to see a toolbar that helps you organize your thoughts and format your data:Feel free to add blocks of code or embed any images and videos that could help get your points across!Viewing the notes in your labThe left-hand sidebar is populated with all of the notes currently being used within your organization. Simply browse the titles and click on the notes you would like to check out!To switch between your organizations, click on the pulldown menu at the top of the left sidebar:",Welcome to your new lab notebook!,0,,,,False,False,False,False,False,False
+43,DISCUSSION,,,,4,1710853524,this is a test stest,this is a test,1,,,,False,False,False,False,False,False
+45,DISCUSSION,,,,4,1710878396,"Welcome to your new lab notebook! Do research with your lab-mates and collaborators in real-timeGet started by:Clicking the (+) button in the sidebar to create a new noteBrowsing the sidebar to see all of your lab's notesSelecting a templateIf you have any ideas or issues to share send a message to hello@ResearchHub.com. We love all of the feedback we can get our hands on :)How it worksResearchHub's ELN can help you and your labmates (1) draft notes and (2) gain visibility into all of the projects happening in your lab. This text editor is designed to help you collaboratively edit research lab notes with your teammates. Think of it like Google docs for science. Here's an overview of the most useful features:`Highlight` text to see a toolbar that helps you organize your thoughts and format your data:Feel free to add blocks of code or embed any images and videos that could help get your points across!Viewing the notes in your labThe left-hand sidebar is populated with all of the notes currently being used within your organization. Simply browse the titles and click on the notes you would like to check out!To switch between your organizations, click on the pulldown menu at the top of the left sidebar:",Welcome to your new lab notebook!,1,,,,False,False,False,False,False,False
+46,PAPER,6809,,7517|7181|7518|7519|7520|6809|7521|7522|7523|7184|7185|12888,545|546|547|548|36065,1675209600,"Framework for the architecture of exoplanetary systems In the first paper of this series, we proposed a model-independent framework for characterising the architecture of planetary systems at the system level. There are four classes of planetary system architecture: similar, mixed, anti-ordered, and ordered. In this paper, we investigate the formation pathways leading to these four architecture classes. To understand the role of nature versus nurture in sculpting the final (mass) architecture of a system, we apply our architecture framework to synthetic planetary systems – formed via core-accretion – using the Bern model. General patterns emerge in the formation pathways of the four architecture classes. Almost all planetary systems emerging from protoplanetary disks whose initial solid mass was less than one Jupiter mass are similar. Systems emerging from heavier disks may become mixed, anti-ordered, or ordered. Increasing dynamical interactions (planet–planet, planet–disk) tends to shift a system’s architecture from mixed to anti-ordered to ordered. Our model predicts the existence of a new metallicity–architecture correlation. Similar systems have very high occurrence around low-metallicity stars. The occurrence of the anti-ordered and ordered classes increases with increasing metallicity. The occurrence of mixed architecture first increases and then decreases with increasing metallicity. In our synthetic planetary systems, the role of nature is disentangled from the role of nurture. Nature (or initial conditions) pre-determines whether the architecture of a system becomes similar; otherwise nurture influences whether a system becomes mixed, anti-ordered, or ordered. We propose the ‘Aryabhata formation scenario’ to explain some planetary systems which host only water-rich worlds. We finish this paper with a discussion of future observational and theoretical works that may support or refute the results of this paper. physics,architecture,art,visual arts,metallicity,planetary system,planet,astrophysics,astrobiology,accretion (finance),stars,astronomy and astrophysics",Framework for the architecture of exoplanetary systems,0,,,12,False,False,False,False,False,False
+68,PAPER,6807,6810,7502|7441|7503|7504|6781|7431|7444|7468|7505|7437|7495|7446|7497|6836|6793|6807|6932|6810|7445,505|506|507|508|509|510|511|512,1591920000,"The D614G mutation in the SARS-CoV-2 spike protein reduces S1 shedding and increases infectivity SARS coronavirus 2 (SARS-CoV-2) isolates encoding a D614G mutation in the viral spike (S) protein predominate over time in locales where it is found, implying that this change enhances viral transmission. We therefore compared the functional properties of the S proteins with aspartic acid (S biology,gene,medicine,pathology,genetics,disease,mutation,coronavirus,virology,virus,infectious disease (medical specialty),coronavirus disease 2019 (covid-19),severe acute respiratory syndrome coronavirus 2 (sars-cov-2),viral entry,viral replication,infectivity,spike protein,convalescent plasma,neutralization",The D614G mutation in the SARS-CoV-2 spike protein reduces S1 shedding and increases infectivity,1,,,522,False,False,False,False,False,False
+167,PAPER,6782,6794,7039|7038|7040|7042|7041|6834|6865|6783|6781|6782|6840|7004|6793|6794,73|74|75,1392768000,"Moderated estimation of fold change and dispersion for RNA-seq data with DESeq2 In comparative high-throughput sequencing assays, a fundamental task is the analysis of count data, such as read counts per gene in RNA-seq data, for evidence of systematic changes across experimental conditions. Small replicate numbers, discreteness, large dynamic range and the presence of outliers require a suitable statistical approach. We present DESeq2, a method for differential analysis of count data. DESeq2 uses shrinkage estimation for dispersions and fold changes to improve stability and interpretability of the estimates. This enables a more quantitative analysis focused on the strength rather than the mere presence of differential expression and facilitates downstream tasks such as gene ranking and visualization. DESeq2 is available as an R/Bioconductor package. biology,mathematics,statistics,gene,biochemistry,computer science,artificial intelligence,data mining,poisson distribution,bioconductor,interpretability,count data,replicate,outlier",Moderated estimation of fold change and dispersion for RNA-seq data with DESeq2,1,,,278,False,False,False,False,False,False
+1184,PAPER,6898,7023,7911|7722|7441|7567|7468|7446|7571|7500|7444|6781|7493|7022|7617|6807|7118|6932|6987|7445|7023|6901|6898,13515|7170|13516|13517|13518|13519|13520|11177|11166|13521|13522|13523|13524|13525|13526|13527|13528,1607385600,"Natural SARS-CoV-2 infections, including virus isolation, among serially tested cats and dogs in households with confirmed human COVID-19 cases in Texas, USA The natural infections and epidemiological roles of household pets in SARS-CoV-2 transmission are not understood. We conducted a longitudinal study of dogs and cats living with at least one SARS-CoV-2 infected human in Texas and found 47.1% of 17 cats and 15.3% of 59 dogs from 25.6% of 39 households were positive for SARS-CoV-2 via RT-PCR and genome sequencing or neutralizing antibodies. Virus was isolated from one cat. The majority (82.4%) of infected pets were asymptomatic. Re-sampling of one infected cat showed persistence of viral RNA at least 32 d-post human diagnosis (25 d-post initial test). Across 15 antibody-positive animals, titers increased (33.3%), decreased (33.3%) or were stable (33.3%) over time. A One Health approach is informative for prevention and control of SARS-CoV-2 transmission. biology,medicine,engineering,electrical engineering,disease,internal medicine,isolation (microbiology),microbiology,immunology,virology,virus,infectious disease (medical specialty),coronavirus disease 2019 (covid-19),severe acute respiratory syndrome coronavirus 2 (sars-cov-2),pandemic,antibody,transmission (telecommunications),titer,veterinary medicine,asymptomatic,cats","Natural SARS-CoV-2 infections, including virus isolation, among serially tested cats and dogs in households with confirmed human COVID-19 cases in Texas, USA",0,,,52,False,True,False,False,False,False
+1933,PAPER,6898,6788,10403|6834|7671|9187|10434|6840|6847|8333|10435|7020|6781|6785|7948|6898|6912|6788,19599|19600|19601|19602|19603|19604|19605|19606|19607|19608,1706832000,"A multipleArc(mArc) tagging system to uncover the organizational principles of multiple memories Engrams or memory traces are the neuronal ensembles that collectively store individual experiences. Genetic strategies based on immediate early genes (IEGs), such as Arc/Arg3.1 , allow us to tag the ensembles active during memory encoding and compare them to those active during retrieval. However, these strategies only allow for the tagging of one neural ensemble. Here, we developed a multiple Arc (mArc) system that allows for the tagging of two Arc+ ensembles. We validated this system by investigating how context, time, and valence influence neuronal ensemble reactivation in the dentate gyrus (DG). We show that similar contextual and valenced experiences are encoded in overlapping DG ensembles. We also find that ensembles are modulated by time, where experiences closer in time are encoded in more similar ensembles. These results highlight the dynamic nature of DG ensembles and show that the mArc system provides a powerful approach for investigating multiple memories in the brain.The mArc system allows for the tagging of two Arc+ ensembles in the same mouse DG ensembles labeled by the mArc system receive increased excitatory inputContext, valence, and time influence DG ensemble reactivationDG neural ensembles are reactivated less with increasing time. biology,chemistry,organic chemistry,computer science,artificial intelligence,artificial neural network,engineering,mechanical engineering,neuroscience,neural system,hippocampus,encoding (memory),dentate gyrus,arc (geometry),neural ensemble,valence (chemistry)",A multipleArc(mArc) tagging system to uncover the organizational principles of multiple memories,0,,,1,False,False,False,False,False,False
+2235,PAPER,6807,6794,10925|7219|6987|10926|8762|10927|10928|6781|9856|10929|6785|8761|7117|10930|10931|8891|8242|6807|10932|7473|6794|6806,22455|22456|22457|22458|22459|22460|22461|22462|22463,1712534400,"PPARG in osteocytes controls cell bioenergetics and systemic energy metabolism independently of sclerostin levels in circulation Abstract Objective The skeleton is one of the largest organs in the body, wherein metabolism is integrated with systemic energy metabolism. However, the bioenergetic programming of osteocytes, the most abundant bone cells coordinating bone metabolism, is not well defined. Here, using a mouse model with partial penetration of an osteocyte-specific PPARG deletion, we demonstrate that PPARG controls osteocyte bioenergetics and their contribution to systemic energy metabolism independently of circulating sclerostin levels. Methods In vivo and in vitro models of osteocyte-specific PPARG deletion, i.e. Dmp 1 Cre Pparγ flfl male and female mice (γOT KO ) and MLO-Y4 osteocyte-like cells with either siRNA-silenced or CRISPR/Cas9-edited Pparγ . As applicable, the models were analyzed for levels of energy metabolism, glucose metabolism, and metabolic profile of extramedullary adipose tissue, as well as the osteocyte transcriptome, mitochondrial function, bioenergetics, insulin signaling, and oxidative stress. Results Circulating sclerostin levels of γOT KO male and female mice were not different from control mice. Male γOT KO mice exhibited a high energy phenotype characterized by increased respiration, heat production, locomotion and food intake. This high energy phenotype in males did not correlate with “beiging” of peripheral adipose depots. However, both sexes showed a trend for reduced fat mass and apparent insulin resistance without changes in glucose tolerance, which correlated with decreased osteocytic responsiveness to insulin measured by AKT activation. The transcriptome of osteocytes isolated from γOT KO males suggested profound changes in cellular metabolism, fuel transport and usage, mitochondria dysfunction, insulin signaling and increased oxidative stress. In MLO-Y4 osteocytes, PPARG deficiency correlated with highly active mitochondria, increased ATP production, shifts in fuel utilization, and accumulation of reactive oxygen species (ROS). Conclusions PPARG in male osteocytes acts as a molecular break on mitochondrial function, and protection against oxidative stress and ROS accumulation. It also regulates osteocyte insulin signaling and fuel usage to produce energy. These data provide insight into the connection between osteocyte bioenergetics and their sex-specific contribution to the balance of systemic energy metabolism. These findings support the concept that the skeleton controls systemic energy expenditure via osteocyte metabolism. Highlights Osteocytes function as a body energostat via their bioenergetics PPARG protein acts as a “molecular break” of osteocyte mitochondrial activity PPARG deficiency activates TCA cycle, oxidative stress and ROS accumulation PPARG controls osteocyte insulin signaling and fuel utilization biology,chemistry,biochemistry,in vitro,medicine,internal medicine,cell biology,endocrinology,receptor,signal transduction,mitochondrion,bioenergetics,wnt signaling pathway,adipose tissue,osteocyte,sclerostin,peroxisome proliferator-activated receptor gamma,phosphocreatine,bone remodeling,osteoblast,energy metabolism,peroxisome proliferator-activated receptor",PPARG in osteocytes controls cell bioenergetics and systemic energy metabolism independently of sclerostin levels in circulation,1,,,1,False,False,False,False,False,False
+2981,PAPER,6781,6810,11518|7612|6785|11519|10056|8236|7473|7117|6807|8242|6794|6781|6987|7810|6788|6810,28845|28846|28847|28848|28849|28850|28851|28852|28853,1680739200,"Decoding the Cure-all Effects of Ginseng Abstract Ginseng has been known as a “cure-all” traditional medicine to treat various illnesses and as an adaptogen to relieve stress. However, the known active compounds of ginseng are small-molecule metabolites. Here we report ginsentides, which are disulfide-dense, super-stable and cell-penetrating peptides with 31–33 amino acids, as active compounds and adaptogens that restore homeostasis in response to stress. Using mass spectrometry-based target identification and functional studies, we show that ginsentides promote vasorelaxation by producing nitric oxide through endothelial cells via the PI3K/Akt signaling pathway. Ginsentides were also found to alleviate α1-adrenergic receptor overactivity by reversing phenylephrine-induced constriction of the aorta, decrease monocyte adhesion to endothelial cells via CD166/ESAM/CD40, inhibit P2Y12 receptors, reduce platelet aggregation, and thrombus formation in the lung. Orally administered ginsentides were effective in anti-stress behavior using animal models of tail suspension and forced swimming tests. Together, these results suggest that ginsentides interact with multiple systems to restore homeostasis by reversing stress-induced physiological changes and provide new insights into the panacea medicinal effects of ginseng. biology,chemistry,organic chemistry,biochemistry,medicine,pathology,internal medicine,cell biology,receptor,pharmacology,alternative medicine,pi3k/akt/mtor pathway,signal transduction,thrombus,ginseng,nitric oxide",Decoding the Cure-all Effects of Ginseng,0,,,5,True,False,False,False,False,False
+3528,PAPER,,,,,1715212800,Cubic millimetre of brain mapped in spectacular detail,Cubic millimetre of brain mapped in spectacular detail,1,,,0,False,False,False,False,False,False
+3529,PAPER,,,,,1715212800,Cubic millimetre of brain mapped in spectacular detail,Cubic millimetre of brain mapped in spectacular detail,1,,,0,False,False,False,False,False,False
+3530,PAPER,,,,,1715212800,Cubic millimetre of brain mapped in spectacular detail,Cubic millimetre of brain mapped in spectacular detail,1,,,0,False,False,False,False,False,False
+3531,PAPER,,,,,1715212800,Cubic millimetre of brain mapped in spectacular detail,Cubic millimetre of brain mapped in spectacular detail,1,,,0,False,False,False,False,False,False
+3532,PAPER,,,,,1715212800,Cubic millimetre of brain mapped in spectacular detail,Cubic millimetre of brain mapped in spectacular detail,1,,,0,False,False,False,False,False,False
+3533,PAPER,,,,,1715212800,Cubic millimetre of brain mapped in spectacular detail,Cubic millimetre of brain mapped in spectacular detail,1,,,0,False,False,False,False,False,False
+3534,PAPER,,,,,1715212800,Cubic millimetre of brain mapped in spectacular detail,Cubic millimetre of brain mapped in spectacular detail,1,,,0,False,False,False,False,False,False
+3535,PAPER,,,,,1715212800,Cubic millimetre of brain mapped in spectacular detail,Cubic millimetre of brain mapped in spectacular detail,1,,,0,False,False,False,False,False,False
+3536,PAPER,6809,6952,12083|12084|7520|6837|6809|6952|6836,33267,1715212800,"Cubic millimetre of brain mapped in spectacular detail  physics,genetics,astronomy,optics,astrophysics,millimeter,millimetre wave",Cubic millimetre of brain mapped in spectacular detail,1,,,0,False,False,False,False,False,False
+3906,PAPER,6783,6778,6773|6774|6775|6776|6777|6778|6779|6780|6781|6782|6783,1082|1083|1084|1085|1086|1087|1088|1089|1090|1091|1092|1093,1714608000,"Insights into the representativeness of biodiversity assessment in large reservoir through eDNA metabarcoding Monitoring biodiversity on a large scale, such as in hydropower reservoirs, poses scientific challenges. Conventional methods such as passive fishing gear are prone to various biases, while the utilization of environmental DNA (eDNA) metabarcoding has been restricted. Most eDNA studies have primarily focused on replicating results from traditional methods, which themselves have limitations regarding representativeness and bias. In our study, we employed eDNA metabarcoding with three markers (12SrRNA, COI, and 16SrRNA) to evaluate the biodiversity of an 800 km2 reservoir. We utilized hydrodynamic modeling to determine water flow velocity and the water renewal ratio throughout the study area. Additionally, we conducted statistical comparisons – rarefaction curves and multivariate methods – among samples as an alternative approach to assess biodiversity representation. The eDNA identified taxa previously documented in the reservoir by traditional monitoring methods, as well as revealed 29 – nine fishes and 20 non-fish – previously unreported species. These results highlight the robustness of eDNA as a biodiversity monitoring technique. Our findings also indicated that by randomly sampling 30% of the original number of samples, we could effectively capture the same biodiversity. This approach enabled us to comprehend the reservoir's biodiversity profile and propose a straightforward, cost-effective monitoring protocol for the future based on eDNA. representativeness heuristic,biodiversity,environmental dna,environmental science,environmental resource management,ecology,geography,environmental planning,biology,mathematics,statistics",Insights into the representativeness of biodiversity assessment in large reservoir through eDNA metabarcoding,1,,,0,False,True,False,False,False,False
+4594,DISCUSSION,,6835,6835,4,1718297591,Untitled sdfdsfsfdsfdsfds molecular biology,Untitled,1,,,,False,False,False,False,False,False
+4596,DISCUSSION,6781,,6781,4,1718675991,sopmetihnsinfdlfjalkdsjf lkasdjflkja l;kjfl;kjasf undefined biology,sopmetihnsinfdlfjalkdsjf lkasdjflkja l;kjfl;kjasf,1,,,,False,False,False,False,False,False
+4598,DISCUSSION,,,8194,4,1718676096,Untitled undefined biological data,Untitled,1,,,,False,False,False,False,False,False
+4600,DISCUSSION,,,7159,4,1718676246,Untitled undefined bioassay,Untitled,1,,,,False,False,False,False,False,False
+4602,PREREGISTRATION,,,7159,4,1718678049,asdfafadsfadsfadsfasf asdf asdf dsafadf asdf adsf dsafa fa faf ads fdasasd fadsf asdf asdf dsafadf asdf adsf dsafa fa faf ads fdasasd fadsf  bioassay,asdfafadsfadsfadsfasf,1,,,,False,False,False,False,True,True
+4604,PREREGISTRATION,,,11892|6795,4,1718678162,"meow meow meow meow meow meow meow meow meowmeow meow meowmeow meow meowmeow meow meowmeow meow meowmeow meow meowmeow meow meowmeow meow meowmeow meow meowmeow meow meow computational biology,bioavailability",meow meow meow meow meow meow,1,,,,False,False,False,False,True,True
+4606,DISCUSSION,,,7159,4,1718678260,something something something  sdfdsfsdfdsfsdfdsfsdfdsfsdfdsfsdfdsfsdfdsfsdfdsfsdfdsfsdfdsfsdfdsfsdfdsfsdfdsfsdfdsfsdfdsfsdfdsfsdfdsf  bioassay,something something something,1,,,,False,False,False,False,False,False
+4608,DISCUSSION,,,7159,4,1718678493,something ethings fjdslj lskjflksdjfljsd something something somethingsomething something somethingsomething something somethingsomething something somethingsomething something somethingsomething something somethingsomething something somethingsomething something somethingsomething something something   sdfadsfaasdfdasfsafdsaasdfasfasdfaasdfadsfsaasdfdasf       asdfasdf asdfasf bioassay,something ethings fjdslj lskjflksdjfljsd,1,,,,False,False,False,False,False,False
+4609,QUESTION,,,11892,,1718683881,asdfdasfsdfdsasdfsdfdsfsdf sfdsfdsfsasdf asdf dasf dasf adsf dasf asdfadsasdf af asdfas bioavailability,asdfdasfsdfdsasdfsdfdsfsdf,1,,,,False,False,False,False,False,False
+4610,QUESTION,,12943,12943,,1718684309,asdf adf a fadfaasd asdf asdf adfads afds sdf asf adsfasf adfdsa fdsa fsdf asf adsfasf adfdsa fdsa fsdf asf adsfasf adfdsa fdsa fsdf asf adsfasf adfdsa fdsa fsdf asf adsfasf adfdsa fdsa fsdf asf adsfasf adfdsa fdsa fsdf asf adsfasf adfdsa fdsa fsdf asf adsfasf adfdsa fdsa fsdf asf adsfasf adfdsa fdsa fsdf asf adsfasf adfdsa fdsa f bioengineering,asdf adf a fadfaasd asdf asdf adfads afds,1,,,,False,False,False,False,False,False
+4827,PAPER,6785,8879,7516|12915|8879|13731|10800|13732|13733|13734|8051|6809|6898|6807|9745|10727|6785|13735|6824|6989,,1724025600,"Center of mass states render multi-joint torques throughout standing balance recovery Successful reactive balance control requires coordinated modulation of hip, knee, and ankle torques. Stabilizing joint torques arise from feedforward neural signals that modulate the musculoskeletal system's intrinsic mechanical properties, namely muscle short-range stiffness, and neural feedback pathways that activate muscles in response to sensory input. Although feedforward and feedback pathways are known to modulate the torque at each joint, the role of each pathway to the balance-correcting response across joints is poorly understood. Since the feedforward and feedback torque responses act at different delays following perturbations to balance, we modified the sensorimotor response model (SRM), previously used to analyze the muscle activation response to perturbations, to consist of parallel feedback loops with different delays. Each loop within the model is driven by the same information, center of mass (CoM) kinematics, but each loop has an independent delay. We evaluated if a parallel loop SRM could decompose the reactive torques into the feedforward and feedback contributions during balance-correcting responses to backward support surface translations at four magnitudes. The SRM accurately reconstructed reactive joint torques at the hip, knee, and ankle, across all perturbation magnitudes (R2&gt;0.84 &amp; VAF&gt;0.83). Moreover, the hip and knee exhibited feedforward and feedback components, while the ankle only exhibited feedback components. The lack of a feedforward component at the ankle may occur because the compliance of the Achilles tendon attenuates muscle short-range stiffness. Our model may provide a framework for evaluating changes in the feedforward and feedback contributions to balance that occur due to aging, injury, or disease. chemistry,medicine,physics,thermodynamics,engineering,crystallography,biomedical engineering,physical medicine and rehabilitation,physiology,mechanics,structural engineering,balance (ability),physical therapy, sports therapy and rehabilitation,joint (building),center (category theory),torque,center of mass (relativistic),energy–momentum relation",Center of mass states render multi-joint torques throughout standing balance recovery,1,,,0,False,False,False,False,False,False
+4828,PAPER,6807,14944,12877|12940|12857|6807|13736|7441|6932|7118|7358|7444|13737|6987|14944,36166|36167|8078,1722384000,"Toscana Virus Infection Clinical Characterization Abstract Background Toscana virus (TOSV) is a sandfly-borne phlebovirus causing central nervous system (CNS) infection in Mediterranean countries, during summer season. However, clinical aspects of the disease caused by this virus are poorly known by clinicians, so that its prevalence is probably underestimated due to a lack of diagnosis. Study design We gathered data from all available case series and retrospective studies identifying TOSV as the causative viral agent. The informations of age, sex, clinical characteristics, laboratory findings, imaging results and clinical outcomes of TOSV infection were recorded and analyzed. Results In our review a total of 95 articles including TOSV infections resulting in a total of 1,381 cases were analyzed. Our findings indicate, TOSV affects individuals across various age groups, with a median age of 44.45 years. A notable disparity in infection rates between genders, with men being significantly more likely to present symptoms due to TOSV than women, with a sex ratio of 2.0 (p&lt;0.001). The clinical presentation of TOSV infection encompasses a range of symptoms, including fever, headache, retro-orbital pain, neurological and muscular manifestations with less common reports of cutaneous and gastrointestinal symptoms. To date, six fatalities have been attributed to TOSV infections, with a median age of 76 years. Diagnostic evaluation of TOSV infections often involves the analysis of cerebrospinal fluid, where findings may include an elevated white blood cell count. Conclusions These findings underscore the diverse clinical manifestations of TOSV infections and highlight the importance of considering this pathogen in the differential diagnosis of patients presenting with acute febrile illness, especially in endemic regions. TOSV represents an emerging infectious threat that warrants inclusion in the diagnostic protocols for patients presenting with CNS, particularly within the Mediterranean basin or for those with recent travel history to endemic regions during warmer months when sandflies are actively circulating. medicine,disease,internal medicine,immunology,pediatrics,virology,virus,public health, environmental and occupational health,infectious diseases,parasitology,phlebovirus,bunyaviridae,Epidemiology",Toscana Virus Infection Clinical Characterization,1,,,0,False,False,False,False,False,False
+4844,PAPER,,6955,7034|6955,4|36172,1730937600,"Some title goes here some abstract goes here evolutionary biology,computer vision",Some title goes here,0,,,0,False,False,False,False,False,False
+4868,PAPER,6782,10599,12828|6788|8833|6785|7045|6854|7049|6794|7057|9111|10455|6809|12575|6823|10599|6825|13741|6961|7220|12283|6782,36228|36229|36230|36231|36232|36233|36234|36235|36236|36237|36238|36239|36240|36241,1728172800,"3D printed mesoporous superconductors with periodic order on three
+  length scales and enhanced properties via block copolymer directed
+  self-assembly Solution-based soft matter self-assembly (SA) promises unique materials properties from approaches including additive manufacturing/three-dimensional (3D) printing. We report direct ink writing derived, hierarchically porous transition metal nitride superconductors (SCs) and precursor oxides, structure-directed by Pluronics-family block copolymer (BCP) SA and heat treated in various environments. SCs with periodic lattices on three length scales show record nanoconfinement-induced upper critical field enhancements correlated with BCP molar mass, attaining values of 50 T for NbN and 8.1 T for non-optimized TiN samples, the first mapping of a tailorable SC property onto a macromolecular parameter. They reach surface areas above 120 m$^2$/g, the highest reported for compound SCs to date. Embedded printing enables the first BCP directed mesoporous non-self-supporting helical SCs. Results suggest that additive manufacturing may open pathways to mesoporous SCs with not only a variety of macroscopic form factors but enhanced properties from intrinsic, SA-derived mesostructures with substantial academic and technological promise. mathematics,chemistry,organic chemistry,biochemistry,physics,condensed matter physics,geometry,economics,finance,materials science,nanotechnology,composite material,order (exchange),catalysis,polymer,self-assembly,superconductivity,mesoporous material,block (permutation group theory),materials chemistry,Copolymer","3D printed mesoporous superconductors with periodic order on three
+  length scales and enhanced properties via block copolymer directed
+  self-assembly",1,,,0,False,False,False,False,False,False
+4873,PAPER,6781,6840,12856|6849|8706|7431|7623|6793|7273|6795|7020|6955|6834|6836|6807|6840|9339|6781,36265|36266|36267|36268|36269|36270,1736208000,"protPheMut: An Interpretable Machine Learning Tool for Classification of Cancer and Neurodevelopmental Disorders in Human Missense Variants Motivation: Recent advances in human genomics have revealed that missense mutations in a single protein can lead to distinctly different phenotypes. In particular, some mutations in oncoproteins like Ras, MEK, PI3K, PTEN, and SHP2 are linked various cancers and Neurodevelopmental Disorders (NDDs). While numerous tools exist for pre-dicting the pathogenicity of missense mutations, linking these variants to certain phenotypes remains a major chal-lenge, particularly in the context of personalized medicine. Results: To fill this gap, we developed protPheMut (Protein Phenotypic Mutations Analyzer), leveraging multiple in-terpretable machine learning methods and integrate diverse biophysics and network dynamics-based signatures, for the prediction of mutations of the same protein can promote cancer, or NDDs. We illustrate the utility of protPheMut in phenotypes (cancer/NDDs) prediction by the mutation analysis of two protein cases, that are PI3Kα and PTEN. Compared to seven other predictive tools, protPheMut demonstrated exceptional accuracy in forecasting phenotypic effects, achieving an AUROC of 0.8501 for PI3Kα mutations related to cancer and Cowden syndrome. For multi-phenotypes prediction of PTEN mutations related to cancer, PHTS, and HCPS, protPheMut achieved an AUC of 0.9349 through micro-averaging. Using SHAP model explanations, we gained insights into the mechanisms driving phenotype formation. A user-friendly website deployment is also provided. biology,gene,computational biology,medicine,computer science,genetics,artificial intelligence,machine learning,evolutionary biology,neuroscience,bioinformatics,mutation,missense mutation,biological classification,neurodevelopmental disorder,radiology, nuclear medicine and imaging",protPheMut: An Interpretable Machine Learning Tool for Classification of Cancer and Neurodevelopmental Disorders in Human Missense Variants,1,,,0,False,True,False,False,False,False
+4874,PAPER,6834,9577,7015|12990|13760|13761|6834|6931|9577|6953|6862,36271|36272|36273|36274|36275|36276,1725840000,"Deep Learning and Large Language Models for Audio and Text Analysis in
+  Predicting Suicidal Acts in Chinese Psychological Support Hotlines Suicide is a pressing global issue, demanding urgent and effective preventive interventions. Among the various strategies in place, psychological support hotlines had proved as a potent intervention method. Approximately two million people in China attempt suicide annually, with many individuals making multiple attempts. Prompt identification and intervention for high-risk individuals are crucial to preventing tragedies. With the rapid advancement of artificial intelligence (AI), especially the development of large-scale language models (LLMs), new technological tools have been introduced to the field of mental health. This study included 1284 subjects, and was designed to validate whether deep learning models and LLMs, using audio and transcribed text from support hotlines, can effectively predict suicide risk. We proposed a simple LLM-based pipeline that first summarizes transcribed text from approximately one hour of speech to extract key features, and then predict suicidial bahaviours in the future. We compared our LLM-based method with the traditional manual scale approach in a clinical setting and with five advanced deep learning models. Surprisingly, the proposed simple LLM pipeline achieved strong performance on a test set of 46 subjects, with an F1 score of 76\% when combined with manual scale rating. This is 7\% higher than the best speech-based deep learning models and represents a 27.82\% point improvement in F1 score compared to using the manual scale apporach alone. Our study explores new applications of LLMs and demonstrates their potential for future use in suicide prevention efforts. computer science,psychology,cognitive psychology,telecommunications,social psychology,multimedia,general social sciences,Hotline,Audio visual","Deep Learning and Large Language Models for Audio and Text Analysis in
+  Predicting Suicidal Acts in Chinese Psychological Support Hotlines",1,,,0,False,False,False,False,False,False
+4883,PREREGISTRATION,,8172,6986|8172,4,1737398489,"Development of HLBT-100: a highly Potent Flavonoid as an Anticancer Agent against Non-melanoma and melanoma skin Cancers Development of HLBT-100: a highly Potent Flavonoid as an Anticancer Agent against Non-melanoma and melanoma skin Cancers
+
+Authors & Affiliations
+
+Joseph Bryant, DVM[1]; Maulik Dhandha, MD[2]; Henry Lowe, Ph.D[1,3,4] and Ngeh Toyang, Ph.D[1,4]
+
+[1] Educational & Scientific LLC, Baltimore, MD
+
+[2] Sun Protection Inc, Newark, DE
+
+[3] University of Maryland School of Medicine, Baltimore, MD
+
+[4] LTN Pharmaceuticals, Inc. Baltimore, MD
+
+Abstract
+
+There is an alarming increase in skin cancer incidence in the US and worldwide (1). Skin cancers are classified as non-melanoma and melanoma skin cancers (2). Non-melanoma (NMSC) skin cancers are a major health problem in the US, with over two million new cases diagnosed yearly, making it the most common cancer in the US (3). Non-melanoma skin carcinoma can be treated effectively if it is detected early and current treatment options include surgery, laser therapy, cryotherapy, creams, radiotherapy, chemotherapy, and photodynamic therapy (4). Despite the high incidence of these cancers, there are only about 4 common FDA approved drugs for use in the chemotherapeutic treatment of non-melanoma skin cancer. These drugs include 5-Flourouracil (marketed under different brand and generic names), Imiquimod, Sonidegib, and Vismodegib. Known for their strong antioxidant properties, a growing number of reports indicate that some flavonoids do possess potent anticancer effects (5). Flavonoids have been shown to have an effect in numerous cellular pathways, suppressing carcinogenesis, which allows for new strategies to fight skin cancer (6). HLBT-100, a flavonoid isolated in our lab represents one of the new potential strategies to fight skin cancer (7). The primary goal of this project is to develop a topical formulation with HLBT-100 as a treatment for NMSC and the secondary aim is to explore the utility of this agent as an adjuvant therapy for melanoma.
+
+Introduction
+
+Motivation
+
+Despite recent advancements in therapies, such as immunotherapies and Hedgehog inhibitors that have transformed treatment options in oncology, significantly benefiting patients with common skin cancers leading to improved survival rates, a substantial number of patients do not achieve a cure with these treatments (1). Therefore, additional research is imperative to further enhance treatment outcomes. For example, the non-melanoma skin cancer market is estimated to be valued at US$ 5,068.7 million in 2024 with a CAGR of 5.7% from 2024 to 2034 reaching a value of US$ 8,859.6 million by 2034 signifying a continuous rise in the number of cases (8). There has been a significant rise in the number of nonmelanoma skin cancer over the past few decades due to a combination of better skin cancer detection, people getting more sun/UV exposure and people living longer (9)
+
+With increasing forecasts for NMSC, there is an ongoing effort to develop new and more effective and safe therapies for NMSC.  Based on preclinical findings, HLBT-100 (Fig 1) - a potential drug candidate that can be used therapeutically in the prevention or treatment of cancer alone or in combination with other anticancer agents was discovered in our lab (7).  HLBT-100 has demonstrated significant in vitro effect against NMSC and melanoma cell lines at low nanomolar concentrations (Table 1). We also had the compound screened at the National Cancer Institute (NCI) on the NC160 cancer cell lines panel and demonstrated anticancer activity against 23 of the 60 cancer cell lines (7). Following the successful synthesis of HLBT-100 with similar activity to the naturally occurring molecule, we believe that this molecule can be developed into a novel topical treatment for NMSC saving many patients that do not respond to current therapies. 
+
+
+
+Figure 1. HLBT-100
+
+ 
+
+ 
+
+ 
+
+Table 1: Anticancer activity of HLBT-100 on skin cancer cell lines: IC50 (µM)
+
+
+
+
+
+
+
+Cell Lines
+
+
+
+TE354.T
+
+
+
+FaDu
+
+
+
+A431
+
+
+
+A375
+
+
+
+Neuro-2a
+
+
+
+
+
+HLBT-001
+
+
+
+0.152
+
+
+
+0.019
+
+
+
+3.37
+
+
+
+0.003
+
+
+
+No effect
+
+
+
+
+
+STAURUSPOURINE
+
+
+
+1.8
+
+
+
+0.008
+
+
+
+<0.0001
+
+
+
+NT
+
+
+
+0.0062
+
+TE354.T (Basal Cell Carcinoma); FaDu (Squamous Cell Carcinoma); A431 (Epidermoid cell Carcinoma); A375 (Melanoma); Neuro-2a (Normal cell line)
+
+ 
+
+Hypothesis/Aims
+
+We hypothesize that HLBT-100 is a potent anticancer agent against NMSC due to its multifaceted cancer targets including BRAF mutations which implicate the resistance to skin cancer treatment.
+
+We propose the following specific Aims to move this compound forward.
+
+Aim 1. Synthesize HLBT-100 for in vivo studies
+
+Aim 2. In vivo efficacy studies in an appropriate mouse model of NMSC using topical formulation of HLBT-100
+
+Aim 3. Establish preliminary topical safety of HLBT-100 formulation.
+
+ 
+
+Impact/Significance
+
+Skin cancer is a global threat to the healthcare system. It is our expectation that we will develop a novel flavonoid compound that is highly effective against NMSC. The results are expected to have an important positive impact because current therapeutics have several limitations.  Our interdisciplinary team is well equipped with the knowledge and experience to successfully develop HLBT-100 as an effective cosmeceutical product for NMSC.
+
+ 
+
+Materials/Methods
+
+Study Type
+
+Preclinical proof-of-concept study of HLBT-100 formulation in the treatment of NMSC.
+
+The chemical induced model of NMSC using Dimethylbenz[a]Anthracene and 12-O-Tetradecanoyl Phorbol-13-Acetate (DMBA-TPA) as described by Vähätupa, et al., 2019 with some modification will be used (10).
+
+A summary of the protocol is as follows:
+
+1. C57BL/6 mice. Shave the back skin and weigh the animal. Later, shave the skin whenever needed but not at the time of the chemical exposure.
+
+2. Apply 50 μg of DMBA in 200 μL of acetone topically on the shaved area using a pipette 48 h after shaving the fur.
+
+3. After 7 days, give the first TPA dose. Apply 5 μg of TPA in 200 μL of acetone with a pipette 2x a week, preferably Monday and Thursday or Tuesday and Friday.
+
+4. Count, record, and photograph the papillomas every week. A palpable mass greater than 1 mm in diameter is considered a papilloma if it stays longer than 1 week.
+
+5. Monitor for papilloma formation and start treatment on week 12 or as soon as papillomas form in the induction area.
+
+ 
+
+ Groups
+
+
+
+
+
+
+
+Group(n=7)
+
+
+
+Description
+
+
+
+
+
+Group 1
+
+
+
+Vehicle
+
+
+
+
+
+Group 2
+
+
+
+3% HLBT-100
+
+
+
+
+
+Group 3
+
+
+
+6% HLBT-100
+
+
+
+
+
+Group 4
+
+
+
+9% HLBT-100
+
+
+
+
+
+Group 5
+
+
+
+5% Fluorouracil
+
+ 
+
+Drug and method of application
+
+HLBT-100 (10 grams) and formulated for topical application to NMSC model
+
+Sample collection and analysis
+
+Tissue samples from treated mice will be collected for histology and other relevant analysis to gain more insights into the effect of the HLBT-100 treatment.
+
+Statistical analysis.
+
+A biostatistician will work with us to design the studies and analysis of generated data.
+
+Existing Data
+
+See table 1.
+
+ 
+
+BUDGET
+
+Costs
+
+The estimated costs for this project are summarized in Table 2.
+
+Table 2. Project costs
+
+
+
+
+
+
+
+ 
+
+
+
+Item and Description
+
+
+
+Cost ($US)
+
+
+
+
+
+1
+
+
+
+Synthesis of HLBT-100
+
+
+
+15,000.00
+
+
+
+
+
+2
+
+
+
+Formulation supplies
+
+
+
+1,500.00
+
+
+
+
+
+3
+
+
+
+In vivo proof-of-concept studies
+
+
+
+40,000.00
+
+
+
+
+
+4
+
+
+
+Miscellaneous
+
+
+
+3,500.00
+
+
+
+
+
+Total
+
+
+
+60,000.00
+
+
+
+ 
+
+This budget covers the synthesis of HLBT-100, formulation into a basic topical formulation, basic stability of formulation, proof-of-concept studies in an appropriate model of NMSC, analysis of tissue samples collected and data processing and publications.
+
+ 
+
+References
+
+
+
+
+
+Attal, Zoe Gabrielle, Walid Shalata, Arina Soklakova, Lena Tourkey, Sondos Shalata, Omar Abu Saleh, Fahed Abu Salamah, Ibrahim Alatawneh, and Alexander Yakobson. 2024. ""Advanced and Metastatic Non-Melanoma Skin Cancer: Epidemiology, Risk Factors, Clinical Features, and Treatment Options"" Biomedicines 12, no. 7: 1448. https://doi.org/10.3390/biomedicines12071448
+
+
+
+Roky, Amdad Hossain, Mohammed Murshedul Islam, Abu Mohammed Fuad Ahasan, Md Saqline Mostaq, Md Zihad Mahmud, Mohammad Nurul Amin, and Md Ashiq Mahmud. ""Overview of skin cancer types and prevalence rates across continents."" Cancer Pathogenesis and Therapy 2 (2024): E01-E36.
+
+
+
+Kao, Szu-Yu Zoe, Donatus U. Ekwueme, Dawn M. Holman, Sun Hee Rim, Cheryll C. Thomas, and Mona Saraiya. ""Economic burden of skin cancer treatment in the USA: An analysis of the Medical Expenditure Panel Survey Data, 2012–2018."" Cancer Causes & Control 34, no. 3 (2023): 205-212.
+
+
+
+Sol, Stefano, Fabiana Boncimino, Kristina Todorova, Sarah Elizabeth Waszyn, and Anna Mandinova. ""Therapeutic approaches for Non-melanoma skin Cancer: Standard of Care and Emerging modalities."" International Journal of Molecular Sciences 25, no. 13 (2024): 7056.
+
+
+
+Parchami, Ghazaee, and Kateryna Marchenko-Tolsta. ""A REVIEW OF THE ANTICANCER NATURAL PRODUCTS: ALKALOIDS, FLAVONOIDS.""
+
+
+
+Grail of Science 18-19 (2022): 391-393. Mizgała-Izworska, Elżbieta. ""The use of flavonoids in skin cancer prevention and treatment."" Journal of Pre-Clinical and Clinical Research 16, no. 3 (2022): 108-113.
+
+
+
+Lowe, Henry IC, Ngeh J. Toyang, Charah T. Watson, Kenneth N. Ayeah, and Joseph Bryant. ""HLBT-100: a highly potent anti-cancer flavanone from Tillandsia recurvata (L.) L."" Cancer Cell International 17 (2017): 1-12.
+
+
+
+Fact MRC Report. https://www.factmr.com/report/non-melanoma-skin-cancer-market#:~:text=The%20non%2Dmelanoma%20skin%20cancer,US%24%208%2C859.6%20million%20by%202034. Last accessed Dec 17, 2024.
+
+
+
+American Cancer Society Statisticshttps://www.cancer.org/cancer/types/basal-and-squamous-cell-skin-cancer/about/key-statistics.html#:~:text=The%20number%20of%20these%20cancers,from%20these%20cancers%20are%20not.
+
+
+
+Vähätupa, M., Pemmari, T., Junttila, I., Pesu, M., Järvinen, T.A. Chemical-Induced Skin Carcinogenesis Model Using Dimethylbenz[a]Anthracene and 12-O-Tetradecanoyl Phorbol-13-Acetate (DMBA-TPA). J. Vis. E",Development of HLBT-100: a highly Potent Flavonoid as an Anticancer Agent against Non-melanoma and melanoma skin Cancers,1,,,,False,False,False,False,True,True
+4885,PAPER,,,7403,4,1738713600,teste asfddasasdfadsfadsfasdfas biological network,teste,0,,,0,False,False,False,False,False,False
+4887,PREREGISTRATION,,,,,1740513246,"Preregistration Template Preregistration Template
+
+1. Overview
+
+Provide a brief overview of: (1) scientific rationale and importance, (2) confirmation of funding/facilities/ethics approvals, (3) estimated timeline, and (4) data sharing commitment.
+
+2. Introduction
+
+Summarize theoretical background, key literature, research questions, and numbered hypotheses (H1, H2, etc.). Explain the study's importance  with an impact statement, regardless of potential outcomes.
+
+3. Methods
+
+Participants/Sample
+
+Define target sample, inclusion/exclusion criteria, recruitment strategy, and sample size justification (including power analysis).
+
+Materials and Procedures
+
+Describe experimental/observational procedures, stimuli, tasks, equipment, and data collection settings with sufficient detail for replication.
+
+Planned Analyses
+
+Outline analysis pipeline, preprocessing steps, statistical tests, and hypothesis-specific predictions. Include any contingent analysis decisions as IF-THEN statements.
+
+Ethics and Data Management
+
+State ethical approval status or plan, confidentiality measures, and data sharing/archiving plan.
+
+4. Pilot Data (Optional)
+
+Summarize any pilot data or simulations that demonstrate method feasibility and inform power analysis. Clearly distinguish from main study.
+
+5. Budget
+
+Provide an itemized list of anticipated costs (materials, personnel, etc.). These are not binding and are able to be adjusted based on the results of the pilot data.
+
+6. References
+
+List all references used in the manuscript using Nature style (e.g. numbered in-text citations and alphabetical references at the end of the manuscript).",Preregistration Template,1,,,,False,False,False,False,False,True
+4896,PAPER,6781,7020,12884|12857|12875|7687|6855|8008|7822|6862|9745|7702|7703|6807|7705|6809|9819|7516|6820|13796|13797|6952|7020|6833|6834|10353|7538|7665|6781,36303|36304|36305|36306|36307|36308,1692144000,"Real-time Quantification of in vivo cerebrospinal fluid velocity using fMRI inflow effect Abstract In vivo estimation of cerebrospinal fluid (CSF) velocity is crucial for understanding the glymphatic system and its potential role in neurodegenerative disorders such as Alzheimer’s disease and Parkinson’s disease. Current cardiac or respiratory gated approaches, such as 4D flow MRI, cannot capture CSF movement in real time due to limited temporal resolution and in addition deteriorate in accuracy at low fluid velocities. Other techniques like real-time PC-MRI or time-spatial labeling inversion pulse are not limited by temporal averaging but have limited availability even in research settings. This study aims to quantify the inflow effect of dynamic CSF motion on functional magnetic resonance imaging (fMRI) for in vivo , real-time measurement of CSF flow velocity. We considered linear and nonlinear models of velocity waveforms and empirically fit them to fMRI data from a controlled flow experiment. To assess the utility of this methodology in human data, CSF flow velocities were computed from fMRI data acquired in eight healthy volunteers. Breath holding regimens were used to amplify CSF flow oscillations. Our experimental flow study revealed that CSF velocity is nonlinearly related to inflow effect-mediated signal increase and well estimated using an extension of a previous nonlinear framework. Using this relationship, we recovered velocity from in vivo fMRI signal, demonstrating the potential of our approach for estimating CSF flow velocity in the human brain. This novel method could serve as an alternative approach to quantifying slow flow velocities in real time, such as CSF flow in the ventricular system, thereby providing valuable insights into the glymphatic system’s function and its implications for neurological disorders. biology,medicine,physics,quantum mechanics,biological system,computer science,programming language,psychology,optics,neuroscience,biomedical engineering,flow (mathematics),in vivo,signal (programming language),magnetic resonance imaging,functional magnetic resonance imaging,radiology,cerebrospinal fluid,biotechnology,mechanics,nonlinear system,temporal resolution,public health, environmental and occupational health,neurology,cellular and molecular neuroscience,Inflow,Flow velocity",Real-time Quantification of in vivo cerebrospinal fluid velocity using fMRI inflow effect,1,,,2,False,True,False,False,False,False
+4898,PREREGISTRATION,,,6916,,1742399816,"Preregistration Template Preregistration Template
+
+1. Overview
+
+Provide a brief overview of: (1) scientific rationale and importance, (2) confirmation of funding/facilities/ethics approvals, (3) estimated timeline, and (4) data sharing commitment.
+
+2. Introduction
+
+Summarize theoretical background, key literature, research questions, and numbered hypotheses (H1, H2, etc.). Explain the study's importance  with an impact statement, regardless of potential outcomes.
+
+3. Methods
+
+Participants/Sample
+
+Define target sample, inclusion/exclusion criteria, recruitment strategy, and sample size justification (including power analysis).
+
+Materials and Procedures
+
+Describe experimental/observational procedures, stimuli, tasks, equipment, and data collection settings with sufficient detail for replication.
+
+Planned Analyses
+
+Outline analysis pipeline, preprocessing steps, statistical tests, and hypothesis-specific predictions. Include any contingent analysis decisions as IF-THEN statements.
+
+Ethics and Data Management
+
+State ethical approval status or plan, confidentiality measures, and data sharing/archiving plan.
+
+4. Pilot Data (Optional)
+
+Summarize any pilot data or simulations that demonstrate method feasibility and inform power analysis. Clearly distinguish from main study.
+
+5. Budget
+
+Provide an itemized list of anticipated costs (materials, personnel, etc.). These are not binding and are able to be adjusted based on the results of the pilot data.
+
+6. References
+
+List all references used in the manuscript using Nature style (e.g. numbered in-text citations and alphabetical references at the end of the manuscript). sequence (biology)",Preregistration Template,0,,,,False,False,False,False,False,True
+6103,PAPER,6807,6810,12875|7612|7810|7363|6987|8530|8698|8052|6932|8086|6807|12408|8697|6810,38110|38111|38112|38113|38114,1572566400,"Study protocol for a randomised, double-blind, placebo-controlled study evaluating the Efficacy of cannabis-based Medicine Extract in slowing the disease pRogression of Amyotrophic Lateral sclerosis or motor neurone Disease: the EMERALD trial Introduction Amyotrophic lateral sclerosis (ALS) is a neurodegenerative disorder with no known cure and with an average life expectancy of 3–5 years post diagnosis. The use of complementary medicine such as medicinal cannabis in search for a potential treatment or cure is common in ALS. Preclinical studies have demonstrated the efficacy of cannabinoids in extending the survival and slowing of disease progression in animal models with ALS. There are anecdotal reports of cannabis slowing disease progression in persons with ALS (pALS) and that cannabis alleviated the symptoms of spasticity and pain. However, a clinical trial in pALS with these objectives has not been conducted. Methods and analysis The Efficacy of cannabis-based Medicine Extract in slowing the disease pRogression of Amyotrophic Lateral sclerosis or motor neurone Disease trial is a randomised, double-blind, placebo-controlled cannabis trial in pALS conducted at the Gold Coast University Hospital, Australia. The investigational product will be a cannabis-based medicine extract (CBME) supplied by CannTrust Inc., Canada, with a high-cannabidiol-low-tetrahydrocannabinol concentration. A total of 30 pALS with probable or definite ALS diagnosis based on the El Escorial criteria, with a symptom duration of &lt;2 years, age between 25 and 75 years and with at least 70% forced vital capacity (FVC) will be treated for 6 months. The primary objective of the study is to evaluate the efficacy of CBME compared with placebo in slowing the disease progression measured by differences in mean ALS Functional Rating Scale-Revised and FVC score between the groups at the end of treatment. The secondary objectives are to evaluate the safety and tolerability of CBME by summarising adverse events, the effects of CBME on spasticity, pain, weight loss and quality of life assessed by the differences in mean Numeric Rating Scale for spasticity and Numeric Rating Scale for pain, percentage of total weight loss and ALS specific quality of life-Revised questionnaire. Ethics and dissemination The study has been approved by the local Institutional Review Board. The results of this study will be published in a peer-reviewed journal. Trial registration number NCT03690791 medicine,pathology,disease,internal medicine,psychiatry,pharmacology,alternative medicine,physical therapy,amyotrophic lateral sclerosis,clinical trial,cannabidiol,cannabis,placebo,neurology","Study protocol for a randomised, double-blind, placebo-controlled study evaluating the Efficacy of cannabis-based Medicine Extract in slowing the disease pRogression of Amyotrophic Lateral sclerosis or motor neurone Disease: the EMERALD trial",0,,,24,False,True,False,False,False,False
+6118,QUESTION,,8035,8035,,1745891056,Here is a title. title title title.asdfas asdfdasfaadfdasfaadsfdfgvad dfadsfaasdfafadfdasfads synthetic biology,Here is a title. title title title.asdfas,1,,,,False,False,False,False,False,False
+6119,QUESTION,,,9353,,1745946134,what is xyz asfdadsfads? asdfdasfaadfdasfaadsfsadaasdfadsfaasdfafasdfsadfadsfsdfasfd cheminformatics,what is xyz asfdadsfads?,1,,,,False,False,False,False,False,False
+6121,QUESTION,,,11801,,1745974873,asldfjdlasfkadsjfklajsdklfjlk asdfdasfaadfdasfaadsfsadaasdfadsfafasdfafasdfsadfadsfsdfasfd soil biology,asldfjdlasfkadsjfklajsdklfjlk,1,,,,False,False,False,False,False,False
+6125,PAPER,6781,,6781,4,1747008000,This is a test This is a testThis is a testThis is a testThis is a testThis is a testThis is a testThis is a testThis is a testThis is a testThis is a testThis is a testThis is a testThis is a testThis is a testThis is a testThis is a test biology,This is a test,0,,,0,False,False,False,False,False,False
+6128,PAPER,6781,,6785|6781,2|566|4|3,1747699200,"Test title Test title Test title Test title  abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract abstract. biology,chemistry",Test title Test title Test title Test title,0,,,0,False,False,False,False,False,False
+6141,PAPER,6781,,11426|6781,4,1747785600,"v3v3v3v3v3v3v3v3v3 v1v1v1v1v1v1v1 biology,chemical equilibrium",v3v3v3v3v3v3v3v3v3,0,,,0,False,False,False,False,False,False
+6146,DISCUSSION,6781,,6781,4,1748447355,"Preregistration Template Preregistration Template
+
+1. Overview
+
+Provide a brief overview of: (1) scientific rationale and importance, (2) confirmation of funding/facilities/ethics approvals, (3) estimated timeline, and (4) data sharing commitment.
+
+2. Introduction
+
+Summarize theoretical background, key literature, research questions, and numbered hypotheses (H1, H2, etc.). Explain the study's importance  with an impact statement, regardless of potential outcomes.
+
+3. Methods
+
+Participants/Sample
+
+Define target sample, inclusion/exclusion criteria, recruitment strategy, and sample size justification (including power analysis).
+
+Materials and Procedures
+
+Describe experimental/observational procedures, stimuli, tasks, equipment, and data collection settings with sufficient detail for replication.
+
+Planned Analyses
+
+Outline analysis pipeline, preprocessing steps, statistical tests, and hypothesis-specific predictions. Include any contingent analysis decisions as IF-THEN statements.
+
+Ethics and Data Management
+
+State ethical approval status or plan, confidentiality measures, and data sharing/archiving plan.
+
+4. Pilot Data (Optional)
+
+Summarize any pilot data or simulations that demonstrate method feasibility and inform power analysis. Clearly distinguish from main study.
+
+5. Budget
+
+Provide an itemized list of anticipated costs (materials, personnel, etc.). These are not binding and are able to be adjusted based on the results of the pilot data.
+
+6. References
+
+List all references used in the manuscript using Nature style (e.g. numbered in-text citations and alphabetical references at the end of the manuscript). biology",Preregistration Template,1,,,,False,False,False,False,False,False
+6148,GRANT,,7020,7020|7822,2,1749080499,"Grant Proposal Template Grant Proposal Template
+
+1. Overview
+
+Provide a brief overview of: (1) scientific rationale and importance, (2) confirmation of funding/facilities/ethics approvals, (3) estimated timeline, and (4) data sharing commitment.
+
+2. Introduction
+
+Summarize theoretical background, key literature, research questions, and numbered hypotheses (H1, H2, etc.). Explain the study's importance  with an impact statement, regardless of potential outcomes.
+
+3. Methods
+
+Participants/Sample
+
+Define target sample, inclusion/exclusion criteria, recruitment strategy, and sample size justification (including power analysis).
+
+Materials and Procedures
+
+Describe experimental/observational procedures, stimuli, tasks, equipment, and data collection settings with sufficient detail for replication.
+
+Planned Analyses
+
+Outline analysis pipeline, preprocessing steps, statistical tests, and hypothesis-specific predictions. Include any contingent analysis decisions as IF-THEN statements.
+
+Ethics and Data Management
+
+State ethical approval status or plan, confidentiality measures, and data sharing/archiving plan.
+
+4. Pilot Data (Optional)
+
+Summarize any pilot data or simulations that demonstrate method feasibility and inform power analysis. Clearly distinguish from main study.
+
+5. Budget
+
+Provide an itemized list of anticipated costs (materials, personnel, etc.). These are not binding and are able to be adjusted based on the results of the pilot data.
+
+6. References
+
+List all references used in the manuscript using Nature style (e.g. numbered in-text citations and alphabetical references at the end of the manuscript). neuroscience,cerebrospinal fluid",Grant Proposal Template,1,,,,False,False,True,False,False,False
+6152,GRANT,,6794,6794,3,1749083271,"Grant Proposal Template Grant Proposal Template
+
+1. Overview
+
+Provide a brief overview of: (1) scientific rationale and importance, (2) confirmation of funding/facilities/ethics approvals, (3) estimated timeline, and (4) data sharing commitment.
+
+2. Introduction
+
+Summarize theoretical background, key literature, research questions, and numbered hypotheses (H1, H2, etc.). Explain the study's importance  with an impact statement, regardless of potential outcomes.
+
+3. Methods
+
+Participants/Sample
+
+Define target sample, inclusion/exclusion criteria, recruitment strategy, and sample size justification (including power analysis).
+
+Materials and Procedures
+
+Describe experimental/observational procedures, stimuli, tasks, equipment, and data collection settings with sufficient detail for replication.
+
+Planned Analyses
+
+Outline analysis pipeline, preprocessing steps, statistical tests, and hypothesis-specific predictions. Include any contingent analysis decisions as IF-THEN statements.
+
+Ethics and Data Management
+
+State ethical approval status or plan, confidentiality measures, and data sharing/archiving plan.
+
+4. Pilot Data (Optional)
+
+Summarize any pilot data or simulations that demonstrate method feasibility and inform power analysis. Clearly distinguish from main study.
+
+5. Budget
+
+Provide an itemized list of anticipated costs (materials, personnel, etc.). These are not binding and are able to be adjusted based on the results of the pilot data.
+
+6. References
+
+List all references used in the manuscript using Nature style (e.g. numbered in-text citations and alphabetical references at the end of the manuscript). biochemistry",Grant Proposal Template,1,,,,False,False,True,True,False,False
+6156,PREREGISTRATION,6781,,6781,4,1749606120,"Preregistration Template Preregistration Template
+
+1. Overview
+
+Provide a brief overview of: (1) scientific rationale and importance, (2) confirmation of funding/facilities/ethics approvals, (3) estimated timeline, and (4) data sharing commitment.
+
+2. Introduction
+
+Summarize theoretical background, key literature, research questions, and numbered hypotheses (H1, H2, etc.). Explain the study's importance  with an impact statement, regardless of potential outcomes.
+
+3. Methods
+
+Participants/Sample
+
+Define target sample, inclusion/exclusion criteria, recruitment strategy, and sample size justification (including power analysis).
+
+Materials and Procedures
+
+Describe experimental/observational procedures, stimuli, tasks, equipment, and data collection settings with sufficient detail for replication.
+
+Planned Analyses
+
+Outline analysis pipeline, preprocessing steps, statistical tests, and hypothesis-specific predictions. Include any contingent analysis decisions as IF-THEN statements.
+
+Ethics and Data Management
+
+State ethical approval status or plan, confidentiality measures, and data sharing/archiving plan.
+
+4. Pilot Data (Optional)
+
+Summarize any pilot data or simulations that demonstrate method feasibility and inform power analysis. Clearly distinguish from main study.
+
+5. Budget
+
+Provide an itemized list of anticipated costs (materials, personnel, etc.). These are not binding and are able to be adjusted based on the results of the pilot data.
+
+6. References
+
+List all references used in the manuscript using Nature style (e.g. numbered in-text citations and alphabetical references at the end of the manuscript). biology",Preregistration Template,1,,,,False,False,False,False,True,False
+6158,PREREGISTRATION,6781,,6781,4,1749952897,"Fundraise Example #1 Fundraise Example #1
+
+1. Overview
+
+Provide a brief overview of: (1) scientific rationale and importance, (2) confirmation of funding/facilities/ethics approvals, (3) estimated timeline, and (4) data sharing commitment.
+
+2. Introduction
+
+Summarize theoretical background, key literature, research questions, and numbered hypotheses (H1, H2, etc.). Explain the study's importance  with an impact statement, regardless of potential outcomes.
+
+3. Methods
+
+Participants/Sample
+
+Define target sample, inclusion/exclusion criteria, recruitment strategy, and sample size justification (including power analysis).
+
+Materials and Procedures
+
+Describe experimental/observational procedures, stimuli, tasks, equipment, and data collection settings with sufficient detail for replication.
+
+Planned Analyses
+
+Outline analysis pipeline, preprocessing steps, statistical tests, and hypothesis-specific predictions. Include any contingent analysis decisions as IF-THEN statements.
+
+Ethics and Data Management
+
+State ethical approval status or plan, confidentiality measures, and data sharing/archiving plan.
+
+4. Pilot Data (Optional)
+
+Summarize any pilot data or simulations that demonstrate method feasibility and inform power analysis. Clearly distinguish from main study.
+
+5. Budget
+
+Provide an itemized list of anticipated costs (materials, personnel, etc.). These are not binding and are able to be adjusted based on the results of the pilot data.
+
+6. References
+
+List all references used in the manuscript using Nature style (e.g. numbered in-text citations and alphabetical references at the end of the manuscript). biology",Fundraise Example #1,1,,,,False,False,False,False,True,True
+6163,GRANT,,6794,6794,4,1750162354,"Funding new Innovations Funding new Innovations
+
+About this funding
+
+Briefly introduce your organization and explain why you are issuing this RFP now, including the overarching problem or topic you're targeting.
+
+[Insert background and rationale here]
+
+Topics of interest
+
+State your overall goal briefly, then list a few high‐level ""areas of interest"" that applicants may address. These should be broad, non‐exhaustive topics.
+
+Overall goal: [Insert one‐sentence goal]
+
+Specific areas of interest (not exhaustive):
+
+
+
+
+
+[Area of interest 1]
+
+
+
+[Area of interest 2]
+
+
+
+…
+
+Funding details
+
+State the total budget available for this RFP and the award range per project. Indicate whether multiple projects will be funded.
+
+Total RFP budget: [Insert total amount]
+
+Individual award range: [Insert minimum] – [Insert maximum]
+
+[Optional: Indicate number of projects expected to be funded]
+
+Additional details
+
+Optionally include any additional details to guide submissions or generate discussion. biochemistry",Funding new Innovations,1,,,,False,False,True,False,False,False
+6170,DISCUSSION,6781,,6781,4,1755561948,"Research Article Title Research Article Title
+
+Abstract
+
+Summarize your research findings here...Summarize your research findings here...Summarize your research findings here...Summarize your research findings here...Summarize your research findings here...Summarize your research findings here...Summarize your research findings here...Summarize your research findings here...Summarize your research findings here...Summarize your research findings here...Summarize your research findings here...Summarize your research findings here...Summarize your research findings here...Summarize your research findings here...Summarize your research findings here...Summarize your research findings here...Summarize your research findings here...Summarize your research findings here...Summarize your research findings here...Summarize your research findings here...Summarize your research findings here...Summarize your research findings here...Summarize your research findings here...
+
+Introduction
+
+Provide background and context for your research...
+
+Methods
+
+Describe your research methodology...
+
+Results
+
+Present your research findings...
+
+Discussion
+
+Interpret and discuss your findings... biology",Research Article Title,1,,,,False,False,False,False,False,False
+6172,QUESTION,,,9041|12449,,1755562355,"What are the highest potential areas of research that are underfunded today? When I think about the highest potential impact areas of science and technology today, my list would include:
+
+1. AI - increase intelligence in the world
+
+2. Brain Machine Interfaces - how do we end up merging with AI, instead of being taken over by it
+
+3. Crypto - increase economic freedom in the world
+
+4. Energy - we need nuclear fusion (and probably more fission) to get a ton more energy
+
+5. Space - the ability the explore the stars
+
+6. Robotics - adding strong AI into humanoid robots, and other types, will be massive for productivity
+
+7. Longevity - and upgrading the bio stack generally (better reproductive technology etc)
+
+In many ways, biological life, and digital life, will be in competition (hopefully the merge helps solve that). So in some ways, strong AI and Brain Machine Interfaces, are all that matters to achieve upload (or the merge). But I think the bio stack is still worth upgrading by itself, perhaps out of some sense of nostalgia.
+
+I'm curious what other areas of science and technology I'm missing, that are high impact, and potentially underfunded.
+
+I'm offering a 1,000 RSC bounty to the best answer. Thank you! longevity,gravitational singularity",What are the highest potential areas of research that are underfunded today?,1,,,,False,False,False,False,False,False
+6173,QUESTION,,,9041|12449,,1755562707,"What are the highest potential areas of research that are underfunded today? When I think about the highest potential impact areas of science and technology today, my list would include:
+
+1. AI - increase intelligence in the world
+
+2. Brain Machine Interfaces - how do we end up merging with AI, instead of being taken over by it
+
+3. Crypto - increase economic freedom in the world
+
+4. Energy - we need nuclear fusion (and probably more fission) to get a ton more energy
+
+5. Space - the ability the explore the stars
+
+6. Robotics - adding strong AI into humanoid robots, and other types, will be massive for productivity
+
+7. Longevity - and upgrading the bio stack generally (better reproductive technology etc)
+
+In many ways, biological life, and digital life, will be in competition (hopefully the merge helps solve that). So in some ways, strong AI and Brain Machine Interfaces, are all that matters to achieve upload (or the merge). But I think the bio stack is still worth upgrading by itself, perhaps out of some sense of nostalgia.
+
+I'm curious what other areas of science and technology I'm missing, that are high impact, and potentially underfunded.
+
+I'm offering a 1,000 RSC bounty to the best answer. Thank you! longevity,gravitational singularity",What are the highest potential areas of research that are underfunded today?,1,,,,False,False,False,False,False,False
+6174,QUESTION,,,9041|12449,,1755562723,"What are the highest potential areas of research that are underfunded today? When I think about the highest potential impact areas of science and technology today, my list would include:
+
+1. AI - increase intelligence in the world
+
+2. Brain Machine Interfaces - how do we end up merging with AI, instead of being taken over by it
+
+3. Crypto - increase economic freedom in the world
+
+4. Energy - we need nuclear fusion (and probably more fission) to get a ton more energy
+
+5. Space - the ability the explore the stars
+
+6. Robotics - adding strong AI into humanoid robots, and other types, will be massive for productivity
+
+7. Longevity - and upgrading the bio stack generally (better reproductive technology etc)
+
+In many ways, biological life, and digital life, will be in competition (hopefully the merge helps solve that). So in some ways, strong AI and Brain Machine Interfaces, are all that matters to achieve upload (or the merge). But I think the bio stack is still worth upgrading by itself, perhaps out of some sense of nostalgia.
+
+I'm curious what other areas of science and technology I'm missing, that are high impact, and potentially underfunded.
+
+I'm offering a 1,000 RSC bounty to the best answer. Thank you! longevity,gravitational singularity",What are the highest potential areas of research that are underfunded today?,1,,,,False,False,False,False,False,False
+6175,QUESTION,,,9041|12449,,1755563133,"What are the highest potential areas of research that are underfunded today? When I think about the highest potential impact areas of science and technology today, my list would include:
+
+1. AI - increase intelligence in the world
+
+2. Brain Machine Interfaces - how do we end up merging with AI, instead of being taken over by it
+
+3. Crypto - increase economic freedom in the world
+
+4. Energy - we need nuclear fusion (and probably more fission) to get a ton more energy
+
+5. Space - the ability the explore the stars
+
+6. Robotics - adding strong AI into humanoid robots, and other types, will be massive for productivity
+
+7. Longevity - and upgrading the bio stack generally (better reproductive technology etc)
+
+In many ways, biological life, and digital life, will be in competition (hopefully the merge helps solve that). So in some ways, strong AI and Brain Machine Interfaces, are all that matters to achieve upload (or the merge). But I think the bio stack is still worth upgrading by itself, perhaps out of some sense of nostalgia.
+
+I'm curious what other areas of science and technology I'm missing, that are high impact, and potentially underfunded.
+
+I'm offering a 1,000 RSC bounty to the best answer. Thank you! longevity,gravitational singularity",What are the highest potential areas of research that are underfunded today?,1,,,,False,False,False,False,False,False
+6176,QUESTION,,,9041|12449,,1755563175,"What are the highest potential areas of research that are underfunded today? When I think about the highest potential impact areas of science and technology today, my list would include:
+
+1. AI - increase intelligence in the world
+
+2. Brain Machine Interfaces - how do we end up merging with AI, instead of being taken over by it
+
+3. Crypto - increase economic freedom in the world
+
+4. Energy - we need nuclear fusion (and probably more fission) to get a ton more energy
+
+5. Space - the ability the explore the stars
+
+6. Robotics - adding strong AI into humanoid robots, and other types, will be massive for productivity
+
+7. Longevity - and upgrading the bio stack generally (better reproductive technology etc)
+
+In many ways, biological life, and digital life, will be in competition (hopefully the merge helps solve that). So in some ways, strong AI and Brain Machine Interfaces, are all that matters to achieve upload (or the merge). But I think the bio stack is still worth upgrading by itself, perhaps out of some sense of nostalgia.
+
+I'm curious what other areas of science and technology I'm missing, that are high impact, and potentially underfunded.
+
+I'm offering a 1,000 RSC bounty to the best answer. Thank you! longevity,gravitational singularity",What are the highest potential areas of research that are underfunded today?,1,,,,False,False,False,False,False,False
+6177,QUESTION,,,9041|12449,,1755563242,"What are the highest potential areas of research that are underfunded today? When I think about the highest potential impact areas of science and technology today, my list would include:
+
+1. AI - increase intelligence in the world
+
+2. Brain Machine Interfaces - how do we end up merging with AI, instead of being taken over by it
+
+3. Crypto - increase economic freedom in the world
+
+4. Energy - we need nuclear fusion (and probably more fission) to get a ton more energy
+
+5. Space - the ability the explore the stars
+
+6. Robotics - adding strong AI into humanoid robots, and other types, will be massive for productivity
+
+7. Longevity - and upgrading the bio stack generally (better reproductive technology etc)
+
+In many ways, biological life, and digital life, will be in competition (hopefully the merge helps solve that). So in some ways, strong AI and Brain Machine Interfaces, are all that matters to achieve upload (or the merge). But I think the bio stack is still worth upgrading by itself, perhaps out of some sense of nostalgia.
+
+I'm curious what other areas of science and technology I'm missing, that are high impact, and potentially underfunded.
+
+I'm offering a 1,000 RSC bounty to the best answer. Thank you! longevity,gravitational singularity",What are the highest potential areas of research that are underfunded today?,1,,,,False,False,False,False,False,False
+6178,QUESTION,6781,,6781|9041|12449,,1755563444,"What are the highest potential areas of research that are underfunded today!? This is a test This is a test This is a test This is a test This is a testsdfdsf
+
+
+
+sdfdsaf
+sdfsd
+
+
+
+
+
+This is a atest
+
+
+
+this is another bullets
+
+
+
+
+
+This is sub bulletaaa
+
+
+
+
+
+This is a number!!
+
+
+
+asdfa
+
+Type Checking Semantic Functions in ASDF yeah. meow!!!! biology,longevity,gravitational singularity",What are the highest potential areas of research that are underfunded today!?,1,,,,False,False,False,False,False,False
+6181,QUESTION,,,9041|12449,,1755565989,"What are the highest potential areas of research that are underfunded today? When I think about the highest potential impact areas of science and technology today, my list would include:
+
+1. AI - increase intelligence in the world######
+
+2. Brain Machine Interfaces - how do we end up merging with AI, instead of being taken over by it
+
+3. Crypto - increase economic freedom in the world
+
+4. Energy - we need nuclear fusion (and probably more fission) to get a ton more energy
+
+5. Space - the ability the explore the stars
+
+6. Robotics - adding strong AI into humanoid robots, and other types, will be massive for productivity
+
+7. Longevity - and upgrading the bio stack generally (better reproductive technology etc)
+
+In many ways, biological life, and digital life, will be in competition (hopefully the merge helps solve that). So in some ways, strong AI and Brain Machine Interfaces, are all that matters to achieve upload (or the merge). But I think the bio stack is still worth upgrading by itself, perhaps out of some sense of nostalgia.
+
+I'm curious what other areas of science and technology I'm missing, that are high impact, and potentially underfunded.
+
+I'm offering a 1,000 RSC bounty to the best answer. Thank you! longevity,gravitational singularity",What are the highest potential areas of research that are underfunded today?,1,,,,False,False,False,False,False,False
+6182,QUESTION,,,9041|12449,,1755566016,"What are the highest potential areas of research that are underfunded today? When I think about the highest potential impact areas of science and technology today, my list would include:
+
+1. AI - increase intelligence in the worldPPPPPP
+
+2. Brain Machine Interfaces - how do we end up merging with AI, instead of being taken over by it
+
+3. Crypto - increase economic freedom in the world
+
+4. Energy - we need nuclear fusion (and probably more fission) to get a ton more energy
+
+5. Space - the ability the explore the stars
+
+6. Robotics - adding strong AI into humanoid robots, and other types, will be massive for productivity
+
+7. Longevity - and upgrading the bio stack generally (better reproductive technology etc)
+
+In many ways, biological life, and digital life, will be in competition (hopefully the merge helps solve that). So in some ways, strong AI and Brain Machine Interfaces, are all that matters to achieve upload (or the merge). But I think the bio stack is still worth upgrading by itself, perhaps out of some sense of nostalgia.
+
+I'm curious what other areas of science and technology I'm missing, that are high impact, and potentially underfunded.
+
+I'm offering a 1,000 RSC bounty to the best answer. Thank you! longevity,gravitational singularity",What are the highest potential areas of research that are underfunded today?,1,,,,False,False,False,False,False,False
+6183,QUESTION,,,9041|12449,,1755566025,"What are the highest potential areas of research that are underfunded today? 11111When I think about the highest potential impact areas of science and technology today, my list would include:
+
+1. AI - increase intelligence in the worldPPPPPP
+
+2. Brain Machine Interfaces - how do we end up merging with AI, instead of being taken over by it
+
+3. Crypto - increase economic freedom in the world
+
+4. Energy - we need nuclear fusion (and probably more fission) to get a ton more energy
+
+5. Space - the ability the explore the stars
+
+6. Robotics - adding strong AI into humanoid robots, and other types, will be massive for productivity
+
+7. Longevity - and upgrading the bio stack generally (better reproductive technology etc)
+
+In many ways, biological life, and digital life, will be in competition (hopefully the merge helps solve that). So in some ways, strong AI and Brain Machine Interfaces, are all that matters to achieve upload (or the merge). But I think the bio stack is still worth upgrading by itself, perhaps out of some sense of nostalgia.
+
+I'm curious what other areas of science and technology I'm missing, that are high impact, and potentially underfunded.
+
+I'm offering a 1,000 RSC bounty to the best answer. Thank you! longevity,gravitational singularity",What are the highest potential areas of research that are underfunded today?,1,,,,False,False,False,False,False,False
+6184,QUESTION,,,9041|12449,,1755566047,"What are the highest potential areas of research that are underfunded today? testWhen I think about the highest potential impact areas of science and technology today, my list would include:
+
+1. AI - increase intelligence in the world
+
+2. Brain Machine Interfaces - how do we end up merging with AI, instead of being taken over by it
+
+3. Crypto - increase economic freedom in the world
+
+4. Energy - we need nuclear fusion (and probably more fission) to get a ton more energy
+
+5. Space - the ability the explore the stars
+
+6. Robotics - adding strong AI into humanoid robots, and other types, will be massive for productivity
+
+7. Longevity - and upgrading the bio stack generally (better reproductive technology etc)
+
+In many ways, biological life, and digital life, will be in competition (hopefully the merge helps solve that). So in some ways, strong AI and Brain Machine Interfaces, are all that matters to achieve upload (or the merge). But I think the bio stack is still worth upgrading by itself, perhaps out of some sense of nostalgia.
+
+I'm curious what other areas of science and technology I'm missing, that are high impact, and potentially underfunded.
+
+I'm offering a 1,000 RSC bounty to the best answer. Thank you! longevity,gravitational singularity",What are the highest potential areas of research that are underfunded today?,1,,,,False,False,False,False,False,False
+6187,DISCUSSION,,,13790,4,1755797288,"Test post - does this work? Test post - does this work?
+
+Summarize your research findings here...
+
+Introduction
+
+Provide background and context for your research...
+
+Methods
+
+Describe your research methodology...
+
+Results
+
+Present your research findings...
+
+Discussion
+
+Interpret and discuss your findings... Biochar",Test post - does this work?,1,,,,False,False,False,False,False,False
+6190,DISCUSSION,6781,,6781,4,1755823138,"Research Article Title Research Article Title
+
+Abstract
+
+Summarize your research findings here...
+
+Introduction
+
+Provide background and context for your research...
+
+Methods
+
+Describe your research methodology...
+
+Results
+
+Present your research findings...
+
+Discussion
+
+Interpret and discuss your findings... biology",Research Article Title,1,,,,False,False,False,False,False,False
+6191,QUESTION,6781,,6781,,1755971649,"Here is a bounty title When I think about the highest potential impact areas of science and technology today, my list would include:
+
+
+
+
+
+This is a thing
+
+
+
+another thing
+
+
+
+quote quote
+
+var x = 7; biology",Here is a bounty title,1,,,,False,False,False,False,False,False
+6193,DISCUSSION,,,14660,4,1755972379,"Research Article Title Research Article Title
+
+Abstract
+
+Summarize your research findings here...
+
+Introduction
+
+Provide background and context for your research...
+
+Methods
+
+Describe your research methodology...
+
+Results
+
+Present your research findings...
+
+Discussion
+
+Interpret and discuss your findings... Biodegradation",Research Article Title,1,,,,False,False,False,False,False,False
+7824,PAPER,6781,7020,7020|6781,,1760486400,"Interoception vs. Exteroception: Cardiac interoception competes with tactile perception, yet also facilitates self-relevance encoding Internal bodily signals, notably the heartbeat, influence our perception of the external world - but the nature of this influence remains unclear. Different frameworks, originating in opposing views of the function of interoception, have developed largely in parallel. One line of evidence (Internal/External Competition) indicates that interoceptive and exteroceptive inputs compete for neural resources. Another line (Self-related Facilitation) shows a link between interoceptive and self-related processing, which might include computing the self-relevance of exteroceptive inputs. We contrasted these accounts within a single experimental task for which they yielded distinct predictions. We measured heartbeat-evoked potentials (HEPs, a measure of cardiac interoception) with EEG, and manipulated the self-relevance of an audio-tactile stimulus by placing the audio source either inside or outside the peripersonal space immediately around the body. On one hand, pre-stimulus HEP amplitudes over somatosensory cortex were linked to slower reaction times, and affected audio-tactile stimulus-evoked responses in the same area, indicating competition for shared neural resources. On the other hand, pre-stimulus HEPs over integrative sensorimotor and default-mode network regions facilitated stimulus self-relevance encoding, both in reaction times and audio-tactile evoked responses. Importantly, Competition and Facilitation effects were spatially and statistically independent from each other. We therefore reconcile the two views by showing the co-existence of two independent mechanisms: one that allocates neural resources to either internal bodily signals or the external world, and another by which interoception and exteroception are combined to determine the self-relevance of external signals. Our results highlight the multi-dimensionality of HEPs, and of internal states more generally. biology,neuroscience","Interoception vs. Exteroception: Cardiac interoception competes with tactile perception, yet also facilitates self-relevance encoding",1,14,2,0,True,False,False,False,False,False
+9893,PAPER,6781,8035,8035|6781,,1760313600,"Multiplex design and discovery of proximity handles for programmable proteome editing Although we now have a rich toolset for genome editing, an equivalent framework for manipulating the proteome with a comparable flexibility and specificity remains elusive. A promising strategy for ""proteome editing"" is to use bifunctional molecules (e.g. PROteolysis-Targeting Chimeras or PROTACs) that bring a target protein into proximity with a degradation or stabilization effector, but their broader application is constrained by a limited repertoire of well-characterized target or effector ""handles"". We asked whether coupling de novo protein design to a multiplex screening framework could address this gap by accelerating the discovery of effector handles for intracellular protein degradation, stabilization, or relocalization. Using LABEL-seq, a sequencing-based assay that enables multiplex, quantitative measurement of protein abundance, we screened 9,720 de novo designed candidate effector handles for their ability to recruit a target protein to components of the ubiquitin-proteasome system (UPS) (FBXL12, TRAF2, UCHL1, USP38) or the autophagy pathway (GABARAP, GABARAPL2, MAP1LC3A). In a single experiment, we discovered hundreds of de novo designed effector handles that reproducibly drove either intracellular degradation (n = 277) or stabilization (n = 204) of a reporter protein. Validation of a subset of these hits in an orthogonal assay confirmed that sequencing-based measurements from the primary screen reliably reflected changes in intracellular abundance of the target protein. Successful effector handles were discovered for both the UPS (n = 194) and autophagy (n = 287) pathways, which provide complementary routes for programmable proteome editing. Autophagy-recruiting effector handles generalized to endogenous targets, as substituting the reporter-specific target handle with a high-affinity Mcl-1 binder reduced endogenous levels of this intracellular oncoprotein. Moreover, directing autophagy-recruiting effector handles to the outer mitochondrial membrane dramatically perturbed mitochondrial networks in a manner consistent with synthetic tethering and sequestration. Beyond generating a diverse repertoire of protein abundance or localization effector handles, our results establish a scalable, low-cost platform that links deep learning-guided protein design to functional cellular readouts, and chart a course toward a general framework for programmable proteome editing. biology,synthetic biology",Multiplex design and discovery of proximity handles for programmable proteome editing,0,37,52,0,False,False,False,False,False,False
+11397,PREREGISTRATION,,,7719,38203,1760595732,"Proposal Template testset testestse Proposal Template testset testestse
+
+1. Overview
+
+Provide a brief overview of: (1) scientific rationale and importance, (2) confirmation of funding/facilities/ethics approvals, (3) estimated timeline, and (4) data sharing commitment.
+
+2. Introduction
+
+Summarize theoretical background, key literature, research questions, and numbered hypotheses (H1, H2, etc.). Explain the study's importance  with an impact statement, regardless of potential outcomes.
+
+3. Methods
+
+Participants/Sample
+
+Define target sample, inclusion/exclusion criteria, recruitment strategy, and sample size justification (including power analysis).
+
+Materials and Procedures
+
+Describe experimental/observational procedures, stimuli, tasks, equipment, and data collection settings with sufficient detail for replication.
+
+Planned Analyses
+
+Outline analysis pipeline, preprocessing steps, statistical tests, and hypothesis-specific predictions. Include any contingent analysis decisions as IF-THEN statements.
+
+Ethics and Data Management
+
+State ethical approval status or plan, confidentiality measures, and data sharing/archiving plan.
+
+4. Pilot Data (Optional)
+
+Summarize any pilot data or simulations that demonstrate method feasibility and inform power analysis. Clearly distinguish from main study.
+
+5. Budget
+
+Provide an itemized list of anticipated costs (materials, personnel, etc.). These are not binding and are able to be adjusted based on the results of the pilot data.
+
+6. References
+
+List all references used in the manuscript using Nature style (e.g. numbered in-text citations and alphabetical references at the end of the manuscript). bioaerosol",Proposal Template testset testestse,1,,,,False,False,False,False,True,False
+11399,PREREGISTRATION,6781,14933,14933|6781,38203,1760637969,"test test test 10/16/25 test test test 10/16/25
+
+1. Overview
+
+Provide a brief overview of: (1) scientific rationale and importance, (2) confirmation of funding/facilities/ethics approvals, (3) estimated timeline, and (4) data sharing commitment.
+
+2. Introduction
+
+Summarize theoretical background, key literature, research questions, and numbered hypotheses (H1, H2, etc.). Explain the study's importance  with an impact statement, regardless of potential outcomes.
+
+3. Methods
+
+Participants/Sample
+
+Define target sample, inclusion/exclusion criteria, recruitment strategy, and sample size justification (including power analysis).
+
+Materials and Procedures
+
+Describe experimental/observational procedures, stimuli, tasks, equipment, and data collection settings with sufficient detail for replication.
+
+Planned Analyses
+
+Outline analysis pipeline, preprocessing steps, statistical tests, and hypothesis-specific predictions. Include any contingent analysis decisions as IF-THEN statements.
+
+Ethics and Data Management
+
+State ethical approval status or plan, confidentiality measures, and data sharing/archiving plan.
+
+4. Pilot Data (Optional)
+
+Summarize any pilot data or simulations that demonstrate method feasibility and inform power analysis. Clearly distinguish from main study.
+
+5. Budget
+
+Provide an itemized list of anticipated costs (materials, personnel, etc.). These are not binding and are able to be adjusted based on the results of the pilot data.
+
+6. References
+
+List all references used in the manuscript using Nature style (e.g. numbered in-text citations and alphabetical references at the end of the manuscript). biology,Quantitative Biology",test test test 10/16/25,1,,,,False,False,False,False,True,True
+14802,GRANT,,,,40125,1761790928,Test Grant some text,Test Grant,0,,,,False,False,True,False,False,False
