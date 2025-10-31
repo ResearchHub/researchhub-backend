@@ -79,7 +79,7 @@ class PersonalizeItemMapper:
 
         # Get the concrete document
         try:
-            document = "DISCUSSSION"
+            document = prefetched_doc.get_document()
         except Exception:
             # If we can't get the document, return minimal row
             row[ITEM_ID] = str(prefetched_doc.id)

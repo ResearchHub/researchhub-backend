@@ -57,6 +57,12 @@ class Command(BaseCommand):
             default=False,
             help="Enable detailed performance debugging output",
         )
+        parser.add_argument(
+            "--log-queries",
+            action="store_true",
+            default=False,
+            help="Log SQL queries to identify missing indexes (implies --debug)",
+        )
 
     def handle(self, *args, **options):
         since_publish_date = self._parse_date(options.get("since_publish_date"))
@@ -64,10 +70,17 @@ class Command(BaseCommand):
         with_interactions = options.get("with_interactions", True)
         with_posts = options.get("with_posts", False)
         post_types = options.get("post_types")
-        self.debug_mode = options.get("debug", False)
+        log_queries = options.get("log_queries", False)
+        # log-queries implies debug mode
+        self.debug_mode = options.get("debug", False) or log_queries
+        self.log_queries = log_queries
 
         if self.debug_mode:
-            self.stdout.write(self.style.WARNING("\n=== DEBUG MODE ENABLED ===\n"))
+            mode_msg = "\n=== DEBUG MODE ENABLED"
+            if log_queries:
+                mode_msg += " (with query logging)"
+            mode_msg += " ===\n"
+            self.stdout.write(self.style.WARNING(mode_msg))
 
         self.export_items(
             since_publish_date, ids, with_interactions, with_posts, post_types
@@ -171,7 +184,7 @@ class Command(BaseCommand):
             reset_queries()
             start = time.time()
 
-        exported, skipped = service.export_to_csv(
+        result = service.export_to_csv(
             queryset, filename, progress_callback=progress_callback, total_items=total
         )
 
@@ -179,13 +192,28 @@ class Command(BaseCommand):
             perf_metrics["export_time"] = time.time() - start
             perf_metrics["chunks"] = chunk_metrics
 
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"\nExport complete: {exported} exported"
-                + (f", {skipped} skipped" if skipped else "")
-                + f"\nFile: {filename}"
+        # Log queries if requested
+        if self.log_queries:
+            self._log_all_queries(service.chunk_timings)
+
+        # Build success message
+        success_msg = f"\nExport complete: {result['exported']} exported"
+        if result["skipped"]:
+            success_msg += f", {result['skipped']} skipped"
+        if result["failed_ids"]:
+            success_msg += f", {len(result['failed_ids'])} failed to map"
+        success_msg += f"\nFile: {filename}"
+
+        self.stdout.write(self.style.SUCCESS(success_msg))
+
+        # Display failed IDs if any
+        if result["failed_ids"]:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"\nFailed to map {len(result['failed_ids'])} items "
+                    f"with IDs: {result['failed_ids']}"
+                )
             )
-        )
 
         # Print debug summary
         if self.debug_mode:
@@ -444,3 +472,139 @@ class Command(BaseCommand):
         self.stdout.write("\n" + "=" * 80)
         self.stdout.write("Copy the above output to share for debugging")
         self.stdout.write("=" * 80 + "\n")
+
+    def _log_all_queries(self, chunk_timings: list):
+        """Log queries from all chunks."""
+        for chunk_timing in chunk_timings:
+            chunk_num = chunk_timing.get("chunk_num")
+
+            # Log queryset evaluation queries
+            eval_queries = chunk_timing.get("eval_queries_list", [])
+            if eval_queries:
+                chunk_size = chunk_timing.get("chunk_size", 0)
+                self._log_queries(
+                    f"Chunk {chunk_num} - Queryset Evaluation ({chunk_size} items)",
+                    eval_queries,
+                )
+
+            # Log batch data fetch queries
+            fetch_queries = chunk_timing.get("fetch_queries_list", [])
+            if fetch_queries:
+                self._log_queries(
+                    f"Chunk {chunk_num} - Batch Data Fetch", fetch_queries
+                )
+
+            # Log item mapping queries
+            map_queries = chunk_timing.get("map_queries_list", [])
+            if map_queries:
+                items_mapped = chunk_timing.get("items_mapped", 0)
+                self._log_queries(
+                    f"Chunk {chunk_num} - Item Mapping ({items_mapped} items mapped)",
+                    map_queries,
+                )
+
+    def _log_queries(self, context: str, queries: list):
+        """Log SQL queries with analysis for index optimization.
+
+        Args:
+            context: Description of what operation these queries are from
+            queries: List of query dicts from django.db.connection.queries
+        """
+        if not queries:
+            return
+
+        self.stdout.write("\n" + "=" * 80)
+        self.stdout.write(self.style.WARNING(f"QUERIES FOR: {context}"))
+        self.stdout.write(f"Total queries: {len(queries)}")
+        self.stdout.write("=" * 80)
+
+        slow_queries = []
+        for i, query in enumerate(queries, 1):
+            query_time = float(query.get("time", 0))
+            sql = query.get("sql", "")
+
+            # Flag potentially problematic queries
+            is_slow = query_time > 0.1  # >100ms
+            has_seq_scan = "Seq Scan" in sql or "SCAN" in sql.upper()
+            is_count = "COUNT" in sql.upper()
+            has_join = "JOIN" in sql.upper()
+            is_select_related = "LEFT OUTER JOIN" in sql
+
+            # Only log queries that might indicate missing indexes
+            should_log = (
+                is_slow
+                or (has_seq_scan and not is_count)
+                or (has_join and query_time > 0.05)
+                or len(queries) > 50  # High query count suggests N+1
+            )
+
+            if should_log:
+                flags = []
+                if is_slow:
+                    flags.append("SLOW")
+                if has_seq_scan:
+                    flags.append("SEQ_SCAN")
+                if is_count:
+                    flags.append("COUNT")
+                if is_select_related:
+                    flags.append("SELECT_RELATED")
+
+                flag_str = f" [{', '.join(flags)}]" if flags else ""
+
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"\nQuery {i}/{len(queries)}: "
+                        f"{query_time*1000:.2f}ms{flag_str}"
+                    )
+                )
+
+                # Simplify and format SQL for readability
+                formatted_sql = self._format_sql_for_logging(sql)
+                self.stdout.write(formatted_sql)
+
+                if is_slow:
+                    slow_queries.append((i, query_time, sql[:200]))
+
+        # Summary of slow queries
+        if slow_queries:
+            self.stdout.write("\n" + "=" * 80)
+            self.stdout.write(
+                self.style.WARNING(
+                    f"SLOW QUERIES SUMMARY ({len(slow_queries)} queries >100ms):"
+                )
+            )
+            for i, query_time, sql_snippet in slow_queries:
+                self.stdout.write(
+                    f"  Query {i}: {query_time*1000:.2f}ms - {sql_snippet}..."
+                )
+
+        # Warn about potential N+1 issues
+        if len(queries) > 50:
+            self.stdout.write(
+                self.style.WARNING(f"\n⚠️  HIGH QUERY COUNT: {len(queries)} queries")
+            )
+            self.stdout.write(
+                "    This suggests N+1 query problem. "
+                "Check prefetch_related/select_related usage."
+            )
+
+        self.stdout.write("=" * 80 + "\n")
+
+    def _format_sql_for_logging(self, sql: str) -> str:
+        """Format SQL for more readable logging."""
+        # Limit length and clean up whitespace
+        sql = " ".join(sql.split())
+
+        # Truncate very long queries
+        if len(sql) > 500:
+            sql = sql[:500] + "..."
+
+        # Add line breaks for major clauses
+        sql = sql.replace(" FROM ", "\n  FROM ")
+        sql = sql.replace(" WHERE ", "\n  WHERE ")
+        sql = sql.replace(" LEFT OUTER JOIN ", "\n  LEFT OUTER JOIN ")
+        sql = sql.replace(" INNER JOIN ", "\n  INNER JOIN ")
+        sql = sql.replace(" ORDER BY ", "\n  ORDER BY ")
+        sql = sql.replace(" GROUP BY ", "\n  GROUP BY ")
+
+        return f"  {sql}"

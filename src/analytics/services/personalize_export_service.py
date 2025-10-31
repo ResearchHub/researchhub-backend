@@ -22,6 +22,7 @@ class PersonalizeExportService:
         self.fetcher = PersonalizeRelatedDataFetcher()
         self.mapper = PersonalizeItemMapper()
         self.chunk_timings = []  # Store timing details for debugging
+        self.failed_ids = []  # Track IDs of items that failed to map
 
     def export_items(
         self,
@@ -56,6 +57,7 @@ class PersonalizeExportService:
             if self.debug:
                 chunk_timing["eval_time"] = time.time() - start
                 chunk_timing["eval_queries"] = len(connection.queries)
+                chunk_timing["eval_queries_list"] = list(connection.queries)
                 chunk_timing["chunk_size"] = len(chunk)
 
             # Time chunk processing
@@ -85,7 +87,7 @@ class PersonalizeExportService:
         filename: str,
         progress_callback: Optional[Callable[[int, int, int], None]] = None,
         total_items: Optional[int] = None,
-    ) -> tuple[int, int]:
+    ) -> dict:
         """Export items directly to CSV file.
 
         Args:
@@ -94,6 +96,12 @@ class PersonalizeExportService:
             progress_callback: Optional callback(chunk_num, total_chunks,
                 items_processed) called after each chunk is processed
             total_items: Pre-calculated total count (avoids redundant query)
+
+        Returns:
+            Dict with keys:
+                - exported: Number of items successfully exported
+                - skipped: Number of items that failed to write to CSV
+                - failed_ids: List of unified document IDs that failed to map
         """
         exported = 0
         skipped = 0
@@ -116,7 +124,11 @@ class PersonalizeExportService:
         except OSError as e:
             raise OSError(f"Error writing to {filename}: {e}")
 
-        return (exported, skipped)
+        return {
+            "exported": exported,
+            "skipped": skipped,
+            "failed_ids": self.failed_ids,
+        }
 
     def _process_chunk(
         self,
@@ -139,6 +151,7 @@ class PersonalizeExportService:
         if timing is not None:
             timing["fetch_time"] = time.time() - start
             timing["fetch_queries"] = len(connection.queries)
+            timing["fetch_queries_list"] = list(connection.queries)
 
         bounty_data = batch_data["bounty"]
         proposal_data = batch_data["proposal"]
@@ -162,11 +175,13 @@ class PersonalizeExportService:
                 )
                 items.append(item_row)
             except Exception:
+                self.failed_ids.append(unified_doc.id)
                 continue
 
         if timing is not None:
             timing["map_time"] = time.time() - start
             timing["map_queries"] = len(connection.queries)
+            timing["map_queries_list"] = list(connection.queries)
             timing["items_mapped"] = len(items)
 
         return items

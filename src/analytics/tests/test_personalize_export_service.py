@@ -145,7 +145,7 @@ class ExportToCSVTests(TestCase):
         # Act
         with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".csv") as f:
             filename = f.name
-            exported, skipped = service.export_to_csv(queryset, filename)
+            result = service.export_to_csv(queryset, filename)
 
             # Read back the file
             with open(filename, "r", encoding="utf-8") as csvfile:
@@ -154,11 +154,12 @@ class ExportToCSVTests(TestCase):
 
         # Assert
         self.assertEqual(headers, CSV_HEADERS)
-        self.assertEqual(exported, 1)
-        self.assertEqual(skipped, 0)
+        self.assertEqual(result["exported"], 1)
+        self.assertEqual(result["skipped"], 0)
+        self.assertEqual(result["failed_ids"], [])
 
     def test_export_to_csv_returns_correct_counts(self):
-        """Should return (exported, skipped) counts."""
+        """Should return dict with exported, skipped, and failed_ids."""
         # Arrange
         docs = [create_prefetched_paper(title=f"Paper {i}") for i in range(3)]
         doc_ids = [doc.id for doc in docs]
@@ -179,11 +180,12 @@ class ExportToCSVTests(TestCase):
         # Act
         with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".csv") as f:
             filename = f.name
-            exported, skipped = service.export_to_csv(queryset, filename)
+            result = service.export_to_csv(queryset, filename)
 
         # Assert
-        self.assertEqual(exported, 3)
-        self.assertEqual(skipped, 0)
+        self.assertEqual(result["exported"], 3)
+        self.assertEqual(result["skipped"], 0)
+        self.assertEqual(result["failed_ids"], [])
 
     def test_export_to_csv_handles_write_errors_gracefully(self):
         """Should handle errors during export gracefully."""
@@ -206,11 +208,12 @@ class ExportToCSVTests(TestCase):
         # Act
         with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".csv") as f:
             filename = f.name
-            exported, skipped = service.export_to_csv(queryset, filename)
+            result = service.export_to_csv(queryset, filename)
 
         # Assert - export should work without errors
-        self.assertEqual(exported, 1)
-        self.assertEqual(skipped, 0)
+        self.assertEqual(result["exported"], 1)
+        self.assertEqual(result["skipped"], 0)
+        self.assertEqual(result["failed_ids"], [])
 
     def test_export_to_csv_with_multiple_chunks(self):
         """Should correctly export across multiple chunks."""
@@ -234,11 +237,12 @@ class ExportToCSVTests(TestCase):
         # Act
         with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".csv") as f:
             filename = f.name
-            exported, skipped = service.export_to_csv(queryset, filename)
+            result = service.export_to_csv(queryset, filename)
 
         # Assert
-        self.assertEqual(exported, 5)
-        self.assertEqual(skipped, 0)
+        self.assertEqual(result["exported"], 5)
+        self.assertEqual(result["skipped"], 0)
+        self.assertEqual(result["failed_ids"], [])
 
 
 class IntegrationTests(TestCase):
@@ -273,7 +277,7 @@ class IntegrationTests(TestCase):
         # Act
         with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".csv") as f:
             filename = f.name
-            exported, skipped = service.export_to_csv(queryset, filename)
+            result = service.export_to_csv(queryset, filename)
 
             # Read back the file
             with open(filename, "r", encoding="utf-8") as csvfile:
@@ -281,7 +285,8 @@ class IntegrationTests(TestCase):
                 rows = list(reader)
 
         # Assert
-        self.assertEqual(exported, 5)
+        self.assertEqual(result["exported"], 5)
+        self.assertEqual(result["failed_ids"], [])
         self.assertEqual(len(rows), 5)
         item_types = {row["ITEM_TYPE"] for row in rows}
         # Check for mapped ITEM_TYPE values
