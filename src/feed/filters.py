@@ -161,41 +161,54 @@ class FundOrderingFilter(OrderingFilter):
     def _apply_best_sorting(self, queryset: QuerySet, model_config: dict[str, Union[Type[Grant], Type[Fundraise], str]]) -> QuerySet:
         """
         Sort by best with conditional logic (for fundraises/proposals only):
-        - Open items: sort by amount raised (desc), then created date (desc)
+        - Active open items: sort by amount raised (desc), then created date (desc)
+        - Expired open items: sort by created date (desc) only
         - Closed items: sort by created date (desc) only
         """ 
+        open_status = Fundraise.OPEN
+        closed_statuses = [Fundraise.CLOSED, Fundraise.COMPLETED]
+        now = timezone.now()
+        
         amount_expr = Coalesce(
             Sum(
                 F('unified_document__fundraises__escrow__amount_holding') + 
                 F('unified_document__fundraises__escrow__amount_paid'),
-                filter=Q(unified_document__fundraises__status=Fundraise.OPEN)
+                filter=Q(unified_document__fundraises__status=open_status)
             ),
             Value(0),
             output_field=DecimalField(max_digits=19, decimal_places=10)
         )
         
-        has_open = Exists(
+        has_open_item = Exists(
             Fundraise.objects.filter(
                 unified_document_id=OuterRef("unified_document_id"),
-                status=Fundraise.OPEN
+                status=open_status
             )
         )
         
+        earliest_open_end_date = Fundraise.objects.filter(
+            unified_document_id=OuterRef("unified_document_id"),
+            status=open_status
+        ).values("end_date").order_by("end_date")[:1]
+        
         queryset = queryset.annotate(
-            has_open_status=has_open,
-            status_tier=Case(
-                When(has_open_status=True, then=Value(0)),  # Open
-                default=Value(1),  # Closed
+            has_open=has_open_item,
+            earliest_open_end_date=Subquery(earliest_open_end_date, output_field=DateTimeField()),
+            sort_option=Case(
+                When(has_open=True, earliest_open_end_date__gte=now, then=Value(0)),  # Active
+                When(has_open=True, earliest_open_end_date__isnull=True, then=Value(0)),  # Active (no end date)
+                When(has_open=True, earliest_open_end_date__lt=now, then=Value(1)),  # Expired
+                default=Value(2),  # Closed
                 output_field=IntegerField(),
             ),
             amount=Case(
-                When(has_open_status=True, then=amount_expr),
+                When(sort_option=0, then=amount_expr),  # Only active items sorted by amount
                 default=Value(0),
                 output_field=DecimalField(max_digits=19, decimal_places=10),
             ),
         )
         
-        return queryset.order_by('status_tier', '-amount', '-created_date')
+        return queryset.order_by('sort_option', '-amount', '-created_date')
     
     def _apply_upvotes_sorting(self, queryset: QuerySet) -> QuerySet:
         return queryset.annotate(
