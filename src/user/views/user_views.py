@@ -439,9 +439,6 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
                     "discussion_post_type",
                 )
             },
-            "dis_dts_get_unified_document": {"_include_fields": ("document_type",)},
-            "dis_dcs_get_unified_document": {"_include_fields": ("document_type",)},
-            "dis_drs_get_unified_document": {"_include_fields": ("document_type",)},
             "doc_duds_get_documents": {
                 "_include_fields": (
                     "id",
