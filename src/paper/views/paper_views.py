@@ -830,22 +830,6 @@ class PaperViewSet(
         # Temporarily disabling endpoint
         return Response(status=200)
 
-    def update(self, request, *args, **kwargs):
-        instance = self.get_object()
-
-        # TODO: This needs improvement so we guarantee that we are tracking
-        # file created location when a file is actually being added and not
-        # just any updates to the paper
-        created_location = None
-        if request.query_params.get("created_location") == "progress":
-            created_location = Paper.CREATED_LOCATION_PROGRESS
-            request.data["file_created_location"] = created_location
-
-        # need to encode before getting passed to serializer
-        response = super().update(request, *args, **kwargs)
-
-        return response
-
     @action(
         detail=True,
         methods=["put", "patch", "delete"],
