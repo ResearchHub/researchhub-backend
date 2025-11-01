@@ -379,7 +379,6 @@ class PaperSerializer(BasePaperSerializer):
             "csl_item",
             "discussion_count",
             "external_source",
-            "file_created_location",
             "id",
             "is_open_access",
             "is_removed",

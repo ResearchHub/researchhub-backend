@@ -830,22 +830,6 @@ class PaperViewSet(
         # Temporarily disabling endpoint
         return Response(status=200)
 
-    def update(self, request, *args, **kwargs):
-        instance = self.get_object()
-
-        # TODO: This needs improvement so we guarantee that we are tracking
-        # file created location when a file is actually being added and not
-        # just any updates to the paper
-        created_location = None
-        if request.query_params.get("created_location") == "progress":
-            created_location = Paper.CREATED_LOCATION_PROGRESS
-            request.data["file_created_location"] = created_location
-
-        # need to encode before getting passed to serializer
-        response = super().update(request, *args, **kwargs)
-
-        return response
-
     @action(
         detail=True,
         methods=["put", "patch", "delete"],
@@ -1199,10 +1183,6 @@ class FigureViewSet(viewsets.ModelViewSet):
         if user.is_anonymous:
             user = None
 
-        created_location = None
-        if request.query_params.get("created_location") == "progress":
-            created_location = Figure.CREATED_LOCATION_PROGRESS
-
         paper = self.get_object()
         figures = request.FILES.values()
         figure_type = request.data.get("figure_type")
@@ -1214,7 +1194,6 @@ class FigureViewSet(viewsets.ModelViewSet):
                     file=figure,
                     figure_type=figure_type,
                     created_by=user,
-                    created_location=created_location,
                 )
                 urls.append({"id": fig.id, "file": fig.file.url})
             return Response({"files": urls}, status=200)
