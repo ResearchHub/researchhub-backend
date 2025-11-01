@@ -52,6 +52,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             "note",
             "post_src",
             "preview_img",
+            "purchases",
             "renderable_text",
             "slug",
             "title",
@@ -73,6 +74,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             "is_root_version",
             "note",
             "post_src",
+            "purchases",
             "unified_document_id",
             "version_number",
             "boost_amount",
@@ -96,6 +98,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
     is_removed = SerializerMethodField()
     note = SerializerMethodField()
     post_src = SerializerMethodField(method_name="get_post_src")
+    purchases = SerializerMethodField()
     unified_document = SerializerMethodField()
     unified_document_id = SerializerMethodField(method_name="get_unified_document_id")
 
@@ -212,6 +215,24 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
 
     def get_boost_amount(self, instance):
         return instance.get_boost_amount()
+
+    def get_purchases(self, post):
+        from purchase.serializers import DynamicPurchaseSerializer
+
+        context = self.context
+        _context_fields = {
+            "_include_fields": ["id", "amount", "user", "created_date", "updated_date"]
+        }
+        purchases = post.purchases.filter(purchase_type=Purchase.BOOST).select_related(
+            "user", "user__author_profile"
+        )
+        serializer = DynamicPurchaseSerializer(
+            purchases,
+            many=True,
+            context=context,
+            **_context_fields,
+        )
+        return serializer.data
 
 
 class DynamicPostSerializer(DynamicModelFieldSerializer):
