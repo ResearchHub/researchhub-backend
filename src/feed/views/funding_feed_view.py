@@ -31,7 +31,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
     pagination_class = FeedPagination
     filter_backends = [DjangoFilterBackend, FundOrderingFilter]
     ordering_fields = ['newest', 'best', 'upvotes', 'most_applicants', 'amount_raised']
-    ordering = 'newest'  # Default ordering
+    ordering = 'best'  # Default ordering
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
