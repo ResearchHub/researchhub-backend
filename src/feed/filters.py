@@ -200,6 +200,9 @@ class FundOrderingFilter(OrderingFilter):
                 default=Value(2),  # Closed
                 output_field=IntegerField(),
             ),
+        )
+        
+        queryset = queryset.annotate(
             amount=Case(
                 When(sort_option=0, then=amount_expr),  # Only active items sorted by amount
                 default=Value(0),
