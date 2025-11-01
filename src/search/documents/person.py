@@ -46,6 +46,9 @@ class PersonDocument(BaseDocument):
         ]
         # Update index when related User model is updated
         related_models = [User]
+        # Reduce batch size to avoid circuit breaker exceptions during bulk indexing
+        # Default is 1024, but person documents with institutions/education can be large
+        queryset_pagination = 256
 
     @override
     def get_queryset(
