@@ -439,7 +439,9 @@ class GrantFeedViewTests(APITestCase):
         # Test custom sorting (upvotes) - patch the specific sorting method
         request = factory.get('/?ordering=upvotes')
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes:
+        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes, \
+             patch.object(filter_instance, '_apply_include_ended_filter') as mock_filter:
+            mock_filter.return_value = mock_queryset
             mock_upvotes.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
             mock_upvotes.assert_called_once_with(mock_queryset)
@@ -447,7 +449,9 @@ class GrantFeedViewTests(APITestCase):
         # Test newest sorting (default - no ordering param)
         request = factory.get('/')
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_newest_sorting') as mock_newest:
+        with patch.object(filter_instance, '_apply_newest_sorting') as mock_newest, \
+             patch.object(filter_instance, '_apply_include_ended_filter') as mock_filter:
+            mock_filter.return_value = mock_queryset
             mock_newest.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
             # Check that it was called with queryset and model_config
@@ -459,7 +463,9 @@ class GrantFeedViewTests(APITestCase):
         # Test with '-' prefix - should be stripped and work
         request = factory.get('/?ordering=-upvotes')
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes:
+        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes, \
+             patch.object(filter_instance, '_apply_include_ended_filter') as mock_filter:
+            mock_filter.return_value = mock_queryset
             mock_upvotes.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
             mock_upvotes.assert_called_once_with(mock_queryset)

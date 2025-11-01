@@ -476,8 +476,8 @@ class FundingFeedViewSetTests(TestCase):
             end_date=today + timezone.timedelta(days=30),
         )
 
-        # Query the OPEN fundraises
-        url = reverse("funding_feed-list") + "?fundraise_status=OPEN"
+        # Query the OPEN fundraises with newest sorting
+        url = reverse("funding_feed-list") + "?fundraise_status=OPEN&ordering=newest"
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -733,8 +733,8 @@ class FundingFeedViewSetTests(TestCase):
             end_date=today - timezone.timedelta(days=30),  # Completed a while ago
         )
 
-        # Query the ALL fundraises (no filter)
-        url = reverse("funding_feed-list")
+        # Query the ALL fundraises with newest sorting
+        url = reverse("funding_feed-list") + "?ordering=newest"
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -1484,27 +1484,33 @@ class FundingFeedViewSetTests(TestCase):
         # Test custom sorting (upvotes) - patch the specific sorting method
         request = factory.get('/?ordering=upvotes')
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes:
+        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes, \
+             patch.object(filter_instance, '_apply_include_ended_filter') as mock_filter:
+            mock_filter.return_value = mock_queryset
             mock_upvotes.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
             mock_upvotes.assert_called_once_with(mock_queryset)
         
-        # Test newest sorting (default - no ordering param)
+        # Test best sorting (default - no ordering param for funding feeds)
         request = factory.get('/')
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_newest_sorting') as mock_newest:
-            mock_newest.return_value = mock_queryset
+        with patch.object(filter_instance, '_apply_best_sorting') as mock_best, \
+             patch.object(filter_instance, '_apply_include_ended_filter') as mock_filter:
+            mock_filter.return_value = mock_queryset
+            mock_best.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
             # Check that it was called with queryset and model_config
-            self.assertEqual(mock_newest.call_count, 1)
-            args = mock_newest.call_args[0]
+            self.assertEqual(mock_best.call_count, 1)
+            args = mock_best.call_args[0]
             self.assertEqual(args[0], mock_queryset)
             self.assertIn('model_class', args[1])  # model_config has model_class
         
         # Test best sorting (explicit best)
         request = factory.get('/?ordering=best')
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_best_sorting') as mock_best:
+        with patch.object(filter_instance, '_apply_best_sorting') as mock_best, \
+             patch.object(filter_instance, '_apply_include_ended_filter') as mock_filter:
+            mock_filter.return_value = mock_queryset
             mock_best.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
             # Check that it was called with queryset and model_config
@@ -1516,7 +1522,9 @@ class FundingFeedViewSetTests(TestCase):
         # Test with '-' prefix - should be stripped and work
         request = factory.get('/?ordering=-upvotes')
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes:
+        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes, \
+             patch.object(filter_instance, '_apply_include_ended_filter') as mock_filter:
+            mock_filter.return_value = mock_queryset
             mock_upvotes.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
             mock_upvotes.assert_called_once_with(mock_queryset)
@@ -1524,7 +1532,9 @@ class FundingFeedViewSetTests(TestCase):
         # Test comma-separated values - should take first field
         request = factory.get('/?ordering=upvotes,created_date')
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes:
+        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes, \
+             patch.object(filter_instance, '_apply_include_ended_filter') as mock_filter:
+            mock_filter.return_value = mock_queryset
             mock_upvotes.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
             mock_upvotes.assert_called_once_with(mock_queryset)
@@ -1532,7 +1542,9 @@ class FundingFeedViewSetTests(TestCase):
         # Test whitespace handling
         request = factory.get('/?ordering= upvotes ')
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes:
+        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes, \
+             patch.object(filter_instance, '_apply_include_ended_filter') as mock_filter:
+            mock_filter.return_value = mock_queryset
             mock_upvotes.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
             mock_upvotes.assert_called_once_with(mock_queryset)
