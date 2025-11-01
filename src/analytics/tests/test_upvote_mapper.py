@@ -64,3 +64,65 @@ class UpvoteInteractionMapperTests(TestCase):
         interaction.save()
         self.assertIsNotNone(interaction.id)
         self.assertEqual(UserInteractions.objects.count(), initial_count + 1)
+
+    def test_map_from_upvote_raises_error_when_missing_user(self):
+        """Test that map_from_upvote raises ValueError when vote has no user."""
+        vote = Vote.objects.create(
+            created_by=self.user,
+            content_type=self.content_type,
+            object_id=self.post.id,
+            vote_type=Vote.UPVOTE,
+        )
+        # Remove the user by setting the foreign key id to None
+        vote.created_by_id = None
+
+        with self.assertRaises(ValueError) as context:
+            map_from_upvote(vote)
+
+        self.assertIn("has no created_by user", str(context.exception))
+
+    def test_map_from_upvote_raises_error_for_missing_unified_document(self):
+        """Test that map_from_upvote raises ValueError when item has no unified_document."""
+        from unittest.mock import PropertyMock, patch
+
+        vote = Vote.objects.create(
+            created_by=self.user,
+            content_type=self.content_type,
+            object_id=self.post.id,
+            vote_type=Vote.UPVOTE,
+        )
+
+        # Mock unified_document to return None
+        with patch.object(
+            Vote, "unified_document", new_callable=PropertyMock
+        ) as mock_unified_doc:
+            mock_unified_doc.return_value = None
+
+            with self.assertRaises(ValueError) as context:
+                map_from_upvote(vote)
+
+            self.assertIn("has None unified_document", str(context.exception))
+
+    def test_map_from_upvote_raises_error_for_invalid_item_type(self):
+        """Test that map_from_upvote raises ValueError when item type is unsupported."""
+        from unittest.mock import PropertyMock, patch
+
+        vote = Vote.objects.create(
+            created_by=self.user,
+            content_type=self.content_type,
+            object_id=self.post.id,
+            vote_type=Vote.UPVOTE,
+        )
+
+        # Mock unified_document to raise an exception
+        with patch.object(
+            Vote, "unified_document", new_callable=PropertyMock
+        ) as mock_unified_doc:
+            mock_unified_doc.side_effect = Exception(
+                "Vote source is missing unified document"
+            )
+
+            with self.assertRaises(ValueError) as context:
+                map_from_upvote(vote)
+
+            self.assertIn("has no valid unified_document", str(context.exception))

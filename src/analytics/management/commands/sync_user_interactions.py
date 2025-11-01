@@ -63,6 +63,7 @@ class Command(BaseCommand):
 
         processed = 0
         created = 0
+        skipped = 0
         batch = []
 
         for vote in queryset.iterator():
@@ -74,11 +75,18 @@ class Command(BaseCommand):
                     created += self._insert_batch(batch)
                     batch = []
                     self.stdout.write(
-                        f"Progress: {processed}/{total} ({created} created)",
+                        f"Progress: {processed}/{total} "
+                        f"({created} created, {skipped} skipped)",
                         ending="\r",
                     )
+            except ValueError as e:
+                # Skip votes with missing required data
+                skipped += 1
+                if skipped <= 10:  # Only show first 10 warnings
+                    self.stdout.write(self.style.WARNING(f"\nSkipping: {e}"))
+                continue
             except Exception as e:
-                self.stdout.write(self.style.WARNING(f"\nError: {e}"))
+                self.stdout.write(self.style.ERROR(f"\nUnexpected error: {e}"))
                 continue
 
         if batch:
@@ -87,6 +95,7 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.SUCCESS(
                 f"\nImport complete: {processed} processed, {created} created"
+                + (f", {skipped} skipped" if skipped else "")
             )
         )
 
@@ -123,7 +132,16 @@ class Command(BaseCommand):
         with open(filename, "w", newline="") as f:
             writer = csv.writer(f)
             writer.writerow(
-                ["USER_ID", "ITEM_ID", "TIMESTAMP", "EVENT_TYPE", "EVENT_VALUE"]
+                [
+                    "USER_ID",
+                    "ITEM_ID",
+                    "TIMESTAMP",
+                    "EVENT_TYPE",
+                    "EVENT_VALUE",
+                    "DEVICE",
+                    "IMPRESSION",
+                    "RECOMMENDATION_ID",
+                ]
             )
 
             for interaction in queryset.iterator():
@@ -140,6 +158,9 @@ class Command(BaseCommand):
                         int(interaction.event_timestamp.timestamp()),
                         interaction.event,
                         event_weight,
+                        "",  # DEVICE - not yet tracked
+                        "",  # IMPRESSION - not yet tracked
+                        interaction.personalize_rec_id or "",  # RECOMMENDATION_ID
                     ]
                 )
                 exported += 1
