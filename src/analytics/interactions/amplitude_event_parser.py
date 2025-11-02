@@ -194,8 +194,6 @@ class AmplitudeEventParser:
                     )
                     return None
                 except Exception as e:
-                    # Catch model_class.DoesNotExist and other model-related exceptions
-                    # model_class is only defined if ContentType lookup succeeded
                     logger.warning(
                         f"Invalid content_type '{content_type_str}' or "
                         f"object_id '{object_id}': {e}"
