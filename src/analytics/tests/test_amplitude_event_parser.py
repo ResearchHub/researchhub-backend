@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from unittest.mock import patch
 
@@ -147,9 +148,13 @@ class AmplitudeEventParserTests(TestCase):
             "time": int(timezone.now().timestamp() * 1000),
         }
 
-        interaction = self.parser.parse_amplitude_event(event)
+        with self.assertLogs(
+            "analytics.interactions.amplitude_event_parser", level=logging.WARNING
+        ) as log:
+            interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsNone(interaction)
+        self.assertIn("No related_work data found", log.output[0])
 
     def test_event_without_user_id_returns_none(self):
         """Test that events without user_id return None."""
@@ -165,9 +170,13 @@ class AmplitudeEventParserTests(TestCase):
             "time": int(timezone.now().timestamp() * 1000),
         }
 
-        interaction = self.parser.parse_amplitude_event(event)
+        with self.assertLogs(
+            "analytics.interactions.amplitude_event_parser", level=logging.WARNING
+        ) as log:
+            interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsNone(interaction)
+        self.assertIn("No user_id in event_properties", log.output[0])
 
     def test_invalid_event_type_returns_none(self):
         """Test that invalid event types return None."""
@@ -184,9 +193,13 @@ class AmplitudeEventParserTests(TestCase):
             "time": int(timezone.now().timestamp() * 1000),
         }
 
-        interaction = self.parser.parse_amplitude_event(event)
+        with self.assertLogs(
+            "analytics.interactions.amplitude_event_parser", level=logging.WARNING
+        ) as log:
+            interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsNone(interaction)
+        self.assertIn("Event type 'invalid_event' not in mapping", log.output[0])
 
     def test_nonexistent_user_returns_none(self):
         """Test that events with non-existent user_id return None."""
@@ -203,9 +216,13 @@ class AmplitudeEventParserTests(TestCase):
             "time": int(timezone.now().timestamp() * 1000),
         }
 
-        interaction = self.parser.parse_amplitude_event(event)
+        with self.assertLogs(
+            "analytics.interactions.amplitude_event_parser", level=logging.WARNING
+        ) as log:
+            interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsNone(interaction)
+        self.assertIn("Invalid user_id", log.output[0])
 
     def test_nonexistent_unified_document_returns_none(self):
         """Test that events with non-existent unified_document_id return None."""
@@ -222,9 +239,13 @@ class AmplitudeEventParserTests(TestCase):
             "time": int(timezone.now().timestamp() * 1000),
         }
 
-        interaction = self.parser.parse_amplitude_event(event)
+        with self.assertLogs(
+            "analytics.interactions.amplitude_event_parser", level=logging.WARNING
+        ) as log:
+            interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsNone(interaction)
+        self.assertIn("Invalid unified_document_id", log.output[0])
 
     def test_handles_missing_timestamp(self):
         """Test that missing timestamp uses current time."""
@@ -266,9 +287,13 @@ class AmplitudeEventParserTests(TestCase):
             "time": int(timezone.now().timestamp() * 1000),
         }
 
-        interaction = self.parser.parse_amplitude_event(event)
+        with self.assertLogs(
+            "analytics.interactions.amplitude_event_parser", level=logging.WARNING
+        ) as log:
+            interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsNone(interaction)
+        self.assertIn("Invalid content_type", log.output[0])
 
     def test_maps_feed_item_clicked_with_flat_format(self):
         """Test mapping feed_item_clicked event with flat dot-notation format."""
@@ -348,9 +373,13 @@ class AmplitudeEventParserTests(TestCase):
             "time": int(timezone.now().timestamp() * 1000),
         }
 
-        interaction = self.parser.parse_amplitude_event(event)
+        with self.assertLogs(
+            "analytics.interactions.amplitude_event_parser", level=logging.WARNING
+        ) as log:
+            interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsNone(interaction)
+        self.assertIn("No related_work data found", log.output[0])
 
     def test_flat_format_handles_invalid_content_type(self):
         """Test that flat format with invalid content_type returns None."""
@@ -364,6 +393,40 @@ class AmplitudeEventParserTests(TestCase):
             "time": int(timezone.now().timestamp() * 1000),
         }
 
-        interaction = self.parser.parse_amplitude_event(event)
+        with self.assertLogs(
+            "analytics.interactions.amplitude_event_parser", level=logging.WARNING
+        ) as log:
+            interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsNone(interaction)
+        self.assertIn("Invalid content_type", log.output[0])
+
+    def test_unexpected_error_logs_at_error_level(self):
+        """Test that unexpected errors during parsing log at ERROR level."""
+        event = {
+            "event_type": "feed_item_clicked",
+            "event_properties": {
+                "user_id": self.user.id,
+                "related_work": {
+                    "unified_document_id": self.post.unified_document.id,
+                    "content_type": "researchhubpost",
+                    "id": self.post.id,
+                },
+            },
+            "time": int(timezone.now().timestamp() * 1000),
+        }
+
+        # Mock datetime.fromtimestamp to raise an exception
+        with patch(
+            "analytics.interactions.amplitude_event_parser.datetime"
+        ) as mock_datetime:
+            mock_datetime.fromtimestamp.side_effect = Exception("Unexpected error")
+            mock_datetime.now.return_value = timezone.now()
+
+            with self.assertLogs(
+                "analytics.interactions.amplitude_event_parser", level=logging.ERROR
+            ) as log:
+                interaction = self.parser.parse_amplitude_event(event)
+
+        self.assertIsNone(interaction)
+        self.assertIn("Unexpected error parsing event", log.output[0])
