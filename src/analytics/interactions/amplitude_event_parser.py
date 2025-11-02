@@ -165,7 +165,11 @@ class AmplitudeEventParser:
                         content_type_str
                     )
                     object_id = int(object_id)
-                except (ValueError, ResearchhubUnifiedDocument.DoesNotExist) as e:
+                except (
+                    ValueError,
+                    ResearchhubUnifiedDocument.DoesNotExist,
+                    ContentType.DoesNotExist,
+                ) as e:
                     logger.warning(
                         f"Invalid unified_document_id '{unified_doc_id}' "
                         f"or related data: {e}"
@@ -180,12 +184,18 @@ class AmplitudeEventParser:
                     object_id = int(object_id)
                     obj = model_class.objects.get(id=object_id)
                     unified_document = obj.unified_document
-                except (
-                    ValueError,
-                    ContentType.DoesNotExist,
-                    model_class.DoesNotExist,
-                    AttributeError,
-                ) as e:
+                except ContentType.DoesNotExist as e:
+                    logger.warning(f"Invalid content_type '{content_type_str}': {e}")
+                    return None
+                except (ValueError, AttributeError) as e:
+                    logger.warning(
+                        f"Invalid content_type '{content_type_str}' or "
+                        f"object_id '{object_id}': {e}"
+                    )
+                    return None
+                except Exception as e:
+                    # Catch model_class.DoesNotExist and other model-related exceptions
+                    # model_class is only defined if ContentType lookup succeeded
                     logger.warning(
                         f"Invalid content_type '{content_type_str}' or "
                         f"object_id '{object_id}': {e}"
