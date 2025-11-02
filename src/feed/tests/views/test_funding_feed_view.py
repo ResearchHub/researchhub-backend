@@ -882,12 +882,12 @@ class FundingFeedViewSetTests(TestCase):
         # Test best sorting (default - no ordering param for funding feeds)
         request = factory.get('/')
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_newest_sorting') as mock_newest, \
+        with patch.object(filter_instance, '_apply_best_sorting') as mock_best, \
              patch.object(filter_instance, '_apply_open_status_filter') as mock_filter:
             mock_filter.return_value = mock_queryset
-            mock_newest.return_value = mock_queryset
+            mock_best.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
-            self.assertEqual(mock_newest.call_count, 1)
+            self.assertEqual(mock_best.call_count, 1)
         
         # Test best sorting (explicit best)
         request = factory.get('/?ordering=best')
