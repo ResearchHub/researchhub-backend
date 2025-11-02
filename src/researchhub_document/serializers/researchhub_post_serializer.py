@@ -1,10 +1,5 @@
 from django.core.files.storage import default_storage
-from rest_framework.serializers import (
-    CharField,
-    ModelSerializer,
-    ReadOnlyField,
-    SerializerMethodField,
-)
+from rest_framework.serializers import CharField, ModelSerializer, SerializerMethodField
 
 from discussion.models import Vote
 from discussion.serializers import (
@@ -226,6 +221,7 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
     purchases = SerializerMethodField()
     score = SerializerMethodField()
     unified_document = SerializerMethodField()
+    unified_document_id = SerializerMethodField()
     user_vote = SerializerMethodField()
     image_url = SerializerMethodField()
 
@@ -309,6 +305,10 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
             post.unified_document, context=context, **_context_fields
         )
         return serializer.data
+
+    def get_unified_document_id(self, post):
+        unified_document = post.unified_document
+        return unified_document.id if unified_document is not None else None
 
     def get_hubs(self, post):
         context = self.context

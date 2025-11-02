@@ -49,7 +49,7 @@ class AmplitudeWebhookView(APIView):
                 if not events:
                     log_info("Empty events array received in webhook payload")
                     return Response(
-                        {"message": "No events in payload"},
+                        {"message": "Empty events array"},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
             else:
@@ -92,11 +92,7 @@ class AmplitudeWebhookView(APIView):
             )
 
             return Response(
-                {
-                    "message": "Webhook successfully processed",
-                    "processed": processed_count,
-                    "failed": failed_count,
-                },
+                {"processed": processed_count, "failed": failed_count},
                 status=status.HTTP_200_OK,
             )
 
@@ -104,11 +100,12 @@ class AmplitudeWebhookView(APIView):
             logger.error(f"Invalid JSON payload: {e}")
             log_info("Invalid JSON payload received", error=e)
             return Response(
-                {"message": "Invalid JSON payload"}, status=status.HTTP_400_BAD_REQUEST
+                {"message": f"Invalid JSON payload: {e}"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
         except Exception as e:
             log_error(e, message="Failed to process Amplitude webhook")
             return Response(
-                {"message": "Failed to process webhook"},
+                {"message": "Internal server error"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

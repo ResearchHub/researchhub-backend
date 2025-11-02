@@ -704,7 +704,7 @@ def serialize_feed_metrics(item, item_content_type):
     if item_content_type == ContentType.objects.get_for_model(
         Paper
     ) or item_content_type == ContentType.objects.get_for_model(ResearchhubPost):
-        if hasattr(item, "unified_document"):
+        if hasattr(item, "unified_document") and item.unified_document is not None:
             metrics["review_metrics"] = item.unified_document.get_review_details()
         if hasattr(item, "citations"):
             metrics["citations"] = item.citations

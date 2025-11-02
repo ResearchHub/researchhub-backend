@@ -86,7 +86,6 @@ class PersonaWebhookViewTests(TestCase):
         # arrange
         user = User.objects.create(first_name="firstName1", last_name="lastName1")
 
-
         # replace the reference-id placeholder in the body with the Id of the
         # created user and recomputes the digest:
         body = self.webhook_approved_body.replace(
@@ -130,7 +129,6 @@ class PersonaWebhookViewTests(TestCase):
     def test_post_webhook_declined_status(self, send_notification_mock):
         # arrange
         user = User.objects.create(first_name="firstName1", last_name="lastName1")
-
 
         # replace the reference-id placeholder in the body with the Id of the
         # created user and recomputes the digest:
@@ -176,7 +174,6 @@ class PersonaWebhookViewTests(TestCase):
         # arrange
         user = User.objects.create(first_name="firstName1", last_name="lastName1")
 
-
         # replace the reference-id placeholder in the body with the Id of the
         # created user and recomputes the digest:
         body = self.webhook_failed_body.replace(
@@ -220,7 +217,6 @@ class PersonaWebhookViewTests(TestCase):
     def test_post_webhook_marked_for_review_status(self, send_notification_mock):
         # arrange
         user = User.objects.create(first_name="firstName1", last_name="lastName1")
-
 
         # replace the reference-id placeholder in the body with the Id of the
         # created user and recomputes the digest:

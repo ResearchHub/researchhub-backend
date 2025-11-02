@@ -33,3 +33,19 @@ def time_since(time):
         if years_diff == 1:
             return f"{years_diff} year ago"
         return f"{years_diff} years ago"
+
+
+def datetime_to_epoch_seconds(dt):
+    """
+    Convert a datetime to Unix epoch seconds.
+
+    Args:
+        dt: Datetime object (can be timezone-aware or naive)
+
+    Returns:
+        Unix timestamp as integer, or None if dt is None
+    """
+    if dt is None:
+        return None
+
+    return int(dt.timestamp())
