@@ -879,7 +879,7 @@ class FundingFeedViewSetTests(TestCase):
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
             mock_upvotes.assert_called_once()
         
-        # Test newest sorting (default - no ordering param)
+        # Test best sorting (default - no ordering param for funding feeds)
         request = factory.get('/')
         drf_request = Request(request)
         with patch.object(filter_instance, '_apply_newest_sorting') as mock_newest, \

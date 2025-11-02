@@ -130,6 +130,10 @@ class FundOrderingFilter(OrderingFilter):
         """Get ordering from request with DRF-compatible signature."""
         ordering_param = request.query_params.get(self.ordering_param, '')
         
+        # Determine default ordering based on view type
+        is_grant_view = getattr(view, 'is_grant_view', False)
+        default_ordering = 'newest' if is_grant_view else 'best'
+        
         if ordering_param:
             fields = [field.strip() for field in ordering_param.split(',')]
             if fields:
@@ -141,8 +145,8 @@ class FundOrderingFilter(OrderingFilter):
                 ordering_fields = getattr(view, 'ordering_fields', None)
                 if ordering_fields and field_name in ordering_fields:
                     return [field] 
-                return ['newest'] 
-        return ['newest'] 
+                return [default_ordering] 
+        return [default_ordering] 
 
     def _apply_newest_sorting(self, queryset: QuerySet, model_config: dict[str, Union[Type[Grant], Type[Fundraise], str]]) -> QuerySet:
         model_class = model_config['model_class']
@@ -241,6 +245,9 @@ class FundOrderingFilter(OrderingFilter):
                 default=Value(2),  # Closed
                 output_field=IntegerField(),
             ),
+        )
+        
+        queryset = queryset.annotate(
             amount=Case(
                 When(sort_option=0, then=amount_expr),  # Only active items sorted by amount
                 default=Value(0),
