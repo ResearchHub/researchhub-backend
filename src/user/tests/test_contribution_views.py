@@ -86,3 +86,49 @@ class ContributionViewSetTests(APITestCase):
         review_data = comment_result["item"]["review"]
         self.assertIsNotNone(review_data)
         self.assertEqual(review_data["score"], 4.5)
+
+    def test_latest_contributions_post_includes_unified_document_id(self):
+        """Test that post contributions include unified_document_id in the response"""
+        # Create a unified document and post
+        unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="DISCUSSION"
+        )
+        post = ResearchhubPost.objects.create(
+            title="Test Post",
+            created_by=self.user,
+            unified_document=unified_doc,
+        )
+
+        # Create an action for the post
+        Action.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=post.id,
+            item=post,
+        )
+
+        # Make request to latest_contributions endpoint
+        response = self.client.get("/api/contribution/latest_contributions/")
+
+        # Verify response
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(len(response.data["results"]) > 0)
+
+        # Find the post in the results
+        post_result = None
+        for result in response.data["results"]:
+            if result["content_type"]["name"] == "researchhubpost":
+                post_result = result
+                break
+
+        self.assertIsNotNone(post_result, "Post contribution should be in results")
+        self.assertIn("item", post_result)
+
+        # Verify unified_document_id is present in the item
+        item_data = post_result["item"]
+        self.assertIn(
+            "unified_document_id",
+            item_data,
+            "unified_document_id should be included in post item",
+        )
+        self.assertEqual(item_data["unified_document_id"], unified_doc.id)

@@ -101,6 +101,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                     "user",
                     "bounty_parent",
                     "unified_document",
+                    "unified_document_id",
                     "source",
                 ]
             },
