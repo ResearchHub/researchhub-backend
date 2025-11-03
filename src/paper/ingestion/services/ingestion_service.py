@@ -290,7 +290,11 @@ class PaperIngestionService:
         """
         Check if the ingestion source supports PDF download.
         """
-        return source in [IngestionSource.ARXIV, IngestionSource.ARXIV_OAI]
+        return source in [
+            IngestionSource.ARXIV,
+            IngestionSource.ARXIV_OAI,
+            IngestionSource.CHEMRXIV,
+        ]
 
     def _save_paper(self, paper: Paper) -> Paper:
         """
