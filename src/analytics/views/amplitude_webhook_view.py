@@ -49,7 +49,7 @@ class AmplitudeWebhookView(APIView):
                 if not events:
                     log_info("Empty events array received in webhook payload")
                     return Response(
-                        {"message": "No events in payload"},
+                        {"message": "Empty events array"},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
             else:
@@ -62,36 +62,37 @@ class AmplitudeWebhookView(APIView):
                 events = [payload]
 
             processed_count = 0
-            skipped_count = 0
+            failed_count = 0
 
             for event in events:
                 try:
-                    if self.processor.should_process_event(event):
-                        self.processor.process_event(event)
-                        processed_count += 1
-                    else:
-                        skipped_count += 1
+                    self.processor.process_event(event)
+                    processed_count += 1
                 except Exception as e:
-                    log_error(
-                        e,
-                        message=(
-                            f"Failed to process individual event: "
-                            f"{event.get('event_type')}"
-                        ),
-                    )
+                    failed_count += 1
+                    try:
+                        log_error(
+                            e,
+                            message=(
+                                f"Failed to process individual event: "
+                                f"{event.get('event_type', 'unknown')}"
+                            ),
+                        )
+                    except Exception as sentry_error:
+                        event_type = event.get("event_type", "unknown")
+                        logger.error(
+                            f"Failed to process event {event_type}: {e}. "
+                            f"Also failed to log to Sentry: {sentry_error}"
+                        )
                     continue
 
             logger.info(
                 f"Amplitude webhook processed: {processed_count} events, "
-                f"{skipped_count} skipped"
+                f"{failed_count} failed"
             )
 
             return Response(
-                {
-                    "message": "Webhook successfully processed",
-                    "processed": processed_count,
-                    "skipped": skipped_count,
-                },
+                {"processed": processed_count, "failed": failed_count},
                 status=status.HTTP_200_OK,
             )
 
@@ -99,11 +100,12 @@ class AmplitudeWebhookView(APIView):
             logger.error(f"Invalid JSON payload: {e}")
             log_info("Invalid JSON payload received", error=e)
             return Response(
-                {"message": "Invalid JSON payload"}, status=status.HTTP_400_BAD_REQUEST
+                {"message": f"Invalid JSON payload: {e}"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
         except Exception as e:
             log_error(e, message="Failed to process Amplitude webhook")
             return Response(
-                {"message": "Failed to process webhook"},
+                {"message": "Internal server error"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

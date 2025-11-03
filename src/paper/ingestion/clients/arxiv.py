@@ -20,6 +20,11 @@ logger = logging.getLogger(__name__)
 class ArXivConfig(ClientConfig):
     """ArXiv-specific configuration."""
 
+    # The maximum page size allowed by ArXiv API.
+    # Despite what is described in the API documentation, larger page sizes
+    # lead to empty or incomplete responses.
+    MAX_PAGE_SIZE = 25
+
     def __init__(self, **kwargs):
         # Extract ArXiv-specific config
         self.max_results_per_query = kwargs.pop("max_results_per_query", 2000)
@@ -28,11 +33,17 @@ class ArXivConfig(ClientConfig):
             "source_name": "arxiv",
             "base_url": "https://export.arxiv.org/api",
             "rate_limit": 0.33,  # Recommended 3 second delay between requests
-            "page_size": 100,  # ArXiv recommends smaller batches for better performance
+            "page_size": 25,
             "request_timeout": 30.0,
         }
         defaults.update(kwargs)
         super().__init__(**defaults)
+
+        if self.page_size > self.MAX_PAGE_SIZE:
+            logger.warning(
+                f"Page size maximum exceeded. Page size set to {self.MAX_PAGE_SIZE}."
+            )
+            self.page_size = self.MAX_PAGE_SIZE
 
 
 class ArXivClient(BaseClient):

@@ -5,6 +5,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from researchhub_document.helpers import create_post
 from user.tests.helpers import create_random_default_user
 
 
@@ -17,6 +18,7 @@ class AmplitudeWebhookTestCase(TestCase):
         self.client = APIClient()
         self.url = reverse("amplitude_webhook")
         self.user = create_random_default_user("test_user")
+        self.post = create_post(created_by=self.user)
 
     def test_webhook_requires_post_method(self):
         """Test that the webhook only accepts POST requests."""
@@ -42,11 +44,14 @@ class AmplitudeWebhookTestCase(TestCase):
     def test_webhook_processes_single_event(self):
         """Test that the webhook processes a single event."""
         payload = {
-            "event_type": "vote_action",
+            "event_type": "feed_item_clicked",
             "event_properties": {
                 "user_id": str(self.user.id),
-                "related_work.unified_document_id": "doc_123",
-                "related_work.content_type": "paper",
+                "related_work": {
+                    "unified_document_id": str(self.post.unified_document.id),
+                    "content_type": "researchhubpost",
+                    "id": str(self.post.id),
+                },
             },
             "time": 1234567890000,
         }
@@ -63,20 +68,26 @@ class AmplitudeWebhookTestCase(TestCase):
         payload = {
             "events": [
                 {
-                    "event_type": "vote_action",
+                    "event_type": "feed_item_clicked",
                     "event_properties": {
                         "user_id": str(self.user.id),
-                        "related_work.unified_document_id": "doc_1",
-                        "related_work.content_type": "paper",
+                        "related_work": {
+                            "unified_document_id": str(self.post.unified_document.id),
+                            "content_type": "researchhubpost",
+                            "id": str(self.post.id),
+                        },
                     },
                     "time": 1234567890000,
                 },
                 {
-                    "event_type": "comment_created",
+                    "event_type": "work_document_viewed",
                     "event_properties": {
                         "user_id": str(self.user.id),
-                        "related_work.content_type": "paper",
-                        "related_work.id": "123",
+                        "related_work": {
+                            "unified_document_id": str(self.post.unified_document.id),
+                            "content_type": "researchhubpost",
+                            "id": str(self.post.id),
+                        },
                     },
                     "time": 1234567891000,
                 },
@@ -95,20 +106,26 @@ class AmplitudeWebhookTestCase(TestCase):
         payload = {
             "events": [
                 {
-                    "event_type": "vote_action",
+                    "event_type": "feed_item_clicked",
                     "event_properties": {
                         "user_id": str(self.user.id),
-                        "related_work.unified_document_id": "doc_1",
-                        "related_work.content_type": "paper",
+                        "related_work": {
+                            "unified_document_id": str(self.post.unified_document.id),
+                            "content_type": "researchhubpost",
+                            "id": str(self.post.id),
+                        },
                     },
                     "time": 1234567890000,
                 },
                 {
-                    "event_type": "comment_created",
+                    "event_type": "feed_item_clicked",
                     "event_properties": {
-                        "user_id": str(self.user.id),
-                        "related_work.unified_document_id": "doc_2",
-                        "related_work.content_type": "paper",
+                        "user_id": "99999",  # Non-existent user - will fail
+                        "related_work": {
+                            "unified_document_id": str(self.post.unified_document.id),
+                            "content_type": "researchhubpost",
+                            "id": str(self.post.id),
+                        },
                     },
                     "time": 1234567891000,
                 },
@@ -119,6 +136,31 @@ class AmplitudeWebhookTestCase(TestCase):
             self.url, data=json.dumps(payload), content_type="application/json"
         )
 
-        # Should still return 200 OK and process what it can
+        # Should still return 200 OK and track processed vs failed separately
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["processed"], 2)
+        self.assertEqual(response.data["processed"], 1)
+        self.assertEqual(response.data["failed"], 1)
+
+    def test_webhook_tracks_failed_events(self):
+        """Test that the webhook properly tracks failed events."""
+        payload = {
+            "event_type": "feed_item_clicked",
+            "event_properties": {
+                "user_id": "99999",  # Non-existent user
+                "related_work": {
+                    "unified_document_id": str(self.post.unified_document.id),
+                    "content_type": "researchhubpost",
+                    "id": str(self.post.id),
+                },
+            },
+            "time": 1234567890000,
+        }
+
+        response = self.client.post(
+            self.url, data=json.dumps(payload), content_type="application/json"
+        )
+
+        # Should return 200 OK and track as failed
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["processed"], 0)
+        self.assertEqual(response.data["failed"], 1)

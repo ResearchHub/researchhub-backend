@@ -44,14 +44,8 @@ class SimpleUserSerializer(serializers.ModelSerializer):
 class SimpleAuthorSerializer(serializers.ModelSerializer):
     """Minimal author serializer with just essential fields"""
 
-    headline = serializers.SerializerMethodField()
     profile_image = serializers.SerializerMethodField()
     user = SimpleUserSerializer()
-
-    def get_headline(self, obj):
-        if obj.headline and isinstance(obj.headline, dict) and "title" in obj.headline:
-            return obj.headline.get("title")
-        return None
 
     def get_profile_image(self, obj):
         if (
@@ -710,7 +704,7 @@ def serialize_feed_metrics(item, item_content_type):
     if item_content_type == ContentType.objects.get_for_model(
         Paper
     ) or item_content_type == ContentType.objects.get_for_model(ResearchhubPost):
-        if hasattr(item, "unified_document"):
+        if hasattr(item, "unified_document") and item.unified_document is not None:
             metrics["review_metrics"] = item.unified_document.get_review_details()
         if hasattr(item, "citations"):
             metrics["citations"] = item.citations

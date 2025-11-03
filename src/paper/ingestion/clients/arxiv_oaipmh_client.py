@@ -1,7 +1,7 @@
 """
-ArXiv OAI-PMH client for fetching papers.
+ArXiv OAI client for fetching papers.
 
-Implements the OAI-PMH standard for arXiv.
+Implements the OAI standard for arXiv.
 
 See: https://info.arxiv.org/help/oa/index.html
 """
@@ -14,13 +14,13 @@ from typing import Any, Dict, List, Optional, Union
 import requests
 
 from ..exceptions import FetchError, TimeoutError
-from .base import BaseClient, ClientConfig
+from .base_client import BaseClient, ClientConfig
 
 logger = logging.getLogger(__name__)
 
 
-class ArXivOAIPMHConfig(ClientConfig):
-    """ArXiv OAI-PMH specific configuration."""
+class ArXivOAIConfig(ClientConfig):
+    """ArXiv OAI specific configuration."""
 
     def __init__(self, **kwargs):
         self.metadata_prefix = kwargs.pop(
@@ -28,7 +28,7 @@ class ArXivOAIPMHConfig(ClientConfig):
         )  # Possible values: oai_dc, arXiv, arXivRaw
 
         defaults = {
-            "source_name": "arxiv_oaipmh",
+            "source_name": "arxiv_oai",
             "base_url": "https://oaipmh.arxiv.org/oai",
             "rate_limit": 0.33,  # 3 second delay between requests
             "request_timeout": 60.0,
@@ -37,9 +37,9 @@ class ArXivOAIPMHConfig(ClientConfig):
         super().__init__(**defaults)
 
 
-class ArXivOAIPMHClient(BaseClient):
+class ArXivOAIClient(BaseClient):
     """
-    Client for fetching papers from ArXiv using OAI-PMH protocol.
+    Client for fetching papers from ArXiv using OAI protocol.
 
     See: https://info.arxiv.org/help/oa/index.html
     """
@@ -47,12 +47,12 @@ class ArXivOAIPMHClient(BaseClient):
     # XML namespaces
     OAI_NS = "{http://www.openarchives.org/OAI/2.0/}"
 
-    def __init__(self, config: Optional[ArXivOAIPMHConfig] = None):
+    def __init__(self, config: Optional[ArXivOAIConfig] = None):
         """
         Constructor.
         """
         if config is None:
-            config = ArXivOAIPMHConfig()
+            config = ArXivOAIConfig()
         super().__init__(config)
         self.session = requests.Session()
 
@@ -60,10 +60,10 @@ class ArXivOAIPMHClient(BaseClient):
         self, endpoint: str = "", params: Optional[Dict[str, Any]] = None, **kwargs
     ) -> Union[str, bytes, Dict[str, Any]]:
         """
-        Fetch data from ArXiv OAI-PMH API.
+        Fetch data from ArXiv OAI API.
 
         Args:
-            endpoint: API endpoint (not used for OAI-PMH).
+            endpoint: API endpoint (not used for OAI).
             params: Query parameters.
             **kwargs: Additional arguments.
 
@@ -85,13 +85,18 @@ class ArXivOAIPMHClient(BaseClient):
             )
             response.raise_for_status()
 
-            # Check for OAI-PMH errors in response
+            # Explicitly set encoding to UTF-8 to prevent double-encoding issues.
+            # The response header does not specify any character encoding.
+            # The response library assumes Latin-1 by default.
+            response.encoding = "utf-8"
+
+            # Check for OAI errors in response
             root = ET.fromstring(response.text)
             error_elem = root.find(f"{self.OAI_NS}error")
             if error_elem is not None:
                 error_code = error_elem.get("code", "unknown")
                 error_msg = error_elem.text or "Unknown error"
-                raise FetchError(f"OAI-PMH error [{error_code}]: {error_msg}")
+                raise FetchError(f"OAI error [{error_code}]: {error_msg}")
 
             return response.text
 
@@ -108,7 +113,7 @@ class ArXivOAIPMHClient(BaseClient):
         self, raw_data: Union[str, bytes, Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """
-        Parse ArXiv OAI-PMH XML response and return raw record data.
+        Parse ArXiv OAI XML response and return raw record data.
 
         This minimal parsing extracts the XML text for each record,
         leaving detailed mapping to a separate mapper component.
@@ -148,17 +153,17 @@ class ArXivOAIPMHClient(BaseClient):
                 if metadata is not None:
                     # Convert the entire metadata element to XML string
                     metadata_xml = ET.tostring(metadata, encoding="unicode")
-                    papers.append({"raw_xml": metadata_xml, "source": "arxiv_oaipmh"})
+                    papers.append({"raw_xml": metadata_xml, "source": "arxiv_oai"})
 
         except ET.ParseError as e:
-            logger.error(f"Failed to parse OAI-PMH XML response: {e}")
+            logger.error(f"Failed to parse OAI XML response: {e}")
             return []
 
         return papers
 
     def _extract_resumption_token(self, xml_response: str) -> Optional[str]:
         """
-        Extract resumption token from OAI-PMH response for pagination.
+        Extract resumption token from OAI response for pagination.
 
         Args:
             xml_response: XML response string
@@ -186,7 +191,7 @@ class ArXivOAIPMHClient(BaseClient):
         **kwargs,
     ) -> List[Dict[str, Any]]:
         """
-        Fetch recent papers from ArXiv using OAI-PMH within date range.
+        Fetch recent papers from ArXiv using OAI within date range.
 
         Args:
             since: Start date (defaults to 7 days ago).
@@ -203,7 +208,7 @@ class ArXivOAIPMHClient(BaseClient):
         if since is None:
             since = until - timedelta(days=7)
 
-        # Format dates for OAI-PMH (YYYY-MM-DD format)
+        # Format dates for OAI (YYYY-MM-DD format)
         since_str = since.strftime("%Y-%m-%d")
         until_str = until.strftime("%Y-%m-%d")
 
@@ -219,7 +224,7 @@ class ArXivOAIPMHClient(BaseClient):
         resumption_token = None
 
         logger.info(
-            f"Fetching papers from ArXiv OAI-PMH "
+            f"Fetching papers from ArXiv OAI "
             f"(from={since_str}, until={until_str}, "
             f"metadataPrefix={self.config.metadata_prefix})"
         )
@@ -263,7 +268,7 @@ class ArXivOAIPMHClient(BaseClient):
                 break
 
         logger.info(
-            f"Fetched {len(all_papers)} papers from ArXiv OAI-PMH "
+            f"Fetched {len(all_papers)} papers from ArXiv OAI "
             f"between {since_str} and {until_str}"
         )
         return all_papers

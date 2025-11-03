@@ -64,7 +64,7 @@ class Author(models.Model):
     education = ArrayField(
         JSONField(blank=True, null=True), default=list, blank=True, null=True
     )
-    headline = JSONField(blank=True, null=True)
+    headline = models.TextField(blank=True, null=True)
     facebook = models.URLField(max_length=255, default=None, null=True, blank=True)
     twitter = models.URLField(max_length=255, default=None, null=True, blank=True)
     linkedin = models.URLField(max_length=255, default=None, null=True, blank=True)
@@ -147,9 +147,7 @@ class Author(models.Model):
             if not sorted_topics:
                 return None
 
-            return {
-                "title": "Author with expertise in " + sorted_topics[0].display_name
-            }
+            return "Author with expertise in " + sorted_topics[0].display_name
         except Exception:
             return None
 
@@ -250,38 +248,6 @@ class Author(models.Model):
         )
 
         return paper_count_res.get("paper_count") or 0
-
-    @property
-    def person_types_indexing(self):
-        person_types = ["author"]
-        if self.user is not None:
-            person_types.append("user")
-
-        return person_types
-
-    @property
-    def institutions_indexing(self):
-        if self.institutions is not None:
-            return [
-                {
-                    "id": author_institution.institution.id,
-                    "name": author_institution.institution.display_name,
-                }
-                for author_institution in self.institutions.all()
-            ]
-        return None
-
-    @property
-    def university_indexing(self):
-        if self.university is not None:
-            return self.university
-        return None
-
-    @property
-    def user_reputation_indexing(self):
-        if self.user is not None:
-            return self.user.reputation
-        return 0
 
     @property
     def achievements(self):

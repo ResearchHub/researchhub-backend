@@ -8,6 +8,8 @@ preprint servers and academic repositories.
 from .clients import (
     ArXivClient,
     ArXivConfig,
+    ArXivOAIClient,
+    ArXivOAIConfig,
     BaseClient,
     BioRxivClient,
     BioRxivConfig,
@@ -24,6 +26,9 @@ __all__ = [
     # ArXiv implementation
     "ArXivClient",
     "ArXivConfig",
+    # ArXiv OAI implementation
+    "ArXivOAIClient",
+    "ArXivOAIConfig",
     # BioRxiv implementation
     "BioRxivClient",
     "BioRxivConfig",

@@ -1,5 +1,5 @@
 """
-Tests for ArXiv OAI-PMH mapper.
+Tests for ArXiv OAI mapper.
 """
 
 import os
@@ -8,14 +8,14 @@ from unittest.mock import MagicMock, patch
 from django.test import TestCase
 
 from hub.models import Hub
-from paper.ingestion.mappers.arxiv_oaipmh import ArXivOAIPMHMapper
+from paper.ingestion.mappers.arxiv_oai import ArXivOAIMapper
 from paper.models import Paper
 
 
-class TestArXivOAIPMHMapper(TestCase):
+class TestArXivOAIMapper(TestCase):
 
     def setUp(self):
-        self.mapper = ArXivOAIPMHMapper(None)
+        self.mapper = ArXivOAIMapper(None)
 
         self.arxiv_hub, _ = Hub.objects.get_or_create(
             slug="arxiv",
@@ -35,7 +35,7 @@ class TestArXivOAIPMHMapper(TestCase):
 
         # Read the sample metadata XML
         with open(
-            os.path.join(fixtures_dir, "arxiv_oaipmh_metadata_sample.xml"), "r"
+            os.path.join(fixtures_dir, "arxiv_oai_metadata_sample.xml"), "r"
         ) as f:
             self.sample_metadata_xml = f.read()
 
@@ -44,7 +44,7 @@ class TestArXivOAIPMHMapper(TestCase):
 
     def test_validate_valid_record(self):
         """
-        Test validation of a valid ArXiv OAI-PMH record.
+        Test validation of a valid ArXiv OAI record.
         """
         # Act
         result = self.mapper.validate(self.sample_record)
@@ -93,7 +93,7 @@ class TestArXivOAIPMHMapper(TestCase):
 
     def test_map_to_paper(self):
         """
-        Test mapping ArXiv OAI-PMH record to Paper model.
+        Test mapping ArXiv OAI record to Paper model.
         """
         # Act
         paper = self.mapper.map_to_paper(self.sample_record)
@@ -204,7 +204,7 @@ class TestArXivOAIPMHMapper(TestCase):
 
     def test_parse_date(self):
         """
-        Test date parsing from OAI-PMH format.
+        Test date parsing from OAI format.
         """
         test_cases = [
             ("simple_date", "2025-07-10", "2025-07-10"),
@@ -285,7 +285,7 @@ class TestArXivOAIPMHMapper(TestCase):
 
     def test_extract_authors(self):
         """
-        Test author extraction from OAI-PMH format.
+        Test author extraction from OAI format.
         """
         # Arrange
         authors_data = [
@@ -357,7 +357,7 @@ class TestArXivOAIPMHMapper(TestCase):
         )
         mock_hub_mapper.map.return_value = [cs_hub]
 
-        mapper = ArXivOAIPMHMapper(mock_hub_mapper)
+        mapper = ArXivOAIMapper(mock_hub_mapper)
         paper = mapper.map_to_paper(self.sample_record)
 
         # Parse record to get primary category
@@ -380,7 +380,7 @@ class TestArXivOAIPMHMapper(TestCase):
         Test map_to_hubs falls back to default behavior without hub_mapper.
         """
         # Arrange
-        mapper = ArXivOAIPMHMapper(None)
+        mapper = ArXivOAIMapper(None)
         paper = mapper.map_to_paper(self.sample_record)
 
         # Parse record to get categories
@@ -408,7 +408,7 @@ class TestArXivOAIPMHMapper(TestCase):
         # hub_mapper returns both hubs including the arxiv hub
         mock_hub_mapper.map.return_value = [cs_hub, self.arxiv_hub]
 
-        mapper = ArXivOAIPMHMapper(mock_hub_mapper)
+        mapper = ArXivOAIMapper(mock_hub_mapper)
         paper = mapper.map_to_paper(self.sample_record)
 
         # Parse record to get categories
@@ -431,7 +431,7 @@ class TestArXivOAIPMHMapper(TestCase):
         Test parsing various license formats.
         """
         # Arrange
-        mapper = ArXivOAIPMHMapper(None)
+        mapper = ArXivOAIMapper(None)
 
         # Test cases: (input, expected_output, description)
         test_cases = [
@@ -501,7 +501,7 @@ class TestArXivOAIPMHMapper(TestCase):
         """
         # Arrange
         mock_hub_mapper = MagicMock()
-        mapper = ArXivOAIPMHMapper(mock_hub_mapper)
+        mapper = ArXivOAIMapper(mock_hub_mapper)
 
         # XML without categories
         xml_no_category = """<metadata xmlns="http://www.openarchives.org/OAI/2.0/">

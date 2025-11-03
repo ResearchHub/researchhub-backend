@@ -1,5 +1,5 @@
 """
-ArXiv OAI-PMH data mapper for transforming OAI-PMH responses to Paper model format.
+ArXiv OAI data mapper for transforming OAI responses to Paper model format.
 """
 
 import logging
@@ -20,9 +20,9 @@ from .base import BaseMapper
 logger = logging.getLogger(__name__)
 
 
-class ArXivOAIPMHMapper(BaseMapper):
+class ArXivOAIMapper(BaseMapper):
     """
-    Maps ArXiv OAI-PMH paper records to ResearchHub Paper model format.
+    Maps ArXiv OAI paper records to ResearchHub Paper model format.
     """
 
     # XML namespaces
@@ -55,7 +55,7 @@ class ArXivOAIPMHMapper(BaseMapper):
 
     def _parse_xml_metadata(self, raw_xml: str) -> Dict[str, Any]:
         """
-        Parse raw OAI-PMH metadata XML into a dictionary.
+        Parse raw OAI metadata XML into a dictionary.
 
         Args:
             raw_xml: Raw XML string for metadata section
@@ -155,7 +155,7 @@ class ArXivOAIPMHMapper(BaseMapper):
             return entry_data
 
         except ET.ParseError as e:
-            logger.error(f"Failed to parse OAI-PMH metadata XML: {e}")
+            logger.error(f"Failed to parse OAI metadata XML: {e}")
             return {}
 
     def _parse_dublin_core(self, root: ET.Element) -> Dict[str, Any]:
@@ -214,7 +214,7 @@ class ArXivOAIPMHMapper(BaseMapper):
 
     def validate(self, record: Dict[str, Any]) -> bool:
         """
-        Validate an ArXiv OAI-PMH paper record has minimum required fields.
+        Validate an ArXiv OAI paper record has minimum required fields.
 
         Args:
             record: Paper record to validate (may contain raw_xml)
@@ -227,7 +227,7 @@ class ArXivOAIPMHMapper(BaseMapper):
             parsed = self._parse_xml_metadata(record["raw_xml"])
             record.update(parsed)
 
-        # Required fields from ArXiv OAI-PMH
+        # Required fields from ArXiv OAI
         required_fields = ["id", "title", "authors"]
 
         for field in required_fields:
@@ -252,10 +252,10 @@ class ArXivOAIPMHMapper(BaseMapper):
 
     def map_to_paper(self, record: Dict[str, Any]) -> Paper:
         """
-        Map ArXiv OAI-PMH record to Paper model instance.
+        Map ArXiv OAI record to Paper model instance.
 
         Args:
-            record: ArXiv OAI-PMH paper record (may contain raw_xml)
+            record: ArXiv OAI paper record (may contain raw_xml)
 
         Returns:
             Paper model instance (not saved to database)
@@ -265,7 +265,7 @@ class ArXivOAIPMHMapper(BaseMapper):
             parsed = self._parse_xml_metadata(record["raw_xml"])
             record.update(parsed)
 
-        # Extract ArXiv ID (already in clean format from OAI-PMH)
+        # Extract ArXiv ID (already in clean format from OAI)
         arxiv_id = record.get("id", "")
 
         # Extract and process authors
@@ -345,7 +345,7 @@ class ArXivOAIPMHMapper(BaseMapper):
         Priority: created > updated
 
         Args:
-            record: ArXiv OAI-PMH record
+            record: ArXiv OAI record
 
         Returns:
             Date string in YYYY-MM-DD format or None
@@ -435,10 +435,10 @@ class ArXivOAIPMHMapper(BaseMapper):
         self, authors_list: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """
-        Extract authors from ArXiv OAI-PMH author list.
+        Extract authors from ArXiv OAI author list.
 
         Args:
-            authors_list: List of author objects from ArXiv OAI-PMH
+            authors_list: List of author objects from ArXiv OAI
 
         Returns:
             List of author dictionaries
@@ -453,7 +453,7 @@ class ArXivOAIPMHMapper(BaseMapper):
                 continue
 
             # Parse name into components
-            # OAI-PMH provides keyname and forenames separately
+            # OAI provides keyname and forenames separately
             if "keyname" in author_data and "forenames" in author_data:
                 name_parts = {
                     "first_name": author_data.get("forenames", ""),
@@ -511,7 +511,7 @@ class ArXivOAIPMHMapper(BaseMapper):
 
     def map_to_authors(self, record: Dict[str, Any]) -> List[Author]:
         """
-        Map ArXiv OAI-PMH record to author data.
+        Map ArXiv OAI record to author data.
 
         Note: ArXiv doesn't provide ORCID IDs, so we return empty list
         to avoid creating duplicate authors without proper deduplication.
@@ -521,7 +521,7 @@ class ArXivOAIPMHMapper(BaseMapper):
 
     def map_to_institutions(self, record: Dict[str, Any]) -> List[Institution]:
         """
-        Map ArXiv OAI-PMH record to institution data.
+        Map ArXiv OAI record to institution data.
 
         Note: ArXiv doesn't provide ROR IDs for institutions,
         so we return empty list to avoid creating duplicate institutions.
@@ -533,7 +533,7 @@ class ArXivOAIPMHMapper(BaseMapper):
         self, paper: Paper, record: Dict[str, Any]
     ) -> List[Authorship]:
         """
-        Map ArXiv OAI-PMH record to Authorship model instances.
+        Map ArXiv OAI record to Authorship model instances.
 
         Note: ArXiv doesn't provide ORCID IDs for authors,
         so we return empty list to avoid creating duplicate authorships.
@@ -543,7 +543,7 @@ class ArXivOAIPMHMapper(BaseMapper):
 
     def map_to_hubs(self, paper: Paper, record: Dict[str, Any]) -> List[Hub]:
         """
-        Map arXiv OAI-PMH record to Hub (tag) model instances.
+        Map arXiv OAI record to Hub (tag) model instances.
         """
         hubs = []
         primary_category = record.get("primary_category")
