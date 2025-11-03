@@ -40,10 +40,10 @@ class ContributionWeightBaseTests(TestCase):
 
 
 class ContributionWeightContextTests(TestCase):
-    """Test that context parameters are ignored (no multipliers)."""
+    """Test that context parameters are ignored"""
     
     def test_context_parameters_ignored(self):
-        """Context parameters should not affect reputation (no multipliers)."""
+        """Context parameters should not affect reputation"""
         # Upvotes don't affect reputation
         rep = ContributionWeight.calculate_reputation_change(
             ContributionWeight.COMMENT,
