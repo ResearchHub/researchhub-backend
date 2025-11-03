@@ -182,6 +182,18 @@ class ScoreChange(DefaultModel):
         "reputation.Score", on_delete=models.CASCADE, db_index=True
     )
     created_date = models.DateTimeField(auto_now_add=True, db_index=True)
+    contribution_type = models.CharField(
+        max_length=50,
+        default='UPVOTE',
+        db_index=True,
+        help_text='Type of contribution that triggered this score change',
+    )
+    
+    class Meta:
+        indexes = [
+            models.Index(fields=['score', 'contribution_type'], name='idx_score_contribution_type'),
+            models.Index(fields=['contribution_type', 'created_date'], name='idx_contribution_type_date'),
+        ]
 
     @classmethod
     def get_latest_score_change(cls, score, algorithm_variables=None):
