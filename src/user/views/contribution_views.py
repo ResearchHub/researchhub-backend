@@ -158,30 +158,6 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                     "documents",
                 ]
             },
-            "dis_dts_get_unified_document": {
-                "_include_fields": [
-                    "id",
-                    "document_type",
-                    "documents",
-                    "slug",
-                ]
-            },
-            "dis_dcs_get_unified_document": {
-                "_include_fields": [
-                    "id",
-                    "document_type",
-                    "documents",
-                    "slug",
-                ]
-            },
-            "dis_drs_get_unified_document": {
-                "_include_fields": [
-                    "id",
-                    "document_type",
-                    "documents",
-                    "slug",
-                ]
-            },
             "doc_dps_get_unified_document": {
                 "_include_fields": [
                     "id",
