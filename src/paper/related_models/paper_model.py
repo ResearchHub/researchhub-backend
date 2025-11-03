@@ -20,7 +20,6 @@ from paper.utils import get_csl_item, populate_pdf_url_from_journal_url
 from purchase.models import Purchase
 from reputation.models import Score, ScoreChange
 from reputation.related_models.paper_reward import HubCitationValue
-from researchhub.lib import CREATED_LOCATIONS
 from researchhub.settings import TESTING
 from researchhub_comment.models import RhCommentThreadModel
 from researchhub_document.related_models.constants.editor_type import (
@@ -42,9 +41,6 @@ class Paper(AbstractGenericReactionModel):
     PRE_REGISTRATION = "PRE_REGISTRATION"
 
     PAPER_TYPE_CHOICES = [(REGULAR, REGULAR), (PRE_REGISTRATION, PRE_REGISTRATION)]
-
-    CREATED_LOCATION_PROGRESS = CREATED_LOCATIONS["PROGRESS"]
-    CREATED_LOCATION_CHOICES = [(CREATED_LOCATION_PROGRESS, "Progress")]
 
     rh_threads = GenericRelation(
         RhCommentThreadModel,
@@ -80,13 +76,6 @@ class Paper(AbstractGenericReactionModel):
         null=True,
         blank=True,
         validators=[FileExtensionValidator(["pdf"])],
-    )
-    file_created_location = models.CharField(
-        choices=CREATED_LOCATION_CHOICES,
-        max_length=255,
-        default=None,
-        null=True,
-        blank=True,
     )
     retrieved_from_external_source = models.BooleanField(default=False)
     is_open_access = models.BooleanField(default=None, null=True, blank=True)
@@ -598,9 +587,6 @@ class Figure(models.Model):
     PREVIEW = "PREVIEW"
     FIGURE_TYPE_CHOICES = [(FIGURE, "Figure"), (PREVIEW, "Preview")]
 
-    CREATED_LOCATION_PROGRESS = CREATED_LOCATIONS["PROGRESS"]
-    CREATED_LOCATION_CHOICES = [(CREATED_LOCATION_PROGRESS, "Progress")]
-
     file = models.FileField(
         upload_to="uploads/figures/%Y/%m/%d", default=None, null=True, blank=True
     )
@@ -610,13 +596,6 @@ class Figure(models.Model):
     updated_date = models.DateTimeField(auto_now=True)
     created_by = models.ForeignKey(
         "user.User", on_delete=models.SET_NULL, related_name="figures", null=True
-    )
-    created_location = models.CharField(
-        choices=CREATED_LOCATION_CHOICES,
-        max_length=255,
-        default=None,
-        null=True,
-        blank=True,
     )
 
     class Meta:
