@@ -38,6 +38,9 @@ class ContributionWeight:
     UPVOTE = 'UPVOTE'
     DOWNVOTE = 'DOWNVOTE'
     
+    # System-generated (not user actions)
+    CITATION = 'CITATION'
+    
     # Medium effort
     COMMENT = 'COMMENT'
     THREAD_CREATED = 'THREAD_CREATED'
@@ -60,6 +63,9 @@ class ContributionWeight:
         # Low effort (1x)
         UPVOTE: 1,
         DOWNVOTE: 1,
+        
+        # System-generated (tracked but calculated separately)
+        CITATION: 0,  # Citations use their own scoring algorithm
         
         # Medium effort (3-10x)
         COMMENT: 3,
@@ -163,6 +169,7 @@ class ContributionWeight:
         display_names = {
             cls.UPVOTE: 'Upvote',
             cls.DOWNVOTE: 'Downvote',
+            cls.CITATION: 'Citation',
             cls.COMMENT: 'Comment',
             cls.THREAD_CREATED: 'Thread Created',
             cls.BOUNTY_CREATED: 'Bounty Created',

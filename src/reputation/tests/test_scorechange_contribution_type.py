@@ -155,6 +155,7 @@ class ScoreChangeContributionTypeTests(TestCase):
         contribution_types = [
             ContributionWeight.UPVOTE,
             ContributionWeight.DOWNVOTE,
+            ContributionWeight.CITATION,
             ContributionWeight.COMMENT,
             ContributionWeight.THREAD_CREATED,
             ContributionWeight.BOUNTY_CREATED,

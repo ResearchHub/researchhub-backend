@@ -123,10 +123,11 @@ class ContributionWeightUtilityTests(TestCase):
         types = ContributionWeight.get_all_contribution_types()
         
         self.assertIn(ContributionWeight.UPVOTE, types)
+        self.assertIn(ContributionWeight.CITATION, types)
         self.assertIn(ContributionWeight.COMMENT, types)
         self.assertIn(ContributionWeight.PEER_REVIEW, types)
         self.assertIn(ContributionWeight.PAPER_PUBLISHED, types)
-        self.assertEqual(len(types), 10)
+        self.assertEqual(len(types), 11)
     
     def test_validate_contribution_type_valid(self):
         """Should validate known contribution types."""
