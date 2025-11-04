@@ -35,6 +35,14 @@ class UnifiedSearchRequestSerializer(serializers.Serializer):
     )
 
 
+class AuthorSerializer(serializers.Serializer):
+    """Serializer for author information in search results."""
+
+    first_name = serializers.CharField(allow_blank=True)
+    last_name = serializers.CharField(allow_blank=True)
+    full_name = serializers.CharField()
+
+
 class HubSerializer(serializers.Serializer):
     """Serializer for hub information in search results."""
 
@@ -58,12 +66,13 @@ class DocumentResultSerializer(serializers.Serializer):
     title = serializers.CharField()
     snippet = serializers.CharField(allow_null=True, required=False)
     matched_field = serializers.CharField(allow_null=True, required=False)
-    authors = serializers.ListField(child=serializers.CharField(), required=False)
+    authors = AuthorSerializer(many=True, required=False)
     created_date = serializers.DateTimeField(allow_null=True, required=False)
     paper_publish_date = serializers.DateTimeField(allow_null=True, required=False)
     score = serializers.IntegerField(required=False)
     _search_score = serializers.FloatField(required=False)
     hubs = HubSerializer(many=True, required=False)
+    unified_document_id = serializers.IntegerField(required=False)
 
     # Paper-specific fields
     doi = serializers.CharField(allow_null=True, required=False)
@@ -108,6 +117,8 @@ class UnifiedSearchResultSerializer(serializers.Serializer):
     """Serializer for unified search results."""
 
     count = serializers.IntegerField()
+    next = serializers.CharField(allow_null=True, required=False)
+    previous = serializers.CharField(allow_null=True, required=False)
     documents = DocumentResultSerializer(many=True)
     people = PersonResultSerializer(many=True)
     aggregations = SearchAggregationsSerializer(required=False)

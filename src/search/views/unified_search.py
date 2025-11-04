@@ -59,6 +59,7 @@ class UnifiedSearchView(APIView):
                 page=page,
                 page_size=page_size,
                 sort=sort,
+                request=request,
             )
 
             # Serialize and return results

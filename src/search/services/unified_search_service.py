@@ -38,6 +38,7 @@ class UnifiedSearchService:
         page: int = 1,
         page_size: int = 10,
         sort: str = SORT_RELEVANCE,
+        request=None,
     ) -> dict[str, Any]:
         """
         Perform unified search across documents and people.
@@ -46,7 +47,8 @@ class UnifiedSearchService:
             query: Search query string
             page: Page number (1-indexed)
             page_size: Number of results per page
-            sort: Sort option (relevance, newest, hot, upvoted)
+            sort: Sort option (relevance, newest)
+            request: HTTP request object for building pagination URLs
 
         Returns:
             Dictionary containing documents, people, aggregations,
@@ -68,8 +70,27 @@ class UnifiedSearchService:
         # Combine results
         total_count = document_results["count"] + people_results["count"]
 
+        # Calculate pagination URLs
+        next_url = None
+        previous_url = None
+
+        if request:
+            # Check if there are more results
+            if page * page_size < total_count:
+                next_url = self._build_page_url(
+                    request, query, page + 1, page_size, sort
+                )
+
+            # Check if there are previous results
+            if page > 1:
+                previous_url = self._build_page_url(
+                    request, query, page - 1, page_size, sort
+                )
+
         return {
             "count": total_count,
+            "next": next_url,
+            "previous": previous_url,
             "documents": document_results["results"],
             "people": people_results["results"],
             "aggregations": document_results["aggregations"],
@@ -126,6 +147,7 @@ class UnifiedSearchService:
                 "doi",
                 "slug",
                 "score",
+                "unified_document_id",
                 "document_type",
             ]
         )
@@ -377,23 +399,37 @@ class UnifiedSearchService:
                 result.update(
                     {
                         "authors": [
-                            author.get("full_name", "")
+                            {
+                                "first_name": author.get("first_name", ""),
+                                "last_name": author.get("last_name", ""),
+                                "full_name": author.get("full_name", ""),
+                            }
                             for author in getattr(hit, "raw_authors", [])
                         ],
                         "doi": DOI.normalize_doi(raw_doi) if raw_doi else None,
                         "citations": getattr(hit, "citations", 0),
                         "paper_publish_date": getattr(hit, "paper_publish_date", None),
+                        "unified_document_id": getattr(
+                            hit, "unified_document_id", None
+                        ),
                     }
                 )
             else:  # post
                 result.update(
                     {
                         "authors": [
-                            author.get("full_name", "")
+                            {
+                                "first_name": author.get("first_name", ""),
+                                "last_name": author.get("last_name", ""),
+                                "full_name": author.get("full_name", ""),
+                            }
                             for author in getattr(hit, "authors", [])
                         ],
                         "slug": getattr(hit, "slug", None),
                         "document_type": getattr(hit, "document_type", None),
+                        "unified_document_id": getattr(
+                            hit, "unified_document_id", None
+                        ),
                     }
                 )
 
@@ -514,3 +550,33 @@ class UnifiedSearchService:
                             break
 
         return aggregations
+
+    def _build_page_url(
+        self, request, query: str, page: int, page_size: int, sort: str
+    ) -> str:
+        """
+        Build pagination URL for next/previous page.
+
+        Args:
+            request: HTTP request object
+            query: Search query string
+            page: Page number
+            page_size: Number of results per page
+            sort: Sort option
+
+        Returns:
+            Full URL for the page
+        """
+        from urllib.parse import urlencode
+
+        # Build query parameters
+        params = {
+            "q": query,
+            "page": page,
+            "page_size": page_size,
+            "sort": sort,
+        }
+
+        # Build full URL
+        base_url = request.build_absolute_uri(request.path)
+        return f"{base_url}?{urlencode(params)}"

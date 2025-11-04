@@ -47,6 +47,7 @@ class PaperDocument(BaseDocument):
         },
     )
     score = es_fields.IntegerField()
+    unified_document_id = es_fields.IntegerField()
     created_date = es_fields.DateField(attr="created_date")
     suggestion_phrases = es_fields.CompletionField()
 
@@ -217,6 +218,11 @@ class PaperDocument(BaseDocument):
         if instance.unified_document:
             return instance.unified_document.score
         return 0
+
+    def prepare_unified_document_id(self, instance) -> int | None:
+        if instance.unified_document:
+            return instance.unified_document.id
+        return None
 
     def get_indexing_queryset(
         self,

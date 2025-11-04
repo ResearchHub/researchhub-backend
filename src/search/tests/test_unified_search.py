@@ -126,7 +126,9 @@ class UnifiedSearchServiceTests(TestCase):
         mock_hit.paper_title = "Test Paper"
         mock_hit.created_date = "2024-01-01"
         mock_hit.score = 50
-        mock_hit.raw_authors = [{"full_name": "John Doe"}]
+        mock_hit.raw_authors = [
+            {"first_name": "John", "last_name": "Doe", "full_name": "John Doe"}
+        ]
         mock_hit.doi = "10.1234/test"
         mock_hit.citations = 42
         mock_hit.paper_publish_date = "2023-12-01"
@@ -148,6 +150,11 @@ class UnifiedSearchServiceTests(TestCase):
         self.assertEqual(len(result["hubs"]), 1)
         # Verify score is included
         self.assertEqual(result["score"], 50)
+        # Verify authors are structured objects
+        self.assertEqual(len(result["authors"]), 1)
+        self.assertEqual(result["authors"][0]["first_name"], "John")
+        self.assertEqual(result["authors"][0]["last_name"], "Doe")
+        self.assertEqual(result["authors"][0]["full_name"], "John Doe")
 
     def test_process_document_results_post(self):
         """Test processing post document results - simplified."""
@@ -252,6 +259,29 @@ class UnifiedSearchViewTests(TestCase):
         response = self.client.get(self.url, {"q": "test", "sort": "upvoted"})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("sort", response.data)
+
+    def test_pagination_urls(self):
+        """Test that pagination URLs are generated correctly."""
+        from unittest.mock import Mock
+
+        from search.services.unified_search_service import UnifiedSearchService
+
+        service = UnifiedSearchService()
+
+        # Mock request
+        request = Mock()
+        request.path = "/api/search/"
+        request.build_absolute_uri = lambda path: f"http://testserver{path}"
+
+        # Build URL for page 2
+        url = service._build_page_url(request, "test query", 2, 10, "relevance")
+
+        # Verify URL structure
+        self.assertIn("http://testserver/api/search/", url)
+        self.assertIn("q=test+query", url)
+        self.assertIn("page=2", url)
+        self.assertIn("page_size=10", url)
+        self.assertIn("sort=relevance", url)
 
     def test_valid_search_requires_opensearch(self):
         """
