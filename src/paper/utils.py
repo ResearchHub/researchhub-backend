@@ -180,7 +180,7 @@ def get_location_for_unsupported_pdf(csl_item):
     )
 
 
-def get_pdf_from_url(url: str) -> ContentFile:
+def download_pdf_from_url(url: str) -> ContentFile:
     scraper = cloudscraper.create_scraper()
     with scraper.get(url, timeout=10) as response:
         response.raise_for_status()
