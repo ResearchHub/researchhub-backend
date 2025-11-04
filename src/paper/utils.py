@@ -180,21 +180,16 @@ def get_location_for_unsupported_pdf(csl_item):
     )
 
 
-def download_pdf(url):
-    if check_url_contains_pdf(url):
-        pdf = get_pdf_from_url(url)
-        filename = url.split("/").pop()
-        return pdf, filename
-    return None, None
-
-
-def get_pdf_from_url(url):
+def download_pdf_from_url(url: str) -> ContentFile:
     scraper = cloudscraper.create_scraper()
-    response = scraper.get(url, timeout=3)
+    with scraper.get(url, timeout=10) as response:
+        response.raise_for_status()
+        content = response.content
+
     filename = url.split("/").pop()
     if not filename.endswith(".pdf"):
         filename += ".pdf"
-    pdf = ContentFile(response.content, name=filename)
+    pdf = ContentFile(content, name=filename)
     return pdf
 
 
