@@ -49,6 +49,7 @@ from review.views.peer_review_view import PeerReviewViewSet
 from review.views.review_view import ReviewViewSet
 from user.views import author_views, editor_views, moderator_view, persona_webhook_view
 from user.views.custom_verify_email_view import CustomVerifyEmailView
+from user_lists.views import ListViewSet
 from user_saved.views import UserSavedView
 
 router = routers.DefaultRouter()
@@ -109,6 +110,8 @@ router.register(r"purchase", purchase.views.PurchaseViewSet, basename="purchase"
 router.register(r"transactions", purchase.views.BalanceViewSet, basename="transactions")
 
 router.register(r"user", user.views.UserViewSet)
+
+router.register(r"user_list", ListViewSet, basename="user_list")
 
 router.register(r"withdrawal", reputation.views.WithdrawalViewSet)
 
