@@ -24,10 +24,8 @@ class UnifiedSearchService:
 
     SORT_RELEVANCE = "relevance"
     SORT_NEWEST = "newest"
-    SORT_HOT = "hot"
-    SORT_UPVOTED = "upvoted"
 
-    VALID_SORT_OPTIONS = [SORT_RELEVANCE, SORT_NEWEST, SORT_HOT, SORT_UPVOTED]
+    VALID_SORT_OPTIONS = [SORT_RELEVANCE, SORT_NEWEST]
 
     def __init__(self):
         self.paper_index = PaperDocument._index._name
@@ -127,7 +125,6 @@ class UnifiedSearchService:
                 "hubs",
                 "doi",
                 "slug",
-                "hot_score",
                 "score",
                 "document_type",
             ]
@@ -327,16 +324,6 @@ class UnifiedSearchService:
                 "-created_date",
                 {"_score": {"order": "desc"}},
             )
-        elif sort == self.SORT_HOT:
-            search = search.sort(
-                "-hot_score",
-                {"_score": {"order": "desc"}},
-            )
-        elif sort == self.SORT_UPVOTED:
-            search = search.sort(
-                "-score",
-                {"_score": {"order": "desc"}},
-            )
         else:  # SORT_RELEVANCE or default
             search = search.sort({"_score": {"order": "desc"}})
 
@@ -380,7 +367,6 @@ class UnifiedSearchService:
                 "snippet": snippet,
                 "matched_field": matched_field,
                 "created_date": getattr(hit, "created_date", None),
-                "hot_score": getattr(hit, "hot_score", 0),
                 "score": getattr(hit, "score", 0),
                 "_search_score": hit.meta.score,
             }

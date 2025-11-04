@@ -66,26 +66,16 @@ class UnifiedSearchServiceTests(TestCase):
         # Should sort by created_date descending
         self.assertTrue(any("created_date" in str(s) for s in sort_dict))
 
-    def test_apply_sort_hot(self):
-        """Test hot sort."""
+    def test_apply_sort_invalid_defaults_to_relevance(self):
+        """Test that invalid sort options default to relevance."""
         from opensearchpy import Search
 
         search = Search()
-        sorted_search = self.service._apply_sort(search, "hot")
+        # Test with an invalid sort option
+        sorted_search = self.service._apply_sort(search, "invalid")
         sort_dict = sorted_search.to_dict().get("sort", [])
-        # Should sort by hot_score descending
-        self.assertTrue(any("hot_score" in str(s) for s in sort_dict))
-
-    def test_apply_sort_upvoted(self):
-        """Test upvoted sort."""
-        from opensearchpy import Search
-
-        search = Search()
-        sorted_search = self.service._apply_sort(search, "upvoted")
-        sort_dict = sorted_search.to_dict().get("sort", [])
-        # Should sort by score descending
-        has_score = any("score" in str(s) and "hot" not in str(s) for s in sort_dict)
-        self.assertTrue(has_score)
+        # Should default to _score (relevance)
+        self.assertIn({"_score": {"order": "desc"}}, sort_dict)
 
     def test_apply_highlighting_documents(self):
         """Test highlighting configuration for documents."""
@@ -135,7 +125,6 @@ class UnifiedSearchServiceTests(TestCase):
         mock_hit.meta.score = 10.5
         mock_hit.paper_title = "Test Paper"
         mock_hit.created_date = "2024-01-01"
-        mock_hit.hot_score = 100
         mock_hit.score = 50
         mock_hit.raw_authors = [{"full_name": "John Doe"}]
         mock_hit.doi = "10.1234/test"
@@ -157,6 +146,8 @@ class UnifiedSearchServiceTests(TestCase):
         self.assertEqual(result["doi"], "https://doi.org/10.1234/test")
         self.assertEqual(result["citations"], 42)
         self.assertEqual(len(result["hubs"]), 1)
+        # Verify score is included
+        self.assertEqual(result["score"], 50)
 
     def test_process_document_results_post(self):
         """Test processing post document results - simplified."""
@@ -249,6 +240,18 @@ class UnifiedSearchViewTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("sort", response.data)
         self.assertIn("is not a valid choice", str(response.data["sort"][0]))
+
+    def test_hot_sort_parameter_invalid(self):
+        """Test that 'hot' sort parameter is no longer valid."""
+        response = self.client.get(self.url, {"q": "test", "sort": "hot"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("sort", response.data)
+
+    def test_upvoted_sort_parameter_invalid(self):
+        """Test that 'upvoted' sort parameter is no longer valid."""
+        response = self.client.get(self.url, {"q": "test", "sort": "upvoted"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("sort", response.data)
 
     def test_valid_search_requires_opensearch(self):
         """

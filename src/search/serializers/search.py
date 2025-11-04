@@ -28,7 +28,7 @@ class UnifiedSearchRequestSerializer(serializers.Serializer):
         help_text="Number of results per page (max 100)",
     )
     sort = serializers.ChoiceField(
-        choices=["relevance", "newest", "hot", "upvoted"],
+        choices=["relevance", "newest"],
         required=False,
         default="relevance",
         help_text="Sort option",
@@ -61,7 +61,6 @@ class DocumentResultSerializer(serializers.Serializer):
     authors = serializers.ListField(child=serializers.CharField(), required=False)
     created_date = serializers.DateTimeField(allow_null=True, required=False)
     paper_publish_date = serializers.DateTimeField(allow_null=True, required=False)
-    hot_score = serializers.IntegerField(required=False)
     score = serializers.IntegerField(required=False)
     _search_score = serializers.FloatField(required=False)
     hubs = HubSerializer(many=True, required=False)

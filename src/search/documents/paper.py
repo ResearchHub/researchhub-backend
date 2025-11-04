@@ -40,14 +40,12 @@ class PaperDocument(BaseDocument):
         },
     )
     hubs = es_fields.ObjectField(
-        attr="hubs_indexing",
         properties={
             "id": es_fields.IntegerField(),
             "name": es_fields.KeywordField(),
             "slug": es_fields.TextField(),
         },
     )
-    hot_score = es_fields.IntegerField()
     score = es_fields.IntegerField()
     created_date = es_fields.DateField(attr="created_date")
     suggestion_phrases = es_fields.CompletionField()
@@ -110,7 +108,8 @@ class PaperDocument(BaseDocument):
             phrases.append(instance.external_source)
             phrases.extend(journal_words)
 
-        # TODO "chore:" PR to remove this? We should not be indexing openalex data any longer.
+        # TODO "chore:" PR to remove this? We should not be indexing
+        # openalex data any longer.
         # Variation of OpenAlex keywords which may be searched by users
         try:
             oa_data = instance.open_alex_raw_json
@@ -202,10 +201,17 @@ class PaperDocument(BaseDocument):
     def prepare_doi_indexing(self, instance) -> str:
         return instance.doi or ""
 
-    def prepare_hot_score(self, instance) -> int:
-        if instance.unified_document:
-            return instance.unified_document.hot_score
-        return 0
+    def prepare_hubs(self, instance) -> list[dict[str, Any]]:
+        if instance.unified_document and instance.unified_document.hubs.exists():
+            return [
+                {
+                    "id": hub.id,
+                    "name": hub.name,
+                    "slug": hub.slug,
+                }
+                for hub in instance.unified_document.hubs.all()
+            ]
+        return []
 
     def prepare_score(self, instance) -> int:
         if instance.unified_document:
