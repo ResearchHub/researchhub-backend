@@ -13,7 +13,6 @@ from manubot.cite.unpaywall import Unpaywall
 import utils.sentry as sentry
 from discussion.models import AbstractGenericReactionModel, Vote
 from hub.models import Hub
-from hub.serializers import DynamicHubSerializer
 from paper.lib import journal_hosts
 from paper.related_models.citation_model import Citation
 from paper.utils import get_csl_item, populate_pdf_url_from_journal_url
@@ -238,21 +237,6 @@ class Paper(AbstractGenericReactionModel):
                 users.append(author.user)
 
         return users
-
-    @property
-    def hubs_indexing(self):
-        serializer = DynamicHubSerializer(
-            self.hubs.all(),
-            many=True,
-            context={},
-            _include_fields=[
-                "id",
-                "name",
-                "slug",
-            ],
-        )
-
-        return serializer.data
 
     @property
     def hubs_indexing_flat(self):
