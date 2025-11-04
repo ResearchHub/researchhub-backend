@@ -14,12 +14,7 @@ from paper.ingestion.pipeline import (  # noqa: F401
     process_batch_task,
 )
 from paper.ingestion.tasks import update_recent_papers_with_metrics  # noqa: F401
-from paper.utils import (
-    get_cache_key,
-    get_csl_item,
-    get_pdf_from_url,
-    get_pdf_location_for_csl_item,
-)
+from paper.utils import get_cache_key, get_pdf_from_url
 from researchhub.celery import QUEUE_PAPER_MISC, app
 from utils import sentry
 from utils.http import check_url_contains_pdf
