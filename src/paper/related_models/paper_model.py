@@ -235,10 +235,6 @@ class Paper(AbstractGenericReactionModel):
         return users
 
     @property
-    def hubs_indexing_flat(self):
-        return [hub.name for hub in self.hubs.all()]
-
-    @property
     def hot_score(self):
         if self.unified_document is None:
             return self.score
