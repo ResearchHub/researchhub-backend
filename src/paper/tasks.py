@@ -58,10 +58,7 @@ def download_pdf(paper_id, retry=0):
         pdf_url = paper_pdf_url or paper_url
         try:
             pdf = get_pdf_from_url(pdf_url)
-            filename = pdf_url.split("/").pop()
-            if not filename.endswith(".pdf"):
-                filename += ".pdf"
-            paper.file.save(filename, pdf)
+            paper.file.save(pdf.name, pdf)
             paper.save(update_fields=["file"])
             return True
         except Exception as e:
