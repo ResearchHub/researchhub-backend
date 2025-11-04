@@ -21,10 +21,6 @@ from reputation.models import Score, ScoreChange
 from reputation.related_models.paper_reward import HubCitationValue
 from researchhub.settings import TESTING
 from researchhub_comment.models import RhCommentThreadModel
-from researchhub_document.related_models.constants.editor_type import (
-    EDITOR_TYPES,
-    TEXT_FIELD,
-)
 from utils.aws import lambda_compress_and_linearize_pdf
 
 DOI_IDENTIFIER = "10."
