@@ -19,7 +19,7 @@ dependencies = [
     "dj-rest-auth>=2.2.2,<3.0.0",
     "django==5.2.7",
     "django-allauth==0.50.0",
-    "django-celery-results==2.5.1",
+    "django-celery-results==2.6.0",
     "django-contrib-comments==1.9.2",
     "django-cors-headers==3.5.0",
     "django-dbbackup==4.0.2",
