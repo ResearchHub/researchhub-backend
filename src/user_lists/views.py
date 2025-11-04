@@ -1,15 +1,16 @@
 from django.db import IntegrityError
 from django.utils import timezone
 from rest_framework import status, viewsets
-from rest_framework.mixins import CreateModelMixin, DestroyModelMixin, UpdateModelMixin
+from rest_framework.decorators import action
+from rest_framework.mixins import CreateModelMixin, DestroyModelMixin, ListModelMixin, RetrieveModelMixin, UpdateModelMixin
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.serializers import ValidationError
 
 from researchhub.permissions import IsObjectOwner
 
-from .models import List
-from .serializers import ListSerializer
+from .models import List, ListItem
+from .serializers import ListItemDetailSerializer, ListItemSerializer, ListSerializer
 
 
 def _update_list_timestamp(list_obj, user):
@@ -20,6 +21,10 @@ def _update_list_timestamp(list_obj, user):
 
 def _handle_integrity_error_list_name():
     raise ValidationError({"name": "A list with this name already exists."})
+
+
+def _handle_integrity_error_item():
+    raise ValidationError({"error": "Item already exists in this list."})
 
 
 class ListViewSet(CreateModelMixin, UpdateModelMixin, DestroyModelMixin, viewsets.GenericViewSet):
@@ -47,5 +52,118 @@ class ListViewSet(CreateModelMixin, UpdateModelMixin, DestroyModelMixin, viewset
         instance = self.get_object()
         instance.delete()
         instance.items.filter(is_removed=False).delete()
+        return Response({"success": True}, status=status.HTTP_200_OK)
+
+
+class ListItemViewSet(
+    CreateModelMixin,
+    RetrieveModelMixin,
+    UpdateModelMixin,
+    DestroyModelMixin,
+    ListModelMixin,
+    viewsets.GenericViewSet,
+):
+    queryset = ListItem.objects.filter(is_removed=False)
+    serializer_class = ListItemSerializer
+    permission_classes = [IsAuthenticated, IsObjectOwner]
+
+    def get_queryset(self):
+        queryset = self.queryset.filter(created_by=self.request.user)
+        parent_list_id = self.request.query_params.get("parent_list")
+        if parent_list_id:
+            queryset = queryset.filter(
+                parent_list_id=parent_list_id,
+                parent_list__created_by=self.request.user,
+                parent_list__is_removed=False,
+            )
+        return queryset
+
+    def get_serializer_class(self):
+        return ListItemDetailSerializer if self.action in ["retrieve", "list"] else ListItemSerializer
+
+    def _validate_parent_list(self, parent_list):
+        if parent_list.created_by != self.request.user or parent_list.is_removed:
+            raise ValidationError({"parent_list": "List not found or you don't have permission."})
+
+    def _get_or_create_item(self, serializer, created_by):
+        parent_list = serializer.validated_data.get("parent_list")
+        self._validate_parent_list(parent_list)
+        try:
+            item = serializer.save(created_by=created_by)
+            _update_list_timestamp(parent_list, created_by)
+            return item, parent_list
+        except IntegrityError:
+            _handle_integrity_error_item()
+
+    def perform_create(self, serializer):
+        self._get_or_create_item(serializer, self.request.user)
+
+    def perform_update(self, serializer):
+        parent_list = serializer.validated_data.get("parent_list", serializer.instance.parent_list)
+        self._validate_parent_list(parent_list)
+        try:
+            serializer.save(updated_by=self.request.user)
+            _update_list_timestamp(parent_list, self.request.user)
+        except IntegrityError:
+            _handle_integrity_error_item()
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        parent_list = instance.parent_list
+        instance.delete()
+        _update_list_timestamp(parent_list, request.user)
+        return Response({"success": True}, status=status.HTTP_200_OK)
+
+    def _find_existing_item(self, parent_list, unified_document):
+        return ListItem.objects.filter(
+            parent_list=parent_list, unified_document=unified_document, is_removed=False
+        ).first()
+
+    def _serialize_item(self, item):
+        try:
+            return ListItemDetailSerializer(item, context={"request": self.request}).data
+        except Exception:
+            return {"id": item.id}
+
+    def _existing_item_response(self, existing_item):
+        return Response(
+            {"error": "Item already in list", "item": self._serialize_item(existing_item)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    @action(detail=False, methods=["post"], url_path="add-item-to-list")
+    def add_item_to_list(self, request):
+        serializer = ListItemSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        parent_list = serializer.validated_data["parent_list"]
+        unified_document = serializer.validated_data["unified_document"]
+
+        self._validate_parent_list(parent_list)
+
+        existing_item = self._find_existing_item(parent_list, unified_document)
+        if existing_item:
+            return self._existing_item_response(existing_item)
+
+        try:
+            list_item, _ = self._get_or_create_item(serializer, request.user)
+            return Response(self._serialize_item(list_item), status=status.HTTP_201_CREATED)
+        except IntegrityError:
+            existing_item = self._find_existing_item(parent_list, unified_document)
+            if existing_item:
+                return self._existing_item_response(existing_item)
+            _handle_integrity_error_item()
+
+    @action(detail=False, methods=["post"], url_path="remove-item-from-list")
+    def remove_item_from_list(self, request):
+        serializer = ListItemSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        list_item = self._find_existing_item(
+            serializer.validated_data["parent_list"], serializer.validated_data["unified_document"]
+        )
+        if not list_item or list_item.created_by != request.user:
+            return Response({"error": "Item not found in list"}, status=status.HTTP_404_NOT_FOUND)
+        parent_list = list_item.parent_list
+        list_item.delete()
+        _update_list_timestamp(parent_list, request.user)
         return Response({"success": True}, status=status.HTTP_200_OK)
 
