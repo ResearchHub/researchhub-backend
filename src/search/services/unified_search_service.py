@@ -11,6 +11,7 @@ from opensearchpy import Q, Search
 from search.documents.paper import PaperDocument
 from search.documents.person import PersonDocument
 from search.documents.post import PostDocument
+from utils.doi import DOI
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +124,6 @@ class UnifiedSearchService:
                 "created_date",
                 "paper_publish_date",
                 "citations",
-                "is_open_access",
                 "hubs",
                 "doi",
                 "slug",
@@ -251,7 +251,7 @@ class UnifiedSearchService:
                 "full_name^5",  # Highest boost for full name
                 "first_name^3",
                 "last_name^3",
-                "headline.title^2",
+                "headline^2",
                 "description^1",
             ],
             type="best_fields",
@@ -387,15 +387,15 @@ class UnifiedSearchService:
 
             # Add paper-specific fields
             if doc_type == "paper":
+                raw_doi = getattr(hit, "doi", None)
                 result.update(
                     {
                         "authors": [
                             author.get("full_name", "")
                             for author in getattr(hit, "raw_authors", [])
                         ],
-                        "doi": getattr(hit, "doi", None),
+                        "doi": DOI.normalize_doi(raw_doi) if raw_doi else None,
                         "citations": getattr(hit, "citations", 0),
-                        "is_open_access": getattr(hit, "is_open_access", None),
                         "paper_publish_date": getattr(hit, "paper_publish_date", None),
                     }
                 )

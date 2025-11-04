@@ -110,6 +110,7 @@ class PaperDocument(BaseDocument):
             phrases.append(instance.external_source)
             phrases.extend(journal_words)
 
+        # TODO "chore:" PR to remove this? We should not be indexing openalex data any longer.
         # Variation of OpenAlex keywords which may be searched by users
         try:
             oa_data = instance.open_alex_raw_json

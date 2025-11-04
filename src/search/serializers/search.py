@@ -69,7 +69,6 @@ class DocumentResultSerializer(serializers.Serializer):
     # Paper-specific fields
     doi = serializers.CharField(allow_null=True, required=False)
     citations = serializers.IntegerField(required=False)
-    is_open_access = serializers.BooleanField(allow_null=True, required=False)
 
     # Post-specific fields
     slug = serializers.CharField(allow_null=True, required=False)

@@ -140,7 +140,6 @@ class UnifiedSearchServiceTests(TestCase):
         mock_hit.raw_authors = [{"full_name": "John Doe"}]
         mock_hit.doi = "10.1234/test"
         mock_hit.citations = 42
-        mock_hit.is_open_access = True
         mock_hit.paper_publish_date = "2023-12-01"
         mock_hit.hubs = [{"id": 1, "name": "AI", "slug": "ai"}]
         mock_hit.meta.highlight = None
@@ -155,9 +154,8 @@ class UnifiedSearchServiceTests(TestCase):
         self.assertEqual(result["id"], "123")
         self.assertEqual(result["type"], "paper")
         self.assertEqual(result["title"], "Test Paper")
-        self.assertEqual(result["doi"], "10.1234/test")
+        self.assertEqual(result["doi"], "https://doi.org/10.1234/test")
         self.assertEqual(result["citations"], 42)
-        self.assertTrue(result["is_open_access"])
         self.assertEqual(len(result["hubs"]), 1)
 
     def test_process_document_results_post(self):
