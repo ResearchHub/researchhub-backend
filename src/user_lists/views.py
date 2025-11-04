@@ -1,16 +1,14 @@
 from django.db import IntegrityError
 from django.utils import timezone
-from rest_framework import status, viewsets
+from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.mixins import CreateModelMixin, DestroyModelMixin, ListModelMixin, RetrieveModelMixin, UpdateModelMixin
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.serializers import ValidationError
 
 from researchhub.permissions import IsObjectOwner
 
 from .models import List, ListItem
-from .serializers import ListItemDetailSerializer, ListItemSerializer, ListSerializer
+from .serializers import ListDetailSerializer, ListItemDetailSerializer, ListItemSerializer, ListSerializer
 
 
 def _update_list_timestamp(list_obj, user):
@@ -20,20 +18,23 @@ def _update_list_timestamp(list_obj, user):
 
 
 def _handle_integrity_error_list_name():
-    raise ValidationError({"name": "A list with this name already exists."})
+    raise serializers.ValidationError({"name": "A list with this name already exists."})
 
 
 def _handle_integrity_error_item():
-    raise ValidationError({"error": "Item already exists in this list."})
+    raise serializers.ValidationError({"error": "Item already exists in this list."})
 
 
-class ListViewSet(CreateModelMixin, UpdateModelMixin, DestroyModelMixin, viewsets.GenericViewSet):
+class ListViewSet(viewsets.ModelViewSet):
     queryset = List.objects.filter(is_removed=False)
     serializer_class = ListSerializer
     permission_classes = [IsAuthenticated, IsObjectOwner]
 
     def get_queryset(self):
         return self.queryset.filter(created_by=self.request.user)
+
+    def get_serializer_class(self):
+        return ListDetailSerializer if self.action == "retrieve" else ListSerializer
 
     def perform_create(self, serializer):
         try:
@@ -55,14 +56,7 @@ class ListViewSet(CreateModelMixin, UpdateModelMixin, DestroyModelMixin, viewset
         return Response({"success": True}, status=status.HTTP_200_OK)
 
 
-class ListItemViewSet(
-    CreateModelMixin,
-    RetrieveModelMixin,
-    UpdateModelMixin,
-    DestroyModelMixin,
-    ListModelMixin,
-    viewsets.GenericViewSet,
-):
+class ListItemViewSet(viewsets.ModelViewSet):
     queryset = ListItem.objects.filter(is_removed=False)
     serializer_class = ListItemSerializer
     permission_classes = [IsAuthenticated, IsObjectOwner]
@@ -83,7 +77,7 @@ class ListItemViewSet(
 
     def _validate_parent_list(self, parent_list):
         if parent_list.created_by != self.request.user or parent_list.is_removed:
-            raise ValidationError({"parent_list": "List not found or you don't have permission."})
+            raise serializers.ValidationError({"parent_list": "List not found or you don't have permission."})
 
     def _get_or_create_item(self, serializer, created_by):
         parent_list = serializer.validated_data.get("parent_list")
@@ -166,4 +160,3 @@ class ListItemViewSet(
         list_item.delete()
         _update_list_timestamp(parent_list, request.user)
         return Response({"success": True}, status=status.HTTP_200_OK)
-

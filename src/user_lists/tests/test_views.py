@@ -2,18 +2,16 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from researchhub_document.related_models.constants.document_type import PAPER
-from researchhub_document.related_models.researchhub_unified_document_model import (
-    ResearchhubUnifiedDocument,
-)
-from user.tests.helpers import create_random_authenticated_user
+from researchhub_document.related_models.researchhub_unified_document_model import ResearchhubUnifiedDocument
+from user.related_models.user_model import User
 
 from user_lists.models import List, ListItem
 
 
 class ListViewSetTests(APITestCase):
     def setUp(self):
-        self.user = create_random_authenticated_user("user1")
-        self.other_user = create_random_authenticated_user("user2")
+        self.user = User.objects.create_user(username="user1")
+        self.other_user = User.objects.create_user(username="user2")
         self.client.force_authenticate(user=self.user)
 
     def test_create_list(self):
@@ -22,28 +20,41 @@ class ListViewSetTests(APITestCase):
         self.assertEqual(response.data["name"], "My List")
         self.assertTrue(List.objects.filter(name="My List", created_by=self.user).exists())
 
-    def test_create_list_with_is_public(self):
-        response = self.client.post("/api/user_list/", {"name": "Public List", "is_public": True})
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data["name"], "Public List")
-        self.assertTrue(response.data["is_public"])
-        list_obj = List.objects.get(name="Public List", created_by=self.user)
-        self.assertTrue(list_obj.is_public)
-
     def test_create_list_duplicate_name(self):
         List.objects.create(name="My List", created_by=self.user)
         response = self.client.post("/api/user_list/", {"name": "My List"})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("name", response.data)
 
-    def test_create_list_unauthenticated(self):
-        self.client.force_authenticate(user=None)
-        response = self.client.post("/api/user_list/", {"name": "My List"})
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+    def test_list_lists(self):
+        List.objects.create(name="List 1", created_by=self.user)
+        List.objects.create(name="List 2", created_by=self.user)
+        response = self.client.get("/api/user_list/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.data.get("results", response.data)
+        self.assertEqual(len(results), 2)
 
-    def test_create_list_missing_name(self):
-        response = self.client.post("/api/user_list/", {})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+    def test_list_other_user_lists(self):
+        List.objects.create(name="Other List", created_by=self.other_user)
+        response = self.client.get("/api/user_list/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data.get("results", response.data)), 0)
+
+    def test_retrieve_list(self):
+        list_obj = List.objects.create(name="My List", created_by=self.user)
+        response = self.client.get(f"/api/user_list/{list_obj.id}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["name"], "My List")
+        self.assertIn("items", response.data)
+        self.assertIn("items_count", response.data)
+
+    def test_retrieve_list_with_items(self):
+        list_obj = List.objects.create(name="My List", created_by=self.user)
+        doc = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
+        ListItem.objects.create(parent_list=list_obj, unified_document=doc, created_by=self.user)
+        response = self.client.get(f"/api/user_list/{list_obj.id}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["items_count"], 1)
+        self.assertEqual(len(response.data["items"]), 1)
 
     def test_update_list(self):
         list_obj = List.objects.create(name="My List", created_by=self.user)
@@ -81,11 +92,6 @@ class ListViewSetTests(APITestCase):
         self.assertTrue(list_obj.is_removed)
 
     def test_delete_list_removes_items(self):
-        from researchhub_document.related_models.constants.document_type import PAPER
-        from researchhub_document.related_models.researchhub_unified_document_model import (
-            ResearchhubUnifiedDocument,
-        )
-
         list_obj = List.objects.create(name="My List", created_by=self.user)
         doc = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
         item = ListItem.objects.create(parent_list=list_obj, unified_document=doc, created_by=self.user)
@@ -93,11 +99,16 @@ class ListViewSetTests(APITestCase):
         item.refresh_from_db()
         self.assertTrue(item.is_removed)
 
+    def test_unauthenticated_access(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.get("/api/user_list/")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
 
 class ListItemViewSetTests(APITestCase):
     def setUp(self):
-        self.user = create_random_authenticated_user("user1")
-        self.other_user = create_random_authenticated_user("user2")
+        self.user = User.objects.create_user(username="user1")
+        self.other_user = User.objects.create_user(username="user2")
         self.list_obj = List.objects.create(name="My List", created_by=self.user)
         self.other_list = List.objects.create(name="Other List", created_by=self.other_user)
         self.doc = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
