@@ -27,14 +27,14 @@ class ListViewSet(viewsets.ModelViewSet):
         try:
             serializer.save(created_by=self.request.user)
         except IntegrityError:
-            raise serializers.ValidationError({"name": "A list with this name already exists."})
+            raise serializers.ValidationError({"error": "A list with this name already exists."})
 
     def perform_update(self, serializer):
         try:
             instance = serializer.save(updated_by=self.request.user)
             instance.update_timestamp(self.request.user)
         except IntegrityError:
-            raise serializers.ValidationError({"name": "A list with this name already exists."})
+            raise serializers.ValidationError({"error": "A list with this name already exists."})
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
