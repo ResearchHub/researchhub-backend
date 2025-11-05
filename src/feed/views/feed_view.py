@@ -244,7 +244,7 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
                 request.query_params.get("page_size", self.pagination_class.page_size)
             )
             # Request more items to account for items to avoid multiple requests
-            num_results = min(page_size * 3, 100)
+            num_results = min(page_size * 8, 200)
 
             item_ids = self.personalize_client.get_recommendations_for_user(
                 user_id=user_id,
