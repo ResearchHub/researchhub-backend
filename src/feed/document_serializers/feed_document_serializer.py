@@ -32,10 +32,17 @@ class FeedEntryDocumentSerializer(ElasticsearchSerializer):
         )
 
     def get_author(self, obj):
-        """Return author data only if feed entry has an associated user"""
-        user = getattr(obj, "user", None)
-        if user and hasattr(user, "author_profile"):
-            return SimpleAuthorSerializer(user.author_profile).data
+        """
+        Return author data from OpenSearch document.
+        In OpenSearch, author is already prepared as a dict.
+        """
+        author = getattr(obj, "author", None)
+        if author:
+            # OpenSearch returns AttrDict/dict, convert to plain dict
+            if hasattr(author, "to_dict"):
+                return author.to_dict()
+            elif isinstance(author, dict):
+                return author
         return None
 
     def get_hot_score_v2(self, obj):
@@ -43,7 +50,13 @@ class FeedEntryDocumentSerializer(ElasticsearchSerializer):
         return getattr(obj, "hot_score", 0)
 
     def get_hot_score_breakdown(self, obj):
-        """Return hot score breakdown if explicitly requested via query param."""
+        """
+        Return hot score breakdown if explicitly requested via query param.
+
+        NOTE: hot_score_v2_breakdown is NOT stored in OpenSearch, only in the database.
+        For v2 endpoint, this will always return None until the field is added to
+        the OpenSearch document.
+        """
         request = self.context.get("request")
         if not request:
             return None
@@ -53,7 +66,8 @@ class FeedEntryDocumentSerializer(ElasticsearchSerializer):
         if include.lower() != "true":
             return None
 
-        # Return stored breakdown (already calculated)
+        # This field doesn't exist in OpenSearch document
+        # Would need to add to FeedEntryDocument and re-index
         hot_score_breakdown = getattr(obj, "hot_score_v2_breakdown", None)
         return hot_score_breakdown if hot_score_breakdown else None
 
@@ -61,17 +75,27 @@ class FeedEntryDocumentSerializer(ElasticsearchSerializer):
         """
         Return external_metadata from Paper if content is a Paper.
         Returns None for non-paper content.
+
+        NOTE: external_metadata is NOT stored in the OpenSearch content JSON.
+        The PaperSerializer doesn't include it when serializing content.
+        For v2 endpoint, this will return None unless external_metadata is added to
+        the OpenSearch document or included in the content serialization.
         """
         content_type = getattr(obj, "content_type", None)
         if content_type and content_type.model == "paper":
             content = self.get_content_object(obj)
             if content and isinstance(content, dict):
+                # Try to get it from content, but it's likely not there
                 return content.get("external_metadata")
         return None
 
     def get_content_object(self, obj):
         """
         Get the content field and deserialize it from JSON string.
+
+        In OpenSearch, content is stored as a TextField (JSON string) via
+        FeedEntryDocument.prepare_content() which calls json.dumps().
+        This method deserializes it back to a dict.
         """
         content = getattr(obj, "content", None)
         if not content:
