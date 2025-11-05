@@ -6,6 +6,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.utils import timezone
 
+from analytics.tasks import track_revenue_event
 from paper.related_models.paper_model import Paper
 from purchase.related_models.balance_model import Balance
 from purchase.related_models.payment_model import (
@@ -168,7 +169,7 @@ class PaymentService:
 
             paper_id = checkout_session["metadata"]["paper_id"]
 
-            return Payment.objects.create(
+            payment = Payment.objects.create(
                 amount=checkout_session["amount_total"],
                 currency=checkout_session["currency"].upper(),
                 external_payment_id=checkout_session["payment_intent"],
@@ -178,6 +179,30 @@ class PaymentService:
                 content_type=ContentType.objects.get_for_model(Paper),
                 user_id=int(user_id),
             )
+
+            # Track revenue event for APC fee
+            usd_amount = checkout_session["amount_total"] / 100
+            track_revenue_event.apply_async(
+                (
+                    int(user_id),
+                    "RHJ_APC_FEE",
+                    "0",
+                    f"{usd_amount:.2f}",
+                    "OFF_CHAIN",
+                    ContentType.objects.get_for_model(Paper).model,
+                    str(paper_id),
+                    {
+                        "currency": checkout_session["currency"].upper(),
+                        "payment_processor": "STRIPE",
+                        "stripe_payment_intent": checkout_session["payment_intent"],
+                        "checkout_session_id": checkout_session["id"],
+                        "payment_id": payment.id,
+                    },
+                ),
+                priority=1,
+            )
+
+            return payment
 
         else:
             raise ValueError(f"Unknown payment purpose: {purpose}")

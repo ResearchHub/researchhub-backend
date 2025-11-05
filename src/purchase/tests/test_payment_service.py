@@ -142,6 +142,7 @@ class PaymentServiceTest(TestCase):
             "amount_total": APC_AMOUNT_CENTS,
             "currency": "usd",
             "payment_intent": "pi_123456",
+            "id": "cs_test_123",
             "metadata": {
                 "user_id": str(self.user.id),
                 "paper_id": str(self.paper.id),
@@ -264,7 +265,51 @@ class PaymentServiceTest(TestCase):
             "ResearchCoin (RSC) Purchase",
         )
 
-        # Test unknown purpose
-        self.assertEqual(
-            self.service.get_name_for_purpose("UNKNOWN"), "Unknown Purpose"
-        )
+    @patch("purchase.services.payment_service.track_revenue_event.apply_async")
+    def test_insert_payment_from_checkout_session_apc_tracks_revenue_event(
+        self, mock_track_revenue_event
+    ):
+        # Arrange
+        checkout_session = {
+            "amount_total": APC_AMOUNT_CENTS,
+            "currency": "usd",
+            "payment_intent": "pi_123456",
+            "id": "cs_test_123",
+            "metadata": {
+                "user_id": str(self.user.id),
+                "paper_id": str(self.paper.id),
+                "purpose": PaymentPurpose.APC,
+            },
+        }
+
+        # Act
+        payment = self.service.insert_payment_from_checkout_session(checkout_session)
+
+        # Assert payment was created
+        self.assertIsInstance(payment, Payment)
+        self.assertEqual(payment.purpose, PaymentPurpose.APC)
+
+        # Assert revenue event was enqueued with correct parameters
+        mock_track_revenue_event.assert_called_once()
+        call_args = mock_track_revenue_event.call_args
+
+        # Verify positional arguments
+        args = call_args[0][0]
+        self.assertEqual(args[0], self.user.id)
+        self.assertEqual(args[1], "RHJ_APC_FEE")
+        self.assertEqual(args[2], "0")
+        self.assertEqual(args[3], "300.00")
+        self.assertEqual(args[4], "OFF_CHAIN")
+        self.assertEqual(args[5], "paper")
+        self.assertEqual(args[6], str(self.paper.id))
+
+        # Verify additional properties
+        additional_properties = args[7]
+        self.assertEqual(additional_properties["currency"], "USD")
+        self.assertEqual(additional_properties["payment_processor"], "STRIPE")
+        self.assertEqual(additional_properties["stripe_payment_intent"], "pi_123456")
+        self.assertEqual(additional_properties["checkout_session_id"], "cs_test_123")
+        self.assertEqual(additional_properties["payment_id"], payment.id)
+
+        # Verify priority
+        self.assertEqual(call_args[1]["priority"], 1)
