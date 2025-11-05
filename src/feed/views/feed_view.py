@@ -215,12 +215,11 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
             # Initialize Personalize client
             personalize_client = PersonalizeClient()
 
-            # Get recommendations from AWS Personalize
-            # Request more items than page size to account for items that might not exist
             page_size = int(
                 request.query_params.get("page_size", self.pagination_class.page_size)
             )
-            num_results = min(page_size * 3, 100)  # Request up to 3x page size, max 100
+            # Request more items than page size to account for items that might not exist
+            num_results = min(page_size * 3, 100)
 
             item_ids = personalize_client.get_recommendations_for_user(
                 user_id=request.user.id,
@@ -234,15 +233,12 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
                     {"count": 0, "next": None, "previous": None, "results": []}
                 )
 
-            # Get queryset filtered by personalized item IDs
             queryset = self.get_queryset_for_personalized(item_ids)
 
-            # Paginate the results
             page = self.paginate_queryset(queryset)
             serializer = self.get_serializer(page, many=True)
             response = self.get_paginated_response(serializer.data)
 
-            # Add user votes to response
             self.add_user_votes_to_response(request.user, response.data)
 
             return response
