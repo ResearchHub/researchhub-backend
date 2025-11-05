@@ -85,7 +85,7 @@ def get_url_headers(url: str) -> requests.structures.CaseInsensitiveDict:
     return response.headers
 
 
-def scraper_get_url(url: str) -> requests.structures.CaseInsensitiveDict:
+def scraper_get_url(url: str) -> requests.Response:
     """
     Perform a GET request to retrieve the response headers
     for `url`. If `url` is invalid or returns a bad status code,
