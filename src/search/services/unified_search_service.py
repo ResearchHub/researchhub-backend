@@ -256,7 +256,7 @@ class UnifiedSearchService:
             ],
             type="best_fields",
             fuzziness="AUTO",
-            operator="or",
+            operator="and",
         )
 
     def _build_person_query(self, query: str) -> Q:
