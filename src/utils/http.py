@@ -109,14 +109,14 @@ def check_url_contains_pdf(url) -> bool:
     if url is None:
         return False
     try:
-        resp = scraper_get_url(url)
-        if "sciencedirect" in url and "download=false" in url:
-            return resp.status_code < 400
+        with scraper_get_url(url) as resp:
+            if "sciencedirect" in url and "download=false" in url:
+                return resp.status_code < 400
 
-        headers = resp.headers
-        content_type = headers.get("content-type", "")
-        filename = headers.get("filename", "")
-        return "application/pdf" in content_type or ".pdf" in filename
+            headers = resp.headers
+            content_type = headers.get("content-type", "")
+            filename = headers.get("filename", "")
+            return "application/pdf" in content_type or ".pdf" in filename
     except Exception:
         return False
 
