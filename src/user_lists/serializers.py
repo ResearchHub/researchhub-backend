@@ -68,10 +68,10 @@ class ListSerializer(DefaultAuthenticatedSerializer):
         read_only_fields = ["id", "created_date", "updated_date", "created_by"]
 
     def get_items_count(self, obj):
-        return obj.items.filter(is_removed=False).count()
+        return obj.active_items.count()
 
     def _get_list_doc_ids(self, obj):
-        return list(obj.items.filter(is_removed=False).values_list("unified_document_id", flat=True).distinct())
+        return list(obj.active_items.values_list("unified_document_id", flat=True).distinct())
 
     def _get_author_doc_count(self, author, paper_doc_ids, post_doc_ids, post_ids):
         doc_ids_set = set()
@@ -156,6 +156,22 @@ class ListItemSerializer(DefaultAuthenticatedSerializer):
         model = ListItem
         fields = ["id", "parent_list", "unified_document", "created_date", "created_by"]
         read_only_fields = ["id", "created_date", "created_by"]
+
+    def validate_parent_list(self, value):
+        request = self.context.get("request")
+        if not value.can_be_accessed_by(request.user):
+            raise serializers.ValidationError("List not found or you don't have permission.")
+        return value
+
+    def validate(self, attrs):
+        parent_list = attrs.get("parent_list") or self.instance.parent_list if self.instance else None
+        unified_document = attrs.get("unified_document") or self.instance.unified_document if self.instance else None
+        
+        if parent_list and unified_document:
+            existing = ListItem.find_existing(parent_list, unified_document)
+            if existing and (not self.instance or existing.id != self.instance.id):
+                raise serializers.ValidationError({"error": "Item already exists in this list."})
+        return attrs
 
 
 _UNIFIED_DOC_CONTEXT = {
@@ -266,10 +282,8 @@ class ListDetailSerializer(ListSerializer):
         fields = ListSerializer.Meta.fields + ["items"]
 
     def get_items(self, obj):
-        # Return first page (20 items) for the retrieve endpoint
-        # For full pagination, use GET /user_list_item/?parent_list=<id>
         from feed.views.common import FeedPagination
         paginator = FeedPagination()
-        items_queryset = obj.items.filter(is_removed=False).order_by("-created_date")
+        items_queryset = obj.active_items.order_by("-created_date")
         paginated_items = list(items_queryset[:paginator.page_size])
         return ListItemDetailSerializer(paginated_items, many=True, context=self.context).data
