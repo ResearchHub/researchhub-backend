@@ -6,6 +6,8 @@ import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
+from django.conf import settings
+
 from utils.aws import create_client
 
 logger = logging.getLogger(__name__)
@@ -16,16 +18,13 @@ class PersonalizeClient:
     Client for interacting with AWS Personalize to get personalized recommendations.
     """
 
-    # AWS Personalize Configuration
-    CAMPAIGN_ARN = "arn:aws:personalize:us-west-2:975049929542:campaign/for-your"
-    FILTER_ARN_GTE_DATE = (
-        "arn:aws:personalize:us-west-2:975049929542:filter/filter-gte-date"
-    )
     NEW_CONTENT_FILTER_DAYS = 60
 
     def __init__(self):
         """Initialize the Personalize runtime client."""
         self.client = create_client("personalize-runtime")
+        self.campaign_arn = settings.AWS_PERSONALIZE_CAMPAIGN_ARN
+        self.filter_arn_gte_date = settings.AWS_PERSONALIZE_FILTER_ARN_GTE_DATE
 
     def get_recommendations(
         self,
@@ -51,7 +50,8 @@ class PersonalizeClient:
                 params["filterValues"] = filter_values
 
             logger.info(
-                f"Requesting recommendations for user {user_id} from campaign {campaign_arn}"
+                f"Requesting recommendations for user {user_id} "
+                f"from campaign {campaign_arn}"
             )
 
             response = self.client.get_recommendations(**params)
@@ -66,7 +66,8 @@ class PersonalizeClient:
 
         except Exception as e:
             logger.error(
-                f"Error getting recommendations from Personalize for user {user_id}: {str(e)}"
+                f"Error getting recommendations from Personalize "
+                f"for user {user_id}: {str(e)}"
             )
             raise
 
@@ -82,13 +83,13 @@ class PersonalizeClient:
         filter_arn = None
         filter_values = None
 
-        # Apply filter-specific filtering
+        # Apply filtering
         if filter == "new-content":
             # Filter to content from last N days
             cutoff_date = datetime.now() - timedelta(days=self.NEW_CONTENT_FILTER_DAYS)
             timestamp_cutoff = int(cutoff_date.timestamp())
 
-            filter_arn = self.FILTER_ARN_GTE_DATE
+            filter_arn = self.filter_arn_gte_date
             filter_values = {"DATE": str(timestamp_cutoff)}
 
             logger.info(
@@ -99,7 +100,7 @@ class PersonalizeClient:
 
         return self.get_recommendations(
             user_id=user_id,
-            campaign_arn=self.CAMPAIGN_ARN,
+            campaign_arn=self.campaign_arn,
             filter_arn=filter_arn,
             filter_values=filter_values,
             num_results=num_results,

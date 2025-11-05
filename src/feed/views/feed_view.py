@@ -6,7 +6,6 @@ import logging
 
 from django.conf import settings
 from django.core.cache import cache
-from django.db import models
 from django.db.models import Case, IntegerField, Value, When
 from rest_framework import status
 from rest_framework.decorators import action
@@ -35,6 +34,10 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
     permission_classes = []
     pagination_class = FeedPagination
     cache_enabled = settings.TESTING or settings.CLOUD
+
+    def dispatch(self, request, *args, **kwargs):
+        self.personalize_client = kwargs.pop("personalize_client", PersonalizeClient())
+        return super().dispatch(request, *args, **kwargs)
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -177,7 +180,7 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
 
         return queryset.distinct()
 
-    def get_queryset_for_personalized(self, item_ids):
+    def _get_queryset_for_personalized(self, item_ids):
         """
         Get FeedEntry queryset for personalized recommendations.
 
@@ -212,35 +215,25 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
         Get personalized feed entries for the authenticated user using AWS Personalize.
         """
         try:
-            # Initialize Personalize client
-            personalize_client = PersonalizeClient()
-
             page_size = int(
                 request.query_params.get("page_size", self.pagination_class.page_size)
             )
-            # Request more items than page size to account for items that might not exist
+            # Request more items to account for items to avoid multiple requests
             num_results = min(page_size * 3, 100)
 
-            item_ids = personalize_client.get_recommendations_for_user(
+            item_ids = self.personalize_client.get_recommendations_for_user(
                 user_id=request.user.id,
                 filter=request.query_params.get("filter"),
                 num_results=num_results,
             )
 
-            if not item_ids:
-                logger.info(f"No recommendations returned for user {request.user.id}")
-                return Response(
-                    {"count": 0, "next": None, "previous": None, "results": []}
-                )
-
-            queryset = self.get_queryset_for_personalized(item_ids)
+            queryset = self._get_queryset_for_personalized(item_ids)
 
             page = self.paginate_queryset(queryset)
             serializer = self.get_serializer(page, many=True)
             response = self.get_paginated_response(serializer.data)
 
             self.add_user_votes_to_response(request.user, response.data)
-
             return response
 
         except Exception as e:
