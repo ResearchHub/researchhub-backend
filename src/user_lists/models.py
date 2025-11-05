@@ -9,7 +9,7 @@ class List(DefaultAuthenticatedModel, SoftDeletableModel):
     is_public = models.BooleanField(default=False)
 
     class Meta:
-        ordering = ["name"]
+        ordering = ["-updated_date"]
         constraints = [
             models.UniqueConstraint(
                 fields=["created_by", "name"],

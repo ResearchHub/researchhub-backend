@@ -5,6 +5,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from feed.views.common import FeedPagination
 from researchhub.permissions import IsObjectOwner
 
 from .models import List, ListItem
@@ -29,9 +30,10 @@ class ListViewSet(viewsets.ModelViewSet):
     queryset = List.objects.filter(is_removed=False)
     serializer_class = ListSerializer
     permission_classes = [IsAuthenticated, IsObjectOwner]
+    pagination_class = FeedPagination
 
     def get_queryset(self):
-        return self.queryset.filter(created_by=self.request.user)
+        return self.queryset.filter(created_by=self.request.user).order_by("-updated_date")
 
     def get_serializer_class(self):
         return ListDetailSerializer if self.action == "retrieve" else ListSerializer
@@ -55,14 +57,46 @@ class ListViewSet(viewsets.ModelViewSet):
         instance.items.filter(is_removed=False).delete()
         return Response({"success": True}, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=["get"], url_path="user_check")
+    def user_check(self, request):
+        """
+        Lightweight endpoint to get user's lists with item IDs for quick frontend checks.
+        Returns lists with their item IDs and unified_document IDs so the frontend can:
+        - Know what lists the user has
+        - Check if an item already exists in a list
+        - Get the ListItem ID needed to remove an item
+        """
+        user_lists = self.get_queryset().prefetch_related("items")
+        
+        lists_data = []
+        for list_obj in user_lists:
+            items = list_obj.items.filter(is_removed=False).order_by("-created_date")
+            items_data = [
+                {
+                    "id": item.id,  # ListItem ID for removal
+                    "unified_document_id": item.unified_document_id,  # For checking if doc exists in list
+                }
+                for item in items
+            ]
+            
+            lists_data.append({
+                "id": list_obj.id,
+                "name": list_obj.name,
+                "is_public": list_obj.is_public,
+                "items": items_data,
+            })
+        
+        return Response({"lists": lists_data}, status=status.HTTP_200_OK)
+
 
 class ListItemViewSet(viewsets.ModelViewSet):
     queryset = ListItem.objects.filter(is_removed=False)
     serializer_class = ListItemSerializer
     permission_classes = [IsAuthenticated, IsObjectOwner]
+    pagination_class = FeedPagination
 
     def get_queryset(self):
-        queryset = self.queryset.filter(created_by=self.request.user)
+        queryset = self.queryset.filter(created_by=self.request.user).order_by("-created_date")
         parent_list_id = self.request.query_params.get("parent_list")
         if parent_list_id:
             queryset = queryset.filter(

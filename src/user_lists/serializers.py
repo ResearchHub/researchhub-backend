@@ -266,4 +266,10 @@ class ListDetailSerializer(ListSerializer):
         fields = ListSerializer.Meta.fields + ["items"]
 
     def get_items(self, obj):
-        return ListItemDetailSerializer(obj.items.filter(is_removed=False), many=True, context=self.context).data
+        # Return first page (20 items) for the retrieve endpoint
+        # For full pagination, use GET /user_list_item/?parent_list=<id>
+        from feed.views.common import FeedPagination
+        paginator = FeedPagination()
+        items_queryset = obj.items.filter(is_removed=False).order_by("-created_date")
+        paginated_items = list(items_queryset[:paginator.page_size])
+        return ListItemDetailSerializer(paginated_items, many=True, context=self.context).data
