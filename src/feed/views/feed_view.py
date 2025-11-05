@@ -197,6 +197,12 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
 
         queryset = (
             FeedEntry.objects.filter(unified_document_id__in=item_ids)
+            .filter(
+                content_type__in=[
+                    self._paper_content_type,
+                    self._post_content_type,
+                ]
+            )
             .order_by(Case(*preserved_order, output_field=IntegerField()))
             .select_related(
                 "content_type",
