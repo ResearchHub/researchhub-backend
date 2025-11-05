@@ -756,6 +756,16 @@ class TestChemRxivMapper(TestCase):
         self.assertIn(chemistry_hub, hubs)
         self.assertIn(self.chemrxiv_hub, hubs)
 
+        # Verify category mapping was called with correct parameters
+        mock_hub_mapper.map.assert_any_call(
+            source_category="Theoretical and Computational Chemistry",
+            source="chemrxiv",
+        )
+        mock_hub_mapper.map.assert_any_call(
+            source_category="Computational Chemistry and Modeling",
+            source="chemrxiv",
+        )
+
     def test_map_to_hubs_without_hub_mapper(self):
         """
         Test map_to_hubs falls back to default behavior without hub_mapper,
