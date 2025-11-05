@@ -92,9 +92,10 @@ def scraper_get_url(url: str, timeout: int = 5) -> requests.Response:
     a subclass of `requests.exceptions.RequestException` will be raised.
     """
     scraper = cloudscraper.create_scraper()
-    response = scraper.get(url, timeout=timeout)
+
+    response = scraper.get(url, timeout=timeout, stream=True)
     if (response.status_code == 404) or (response.status_code == 403):
-        response = scraper.get(url, timeout=timeout)
+        response = scraper.get(url, timeout=timeout, stream=True)
         response.raise_for_status()
     return response
 
