@@ -271,13 +271,13 @@ class UnifiedSearchViewTests(TestCase):
         # Mock request
         request = Mock()
         request.path = "/api/search/"
-        request.build_absolute_uri = lambda path: f"http://testserver{path}"
+        request.build_absolute_uri = lambda path: f"https://testserver{path}"
 
         # Build URL for page 2
         url = service._build_page_url(request, "test query", 2, 10, "relevance")
 
         # Verify URL structure
-        self.assertIn("http://testserver/api/search/", url)
+        self.assertIn("https://testserver/api/search/", url)
         self.assertIn("q=test+query", url)
         self.assertIn("page=2", url)
         self.assertIn("page_size=10", url)
