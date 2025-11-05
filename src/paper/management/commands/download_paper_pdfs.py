@@ -35,7 +35,9 @@ class Command(BaseCommand):
             )
             .filter(Q(file__isnull=True) | Q(file=""))
             .exclude(Q(pdf_url__isnull=True) | Q(pdf_url=""))
-        ).order_by("created_date")
+            .only("id", "pdf_url")
+            .order_by("created_date")
+        )
 
         total_count = papers.count()
 
