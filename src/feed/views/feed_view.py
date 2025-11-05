@@ -2,20 +2,27 @@
 Standard feed view for ResearchHub.
 """
 
+import logging
+
 from django.conf import settings
 from django.core.cache import cache
 from django.db import models
-from django.db.models import Subquery
+from django.db.models import Case, IntegerField, Value, When
 from rest_framework import status
+from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
+from feed.clients.personalize_client import PersonalizeClient
 from feed.views.feed_view_mixin import FeedViewMixin
 from hub.models import Hub
 
 from ..models import FeedEntry
 from ..serializers import FeedEntrySerializer
 from .common import FeedPagination
+
+logger = logging.getLogger(__name__)
 
 
 class FeedViewSet(FeedViewMixin, ModelViewSet):
@@ -169,3 +176,82 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
             )
 
         return queryset.distinct()
+
+    def get_queryset_for_personalized(self, item_ids):
+        """
+        Get FeedEntry queryset for personalized recommendations.
+
+        """
+        if not item_ids:
+            return FeedEntry.objects.none()
+
+        item_ids = [int(item_id) for item_id in item_ids]
+
+        preserved_order = [
+            When(unified_document_id=item_id, then=Value(idx))
+            for idx, item_id in enumerate(item_ids)
+        ]
+
+        queryset = (
+            FeedEntry.objects.filter(unified_document_id__in=item_ids)
+            .order_by(Case(*preserved_order, output_field=IntegerField()))
+            .select_related(
+                "content_type",
+                "user",
+                "user__author_profile",
+                "user__userverification",
+            )
+            .distinct()
+        )
+
+        return queryset
+
+    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
+    def personalized(self, request):
+        """
+        Get personalized feed entries for the authenticated user using AWS Personalize.
+        """
+        try:
+            # Initialize Personalize client
+            personalize_client = PersonalizeClient()
+
+            # Get recommendations from AWS Personalize
+            # Request more items than page size to account for items that might not exist
+            page_size = int(
+                request.query_params.get("page_size", self.pagination_class.page_size)
+            )
+            num_results = min(page_size * 3, 100)  # Request up to 3x page size, max 100
+
+            item_ids = personalize_client.get_recommendations_for_user(
+                user_id=request.user.id,
+                filter=request.query_params.get("filter"),
+                num_results=num_results,
+            )
+
+            if not item_ids:
+                logger.info(f"No recommendations returned for user {request.user.id}")
+                return Response(
+                    {"count": 0, "next": None, "previous": None, "results": []}
+                )
+
+            # Get queryset filtered by personalized item IDs
+            queryset = self.get_queryset_for_personalized(item_ids)
+
+            # Paginate the results
+            page = self.paginate_queryset(queryset)
+            serializer = self.get_serializer(page, many=True)
+            response = self.get_paginated_response(serializer.data)
+
+            # Add user votes to response
+            self.add_user_votes_to_response(request.user, response.data)
+
+            return response
+
+        except Exception as e:
+            logger.error(
+                f"Error getting personalized feed for user {request.user.id}: {str(e)}"
+            )
+            return Response(
+                {"error": "Failed to retrieve personalized recommendations"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
