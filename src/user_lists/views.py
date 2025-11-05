@@ -18,7 +18,7 @@ def _update_list_timestamp(list_obj, user):
 
 
 def _handle_integrity_error_list_name():
-    raise serializers.ValidationError({"name": "A list with this name already exists."})
+    raise serializers.ValidationError({"error": "A list with this name already exists."})
 
 
 def _handle_integrity_error_item():
