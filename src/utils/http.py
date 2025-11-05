@@ -85,16 +85,16 @@ def get_url_headers(url: str) -> requests.structures.CaseInsensitiveDict:
     return response.headers
 
 
-def scraper_get_url(url: str) -> requests.Response:
+def scraper_get_url(url: str, timeout: int = 5) -> requests.Response:
     """
     Perform a GET request to retrieve the response headers
     for `url`. If `url` is invalid or returns a bad status code,
     a subclass of `requests.exceptions.RequestException` will be raised.
     """
     scraper = cloudscraper.create_scraper()
-    response = scraper.get(url, timeout=2)
+    response = scraper.get(url, timeout=timeout)
     if (response.status_code == 404) or (response.status_code == 403):
-        response = scraper.get(url, timeout=2)
+        response = scraper.get(url, timeout=timeout)
         response.raise_for_status()
     return response
 
