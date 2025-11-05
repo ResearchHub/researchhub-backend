@@ -9,7 +9,7 @@ from django.core.cache import cache
 from django.db.models import Case, IntegerField, Value, When
 from rest_framework import status
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
@@ -209,12 +209,31 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
 
         return queryset
 
-    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
+    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def personalized(self, request):
         """
-        Get personalized feed entries for the authenticated user using AWS Personalize.
+        Get personalized feed entries for a user using AWS Personalize.
+
+        Accepts optional user_id parameter for testing purposes.
+        TODO: Remove user_id parameter and re-enable authentication requirement.
         """
         try:
+            # Get user_id from query params or authenticated user
+            user_id = request.query_params.get("user_id")
+            if user_id:
+                user_id = int(user_id)
+            elif request.user.is_authenticated:
+                user_id = request.user.id
+            else:
+                return Response(
+                    {
+                        "error": (
+                            "user_id parameter required for unauthenticated requests"
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
             page_size = int(
                 request.query_params.get("page_size", self.pagination_class.page_size)
             )
@@ -222,7 +241,7 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
             num_results = min(page_size * 3, 100)
 
             item_ids = self.personalize_client.get_recommendations_for_user(
-                user_id=request.user.id,
+                user_id=user_id,
                 filter=request.query_params.get("filter"),
                 num_results=num_results,
             )
@@ -233,12 +252,15 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
             serializer = self.get_serializer(page, many=True)
             response = self.get_paginated_response(serializer.data)
 
-            self.add_user_votes_to_response(request.user, response.data)
+            # Add user votes only if user is authenticated
+            if request.user.is_authenticated:
+                self.add_user_votes_to_response(request.user, response.data)
+
             return response
 
         except Exception as e:
             logger.error(
-                f"Error getting personalized feed for user {request.user.id}: {str(e)}"
+                f"Error getting personalized feed for user {user_id}: {str(e)}"
             )
             return Response(
                 {"error": "Failed to retrieve personalized recommendations"},
