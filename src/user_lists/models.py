@@ -36,6 +36,9 @@ class List(DefaultAuthenticatedModel, SoftDeletableModel):
         return self.items.filter(is_removed=False)
 
     def can_be_accessed_by(self, user):
+        return not self.is_removed
+
+    def can_be_modified_by(self, user):
         return self.created_by == user and not self.is_removed
 
 

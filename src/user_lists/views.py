@@ -1,24 +1,44 @@
 from django.db import IntegrityError
+from django.shortcuts import get_object_or_404
 from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import SAFE_METHODS, BasePermission
 from rest_framework.response import Response
 
 from feed.views.common import FeedPagination
-from researchhub.permissions import IsObjectOwner
 
 from .models import List, ListItem
 from .serializers import ListDetailSerializer, ListItemDetailSerializer, ListItemSerializer, ListSerializer
 
 
+class ListAccessPermission(BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_authenticated
+
+    def has_object_permission(self, request, view, obj):
+        if request.method in SAFE_METHODS:
+            return obj.can_be_accessed_by(request.user)
+        return obj.can_be_modified_by(request.user)
+
+
 class ListViewSet(viewsets.ModelViewSet):
     queryset = List.objects.filter(is_removed=False)
     serializer_class = ListSerializer
-    permission_classes = [IsAuthenticated, IsObjectOwner]
+    permission_classes = [ListAccessPermission]
     pagination_class = FeedPagination
 
     def get_queryset(self):
-        return self.queryset.filter(created_by=self.request.user).order_by("-updated_date")
+        if self.action == "list":
+            return self.queryset.filter(created_by=self.request.user).order_by("-updated_date")
+        return self.queryset.order_by("-updated_date")
+
+    def get_object(self):
+        queryset = self.queryset
+        lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
+        filter_kwargs = {self.lookup_field: self.kwargs[lookup_url_kwarg]}
+        obj = get_object_or_404(queryset, **filter_kwargs)
+        self.check_object_permissions(self.request, obj)
+        return obj
 
     def get_serializer_class(self):
         return ListDetailSerializer if self.action == "retrieve" else ListSerializer
@@ -49,32 +69,49 @@ class ListViewSet(viewsets.ModelViewSet):
             {
                 "id": list_instance.id,
                 "name": list_instance.name,
-                "is_public": list_instance.is_public,
+                "created_by": list_instance.created_by_id,
                 "items": [
                     {"id": item.id, "unified_document_id": item.unified_document_id}
                     for item in list_instance.active_items.order_by("-created_date")
                 ],
             }
-            for list_instance in self.get_queryset().prefetch_related("items")
+            for list_instance in self.get_queryset().filter(created_by=self.request.user).prefetch_related("items")
         ]
         return Response({"lists": lists_data}, status=status.HTTP_200_OK)
+
+
+class ListItemAccessPermission(BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_authenticated
+
+    def has_object_permission(self, request, view, obj):
+        if request.method in SAFE_METHODS:
+            return obj.parent_list.can_be_accessed_by(request.user)
+        return obj.created_by == request.user
 
 
 class ListItemViewSet(viewsets.ModelViewSet):
     queryset = ListItem.objects.filter(is_removed=False)
     serializer_class = ListItemSerializer
-    permission_classes = [IsAuthenticated, IsObjectOwner]
+    permission_classes = [ListItemAccessPermission]
     pagination_class = FeedPagination
 
     def get_queryset(self):
-        queryset = self.queryset.filter(created_by=self.request.user)
+        queryset = self.queryset
         if parent_list_id := self.request.query_params.get("parent_list"):
             queryset = queryset.filter(
                 parent_list_id=parent_list_id,
-                parent_list__created_by=self.request.user,
                 parent_list__is_removed=False,
             )
         return queryset.order_by("-created_date")
+
+    def get_object(self):
+        queryset = self.queryset
+        lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
+        filter_kwargs = {self.lookup_field: self.kwargs[lookup_url_kwarg]}
+        obj = get_object_or_404(queryset, **filter_kwargs)
+        self.check_object_permissions(self.request, obj)
+        return obj
 
     def get_serializer_class(self):
         return ListItemDetailSerializer if self.action in ["retrieve", "list"] else ListItemSerializer

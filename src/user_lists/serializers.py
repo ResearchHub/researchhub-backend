@@ -50,13 +50,13 @@ class ListSerializer(DefaultAuthenticatedSerializer):
     top_hubs = serializers.SerializerMethodField()
     top_topics = serializers.SerializerMethodField()
     items_count = serializers.SerializerMethodField()
+    created_by = serializers.PrimaryKeyRelatedField(read_only=True)
 
     class Meta:
         model = List
         fields = [
             "id",
             "name",
-            "is_public",
             "created_date",
             "updated_date",
             "created_by",
@@ -159,8 +159,8 @@ class ListItemSerializer(DefaultAuthenticatedSerializer):
 
     def validate_parent_list(self, value):
         request = self.context.get("request")
-        if not value.can_be_accessed_by(request.user):
-            raise serializers.ValidationError("List not found or you don't have permission.")
+        if not value.can_be_modified_by(request.user):
+            raise serializers.ValidationError("List not found or you don't have permission to modify.")
         return value
 
     def validate(self, attrs):
