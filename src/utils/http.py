@@ -1,3 +1,5 @@
+import random
+import time
 from urllib.parse import urlparse, urlunparse
 
 import cloudscraper
@@ -94,9 +96,12 @@ def scraper_get_url(url: str, timeout: int = 5) -> requests.Response:
     scraper = cloudscraper.create_scraper()
 
     response = scraper.get(url, timeout=timeout, stream=True)
-    if (response.status_code == 404) or (response.status_code == 403):
+    if response.status_code in (403, 404):
+        response.close()  # close previous response
+        time.sleep(random.uniform(0, 1))  # wait before retrying
         response = scraper.get(url, timeout=timeout, stream=True)
         response.raise_for_status()
+
     return response
 
 
