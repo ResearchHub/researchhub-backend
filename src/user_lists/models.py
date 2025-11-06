@@ -19,7 +19,6 @@ class List(DefaultAuthenticatedModel, SoftDeletableModel):
             )
         ]
         indexes = [
-            models.Index(fields=["created_by", "name", "is_removed"], name="idx_list_user_name_removed"),
             models.Index(fields=["created_by", "is_removed"], name="idx_list_user_removed"),
         ]
 
