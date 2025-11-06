@@ -13,7 +13,7 @@ MEDRXIV_MAPPINGS: Dict[str, Tuple[str, Optional[str]]] = {
     "dentistry and oral medicine": ("medicine", "dentistry"),
     "dermatology": ("medicine", "dermatology"),
     "emergency medicine": ("medicine", "emergency-medicine"),
-    "endocrinology (including diabetes mellitus and metabolic disease)": (
+    "endocrinology": (
         "medicine",
         "endocrinology",
     ),
@@ -27,8 +27,8 @@ MEDRXIV_MAPPINGS: Dict[str, Tuple[str, Optional[str]]] = {
     "health policy": ("medicine", "health-policy"),
     "health systems and quality improvement": ("medicine", "health-policy"),
     "hematology": ("medicine", "hematology"),
-    "hiv/aids": ("medicine", "infectious-disease"),
-    "infectious diseases (except hiv/aids)": ("medicine", "infectious-disease"),
+    "hiv aids": ("medicine", "infectious-disease"),
+    "infectious diseases": ("medicine", "infectious-disease"),
     "intensive care and critical care medicine": ("medicine", "critical-care-medicine"),
     "medical education": ("medicine", "medical-education"),
     "medical ethics": ("medicine", "medical-ethics"),
