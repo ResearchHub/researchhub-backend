@@ -46,9 +46,12 @@ class PersonalizeExportService:
         total_chunks = (total + self.chunk_size - 1) // self.chunk_size
         items_processed = 0
 
-        for chunk_num, chunk_start in enumerate(
-            range(0, total, self.chunk_size), start=1
-        ):
+        # Use ID-based pagination for better performance
+        last_id = 0
+        chunk_num = 0
+
+        while True:
+            chunk_num += 1
             chunk_timing = {"chunk_num": chunk_num}
 
             # Time chunk evaluation
@@ -56,7 +59,14 @@ class PersonalizeExportService:
                 reset_queries()
                 start = time.time()
 
-            chunk = list(queryset[chunk_start : chunk_start + self.chunk_size])
+            # Filter using ID-based pagination instead of offset
+            chunk = list(
+                queryset.filter(id__gt=last_id).order_by("id")[: self.chunk_size]
+            )
+
+            # Break if no more items
+            if not chunk:
+                break
 
             # Batch load papers for this chunk
             paper_doc_ids = [doc.id for doc in chunk if doc.document_type == "PAPER"]
@@ -94,6 +104,9 @@ class PersonalizeExportService:
             for item_row in processed_items:
                 yield item_row
                 items_processed += 1
+
+            # Update last_id to the last item's ID in this chunk
+            last_id = chunk[-1].id
 
             if progress_callback:
                 progress_callback(chunk_num, total_chunks, items_processed)
