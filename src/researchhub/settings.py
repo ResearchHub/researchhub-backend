@@ -865,3 +865,20 @@ RESEARCHHUB_JOURNAL_ID = os.environ.get(
 PAPER_INGESTION_ENABLED = (
     os.environ.get("PAPER_INGESTION_ENABLED", "false").lower() == "true"
 )
+
+# AWS Personalize
+if PRODUCTION:
+    AWS_PERSONALIZE_CAMPAIGN_ARN = (
+        "arn:aws:personalize:us-west-2:975049929542:campaign/for-your"
+    )
+    AWS_PERSONALIZE_FILTER_ARN_GTE_DATE = (
+        "arn:aws:personalize:us-west-2:975049929542:filter/filter-gte-date"
+    )
+else:
+    # Non-production environments use test campaign
+    AWS_PERSONALIZE_CAMPAIGN_ARN = (
+        "arn:aws:personalize:us-west-2:058264226692:campaign/Personalization"
+    )
+    AWS_PERSONALIZE_FILTER_ARN_GTE_DATE = (
+        "arn:aws:personalize:us-west-2:058264226692:filter/filter-gte-date"
+    )

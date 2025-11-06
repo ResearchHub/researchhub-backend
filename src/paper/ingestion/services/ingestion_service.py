@@ -343,6 +343,7 @@ class PaperIngestionService:
             "paper_publish_date",
             "raw_authors",
             "external_metadata",
+            "external_source",
             "pdf_license",
             "pdf_license_url",
             "pdf_url",

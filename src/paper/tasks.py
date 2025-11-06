@@ -14,12 +14,7 @@ from paper.ingestion.pipeline import (  # noqa: F401
     process_batch_task,
 )
 from paper.ingestion.tasks import update_recent_papers_with_metrics  # noqa: F401
-from paper.utils import (
-    get_cache_key,
-    get_csl_item,
-    get_pdf_from_url,
-    get_pdf_location_for_csl_item,
-)
+from paper.utils import download_pdf_from_url, get_cache_key
 from researchhub.celery import QUEUE_PAPER_MISC, app
 from utils import sentry
 from utils.http import check_url_contains_pdf
@@ -62,11 +57,8 @@ def download_pdf(paper_id, retry=0):
     if pdf_url_contains_pdf or paper_url_contains_pdf:
         pdf_url = paper_pdf_url or paper_url
         try:
-            pdf = get_pdf_from_url(pdf_url)
-            filename = pdf_url.split("/").pop()
-            if not filename.endswith(".pdf"):
-                filename += ".pdf"
-            paper.file.save(filename, pdf)
+            pdf = download_pdf_from_url(pdf_url)
+            paper.file.save(pdf.name, pdf, save=False)
             paper.save(update_fields=["file"])
             return True
         except Exception as e:
