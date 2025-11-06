@@ -31,6 +31,32 @@ class FeedEntryDocumentSerializer(ElasticsearchSerializer):
             "external_metadata",
         )
 
+    def to_representation(self, instance):
+        """
+        Override to properly serialize SerializerMethodFields.
+        The base ElasticsearchSerializer.to_representation() just converts
+        the document to a dict, bypassing SerializerMethodField processing.
+        """
+        # Get base document data
+        data = super().to_representation(instance)
+
+        # Build the final representation using declared fields
+        representation = {}
+        for field_name in self.Meta.fields:
+            # Get the field from the serializer
+            field = self.fields.get(field_name)
+
+            if field:
+                # Use the field's to_representation method
+                # For SerializerMethodField, this calls the get_* method
+                value = field.to_representation(field.get_attribute(instance))
+                representation[field_name] = value
+            elif field_name in data:
+                # Field not declared, use raw data from document
+                representation[field_name] = data[field_name]
+
+        return representation
+
     def get_author(self, obj):
         """
         Return author data from OpenSearch document.
