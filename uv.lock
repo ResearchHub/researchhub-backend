@@ -1052,17 +1052,27 @@ wheels = [
 ]
 
 [[package]]
+name = "ecs-logging"
+version = "2.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/40/9d/49b6b8ecd9b42ee61691ceea6b8757391f371f11df87315bf64240c04d2b/ecs_logging-2.2.0.tar.gz", hash = "sha256:1dc9e216f614129db0e6a2f9f926da4e4cf8edf8de16d1045a20aa8e950291d3", size = 7769, upload-time = "2024-06-28T07:23:20.162Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/26/b4/cdc7961ef5979080766c806b6da014352cbbc4ef6194785e6886988bf48e/ecs_logging-2.2.0-py3-none-any.whl", hash = "sha256:f6e22d267770b06f797076f49b5fcc9d97108b22f452f5f9ed4b5367b1e61b5b", size = 10443, upload-time = "2024-06-28T07:23:18.843Z" },
+]
+
+[[package]]
 name = "elastic-apm"
-version = "6.13.2"
+version = "6.24.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
+    { name = "ecs-logging" },
     { name = "urllib3" },
     { name = "wrapt" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8c/bd/774d13fed438cbf90aa8f076acc935d08dd9efca56b6f5146658a54cb798/elastic-apm-6.13.2.tar.gz", hash = "sha256:815ee9838f6db2db3ee83a31b8ff36ff291aac03c6ed24534280ced45a9cb3dc", size = 154025, upload-time = "2022-11-17T19:12:50.384Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/de/88/e53713207ac16cd8814d0ee912ca0969348daa26036d402bda7b2782ce2e/elastic_apm-6.24.0.tar.gz", hash = "sha256:9572e4b456d85474374cd137e6a1503d449f2cd363cd89220c50d03d386c36cd", size = 170168, upload-time = "2025-08-12T07:40:52.728Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/91/d3/00c2177fcc2bcc87185e69207680b68fc9d37a3c58c876fd94a997b6e78d/elastic_apm-6.13.2-py2.py3-none-any.whl", hash = "sha256:d672e51ef2dffa1a08d814e6b47d8d17144256d887dbc1734b2b9ce298f1208b", size = 311998, upload-time = "2022-11-17T19:12:52.817Z" },
+    { url = "https://files.pythonhosted.org/packages/69/c9/f05b8bd83025b0578ec5a5b52a5f5366290e36a2c104fc9046c00bcbbef7/elastic_apm-6.24.0-py2.py3-none-any.whl", hash = "sha256:db6bc5bb15b592bc14810aacf0eba11ace9d908d8c132fc760457686b34a033b", size = 352469, upload-time = "2025-08-12T07:40:50.498Z" },
 ]
 
 [[package]]
@@ -2962,7 +2972,7 @@ requires-dist = [
     { name = "django-storages", specifier = "==1.10.1" },
     { name = "djangorestframework", specifier = "==3.16.1" },
     { name = "djangorestframework-api-key", specifier = "==2.2" },
-    { name = "elastic-apm", specifier = "==6.13.2" },
+    { name = "elastic-apm", specifier = "==6.24.0" },
     { name = "flower", specifier = ">=2.0.1,<3.0.0" },
     { name = "google-api-python-client", specifier = "==1.12.1" },
     { name = "habanero", specifier = "==1.0.0" },

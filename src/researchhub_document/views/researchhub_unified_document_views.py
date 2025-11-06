@@ -315,6 +315,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "_include_fields": [
                     "id",
                     "name",
+                    "namespace",
                     "slug",
                     "created_date",
                     "is_used_for_rep",
