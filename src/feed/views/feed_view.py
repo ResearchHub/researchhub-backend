@@ -197,12 +197,7 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
 
         queryset = (
             FeedEntry.objects.filter(unified_document_id__in=item_ids)
-            .filter(
-                content_type__in=[
-                    self._paper_content_type,
-                    self._post_content_type,
-                ]
-            )
+            .filter(content_type__in=[self._paper_content_type])
             .order_by(Case(*preserved_order, output_field=IntegerField()))
             .select_related(
                 "content_type",
@@ -248,7 +243,8 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
 
             item_ids = self.personalize_client.get_recommendations_for_user(
                 user_id=user_id,
-                filter=request.query_params.get("filter"),
+                # Default to new-content filter (Content from last N days)
+                filter=request.query_params.get("filter", "new-content"),
                 num_results=num_results,
             )
 
