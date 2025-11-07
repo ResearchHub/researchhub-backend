@@ -58,10 +58,6 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name='list',
-            index=models.Index(fields=['created_by', 'name', 'is_removed'], name='idx_list_user_name_removed'),
-        ),
-        migrations.AddIndex(
-            model_name='list',
             index=models.Index(fields=['created_by', 'is_removed'], name='idx_list_user_removed'),
         ),
         migrations.AddIndex(

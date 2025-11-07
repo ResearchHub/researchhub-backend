@@ -294,6 +294,7 @@ class PaperIngestionService:
             IngestionSource.ARXIV,
             IngestionSource.ARXIV_OAI,
             IngestionSource.CHEMRXIV,
+            IngestionSource.MEDRXIV,
         ]
 
     def _save_paper(self, paper: Paper) -> Paper:
@@ -343,6 +344,7 @@ class PaperIngestionService:
             "paper_publish_date",
             "raw_authors",
             "external_metadata",
+            "external_source",
             "pdf_license",
             "pdf_license_url",
             "pdf_url",
