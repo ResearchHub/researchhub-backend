@@ -239,25 +239,87 @@ class UnifiedSearchService:
 
     def _build_document_query(self, query: str) -> Q:
         """
-        Build multi-match query for documents with field boosting.
-        Title fields get highest boost, followed by authors, abstract,
-        and content.
+        Build hybrid query for documents using multiple matching strategies.
+        Combines phrase match (highest priority), AND match (medium),
+        and OR match (lowest) in a single bool query for better relevance
+        and coverage.
+
+        Field boosting:
+        - paper_title^5 / title^5 (highest)
+        - raw_authors.full_name^3 / authors.full_name^3 (medium)
+        - abstract^2 (lower)
+        - renderable_text^1 (lowest)
+
+        Strategy boosts:
+        - Phrase match: base boost × 2.0
+        - AND match: base boost × 1.0
+        - OR match: base boost × 0.5
         """
-        return Q(
-            "multi_match",
-            query=query,
-            fields=[
-                "paper_title^5",  # Highest boost for paper titles
-                "title^5",  # Highest boost for post titles
-                "raw_authors.full_name^3",  # Author names
-                "authors.full_name^3",  # Author names (posts)
-                "abstract^2",  # Abstract for papers
-                "renderable_text^1",  # Content for posts
-            ],
-            type="best_fields",
-            fuzziness="AUTO",
-            operator="and",
+        should_clauses = []
+
+        # Strategy 1: Phrase matches (highest boost - base boost × 2.0)
+        # Exact phrase matching gets highest priority
+        phrase_boosts = {
+            "paper_title": 10.0,  # 5 * 2.0
+            "title": 10.0,  # 5 * 2.0
+            "raw_authors.full_name": 6.0,  # 3 * 2.0
+            "authors.full_name": 6.0,  # 3 * 2.0
+            "abstract": 4.0,  # 2 * 2.0
+            "renderable_text": 2.0,  # 1 * 2.0
+        }
+
+        for field, boost in phrase_boosts.items():
+            should_clauses.append(
+                Q("match_phrase", **{field: {"query": query, "boost": boost}})
+            )
+
+        # Strategy 2: AND match (medium boost - base boost × 1.0)
+        # All terms must match, any order
+        should_clauses.append(
+            Q(
+                "multi_match",
+                query=query,
+                fields=[
+                    "paper_title^5",
+                    "title^5",
+                    "raw_authors.full_name^3",
+                    "authors.full_name^3",
+                    "abstract^2",
+                    "renderable_text^1",
+                ],
+                type="best_fields",
+                fuzziness="AUTO",
+                operator="and",
+            )
         )
+
+        # Strategy 3: OR match (lowest boost - base boost × 0.5)
+        # Any term matches for broader coverage
+        # Field boosts reduced by 0.5x to achieve lower priority
+        should_clauses.append(
+            Q(
+                "multi_match",
+                query=query,
+                fields=[
+                    "paper_title^2.5",  # 5 * 0.5
+                    "title^2.5",  # 5 * 0.5
+                    "raw_authors.full_name^1.5",  # 3 * 0.5
+                    "authors.full_name^1.5",  # 3 * 0.5
+                    "abstract^1.0",  # 2 * 0.5
+                    "renderable_text^0.5",  # 1 * 0.5
+                ],
+                type="best_fields",
+                fuzziness="AUTO",
+                operator="or",
+            )
+        )
+
+        # Combine all strategies in a bool query
+        # minimum_should_match=1 ensures at least one clause must match
+        # This prevents papers from being excluded if some fields are missing/empty
+        query = Q("bool", should=should_clauses, minimum_should_match=1)
+
+        return query
 
     def _build_person_query(self, query: str) -> Q:
         """

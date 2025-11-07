@@ -24,16 +24,44 @@ class UnifiedSearchServiceTests(TestCase):
         self.assertIsNotNone(self.service.person_index)
 
     def test_build_document_query(self):
-        """Test document query building with proper boosting."""
+        """Test document query building with hybrid query structure."""
         query = self.service._build_document_query("machine learning")
         self.assertIsNotNone(query)
-        # Query should have the search term
-        self.assertEqual(query.to_dict()["multi_match"]["query"], "machine learning")
-        # Verify field boosting
-        fields = query.to_dict()["multi_match"]["fields"]
-        self.assertIn("paper_title^5", fields)
-        self.assertIn("title^5", fields)
-        self.assertIn("abstract^2", fields)
+        query_dict = query.to_dict()
+
+        # Should be a bool query with should clauses
+        self.assertIn("bool", query_dict)
+        self.assertIn("should", query_dict["bool"])
+        should_clauses = query_dict["bool"]["should"]
+        self.assertGreater(len(should_clauses), 0)
+
+        # Verify phrase match queries exist
+        phrase_queries = [
+            clause for clause in should_clauses if "match_phrase" in clause
+        ]
+        self.assertGreater(len(phrase_queries), 0)
+
+        # Verify AND match query exists
+        and_queries = [
+            clause
+            for clause in should_clauses
+            if clause.get("multi_match", {}).get("operator") == "and"
+        ]
+        self.assertEqual(len(and_queries), 1)
+
+        # Verify OR match query exists
+        or_queries = [
+            clause
+            for clause in should_clauses
+            if clause.get("multi_match", {}).get("operator") == "or"
+        ]
+        self.assertEqual(len(or_queries), 1)
+
+        # Verify field boosting in AND query
+        and_fields = and_queries[0]["multi_match"]["fields"]
+        self.assertIn("paper_title^5", and_fields)
+        self.assertIn("title^5", and_fields)
+        self.assertIn("abstract^2", and_fields)
 
     def test_build_person_query(self):
         """Test person query building with proper boosting."""
