@@ -72,7 +72,11 @@ class ListViewSetTests(APITestCase):
         response = self.client.patch(f"/api/user_list/{list_obj.id}/", {"name": "Existing List"})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("error", response.data)
-        self.assertIn("already exists", str(response.data["error"]))
+        error_msg = response.data["error"]
+        if isinstance(error_msg, list):
+            self.assertIn("already exists", error_msg[0])
+        else:
+            self.assertIn("already exists", str(error_msg))
 
     def test_update_other_user_list(self):
         """Test that users cannot update other users' lists"""
