@@ -320,7 +320,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
     @method_decorator(cache_page(60 * 60 * 6))
     @action(detail=False, methods=[RequestMethods.GET])
     def overview(self, request):
-        """Returns top 3 users for each category (reviewers and funders)"""
+        """Returns top 5 users for each category (reviewers and funders)"""
         reviewer_start_date = timezone.now() - timedelta(days=7)
         funder_start_date = timezone.now() - timedelta(days=30)
 
@@ -331,7 +331,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
                     start_date=reviewer_start_date
                 )
             )
-            .order_by("-earned_rsc")[:3]
+            .order_by("-earned_rsc")[:5]
         )
 
         top_funders = (
@@ -339,7 +339,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
             .annotate(
                 **self._create_funder_earnings_annotation(start_date=funder_start_date)
             )
-            .order_by("-total_funding")[:3]
+            .order_by("-total_funding")[:5]
         )
 
         return Response(
