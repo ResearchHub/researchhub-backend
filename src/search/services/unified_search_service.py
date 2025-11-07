@@ -382,7 +382,7 @@ class UnifiedSearchService:
             tie_breaker=0.1,
         )
 
-        # Strategy C: Fuzzy AND handles typos across key fields
+        # Strategy C: Fuzzy AND to handle typos across major fields (including authors)
         typo_and = Q(
             "multi_match",
             query=query,
@@ -424,7 +424,12 @@ class UnifiedSearchService:
             boost=4.0,
         )
 
-        shoulds = [author_title_combo, phrase_strict, phrase_prefix, typo_and]
+        shoulds = [
+            author_title_combo,
+            phrase_strict,
+            phrase_prefix,
+            typo_and,
+        ]
 
         # Optional: direct DOI exact match if the query is a DOI
         try:
