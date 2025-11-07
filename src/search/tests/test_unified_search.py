@@ -139,9 +139,8 @@ class UnifiedSearchServiceTests(TestCase):
         search = Search()
         agg_search = self.service._add_aggregations(search)
         agg_dict = agg_search.to_dict().get("aggs", {})
-        # Should have years, hubs, and content_types aggregations
+        # Should have years and content_types aggregations
         self.assertIn("years", agg_dict)
-        self.assertIn("hubs", agg_dict)
         self.assertIn("content_types", agg_dict)
 
     def test_process_document_results_paper(self):
@@ -223,17 +222,12 @@ class UnifiedSearchServiceTests(TestCase):
         mock_bucket_year.key_as_string = "2024"
         mock_bucket_year.doc_count = 45
 
-        mock_bucket_hub = MagicMock()
-        mock_bucket_hub.key = "Neuroscience"
-        mock_bucket_hub.doc_count = 30
-
         mock_bucket_type = MagicMock()
         mock_bucket_type.key = "paper"
         mock_bucket_type.doc_count = 100
 
         mock_aggs = MagicMock()
         mock_aggs.years.buckets = [mock_bucket_year]
-        mock_aggs.hubs.buckets = [mock_bucket_hub]
         mock_aggs.content_types.buckets = [mock_bucket_type]
 
         mock_response = MagicMock()
@@ -242,10 +236,8 @@ class UnifiedSearchServiceTests(TestCase):
         aggregations = self.service._process_aggregations(mock_response)
 
         self.assertIn("years", aggregations)
-        self.assertIn("hubs", aggregations)
         self.assertIn("content_types", aggregations)
         self.assertEqual(aggregations["years"][0]["key"], "2024")
-        self.assertEqual(aggregations["hubs"][0]["key"], "Neuroscience")
 
 
 class UnifiedSearchViewTests(TestCase):
