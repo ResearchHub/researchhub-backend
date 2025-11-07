@@ -88,6 +88,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
             "https://creativecommons.org/licenses/by/4.0"
         )
         mock_mapped_paper.pdf_url = "https://arxiv.org/pdf/2301.00001.pdf"
+        mock_mapped_paper.citations = 42
         self.mock_openalex_mapper.map_to_paper.return_value = mock_mapped_paper
 
         # Mock mapper methods for authors/institutions/authorships
@@ -111,6 +112,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
             self.paper.pdf_license_url, "https://creativecommons.org/licenses/by/4.0"
         )
         self.assertEqual(self.paper.pdf_url, "https://arxiv.org/pdf/2301.00001.pdf")
+        self.assertEqual(self.paper.citations, 42)
 
     def test_enrich_paper_incomplete_data_pdf_url_only(self):
         """Test enrichment succeeds but skips license when only PDF URL is available."""
@@ -131,6 +133,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         mock_mapped_paper.pdf_license = None
         mock_mapped_paper.pdf_license_url = None
         mock_mapped_paper.pdf_url = "https://arxiv.org/pdf/2301.00001.pdf"
+        mock_mapped_paper.citations = 10
         self.mock_openalex_mapper.map_to_paper.return_value = mock_mapped_paper
 
         # Mock mapper methods for authors/institutions/authorships
@@ -163,6 +166,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         mock_mapped_paper.pdf_license = "cc-by-sa"
         mock_mapped_paper.pdf_license_url = None
         mock_mapped_paper.pdf_url = None
+        mock_mapped_paper.citations = 5
         self.mock_openalex_mapper.map_to_paper.return_value = mock_mapped_paper
 
         # Mock mapper methods for authors/institutions/authorships
@@ -216,6 +220,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
             "https://creativecommons.org/licenses/by/4.0"
         )
         mock_mapped_paper.pdf_url = "https://arxiv.org/pdf/2301.00001.pdf"
+        mock_mapped_paper.citations = 15
         self.mock_openalex_mapper.map_to_paper.return_value = mock_mapped_paper
 
         # Mock mapper methods for authors/institutions/authorships
@@ -264,6 +269,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         mock_mapped_paper.pdf_license = "cc-by"
         mock_mapped_paper.pdf_license_url = None
         mock_mapped_paper.pdf_url = "https://arxiv.org/pdf/2301.00001.pdf"
+        mock_mapped_paper.citations = 7
         self.mock_openalex_mapper.map_to_paper.return_value = mock_mapped_paper
 
         # Mock mapper methods for authors/institutions/authorships
@@ -331,6 +337,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         mock_mapped_paper.pdf_license = "cc-by"
         mock_mapped_paper.pdf_license_url = None
         mock_mapped_paper.pdf_url = "https://arxiv.org/pdf/2301.00001.pdf"
+        mock_mapped_paper.citations = 20
         self.mock_openalex_mapper.map_to_paper.return_value = mock_mapped_paper
 
         # Mock mapper methods for authors/institutions/authorships
@@ -348,6 +355,8 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         self.paper.refresh_from_db()
         self.assertEqual(self.paper.pdf_license, "existing-license")
         self.assertEqual(self.paper.pdf_url, "https://existing.com/pdf.pdf")
+        # But citations should be updated
+        self.assertEqual(self.paper.citations, 20)
 
     def test_enrich_paper_with_authors_and_institutions(self):
         """Test enrichment with authors and institutions."""
@@ -389,6 +398,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         mock_mapped_paper.pdf_license = None
         mock_mapped_paper.pdf_url = None
         mock_mapped_paper.pdf_license_url = None
+        mock_mapped_paper.citations = 100
         self.mock_openalex_mapper.map_to_paper.return_value = mock_mapped_paper
 
         # Mock the mapper methods
@@ -488,6 +498,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         mock_mapped_paper.pdf_license = None
         mock_mapped_paper.pdf_url = None
         mock_mapped_paper.pdf_license_url = None
+        mock_mapped_paper.citations = 0
         self.mock_openalex_mapper.map_to_paper.return_value = mock_mapped_paper
 
         self.mock_openalex_mapper.map_to_authors.return_value = []
@@ -536,6 +547,7 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         mock_mapped_paper.pdf_license = None
         mock_mapped_paper.pdf_url = None
         mock_mapped_paper.pdf_license_url = None
+        mock_mapped_paper.citations = 50
         self.mock_openalex_mapper.map_to_paper.return_value = mock_mapped_paper
 
         # Mock mapper methods for authors/institutions/authorships
