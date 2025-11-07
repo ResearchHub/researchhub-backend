@@ -17,7 +17,7 @@ class ListViewSetTests(APITestCase):
         self.assertEqual(response.data["name"], "My List")
         self.assertTrue(List.objects.filter(name="My List", created_by=self.user).exists())
 
-    def test_create_list_with_is_public(self):
+    def test_create_public_list(self):
         response = self.client.post("/api/user_list/", {"name": "Public List", "is_public": True})
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["name"], "Public List")
@@ -25,13 +25,16 @@ class ListViewSetTests(APITestCase):
         list_obj = List.objects.get(name="Public List", created_by=self.user)
         self.assertTrue(list_obj.is_public)
 
-    def test_create_list_duplicate_name(self):
+    def test_user_can_create_list_with_duplicate_name(self):
+        # Users can create multiple lists with the same name
         List.objects.create(name="My List", created_by=self.user)
         response = self.client.post("/api/user_list/", {"name": "My List"})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("name", response.data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["name"], "My List")
+        # Verify both lists exist
+        self.assertEqual(List.objects.filter(name="My List", created_by=self.user).count(), 2)
 
-    def test_create_list_unauthenticated(self):
+    def test_unauthorized_user_cannot_create_list(self):
         self.client.force_authenticate(user=None)
         response = self.client.post("/api/user_list/", {"name": "My List"})
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
