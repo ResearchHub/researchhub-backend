@@ -2,7 +2,7 @@
 Tests for ChemRxiv mapper.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import Mock, patch
 
 from django.test import TestCase
 
@@ -357,7 +357,7 @@ class TestChemRxivMapper(TestCase):
         ]
 
         with patch.object(self.mapper, "map_to_paper") as mock_map:
-            mock_paper = MagicMock(spec=Paper)
+            mock_paper = Mock(spec=Paper)
             mock_map.return_value = mock_paper
 
             results = self.mapper.map_batch(records, validate=True)
@@ -736,7 +736,7 @@ class TestChemRxivMapper(TestCase):
         Test map_to_hubs returns expected hubs including chemrxiv hub.
         """
         # Arrange
-        mock_hub_mapper = MagicMock()
+        mock_hub_mapper = Mock()
         chemistry_hub, _ = Hub.objects.get_or_create(
             slug="chemistry",
             defaults={"name": "Chemistry"},
@@ -755,6 +755,16 @@ class TestChemRxivMapper(TestCase):
         self.assertEqual(len(hubs), 2)
         self.assertIn(chemistry_hub, hubs)
         self.assertIn(self.chemrxiv_hub, hubs)
+
+        # Verify category mapping was called with correct parameters
+        mock_hub_mapper.map.assert_any_call(
+            source_category="Theoretical and Computational Chemistry",
+            source="chemrxiv",
+        )
+        mock_hub_mapper.map.assert_any_call(
+            source_category="Computational Chemistry and Modeling",
+            source="chemrxiv",
+        )
 
     def test_map_to_hubs_without_hub_mapper(self):
         """
@@ -777,7 +787,7 @@ class TestChemRxivMapper(TestCase):
         Test that chemrxiv hub is not duplicated if already returned by hub_mapper.
         """
         # Arrange
-        mock_hub_mapper = MagicMock()
+        mock_hub_mapper = Mock()
         chemistry_hub, _ = Hub.objects.get_or_create(
             slug="chemistry",
             defaults={"name": "Chemistry"},
@@ -803,7 +813,7 @@ class TestChemRxivMapper(TestCase):
         Test map_to_hubs with record that has no categories field.
         """
         # Arrange
-        mock_hub_mapper = MagicMock()
+        mock_hub_mapper = Mock()
         mapper = ChemRxivMapper(mock_hub_mapper)
 
         record_no_categories = {**self.sample_record}
