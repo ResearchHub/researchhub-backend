@@ -60,12 +60,13 @@ class ListSerializer(DefaultAuthenticatedSerializer):
             "created_date",
             "updated_date",
             "created_by",
+            "updated_by", 
             "top_authors",
             "top_hubs",
             "top_topics",
-            "items_count",
+            "items_count", 
         ]
-        read_only_fields = ["id", "created_date", "updated_date", "created_by"]
+        read_only_fields = ["id", "created_date", "updated_date", "created_by", "updated_by"]
 
     def get_items_count(self, obj):
         return obj.items.filter(is_removed=False).count()
