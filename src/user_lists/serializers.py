@@ -14,7 +14,6 @@ class ListSerializer(DefaultAuthenticatedSerializer):
             "created_date",
             "updated_date",
             "created_by",
-            "updated_by",
         ]
-        read_only_fields = ["id", "created_date", "updated_date", "created_by", "updated_by"]
+        read_only_fields = ["id", "created_date", "updated_date", "created_by"]
 
