@@ -61,6 +61,24 @@ class UnifiedSearchService:
         # Calculate offset
         offset = (page - 1) * page_size
 
+        # If query is a DOI and there is an exact match, return only that result
+        try:
+            if DOI.is_doi(query):
+                normalized_doi = DOI.normalize_doi(query)
+                doi_result = self._search_documents_by_doi(normalized_doi)
+                if doi_result["count"] > 0:
+                    return {
+                        "count": doi_result["count"],
+                        "next": None,
+                        "previous": None,
+                        "documents": doi_result["results"],
+                        "people": [],
+                        "aggregations": {},
+                    }
+        except Exception:
+            # Fallback to regular flow if DOI parsing/search fails
+            pass
+
         # Search documents (papers and posts)
         document_results = self._search_documents(query, offset, page_size, sort)
 
@@ -111,6 +129,43 @@ class UnifiedSearchService:
         # Build query with field boosting
         query_obj = self._build_document_query(query)
         search = search.query(query_obj)
+
+        # Light rescore to reward author+title co-occurrence in top results
+        try:
+            rescore_block = {
+                "window_size": 100,
+                "query": {
+                    "rescore_query": {
+                        "bool": {
+                            "must": [
+                                {
+                                    "multi_match": {
+                                        "query": query,
+                                        "type": "cross_fields",
+                                        "fields": [
+                                            "raw_authors.full_name^2",
+                                            "authors.full_name^2",
+                                        ],
+                                    }
+                                },
+                                {
+                                    "multi_match": {
+                                        "query": query,
+                                        "type": "best_fields",
+                                        "fields": ["paper_title^3", "title^3"],
+                                    }
+                                },
+                            ]
+                        }
+                    },
+                    "query_weight": 0.9,
+                    "rescore_query_weight": 0.1,
+                },
+            }
+            search = search.extra(rescore=[rescore_block])
+        except Exception:
+            # If the backend version doesn't support rescore, ignore gracefully
+            pass
 
         # Apply highlighting
         search = self._apply_highlighting(search, is_document=True)
@@ -237,6 +292,48 @@ class UnifiedSearchService:
             "count": response.hits.total.value,
         }
 
+    def _search_documents_by_doi(self, normalized_doi: str) -> dict[str, Any]:
+        """
+        Fast path for DOI queries: return only the exact DOI match (at most one).
+        """
+        search = Search(index=[self.paper_index, self.post_index])
+        search = search.query(Q("term", doi={"value": normalized_doi}))
+
+        # Source filtering for performance (match document search fields)
+        search = search.source(
+            [
+                "id",
+                "paper_title",
+                "title",
+                "abstract",
+                "renderable_text",
+                "raw_authors",
+                "authors",
+                "created_date",
+                "paper_publish_date",
+                "citations",
+                "hubs",
+                "doi",
+                "slug",
+                "score",
+                "unified_document_id",
+                "document_type",
+            ]
+        )
+
+        # Limit to one exact match
+        search = search[0:1]
+        search = search.extra(track_total_hits=True, timeout="5s")
+
+        try:
+            response = search.execute()
+        except Exception as e:
+            logger.error(f"DOI search failed: {str(e)}")
+            return {"results": [], "count": 0}
+
+        results = self._process_document_results(response)
+        return {"results": results, "count": response.hits.total.value}
+
     def _build_document_query(self, query: str) -> Q:
         """
         Build hybrid query for documents using multiple matching strategies.
@@ -255,71 +352,92 @@ class UnifiedSearchService:
         - AND match: base boost × 1.0
         - OR match: base boost × 0.5
         """
-        should_clauses = []
-
-        # Strategy 1: Phrase matches (highest boost - base boost × 2.0)
-        # Exact phrase matching gets highest priority
-        phrase_boosts = {
-            "paper_title": 10.0,  # 5 * 2.0
-            "title": 10.0,  # 5 * 2.0
-            "raw_authors.full_name": 6.0,  # 3 * 2.0
-            "authors.full_name": 6.0,  # 3 * 2.0
-            "abstract": 4.0,  # 2 * 2.0
-            "renderable_text": 2.0,  # 1 * 2.0
-        }
-
-        for field, boost in phrase_boosts.items():
-            should_clauses.append(
-                Q("match_phrase", **{field: {"query": query, "boost": boost}})
-            )
-
-        # Strategy 2: AND match (medium boost - base boost × 1.0)
-        # All terms must match, any order
-        should_clauses.append(
-            Q(
-                "multi_match",
-                query=query,
-                fields=[
-                    "paper_title^5",
-                    "title^5",
-                    "raw_authors.full_name^3",
-                    "authors.full_name^3",
-                    "abstract^2",
-                    "renderable_text^1",
-                ],
-                type="best_fields",
-                fuzziness="AUTO",
-                operator="and",
-            )
+        # Strategy A: Strict phrase matches with small slop (favor best field)
+        phrase_strict = Q(
+            "dis_max",
+            queries=[
+                Q(
+                    "match_phrase",
+                    paper_title={"query": query, "slop": 1, "boost": 3.0},
+                ),
+                Q("match_phrase", title={"query": query, "slop": 1, "boost": 3.0}),
+                Q("match_phrase", abstract={"query": query, "slop": 2, "boost": 1.5}),
+            ],
+            tie_breaker=0.1,
         )
 
-        # Strategy 3: OR match (lowest boost - base boost × 0.5)
-        # Any term matches for broader coverage
-        # Field boosts reduced by 0.5x to achieve lower priority
-        should_clauses.append(
-            Q(
-                "multi_match",
-                query=query,
-                fields=[
-                    "paper_title^2.5",  # 5 * 0.5
-                    "title^2.5",  # 5 * 0.5
-                    "raw_authors.full_name^1.5",  # 3 * 0.5
-                    "authors.full_name^1.5",  # 3 * 0.5
-                    "abstract^1.0",  # 2 * 0.5
-                    "renderable_text^0.5",  # 1 * 0.5
-                ],
-                type="best_fields",
-                fuzziness="AUTO",
-                operator="or",
-            )
+        # Strategy B: Phrase prefix allows partial last term in title
+        phrase_prefix = Q(
+            "dis_max",
+            queries=[
+                Q(
+                    "match_phrase_prefix",
+                    paper_title={"query": query, "max_expansions": 20, "boost": 2.5},
+                ),
+                Q(
+                    "match_phrase_prefix",
+                    title={"query": query, "max_expansions": 20, "boost": 2.5},
+                ),
+            ],
+            tie_breaker=0.1,
         )
 
-        # Combine all strategies in a bool query
-        # minimum_should_match=1 ensures at least one clause must match
-        # This prevents papers from being excluded if some fields are missing/empty
-        query = Q("bool", should=should_clauses, minimum_should_match=1)
+        # Strategy C: Fuzzy AND handles typos across key fields
+        typo_and = Q(
+            "multi_match",
+            query=query,
+            fields=[
+                "paper_title^4",
+                "title^4",
+                "abstract^2",
+                "renderable_text",
+                "raw_authors.full_name^2",
+                "authors.full_name^2",
+            ],
+            type="best_fields",
+            fuzziness="AUTO",
+            operator="and",
+        )
 
-        return query
+        # Strategy D: Author + Title combo must co-occur
+        author_title_combo = Q(
+            "constant_score",
+            filter=Q(
+                "bool",
+                must=[
+                    Q(
+                        "multi_match",
+                        query=query,
+                        type="cross_fields",
+                        operator="or",
+                        fields=["raw_authors.full_name^3", "authors.full_name^3"],
+                    ),
+                    Q(
+                        "multi_match",
+                        query=query,
+                        type="best_fields",
+                        operator="and",
+                        fields=["paper_title^5", "title^5"],
+                    ),
+                ],
+            ),
+            boost=4.0,
+        )
+
+        shoulds = [author_title_combo, phrase_strict, phrase_prefix, typo_and]
+
+        # Optional: direct DOI exact match if the query is a DOI
+        try:
+            if DOI.is_doi(query):
+                normalized_doi = DOI.normalize_doi(query)
+                shoulds.insert(
+                    0,
+                    Q("term", doi={"value": normalized_doi, "boost": 8.0}),
+                )
+        except Exception:
+            pass
+
+        return Q("bool", should=shoulds, minimum_should_match=1)
 
     def _build_person_query(self, query: str) -> Q:
         """
@@ -350,6 +468,8 @@ class UnifiedSearchService:
                 "title": {"number_of_fragments": 0},
                 "abstract": {"fragment_size": 200, "number_of_fragments": 1},
                 "renderable_text": {"fragment_size": 200, "number_of_fragments": 1},
+                "raw_authors.full_name": {"number_of_fragments": 0},
+                "authors.full_name": {"number_of_fragments": 0},
             }
         else:
             highlight_fields = {
