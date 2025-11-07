@@ -77,7 +77,7 @@ class ListViewSetTests(APITestCase):
         response = self.client.delete(f"/api/user_list/{list_obj.id}/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["success"], True)
-        list_obj.refresh_from_db()
+        list_obj = List.all_objects.get(pk=list_obj.pk)
         self.assertTrue(list_obj.is_removed)
 
     def test_delete_list_removes_items(self):
@@ -90,7 +90,7 @@ class ListViewSetTests(APITestCase):
         doc = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
         item = ListItem.objects.create(parent_list=list_obj, unified_document=doc, created_by=self.user)
         self.client.delete(f"/api/user_list/{list_obj.id}/")
-        item.refresh_from_db()
+        item = ListItem.all_objects.get(pk=item.pk)
         self.assertTrue(item.is_removed)
 
 
