@@ -41,12 +41,9 @@ class ListViewSet(CreateModelMixin, UpdateModelMixin, DestroyModelMixin, viewset
             error_message = " ".join(error_messages) if error_messages else "Validation error"
             return Response({"error": error_message}, status=status.HTTP_400_BAD_REQUEST)
         
-        self.perform_create(serializer)
+        serializer.save(created_by=self.request.user)
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
-
-    def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
 
     def perform_update(self, serializer):
         instance = serializer.save(updated_by=self.request.user)
