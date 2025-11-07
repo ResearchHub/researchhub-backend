@@ -22,8 +22,8 @@ class Migration(migrations.Migration):
                 ('is_removed', models.BooleanField(default=False)),
                 ('is_removed_date', models.DateTimeField(blank=True, default=None, null=True)),
                 ('name', models.CharField(max_length=120)),
-                ('is_public', models.BooleanField(default=False)),
                 ('created_by', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='created_%(app_label)s_%(class)s', to=settings.AUTH_USER_MODEL)),
+                ('updated_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='updated_%(app_label)s_%(class)s', to=settings.AUTH_USER_MODEL)),
             ],
             options={
                 'ordering': ['name'],
@@ -38,6 +38,7 @@ class Migration(migrations.Migration):
                 ('is_removed', models.BooleanField(default=False)),
                 ('is_removed_date', models.DateTimeField(blank=True, default=None, null=True)),
                 ('created_by', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='created_%(app_label)s_%(class)s', to=settings.AUTH_USER_MODEL)),
+                ('updated_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='updated_%(app_label)s_%(class)s', to=settings.AUTH_USER_MODEL)),
                 ('parent_list', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='items', to='user_lists.list')),
                 ('unified_document', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='user_list_items', to='researchhub_document.researchhubunifieddocument')),
             ],
