@@ -38,7 +38,6 @@ class Migration(migrations.Migration):
                 ('updated_date', models.DateTimeField(auto_now=True)),
                 ('is_removed', models.BooleanField(default=False)),
                 ('is_removed_date', models.DateTimeField(blank=True, default=None, null=True)),
-                ('is_public', models.BooleanField(default=False)),
                 ('created_by', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='created_%(app_label)s_%(class)s', to=settings.AUTH_USER_MODEL)),
                 ('parent_list', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='items', to='user_lists.list')),
                 ('unified_document', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='user_list_items', to='researchhub_document.researchhubunifieddocument')),
@@ -49,12 +48,8 @@ class Migration(migrations.Migration):
             },
         ),
         migrations.AddConstraint(
-            model_name='list',
-            constraint=models.UniqueConstraint(condition=models.Q(('is_removed', False)), fields=('created_by', 'name'), name='unique_not_removed_name_per_user'),
-        ),
-        migrations.AddConstraint(
             model_name='listitem',
-            constraint=models.UniqueConstraint(condition=models.Q(('is_removed', False)), fields=('parent_list', 'unified_document'), name='unique_not_removed_document_per_list'),
+            constraint=models.UniqueConstraint(condition=models.Q(('is_removed', False)), fields=('parent_list', 'unified_document'), name='unique_document_per_list'),
         ),
         migrations.AddIndex(
             model_name='list',
