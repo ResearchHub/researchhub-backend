@@ -308,7 +308,8 @@ class UnifiedSearchService:
 
     def _add_aggregations(self, search: Search) -> Search:
         """
-        Add aggregations for years, hubs, and content types.
+        Add aggregations for years and content types.
+        Note: Hub aggregation removed temporarily due to hub indexing changes.
         """
         # Year aggregation (from created_date or paper_publish_date)
         search.aggs.bucket(
@@ -317,14 +318,6 @@ class UnifiedSearchService:
             field="created_date",
             calendar_interval="year",
             format="yyyy",
-        )
-
-        # Hub aggregation
-        search.aggs.bucket(
-            "hubs",
-            "terms",
-            field="hubs.name",
-            size=20,
         )
 
         # Content type aggregation (from index name)
@@ -523,13 +516,6 @@ class UnifiedSearchService:
                 aggregations["years"] = [
                     {"key": bucket.key_as_string, "doc_count": bucket.doc_count}
                     for bucket in aggs.years.buckets
-                ]
-
-            # Process hub aggregation
-            if hasattr(aggs, "hubs"):
-                aggregations["hubs"] = [
-                    {"key": bucket.key, "doc_count": bucket.doc_count}
-                    for bucket in aggs.hubs.buckets
                 ]
 
             # Process content type aggregation
