@@ -250,13 +250,6 @@ class Command(BaseCommand):
             document_type__in=SUPPORTED_DOCUMENT_TYPES,
         )
 
-    def _get_interactions_filter(self) -> Q:
-        """Get Q filter for documents with user interactions."""
-        item_ids_with_interactions = set(
-            UserInteractions.objects.values_list("unified_document_id", flat=True)
-        )
-        return Q(id__in=item_ids_with_interactions)
-
     def _get_posts_filter(self, post_types: Optional[list] = None) -> Q:
         """Get Q filter for all ResearchHub post documents.
 
@@ -282,22 +275,52 @@ class Command(BaseCommand):
         if ids:
             return base_queryset.filter(id__in=ids).order_by("id")
 
-        # Combine filters using Q objects (union of sets)
-        combined_filter = Q()
+        combined_ids = set()
 
         if with_interactions:
-            combined_filter |= self._get_interactions_filter()
+            interaction_ids = set(
+                UserInteractions.objects.values_list(
+                    "unified_document_id", flat=True
+                ).distinct()
+            )
+            combined_ids.update(interaction_ids)
+            if self.debug_mode:
+                self._debug_log(
+                    f"Found {len(interaction_ids)} documents with interactions"
+                )
 
         if with_posts:
-            combined_filter |= self._get_posts_filter(post_types)
+            post_ids = set(
+                base_queryset.filter(self._get_posts_filter(post_types)).values_list(
+                    "id", flat=True
+                )
+            )
+            combined_ids.update(post_ids)
+            if self.debug_mode:
+                self._debug_log(f"Found {len(post_ids)} post documents")
 
         if since_publish_date:
-            combined_filter |= Q(created_date__gte=since_publish_date)
+            date_ids = set(
+                base_queryset.filter(created_date__gte=since_publish_date).values_list(
+                    "id", flat=True
+                )
+            )
+            combined_ids.update(date_ids)
+            if self.debug_mode:
+                self._debug_log(
+                    f"Found {len(date_ids)} documents since {since_publish_date.date()}"
+                )
 
-        if not combined_filter:
+        if not combined_ids:
             return base_queryset.order_by("id")
 
-        return base_queryset.filter(combined_filter).order_by("id")
+        if self.debug_mode:
+            self._debug_log(
+                f"Total unique documents after combining filters: {len(combined_ids)}"
+            )
+
+        # Return queryset filtered by the combined IDs
+        return base_queryset.filter(id__in=combined_ids).order_by("id")
 
     def _parse_date(self, date_str: Optional[str]) -> Optional[datetime]:
         """Parse date string to timezone-aware datetime object."""

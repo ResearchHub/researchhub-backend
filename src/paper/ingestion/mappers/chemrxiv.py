@@ -440,8 +440,11 @@ class ChemRxivMapper(BaseMapper):
 
         if self._hub_mapper and categories:
             for category in categories:
+                category_name = category.get("name")
+                if not category_name:
+                    continue
                 for hub in self._hub_mapper.map(
-                    source_category=category, source="chemrxiv"
+                    source_category=category_name, source="chemrxiv"
                 ):
                     if hub and hub not in hubs:
                         hubs.append(hub)

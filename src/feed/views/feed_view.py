@@ -2,20 +2,26 @@
 Standard feed view for ResearchHub.
 """
 
+import logging
+
 from django.conf import settings
 from django.core.cache import cache
-from django.db import models
-from django.db.models import Subquery
+from django.db.models import Case, IntegerField, Value, When
 from rest_framework import status
+from rest_framework.decorators import action
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
+from feed.clients.personalize_client import PersonalizeClient
 from feed.views.feed_view_mixin import FeedViewMixin
 from hub.models import Hub
 
 from ..models import FeedEntry
 from ..serializers import FeedEntrySerializer
 from .common import FeedPagination
+
+logger = logging.getLogger(__name__)
 
 
 class FeedViewSet(FeedViewMixin, ModelViewSet):
@@ -28,6 +34,10 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
     permission_classes = []
     pagination_class = FeedPagination
     cache_enabled = settings.TESTING or settings.CLOUD
+
+    def dispatch(self, request, *args, **kwargs):
+        self.personalize_client = kwargs.pop("personalize_client", PersonalizeClient())
+        return super().dispatch(request, *args, **kwargs)
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -169,3 +179,92 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
             )
 
         return queryset.distinct()
+
+    def _get_queryset_for_personalized(self, item_ids):
+        """
+        Get FeedEntry queryset for personalized recommendations.
+
+        """
+        if not item_ids:
+            return FeedEntry.objects.none()
+
+        item_ids = [int(item_id) for item_id in item_ids]
+
+        preserved_order = [
+            When(unified_document_id=item_id, then=Value(idx))
+            for idx, item_id in enumerate(item_ids)
+        ]
+
+        queryset = (
+            FeedEntry.objects.filter(unified_document_id__in=item_ids)
+            .filter(content_type__in=[self._paper_content_type])
+            .order_by(Case(*preserved_order, output_field=IntegerField()))
+            .select_related(
+                "content_type",
+                "user",
+                "user__author_profile",
+                "user__userverification",
+            )
+            .distinct()
+        )
+
+        return queryset
+
+    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
+    def personalized(self, request):
+        """
+        Get personalized feed entries for a user using AWS Personalize.
+
+        Accepts optional user_id parameter for testing purposes.
+        TODO: Remove user_id parameter and re-enable authentication requirement.
+        """
+        try:
+            # Get user_id from query params or authenticated user
+            user_id = request.query_params.get("user_id")
+            if user_id:
+                user_id = int(user_id)
+            elif request.user.is_authenticated:
+                user_id = request.user.id
+            else:
+                return Response(
+                    {
+                        "error": (
+                            "user_id parameter required for unauthenticated requests"
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            page_size = int(
+                request.query_params.get("page_size", self.pagination_class.page_size)
+            )
+            # Request more items to account for items to avoid multiple requests
+            num_results = min(page_size * 8, 200)
+
+            item_ids = self.personalize_client.get_recommendations_for_user(
+                user_id=user_id,
+                # Default to new-content filter (Content from last N days)
+                filter=request.query_params.get("filter", "new-content"),
+                num_results=num_results,
+            )
+
+            queryset = self._get_queryset_for_personalized(item_ids)
+
+            page = self.paginate_queryset(queryset)
+            serializer = self.get_serializer(page, many=True)
+            response = self.get_paginated_response(serializer.data)
+
+            # Add user votes only if user is authenticated
+            if request.user.is_authenticated:
+                self.add_user_votes_to_response(request.user, response.data)
+
+            return response
+
+        except Exception as e:
+            logger.error(
+                f"Error getting personalized feed for user {user_id}: {str(e)}"
+            )
+            return Response(
+                {"error": "Failed to retrieve personalized recommendations"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
