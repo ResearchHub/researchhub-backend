@@ -57,12 +57,14 @@ class ListViewSetTests(APITestCase):
         self.assertIn("error", response.data)
         self.assertIsInstance(response.data["error"], str)
         self.assertIn("name", response.data["error"].lower())
+        self.assertTrue(len(response.data["error"]) > 0)
 
     def test_creating_list_with_multiple_invalid_fields_returns_formatted_error(self):
         response = self.client.post("/api/user_list/", {"name": "", "is_public": "invalid"})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("error", response.data)
         self.assertIsInstance(response.data["error"], str)
+        self.assertTrue(len(response.data["error"]) > 0)
 
     def test_updating_list_with_empty_name_returns_error(self):
         list_obj = List.objects.create(name="My List", created_by=self.user)
@@ -111,10 +113,16 @@ class ListViewSetTests(APITestCase):
 
         list_obj = List.objects.create(name="My List", created_by=self.user)
         doc = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
-        item = ListItem.objects.create(parent_list=list_obj, unified_document=doc, created_by=self.user)
-        self.client.delete(f"/api/user_list/{list_obj.id}/")
-        item = ListItem.all_objects.get(pk=item.pk)
-        self.assertTrue(item.is_removed)
+        item1 = ListItem.objects.create(parent_list=list_obj, unified_document=doc, created_by=self.user)
+        doc2 = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
+        item2 = ListItem.objects.create(parent_list=list_obj, unified_document=doc2, created_by=self.user)
+        response = self.client.delete(f"/api/user_list/{list_obj.id}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["success"], True)
+        item1 = ListItem.all_objects.get(pk=item1.pk)
+        item2 = ListItem.all_objects.get(pk=item2.pk)
+        self.assertTrue(item1.is_removed)
+        self.assertTrue(item2.is_removed)
 
 
 class ListItemViewSetTests(APITestCase):
@@ -184,10 +192,16 @@ class ListItemViewSetTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_user_can_filter_items_by_parent_list(self):
-        ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
+        item1 = ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
+        other_doc = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
+        other_list = List.objects.create(name="Other List", created_by=self.user)
+        item2 = ListItem.objects.create(parent_list=other_list, unified_document=other_doc, created_by=self.user)
         response = self.client.get(f"/api/user_list_item/?parent_list={self.list_obj.id}")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data.get("results", response.data)), 1)
+        results = response.data.get("results", response.data)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["id"], item1.id)
+        self.assertNotEqual(results[0]["id"], item2.id)
 
     def test_filtering_items_by_removed_parent_list_returns_empty(self):
         ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
