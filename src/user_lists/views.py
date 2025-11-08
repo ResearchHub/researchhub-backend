@@ -1,12 +1,12 @@
-from django.db import IntegrityError
 from django.utils import timezone
 from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-
 from feed.views.common import FeedPagination
 from researchhub.permissions import IsObjectOwner
+from rest_framework.serializers import ValidationError
+from django.db import IntegrityError
 
 from .models import List, ListItem
 from .serializers import ListDetailSerializer, ListItemDetailSerializer, ListItemSerializer, ListSerializer
@@ -17,15 +17,8 @@ def _update_list_timestamp(list_obj, user):
     list_obj.updated_by = user
     list_obj.save(update_fields=["updated_date", "updated_by"])
 
-
-def _handle_integrity_error_list_name():
-    raise serializers.ValidationError({"error": "A list with this name already exists."})
-
-
 def _handle_integrity_error_item():
     raise serializers.ValidationError({"error": "Item already exists in this list."})
-
-
 class ListViewSet(viewsets.ModelViewSet):
     queryset = List.objects.filter(is_removed=False)
     serializer_class = ListSerializer
@@ -38,18 +31,26 @@ class ListViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         return ListDetailSerializer if self.action == "retrieve" else ListSerializer
 
-    def perform_create(self, serializer):
-        try:
-            serializer.save(created_by=self.request.user)
-        except IntegrityError:
-            _handle_integrity_error_list_name()
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            # Format validation errors into a single error message
+            error_messages = []
+            for field, errors in serializer.errors.items():
+                if isinstance(errors, list):
+                    error_messages.extend([f"{field}: {error}" for error in errors])
+                else:
+                    error_messages.append(f"{field}: {errors}")
+            error_message = " ".join(error_messages) if error_messages else "Validation error"
+            return Response({"error": error_message}, status=status.HTTP_400_BAD_REQUEST)
+        
+        serializer.save(created_by=self.request.user)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def perform_update(self, serializer):
-        try:
-            instance = serializer.save(updated_by=self.request.user)
-            _update_list_timestamp(instance, self.request.user)
-        except IntegrityError:
-            _handle_integrity_error_list_name()
+        instance = serializer.save(updated_by=self.request.user)
+        _update_list_timestamp(instance, self.request.user)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
