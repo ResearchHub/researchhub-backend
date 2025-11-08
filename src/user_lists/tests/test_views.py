@@ -159,6 +159,11 @@ class ListItemViewSetTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("parent_list", response.data)
+        parent_list_error = response.data["parent_list"]
+        if isinstance(parent_list_error, list):
+            self.assertEqual(str(parent_list_error[0]), "List not found or you don't have permission.")
+        else:
+            self.assertEqual(str(parent_list_error), "List not found or you don't have permission.")
 
     def test_creating_item_in_removed_list_returns_error(self):
         self.list_obj.delete()
@@ -167,6 +172,7 @@ class ListItemViewSetTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("parent_list", response.data)
+        self.assertIn("Invalid pk", str(response.data["parent_list"][0]))
 
     def test_user_can_list_items(self):
         ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
@@ -281,7 +287,10 @@ class ListItemViewSetTests(APITestCase):
         )
         with patch("user_lists.views.ListItemViewSet._find_existing_item") as mock_find:
             mock_find.side_effect = [None, existing_item]
-            with patch("user_lists.views.ListItemViewSet._get_or_create_item", side_effect=IntegrityError("Duplicate entry")):
+            with patch("user_lists.views.ListItemViewSet._get_or_create_item") as mock_get_or_create:
+                def side_effect(serializer, created_by):
+                    raise IntegrityError("Duplicate entry")
+                mock_get_or_create.side_effect = side_effect
                 response = self.client.post(
                     "/api/user_list_item/add-item-to-list/",
                     {"parent_list": self.list_obj.id, "unified_document": self.doc.id},
@@ -293,7 +302,10 @@ class ListItemViewSetTests(APITestCase):
 
     def test_adding_item_handles_integrity_error_without_existing_item(self):
         with patch("user_lists.views.ListItemViewSet._find_existing_item", return_value=None):
-            with patch("user_lists.views.ListItemViewSet._get_or_create_item", side_effect=IntegrityError("Duplicate entry")):
+            with patch("user_lists.views.ListItemViewSet._get_or_create_item") as mock_get_or_create:
+                def side_effect(serializer, created_by):
+                    raise IntegrityError("Duplicate entry")
+                mock_get_or_create.side_effect = side_effect
                 response = self.client.post(
                     "/api/user_list_item/add-item-to-list/",
                     {"parent_list": self.list_obj.id, "unified_document": self.doc.id},
@@ -310,6 +322,7 @@ class ListItemViewSetTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("parent_list", response.data)
+        self.assertIn("Invalid pk", str(response.data["parent_list"][0]))
 
     def test_adding_item_to_other_user_list_returns_error(self):
         response = self.client.post(
@@ -318,6 +331,11 @@ class ListItemViewSetTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("parent_list", response.data)
+        parent_list_error = response.data["parent_list"]
+        if isinstance(parent_list_error, list):
+            self.assertEqual(str(parent_list_error[0]), "List not found or you don't have permission.")
+        else:
+            self.assertEqual(str(parent_list_error), "List not found or you don't have permission.")
 
     def test_user_cannot_add_duplicate_item_to_list(self):
         ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
@@ -372,6 +390,7 @@ class ListItemViewSetTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("parent_list", response.data)
+        self.assertIn("Invalid pk", str(response.data["parent_list"][0]))
 
     def test_user_can_update_list_item(self):
         item = ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
@@ -390,6 +409,11 @@ class ListItemViewSetTests(APITestCase):
         response = self.client.patch(f"/api/user_list_item/{item.id}/", {"parent_list": self.other_list.id})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("parent_list", response.data)
+        parent_list_error = response.data["parent_list"]
+        if isinstance(parent_list_error, list):
+            self.assertEqual(str(parent_list_error[0]), "List not found or you don't have permission.")
+        else:
+            self.assertEqual(str(parent_list_error), "List not found or you don't have permission.")
         item.refresh_from_db()
         self.assertEqual(item.parent_list, self.list_obj)
 
@@ -409,6 +433,7 @@ class ListItemViewSetTests(APITestCase):
         response = self.client.patch(f"/api/user_list_item/{item.id}/", {"unified_document": self.doc.id})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("error", response.data)
+        self.assertEqual(response.data["error"], "Item already exists in this list.")
 
     def test_updating_item_to_removed_list_returns_error(self):
         item = ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
@@ -417,6 +442,7 @@ class ListItemViewSetTests(APITestCase):
         response = self.client.patch(f"/api/user_list_item/{item.id}/", {"parent_list": removed_list.id})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("parent_list", response.data)
+        self.assertIn("Invalid pk", str(response.data["parent_list"][0]))
 
     def test_user_cannot_create_duplicate_item(self):
         ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
@@ -425,6 +451,7 @@ class ListItemViewSetTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("error", response.data)
+        self.assertEqual(response.data["error"], "Item already exists in this list.")
 
     def test_unauthenticated_user_cannot_access_items(self):
         self.client.force_authenticate(user=None)
