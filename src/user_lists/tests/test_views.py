@@ -132,7 +132,6 @@ class ListItemViewSetTests(APITestCase):
 
     def test_user_can_create_list_item(self):
         original_updated_date = self.list_obj.updated_date
-        original_updated_by = self.list_obj.updated_by
         response = self.client.post(
             "/api/user_list_item/", {"parent_list": self.list_obj.id, "unified_document": self.doc.id}
         )
