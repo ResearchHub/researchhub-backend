@@ -39,6 +39,7 @@ from feed.views import (
     FundingFeedViewSet,
     GrantFeedViewSet,
     JournalFeedViewSet,
+    ResearchHubFeed,
 )
 from organizations.views import NonprofitFundraiseLinkViewSet, NonprofitOrgViewSet
 from paper.views import paper_upload_views
@@ -198,6 +199,7 @@ router.register(r"journal_feed", JournalFeedViewSet, basename="journal_feed")
 router_v2 = routers.DefaultRouter()
 
 router_v2.register(r"feed", FeedV2ViewSet, basename="feed_v2")
+router_v2.register(r"feed_v3", ResearchHubFeed, basename="feed_v3")
 
 urlpatterns = [
     # Health check
