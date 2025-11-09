@@ -1,4 +1,4 @@
-from unittest.mock import patch, PropertyMock
+from unittest.mock import patch, PropertyMock, MagicMock
 
 from django.db import IntegrityError
 from rest_framework import status
@@ -289,8 +289,9 @@ class ListItemViewSetTests(APITestCase):
 
     def test_adding_item_with_race_condition_integrity_error_finds_existing_item(self):
         item = ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
-        with patch("user_lists.views.ListItemViewSet._find_existing_item") as mock_find:
-            mock_find.side_effect = [None, item]
+        mock_find = MagicMock(side_effect=[None, item])
+        
+        with patch("user_lists.views.ListItemViewSet._find_existing_item", mock_find):
             with patch("user_lists.views.ListItemViewSet._get_or_create_item", side_effect=IntegrityError("Duplicate")):
                 response = self.client.post(
                     "/api/user_list_item/add-item-to-list/",
