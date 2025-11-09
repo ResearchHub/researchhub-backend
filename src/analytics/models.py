@@ -27,6 +27,17 @@ class UserInteractions(DefaultModel):
         User,
         on_delete=models.CASCADE,
         related_name="user_interactions",
+        null=True,
+        blank=True,
+    )
+    session_id = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        help_text=(
+            "Session ID (from Amplitude analytics_id) for anonymous and "
+            "authenticated users"
+        ),
     )
     event = models.CharField(
         max_length=50,
@@ -53,6 +64,7 @@ class UserInteractions(DefaultModel):
     class Meta:
         indexes = [
             models.Index(fields=["user"]),
+            models.Index(fields=["session_id"]),
             models.Index(fields=["event"]),
             models.Index(fields=["event_timestamp"]),
             models.Index(
@@ -70,16 +82,15 @@ class UserInteractions(DefaultModel):
                     "object_id",
                 ],
                 condition=models.Q(
-                    event__in=[
-                        "UPVOTE",
-                    ]
+                    event__in=["UPVOTE"],
+                    user__isnull=False,
                 ),
                 name="unique_non_repeatable_interactions",
             ),
             # Daily uniqueness for repeatable events
             models.UniqueConstraint(
                 TruncDate("event_timestamp"),
-                "user",
+                "session_id",
                 "event",
                 "unified_document",
                 "content_type",
@@ -90,7 +101,10 @@ class UserInteractions(DefaultModel):
         ]
 
     def __str__(self):
+        user_identifier = (
+            self.user_id if self.user_id else f"session_id:{self.session_id}"
+        )
         return (
-            f"UserInteraction: {self.user_id} - {self.event} - "
+            f"UserInteraction: {user_identifier} - {self.event} - "
             f"{self.unified_document_id}"
         )

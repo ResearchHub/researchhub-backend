@@ -66,14 +66,16 @@ class AmplitudeEvent:
 
     def __init__(
         self,
-        user: User,
+        user: Optional[User],
         event_type: str,
         unified_document: ResearchhubUnifiedDocument,
         content_type: ContentType,
         object_id: int,
         event_timestamp: datetime,
+        session_id: Optional[str] = None,
     ):
         self.user = user
+        self.session_id = session_id
         self.event_type = event_type
         self.unified_document = unified_document
         self.content_type = content_type
@@ -116,28 +118,41 @@ class AmplitudeEventParser:
 
             db_event_type = AMPLITUDE_TO_DB_EVENT_MAP[event_type]
 
+            # Try to get user_id from event_properties first, then from top-level event
             user_id = event_props.get("user_id")
-            if not user_id:
-                logger.warning(
-                    f"No user_id in event_properties for event_type '{event_type}'. "
-                    f"Event: {event}"
-                )
-                return None
+            # session_id is optional - get from amplitude_id field in event
+            session_id = event.get("amplitude_id") or event_props.get("amplitude_id")
 
-            try:
-                user_id = int(user_id)
-                user = User.objects.get(id=user_id)
-            except (ValueError, User.DoesNotExist) as e:
+            user = None
+            # If we have a user_id, try to get the authenticated user
+            if user_id:
+                try:
+                    user_id_int = int(user_id)
+                    user = User.objects.get(id=user_id_int)
+                except (ValueError, User.DoesNotExist) as e:
+                    logger.warning(
+                        f"Invalid user_id '{user_id}' for event_type "
+                        f"'{event_type}': {e}. Continuing with session_id only."
+                    )
+
+            # At least one of user or session_id must be present
+            if not user and not session_id:
                 logger.warning(
-                    f"Invalid user_id '{user_id}' for event_type '{event_type}': {e}"
+                    f"No user_id or session_id (amplitude_id) found for event_type "
+                    f"'{event_type}'. Event: {event}"
                 )
                 return None
 
             related_work = extract_related_work(event_props)
             if not related_work:
+                user_identifier = (
+                    user_id
+                    if user_id
+                    else f"session_id:{session_id}" if session_id else "unknown"
+                )
                 logger.warning(
                     f"No related_work data found for event_type '{event_type}', "
-                    f"user_id '{user_id}'. Event: {event}"
+                    f"user: '{user_identifier}'. Event: {event}"
                 )
                 return None
 
@@ -220,6 +235,7 @@ class AmplitudeEventParser:
                 content_type=content_type,
                 object_id=object_id,
                 event_timestamp=event_timestamp,
+                session_id=session_id,
             )
 
             return amplitude_event

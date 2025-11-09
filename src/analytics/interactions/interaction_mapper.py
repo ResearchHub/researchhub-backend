@@ -34,8 +34,11 @@ def map_from_upvote(vote: Vote) -> UserInteractions:
     if not unified_doc:
         raise ValueError(f"Vote {vote.id} has None unified_document")
 
+    # For upvotes from database, session_id is null (internal events)
+    # Constraints will use user_id instead
     return UserInteractions(
         user=vote.created_by,
+        session_id=None,
         event=UPVOTE,
         unified_document=unified_doc,
         content_type=vote.content_type,
@@ -59,6 +62,7 @@ def map_from_amplitude_event(amplitude_event: AmplitudeEvent) -> UserInteraction
     """
     return UserInteractions(
         user=amplitude_event.user,
+        session_id=amplitude_event.session_id,
         event=amplitude_event.event_type,
         unified_document=amplitude_event.unified_document,
         content_type=amplitude_event.content_type,

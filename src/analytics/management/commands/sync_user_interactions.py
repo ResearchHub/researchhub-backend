@@ -134,6 +134,7 @@ class Command(BaseCommand):
             writer.writerow(
                 [
                     "USER_ID",
+                    "SESSION_ID",
                     "ITEM_ID",
                     "TIMESTAMP",
                     "EVENT_TYPE",
@@ -145,7 +146,13 @@ class Command(BaseCommand):
             )
 
             for interaction in queryset.iterator():
-                if not interaction.user_id or not interaction.unified_document_id:
+                # Skip if neither user_id nor session_id is present (one is required)
+                if not interaction.user_id and not interaction.session_id:
+                    skipped += 1
+                    continue
+                
+                # Skip if unified_document_id is missing
+                if not interaction.unified_document_id:
                     skipped += 1
                     continue
 
@@ -153,7 +160,8 @@ class Command(BaseCommand):
 
                 writer.writerow(
                     [
-                        interaction.user_id,
+                        interaction.user_id or "",  # USER_ID (empty for anonymous)
+                        interaction.session_id or "",  # SESSION_ID (empty for internal events)
                         interaction.unified_document_id,
                         int(interaction.event_timestamp.timestamp()),
                         interaction.event,
