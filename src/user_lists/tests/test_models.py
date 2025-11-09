@@ -29,4 +29,3 @@ class ListItemModelTests(TestCase):
             parent_list=self.list_obj, unified_document=self.doc, created_by=self.user
         )
         self.assertEqual(str(item), str(item.id))
-
