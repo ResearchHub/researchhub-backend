@@ -20,7 +20,7 @@ def _update_list_timestamp(list_obj, user):
 def _handle_integrity_error_item():
     raise ValidationError({"error": "Item already exists in this list."})
 
-class ListViewSet(CreateModelMixin, UpdateModelMixin, DestroyModelMixin, viewsets.GenericViewSet):
+class ListViewSet(CreateModelMixin, ListModelMixin, RetrieveModelMixin, UpdateModelMixin, DestroyModelMixin, viewsets.GenericViewSet):
     queryset = List.objects.filter(is_removed=False)
     serializer_class = ListSerializer
     permission_classes = [IsAuthenticated, IsObjectOwner]
@@ -51,8 +51,9 @@ class ListViewSet(CreateModelMixin, UpdateModelMixin, DestroyModelMixin, viewset
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+        for item in instance.items.filter(is_removed=False):
+            item.delete()
         instance.delete()
-        instance.items.filter(is_removed=False).delete()
         return Response({"success": True}, status=status.HTTP_200_OK)
 
 
@@ -100,11 +101,14 @@ class ListItemViewSet(
         self._get_or_create_item(serializer, self.request.user)
 
     def perform_update(self, serializer):
+        original_parent_list = serializer.instance.parent_list
         parent_list = serializer.validated_data.get("parent_list", serializer.instance.parent_list)
         self._validate_parent_list(parent_list)
         try:
             serializer.save(updated_by=self.request.user)
             _update_list_timestamp(parent_list, self.request.user)
+            if original_parent_list != parent_list:
+                _update_list_timestamp(original_parent_list, self.request.user)
         except IntegrityError:
             _handle_integrity_error_item()
 

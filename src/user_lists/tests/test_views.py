@@ -65,11 +65,39 @@ class ListViewSetTests(APITestCase):
         )
         item2.delete()
         item2_id = item2.id
+        item1_id = item1.id
         response = self.client.delete(f"/api/user_list/{list_obj.id}/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertFalse(List.objects.filter(id=list_obj.id).exists())
         self.assertFalse(ListItem.objects.filter(id=item1.id, is_removed=False).exists())
         self.assertTrue(ListItem.all_objects.filter(id=item2_id, is_removed=True).exists())
+        item1_deleted = ListItem.all_objects.get(id=item1_id)
+        self.assertTrue(item1_deleted.is_removed)
+        self.assertIsNotNone(item1_deleted.is_removed_date)
+
+    def test_user_can_list_their_own_lists(self):
+        List.objects.create(name="List 1", created_by=self.user)
+        List.objects.create(name="List 2", created_by=self.user)
+        List.objects.create(name="Other List", created_by=self.other_user)
+        response = self.client.get("/api/user_list/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 2)
+        list_names = [list_data["name"] for list_data in response.data["results"]]
+        self.assertIn("List 1", list_names)
+        self.assertIn("List 2", list_names)
+        self.assertNotIn("Other List", list_names)
+
+    def test_user_can_retrieve_their_own_list(self):
+        list_obj = List.objects.create(name="My List", created_by=self.user)
+        response = self.client.get(f"/api/user_list/{list_obj.id}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["name"], "My List")
+        self.assertEqual(response.data["id"], list_obj.id)
+
+    def test_user_cannot_retrieve_other_user_list(self):
+        other_list = List.objects.create(name="Other List", created_by=self.other_user)
+        response = self.client.get(f"/api/user_list/{other_list.id}/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
 class ListItemViewSetTests(APITestCase):
@@ -161,9 +189,15 @@ class ListItemViewSetTests(APITestCase):
     def test_updating_item_to_different_list_updates_both_timestamps(self):
         item = ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
         new_list = List.objects.create(name="New List", created_by=self.user)
+        original_date = self.list_obj.updated_date
+        new_list_original_date = new_list.updated_date
         response = self.client.patch(f"/api/user_list_item/{item.id}/", {"parent_list": new_list.id})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.list_obj.refresh_from_db()
         new_list.refresh_from_db()
+        self.assertGreater(self.list_obj.updated_date, original_date)
+        self.assertEqual(self.list_obj.updated_by, self.user)
+        self.assertGreater(new_list.updated_date, new_list_original_date)
         self.assertEqual(new_list.updated_by, self.user)
 
     def test_updating_item_without_changing_list_still_updates_timestamp(self):
