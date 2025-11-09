@@ -148,10 +148,15 @@ class ListItemViewSet(
         try:
             list_item, _ = self._get_or_create_item(serializer, request.user)
             return Response(self._serialize_item(list_item), status=status.HTTP_201_CREATED)
-        except IntegrityError:
-            existing_item = self._find_existing_item(parent_list, unified_document)
-            if existing_item:
-                return self._existing_item_response(existing_item)
+        except (IntegrityError, ValidationError) as e:
+            if isinstance(e, IntegrityError):
+                existing_item = self._find_existing_item(parent_list, unified_document)
+                if existing_item:
+                    return self._existing_item_response(existing_item)
+            elif isinstance(e, ValidationError) and "Item already exists" in str(e.detail.get("error", "")):
+                existing_item = self._find_existing_item(parent_list, unified_document)
+                if existing_item:
+                    return self._existing_item_response(existing_item)
             _handle_integrity_error_item()
 
     @action(detail=False, methods=["post"], url_path="remove-item-from-list")

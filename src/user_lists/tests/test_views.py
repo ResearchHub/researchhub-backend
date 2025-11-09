@@ -2,6 +2,7 @@ from unittest.mock import patch, PropertyMock, MagicMock
 
 from django.db import IntegrityError
 from rest_framework import status
+from rest_framework.serializers import ValidationError
 from rest_framework.test import APITestCase
 
 from researchhub_document.related_models.constants.document_type import PAPER
@@ -177,6 +178,20 @@ class ListItemViewSetTests(APITestCase):
         self.assertIn("error", response.data)
         self.assertEqual(response.data["error"], "Item already exists in this list.")
 
+    def test_perform_create_with_integrity_error_calls_handler(self):
+        ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
+        from user_lists.views import ListItemViewSet
+        from user_lists.serializers import ListItemSerializer
+        
+        viewset = ListItemViewSet()
+        viewset.request = type('Request', (), {'user': self.user})()
+        serializer = ListItemSerializer(data={"parent_list": self.list_obj.id, "unified_document": self.doc.id}, context={"request": viewset.request})
+        serializer.is_valid(raise_exception=True)
+        
+        with self.assertRaises(ValidationError) as cm:
+            viewset.perform_create(serializer)
+        self.assertEqual(str(cm.exception.detail["error"]), "Item already exists in this list.")
+
     def test_user_can_create_new_item_in_list(self):
         response = self.client.post("/api/user_list_item/", {"parent_list": self.list_obj.id, "unified_document": self.doc.id})
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -207,6 +222,22 @@ class ListItemViewSetTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("error", response.data)
         self.assertEqual(response.data["error"], "Item already exists in this list.")
+
+    def test_perform_update_with_integrity_error_calls_handler(self):
+        other_doc = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
+        item = ListItem.objects.create(parent_list=self.list_obj, unified_document=other_doc, created_by=self.user)
+        ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
+        from user_lists.views import ListItemViewSet
+        from user_lists.serializers import ListItemSerializer
+        
+        viewset = ListItemViewSet()
+        viewset.request = type('Request', (), {'user': self.user})()
+        serializer = ListItemSerializer(item, data={"parent_list": self.list_obj.id, "unified_document": self.doc.id}, context={"request": viewset.request}, partial=True)
+        serializer.is_valid(raise_exception=True)
+        
+        with self.assertRaises(ValidationError) as cm:
+            viewset.perform_update(serializer)
+        self.assertEqual(str(cm.exception.detail["error"]), "Item already exists in this list.")
 
     def test_deleting_item_updates_parent_list_timestamp(self):
         item = ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
@@ -292,7 +323,7 @@ class ListItemViewSetTests(APITestCase):
         mock_find = MagicMock(side_effect=[None, item])
         
         with patch("user_lists.views.ListItemViewSet._find_existing_item", mock_find):
-            with patch("user_lists.views.ListItemViewSet._get_or_create_item", side_effect=IntegrityError("Duplicate")):
+            with patch("user_lists.views.ListItemSerializer.save", side_effect=IntegrityError("Duplicate")):
                 response = self.client.post(
                     "/api/user_list_item/add-item-to-list/",
                     {"parent_list": self.list_obj.id, "unified_document": self.doc.id},
@@ -302,7 +333,7 @@ class ListItemViewSetTests(APITestCase):
 
     def test_adding_item_with_integrity_error_but_no_existing_item_shows_generic_error(self):
         with patch("user_lists.views.ListItemViewSet._find_existing_item", return_value=None):
-            with patch("user_lists.views.ListItemViewSet._get_or_create_item", side_effect=IntegrityError("Duplicate")):
+            with patch("user_lists.views.ListItemSerializer.save", side_effect=IntegrityError("Duplicate")):
                 response = self.client.post(
                     "/api/user_list_item/add-item-to-list/",
                     {"parent_list": self.list_obj.id, "unified_document": self.doc.id},
