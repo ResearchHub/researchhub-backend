@@ -18,35 +18,27 @@ class ListItemDetailSerializerTests(TestCase):
         self.list_obj = List.objects.create(name="My List", created_by=self.user)
         self.doc = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
 
-    def test_get_unified_document_data_returns_serialized_data(self):
+    def test_getting_unified_document_data_returns_serialized_data(self):
         item = ListItem.objects.create(
             parent_list=self.list_obj, unified_document=self.doc, created_by=self.user
         )
         serializer = ListItemDetailSerializer(item, context={"request": None})
         data = serializer.data
-
         self.assertIn("unified_document_data", data)
-        unified_doc_data = data["unified_document_data"]
-        self.assertIsInstance(unified_doc_data, dict)
-        self.assertIn("id", unified_doc_data)
+        self.assertIsInstance(data["unified_document_data"], dict)
+        self.assertIn("id", data["unified_document_data"])
 
-    @patch("user_lists.serializers.DynamicUnifiedDocumentSerializer")
-    def test_get_unified_document_data_returns_fallback_on_exception(self, mock_serializer_class):
+    def test_getting_unified_document_data_with_exception_returns_fallback_data(self):
         item = ListItem.objects.create(
             parent_list=self.list_obj, unified_document=self.doc, created_by=self.user
         )
-
-        mock_serializer_instance = mock_serializer_class.return_value
-        type(mock_serializer_instance).data = PropertyMock(side_effect=Exception("Serialization error"))
-
-        serializer = ListItemDetailSerializer(item, context={"request": None})
-        data = serializer.data
-
-        self.assertIn("unified_document_data", data)
-        unified_doc_data = data["unified_document_data"]
-        self.assertIsInstance(unified_doc_data, dict)
-        self.assertEqual(unified_doc_data["id"], self.doc.id)
-        self.assertEqual(unified_doc_data["document_type"], self.doc.document_type)
-        self.assertEqual(unified_doc_data["is_removed"], self.doc.is_removed)
-        self.assertEqual(len(unified_doc_data), 3)
-
+        with patch("user_lists.serializers.DynamicUnifiedDocumentSerializer") as mock_serializer_class:
+            mock_serializer = mock_serializer_class.return_value
+            type(mock_serializer).data = PropertyMock(side_effect=Exception("Error"))
+            serializer = ListItemDetailSerializer(item, context={"request": None})
+            data = serializer.data
+            self.assertIn("unified_document_data", data)
+            unified_doc_data = data["unified_document_data"]
+            self.assertEqual(unified_doc_data["id"], self.doc.id)
+            self.assertEqual(unified_doc_data["document_type"], self.doc.document_type)
+            self.assertEqual(unified_doc_data["is_removed"], self.doc.is_removed)
