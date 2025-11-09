@@ -222,7 +222,7 @@ class AmplitudeEventParser:
                 )
                 return None
 
-            timestamp_ms = event.get("time")
+            timestamp_ms = event.get("_time")
             if timestamp_ms:
                 event_timestamp = datetime.fromtimestamp(timestamp_ms / 1000)
             else:
