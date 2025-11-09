@@ -237,6 +237,7 @@ class ListItemViewSetTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_serializing_item_successfully_includes_all_data(self):
+        ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
         response = self.client.post(
             "/api/user_list_item/add-item-to-list/",
             {"parent_list": self.list_obj.id, "unified_document": self.doc.id},
@@ -259,6 +260,7 @@ class ListItemViewSetTests(APITestCase):
             self.assertEqual(response.data["item"]["id"], item.id)
 
     def test_existing_item_response_includes_error_and_item_details(self):
+        ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
         response = self.client.post(
             "/api/user_list_item/add-item-to-list/",
             {"parent_list": self.list_obj.id, "unified_document": self.doc.id},
@@ -277,6 +279,7 @@ class ListItemViewSetTests(APITestCase):
         self.assertIn("id", response.data)
 
     def test_adding_duplicate_item_shows_error_with_item_details(self):
+        ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
         response = self.client.post(
             "/api/user_list_item/add-item-to-list/",
             {"parent_list": self.list_obj.id, "unified_document": self.doc.id},
@@ -325,6 +328,7 @@ class ListItemViewSetTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_removing_item_created_by_different_user_shows_not_found_error(self):
+        ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.other_user)
         response = self.client.post(
             "/api/user_list_item/remove-item-from-list/",
             {"parent_list": self.list_obj.id, "unified_document": self.doc.id},
