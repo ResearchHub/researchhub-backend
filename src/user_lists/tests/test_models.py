@@ -131,14 +131,22 @@ class ListItemModelTests(TestCase):
         self.assertIn(active_item, active_items)
         self.assertNotIn(removed_item, active_items)
 
-    def test_list_item_cascade_delete_when_list_deleted(self):
-        """Test that list items are soft-deleted when parent list is deleted."""
+    def test_list_delete_with_soft_false_hard_deletes(self):
+        list_obj = List.objects.create(name="Test List", created_by=self.user)
         item = ListItem.objects.create(
-            parent_list=self.list_obj, unified_document=self.doc, created_by=self.user
+            parent_list=list_obj, unified_document=self.doc, created_by=self.user
         )
-        
-        self.list_obj.delete()
+        list_obj.delete(soft=False)
+        self.assertFalse(List.all_objects.filter(id=list_obj.id).exists())
+        self.assertFalse(ListItem.all_objects.filter(id=item.id).exists())
+
+    def test_list_delete_with_soft_true_soft_deletes_items(self):
+        list_obj = List.objects.create(name="Test List", created_by=self.user)
+        item = ListItem.objects.create(
+            parent_list=list_obj, unified_document=self.doc, created_by=self.user
+        )
+        list_obj.delete(soft=True)
+        list_obj.refresh_from_db()
         item.refresh_from_db()
-        
+        self.assertTrue(list_obj.is_removed)
         self.assertTrue(item.is_removed)
-        self.assertTrue(self.list_obj.is_removed)

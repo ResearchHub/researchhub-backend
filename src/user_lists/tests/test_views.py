@@ -36,6 +36,14 @@ class ListViewSetTests(APITestCase):
         self.assertIn("error", response.data)
         self.assertIn("name", response.data["error"].lower())
 
+    def test_creating_list_with_invalid_data_triggers_error_formatting_loop(self):
+        response = self.client.post("/api/user_list/", {"name": "", "is_public": "invalid"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("error", response.data)
+        error_msg = response.data["error"]
+        self.assertIn("name", error_msg.lower())
+        self.assertIn("is_public", error_msg.lower())
+
     def test_user_can_only_access_their_own_lists(self):
         my_list = List.objects.create(name="My List", created_by=self.user)
         other_list = List.objects.create(name="Other List", created_by=self.other_user)
@@ -76,6 +84,20 @@ class ListViewSetTests(APITestCase):
         item1_deleted = ListItem.all_objects.get(id=item1_id)
         self.assertTrue(item1_deleted.is_removed)
         self.assertIsNotNone(item1_deleted.is_removed_date)
+
+    def test_deleting_list_with_active_items_triggers_delete_loop(self):
+        list_obj = List.objects.create(name="List with Active Items", created_by=self.user)
+        doc1 = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
+        doc2 = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
+        item1 = ListItem.objects.create(parent_list=list_obj, unified_document=doc1, created_by=self.user)
+        item2 = ListItem.objects.create(parent_list=list_obj, unified_document=doc2, created_by=self.user)
+        item1_id = item1.id
+        item2_id = item2.id
+        
+        response = self.client.delete(f"/api/user_list/{list_obj.id}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(ListItem.all_objects.filter(id=item1_id, is_removed=True).exists())
+        self.assertTrue(ListItem.all_objects.filter(id=item2_id, is_removed=True).exists())
 
     def test_user_can_list_their_own_lists(self):
         List.objects.create(name="List 1", created_by=self.user)
@@ -217,6 +239,22 @@ class ListItemViewSetTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data["error"], "Item already exists in this list.")
 
+    def test_perform_update_validates_parent_list(self):
+        item = ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
+        removed_list = List.objects.create(name="Removed List", created_by=self.user)
+        removed_list.delete()
+        response = self.client.patch(f"/api/user_list_item/{item.id}/", {"parent_list": removed_list.id})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("parent_list", response.data)
+
+    def test_perform_update_with_integrity_error_handles_duplicate(self):
+        other_doc = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
+        item1 = ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
+        item2 = ListItem.objects.create(parent_list=self.list_obj, unified_document=other_doc, created_by=self.user)
+        response = self.client.patch(f"/api/user_list_item/{item2.id}/", {"unified_document": self.doc.id})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["error"], "Item already exists in this list.")
+
     def test_deleting_item_updates_parent_list_timestamp(self):
         item = ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
         response = self.client.delete(f"/api/user_list_item/{item.id}/")
@@ -253,6 +291,27 @@ class ListItemViewSetTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertIn("id", response.data)
 
+    def test_add_item_to_list_success_path_returns_serialized_item(self):
+        other_doc = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
+        response = self.client.post(
+            "/api/user_list_item/add-item-to-list/",
+            {"parent_list": self.list_obj.id, "unified_document": other_doc.id},
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIn("id", response.data)
+        self.assertIn("unified_document_data", response.data)
+
+    def test_add_item_to_list_exception_path_finds_existing_item_after_error(self):
+        other_doc = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
+        item = ListItem.objects.create(parent_list=self.list_obj, unified_document=other_doc, created_by=self.user)
+        response = self.client.post(
+            "/api/user_list_item/add-item-to-list/",
+            {"parent_list": self.list_obj.id, "unified_document": other_doc.id},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["error"], "Item already in list")
+        self.assertIn("item", response.data)
+
     def test_adding_duplicate_item_through_add_action_shows_error(self):
         ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
         response = self.client.post(
@@ -287,6 +346,15 @@ class ListItemViewSetTests(APITestCase):
             {"parent_list": self.list_obj.id, "unified_document": self.doc.id},
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_remove_item_from_list_when_item_not_found_returns_404(self):
+        other_doc = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
+        response = self.client.post(
+            "/api/user_list_item/remove-item-from-list/",
+            {"parent_list": self.list_obj.id, "unified_document": other_doc.id},
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.data["error"], "Item not found in list")
 
 
     def test_serialize_item_returns_data(self):
@@ -343,3 +411,94 @@ class ListItemViewSetTests(APITestCase):
             {"parent_list": self.list_obj.id, "unified_document": 99999},
         )
         self.assertIn(response.status_code, [status.HTTP_400_BAD_REQUEST, status.HTTP_404_NOT_FOUND])
+
+    def test_remove_item_from_list_when_item_exists_but_wrong_creator(self):
+        item = ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.other_user)
+        response = self.client.post(
+            "/api/user_list_item/remove-item-from-list/",
+            {"parent_list": self.list_obj.id, "unified_document": self.doc.id},
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertTrue(ListItem.objects.filter(id=item.id, is_removed=False).exists())
+
+    def test_add_item_to_list_exception_path_when_item_not_found_after_error(self):
+        other_doc = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
+        response = self.client.post(
+            "/api/user_list_item/add-item-to-list/",
+            {"parent_list": self.list_obj.id, "unified_document": other_doc.id},
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_list_delete_with_no_items(self):
+        list_obj = List.objects.create(name="Empty List", created_by=self.user)
+        response = self.client.delete(f"/api/user_list/{list_obj.id}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(List.objects.filter(id=list_obj.id).exists())
+
+    def test_get_queryset_with_parent_list_filter(self):
+        other_list = List.objects.create(name="Other List", created_by=self.user)
+        item1 = ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
+        other_doc = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
+        item2 = ListItem.objects.create(parent_list=other_list, unified_document=other_doc, created_by=self.user)
+        
+        response = self.client.get(f"/api/user_list_item/?parent_list={self.list_obj.id}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(response.data["results"][0]["id"], item1.id)
+
+    def test_get_serializer_class_returns_detail_serializer_for_retrieve(self):
+        item = ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
+        response = self.client.get(f"/api/user_list_item/{item.id}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("unified_document_data", response.data)
+
+    def test_get_serializer_class_returns_detail_serializer_for_list(self):
+        ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
+        response = self.client.get("/api/user_list_item/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        if len(response.data["results"]) > 0:
+            self.assertIn("unified_document_data", response.data["results"][0])
+
+    def test_get_serializer_class_returns_basic_serializer_for_create(self):
+        response = self.client.post("/api/user_list_item/", {"parent_list": self.list_obj.id, "unified_document": self.doc.id})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertNotIn("unified_document_data", response.data)
+
+    def test_get_serializer_class_returns_basic_serializer_for_update(self):
+        item = ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
+        response = self.client.patch(f"/api/user_list_item/{item.id}/", {})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn("unified_document_data", response.data)
+
+    def test_get_queryset_without_parent_list_filter(self):
+        ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
+        other_list = List.objects.create(name="Other List", created_by=self.user)
+        other_doc = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
+        ListItem.objects.create(parent_list=other_list, unified_document=other_doc, created_by=self.user)
+        
+        response = self.client.get("/api/user_list_item/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 2)
+
+    def test_existing_item_response_includes_item_data(self):
+        item = ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
+        response = self.client.post(
+            "/api/user_list_item/add-item-to-list/",
+            {"parent_list": self.list_obj.id, "unified_document": self.doc.id},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("item", response.data)
+        self.assertIn("id", response.data["item"])
+
+    def test_list_delete_loop_through_items(self):
+        list_obj = List.objects.create(name="List with Many Items", created_by=self.user)
+        docs = [ResearchhubUnifiedDocument.objects.create(document_type=PAPER) for _ in range(5)]
+        items = []
+        for doc in docs:
+            item = ListItem.objects.create(parent_list=list_obj, unified_document=doc, created_by=self.user)
+            items.append(item)
+        
+        response = self.client.delete(f"/api/user_list/{list_obj.id}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        for item in items:
+            self.assertTrue(ListItem.all_objects.filter(id=item.id, is_removed=True).exists())
