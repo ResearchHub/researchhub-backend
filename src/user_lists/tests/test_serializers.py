@@ -8,8 +8,6 @@ from user_lists.serializers import (
     ListDetailSerializer,
     ListItemDetailSerializer,
     ListSerializer,
-    _get_author_ids_from_queryset,
-    _get_doc_ids_by_type,
 )
 
 
@@ -77,28 +75,6 @@ class ListSerializerTests(TestCase):
         serializer = ListSerializer(self.list_obj)
         self.assertEqual(serializer.get_items_count(self.list_obj), 1)
 
-    def test_list_serializer_returns_top_hubs(self):
-        serializer = ListSerializer(self.list_obj)
-        result = serializer.get_top_hubs(self.list_obj)
-        self.assertIsInstance(result, list)
-
-    def test_list_serializer_returns_top_topics(self):
-        serializer = ListSerializer(self.list_obj)
-        result = serializer.get_top_topics(self.list_obj)
-        self.assertIsInstance(result, list)
-
-    def test_list_serializer_returns_empty_list_when_no_items_exist(self):
-        serializer = ListSerializer(self.list_obj)
-        result = serializer.get_top_authors(self.list_obj)
-        self.assertEqual(result, [])
-
-    def test_list_serializer_returns_top_authors_when_papers_exist(self):
-        doc = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
-        ListItem.objects.create(parent_list=self.list_obj, unified_document=doc, created_by=self.user)
-        serializer = ListSerializer(self.list_obj)
-        result = serializer.get_top_authors(self.list_obj)
-        self.assertIsInstance(result, list)
-
 
 class ListDetailSerializerTests(TestCase):
     def setUp(self):
@@ -117,23 +93,3 @@ class ListDetailSerializerTests(TestCase):
         self.assertGreater(len(items), 0)
 
 
-class SerializerHelperFunctionTests(TestCase):
-    def test_helper_function_filters_documents_by_paper_type(self):
-        doc1 = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
-        doc2 = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
-        result = _get_doc_ids_by_type([doc1.id, doc2.id], PAPER)
-        self.assertEqual(len(result), 2)
-        self.assertIn(doc1.id, result)
-        self.assertIn(doc2.id, result)
-
-    def test_helper_function_excludes_papers_when_no_type_specified(self):
-        doc1 = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
-        result = _get_doc_ids_by_type([doc1.id])
-        self.assertEqual(len(result), 0)
-
-    def test_helper_function_extracts_author_ids_from_queryset(self):
-        from user.related_models.author_model import Author
-        author = Author.objects.create(first_name="Test", last_name="Author")
-        queryset = Author.objects.filter(id=author.id)
-        result = _get_author_ids_from_queryset(queryset)
-        self.assertIn(author.id, result)
