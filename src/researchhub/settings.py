@@ -882,3 +882,6 @@ else:
     AWS_PERSONALIZE_FILTER_ARN_GTE_DATE = (
         "arn:aws:personalize:us-west-2:058264226692:filter/filter-gte-date"
     )
+
+# Scraper token
+SCRAPER_TOKEN = os.environ.get("SCRAPER_TOKEN", keys.SCRAPER_TOKEN)
