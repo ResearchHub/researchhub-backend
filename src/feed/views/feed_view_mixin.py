@@ -271,6 +271,13 @@ class FeedViewMixin:
         Args:
             user_id: The ID of the user whose caches should be invalidated
         """
+        # Cache key pattern: {feed_type}_feed:{feed_view}:{hub_part}:{source_part}:{user_part}:{pagination_part}{status_part}{sort_part}
+        # For following feed, user_part is the user_id
+        # We need to invalidate all possible combinations for this user
+
+        # Django's cache doesn't support wildcard deletion out of the box
+        # For now, we'll delete specific known cache keys for common pagination scenarios
+        # Pages 1-4, page sizes 20 and 40
         feed_views = ["following"]
         hub_parts = ["all"]
         source_parts = ["all", "researchhub"]
