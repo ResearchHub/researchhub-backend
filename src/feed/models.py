@@ -10,6 +10,7 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
     ResearchhubUnifiedDocument,
 )
 from user.models import User
+from user.related_models.author_model import Author
 from utils.models import DefaultModel
 
 
@@ -69,6 +70,13 @@ class FeedEntry(DefaultModel):
     # The hubs associated with the feed entry.
     hubs = models.ManyToManyField(
         Hub,
+        blank=True,
+        related_name="feed_entries",
+    )
+
+    # The authors associated with the feed entry.
+    authors = models.ManyToManyField(
+        Author,
         blank=True,
         related_name="feed_entries",
     )
