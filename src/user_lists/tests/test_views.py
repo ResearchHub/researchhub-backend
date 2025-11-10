@@ -211,6 +211,7 @@ class ListItemViewSetTests(APITestCase):
 
     def test_user_cannot_update_item_to_duplicate(self):
         other_doc = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
+        ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
         item2 = ListItem.objects.create(parent_list=self.list_obj, unified_document=other_doc, created_by=self.user)
         response = self.client.patch(f"/api/user_list_item/{item2.id}/", {"unified_document": self.doc.id})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
