@@ -118,13 +118,10 @@ class AmplitudeEventParser:
 
             db_event_type = AMPLITUDE_TO_DB_EVENT_MAP[event_type]
 
-            # Try to get user_id from event_properties first, then from top-level event
             user_id = event_props.get("user_id")
-            # session_id is optional - get from amplitude_id field in event
             session_id = event.get("amplitude_id") or event_props.get("amplitude_id")
 
             user = None
-            # If we have a user_id, try to get the authenticated user
             if user_id:
                 try:
                     user_id_int = int(user_id)
@@ -135,7 +132,6 @@ class AmplitudeEventParser:
                         f"'{event_type}': {e}. Continuing with session_id only."
                     )
 
-            # At least one of user or session_id must be present
             if not user and not session_id:
                 logger.warning(
                     f"No user_id or session_id (amplitude_id) found for event_type "

@@ -24,8 +24,10 @@ class EventProcessor:
         # Check parsing first - raise exception if it fails
         amplitude_event = self.amplitude_parser.parse_amplitude_event(event)
         if amplitude_event is None:
-            user_identifier = user_id if user_id else (
-                f"session_id:{session_id}" if session_id else "unknown"
+            user_identifier = (
+                user_id
+                if user_id
+                else (f"session_id:{session_id}" if session_id else "unknown")
             )
             error_msg = f"Could not parse event {event_type} for user {user_identifier}"
             logger.error(error_msg)
@@ -34,21 +36,24 @@ class EventProcessor:
         interaction = map_from_amplitude_event(amplitude_event)
 
         try:
-            # Build lookup kwargs using session_id if exists, else user
             lookup_kwargs = {
                 "event": interaction.event,
                 "unified_document": interaction.unified_document,
                 "content_type": interaction.content_type,
                 "object_id": interaction.object_id,
             }
-            
+
+            if interaction.event in ["FEED_ITEM_CLICK", "PAGE_VIEW"]:
+                lookup_kwargs["event_timestamp__date"] = (
+                    interaction.event_timestamp.date()
+                )
+
             if interaction.session_id:
                 lookup_kwargs["session_id"] = interaction.session_id
-                lookup_kwargs["user__isnull"] = True
             else:
                 lookup_kwargs["user"] = interaction.user
                 lookup_kwargs["session_id__isnull"] = True
-            
+
             interaction, created = UserInteractions.objects.get_or_create(
                 **lookup_kwargs,
                 defaults={

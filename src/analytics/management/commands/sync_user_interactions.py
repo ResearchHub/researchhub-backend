@@ -146,11 +146,10 @@ class Command(BaseCommand):
             )
 
             for interaction in queryset.iterator():
-                # Skip if neither user_id nor session_id is present (one is required)
                 if not interaction.user_id and not interaction.session_id:
                     skipped += 1
                     continue
-                
+
                 # Skip if unified_document_id is missing
                 if not interaction.unified_document_id:
                     skipped += 1
@@ -160,8 +159,8 @@ class Command(BaseCommand):
 
                 writer.writerow(
                     [
-                        interaction.user_id or "",  # USER_ID (empty for anonymous)
-                        interaction.session_id or "",  # SESSION_ID (empty for internal events)
+                        interaction.user_id or "",
+                        interaction.session_id or "",
                         interaction.unified_document_id,
                         int(interaction.event_timestamp.timestamp()),
                         interaction.event,
