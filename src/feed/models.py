@@ -67,14 +67,12 @@ class FeedEntry(DefaultModel):
         null=False,
     )
 
-    # The hubs associated with the feed entry.
     hubs = models.ManyToManyField(
         Hub,
         blank=True,
         related_name="feed_entries",
     )
 
-    # The authors associated with the feed entry.
     authors = models.ManyToManyField(
         Author,
         blank=True,
