@@ -199,7 +199,7 @@ router.register(r"journal_feed", JournalFeedViewSet, basename="journal_feed")
 router_v2 = routers.DefaultRouter()
 
 router_v2.register(r"feed", FeedV2ViewSet, basename="feed_v2")
-router_v2.register(r"feed_v3", ResearchHubFeed, basename="feed_v3")
+router_v2.register(r"researchhub_feed", ResearchHubFeed, basename="researchhub_feed")
 
 urlpatterns = [
     # Health check

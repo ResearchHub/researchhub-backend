@@ -38,7 +38,13 @@ class FeedFilteringBackend(BaseFilterBackend):
         return queryset
 
     def _filter_personalized(self, request, queryset, view):
-        if not request.user.is_authenticated:
+        user_id = request.query_params.get("user_id")
+
+        if user_id:
+            user_id = int(user_id)
+        elif request.user.is_authenticated:
+            user_id = request.user.id
+        else:
             return queryset
 
         try:
@@ -47,8 +53,11 @@ class FeedFilteringBackend(BaseFilterBackend):
                 return queryset
 
             page_size = view.paginator.page_size if hasattr(view, "paginator") else 30
+            filter_param = request.query_params.get("filter", "new-content")
+
             recommended_ids = personalize_client.get_recommendations_for_user(
-                user_id=str(request.user.id),
+                user_id=str(user_id),
+                filter=filter_param,
                 num_results=page_size * 3,
             )
 

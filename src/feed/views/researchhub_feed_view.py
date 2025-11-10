@@ -1,7 +1,7 @@
 from rest_framework.viewsets import ModelViewSet
 
 from feed.clients.personalize_client import PersonalizeClient
-from feed.config import FEED_CONFIG
+from feed.feed_config import FEED_CONFIG
 from feed.filtering import FeedFilteringBackend
 from feed.models import FeedEntry
 from feed.ordering import FeedOrderingBackend
@@ -38,7 +38,7 @@ class ResearchHubFeed(FeedViewMixin, ModelViewSet):
         return self.get_cached_list_response(
             request,
             use_cache_config=use_cache_for_feed,
-            cache_key_feed_type="v3",
+            cache_key_feed_type="researchhub",
         )
 
     def get_queryset(self):
