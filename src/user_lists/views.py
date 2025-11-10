@@ -1,4 +1,3 @@
-from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.mixins import CreateModelMixin, DestroyModelMixin, ListModelMixin, RetrieveModelMixin, UpdateModelMixin
@@ -8,19 +7,12 @@ from researchhub.permissions import IsObjectOwner
 from rest_framework.serializers import ValidationError
 from django.db import IntegrityError
 
+from .mixins import ListItemMixin, ListTimestampMixin
 from .models import List, ListItem
 from .serializers import ListItemDetailSerializer, ListItemSerializer, ListSerializer
 
 
-def _update_list_timestamp(list_obj, user):
-    list_obj.updated_date = timezone.now()
-    list_obj.updated_by = user
-    list_obj.save(update_fields=["updated_date", "updated_by"])
-
-def _handle_integrity_error_item():
-    raise ValidationError({"error": "Item already exists in this list."})
-
-class ListViewSet(CreateModelMixin, ListModelMixin, RetrieveModelMixin, UpdateModelMixin, DestroyModelMixin, viewsets.GenericViewSet):
+class ListViewSet(ListTimestampMixin, CreateModelMixin, ListModelMixin, RetrieveModelMixin, UpdateModelMixin, DestroyModelMixin, viewsets.GenericViewSet):
     queryset = List.objects.filter(is_removed=False)
     serializer_class = ListSerializer
     permission_classes = [IsAuthenticated, IsObjectOwner]
@@ -31,7 +23,6 @@ class ListViewSet(CreateModelMixin, ListModelMixin, RetrieveModelMixin, UpdateMo
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
-            # Format validation errors into a single error message
             error_messages = []
             for field, errors in serializer.errors.items():
                 if isinstance(errors, list):
@@ -47,7 +38,7 @@ class ListViewSet(CreateModelMixin, ListModelMixin, RetrieveModelMixin, UpdateMo
 
     def perform_update(self, serializer):
         instance = serializer.save(updated_by=self.request.user)
-        _update_list_timestamp(instance, self.request.user)
+        self._update_list_timestamp(instance, self.request.user)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -58,6 +49,8 @@ class ListViewSet(CreateModelMixin, ListModelMixin, RetrieveModelMixin, UpdateMo
 
 
 class ListItemViewSet(
+    ListTimestampMixin,
+    ListItemMixin,
     CreateModelMixin,
     RetrieveModelMixin,
     UpdateModelMixin,
@@ -83,20 +76,6 @@ class ListItemViewSet(
     def get_serializer_class(self):
         return ListItemDetailSerializer if self.action in ["retrieve", "list"] else ListItemSerializer
 
-    def _validate_parent_list(self, parent_list):
-        if parent_list.created_by != self.request.user or parent_list.is_removed:
-            raise ValidationError({"parent_list": "List not found or you don't have permission."})
-
-    def _get_or_create_item(self, serializer, created_by):
-        parent_list = serializer.validated_data.get("parent_list")
-        self._validate_parent_list(parent_list)
-        try:
-            item = serializer.save(created_by=created_by)
-            _update_list_timestamp(parent_list, created_by)
-            return item, parent_list
-        except IntegrityError:
-            _handle_integrity_error_item()
-
     def perform_create(self, serializer):
         self._get_or_create_item(serializer, self.request.user)
 
@@ -106,35 +85,18 @@ class ListItemViewSet(
         self._validate_parent_list(parent_list)
         try:
             serializer.save(updated_by=self.request.user)
-            _update_list_timestamp(parent_list, self.request.user)
+            self._update_list_timestamp(parent_list, self.request.user)
             if original_parent_list != parent_list:
-                _update_list_timestamp(original_parent_list, self.request.user)
+                self._update_list_timestamp(original_parent_list, self.request.user)
         except IntegrityError:
-            _handle_integrity_error_item()
+            self._handle_integrity_error_item()
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         parent_list = instance.parent_list
         instance.delete()
-        _update_list_timestamp(parent_list, request.user)
+        self._update_list_timestamp(parent_list, request.user)
         return Response({"success": True}, status=status.HTTP_200_OK)
-
-    def _find_existing_item(self, parent_list, unified_document):
-        return ListItem.objects.filter(
-            parent_list=parent_list, unified_document=unified_document, is_removed=False
-        ).first()
-
-    def _serialize_item(self, item):
-        try:
-            return ListItemDetailSerializer(item, context={"request": self.request}).data
-        except Exception:
-            return {"id": item.id}
-
-    def _existing_item_response(self, existing_item):
-        return Response(
-            {"error": "Item already in list", "item": self._serialize_item(existing_item)},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
 
     @action(detail=False, methods=["post"], url_path="add-item-to-list")
     def add_item_to_list(self, request):
@@ -153,15 +115,12 @@ class ListItemViewSet(
             list_item, _ = self._get_or_create_item(serializer, request.user)
             return Response(self._serialize_item(list_item), status=status.HTTP_201_CREATED)
         except (IntegrityError, ValidationError) as e:
-            if isinstance(e, IntegrityError):
-                existing_item = self._find_existing_item(parent_list, unified_document)
-                if existing_item:
-                    return self._existing_item_response(existing_item)
-            elif isinstance(e, ValidationError) and "Item already exists" in str(e.detail.get("error", "")):
-                existing_item = self._find_existing_item(parent_list, unified_document)
-                if existing_item:
-                    return self._existing_item_response(existing_item)
-            _handle_integrity_error_item()
+            existing_item = self._find_existing_item(parent_list, unified_document)
+            if existing_item:
+                return self._existing_item_response(existing_item)
+            if isinstance(e, ValidationError):
+                raise
+            self._handle_integrity_error_item()
 
     @action(detail=False, methods=["post"], url_path="remove-item-from-list")
     def remove_item_from_list(self, request):
@@ -174,6 +133,6 @@ class ListItemViewSet(
             return Response({"error": "Item not found in list"}, status=status.HTTP_404_NOT_FOUND)
         parent_list = list_item.parent_list
         list_item.delete()
-        _update_list_timestamp(parent_list, request.user)
+        self._update_list_timestamp(parent_list, request.user)
         return Response({"success": True}, status=status.HTTP_200_OK)
 

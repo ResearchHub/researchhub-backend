@@ -12,6 +12,12 @@ class List(DefaultAuthenticatedModel, SoftDeletableModel):
     def __str__(self):
         return f"{self.created_by}:{self.name}"
 
+    def delete(self, soft=True, *args, **kwargs):
+        if soft:
+            for item in self.items.filter(is_removed=False):
+                item.delete(soft=True)
+        return super().delete(soft=soft, *args, **kwargs)
+
     class Meta:
         ordering = ["name"]
         indexes = [ 

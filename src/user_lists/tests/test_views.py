@@ -1,5 +1,7 @@
 from django.db import IntegrityError
+from django.utils import timezone
 from rest_framework import status
+from rest_framework.serializers import ValidationError
 from rest_framework.test import APITestCase
 
 from researchhub_document.related_models.constants.document_type import PAPER
@@ -285,3 +287,59 @@ class ListItemViewSetTests(APITestCase):
             {"parent_list": self.list_obj.id, "unified_document": self.doc.id},
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+    def test_serialize_item_returns_data(self):
+        item = ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
+        response = self.client.get(f"/api/user_list_item/{item.id}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("id", response.data)
+        self.assertIn("unified_document_data", response.data)
+
+    def test_update_list_timestamp_updates_fields(self):
+        list_obj = List.objects.create(name="Test List", created_by=self.user)
+        original_date = list_obj.updated_date
+        
+        response = self.client.patch(f"/api/user_list/{list_obj.id}/", {"name": "Updated Name"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        list_obj.refresh_from_db()
+        
+        self.assertGreater(list_obj.updated_date, original_date)
+        self.assertEqual(list_obj.updated_by, self.user)
+
+    def test_handle_integrity_error_item_raises_validation_error(self):
+        ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
+        response = self.client.post("/api/user_list_item/", {"parent_list": self.list_obj.id, "unified_document": self.doc.id})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["error"], "Item already exists in this list.")
+
+    def test_validate_parent_list_rejects_other_user_list(self):
+        response = self.client.post("/api/user_list_item/", {"parent_list": self.other_list.id, "unified_document": self.doc.id})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("parent_list", response.data)
+
+    def test_validate_parent_list_rejects_removed_list(self):
+        removed_list = List.objects.create(name="Removed List", created_by=self.user)
+        removed_list.delete()
+        
+        response = self.client.post("/api/user_list_item/", {"parent_list": removed_list.id, "unified_document": self.doc.id})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("parent_list", response.data)
+
+    def test_validate_parent_list_accepts_valid_list(self):
+        response = self.client.post("/api/user_list_item/", {"parent_list": self.list_obj.id, "unified_document": self.doc.id})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_remove_item_from_list_with_invalid_parent_list(self):
+        response = self.client.post(
+            "/api/user_list_item/remove-item-from-list/",
+            {"parent_list": 99999, "unified_document": self.doc.id},
+        )
+        self.assertIn(response.status_code, [status.HTTP_400_BAD_REQUEST, status.HTTP_404_NOT_FOUND])
+
+    def test_remove_item_from_list_with_invalid_document(self):
+        response = self.client.post(
+            "/api/user_list_item/remove-item-from-list/",
+            {"parent_list": self.list_obj.id, "unified_document": 99999},
+        )
+        self.assertIn(response.status_code, [status.HTTP_400_BAD_REQUEST, status.HTTP_404_NOT_FOUND])
