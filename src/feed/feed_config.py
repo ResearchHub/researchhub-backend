@@ -4,7 +4,7 @@ FEED_CONFIG = {
         "allowed_sorts": ["hot_score_v2", "hot_score", "latest"],
     },
     "personalized": {
-        "use_cache": True,
+        "use_cache": False,
         "allowed_sorts": [],
     },
     "popular": {
