@@ -1,6 +1,6 @@
 from rest_framework.filters import BaseFilterBackend
 
-from feed.config import FEED_CONFIG
+from feed.feed_config import FEED_CONFIG
 
 
 class FeedOrderingBackend(BaseFilterBackend):

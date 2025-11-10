@@ -6,7 +6,7 @@ from rest_framework.response import Response
 
 from discussion.models import Vote
 from discussion.serializers import VoteSerializer
-from feed.config import FEED_DEFAULTS
+from feed.feed_config import FEED_DEFAULTS
 from feed.views.common import FeedPagination
 from hub.models import Hub
 from paper.related_models.paper_model import Paper
