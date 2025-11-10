@@ -115,10 +115,10 @@ class OpenAlexMapper(BaseMapper):
             pdf_license_url=license_info.get("license_url"),
             # Language
             language=record.get("language"),
+            # Citations
+            citations=record.get("cited_by_count", 0),
             # External metadata
-            external_metadata={
-                "cited_by_count": record.get("cited_by_count"),
-            },
+            external_metadata={},
             # URLs
             url=license_info.get("landing_page_url"),
             pdf_url=license_info.get("pdf_url"),

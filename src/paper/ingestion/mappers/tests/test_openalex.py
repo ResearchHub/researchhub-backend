@@ -193,7 +193,7 @@ class TestOpenAlexMapper(TestCase):
         self.assertIsNotNone(paper.pdf_url)
         self.assertEqual(paper.openalex_id, "W2741809807")
         self.assertIsNotNone(paper.external_metadata)
-        self.assertIsNotNone(paper.external_metadata.get("cited_by_count"))
+        self.assertIsNotNone(paper.citations)
         self.assertIsNotNone(paper.raw_authors)
         self.assertGreater(len(paper.raw_authors), 0)
         # Check that license fields are mapped (may be None depending on fixture)

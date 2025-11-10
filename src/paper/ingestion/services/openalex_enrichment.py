@@ -130,6 +130,9 @@ class PaperOpenAlexEnrichmentService:
             with transaction.atomic():
                 # Process license data if available and not already present
                 license_updated = False
+                citations_updated = False
+                update_fields = []
+
                 if mapped_paper.pdf_url and mapped_paper.pdf_license:
                     # Only update if both required fields are missing (all-or-nothing)
                     if not (paper.pdf_url and paper.pdf_license):
@@ -143,9 +146,7 @@ class PaperOpenAlexEnrichmentService:
                             paper.pdf_license_url = mapped_paper.pdf_license_url
                             update_fields.append("pdf_license_url")
 
-                        paper.save(update_fields=update_fields)
                         license_updated = True
-                        logger.info(f"Updated license data for paper {paper.id}")
                     else:
                         logger.debug(
                             f"Paper {paper.id} already has license data, "
@@ -157,6 +158,15 @@ class PaperOpenAlexEnrichmentService:
                         f"(has_pdf_url={bool(mapped_paper.pdf_url)}, "
                         f"has_license={bool(mapped_paper.pdf_license)})"
                     )
+
+                # Update citations if available
+                if mapped_paper.citations is not None:
+                    paper.citations = mapped_paper.citations
+                    update_fields = update_fields + ["citations"]
+                    citations_updated = True
+
+                if update_fields:
+                    paper.save(update_fields=update_fields)
 
                 # Always process authors, institutions, and authorships
                 authors_created, authors_updated = self.process_authors(
@@ -174,6 +184,7 @@ class PaperOpenAlexEnrichmentService:
             logger.info(
                 f"Successfully enriched paper {paper.id}: "
                 f"license_updated={license_updated}, "
+                f"citations_updated={citations_updated}, "
                 f"{authors_created} authors created, "
                 f"{authors_updated} authors updated, "
                 f"{institutions_created} institutions created, "

@@ -4,9 +4,7 @@ from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import SAFE_METHODS, BasePermission
 from rest_framework.response import Response
-
 from feed.views.common import FeedPagination
-
 from .models import List, ListItem
 from .serializers import ListDetailSerializer, ListItemDetailSerializer, ListItemSerializer, ListSerializer
 
@@ -14,13 +12,10 @@ from .serializers import ListDetailSerializer, ListItemDetailSerializer, ListIte
 class ListAccessPermission(BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated
-
     def has_object_permission(self, request, view, obj):
         if request.method in SAFE_METHODS:
             return obj.can_be_accessed_by(request.user)
         return obj.can_be_modified_by(request.user)
-
-
 class ListViewSet(viewsets.ModelViewSet):
     queryset = List.objects.filter(is_removed=False)
     serializer_class = ListSerializer
@@ -42,19 +37,26 @@ class ListViewSet(viewsets.ModelViewSet):
 
     def get_serializer_class(self):
         return ListDetailSerializer if self.action == "retrieve" else ListSerializer
-
-    def perform_create(self, serializer):
-        try:
-            serializer.save(created_by=self.request.user)
-        except IntegrityError:
-            raise serializers.ValidationError({"error": "A list with this name already exists."})
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            # Format validation errors into a single error message
+            error_messages = []
+            for field, errors in serializer.errors.items():
+                if isinstance(errors, list):
+                    error_messages.extend([f"{field}: {error}" for error in errors])
+                else:
+                    error_messages.append(f"{field}: {errors}")
+            error_message = " ".join(error_messages) if error_messages else "Validation error"
+            return Response({"error": error_message}, status=status.HTTP_400_BAD_REQUEST)
+        
+        serializer.save(created_by=self.request.user)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def perform_update(self, serializer):
-        try:
-            instance = serializer.save(updated_by=self.request.user)
-            instance.update_timestamp(self.request.user)
-        except IntegrityError:
-            raise serializers.ValidationError({"error": "A list with this name already exists."})
+        instance = serializer.save(updated_by=self.request.user)
+        _update_list_timestamp(instance, self.request.user)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
