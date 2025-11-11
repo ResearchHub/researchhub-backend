@@ -5,11 +5,17 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from feed.views.common import FeedPagination
 from researchhub.permissions import IsObjectOwner
-from rest_framework.serializers import ValidationError
 from django.db import IntegrityError
 
 from .models import List, ListItem
-from .serializers import ListDetailSerializer, ListItemDetailSerializer, ListItemSerializer, ListSerializer
+from .serializers import (
+    ListDetailSerializer,
+    ListItemDetailSerializer,
+    ListItemSerializer,
+    ListSerializer,
+    ToggleListItemResponseSerializer,
+    UserCheckResponseSerializer,
+)
 
 
 def _update_list_timestamp(list_obj, user):
@@ -26,7 +32,7 @@ class ListViewSet(viewsets.ModelViewSet):
     pagination_class = FeedPagination
 
     def get_queryset(self):
-        return self.queryset.filter(created_by=self.request.user).order_by("-updated_date")
+        return self.queryset.filter(created_by=self.request.user).prefetch_related("items").order_by("-updated_date")
 
     def get_serializer_class(self):
         return ListDetailSerializer if self.action == "retrieve" else ListSerializer
@@ -34,7 +40,6 @@ class ListViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
-            # Format validation errors into a single error message
             error_messages = []
             for field, errors in serializer.errors.items():
                 if isinstance(errors, list):
@@ -60,13 +65,6 @@ class ListViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"], url_path="user_check")
     def user_check(self, request):
-        """
-        Lightweight endpoint to get user's lists with item IDs for quick frontend checks.
-        Returns lists with their item IDs and unified_document IDs so the frontend can:
-        - Know what lists the user has
-        - Check if an item already exists in a list
-        - Get the ListItem ID needed to remove an item
-        """
         user_lists = self.get_queryset().prefetch_related("items")
         
         lists_data = []
@@ -74,8 +72,8 @@ class ListViewSet(viewsets.ModelViewSet):
             items = list_obj.items.filter(is_removed=False).order_by("-created_date")
             items_data = [
                 {
-                    "id": item.id,  # ListItem ID for removal
-                    "unified_document_id": item.unified_document_id,  # For checking if doc exists in list
+                    "id": item.id,
+                    "unified_document_id": item.unified_document_id,
                 }
                 for item in items
             ]
@@ -87,7 +85,9 @@ class ListViewSet(viewsets.ModelViewSet):
                 "items": items_data,
             })
         
-        return Response({"lists": lists_data}, status=status.HTTP_200_OK)
+        response_data = {"lists": lists_data}
+        serializer = UserCheckResponseSerializer(response_data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class ListItemViewSet(viewsets.ModelViewSet):
@@ -148,18 +148,6 @@ class ListItemViewSet(viewsets.ModelViewSet):
             parent_list=parent_list, unified_document=unified_document, is_removed=False
         ).first()
 
-    def _serialize_item(self, item):
-        try:
-            return ListItemDetailSerializer(item, context={"request": self.request}).data
-        except Exception:
-            return {"id": item.id}
-
-    def _existing_item_response(self, existing_item):
-        return Response(
-            {"error": "Item already in list", "item": self._serialize_item(existing_item)},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
     @action(detail=False, methods=["post"], url_path="add-item-to-list")
     def add_item_to_list(self, request):
         serializer = ListItemSerializer(data=request.data, context={"request": request})
@@ -170,16 +158,48 @@ class ListItemViewSet(viewsets.ModelViewSet):
         self._validate_parent_list(parent_list)
 
         existing_item = self._find_existing_item(parent_list, unified_document)
+        
         if existing_item:
-            return self._existing_item_response(existing_item)
+            parent_list = existing_item.parent_list
+            existing_item.delete()
+            _update_list_timestamp(parent_list, request.user)
+            
+            response_data = {
+                "action": "removed",
+                "item": None,
+                "success": True,
+            }
+            response_serializer = ToggleListItemResponseSerializer(
+                response_data, context={"request": request}
+            )
+            return Response(response_serializer.data, status=status.HTTP_200_OK)
 
         try:
             list_item, _ = self._get_or_create_item(serializer, request.user)
-            return Response(self._serialize_item(list_item), status=status.HTTP_201_CREATED)
+            response_data = {
+                "action": "added",
+                "item": list_item,
+                "success": True,
+            }
+            response_serializer = ToggleListItemResponseSerializer(
+                response_data, context={"request": request}
+            )
+            return Response(response_serializer.data, status=status.HTTP_201_CREATED)
         except IntegrityError:
             existing_item = self._find_existing_item(parent_list, unified_document)
             if existing_item:
-                return self._existing_item_response(existing_item)
+                parent_list = existing_item.parent_list
+                existing_item.delete()
+                _update_list_timestamp(parent_list, request.user)
+                response_data = {
+                    "action": "removed",
+                    "item": None,
+                    "success": True,
+                }
+                response_serializer = ToggleListItemResponseSerializer(
+                    response_data, context={"request": request}
+                )
+                return Response(response_serializer.data, status=status.HTTP_200_OK)
             _handle_integrity_error_item()
 
     @action(detail=False, methods=["post"], url_path="remove-item-from-list")
