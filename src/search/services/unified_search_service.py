@@ -18,10 +18,6 @@ logger = logging.getLogger(__name__)
 
 
 class UnifiedSearchService:
-    """
-    Service for performing unified search across multiple document types
-    with highlighting, aggregations, and relevance-based scoring.
-    """
 
     SORT_RELEVANCE = "relevance"
     SORT_NEWEST = "newest"
@@ -42,20 +38,7 @@ class UnifiedSearchService:
         sort: str = SORT_RELEVANCE,
         request=None,
     ) -> dict[str, Any]:
-        """
-        Perform unified search across documents and people.
 
-        Args:
-            query: Search query string
-            page: Page number (1-indexed)
-            page_size: Number of results per page
-            sort: Sort option (relevance, newest)
-            request: HTTP request object for building pagination URLs
-
-        Returns:
-            Dictionary containing documents, people, aggregations,
-            and pagination info
-        """
         # Validate sort option
         if sort not in self.VALID_SORT_OPTIONS:
             sort = self.SORT_RELEVANCE
@@ -119,12 +102,7 @@ class UnifiedSearchService:
     def _search_documents(
         self, query: str, offset: int, limit: int, sort: str
     ) -> dict[str, Any]:
-        """
-        Search across paper and post documents.
 
-        Returns:
-            Dictionary with results, count, and aggregations
-        """
         # Create multi-index search for papers and posts
         search = Search(index=[self.paper_index, self.post_index])
 
@@ -202,12 +180,6 @@ class UnifiedSearchService:
     def _search_people(
         self, query: str, offset: int, limit: int, sort: str
     ) -> dict[str, Any]:
-        """
-        Search across people (authors/users).
-
-        Returns:
-            Dictionary with results and count
-        """
         # Create search for people
         search = Search(index=self.person_index)
 
@@ -266,10 +238,7 @@ class UnifiedSearchService:
         }
 
     def _search_documents_by_doi(self, normalized_doi: str) -> dict[str, Any]:
-        """
-        Fast path for DOI queries: return only the exact DOI match (at most one).
-        Returns the latest version based on created_date (or updated_date if available).
-        """
+
         search = Search(index=[self.paper_index, self.post_index])
         search = search.query(Q("term", doi={"value": normalized_doi}))
 
@@ -365,10 +334,7 @@ class UnifiedSearchService:
         return search
 
     def _add_aggregations(self, search: Search) -> Search:
-        """
-        Add aggregations for years and content types.
-        Note: Hub aggregation removed temporarily due to hub indexing changes.
-        """
+
         # Year aggregation (from created_date or paper_publish_date)
         search.aggs.bucket(
             "years",
@@ -403,9 +369,7 @@ class UnifiedSearchService:
         return search
 
     def _process_document_results(self, response) -> list[dict[str, Any]]:
-        """
-        Process document search results with highlighting.
-        """
+
         results = []
 
         for hit in response.hits:
@@ -503,9 +467,6 @@ class UnifiedSearchService:
         return results
 
     def _process_people_results(self, response) -> list[dict[str, Any]]:
-        """
-        Process people search results with highlighting.
-        """
         results = []
 
         for hit in response.hits:
@@ -561,9 +522,7 @@ class UnifiedSearchService:
         return results
 
     def _process_aggregations(self, response) -> dict[str, Any]:
-        """
-        Process aggregations from search response.
-        """
+
         aggregations = {}
 
         if hasattr(response, "aggregations"):
@@ -598,19 +557,7 @@ class UnifiedSearchService:
     def _build_page_url(
         self, request, query: str, page: int, page_size: int, sort: str
     ) -> str:
-        """
-        Build pagination URL for next/previous page.
 
-        Args:
-            request: HTTP request object
-            query: Search query string
-            page: Page number
-            page_size: Number of results per page
-            sort: Sort option
-
-        Returns:
-            Full URL for the page
-        """
         from urllib.parse import urlencode
 
         # Build query parameters

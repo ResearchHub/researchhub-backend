@@ -1,47 +1,12 @@
-"""
-Query builder for unified search queries.
-
-This module contains the query building logic separated from service orchestration,
-making it easier to test and maintain query construction independently.
-"""
-
 from opensearchpy import Q
 
 from utils.doi import DOI
 
 
 class UnifiedSearchQueryBuilder:
-    """
-    Builder for constructing OpenSearch queries for unified search.
-
-    Handles query construction for documents (papers/posts) and people (authors/users),
-    including hybrid query strategies, field boosting, and rescore logic.
-    """
 
     def build_document_query(self, query: str) -> Q:
-        """
-        Build hybrid query for documents using multiple matching strategies.
-        Combines phrase match (highest priority), AND match (medium),
-        and OR match (lowest) in a single bool query for better relevance
-        and coverage.
 
-        Field boosting:
-        - paper_title^5 / title^5 (highest)
-        - raw_authors.full_name^3 / authors.full_name^3 (medium)
-        - abstract^2 (lower)
-        - renderable_text^1 (lowest)
-
-        Strategy boosts:
-        - Phrase match: base boost × 2.0
-        - AND match: base boost × 1.0
-        - OR match: base boost × 0.5
-
-        Args:
-            query: Search query string
-
-        Returns:
-            Q: OpenSearch query object
-        """
         # Strategy A: Strict phrase matches with small slop (favor best field)
         phrase_strict = Q(
             "dis_max",
@@ -135,15 +100,7 @@ class UnifiedSearchQueryBuilder:
         return Q("bool", should=shoulds, minimum_should_match=1)
 
     def build_person_query(self, query: str) -> Q:
-        """
-        Build multi-match query for people with field boosting.
 
-        Args:
-            query: Search query string
-
-        Returns:
-            Q: OpenSearch query object
-        """
         return Q(
             "multi_match",
             query=query,
@@ -160,18 +117,7 @@ class UnifiedSearchQueryBuilder:
         )
 
     def build_rescore_query(self, query: str) -> dict:
-        """
-        Build rescore query block to reward author+title co-occurrence in top results.
 
-        This rescore block is applied to the top 100 results to boost documents
-        where both author names and titles match the query.
-
-        Args:
-            query: Search query string
-
-        Returns:
-            dict: Rescore block configuration
-        """
         return {
             "window_size": 100,
             "query": {
