@@ -363,3 +363,40 @@ class FeedDiversificationTests(APITestCase):
         page_2_ids = [r["id"] for r in page_2.data["results"]]
 
         self.assertEqual(len(set(page_1_ids) & set(page_2_ids)), 0)
+
+    def test_ordering_applied_before_diversification(self):
+        self._create_entry("A_low", self.subcategory_a, 50)
+        self._create_entry("A_high", self.subcategory_a, 100)
+        self._create_entry("A_mid", self.subcategory_a, 75)
+        self._create_entry("B_mid", self.subcategory_b, 60)
+
+        url = reverse("researchhub_feed-list")
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get(url, {"feed_view": "following", "diversify": "true"})
+
+        results = response.data["results"]
+        titles = [r["content_object"]["title"] for r in results]
+
+        self.assertEqual(titles[0], "A_high")
+        self.assertEqual(titles[1], "A_mid")
+        self.assertEqual(titles[2], "B_mid")
+
+    def test_ordering_not_reapplied_after_diversification(self):
+        self._create_entry("A1", self.subcategory_a, 100)
+        self._create_entry("A2", self.subcategory_a, 90)
+        self._create_entry("A3", self.subcategory_a, 80)
+        self._create_entry("B1", self.subcategory_b, 95)
+
+        url = reverse("researchhub_feed-list")
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get(url, {"feed_view": "following", "diversify": "true"})
+
+        results = response.data["results"]
+        titles = [r["content_object"]["title"] for r in results]
+
+        self.assertEqual(titles[0], "A1")
+        self.assertEqual(titles[1], "B1")
+        self.assertIn("A2", titles)
+        self.assertIn("A3", titles)
