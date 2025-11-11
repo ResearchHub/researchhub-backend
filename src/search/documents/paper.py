@@ -129,7 +129,7 @@ class PaperDocument(BaseDocument):
 
         except Exception as e:
             logger.warning(
-                f"Failed to prepare OpenAlex keywords for " f"paper {instance.id}: {e}"
+                f"Failed to prepare OpenAlex keywords for paper {instance.id}: {e}"
             )
 
         try:
@@ -190,7 +190,7 @@ class PaperDocument(BaseDocument):
                         "first_name": author.get("first_name"),
                         "last_name": author.get("last_name"),
                         "full_name": (
-                            f'{author.get("first_name")} ' f'{author.get("last_name")}'
+                            f"{author.get("first_name")} {author.get("last_name")}"
                         ),
                     }
                 )

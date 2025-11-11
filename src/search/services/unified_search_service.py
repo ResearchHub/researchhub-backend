@@ -368,6 +368,72 @@ class UnifiedSearchService:
 
         return search
 
+    def _extract_document_highlights(self, highlights) -> tuple[str | None, str | None]:
+        """Extract snippet and matched field from document highlights."""
+        if not highlights:
+            return None, None
+
+        # Priority: title > abstract/content
+        if hasattr(highlights, "paper_title"):
+            return highlights.paper_title[0], "title"
+        if hasattr(highlights, "title"):
+            return highlights.title[0], "title"
+        if hasattr(highlights, "abstract"):
+            return highlights.abstract[0], "abstract"
+        if hasattr(highlights, "renderable_text"):
+            return highlights.renderable_text[0], "content"
+
+        return None, None
+
+    def _build_paper_fields(self, hit) -> dict[str, Any]:
+        """Build paper-specific fields for a search result."""
+        raw_doi = getattr(hit, "doi", None)
+        return {
+            "authors": [
+                {
+                    "first_name": author.get("first_name", ""),
+                    "last_name": author.get("last_name", ""),
+                    "full_name": author.get("full_name", ""),
+                }
+                for author in getattr(hit, "raw_authors", [])
+            ],
+            "doi": DOI.normalize_doi(raw_doi) if raw_doi else None,
+            "citations": getattr(hit, "citations", 0),
+            "paper_publish_date": getattr(hit, "paper_publish_date", None),
+            "unified_document_id": getattr(hit, "unified_document_id", None),
+        }
+
+    def _build_post_fields(self, hit) -> dict[str, Any]:
+        """Build post-specific fields for a search result."""
+        return {
+            "authors": [
+                {
+                    "first_name": author.get("first_name", ""),
+                    "last_name": author.get("last_name", ""),
+                    "full_name": author.get("full_name", ""),
+                }
+                for author in getattr(hit, "authors", [])
+            ],
+            "slug": getattr(hit, "slug", None),
+            "document_type": getattr(hit, "document_type", None),
+            "unified_document_id": getattr(hit, "unified_document_id", None),
+        }
+
+    def _process_hubs(self, hit) -> list[dict[str, Any]]:
+        """Process and format hubs from a search hit."""
+        hubs = getattr(hit, "hubs", [])
+        if not hubs:
+            return []
+
+        return [
+            {
+                "id": hub.get("id"),
+                "name": hub.get("name"),
+                "slug": hub.get("slug"),
+            }
+            for hub in hubs
+        ]
+
     def _process_document_results(self, response) -> list[dict[str, Any]]:
 
         results = []
@@ -378,23 +444,7 @@ class UnifiedSearchService:
 
             # Get highlights
             highlights = getattr(hit.meta, "highlight", None)
-            snippet = None
-            matched_field = None
-
-            if highlights:
-                # Priority: title > abstract/content
-                if hasattr(highlights, "paper_title"):
-                    snippet = highlights.paper_title[0]
-                    matched_field = "title"
-                elif hasattr(highlights, "title"):
-                    snippet = highlights.title[0]
-                    matched_field = "title"
-                elif hasattr(highlights, "abstract"):
-                    snippet = highlights.abstract[0]
-                    matched_field = "abstract"
-                elif hasattr(highlights, "renderable_text"):
-                    snippet = highlights.renderable_text[0]
-                    matched_field = "content"
+            snippet, matched_field = self._extract_document_highlights(highlights)
 
             # Build result object
             result = {
@@ -408,63 +458,52 @@ class UnifiedSearchService:
                 "_search_score": hit.meta.score,
             }
 
-            # Add paper-specific fields
+            # Add document-specific fields
             if doc_type == "paper":
-                raw_doi = getattr(hit, "doi", None)
-                result.update(
-                    {
-                        "authors": [
-                            {
-                                "first_name": author.get("first_name", ""),
-                                "last_name": author.get("last_name", ""),
-                                "full_name": author.get("full_name", ""),
-                            }
-                            for author in getattr(hit, "raw_authors", [])
-                        ],
-                        "doi": DOI.normalize_doi(raw_doi) if raw_doi else None,
-                        "citations": getattr(hit, "citations", 0),
-                        "paper_publish_date": getattr(hit, "paper_publish_date", None),
-                        "unified_document_id": getattr(
-                            hit, "unified_document_id", None
-                        ),
-                    }
-                )
-            else:  # post
-                result.update(
-                    {
-                        "authors": [
-                            {
-                                "first_name": author.get("first_name", ""),
-                                "last_name": author.get("last_name", ""),
-                                "full_name": author.get("full_name", ""),
-                            }
-                            for author in getattr(hit, "authors", [])
-                        ],
-                        "slug": getattr(hit, "slug", None),
-                        "document_type": getattr(hit, "document_type", None),
-                        "unified_document_id": getattr(
-                            hit, "unified_document_id", None
-                        ),
-                    }
-                )
+                result.update(self._build_paper_fields(hit))
+            else:
+                result.update(self._build_post_fields(hit))
 
             # Add hubs
-            hubs = getattr(hit, "hubs", [])
-            if hubs:
-                result["hubs"] = [
-                    {
-                        "id": hub.get("id"),
-                        "name": hub.get("name"),
-                        "slug": hub.get("slug"),
-                    }
-                    for hub in hubs
-                ]
-            else:
-                result["hubs"] = []
+            result["hubs"] = self._process_hubs(hit)
 
             results.append(result)
 
         return results
+
+    def _extract_people_highlights(self, highlights) -> tuple[str | None, str | None]:
+        """Extract snippet and matched field from people highlights."""
+        if not highlights:
+            return None, None
+
+        # Priority: name > headline > description
+        if hasattr(highlights, "full_name"):
+            return highlights.full_name[0], "name"
+        if hasattr(highlights, "headline"):
+            return highlights.headline[0], "headline"
+        if hasattr(highlights, "description"):
+            return highlights.description[0], "description"
+
+        return None, None
+
+    def _process_headline(self, headline) -> dict[str, Any] | None:
+        """Process headline field from a search hit."""
+        if not headline:
+            return None
+
+        if hasattr(headline, "to_dict"):
+            return headline.to_dict()
+        return headline
+
+    def _process_institutions(self, hit) -> list[dict[str, Any]]:
+        """Process and format institutions from a search hit."""
+        institutions = getattr(hit, "institutions", [])
+        if not institutions:
+            return []
+
+        return [
+            {"id": inst.get("id"), "name": inst.get("name")} for inst in institutions
+        ]
 
     def _process_people_results(self, response) -> list[dict[str, Any]]:
         results = []
@@ -472,20 +511,7 @@ class UnifiedSearchService:
         for hit in response.hits:
             # Get highlights
             highlights = getattr(hit.meta, "highlight", None)
-            snippet = None
-            matched_field = None
-
-            if highlights:
-                # Priority: name > headline > description
-                if hasattr(highlights, "full_name"):
-                    snippet = highlights.full_name[0]
-                    matched_field = "name"
-                elif hasattr(highlights, "headline"):
-                    snippet = highlights.headline[0]
-                    matched_field = "headline"
-                elif hasattr(highlights, "description"):
-                    snippet = highlights.description[0]
-                    matched_field = "description"
+            snippet, matched_field = self._extract_people_highlights(highlights)
 
             # Build result object
             result = {
@@ -501,56 +527,63 @@ class UnifiedSearchService:
 
             # Add headline
             headline = getattr(hit, "headline", None)
-            if headline:
-                if hasattr(headline, "to_dict"):
-                    result["headline"] = headline.to_dict()
-                else:
-                    result["headline"] = headline
+            processed_headline = self._process_headline(headline)
+            if processed_headline:
+                result["headline"] = processed_headline
 
             # Add institutions
-            institutions = getattr(hit, "institutions", [])
-            if institutions:
-                result["institutions"] = [
-                    {"id": inst.get("id"), "name": inst.get("name")}
-                    for inst in institutions
-                ]
-            else:
-                result["institutions"] = []
+            result["institutions"] = self._process_institutions(hit)
 
             results.append(result)
 
         return results
 
+    def _process_year_aggregation(self, aggs) -> list[dict[str, Any]]:
+        """Process year aggregation from response aggregations."""
+        if not hasattr(aggs, "years"):
+            return []
+
+        return [
+            {"key": bucket.key_as_string, "doc_count": bucket.doc_count}
+            for bucket in aggs.years.buckets
+        ]
+
+    def _process_content_type_aggregation(self, aggs) -> list[dict[str, Any]]:
+        """Process content type aggregation from response aggregations."""
+        if not hasattr(aggs, "content_types"):
+            return []
+
+        # Map index names to friendly names
+        type_mapping = {"paper": "paper", "post": "post"}
+        content_types = []
+
+        for bucket in aggs.content_types.buckets:
+            index_name = bucket.key
+            for key, value in type_mapping.items():
+                if key in index_name:
+                    content_types.append({"key": value, "doc_count": bucket.doc_count})
+                    break
+
+        return content_types
+
     def _process_aggregations(self, response) -> dict[str, Any]:
 
         aggregations = {}
 
-        if hasattr(response, "aggregations"):
-            aggs = response.aggregations
+        if not hasattr(response, "aggregations"):
+            return aggregations
 
-            # Process year aggregation
-            if hasattr(aggs, "years"):
-                aggregations["years"] = [
-                    {"key": bucket.key_as_string, "doc_count": bucket.doc_count}
-                    for bucket in aggs.years.buckets
-                ]
+        aggs = response.aggregations
 
-            # Process content type aggregation
-            if hasattr(aggs, "content_types"):
-                # Map index names to friendly names
-                type_mapping = {
-                    "paper": "paper",
-                    "post": "post",
-                }
-                aggregations["content_types"] = []
-                for bucket in aggs.content_types.buckets:
-                    index_name = bucket.key
-                    for key, value in type_mapping.items():
-                        if key in index_name:
-                            aggregations["content_types"].append(
-                                {"key": value, "doc_count": bucket.doc_count}
-                            )
-                            break
+        # Process year aggregation
+        years = self._process_year_aggregation(aggs)
+        if years:
+            aggregations["years"] = years
+
+        # Process content type aggregation
+        content_types = self._process_content_type_aggregation(aggs)
+        if content_types:
+            aggregations["content_types"] = content_types
 
         return aggregations
 

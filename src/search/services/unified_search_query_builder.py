@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -15,7 +16,7 @@ class FieldConfig:
 
     def get_boosted_name(self) -> str:
         """Return field name with boost suffix."""
-        if self.boost == 1.0:
+        if math.isclose(self.boost, 1.0):
             return self.name
         return f"{self.name}^{self.boost}"
 
@@ -171,10 +172,10 @@ class DocumentQueryBuilder:
                 else:
                     fuzzy_boost = field.boost * boost_multiplier
 
-                if fuzzy_boost == 1.0:
+                if math.isclose(fuzzy_boost, 1.0):
                     boosted_name = field.name
-                elif fuzzy_boost == int(fuzzy_boost):
-                    boosted_name = f"{field.name}^{int(fuzzy_boost)}"
+                elif math.isclose(fuzzy_boost, round(fuzzy_boost)):
+                    boosted_name = f"{field.name}^{int(round(fuzzy_boost))}"
                 else:
                     boosted_name = f"{field.name}^{fuzzy_boost}"
                 field_list.append(boosted_name)
