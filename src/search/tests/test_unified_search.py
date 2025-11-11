@@ -25,7 +25,7 @@ class UnifiedSearchServiceTests(TestCase):
 
     def test_build_document_query(self):
         """Test document query building with hybrid query structure."""
-        query = self.service._build_document_query("machine learning")
+        query = self.service.query_builder.build_document_query("machine learning")
         self.assertIsNotNone(query)
         qd = query.to_dict()
 
@@ -64,17 +64,25 @@ class UnifiedSearchServiceTests(TestCase):
         self.assertGreaterEqual(len(and_nodes), 1)
         self.assertGreaterEqual(len(or_nodes), 1)
 
-        # Verify field boosting in one AND multi_match (accept ^4 or ^5 for titles)
-        and_fields = and_nodes[0]["multi_match"]["fields"]
-        self.assertIn("abstract^2", and_fields)
+        # Verify field boosting in at least one AND multi_match
+        and_fields_lists = [n["multi_match"]["fields"] for n in and_nodes]
+        self.assertTrue(any("abstract^2" in fields for fields in and_fields_lists))
         self.assertTrue(
-            any(f in and_fields for f in ["paper_title^5", "paper_title^4"])
+            any(
+                any(f in fields for f in ["paper_title^5", "paper_title^4"])
+                for fields in and_fields_lists
+            )
         )
-        self.assertTrue(any(f in and_fields for f in ["title^5", "title^4"]))
+        self.assertTrue(
+            any(
+                any(f in fields for f in ["title^5", "title^4"])
+                for fields in and_fields_lists
+            )
+        )
 
     def test_build_person_query(self):
         """Test person query building with proper boosting."""
-        query = self.service._build_person_query("Jane Doe")
+        query = self.service.query_builder.build_person_query("Jane Doe")
         self.assertIsNotNone(query)
         self.assertEqual(query.to_dict()["multi_match"]["query"], "Jane Doe")
         # Verify field boosting for people

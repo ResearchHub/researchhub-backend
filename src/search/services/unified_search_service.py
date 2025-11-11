@@ -11,6 +11,7 @@ from opensearchpy import Q, Search
 from search.documents.paper import PaperDocument
 from search.documents.person import PersonDocument
 from search.documents.post import PostDocument
+from search.services.unified_search_query_builder import UnifiedSearchQueryBuilder
 from utils.doi import DOI
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,7 @@ class UnifiedSearchService:
         self.paper_index = PaperDocument._index._name
         self.post_index = PostDocument._index._name
         self.person_index = PersonDocument._index._name
+        self.query_builder = UnifiedSearchQueryBuilder()
 
     def search(
         self,
@@ -127,41 +129,12 @@ class UnifiedSearchService:
         search = Search(index=[self.paper_index, self.post_index])
 
         # Build query with field boosting
-        query_obj = self._build_document_query(query)
+        query_obj = self.query_builder.build_document_query(query)
         search = search.query(query_obj)
 
         # Light rescore to reward author+title co-occurrence in top results
         try:
-            rescore_block = {
-                "window_size": 100,
-                "query": {
-                    "rescore_query": {
-                        "bool": {
-                            "must": [
-                                {
-                                    "multi_match": {
-                                        "query": query,
-                                        "type": "cross_fields",
-                                        "fields": [
-                                            "raw_authors.full_name^2",
-                                            "authors.full_name^2",
-                                        ],
-                                    }
-                                },
-                                {
-                                    "multi_match": {
-                                        "query": query,
-                                        "type": "best_fields",
-                                        "fields": ["paper_title^3", "title^3"],
-                                    }
-                                },
-                            ]
-                        }
-                    },
-                    "query_weight": 0.9,
-                    "rescore_query_weight": 0.1,
-                },
-            }
+            rescore_block = self.query_builder.build_rescore_query(query)
             search = search.extra(rescore=[rescore_block])
         except Exception:
             # If the backend version doesn't support rescore, ignore gracefully
@@ -239,7 +212,7 @@ class UnifiedSearchService:
         search = Search(index=self.person_index)
 
         # Build query
-        query_obj = self._build_person_query(query)
+        query_obj = self.query_builder.build_person_query(query)
         search = search.query(query_obj)
 
         # Apply highlighting
@@ -295,9 +268,35 @@ class UnifiedSearchService:
     def _search_documents_by_doi(self, normalized_doi: str) -> dict[str, Any]:
         """
         Fast path for DOI queries: return only the exact DOI match (at most one).
+        Returns the latest version based on created_date (or updated_date if available).
         """
         search = Search(index=[self.paper_index, self.post_index])
         search = search.query(Q("term", doi={"value": normalized_doi}))
+
+        # Sort by date to get the latest version
+        # Prefer updated_date if available (for posts), otherwise created_date
+        # This handles both papers (created_date only) and posts (both fields)
+        search = search.sort(
+            {
+                "_script": {
+                    "type": "number",
+                    "script": {
+                        "source": (
+                            "if (doc.containsKey('updated_date') && "
+                            "!doc['updated_date'].empty) {"
+                            "  return doc['updated_date'].value.toEpochMilli();"
+                            "} else if (doc.containsKey('created_date') && "
+                            "!doc['created_date'].empty) {"
+                            "  return doc['created_date'].value.toEpochMilli();"
+                            "}"
+                            "return 0;"
+                        ),
+                        "lang": "painless",
+                    },
+                    "order": "desc",
+                }
+            }
+        )
 
         # Source filtering for performance (match document search fields)
         search = search.source(
@@ -310,6 +309,7 @@ class UnifiedSearchService:
                 "raw_authors",
                 "authors",
                 "created_date",
+                "updated_date",
                 "paper_publish_date",
                 "citations",
                 "hubs",
@@ -321,7 +321,7 @@ class UnifiedSearchService:
             ]
         )
 
-        # Limit to one exact match
+        # Limit to one exact match (latest version)
         search = search[0:1]
         search = search.extra(track_total_hits=True, timeout="5s")
 
@@ -333,135 +333,6 @@ class UnifiedSearchService:
 
         results = self._process_document_results(response)
         return {"results": results, "count": response.hits.total.value}
-
-    def _build_document_query(self, query: str) -> Q:
-        """
-        Build hybrid query for documents using multiple matching strategies.
-        Combines phrase match (highest priority), AND match (medium),
-        and OR match (lowest) in a single bool query for better relevance
-        and coverage.
-
-        Field boosting:
-        - paper_title^5 / title^5 (highest)
-        - raw_authors.full_name^3 / authors.full_name^3 (medium)
-        - abstract^2 (lower)
-        - renderable_text^1 (lowest)
-
-        Strategy boosts:
-        - Phrase match: base boost × 2.0
-        - AND match: base boost × 1.0
-        - OR match: base boost × 0.5
-        """
-        # Strategy A: Strict phrase matches with small slop (favor best field)
-        phrase_strict = Q(
-            "dis_max",
-            queries=[
-                Q(
-                    "match_phrase",
-                    paper_title={"query": query, "slop": 1, "boost": 3.0},
-                ),
-                Q("match_phrase", title={"query": query, "slop": 1, "boost": 3.0}),
-                Q("match_phrase", abstract={"query": query, "slop": 2, "boost": 1.5}),
-            ],
-            tie_breaker=0.1,
-        )
-
-        # Strategy B: Phrase prefix allows partial last term in title
-        phrase_prefix = Q(
-            "dis_max",
-            queries=[
-                Q(
-                    "match_phrase_prefix",
-                    paper_title={"query": query, "max_expansions": 20, "boost": 2.5},
-                ),
-                Q(
-                    "match_phrase_prefix",
-                    title={"query": query, "max_expansions": 20, "boost": 2.5},
-                ),
-            ],
-            tie_breaker=0.1,
-        )
-
-        # Strategy C: Fuzzy AND to handle typos across major fields (including authors)
-        typo_and = Q(
-            "multi_match",
-            query=query,
-            fields=[
-                "paper_title^4",
-                "title^4",
-                "abstract^2",
-                "renderable_text",
-                "raw_authors.full_name^2",
-                "authors.full_name^2",
-            ],
-            type="best_fields",
-            fuzziness="AUTO",
-            operator="and",
-        )
-
-        # Strategy D: Author + Title combo must co-occur
-        author_title_combo = Q(
-            "constant_score",
-            filter=Q(
-                "bool",
-                must=[
-                    Q(
-                        "multi_match",
-                        query=query,
-                        type="cross_fields",
-                        operator="or",
-                        fields=["raw_authors.full_name^3", "authors.full_name^3"],
-                    ),
-                    Q(
-                        "multi_match",
-                        query=query,
-                        type="best_fields",
-                        operator="and",
-                        fields=["paper_title^5", "title^5"],
-                    ),
-                ],
-            ),
-            boost=4.0,
-        )
-
-        shoulds = [
-            author_title_combo,
-            phrase_strict,
-            phrase_prefix,
-            typo_and,
-        ]
-
-        # Optional: direct DOI exact match if the query is a DOI
-        try:
-            if DOI.is_doi(query):
-                normalized_doi = DOI.normalize_doi(query)
-                shoulds.insert(
-                    0,
-                    Q("term", doi={"value": normalized_doi, "boost": 8.0}),
-                )
-        except Exception:
-            pass
-
-        return Q("bool", should=shoulds, minimum_should_match=1)
-
-    def _build_person_query(self, query: str) -> Q:
-        """
-        Build multi-match query for people with field boosting.
-        """
-        return Q(
-            "multi_match",
-            query=query,
-            fields=[
-                "full_name^5",  # Highest boost for full name
-                "first_name^3",
-                "last_name^3",
-                "headline^2",
-                "description^1",
-            ],
-            type="best_fields",
-            fuzziness="AUTO",
-            operator="or",
-        )
 
     def _apply_highlighting(self, search: Search, is_document: bool = True) -> Search:
         """
