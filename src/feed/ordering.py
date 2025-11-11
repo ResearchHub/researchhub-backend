@@ -5,6 +5,10 @@ from feed.feed_config import FEED_CONFIG
 
 class FeedOrderingBackend(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
+        # Skip ordering if queryset is already diversified to preserve the diversification order
+        if getattr(view, "_is_diversified", False):
+            return queryset
+
         feed_view = request.query_params.get("feed_view", "popular")
         ordering_param = request.query_params.get("ordering")
 

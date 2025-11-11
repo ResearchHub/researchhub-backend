@@ -94,6 +94,32 @@ class FeedViewMixin:
         )
         return response
 
+    def paginate_cached_results(self, request, cached_data, pagination_class):
+        # When we diversify or personalize, we need to perform such action on a batch of results
+        # spanning multiple pages. Once we have the batch, we can the results.
+        # The purpose of this function is to paginate the batche cached results.
+        page_num = int(request.query_params.get("page", "1"))
+        page_size = int(
+            request.query_params.get("page_size", pagination_class.page_size)
+        )
+
+        start = (page_num - 1) * page_size
+        end = start + page_size
+        page_results = cached_data[start:end]
+
+        total_count = len(cached_data)
+        has_next = end < total_count
+        has_previous = page_num > 1
+
+        return Response(
+            {
+                "count": total_count,
+                "next": f"?page={page_num + 1}" if has_next else None,
+                "previous": f"?page={page_num - 1}" if has_previous else None,
+                "results": page_results,
+            }
+        )
+
     def add_user_votes_to_response(self, user, response_data):
         """
         Add user votes to feed items in the response data.
@@ -228,13 +254,16 @@ class FeedViewMixin:
         include_ended_part = (
             f"-include_ended-{include_ended}" if include_ended != "true" else ""
         )
+        diversify = request.query_params.get("diversify", "false")
+        diversify_part = f"-diversify-{diversify}" if diversify != "false" else ""
 
         source = request.query_params.get("source")
         source_part = f"{source}" if source else "all"
 
         return (
             f"{feed_type_part}feed:{feed_view}:{hub_part}:{source_part}:"
-            f"{user_part}:{pagination_part}{status_part}{sort_part}{include_ended_part}"
+            f"{user_part}:{pagination_part}{status_part}{sort_part}"
+            f"{include_ended_part}{diversify_part}"
         )
 
     def get_followed_hub_ids(self):
@@ -278,6 +307,11 @@ class FeedViewMixin:
         # Django's cache doesn't support wildcard deletion out of the box
         # For now, we'll delete specific known cache keys for common pagination scenarios
         # Pages 1-4, page sizes 20 and 40
+        feed_views = ["following"]
+        hub_parts = ["all"]
+        source_parts = ["all", "researchhub"]
+        pages = ["1", "2", "3", "4"]
+        page_sizes = ["20"]
         feed_views = ["following"]
         hub_parts = ["all"]
         source_parts = ["all", "researchhub"]
