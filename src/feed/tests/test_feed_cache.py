@@ -4,10 +4,23 @@ Tests for feed cache invalidation.
 
 from unittest.mock import patch
 
+from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.test import TestCase
+from django.urls import reverse
+from django.utils import timezone
+from rest_framework.test import APITestCase
 
+from feed.models import FeedEntry
 from feed.views.feed_view_mixin import FeedViewMixin
+from hub.models import Hub
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
+from user.tests.helpers import create_random_default_user
+from user.views.follow_view_mixins import create_follow
 
 
 class CacheInvalidationTests(TestCase):
@@ -152,3 +165,226 @@ class CacheInvalidationTests(TestCase):
 
         for expected_key in expected_keys:
             self.assertIn(expected_key, delete_call_args)
+
+
+class FeedCachingTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.user = create_random_default_user("cache_test_user")
+        self.hub = Hub.objects.create(name="Test Hub", slug="test-hub")
+
+        self.unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type="POST"
+        )
+        self.unified_document.hubs.add(self.hub)
+
+        create_follow(self.user, self.hub)
+
+        self.post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
+
+        for i in range(150):
+            unified_doc = ResearchhubUnifiedDocument.objects.create(
+                document_type="POST"
+            )
+            unified_doc.hubs.add(self.hub)
+
+            post = ResearchhubPost.objects.create(
+                title=f"Test Post {i}",
+                document_type="POST",
+                created_by=self.user,
+                unified_document=unified_doc,
+            )
+
+            feed_entry = FeedEntry.objects.create(
+                action="PUBLISH",
+                action_date=timezone.now(),
+                object_id=post.id,
+                content_type=self.post_content_type,
+                unified_document=unified_doc,
+                content={},
+                metrics={},
+            )
+            feed_entry.hubs.add(self.hub)
+
+    def tearDown(self):
+        cache.clear()
+
+    def test_pages_1_through_4_are_cached(self):
+        url = reverse("researchhub_feed-list")
+
+        for page in range(1, 5):
+            response1 = self.client.get(url, {"page": page})
+            self.assertEqual(response1.status_code, 200)
+            self.assertEqual(response1["RH-Cache"], "miss")
+
+            response2 = self.client.get(url, {"page": page})
+            self.assertEqual(response2.status_code, 200)
+            self.assertEqual(response2["RH-Cache"], "hit")
+
+    def test_page_5_and_beyond_not_cached(self):
+        url = reverse("researchhub_feed-list")
+
+        response1 = self.client.get(url, {"page": 5})
+        self.assertEqual(response1.status_code, 200)
+        self.assertEqual(response1["RH-Cache"], "miss")
+
+        response2 = self.client.get(url, {"page": 5})
+        self.assertEqual(response2.status_code, 200)
+        self.assertEqual(response2["RH-Cache"], "miss")
+
+    def test_health_check_token_bypasses_cache(self):
+        url = reverse("researchhub_feed-list")
+
+        response1 = self.client.get(url)
+        self.assertEqual(response1["RH-Cache"], "miss")
+
+        response2 = self.client.get(url)
+        self.assertEqual(response2["RH-Cache"], "hit")
+
+        response3 = self.client.get(url, {"disable_cache": settings.HEALTH_CHECK_TOKEN})
+        self.assertEqual(response3["RH-Cache"], "miss")
+
+    def test_cache_hit_includes_header_for_authenticated_user(self):
+        url = reverse("researchhub_feed-list")
+        self.client.force_authenticate(user=self.user)
+
+        response1 = self.client.get(url)
+        self.assertEqual(response1["RH-Cache"], "miss (auth)")
+
+        response2 = self.client.get(url)
+        self.assertEqual(response2["RH-Cache"], "hit (auth)")
+
+    def test_cache_hit_includes_header_for_anonymous_user(self):
+        url = reverse("researchhub_feed-list")
+
+        response1 = self.client.get(url)
+        self.assertEqual(response1["RH-Cache"], "miss")
+
+        response2 = self.client.get(url)
+        self.assertEqual(response2["RH-Cache"], "hit")
+
+    def test_cache_miss_includes_header(self):
+        url = reverse("researchhub_feed-list")
+
+        response = self.client.get(url)
+        self.assertEqual(response["RH-Cache"], "miss")
+
+    def test_cache_key_differs_by_feed_view(self):
+        url = reverse("researchhub_feed-list")
+        self.client.force_authenticate(user=self.user)
+
+        response1 = self.client.get(url, {"feed_view": "popular"})
+        self.assertEqual(response1["RH-Cache"], "miss (auth)")
+
+        response2 = self.client.get(url, {"feed_view": "following"})
+        self.assertEqual(response2["RH-Cache"], "miss (auth)")
+
+        response3 = self.client.get(url, {"feed_view": "personalized"})
+        self.assertEqual(response3["RH-Cache"], "miss (auth)")
+
+        response4 = self.client.get(url, {"feed_view": "popular"})
+        self.assertEqual(response4["RH-Cache"], "hit (auth)")
+
+    def test_cache_key_differs_by_ordering(self):
+        url = reverse("researchhub_feed-list")
+
+        response1 = self.client.get(url, {"ordering": "hot_score_v2"})
+        self.assertEqual(response1["RH-Cache"], "miss")
+
+        response2 = self.client.get(url, {"ordering": "hot_score"})
+        self.assertEqual(response2["RH-Cache"], "miss")
+
+        response3 = self.client.get(url, {"ordering": "hot_score_v2"})
+        self.assertEqual(response3["RH-Cache"], "hit")
+
+    def test_cache_key_differs_by_hub_slug(self):
+        url = reverse("researchhub_feed-list")
+        hub2 = Hub.objects.create(name="Another Hub", slug="another-hub")
+
+        response1 = self.client.get(url, {"hub_slug": self.hub.slug})
+        self.assertEqual(response1["RH-Cache"], "miss")
+
+        response2 = self.client.get(url, {"hub_slug": hub2.slug})
+        self.assertEqual(response2["RH-Cache"], "miss")
+
+        response3 = self.client.get(url, {"hub_slug": self.hub.slug})
+        self.assertEqual(response3["RH-Cache"], "hit")
+
+    def test_cache_key_includes_researchhub_feed_type(self):
+        url = reverse("researchhub_feed-list")
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+
+        cache_keys = list(cache._cache.keys())
+        researchhub_keys = [key for key in cache_keys if "researchhub_" in str(key)]
+        self.assertGreater(len(researchhub_keys), 0)
+
+    @patch("feed.views.researchhub_feed_view.cache")
+    def test_following_feed_respects_use_cache_config(self, mock_cache):
+        url = reverse("researchhub_feed-list")
+        self.client.force_authenticate(user=self.user)
+
+        mock_cache.get.return_value = None
+
+        self.client.get(url, {"feed_view": "following"})
+
+        self.assertTrue(mock_cache.get.called)
+        self.assertTrue(mock_cache.set.called)
+
+    @patch("feed.views.researchhub_feed_view.cache")
+    def test_personalized_feed_respects_use_cache_config(self, mock_cache):
+        url = reverse("researchhub_feed-list")
+        self.client.force_authenticate(user=self.user)
+
+        mock_cache.get.return_value = None
+
+        self.client.get(url, {"feed_view": "personalized"})
+
+        # Personalized feed has use_cache=False, so cache should NOT be called
+        self.assertFalse(mock_cache.get.called)
+        self.assertFalse(mock_cache.set.called)
+
+    @patch("feed.views.researchhub_feed_view.cache")
+    def test_popular_feed_respects_use_cache_config(self, mock_cache):
+        url = reverse("researchhub_feed-list")
+
+        mock_cache.get.return_value = None
+
+        self.client.get(url, {"feed_view": "popular"})
+
+        self.assertTrue(mock_cache.get.called)
+        self.assertTrue(mock_cache.set.called)
+
+    def test_cache_key_differs_by_user_id_parameter(self):
+        """
+        Test that when user_id query parameter is used,
+        cache keys are different from authenticated user's cache.
+        This prevents cache collision when admins request feeds for different users.
+        """
+        url = reverse("researchhub_feed-list")
+        self.client.force_authenticate(user=self.user)
+
+        # Request with authenticated user (no user_id param)
+        # Using "following" feed which has caching enabled
+        response1 = self.client.get(url, {"feed_view": "following"})
+        self.assertEqual(response1["RH-Cache"], "miss (auth)")
+
+        # Request with different user_id parameter
+        other_user = create_random_default_user("other_cache_user")
+        response2 = self.client.get(
+            url, {"feed_view": "following", "user_id": str(other_user.id)}
+        )
+        # Should be a cache miss because user_id differs
+        self.assertEqual(response2["RH-Cache"], "miss (auth)")
+
+        # Request again with same user_id - should hit cache
+        response3 = self.client.get(
+            url, {"feed_view": "following", "user_id": str(other_user.id)}
+        )
+        self.assertEqual(response3["RH-Cache"], "hit (auth)")
+
+        # Original authenticated user request should still have its own cache
+        # (proving it has its own cache key)
+        response4 = self.client.get(url, {"feed_view": "following"})
+        self.assertEqual(response4["RH-Cache"], "hit (auth)")

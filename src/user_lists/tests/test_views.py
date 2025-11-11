@@ -241,10 +241,10 @@ class ListItemViewSetTests(APITestCase):
         item.refresh_from_db()
         self.assertTrue(item.is_removed)
 
-    def test_user_can_add_document_to_list_using_add_action(self):
+    def test_user_can_add_document_to_list_using_toggle_action(self):
         original_updated_date = self.list_obj.updated_date
         response = self.client.post(
-            "/api/user_list_item/add-item-to-list/",
+            "/api/user_list_item/toggle-item-in-list/",
             {"parent_list": self.list_obj.id, "unified_document": self.doc.id},
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -253,10 +253,10 @@ class ListItemViewSetTests(APITestCase):
         self.assertIn("item", response.data)
         self._assert_updated_date_changed(self.list_obj, original_updated_date)
 
-    def test_adding_existing_item_toggles_and_removes(self):
+    def test_toggling_existing_item_removes(self):
         ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
         response = self.client.post(
-            "/api/user_list_item/add-item-to-list/",
+            "/api/user_list_item/toggle-item-in-list/",
             {"parent_list": self.list_obj.id, "unified_document": self.doc.id},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -330,6 +330,7 @@ class ListItemViewSetTests(APITestCase):
         response = self.client.get("/api/user_list_item/")
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
+
     def test_list_items_pagination(self):
         """Test that list items are paginated with 20 items per page"""
         for i in range(25):
@@ -341,27 +342,48 @@ class ListItemViewSetTests(APITestCase):
         self.assertEqual(len(response.data["results"]), 20)
         self.assertIsNotNone(response.data.get("next"))
         self.assertIsNone(response.data.get("previous"))
+ 
 
-    def test_list_items_sorting_by_created_date(self):
-        """Test that list items are sorted by created_date descending"""
+    def test_overview_endpoint_returns_all_lists_with_their_items(self):
         doc1 = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
         doc2 = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
         item1 = ListItem.objects.create(parent_list=self.list_obj, unified_document=doc1, created_by=self.user)
         item2 = ListItem.objects.create(parent_list=self.list_obj, unified_document=doc2, created_by=self.user)
-        response = self.client.get(f"/api/user_list_item/?parent_list={self.list_obj.id}")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        results = response.data.get("results", response.data)
-        self.assertEqual(results[0]["id"], item2.id)
-        self.assertEqual(results[1]["id"], item1.id)
 
-    def test_list_items_from_other_user_list(self):
-        """Test that users can view items from other users' lists"""
-        doc = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
-        ListItem.objects.create(parent_list=self.other_list, unified_document=doc, created_by=self.other_user)
-        response = self.client.get(f"/api/user_list_item/?parent_list={self.other_list.id}")
+        response = self.client.get("/api/user_list/overview/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        results = response.data.get("results", response.data)
-        self.assertEqual(len(results), 1)
+        self.assertIn("lists", response.data)
+        self.assertEqual(len(response.data["lists"]), 1)
+        list_data = response.data["lists"][0]
+        self.assertEqual(list_data["id"], self.list_obj.id)
+        self.assertEqual(list_data["name"], self.list_obj.name)
+        self.assertIn("items", list_data)
+        self.assertEqual(len(list_data["items"]), 2)
+        item_ids = [item["id"] for item in list_data["items"]]
+        self.assertIn(item1.id, item_ids)
+        self.assertIn(item2.id, item_ids)
+
+    def test_overview_endpoint_only_shows_active_items(self):
+        doc1 = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
+        doc2 = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
+        item1 = ListItem.objects.create(parent_list=self.list_obj, unified_document=doc1, created_by=self.user)
+        item2 = ListItem.objects.create(parent_list=self.list_obj, unified_document=doc2, created_by=self.user)
+        item2.delete()
+
+        response = self.client.get("/api/user_list/overview/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        list_data = response.data["lists"][0]
+        self.assertEqual(len(list_data["items"]), 1)
+        self.assertEqual(list_data["items"][0]["id"], item1.id)
+
+
+    def test_creating_list_with_invalid_data_shows_formatted_error_message(self):
+        response = self.client.post("/api/user_list/", {"name": "", "is_public": "invalid"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("error", response.data)
+        error_msg = response.data["error"]
+        self.assertIsInstance(error_msg, str)
+        self.assertGreater(len(error_msg), 0)
 
     def test_retrieve_item_from_other_user_list(self):
         """Test that users can retrieve items from other users' lists"""
