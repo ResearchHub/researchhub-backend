@@ -7,12 +7,12 @@ from .feed_view_v2 import FeedV2ViewSet
 from .funding_feed_view import FundingFeedViewSet
 from .grant_feed_view import GrantFeedViewSet
 from .journal_feed_view import JournalFeedViewSet
-from .researchhub_feed_view import ResearchHubFeed
+from .researchhub_feed_view import ResearchHubFeedViewSet
 
 __all__ = [
     "FeedViewSet",
     "FeedV2ViewSet",
-    "ResearchHubFeed",
+    "ResearchHubFeedViewSet",
     "FundingFeedViewSet",
     "GrantFeedViewSet",
     "JournalFeedViewSet",

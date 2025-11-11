@@ -1,12 +1,9 @@
-from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from rest_framework.request import Request
-from rest_framework.response import Response
 
 from discussion.models import Vote
 from discussion.serializers import VoteSerializer
-from feed.feed_config import FEED_DEFAULTS
 from feed.views.common import FeedPagination
 from hub.models import Hub
 from paper.related_models.paper_model import Paper
@@ -18,8 +15,6 @@ class FeedViewMixin:
     """
     Mixin for feed-related viewsets.
     """
-
-    DEFAULT_CACHE_TIMEOUT = 60 * 10
 
     _content_types = {}
 
@@ -46,53 +41,6 @@ class FeedViewMixin:
                 model_class
             )
         return self._content_types[model_name]
-
-    def get_cached_list_response(
-        self,
-        request,
-        use_cache_config=True,
-        cache_key_feed_type="",
-    ):
-        page = request.query_params.get("page", "1")
-        page_num = int(page)
-        cache_key = self.get_cache_key(request, feed_type=cache_key_feed_type)
-
-        disable_cache_token = request.query_params.get("disable_cache")
-        force_disable_cache = disable_cache_token == settings.HEALTH_CHECK_TOKEN
-
-        cache_enabled = settings.TESTING or settings.CLOUD
-        num_pages_to_cache = FEED_DEFAULTS["cache"]["num_pages_to_cache"]
-
-        use_cache = (
-            not force_disable_cache
-            and cache_enabled
-            and use_cache_config
-            and page_num <= num_pages_to_cache
-        )
-
-        if use_cache:
-            cached_response = cache.get(cache_key)
-            if cached_response:
-                if request.user.is_authenticated:
-                    self.add_user_votes_to_response(request.user, cached_response)
-                response = Response(cached_response)
-                response["RH-Cache"] = "hit" + (
-                    " (auth)" if request.user.is_authenticated else ""
-                )
-                return response
-
-        response = super(FeedViewMixin, self).list(request)
-
-        if use_cache:
-            cache.set(cache_key, response.data, timeout=self.DEFAULT_CACHE_TIMEOUT)
-
-        if request.user.is_authenticated:
-            self.add_user_votes_to_response(request.user, response.data)
-
-        response["RH-Cache"] = "miss" + (
-            " (auth)" if request.user.is_authenticated else ""
-        )
-        return response
 
     def add_user_votes_to_response(self, user, response_data):
         """
@@ -204,10 +152,19 @@ class FeedViewMixin:
     def get_cache_key(self, request: Request, feed_type: str = "") -> str:
         feed_view = request.query_params.get("feed_view", "latest")
         hub_slug = request.query_params.get("hub_slug")
-        user_id = request.user.id if request.user.is_authenticated else None
         fundraise_status = request.query_params.get("fundraise_status", None)
         ordering = request.query_params.get("ordering", "latest")
         include_ended = request.query_params.get("include_ended", "true")
+
+        # Get the target user_id - either from query param or authenticated user
+        # This ensures different user_id requests get different cache entries
+        target_user_id = request.query_params.get("user_id")
+        if target_user_id:
+            target_user_id = int(target_user_id)
+        elif request.user.is_authenticated:
+            target_user_id = request.user.id
+        else:
+            target_user_id = None
 
         page = request.query_params.get("page", "1")
         page_size = request.query_params.get(
@@ -219,7 +176,7 @@ class FeedViewMixin:
         user_part = (
             "none"
             if feed_view == "popular" or feed_view == "latest"
-            else f"{user_id or 'anonymous'}"
+            else f"{target_user_id or 'anonymous'}"
         )
         pagination_part = f"{page}-{page_size}"
         status_part = f"-{fundraise_status}" if fundraise_status else ""
@@ -234,7 +191,8 @@ class FeedViewMixin:
 
         return (
             f"{feed_type_part}feed:{feed_view}:{hub_part}:{source_part}:"
-            f"{user_part}:{pagination_part}{status_part}{sort_part}{include_ended_part}"
+            f"{user_part}:{pagination_part}{status_part}{sort_part}"
+            f"{include_ended_part}"
         )
 
     def get_followed_hub_ids(self):
@@ -271,13 +229,15 @@ class FeedViewMixin:
         Args:
             user_id: The ID of the user whose caches should be invalidated
         """
-        # Cache key pattern: {feed_type}_feed:{feed_view}:{hub_part}:{source_part}:{user_part}:{pagination_part}{status_part}{sort_part}
+        # Cache key pattern:
+        # {feed_type}_feed:{feed_view}:{hub_part}:{source_part}:
+        # {user_part}:{pagination_part}{status_part}{sort_part}
         # For following feed, user_part is the user_id
         # We need to invalidate all possible combinations for this user
 
         # Django's cache doesn't support wildcard deletion out of the box
-        # For now, we'll delete specific known cache keys for common pagination scenarios
-        # Pages 1-4, page sizes 20 and 40
+        # For now, we'll delete specific known cache keys for common
+        # pagination scenarios. Pages 1-4, page sizes 20 and 40
         feed_views = ["following"]
         hub_parts = ["all"]
         source_parts = ["all", "researchhub"]

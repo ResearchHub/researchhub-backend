@@ -320,7 +320,7 @@ class FeedCachingTests(APITestCase):
         researchhub_keys = [key for key in cache_keys if "researchhub_" in str(key)]
         self.assertGreater(len(researchhub_keys), 0)
 
-    @patch("feed.views.feed_view_mixin.cache")
+    @patch("feed.views.researchhub_feed_view.cache")
     def test_following_feed_respects_use_cache_config(self, mock_cache):
         url = reverse("researchhub_feed-list")
         self.client.force_authenticate(user=self.user)
@@ -332,7 +332,7 @@ class FeedCachingTests(APITestCase):
         self.assertTrue(mock_cache.get.called)
         self.assertTrue(mock_cache.set.called)
 
-    @patch("feed.views.feed_view_mixin.cache")
+    @patch("feed.views.researchhub_feed_view.cache")
     def test_personalized_feed_respects_use_cache_config(self, mock_cache):
         url = reverse("researchhub_feed-list")
         self.client.force_authenticate(user=self.user)
@@ -341,10 +341,11 @@ class FeedCachingTests(APITestCase):
 
         self.client.get(url, {"feed_view": "personalized"})
 
-        self.assertTrue(mock_cache.get.called)
-        self.assertTrue(mock_cache.set.called)
+        # Personalized feed has use_cache=False, so cache should NOT be called
+        self.assertFalse(mock_cache.get.called)
+        self.assertFalse(mock_cache.set.called)
 
-    @patch("feed.views.feed_view_mixin.cache")
+    @patch("feed.views.researchhub_feed_view.cache")
     def test_popular_feed_respects_use_cache_config(self, mock_cache):
         url = reverse("researchhub_feed-list")
 
@@ -354,3 +355,36 @@ class FeedCachingTests(APITestCase):
 
         self.assertTrue(mock_cache.get.called)
         self.assertTrue(mock_cache.set.called)
+
+    def test_cache_key_differs_by_user_id_parameter(self):
+        """
+        Test that when user_id query parameter is used,
+        cache keys are different from authenticated user's cache.
+        This prevents cache collision when admins request feeds for different users.
+        """
+        url = reverse("researchhub_feed-list")
+        self.client.force_authenticate(user=self.user)
+
+        # Request with authenticated user (no user_id param)
+        # Using "following" feed which has caching enabled
+        response1 = self.client.get(url, {"feed_view": "following"})
+        self.assertEqual(response1["RH-Cache"], "miss (auth)")
+
+        # Request with different user_id parameter
+        other_user = create_random_default_user("other_cache_user")
+        response2 = self.client.get(
+            url, {"feed_view": "following", "user_id": str(other_user.id)}
+        )
+        # Should be a cache miss because user_id differs
+        self.assertEqual(response2["RH-Cache"], "miss (auth)")
+
+        # Request again with same user_id - should hit cache
+        response3 = self.client.get(
+            url, {"feed_view": "following", "user_id": str(other_user.id)}
+        )
+        self.assertEqual(response3["RH-Cache"], "hit (auth)")
+
+        # Original authenticated user request should still have its own cache
+        # (proving it has its own cache key)
+        response4 = self.client.get(url, {"feed_view": "following"})
+        self.assertEqual(response4["RH-Cache"], "hit (auth)")

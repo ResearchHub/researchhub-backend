@@ -1,7 +1,10 @@
+from django.conf import settings
+from django.core.cache import cache
+from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from feed.clients.personalize_client import PersonalizeClient
-from feed.feed_config import FEED_CONFIG
+from feed.feed_config import FEED_CONFIG, FEED_DEFAULTS
 from feed.filtering import FeedFilteringBackend
 from feed.models import FeedEntry
 from feed.ordering import FeedOrderingBackend
@@ -14,12 +17,14 @@ class ResearchHubFeedPagination(FeedPagination):
     page_size = 30
 
 
-class ResearchHubFeed(FeedViewMixin, ModelViewSet):
+class ResearchHubFeedViewSet(FeedViewMixin, ModelViewSet):
     queryset = FeedEntry.objects.all()
     serializer_class = FeedEntrySerializer
     permission_classes = []
     pagination_class = ResearchHubFeedPagination
     filter_backends = [FeedFilteringBackend, FeedOrderingBackend]
+
+    DEFAULT_CACHE_TIMEOUT = 60 * 10
 
     def dispatch(self, request, *args, **kwargs):
         self.personalize_client = kwargs.pop("personalize_client", PersonalizeClient())
@@ -38,7 +43,6 @@ class ResearchHubFeed(FeedViewMixin, ModelViewSet):
         return self.get_cached_list_response(
             request,
             use_cache_config=use_cache_for_feed,
-            cache_key_feed_type="researchhub",
         )
 
     def get_queryset(self):
@@ -52,3 +56,49 @@ class ResearchHubFeed(FeedViewMixin, ModelViewSet):
         )
 
         return queryset
+
+    def get_cached_list_response(
+        self,
+        request,
+        use_cache_config=True,
+    ):
+        page = request.query_params.get("page", "1")
+        page_num = int(page)
+        cache_key = self.get_cache_key(request, feed_type="researchhub")
+
+        disable_cache_token = request.query_params.get("disable_cache")
+        force_disable_cache = disable_cache_token == settings.HEALTH_CHECK_TOKEN
+
+        cache_enabled = settings.TESTING or settings.CLOUD
+        num_pages_to_cache = FEED_DEFAULTS["cache"]["num_pages_to_cache"]
+
+        use_cache = (
+            not force_disable_cache
+            and cache_enabled
+            and use_cache_config
+            and page_num <= num_pages_to_cache
+        )
+
+        if use_cache:
+            cached_response = cache.get(cache_key)
+            if cached_response:
+                if request.user.is_authenticated:
+                    self.add_user_votes_to_response(request.user, cached_response)
+                response = Response(cached_response)
+                response["RH-Cache"] = "hit" + (
+                    " (auth)" if request.user.is_authenticated else ""
+                )
+                return response
+
+        response = super(ResearchHubFeedViewSet, self).list(request)
+
+        if use_cache:
+            cache.set(cache_key, response.data, timeout=self.DEFAULT_CACHE_TIMEOUT)
+
+        if request.user.is_authenticated:
+            self.add_user_votes_to_response(request.user, response.data)
+
+        response["RH-Cache"] = "miss" + (
+            " (auth)" if request.user.is_authenticated else ""
+        )
+        return response
