@@ -14,7 +14,7 @@ from .serializers import (
     ListItemSerializer,
     ListSerializer,
     ToggleListItemResponseSerializer,
-    UserCheckResponseSerializer,
+    UserListOverviewSerializer,
 )
 
 
@@ -25,6 +25,7 @@ def _update_list_timestamp(list_obj, user):
 
 def _handle_integrity_error_item():
     raise serializers.ValidationError({"error": "Item already exists in this list."})
+
 class ListViewSet(viewsets.ModelViewSet):
     queryset = List.objects.filter(is_removed=False)
     serializer_class = ListSerializer
@@ -63,31 +64,11 @@ class ListViewSet(viewsets.ModelViewSet):
         instance.items.filter(is_removed=False).delete()
         return Response({"success": True}, status=status.HTTP_200_OK)
 
-    @action(detail=False, methods=["get"], url_path="user_check")
-    def user_check(self, request):
+    @action(detail=False, methods=["get"], url_path="overview")
+    def overview(self, request):
         user_lists = self.get_queryset().prefetch_related("items")
-        
-        lists_data = []
-        for list_obj in user_lists:
-            items = list_obj.items.filter(is_removed=False).order_by("-created_date")
-            items_data = [
-                {
-                    "id": item.id,
-                    "unified_document_id": item.unified_document_id,
-                }
-                for item in items
-            ]
-            
-            lists_data.append({
-                "id": list_obj.id,
-                "name": list_obj.name,
-                "is_public": list_obj.is_public,
-                "items": items_data,
-            })
-        
-        response_data = {"lists": lists_data}
-        serializer = UserCheckResponseSerializer(response_data)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        serializer = UserListOverviewSerializer(queryset=user_lists)
+        return Response(serializer.to_representation(None), status=status.HTTP_200_OK)
 
 
 class ListItemViewSet(viewsets.ModelViewSet):
@@ -148,8 +129,8 @@ class ListItemViewSet(viewsets.ModelViewSet):
             parent_list=parent_list, unified_document=unified_document, is_removed=False
         ).first()
 
-    @action(detail=False, methods=["post"], url_path="add-item-to-list")
-    def add_item_to_list(self, request):
+    @action(detail=False, methods=["post"], url_path="toggle-item-in-list")
+    def toggle_item_in_list(self, request):
         serializer = ListItemSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         parent_list = serializer.validated_data["parent_list"]

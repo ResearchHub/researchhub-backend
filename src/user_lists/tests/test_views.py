@@ -164,10 +164,10 @@ class ListItemViewSetTests(APITestCase):
         item.refresh_from_db()
         self.assertTrue(item.is_removed)
 
-    def test_user_can_add_document_to_list_using_add_action(self):
+    def test_user_can_add_document_to_list_using_toggle_action(self):
         original_updated_date = self.list_obj.updated_date
         response = self.client.post(
-            "/api/user_list_item/add-item-to-list/",
+            "/api/user_list_item/toggle-item-in-list/",
             {"parent_list": self.list_obj.id, "unified_document": self.doc.id},
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -176,10 +176,10 @@ class ListItemViewSetTests(APITestCase):
         self.assertIn("item", response.data)
         self._assert_updated_date_changed(self.list_obj, original_updated_date)
 
-    def test_adding_existing_item_toggles_and_removes(self):
+    def test_toggling_existing_item_removes(self):
         ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
         response = self.client.post(
-            "/api/user_list_item/add-item-to-list/",
+            "/api/user_list_item/toggle-item-in-list/",
             {"parent_list": self.list_obj.id, "unified_document": self.doc.id},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -253,13 +253,13 @@ class ListItemViewSetTests(APITestCase):
         response = self.client.get("/api/user_list_item/")
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_user_check_endpoint_returns_all_lists_with_their_items(self):
+    def test_overview_endpoint_returns_all_lists_with_their_items(self):
         doc1 = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
         doc2 = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
         item1 = ListItem.objects.create(parent_list=self.list_obj, unified_document=doc1, created_by=self.user)
         item2 = ListItem.objects.create(parent_list=self.list_obj, unified_document=doc2, created_by=self.user)
         
-        response = self.client.get("/api/user_list/user_check/")
+        response = self.client.get("/api/user_list/overview/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("lists", response.data)
         self.assertEqual(len(response.data["lists"]), 1)
@@ -272,14 +272,14 @@ class ListItemViewSetTests(APITestCase):
         self.assertIn(item1.id, item_ids)
         self.assertIn(item2.id, item_ids)
 
-    def test_user_check_endpoint_only_shows_active_items(self):
+    def test_overview_endpoint_only_shows_active_items(self):
         doc1 = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
         doc2 = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
         item1 = ListItem.objects.create(parent_list=self.list_obj, unified_document=doc1, created_by=self.user)
         item2 = ListItem.objects.create(parent_list=self.list_obj, unified_document=doc2, created_by=self.user)
         item2.delete()
         
-        response = self.client.get("/api/user_list/user_check/")
+        response = self.client.get("/api/user_list/overview/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         list_data = response.data["lists"][0]
         self.assertEqual(len(list_data["items"]), 1)

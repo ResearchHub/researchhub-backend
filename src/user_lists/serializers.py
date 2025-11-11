@@ -226,3 +226,38 @@ class UserCheckListSerializer(serializers.Serializer):
 
 class UserCheckResponseSerializer(serializers.Serializer):
     lists = UserCheckListSerializer(many=True)
+
+
+class UserListOverviewSerializer(serializers.Serializer):
+    lists = serializers.SerializerMethodField()
+
+    def __init__(self, queryset=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.queryset = queryset
+
+    def get_lists(self, obj):
+        if not self.queryset:
+            return []
+        
+        lists_data = []
+        for list_obj in self.queryset:
+            items = list_obj.items.filter(is_removed=False).order_by("-created_date")
+            items_data = [
+                {
+                    "id": item.id,
+                    "unified_document_id": item.unified_document_id,
+                }
+                for item in items
+            ]
+            
+            lists_data.append({
+                "id": list_obj.id,
+                "name": list_obj.name,
+                "is_public": list_obj.is_public,
+                "items": items_data,
+            })
+        
+        return lists_data
+
+    def to_representation(self, instance):
+        return {"lists": self.get_lists(None)}
