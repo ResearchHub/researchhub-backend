@@ -24,8 +24,6 @@ class ResearchHubFeedViewSet(FeedViewMixin, ModelViewSet):
     pagination_class = ResearchHubFeedPagination
     filter_backends = [FeedFilteringBackend, FeedOrderingBackend]
 
-    DEFAULT_CACHE_TIMEOUT = 60 * 10
-
     def dispatch(self, request, *args, **kwargs):
         self.personalize_client = kwargs.pop("personalize_client", PersonalizeClient())
         return super().dispatch(request, *args, **kwargs)
