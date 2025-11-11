@@ -16,26 +16,28 @@ from user.views.follow_view_mixins import create_follow
 
 
 class DiversificationCacheTests(APITestCase):
-    def setUp(self):
-        cache.clear()
-        self.user = create_random_default_user("cache_test_user")
-        self.other_user = create_random_default_user("other_cache_user")
-        self.hub = Hub.objects.create(name="Test Hub", slug="test-hub")
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
 
-        self.subcategory_a = Hub.objects.create(
+        cls.user = create_random_default_user("cache_test_user")
+        cls.other_user = create_random_default_user("other_cache_user")
+        cls.hub = Hub.objects.create(name="Test Hub", slug="test-hub")
+
+        cls.subcategory_a = Hub.objects.create(
             name="Subcategory A",
             slug="subcategory-a",
             namespace=Hub.Namespace.SUBCATEGORY,
         )
 
-        create_follow(self.user, self.hub)
-        create_follow(self.other_user, self.hub)
+        create_follow(cls.user, cls.hub)
+        create_follow(cls.other_user, cls.hub)
 
-        self.paper_content_type = ContentType.objects.get_for_model(Paper)
+        cls.paper_content_type = ContentType.objects.get_for_model(Paper)
 
         for i in range(10):
             doc = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
-            doc.hubs.add(self.hub, self.subcategory_a)
+            doc.hubs.add(cls.hub, cls.subcategory_a)
 
             paper = Paper.objects.create(
                 title=f"Paper {i}",
@@ -46,14 +48,17 @@ class DiversificationCacheTests(APITestCase):
             entry = FeedEntry.objects.create(
                 action="PUBLISH",
                 action_date=timezone.now(),
-                content_type=self.paper_content_type,
+                content_type=cls.paper_content_type,
                 object_id=paper.id,
                 unified_document=doc,
                 hot_score_v2=100 - i,
                 content={},
                 metrics={},
             )
-            entry.hubs.add(self.hub)
+            entry.hubs.add(cls.hub)
+
+    def setUp(self):
+        cache.clear()
 
     def tearDown(self):
         cache.clear()
