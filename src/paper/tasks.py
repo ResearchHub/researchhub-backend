@@ -17,7 +17,6 @@ from paper.ingestion.tasks import update_recent_papers_with_metrics  # noqa: F40
 from paper.utils import download_pdf_from_url, get_cache_key
 from researchhub.celery import QUEUE_PAPER_MISC, app
 from utils import sentry
-from utils.http import check_url_contains_pdf
 
 logger = get_task_logger(__name__)
 
@@ -49,20 +48,21 @@ def download_pdf(paper_id, retry=0):
     Paper = apps.get_model("paper.Paper")
     paper = Paper.objects.get(id=paper_id)
 
-    paper_pdf_url = paper.pdf_url
-    paper_url = paper.url
-    paper_url_contains_pdf = check_url_contains_pdf(paper_url)
-    pdf_url_contains_pdf = check_url_contains_pdf(paper_pdf_url)
+    pdf_url = paper.pdf_url or paper.url
 
-    if pdf_url_contains_pdf or paper_url_contains_pdf:
-        pdf_url = paper_pdf_url or paper_url
+    if pdf_url:
         try:
             pdf = download_pdf_from_url(pdf_url)
             paper.file.save(pdf.name, pdf, save=False)
             paper.save(update_fields=["file"])
             return True
+        except ValueError as e:
+            logger.warning(f"No PDF at {pdf_url} - paper {paper_id}: {e}")
+            sentry.log_info(f"No PDF at {pdf_url} - paper {paper_id}: {e}")
+            return False
         except Exception as e:
-            sentry.log_info(e)
+            logger.warning(f"Failed to download PDF {pdf_url} - paper {paper_id}: {e}")
+            sentry.log_info(f"Failed to download PDF {pdf_url} - paper {paper_id}: {e}")
             download_pdf.apply_async(
                 (paper.id, retry + 1), priority=7, countdown=15 * (retry + 1)
             )

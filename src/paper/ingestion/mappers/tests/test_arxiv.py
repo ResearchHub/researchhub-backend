@@ -190,11 +190,11 @@ class TestArXivMapper(TestCase):
     def test_extract_arxiv_id(self):
         """Test ArXiv ID extraction from URLs."""
         # From abs URL
-        id_url = "http://arxiv.org/abs/2509.10432v1"  # NOSONAR - Ignore http
+        id_url = "https://arxiv.org/abs/2509.10432v1"
         self.assertEqual(self.mapper._extract_arxiv_id(id_url), "2509.10432v1")
 
         # From pdf URL
-        id_url = "http://arxiv.org/pdf/2509.10432v1.pdf"  # NOSONAR - Ignore http
+        id_url = "https://arxiv.org/pdf/2509.10432v1.pdf"
         self.assertEqual(self.mapper._extract_arxiv_id(id_url), "2509.10432v1")
 
         # Already just an ID
@@ -372,12 +372,10 @@ class TestArXivMapper(TestCase):
         paper = self.mapper.map_to_paper(record)
 
         # Should construct URLs from ArXiv ID
-        self.assertEqual(
-            paper.url, "http://arxiv.org/abs/2509.10432v1"  # NOSONAR - Ignore http
-        )
+        self.assertEqual(paper.url, "https://arxiv.org/abs/2509.10432v1")
         self.assertEqual(
             paper.pdf_url,
-            "http://arxiv.org/pdf/2509.10432v1.pdf",  # NOSONAR - Ignore http
+            "https://arxiv.org/pdf/2509.10432v1.pdf",
         )
 
     def test_map_to_hubs(self):

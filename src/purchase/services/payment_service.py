@@ -20,7 +20,7 @@ from reputation.distributor import Distributor
 logger = logging.getLogger(__name__)
 
 # The amount for Article Processing Charge (APC) in cents
-APC_AMOUNT_CENTS = 300 * 100  # $300
+APC_AMOUNT_CENTS = 0  # $0 - Zero cost transaction
 
 
 class PaymentService:
