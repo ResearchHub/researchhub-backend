@@ -149,7 +149,7 @@ class ArXivOAIMapper(BaseMapper):
                 arxiv_id = entry_data["id"]
                 entry_data["links"] = {
                     "alternate": f"https://arxiv.org/abs/{arxiv_id}",
-                    "pdf": f"https://arxiv.org/pdf/{arxiv_id}.pdf",
+                    "pdf": f"https://arxiv.org/pdf/{arxiv_id}",
                 }
 
             return entry_data
@@ -314,7 +314,7 @@ class ArXivOAIMapper(BaseMapper):
             # Construct URLs from ArXiv ID if links not provided
             if arxiv_id:
                 paper.url = f"https://arxiv.org/abs/{arxiv_id}"
-                paper.pdf_url = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
+                paper.pdf_url = f"https://arxiv.org/pdf/{arxiv_id}"
 
         return paper
 
