@@ -188,7 +188,7 @@ def download_pdf_from_url(url: str) -> ContentFile:
         ValueError: If the URL does not point to a PDF file
     """
     scraper = cloudscraper.create_scraper()
-    with scraper.get(url, timeout=10) as response:
+    with scraper.get(url, timeout=60) as response:
         response.raise_for_status()
 
         # Validate that the response is a PDF
