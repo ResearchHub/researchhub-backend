@@ -242,13 +242,13 @@ class UnifiedSearchService:
 
     def _search_documents_by_doi(self, normalized_doi: str) -> dict[str, Any]:
 
-        search = Search(index=self.paper_index)
+        search = Search(index=[self.paper_index, self.post_index])
         search = search.query(Q("term", doi={"value": normalized_doi}))
 
         # Sort by date to get the latest version
         search = search.sort(
-            "-paper_publish_date",
-            "-created_date",
+            {"updated_date": {"order": "desc", "missing": "_last"}},
+            {"created_date": {"order": "desc"}},
         )
 
         # Source filtering for performance (match document search fields)
