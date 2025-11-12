@@ -59,31 +59,23 @@ class DocumentQueryBuilder:
             pass
 
     def add_author_title_combination_strategy(self) -> "DocumentQueryBuilder":
-        """Add strategy that requires author and title to co-occur."""
-        author_fields = [field.get_boosted_name() for field in self.AUTHOR_FIELDS]
-        title_fields = [field.get_boosted_name() for field in self.TITLE_FIELDS]
+        """Add strategy that requires author and title to co-occur.
+
+        Uses cross_fields type to allow terms to match across different fields.
+        For example, "Smith machine learning" can match "Smith" in author fields
+        and "machine learning" in title/content fields.
+        """
+        # Combine author and title/content fields for cross-field matching
+        all_fields = []
+        for field in self.AUTHOR_FIELDS + self.TITLE_FIELDS + self.CONTENT_FIELDS:
+            all_fields.append(field.get_boosted_name())
 
         combo_query = Q(
-            "constant_score",
-            filter=Q(
-                "bool",
-                must=[
-                    Q(
-                        "multi_match",
-                        query=self.query,
-                        type="cross_fields",
-                        operator="or",
-                        fields=author_fields,
-                    ),
-                    Q(
-                        "multi_match",
-                        query=self.query,
-                        type="best_fields",
-                        operator="and",
-                        fields=title_fields,
-                    ),
-                ],
-            ),
+            "multi_match",
+            query=self.query,
+            type="cross_fields",
+            operator="and",
+            fields=all_fields,
             boost=4.0,
         )
         self.should_clauses.append(combo_query)
@@ -185,11 +177,33 @@ class DocumentQueryBuilder:
                 "multi_match",
                 query=self.query,
                 fields=field_list,
-                type="best_fields",
+                type="cross_fields",
                 fuzziness="AUTO",
                 operator=operator,
             )
             self.should_clauses.append(fuzzy_query)
+        return self
+
+    def add_cross_field_fallback_strategy(self) -> "DocumentQueryBuilder":
+        """Add cross-field OR fallback strategy for partial matches.
+
+        This ensures results even when strict AND matching fails.
+        Uses OR operator to allow partial matches across fields.
+        """
+        # Combine all fields for broad coverage
+        all_fields = []
+        for field in self.AUTHOR_FIELDS + self.TITLE_FIELDS + self.CONTENT_FIELDS:
+            all_fields.append(field.get_boosted_name())
+
+        fallback_query = Q(
+            "multi_match",
+            query=self.query,
+            type="cross_fields",
+            operator="or",
+            fields=all_fields,
+            boost=1.5,
+        )
+        self.should_clauses.append(fallback_query)
         return self
 
     def build(self) -> Q:
@@ -224,7 +238,7 @@ class UnifiedSearchQueryBuilder:
 
         builder = (
             DocumentQueryBuilder(query)
-            .add_author_title_combination_strategy()
+            .add_author_title_combination_strategy()  # Cross-field AND (fixed)
             .add_phrase_strategy(
                 DocumentQueryBuilder.TITLE_FIELDS + DocumentQueryBuilder.CONTENT_FIELDS,
                 slop=1,
@@ -239,6 +253,7 @@ class UnifiedSearchQueryBuilder:
                 + DocumentQueryBuilder.CONTENT_FIELDS,
                 boost_multiplier=1.0,  # Boosts handled per-field in add_fuzzy_strategy
             )
+            .add_cross_field_fallback_strategy()  # Cross-field OR fallback
         )
         return builder.build()
 
