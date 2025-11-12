@@ -197,18 +197,6 @@ class ListItemDetailSerializer(ListItemSerializer):
             }
 
 
-class ToggleListItemResponseSerializer(serializers.Serializer):
-    action = serializers.ChoiceField(choices=["added", "removed"])
-    item = serializers.SerializerMethodField()
-    success = serializers.BooleanField()
-
-    def get_item(self, obj):
-        item = obj.get("item")
-        if item:
-            return ListItemDetailSerializer(item).data
-        return None
-
-
 class ListDetailSerializer(ListSerializer):
     items = serializers.SerializerMethodField()
 

@@ -171,9 +171,8 @@ class ListItemViewSetTests(APITestCase):
             {"parent_list": self.list_obj.id, "unified_document": self.doc.id},
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data["action"], "added")
-        self.assertEqual(response.data["success"], True)
-        self.assertIn("item", response.data)
+        self.assertIn("id", response.data)
+        self.assertIn("unified_document", response.data)
         self._assert_updated_date_changed(self.list_obj, original_updated_date)
 
     def test_adding_existing_item_returns_error(self):
@@ -204,7 +203,6 @@ class ListItemViewSetTests(APITestCase):
             {"parent_list": self.list_obj.id, "unified_document": self.doc.id},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["action"], "removed")
         self.assertEqual(response.data["success"], True)
         self.assertFalse(
             ListItem.objects.filter(

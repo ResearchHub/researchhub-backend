@@ -16,7 +16,6 @@ from user_lists.serializers import (
     ListItemDetailSerializer,
     ListSerializer,
     SimpleUserForListSerializer,
-    ToggleListItemResponseSerializer,
     UnifiedDocumentForListSerializer,
     UserListOverviewSerializer,
     OverviewResponseSerializer,
@@ -196,43 +195,6 @@ class UnifiedDocumentForListSerializerTests(TestCase):
         slug = serializer.get_slug(self.doc)
         
         self.assertIsNotNone(slug)
-
-
-class ToggleListItemResponseSerializerTests(TestCase):
-    def setUp(self):
-        self.user = User.objects.create_user(username="user1")
-        self.list_obj = List.objects.create(name="My List", created_by=self.user)
-        self.doc = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
-
-    def test_toggle_response_serializer_with_added_action(self):
-        item = ListItem.objects.create(
-            parent_list=self.list_obj, unified_document=self.doc, created_by=self.user
-        )
-        response_data = {
-            "action": "added",
-            "item": item,
-            "success": True,
-        }
-        serializer = ToggleListItemResponseSerializer(response_data)
-        data = serializer.data
-        
-        self.assertEqual(data["action"], "added")
-        self.assertEqual(data["success"], True)
-        self.assertIsNotNone(data["item"])
-        self.assertIn("id", data["item"])
-
-    def test_toggle_response_serializer_with_removed_action(self):
-        response_data = {
-            "action": "removed",
-            "item": None,
-            "success": True,
-        }
-        serializer = ToggleListItemResponseSerializer(response_data)
-        data = serializer.data
-        
-        self.assertEqual(data["action"], "removed")
-        self.assertEqual(data["success"], True)
-        self.assertIsNone(data["item"])
 
 
 class OverviewResponseSerializerTests(TestCase):

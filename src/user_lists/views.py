@@ -13,7 +13,6 @@ from .serializers import (
     ListItemDetailSerializer,
     ListItemSerializer,
     ListSerializer,
-    ToggleListItemResponseSerializer,
     UserListOverviewSerializer,
 )
 
@@ -143,14 +142,7 @@ class ListItemViewSet(viewsets.ModelViewSet):
 
         try:
             list_item, _ = self._get_or_create_item(serializer, request.user)
-            response_data = {
-                "action": "added",
-                "item": list_item,
-                "success": True,
-            }
-            response_serializer = ToggleListItemResponseSerializer(
-                response_data
-            )
+            response_serializer = ListItemDetailSerializer(list_item)
             return Response(response_serializer.data, status=status.HTTP_201_CREATED)
         except IntegrityError:
             _handle_integrity_error_item()
@@ -171,12 +163,4 @@ class ListItemViewSet(viewsets.ModelViewSet):
         list_item.delete()
         _update_list_timestamp(parent_list, request.user)
         
-        response_data = {
-            "action": "removed",
-            "item": None,
-            "success": True,
-        }
-        response_serializer = ToggleListItemResponseSerializer(
-            response_data
-        )
-        return Response(response_serializer.data, status=status.HTTP_200_OK)
+        return Response({"success": True}, status=status.HTTP_200_OK)
