@@ -310,11 +310,6 @@ class ArXivOAIMapper(BaseMapper):
                 paper.pdf_url = links["pdf"]
             if "alternate" in links:
                 paper.url = links["alternate"]
-        else:
-            # Construct URLs from ArXiv ID if links not provided
-            if arxiv_id:
-                paper.url = f"https://arxiv.org/abs/{arxiv_id}"
-                paper.pdf_url = f"https://arxiv.org/pdf/{arxiv_id}"
 
         return paper
 
