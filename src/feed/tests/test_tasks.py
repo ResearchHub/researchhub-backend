@@ -24,6 +24,7 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
     ResearchhubUnifiedDocument,
 )
 from user.models import User
+from user.related_models.author_model import Author
 
 
 class FeedTasksTest(TestCase):
@@ -335,3 +336,90 @@ class FeedTasksTest(TestCase):
                     initial_hot_scores[entry.id],
                     f"Hot score for entry {i} was not updated",
                 )
+
+    def test_create_feed_entry_populates_authors_for_paper(self):
+        """Test that creating a feed entry for a paper populates the authors field."""
+        # Arrange
+        author1 = Author.objects.create(first_name="John", last_name="Doe")
+        author2 = Author.objects.create(first_name="Jane", last_name="Smith")
+        self.paper.authors.add(author1, author2)
+
+        # Act
+        create_feed_entry(
+            item_id=self.paper.id,
+            item_content_type_id=self.paper_content_type.id,
+            action=FeedEntry.PUBLISH,
+            hub_ids=[self.hub.id],
+            user_id=self.user.id,
+        )
+
+        # Assert
+        feed_entry = FeedEntry.objects.get(
+            object_id=self.paper.id, content_type=self.paper_content_type
+        )
+        self.assertEqual(feed_entry.authors.count(), 2)
+        self.assertIn(author1, feed_entry.authors.all())
+        self.assertIn(author2, feed_entry.authors.all())
+
+    def test_create_feed_entry_populates_authors_for_post(self):
+        """Test that creating a feed entry for a post populates the authors field."""
+        # Arrange
+        user = User.objects.create(username="postauthor2")
+        author1 = Author.objects.create(first_name="Post", last_name="Author")
+        unified_document = ResearchhubUnifiedDocument.objects.create()
+        post = ResearchhubPost.objects.create(
+            unified_document=unified_document, created_by=user
+        )
+        post.authors.add(author1)
+        post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
+
+        # Act
+        create_feed_entry(
+            item_id=post.id,
+            item_content_type_id=post_content_type.id,
+            action=FeedEntry.PUBLISH,
+            hub_ids=[self.hub.id],
+            user_id=user.id,
+        )
+
+        # Assert
+        feed_entry = FeedEntry.objects.get(
+            object_id=post.id, content_type=post_content_type
+        )
+        self.assertEqual(feed_entry.authors.count(), 1)
+        self.assertEqual(feed_entry.authors.first(), author1)
+
+    def test_refresh_feed_entries_updates_authors(self):
+        """Test that refreshing feed entries updates the authors field."""
+        # Arrange
+        author1 = Author.objects.create(first_name="John", last_name="Doe")
+        self.paper.authors.add(author1)
+
+        # Create feed entry
+        feed_entry = create_feed_entry(
+            item_id=self.paper.id,
+            item_content_type_id=self.paper_content_type.id,
+            action=FeedEntry.PUBLISH,
+            hub_ids=[self.hub.id],
+            user_id=self.user.id,
+        )
+
+        # Verify initial authors
+        self.assertEqual(feed_entry.authors.count(), 1)
+        self.assertIn(author1, feed_entry.authors.all())
+
+        # Add another author to the paper
+        author2 = Author.objects.create(first_name="Jane", last_name="Smith")
+        self.paper.authors.add(author2)
+
+        # Act
+        refresh_feed_entries_for_objects(
+            item_id=self.paper.id,
+            item_content_type_id=self.paper_content_type.id,
+        )
+
+        # Assert
+        updated_feed_entry = FeedEntry.objects.get(id=feed_entry.id)
+        self.assertEqual(updated_feed_entry.authors.count(), 2)
+        self.assertIn(author1, updated_feed_entry.authors.all())
+        self.assertIn(author2, updated_feed_entry.authors.all())
