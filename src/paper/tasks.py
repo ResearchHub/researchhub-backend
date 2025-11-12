@@ -83,7 +83,7 @@ def _create_download_url(url: str, external_source: str) -> str:
         return url
 
     target_url = urllib.parse.quote(url)
-    return f"http://api.scrape.do/?token={token}&url={target_url}"
+    return f"https://app.scrapingbee.com/api/v1/?api_key={token}&url={target_url}"
 
 
 @app.task(queue=QUEUE_PAPER_MISC)
