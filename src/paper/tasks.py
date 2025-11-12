@@ -42,7 +42,7 @@ def censored_paper_cleanup(paper_id):
         uploaded_by.set_probable_spammer()
 
 
-@app.task(queue=QUEUE_PAPER_MISC)
+@app.task(queue=QUEUE_PAPER_MISC, rate_limit="5/m")
 def download_pdf(paper_id, retry=0):
     if retry > 3:
         return
