@@ -241,7 +241,7 @@ class ArXivMapper(BaseMapper):
             # Construct URLs from ArXiv ID if links not provided
             if arxiv_id:
                 paper.url = f"https://arxiv.org/abs/{arxiv_id}"
-                paper.pdf_url = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
+                paper.pdf_url = f"https://arxiv.org/pdf/{arxiv_id}"
 
         return paper
 
