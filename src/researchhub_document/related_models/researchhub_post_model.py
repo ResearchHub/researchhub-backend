@@ -4,7 +4,6 @@ from django.db.models import IntegerField, Sum
 from django.db.models.functions import Cast
 
 from discussion.models import AbstractGenericReactionModel, Vote
-from hub.serializers import DynamicHubSerializer
 from purchase.models import Purchase
 from researchhub_comment.models import RhCommentThreadModel
 from researchhub_document.related_models.constants.document_type import (
@@ -155,25 +154,6 @@ class ResearchhubPost(AbstractGenericReactionModel):
         if not hasattr(self, "unified_document") or self.unified_document is None:
             return 0
         return self.unified_document.hot_score
-
-    @property
-    def hubs_indexing(self):
-        serializer = DynamicHubSerializer(
-            self.hubs.all(),
-            many=True,
-            context={},
-            _include_fields=[
-                "id",
-                "name",
-                "slug",
-            ],
-        )
-
-        return serializer.data
-
-    @property
-    def hubs_indexing_flat(self):
-        return [hub.name for hub in self.hubs.all()]
 
     def get_document_slug_type(self):
         if self.document_type == "BOUNTY":

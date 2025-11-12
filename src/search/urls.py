@@ -6,6 +6,7 @@ from search.views.institution_suggester import InstitutionSuggesterDocumentView
 from search.views.journal import JournalDocumentView
 from search.views.person_suggester import PersonSuggesterDocumentView
 from search.views.suggest import SuggestView
+from search.views.unified_search import UnifiedSearchView
 
 router = DefaultRouter()
 person = router.register(r"person", PersonDocumentView, basename="person_document")
@@ -21,6 +22,7 @@ institution_suggester = router.register(
 )
 
 urlpatterns = [
-    re_path(r"^", include(router.urls)),
+    path("", UnifiedSearchView.as_view(), name="unified_search"),
     path("suggest/", SuggestView.as_view(), name="suggest"),
+    re_path(r"^", include(router.urls)),
 ]

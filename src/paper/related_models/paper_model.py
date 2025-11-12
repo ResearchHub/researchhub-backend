@@ -13,7 +13,6 @@ from manubot.cite.unpaywall import Unpaywall
 import utils.sentry as sentry
 from discussion.models import AbstractGenericReactionModel, Vote
 from hub.models import Hub
-from hub.serializers import DynamicHubSerializer
 from paper.lib import journal_hosts
 from paper.related_models.citation_model import Citation
 from paper.utils import get_csl_item, populate_pdf_url_from_journal_url
@@ -22,10 +21,6 @@ from reputation.models import Score, ScoreChange
 from reputation.related_models.paper_reward import HubCitationValue
 from researchhub.settings import TESTING
 from researchhub_comment.models import RhCommentThreadModel
-from researchhub_document.related_models.constants.editor_type import (
-    EDITOR_TYPES,
-    TEXT_FIELD,
-)
 from utils.aws import lambda_compress_and_linearize_pdf
 
 DOI_IDENTIFIER = "10."
@@ -238,25 +233,6 @@ class Paper(AbstractGenericReactionModel):
                 users.append(author.user)
 
         return users
-
-    @property
-    def hubs_indexing(self):
-        serializer = DynamicHubSerializer(
-            self.hubs.all(),
-            many=True,
-            context={},
-            _include_fields=[
-                "id",
-                "name",
-                "slug",
-            ],
-        )
-
-        return serializer.data
-
-    @property
-    def hubs_indexing_flat(self):
-        return [hub.name for hub in self.hubs.all()]
 
     @property
     def hot_score(self):
