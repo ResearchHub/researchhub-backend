@@ -66,7 +66,7 @@ class ListViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"], url_path="overview")
     def overview(self, request):
-        user_lists = self.get_queryset().prefetch_related("items")
+        user_lists = self.queryset.filter(created_by=request.user).prefetch_related("items").order_by("-updated_date")
         serializer = UserListOverviewSerializer(queryset=user_lists)
         return Response(serializer.to_representation(None), status=status.HTTP_200_OK)
 
@@ -129,31 +129,17 @@ class ListItemViewSet(viewsets.ModelViewSet):
             parent_list=parent_list, unified_document=unified_document, is_removed=False
         ).first()
 
-    @action(detail=False, methods=["post"], url_path="toggle-item-in-list")
-    def toggle_item_in_list(self, request):
+    @action(detail=False, methods=["post"], url_path="add-item-to-list")
+    def add_item_to_list(self, request):
         serializer = ListItemSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         parent_list = serializer.validated_data["parent_list"]
         unified_document = serializer.validated_data["unified_document"]
-
         self._validate_parent_list(parent_list)
 
         existing_item = self._find_existing_item(parent_list, unified_document)
-        
         if existing_item:
-            parent_list = existing_item.parent_list
-            existing_item.delete()
-            _update_list_timestamp(parent_list, request.user)
-            
-            response_data = {
-                "action": "removed",
-                "item": None,
-                "success": True,
-            }
-            response_serializer = ToggleListItemResponseSerializer(
-                response_data, context={"request": request}
-            )
-            return Response(response_serializer.data, status=status.HTTP_200_OK)
+            raise serializers.ValidationError({"error": "Item already exists in this list."})
 
         try:
             list_item, _ = self._get_or_create_item(serializer, request.user)
@@ -163,36 +149,34 @@ class ListItemViewSet(viewsets.ModelViewSet):
                 "success": True,
             }
             response_serializer = ToggleListItemResponseSerializer(
-                response_data, context={"request": request}
+                response_data
             )
             return Response(response_serializer.data, status=status.HTTP_201_CREATED)
         except IntegrityError:
-            existing_item = self._find_existing_item(parent_list, unified_document)
-            if existing_item:
-                parent_list = existing_item.parent_list
-                existing_item.delete()
-                _update_list_timestamp(parent_list, request.user)
-                response_data = {
-                    "action": "removed",
-                    "item": None,
-                    "success": True,
-                }
-                response_serializer = ToggleListItemResponseSerializer(
-                    response_data, context={"request": request}
-                )
-                return Response(response_serializer.data, status=status.HTTP_200_OK)
             _handle_integrity_error_item()
 
     @action(detail=False, methods=["post"], url_path="remove-item-from-list")
     def remove_item_from_list(self, request):
-        serializer = ListItemSerializer(data=request.data, context={"request": request})
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        list_item = self._find_existing_item(
-            serializer.validated_data["parent_list"], serializer.validated_data["unified_document"]
-        )
+        parent_list = serializer.validated_data["parent_list"]
+        unified_document = serializer.validated_data["unified_document"]
+        self._validate_parent_list(parent_list)
+
+        list_item = self._find_existing_item(parent_list, unified_document)
         if not list_item or list_item.created_by != request.user:
             return Response({"error": "Item not found in list"}, status=status.HTTP_404_NOT_FOUND)
+        
         parent_list = list_item.parent_list
         list_item.delete()
         _update_list_timestamp(parent_list, request.user)
-        return Response({"success": True}, status=status.HTTP_200_OK)
+        
+        response_data = {
+            "action": "removed",
+            "item": None,
+            "success": True,
+        }
+        response_serializer = ToggleListItemResponseSerializer(
+            response_data
+        )
+        return Response(response_serializer.data, status=status.HTTP_200_OK)

@@ -164,10 +164,10 @@ class ListItemViewSetTests(APITestCase):
         item.refresh_from_db()
         self.assertTrue(item.is_removed)
 
-    def test_user_can_add_document_to_list_using_toggle_action(self):
+    def test_user_can_add_document_to_list_using_add_action(self):
         original_updated_date = self.list_obj.updated_date
         response = self.client.post(
-            "/api/user_list_item/toggle-item-in-list/",
+            "/api/user_list_item/add-item-to-list/",
             {"parent_list": self.list_obj.id, "unified_document": self.doc.id},
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -176,20 +176,14 @@ class ListItemViewSetTests(APITestCase):
         self.assertIn("item", response.data)
         self._assert_updated_date_changed(self.list_obj, original_updated_date)
 
-    def test_toggling_existing_item_removes(self):
+    def test_adding_existing_item_returns_error(self):
         ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
         response = self.client.post(
-            "/api/user_list_item/toggle-item-in-list/",
+            "/api/user_list_item/add-item-to-list/",
             {"parent_list": self.list_obj.id, "unified_document": self.doc.id},
         )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["action"], "removed")
-        self.assertEqual(response.data["success"], True)
-        self.assertFalse(
-            ListItem.objects.filter(
-                parent_list=self.list_obj, unified_document=self.doc, is_removed=False
-            ).exists()
-        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("error", response.data)
 
     def test_user_can_remove_document_from_list_using_remove_action(self):
         ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
@@ -199,7 +193,8 @@ class ListItemViewSetTests(APITestCase):
             {"parent_list": self.list_obj.id, "unified_document": self.doc.id},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(response.data["success"])
+        self.assertEqual(response.data["action"], "removed")
+        self.assertEqual(response.data["success"], True)
         self.assertFalse(
             ListItem.objects.filter(
                 parent_list=self.list_obj, unified_document=self.doc, is_removed=False

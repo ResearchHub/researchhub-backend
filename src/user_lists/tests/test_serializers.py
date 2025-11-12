@@ -12,7 +12,7 @@ from user_lists.serializers import (
     ListSerializer,
     ToggleListItemResponseSerializer,
     UnifiedDocumentForListSerializer,
-    UserCheckResponseSerializer,
+    OverviewResponseSerializer,
 )
 
 
@@ -26,7 +26,7 @@ class ListItemDetailSerializerTests(TestCase):
         item = ListItem.objects.create(
             parent_list=self.list_obj, unified_document=self.doc, created_by=self.user
         )
-        serializer = ListItemDetailSerializer(item, context={"request": None})
+        serializer = ListItemDetailSerializer(item)
         data = serializer.data
         self.assertIn("unified_document", data)
         self.assertIsInstance(data["unified_document"], dict)
@@ -38,7 +38,7 @@ class ListItemDetailSerializerTests(TestCase):
         )
         
         with patch.object(UnifiedDocumentForListSerializer, 'get_hubs', side_effect=Exception("Test exception")):
-            serializer = ListItemDetailSerializer(item, context={"request": None})
+            serializer = ListItemDetailSerializer(item)
             data = serializer.data
             unified_doc_data = data.get("unified_document", {})
             
@@ -92,7 +92,7 @@ class ListDetailSerializerTests(TestCase):
         ListItem.objects.create(parent_list=self.list_obj, unified_document=doc1, created_by=self.user)
         ListItem.objects.create(parent_list=self.list_obj, unified_document=doc2, created_by=self.user)
         
-        serializer = ListDetailSerializer(self.list_obj, context={"request": None})
+        serializer = ListDetailSerializer(self.list_obj)
         items = serializer.get_items(self.list_obj)
         self.assertIsInstance(items, list)
         self.assertGreater(len(items), 0)
@@ -109,7 +109,7 @@ class UnifiedDocumentForListSerializerTests(TestCase):
         ).unified_document
 
     def test_unified_document_serializer_includes_all_fields(self):
-        serializer = UnifiedDocumentForListSerializer(self.doc, context={"request": None})
+        serializer = UnifiedDocumentForListSerializer(self.doc)
         data = serializer.data
         
         self.assertIn("id", data)
@@ -128,13 +128,13 @@ class UnifiedDocumentForListSerializerTests(TestCase):
         self.assertIn("grant", data)
 
     def test_get_hubs_returns_list_with_id_name_slug(self):
-        serializer = UnifiedDocumentForListSerializer(self.doc, context={"request": None})
+        serializer = UnifiedDocumentForListSerializer(self.doc)
         hubs = serializer.get_hubs(self.doc)
         
         self.assertIsInstance(hubs, list)
 
     def test_get_created_by_returns_user_data(self):
-        serializer = UnifiedDocumentForListSerializer(self.doc, context={"request": None})
+        serializer = UnifiedDocumentForListSerializer(self.doc)
         created_by = serializer.get_created_by(self.doc)
         
         self.assertIsNotNone(created_by)
@@ -149,13 +149,13 @@ class UnifiedDocumentForListSerializerTests(TestCase):
             uploaded_by=None,
             unified_document=unified_doc,
         )
-        serializer = UnifiedDocumentForListSerializer(unified_doc, context={"request": None})
+        serializer = UnifiedDocumentForListSerializer(unified_doc)
         created_by = serializer.get_created_by(unified_doc)
         
         self.assertIsNone(created_by)
 
     def test_get_reviews_returns_default_when_no_reviews(self):
-        serializer = UnifiedDocumentForListSerializer(self.doc, context={"request": None})
+        serializer = UnifiedDocumentForListSerializer(self.doc)
         reviews = serializer.get_reviews(self.doc)
         
         self.assertIsInstance(reviews, dict)
@@ -163,31 +163,31 @@ class UnifiedDocumentForListSerializerTests(TestCase):
         self.assertEqual(reviews["count"], 0)
 
     def test_get_fundraise_returns_none_when_no_fundraise(self):
-        serializer = UnifiedDocumentForListSerializer(self.doc, context={"request": None})
+        serializer = UnifiedDocumentForListSerializer(self.doc)
         fundraise = serializer.get_fundraise(self.doc)
         
         self.assertIsNone(fundraise)
 
     def test_get_grant_returns_none_when_no_grant(self):
-        serializer = UnifiedDocumentForListSerializer(self.doc, context={"request": None})
+        serializer = UnifiedDocumentForListSerializer(self.doc)
         grant = serializer.get_grant(self.doc)
         
         self.assertIsNone(grant)
 
     def test_get_documents_handles_paper_type(self):
-        serializer = UnifiedDocumentForListSerializer(self.doc, context={"request": None})
+        serializer = UnifiedDocumentForListSerializer(self.doc)
         documents = serializer.get_documents(self.doc)
         
         self.assertIsNotNone(documents)
 
     def test_get_title_handles_paper(self):
-        serializer = UnifiedDocumentForListSerializer(self.doc, context={"request": None})
+        serializer = UnifiedDocumentForListSerializer(self.doc)
         title = serializer.get_title(self.doc)
         
         self.assertIsNotNone(title)
 
     def test_get_slug_handles_paper(self):
-        serializer = UnifiedDocumentForListSerializer(self.doc, context={"request": None})
+        serializer = UnifiedDocumentForListSerializer(self.doc)
         slug = serializer.get_slug(self.doc)
         
         self.assertIsNotNone(slug)
@@ -208,7 +208,7 @@ class ToggleListItemResponseSerializerTests(TestCase):
             "item": item,
             "success": True,
         }
-        serializer = ToggleListItemResponseSerializer(response_data, context={"request": None})
+        serializer = ToggleListItemResponseSerializer(response_data)
         data = serializer.data
         
         self.assertEqual(data["action"], "added")
@@ -222,7 +222,7 @@ class ToggleListItemResponseSerializerTests(TestCase):
             "item": None,
             "success": True,
         }
-        serializer = ToggleListItemResponseSerializer(response_data, context={"request": None})
+        serializer = ToggleListItemResponseSerializer(response_data)
         data = serializer.data
         
         self.assertEqual(data["action"], "removed")
@@ -230,14 +230,15 @@ class ToggleListItemResponseSerializerTests(TestCase):
         self.assertIsNone(data["item"])
 
 
-class UserCheckResponseSerializerTests(TestCase):
-    def test_user_check_response_serializer(self):
+class OverviewResponseSerializerTests(TestCase):
+    def test_overview_response_serializer(self):
         response_data = {
             "lists": [
                 {
                     "id": 1,
                     "name": "Test List",
                     "is_public": False,
+                    "created_by": 123,
                     "items": [
                         {"id": 1, "unified_document_id": 10},
                         {"id": 2, "unified_document_id": 11},
@@ -245,7 +246,7 @@ class UserCheckResponseSerializerTests(TestCase):
                 }
             ]
         }
-        serializer = UserCheckResponseSerializer(response_data)
+        serializer = OverviewResponseSerializer(response_data)
         data = serializer.data
         
         self.assertIn("lists", data)

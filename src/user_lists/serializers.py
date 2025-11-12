@@ -10,8 +10,27 @@ from paper.serializers import PaperSerializer
 from purchase.serializers import FundraiseSerializer, GrantSerializer
 from rest_framework import serializers
 from utils.serializers import DefaultAuthenticatedSerializer
+from user.related_models.user_model import User
 
 from .models import List, ListItem
+
+
+class SimpleUserForListSerializer(serializers.ModelSerializer):
+    author_profile = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "first_name",
+            "last_name",
+            "author_profile",
+        ]
+
+    def get_author_profile(self, obj):
+        if hasattr(obj, "author_profile") and obj.author_profile:
+            return obj.author_profile.id
+        return None
 
 
 class ListSerializer(DefaultAuthenticatedSerializer):
@@ -87,25 +106,18 @@ class UnifiedDocumentForListSerializer(serializers.ModelSerializer):
     def get_created_by(self, unified_doc):
         if not unified_doc.created_by:
             return None
-        user = unified_doc.created_by
-        return {
-            "id": user.id,
-            "first_name": user.first_name,
-            "last_name": user.last_name,
-            "author_profile": user.author_profile.id if hasattr(user, "author_profile") and user.author_profile else None,
-        }
+        return SimpleUserForListSerializer(unified_doc.created_by).data
 
     def get_documents(self, unified_doc):
         doc_type = unified_doc.document_type
-        context = self.context
         
         try:
             if doc_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
                 return ResearchhubPostSerializer(
-                    unified_doc.posts, many=True, context=context
+                    unified_doc.posts, many=True
                 ).data
             elif doc_type == PAPER:
-                return PaperSerializer(unified_doc.paper, context=context).data
+                return PaperSerializer(unified_doc.paper).data
             else:
                 return None
         except Exception:
@@ -125,7 +137,7 @@ class UnifiedDocumentForListSerializer(serializers.ModelSerializer):
             return None
         
         try:
-            serializer = FundraiseSerializer(fundraise, context=self.context)
+            serializer = FundraiseSerializer(fundraise)
             return serializer.data
         except Exception:
             return None
@@ -136,7 +148,7 @@ class UnifiedDocumentForListSerializer(serializers.ModelSerializer):
             return None
         
         try:
-            serializer = GrantSerializer(grant, context=self.context)
+            serializer = GrantSerializer(grant)
             return serializer.data
         except Exception:
             return None
@@ -176,7 +188,6 @@ class ListItemDetailSerializer(ListItemSerializer):
         try:
             return UnifiedDocumentForListSerializer(
                 obj.unified_document,
-                context=self.context,
             ).data
         except Exception:
             return {
@@ -194,7 +205,7 @@ class ToggleListItemResponseSerializer(serializers.Serializer):
     def get_item(self, obj):
         item = obj.get("item")
         if item:
-            return ListItemDetailSerializer(item, context=self.context).data
+            return ListItemDetailSerializer(item).data
         return None
 
 
@@ -209,23 +220,24 @@ class ListDetailSerializer(ListSerializer):
         paginator = FeedPagination()
         items_queryset = obj.items.filter(is_removed=False).order_by("-created_date")
         paginated_items = list(items_queryset[:paginator.page_size])
-        return ListItemDetailSerializer(paginated_items, many=True, context=self.context).data
+        return ListItemDetailSerializer(paginated_items, many=True).data
 
 
-class UserCheckItemSerializer(serializers.Serializer):
+class OverviewItemSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     unified_document_id = serializers.IntegerField()
 
 
-class UserCheckListSerializer(serializers.Serializer):
+class OverviewListSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     name = serializers.CharField()
     is_public = serializers.BooleanField()
-    items = UserCheckItemSerializer(many=True)
+    created_by = serializers.IntegerField()
+    items = OverviewItemSerializer(many=True)
 
 
-class UserCheckResponseSerializer(serializers.Serializer):
-    lists = UserCheckListSerializer(many=True)
+class OverviewResponseSerializer(serializers.Serializer):
+    lists = OverviewListSerializer(many=True)
 
 
 class UserListOverviewSerializer(serializers.Serializer):
@@ -241,7 +253,12 @@ class UserListOverviewSerializer(serializers.Serializer):
         
         lists_data = []
         for list_obj in self.queryset:
-            items = list_obj.items.filter(is_removed=False).order_by("-created_date")
+            if hasattr(list_obj, '_prefetched_objects_cache') and 'items' in list_obj._prefetched_objects_cache:
+                items = [item for item in list_obj._prefetched_objects_cache['items'] if not item.is_removed]
+                items.sort(key=lambda x: x.created_date, reverse=True)
+            else:
+                items = list(list_obj.items.filter(is_removed=False).order_by("-created_date"))
+            
             items_data = [
                 {
                     "id": item.id,
