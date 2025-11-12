@@ -56,12 +56,14 @@ class ListItemSerializer(DefaultAuthenticatedSerializer):
         feed_entry = obj.unified_document.feed_entries.select_related(
             "content_type", "user", "user__author_profile"
         ).first()
-        
+
         if not feed_entry:
-            item = (obj.unified_document.posts.first() if hasattr(obj.unified_document, 'posts') 
-                    and obj.unified_document.posts.exists() else 
-                    obj.unified_document.paper if hasattr(obj.unified_document, 'paper') else None)
-            
+            item = None
+            if hasattr(obj.unified_document, 'posts') and obj.unified_document.posts.exists():
+                item = obj.unified_document.posts.first()
+            elif hasattr(obj.unified_document, 'paper'):
+                item = obj.unified_document.paper
+
             if item:
                 content_type = ContentType.objects.get_for_model(item)
                 author = getattr(item, 'created_by', None) or getattr(item, 'uploaded_by', None)
