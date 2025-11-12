@@ -242,32 +242,13 @@ class UnifiedSearchService:
 
     def _search_documents_by_doi(self, normalized_doi: str) -> dict[str, Any]:
 
-        search = Search(index=[self.paper_index, self.post_index])
+        search = Search(index=self.paper_index)
         search = search.query(Q("term", doi={"value": normalized_doi}))
 
         # Sort by date to get the latest version
-        # Prefer updated_date if available (for posts), otherwise created_date
-        # This handles both papers (created_date only) and posts (both fields)
         search = search.sort(
-            {
-                "_script": {
-                    "type": "number",
-                    "script": {
-                        "source": (
-                            "if (doc.containsKey('updated_date') && "
-                            "!doc['updated_date'].empty) {"
-                            "  return doc['updated_date'].value.toEpochMilli();"
-                            "} else if (doc.containsKey('created_date') && "
-                            "!doc['created_date'].empty) {"
-                            "  return doc['created_date'].value.toEpochMilli();"
-                            "}"
-                            "return 0;"
-                        ),
-                        "lang": "painless",
-                    },
-                    "order": "desc",
-                }
-            }
+            "-paper_publish_date",
+            "-created_date",
         )
 
         # Source filtering for performance (match document search fields)
