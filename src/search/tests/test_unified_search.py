@@ -256,80 +256,6 @@ class UnifiedSearchServiceTests(TestCase):
         self.assertIn("content_types", aggregations)
         self.assertEqual(aggregations["years"][0]["key"], "2024")
 
-
-class UnifiedSearchViewTests(TestCase):
-    """Tests for UnifiedSearchView."""
-
-    def setUp(self):
-        self.client = APIClient()
-        self.url = "/api/search/"
-
-    def test_missing_query_parameter(self):
-        """Test that missing query parameter returns 400."""
-        response = self.client.get(self.url)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("q", response.data)
-        self.assertEqual(str(response.data["q"][0]), "This field is required.")
-
-    def test_empty_query_parameter(self):
-        """Test that empty query parameter returns 400."""
-        response = self.client.get(self.url, {"q": ""})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("q", response.data)
-        self.assertEqual(str(response.data["q"][0]), "This field may not be blank.")
-
-    def test_invalid_sort_parameter(self):
-        """Test that invalid sort parameter returns 400."""
-        response = self.client.get(self.url, {"q": "test", "sort": "invalid"})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("sort", response.data)
-        self.assertIn("is not a valid choice", str(response.data["sort"][0]))
-
-    def test_hot_sort_parameter_invalid(self):
-        """Test that 'hot' sort parameter is no longer valid."""
-        response = self.client.get(self.url, {"q": "test", "sort": "hot"})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("sort", response.data)
-
-    def test_upvoted_sort_parameter_invalid(self):
-        """Test that 'upvoted' sort parameter is no longer valid."""
-        response = self.client.get(self.url, {"q": "test", "sort": "upvoted"})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("sort", response.data)
-
-    def test_pagination_urls(self):
-        """Test that pagination URLs are generated correctly."""
-        from unittest.mock import Mock
-
-        from search.services.unified_search_service import UnifiedSearchService
-
-        service = UnifiedSearchService()
-
-        # Mock request
-        request = Mock()
-        request.path = "/api/search/"
-        request.build_absolute_uri = lambda path: f"https://testserver{path}"
-
-        # Build URL for page 2
-        url = service._build_page_url(request, "test query", 2, 10, "relevance")
-
-        # Verify URL structure
-        self.assertIn("https://testserver/api/search/", url)
-        self.assertIn("q=test+query", url)
-        self.assertIn("page=2", url)
-        self.assertIn("page_size=10", url)
-        self.assertIn("sort=relevance", url)
-
-    def test_valid_search_requires_opensearch(self):
-        """
-        Note: Full integration tests require actual OpenSearch connection.
-        These tests verify parameter validation only.
-        For full testing, run manual tests with actual OpenSearch instance.
-        """
-        # Just a placeholder to document that integration tests
-        # should be run manually or in CI with OpenSearch
-        pass
-
     def test_execution_time_included_in_response(self):
         """Test that execution_time_ms is included in search response."""
         from unittest.mock import Mock, patch
@@ -410,3 +336,77 @@ class UnifiedSearchViewTests(TestCase):
             # Verify it's a DOI search result (has documents, no people)
             self.assertEqual(len(results["documents"]), 1)
             self.assertEqual(len(results["people"]), 0)
+
+
+class UnifiedSearchViewTests(TestCase):
+    """Tests for UnifiedSearchView."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.url = "/api/search/"
+
+    def test_missing_query_parameter(self):
+        """Test that missing query parameter returns 400."""
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("q", response.data)
+        self.assertEqual(str(response.data["q"][0]), "This field is required.")
+
+    def test_empty_query_parameter(self):
+        """Test that empty query parameter returns 400."""
+        response = self.client.get(self.url, {"q": ""})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("q", response.data)
+        self.assertEqual(str(response.data["q"][0]), "This field may not be blank.")
+
+    def test_invalid_sort_parameter(self):
+        """Test that invalid sort parameter returns 400."""
+        response = self.client.get(self.url, {"q": "test", "sort": "invalid"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("sort", response.data)
+        self.assertIn("is not a valid choice", str(response.data["sort"][0]))
+
+    def test_hot_sort_parameter_invalid(self):
+        """Test that 'hot' sort parameter is no longer valid."""
+        response = self.client.get(self.url, {"q": "test", "sort": "hot"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("sort", response.data)
+
+    def test_upvoted_sort_parameter_invalid(self):
+        """Test that 'upvoted' sort parameter is no longer valid."""
+        response = self.client.get(self.url, {"q": "test", "sort": "upvoted"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("sort", response.data)
+
+    def test_pagination_urls(self):
+        """Test that pagination URLs are generated correctly."""
+        from unittest.mock import Mock
+
+        from search.services.unified_search_service import UnifiedSearchService
+
+        service = UnifiedSearchService()
+
+        # Mock request
+        request = Mock()
+        request.path = "/api/search/"
+        request.build_absolute_uri = lambda path: f"https://testserver{path}"
+
+        # Build URL for page 2
+        url = service._build_page_url(request, "test query", 2, 10, "relevance")
+
+        # Verify URL structure
+        self.assertIn("https://testserver/api/search/", url)
+        self.assertIn("q=test+query", url)
+        self.assertIn("page=2", url)
+        self.assertIn("page_size=10", url)
+        self.assertIn("sort=relevance", url)
+
+    def test_valid_search_requires_opensearch(self):
+        """
+        Note: Full integration tests require actual OpenSearch connection.
+        These tests verify parameter validation only.
+        For full testing, run manual tests with actual OpenSearch instance.
+        """
+        # Just a placeholder to document that integration tests
+        # should be run manually or in CI with OpenSearch
+        pass
