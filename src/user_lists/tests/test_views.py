@@ -83,7 +83,6 @@ class ListViewSetTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_list_pagination(self):
-        """Test that lists are paginated with 20 items per page"""
         for i in range(25):
             List.objects.create(name=f"List {i}", created_by=self.user)
         response = self.client.get("/api/user_list/")
@@ -94,7 +93,6 @@ class ListViewSetTests(APITestCase):
         self.assertIsNone(response.data.get("previous"))
 
     def test_list_pagination_page_2(self):
-        """Test pagination second page"""
         for i in range(25):
             List.objects.create(name=f"List {i}", created_by=self.user)
         response = self.client.get("/api/user_list/?page=2")
@@ -104,7 +102,6 @@ class ListViewSetTests(APITestCase):
         self.assertIsNotNone(response.data.get("previous"))
 
     def test_list_sorting_by_updated_date(self):
-        """Test that lists are sorted by updated_date descending"""
         list1 = List.objects.create(name="List 1", created_by=self.user)
         list2 = List.objects.create(name="List 2", created_by=self.user)
         response = self.client.get("/api/user_list/")
@@ -114,7 +111,6 @@ class ListViewSetTests(APITestCase):
         self.assertEqual(results[1]["id"], list1.id)
 
     def test_retrieve_list_includes_created_by(self):
-        """Test that retrieve endpoint includes created_by field"""
         list_obj = List.objects.create(name="My List", created_by=self.user)
         response = self.client.get(f"/api/user_list/{list_obj.id}/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -122,7 +118,6 @@ class ListViewSetTests(APITestCase):
         self.assertEqual(response.data["created_by"], self.user.id)
 
     def test_retrieve_other_user_list(self):
-        """Test that users can retrieve other users' lists (sharing)"""
         list_obj = List.objects.create(name="Other List", created_by=self.other_user)
         response = self.client.get(f"/api/user_list/{list_obj.id}/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -130,33 +125,29 @@ class ListViewSetTests(APITestCase):
         self.assertEqual(response.data["created_by"], self.other_user.id)
 
     def test_update_list_error_format(self):
-        """Test that validation error returns correct format"""
         list_obj = List.objects.create(name="My List", created_by=self.user)
         response = self.client.patch(f"/api/user_list/{list_obj.id}/", {"name": ""})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("error", response.data)
 
     def test_user_check_endpoint(self):
-        """Test the user_check endpoint returns user's lists with items"""
         list1 = List.objects.create(name="List 1", created_by=self.user)
         list2 = List.objects.create(name="List 2", created_by=self.user)
         doc1 = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
         doc2 = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
         ListItem.objects.create(parent_list=list1, unified_document=doc1, created_by=self.user)
         ListItem.objects.create(parent_list=list2, unified_document=doc2, created_by=self.user)
-        response = self.client.get("/api/user_list/user_check/")
+        response = self.client.get("/api/user_list/overview/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("lists", response.data)
         self.assertEqual(len(response.data["lists"]), 2)
         self.assertEqual(response.data["lists"][0]["id"], list2.id)
-        self.assertEqual(response.data["lists"][0]["created_by"], self.user.id)
         self.assertEqual(len(response.data["lists"][0]["items"]), 1)
 
     def test_user_check_only_returns_user_lists(self):
-        """Test that user_check only returns lists created by the user"""
         List.objects.create(name="My List", created_by=self.user)
         List.objects.create(name="Other List", created_by=self.other_user)
-        response = self.client.get("/api/user_list/user_check/")
+        response = self.client.get("/api/user_list/overview/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["lists"]), 1)
         self.assertEqual(response.data["lists"][0]["name"], "My List")
@@ -241,10 +232,10 @@ class ListItemViewSetTests(APITestCase):
         item.refresh_from_db()
         self.assertTrue(item.is_removed)
 
-    def test_user_can_add_document_to_list_using_toggle_action(self):
+    def test_user_can_add_document_to_list_using_add_action(self):
         original_updated_date = self.list_obj.updated_date
         response = self.client.post(
-            "/api/user_list_item/toggle-item-in-list/",
+            "/api/user_list_item/add-item-to-list/",
             {"parent_list": self.list_obj.id, "unified_document": self.doc.id},
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -253,20 +244,14 @@ class ListItemViewSetTests(APITestCase):
         self.assertIn("item", response.data)
         self._assert_updated_date_changed(self.list_obj, original_updated_date)
 
-    def test_toggling_existing_item_removes(self):
+    def test_adding_existing_item_returns_error(self):
         ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
         response = self.client.post(
-            "/api/user_list_item/toggle-item-in-list/",
+            "/api/user_list_item/add-item-to-list/",
             {"parent_list": self.list_obj.id, "unified_document": self.doc.id},
         )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["action"], "removed")
-        self.assertEqual(response.data["success"], True)
-        self.assertFalse(
-            ListItem.objects.filter(
-                parent_list=self.list_obj, unified_document=self.doc, is_removed=False
-            ).exists()
-        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("error", response.data)
 
     def test_user_can_remove_document_from_list_using_remove_action(self):
         ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
@@ -276,7 +261,8 @@ class ListItemViewSetTests(APITestCase):
             {"parent_list": self.list_obj.id, "unified_document": self.doc.id},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(response.data["success"])
+        self.assertEqual(response.data["action"], "removed")
+        self.assertEqual(response.data["success"], True)
         self.assertFalse(
             ListItem.objects.filter(
                 parent_list=self.list_obj, unified_document=self.doc, is_removed=False
@@ -332,7 +318,6 @@ class ListItemViewSetTests(APITestCase):
 
 
     def test_list_items_pagination(self):
-        """Test that list items are paginated with 20 items per page"""
         for i in range(25):
             doc = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
             ListItem.objects.create(parent_list=self.list_obj, unified_document=doc, created_by=self.user)
@@ -386,7 +371,6 @@ class ListItemViewSetTests(APITestCase):
         self.assertGreater(len(error_msg), 0)
 
     def test_retrieve_item_from_other_user_list(self):
-        """Test that users can retrieve items from other users' lists"""
         doc = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
         item = ListItem.objects.create(parent_list=self.other_list, unified_document=doc, created_by=self.other_user)
         response = self.client.get(f"/api/user_list_item/{item.id}/")
@@ -394,7 +378,6 @@ class ListItemViewSetTests(APITestCase):
         self.assertIn("unified_document", response.data)
 
     def test_update_list_item_updates_both_parent_timestamps(self):
-        """Test that moving an item updates both old and new parent timestamps"""
         new_list = List.objects.create(name="New List", created_by=self.user)
         item = ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
         original_old_date = self.list_obj.updated_date
@@ -407,13 +390,11 @@ class ListItemViewSetTests(APITestCase):
         self.assertGreater(new_list.updated_date, original_new_date)
 
     def test_add_item_to_list_error_format(self):
-        """Test that toggle behavior returns correct format"""
         ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
         response = self.client.post(
             "/api/user_list_item/add-item-to-list/",
             {"parent_list": self.list_obj.id, "unified_document": self.doc.id},
         )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["action"], "removed")
-        self.assertEqual(response.data["success"], True)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("error", response.data)
 

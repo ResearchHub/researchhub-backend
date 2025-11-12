@@ -12,7 +12,7 @@ from user_lists.serializers import (
     ListSerializer,
     ToggleListItemResponseSerializer,
     UnifiedDocumentForListSerializer,
-    UserCheckResponseSerializer,
+    OverviewResponseSerializer,
 )
 
 
@@ -230,7 +230,7 @@ class ToggleListItemResponseSerializerTests(TestCase):
         self.assertIsNone(data["item"])
 
 
-class UserCheckResponseSerializerTests(TestCase):
+class OverviewResponseSerializerTests(TestCase):
     def test_user_check_response_serializer(self):
         response_data = {
             "lists": [
@@ -246,7 +246,7 @@ class UserCheckResponseSerializerTests(TestCase):
                 }
             ]
         }
-        serializer = UserCheckResponseSerializer(response_data)
+        serializer = OverviewResponseSerializer(response_data)
         data = serializer.data
         
         self.assertIn("lists", data)
