@@ -133,8 +133,8 @@ class PaperDocument(BaseDocument):
             )
 
         try:
-            hubs_indexing_flat = instance.hubs_indexing_flat
-            phrases.extend(hubs_indexing_flat)
+            hub_names = self.get_hub_names(instance)
+            phrases.extend(hub_names)
         except Exception as e:
             logger.warning(f"Failed to prepare hubs for paper {instance.id}: {e}")
 
@@ -199,6 +199,12 @@ class PaperDocument(BaseDocument):
 
     def prepare_doi_indexing(self, instance) -> str:
         return instance.doi or ""
+
+    def get_hub_names(self, instance) -> list[str]:
+        """
+        Return flat list of hub names for indexing.
+        """
+        return [hub.name for hub in instance.hubs.all()]
 
     def prepare_hubs(self, instance) -> list[dict[str, Any]]:
         if instance.unified_document and instance.unified_document.hubs.exists():
