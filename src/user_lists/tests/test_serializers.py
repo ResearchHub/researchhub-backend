@@ -324,7 +324,7 @@ class UnifiedDocumentForListSerializerAdditionalTests(TestCase):
         self.assertIn("count", reviews)
 
     def test_fundraise_returns_none_when_fundraise_serialization_fails(self):
-        fundraise = Fundraise.objects.create(
+        Fundraise.objects.create(
             created_by=self.user,
             unified_document=self.unified_doc,
             goal_amount=100,
@@ -335,7 +335,7 @@ class UnifiedDocumentForListSerializerAdditionalTests(TestCase):
         self.assertIsNotNone(fundraise_data)
 
     def test_grant_returns_none_when_grant_serialization_fails(self):
-        grant = Grant.objects.create(
+        Grant.objects.create(
             created_by=self.user,
             unified_document=self.unified_doc,
             amount=50000,
