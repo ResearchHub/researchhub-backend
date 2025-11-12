@@ -295,6 +295,7 @@ class PaperIngestionService:
             IngestionSource.ARXIV_OAI,
             IngestionSource.CHEMRXIV,
             IngestionSource.MEDRXIV,
+            IngestionSource.BIORXIV,
         ]
 
     def _save_paper(self, paper: Paper) -> Paper:
