@@ -1,16 +1,16 @@
+from django.db import IntegrityError
 from django.utils import timezone
 from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+
 from feed.views.common import FeedPagination
 from researchhub.permissions import IsObjectOwner
-from django.db import IntegrityError
 
 from .models import List, ListItem
 from .serializers import (
     ListDetailSerializer,
-    ListItemDetailSerializer,
     ListItemSerializer,
     ListSerializer,
     UserListOverviewSerializer,
@@ -22,8 +22,10 @@ def _update_list_timestamp(list_obj, user):
     list_obj.updated_by = user
     list_obj.save(update_fields=["updated_date", "updated_by"])
 
+
 def _handle_integrity_error_item():
     raise serializers.ValidationError({"error": "Item already exists in this list."})
+
 
 class ListViewSet(viewsets.ModelViewSet):
     queryset = List.objects.filter(is_removed=False)
@@ -48,7 +50,7 @@ class ListViewSet(viewsets.ModelViewSet):
                     error_messages.append(f"{field}: {errors}")
             error_message = " ".join(error_messages) if error_messages else "Validation error"
             return Response({"error": error_message}, status=status.HTTP_400_BAD_REQUEST)
-        
+
         serializer.save(created_by=self.request.user)
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
@@ -86,9 +88,6 @@ class ListItemViewSet(viewsets.ModelViewSet):
                 parent_list__is_removed=False,
             )
         return queryset
-
-    def get_serializer_class(self):
-        return ListItemDetailSerializer if self.action in ["retrieve", "list"] else ListItemSerializer
 
     def _validate_parent_list(self, parent_list):
         if parent_list.created_by != self.request.user or parent_list.is_removed:
@@ -141,9 +140,8 @@ class ListItemViewSet(viewsets.ModelViewSet):
             raise serializers.ValidationError({"error": "Item already exists in this list."})
 
         try:
-            list_item, _ = self._get_or_create_item(serializer, request.user)
-            response_serializer = ListItemDetailSerializer(list_item)
-            return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+            self._get_or_create_item(serializer, request.user)
+            return Response(status=status.HTTP_201_CREATED)
         except IntegrityError:
             _handle_integrity_error_item()
 
@@ -158,9 +156,9 @@ class ListItemViewSet(viewsets.ModelViewSet):
         list_item = self._find_existing_item(parent_list, unified_document)
         if not list_item or list_item.created_by != request.user:
             return Response({"error": "Item not found in list"}, status=status.HTTP_404_NOT_FOUND)
-        
+
         parent_list = list_item.parent_list
         list_item.delete()
         _update_list_timestamp(parent_list, request.user)
-        
+
         return Response({"success": True}, status=status.HTTP_200_OK)

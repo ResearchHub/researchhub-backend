@@ -22,6 +22,7 @@ class ListItem(DefaultAuthenticatedModel, SoftDeletableModel):
     unified_document = models.ForeignKey(
         ResearchhubUnifiedDocument, on_delete=models.CASCADE, related_name="user_list_items"
     )
+
     class Meta:
         ordering = ["-created_date"]
         constraints = [
@@ -31,7 +32,9 @@ class ListItem(DefaultAuthenticatedModel, SoftDeletableModel):
                 name="unique_document_per_list",
             )
         ]
-        indexes = [models.Index(fields=["parent_list", "is_removed"], name="idx_listitem_list_removed")]
+        indexes = [
+            models.Index(fields=["parent_list", "is_removed"], name="idx_listitem_list_removed")
+        ]
 
     def __str__(self):
         return str(self.id)

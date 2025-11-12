@@ -1,7 +1,7 @@
+from django.db import connection
+from django.test.utils import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
-from django.test.utils import override_settings
-from django.db import connection, IntegrityError
 
 from researchhub_document.related_models.constants.document_type import PAPER
 from researchhub_document.related_models.researchhub_unified_document_model import ResearchhubUnifiedDocument
@@ -90,18 +90,18 @@ class ListViewSetTests(APITestCase):
         doc3 = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
         list1 = List.objects.create(name="List 1", created_by=self.user)
         list2 = List.objects.create(name="List 2", created_by=self.user)
-        
+
         ListItem.objects.create(parent_list=list1, unified_document=doc1, created_by=self.user)
         ListItem.objects.create(parent_list=list1, unified_document=doc2, created_by=self.user)
         ListItem.objects.create(parent_list=list2, unified_document=doc3, created_by=self.user)
-        
+
         connection.queries_log.clear()
-        
+
         response = self.client.get("/api/user_list/")
-        
+
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data.get("results", response.data)), 2)
-        
+
         query_count = len(connection.queries)
         self.assertLess(query_count, 10, "Should use prefetching to avoid N+1 queries")
 
@@ -171,8 +171,11 @@ class ListItemViewSetTests(APITestCase):
             {"parent_list": self.list_obj.id, "unified_document": self.doc.id},
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertIn("id", response.data)
-        self.assertIn("unified_document", response.data)
+        self.assertTrue(
+            ListItem.objects.filter(
+                parent_list=self.list_obj, unified_document=self.doc, created_by=self.user
+            ).exists()
+        )
         self._assert_updated_date_changed(self.list_obj, original_updated_date)
 
     def test_adding_existing_item_returns_error(self):
@@ -262,7 +265,7 @@ class ListItemViewSetTests(APITestCase):
         doc2 = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
         item1 = ListItem.objects.create(parent_list=self.list_obj, unified_document=doc1, created_by=self.user)
         item2 = ListItem.objects.create(parent_list=self.list_obj, unified_document=doc2, created_by=self.user)
-        
+
         response = self.client.get("/api/user_list/overview/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("lists", response.data)
@@ -282,13 +285,12 @@ class ListItemViewSetTests(APITestCase):
         item1 = ListItem.objects.create(parent_list=self.list_obj, unified_document=doc1, created_by=self.user)
         item2 = ListItem.objects.create(parent_list=self.list_obj, unified_document=doc2, created_by=self.user)
         item2.delete()
-        
+
         response = self.client.get("/api/user_list/overview/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         list_data = response.data["lists"][0]
         self.assertEqual(len(list_data["items"]), 1)
         self.assertEqual(list_data["items"][0]["id"], item1.id)
-
 
     def test_creating_list_with_invalid_data_shows_formatted_error_message(self):
         response = self.client.post("/api/user_list/", {"name": "", "is_public": "invalid"})

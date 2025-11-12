@@ -1,36 +1,12 @@
-from researchhub_document.related_models.researchhub_unified_document_model import ResearchhubUnifiedDocument
-from researchhub_document.related_models.constants.document_type import (
-    PAPER,
-    RESEARCHHUB_POST_DOCUMENT_TYPES,
-)
-from researchhub_document.serializers import (
-    ResearchhubPostSerializer,
-)
-from paper.serializers import PaperSerializer
-from purchase.serializers import FundraiseSerializer, GrantSerializer
+from django.contrib.contenttypes.models import ContentType
 from rest_framework import serializers
+
+from feed.models import FeedEntry
+from feed.serializers import FeedEntrySerializer, serialize_feed_metrics
+from researchhub_document.related_models.researchhub_unified_document_model import ResearchhubUnifiedDocument
 from utils.serializers import DefaultAuthenticatedSerializer
-from user.related_models.user_model import User
 
 from .models import List, ListItem
-
-
-class SimpleUserForListSerializer(serializers.ModelSerializer):
-    author_profile = serializers.SerializerMethodField()
-
-    class Meta:
-        model = User
-        fields = [
-            "id",
-            "first_name",
-            "last_name",
-            "author_profile",
-        ]
-
-    def get_author_profile(self, obj):
-        if hasattr(obj, "author_profile") and obj.author_profile:
-            return obj.author_profile.id
-        return None
 
 
 class ListSerializer(DefaultAuthenticatedSerializer):
@@ -57,144 +33,56 @@ class ListSerializer(DefaultAuthenticatedSerializer):
 
 
 class ListItemSerializer(DefaultAuthenticatedSerializer):
-    unified_document = serializers.PrimaryKeyRelatedField(
-        queryset=ResearchhubUnifiedDocument.objects.filter(is_removed=False), required=True
-    )
+    unified_document = serializers.SerializerMethodField()
 
     class Meta:
         model = ListItem
         fields = ["id", "parent_list", "unified_document", "created_date", "created_by"]
         read_only_fields = ["id", "created_date", "created_by"]
+        extra_kwargs = {
+            'unified_document': {'required': True}
+        }
 
-
-class UnifiedDocumentForListSerializer(serializers.ModelSerializer):
-    hubs = serializers.SerializerMethodField()
-    created_by = serializers.SerializerMethodField()
-    documents = serializers.SerializerMethodField()
-    reviews = serializers.SerializerMethodField()
-    fundraise = serializers.SerializerMethodField()
-    grant = serializers.SerializerMethodField()
-    title = serializers.SerializerMethodField()
-    slug = serializers.SerializerMethodField()
-
-    class Meta:
-        model = ResearchhubUnifiedDocument
-        fields = [
-            "id",
-            "created_date",
-            "title",
-            "slug",
-            "is_removed",
-            "document_type",
-            "hubs",
-            "created_by",
-            "documents",
-            "score",
-            "hot_score",
-            "reviews",
-            "fundraise",
-            "grant",
-        ]
-        read_only_fields = fields
-
-    def get_hubs(self, unified_doc):
-        return [
-            {"id": hub.id, "name": hub.name, "slug": hub.slug}
-            for hub in unified_doc.hubs.all()
-        ]
-
-    def get_created_by(self, unified_doc):
-        if not unified_doc.created_by:
-            return None
-        return SimpleUserForListSerializer(unified_doc.created_by).data
-
-    def get_documents(self, unified_doc):
-        doc_type = unified_doc.document_type
-        
-        try:
-            if doc_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
-                return ResearchhubPostSerializer(
-                    unified_doc.posts, many=True
-                ).data
-            elif doc_type == PAPER:
-                return PaperSerializer(unified_doc.paper).data
-            else:
-                return None
-        except Exception:
-            return None
-
-    def get_reviews(self, unified_doc):
-        if not unified_doc.reviews.exists():
-            return {"avg": 0.0, "count": 0}
-        return unified_doc.get_review_details()
-
-    def get_fundraise(self, unified_doc):
-        if not unified_doc.fundraises.exists():
-            return None
-        
-        fundraise = unified_doc.fundraises.first()
-        if not fundraise:
-            return None
-        
-        try:
-            serializer = FundraiseSerializer(fundraise)
-            return serializer.data
-        except Exception:
-            return None
-
-    def get_grant(self, unified_doc):
-        grant = unified_doc.grants.first()
-        if not grant:
-            return None
-        
-        try:
-            serializer = GrantSerializer(grant)
-            return serializer.data
-        except Exception:
-            return None
-
-    def get_title(self, unified_doc):
-        try:
-            doc_type = unified_doc.document_type
-            if doc_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
-                post = unified_doc.posts.first()
-                return post.title if post else None
-            elif doc_type == PAPER:
-                return unified_doc.paper.title if unified_doc.paper else None
-        except Exception:
-            pass
-        return None
-
-    def get_slug(self, unified_doc):
-        try:
-            doc_type = unified_doc.document_type
-            if doc_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
-                post = unified_doc.posts.first()
-                return post.slug if post else None
-            elif doc_type == PAPER:
-                return unified_doc.paper.slug if unified_doc.paper else None
-        except Exception:
-            pass
-        return None
-
-
-class ListItemDetailSerializer(ListItemSerializer):
-    unified_document = serializers.SerializerMethodField()
-
-    class Meta(ListItemSerializer.Meta):
-        fields = ListItemSerializer.Meta.fields + ["unified_document"]
+    def get_fields(self):
+        fields = super().get_fields()
+        if self.context.get('request') and self.context['request'].method in ['POST', 'PUT', 'PATCH']:
+            fields['unified_document'] = serializers.PrimaryKeyRelatedField(
+                queryset=ResearchhubUnifiedDocument.objects.filter(is_removed=False), 
+                required=True
+            )
+        return fields
 
     def get_unified_document(self, obj):
-        try:
-            return UnifiedDocumentForListSerializer(
-                obj.unified_document,
-            ).data
-        except Exception:
-            return {
-                "id": obj.unified_document.id,
-                "document_type": obj.unified_document.document_type,
-                "is_removed": obj.unified_document.is_removed,
-            }
+        feed_entry = obj.unified_document.feed_entries.select_related(
+            "content_type", "user", "user__author_profile"
+        ).first()
+        
+        if not feed_entry:
+            item = (obj.unified_document.posts.first() if hasattr(obj.unified_document, 'posts') 
+                    and obj.unified_document.posts.exists() else 
+                    obj.unified_document.paper if hasattr(obj.unified_document, 'paper') else None)
+            
+            if item:
+                content_type = ContentType.objects.get_for_model(item)
+                author = getattr(item, 'created_by', None) or getattr(item, 'uploaded_by', None)
+                feed_entry = FeedEntry(
+                    id=item.id,
+                    content_type=content_type,
+                    object_id=item.id,
+                    action="PUBLISH",
+                    action_date=getattr(item, 'paper_publish_date', None) or item.created_date,
+                    created_date=item.created_date,
+                    user=author,
+                    unified_document=item.unified_document,
+                    hot_score_v2=getattr(item, 'hot_score_v2', 0),
+                )
+                feed_entry.item = item
+                feed_entry.metrics = serialize_feed_metrics(item, content_type)
+
+        if feed_entry:
+            return FeedEntrySerializer(feed_entry, context=self.context).data
+
+        return None
 
 
 class ListDetailSerializer(ListSerializer):
@@ -208,7 +96,7 @@ class ListDetailSerializer(ListSerializer):
         paginator = FeedPagination()
         items_queryset = obj.items.filter(is_removed=False).order_by("-created_date")
         paginated_items = list(items_queryset[:paginator.page_size])
-        return ListItemDetailSerializer(paginated_items, many=True).data
+        return ListItemSerializer(paginated_items, many=True, context=self.context).data
 
 
 class OverviewItemSerializer(serializers.Serializer):
@@ -238,7 +126,7 @@ class UserListOverviewSerializer(serializers.Serializer):
     def get_lists(self, obj):
         if not self.queryset:
             return []
-        
+
         lists_data = []
         for list_obj in self.queryset:
             if hasattr(list_obj, '_prefetched_objects_cache') and 'items' in list_obj._prefetched_objects_cache:
@@ -246,7 +134,7 @@ class UserListOverviewSerializer(serializers.Serializer):
                 items.sort(key=lambda x: x.created_date, reverse=True)
             else:
                 items = list(list_obj.items.filter(is_removed=False).order_by("-created_date"))
-            
+
             items_data = [
                 {
                     "id": item.id,
@@ -254,14 +142,14 @@ class UserListOverviewSerializer(serializers.Serializer):
                 }
                 for item in items
             ]
-            
+
             lists_data.append({
                 "id": list_obj.id,
                 "name": list_obj.name,
                 "is_public": list_obj.is_public,
                 "items": items_data,
             })
-        
+
         return lists_data
 
     def to_representation(self, instance):
