@@ -4,6 +4,7 @@ and people (authors/users).
 """
 
 import logging
+import time
 from typing import Any
 
 from opensearchpy import Q, Search
@@ -39,6 +40,9 @@ class UnifiedSearchService:
         request=None,
     ) -> dict[str, Any]:
 
+        # Start timing
+        start_time = time.time()
+
         # Validate sort option
         if sort not in self.VALID_SORT_OPTIONS:
             sort = self.SORT_RELEVANCE
@@ -52,6 +56,7 @@ class UnifiedSearchService:
                 normalized_doi = DOI.normalize_doi(query)
                 doi_result = self._search_documents_by_doi(normalized_doi)
                 if doi_result["count"] > 0:
+                    execution_time = time.time() - start_time
                     return {
                         "count": doi_result["count"],
                         "next": None,
@@ -59,6 +64,7 @@ class UnifiedSearchService:
                         "documents": doi_result["results"],
                         "people": [],
                         "aggregations": {},
+                        "execution_time_ms": round(execution_time * 1000, 2),
                     }
         except Exception:
             # Fallback to regular flow if DOI parsing/search fails
@@ -90,6 +96,9 @@ class UnifiedSearchService:
                     request, query, page - 1, page_size, sort
                 )
 
+        # Calculate total execution time
+        execution_time = time.time() - start_time
+
         return {
             "count": total_count,
             "next": next_url,
@@ -97,6 +106,7 @@ class UnifiedSearchService:
             "documents": document_results["results"],
             "people": people_results["results"],
             "aggregations": document_results["aggregations"],
+            "execution_time_ms": round(execution_time * 1000, 2),
         }
 
     def _search_documents(
