@@ -73,3 +73,8 @@ def normalize_text(text: str) -> str:
         .decode("ascii")
         .lower()
     )
+
+
+def seconds_to_milliseconds(seconds: float, decimals: int = 2) -> float:
+    """Convert seconds to milliseconds with specified decimal precision."""
+    return round(seconds * 1000, decimals)
