@@ -122,3 +122,4 @@ class UnifiedSearchResultSerializer(serializers.Serializer):
     documents = DocumentResultSerializer(many=True)
     people = PersonResultSerializer(many=True)
     aggregations = SearchAggregationsSerializer(required=False)
+    execution_time_ms = serializers.FloatField(required=False)
