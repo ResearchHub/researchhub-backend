@@ -1,17 +1,24 @@
 from django.test import TestCase
-from unittest.mock import patch
+from django.contrib.contenttypes.models import ContentType
 
 from paper.models import Paper
-from researchhub_document.related_models.constants.document_type import PAPER
+from purchase.models import Fundraise, Grant
+from researchhub_document.related_models.constants.document_type import PAPER, DISCUSSION
 from researchhub_document.related_models.researchhub_unified_document_model import ResearchhubUnifiedDocument
+from researchhub_document.models import ResearchhubPost
+from review.models import Review
+from researchhub_comment.models import RhCommentModel
+from researchhub_comment.related_models.rh_comment_thread_model import RhCommentThreadModel
 from user.related_models.user_model import User
 from user_lists.models import List, ListItem
 from user_lists.serializers import (
     ListDetailSerializer,
     ListItemDetailSerializer,
     ListSerializer,
+    SimpleUserForListSerializer,
     ToggleListItemResponseSerializer,
     UnifiedDocumentForListSerializer,
+    UserListOverviewSerializer,
     OverviewResponseSerializer,
 )
 
@@ -36,20 +43,18 @@ class ListItemDetailSerializerTests(TestCase):
         item = ListItem.objects.create(
             parent_list=self.list_obj, unified_document=self.doc, created_by=self.user
         )
-        
-        with patch.object(UnifiedDocumentForListSerializer, 'get_hubs', side_effect=Exception("Test exception")):
-            serializer = ListItemDetailSerializer(item)
-            data = serializer.data
-            unified_doc_data = data.get("unified_document", {})
-            
-            self.assertIsInstance(unified_doc_data, dict)
-            self.assertEqual(len(unified_doc_data), 3)
-            self.assertIn("id", unified_doc_data)
-            self.assertEqual(unified_doc_data["id"], self.doc.id)
-            self.assertIn("document_type", unified_doc_data)
-            self.assertEqual(unified_doc_data["document_type"], self.doc.document_type)
-            self.assertIn("is_removed", unified_doc_data)
-            self.assertEqual(unified_doc_data["is_removed"], self.doc.is_removed)
+        self.doc.delete()
+        serializer = ListItemDetailSerializer(item)
+        data = serializer.data
+        unified_doc_data = data.get("unified_document", {})
+        self.assertIsInstance(unified_doc_data, dict)
+        self.assertEqual(len(unified_doc_data), 3)
+        self.assertIn("id", unified_doc_data)
+        self.assertEqual(unified_doc_data["id"], self.doc.id)
+        self.assertIn("document_type", unified_doc_data)
+        self.assertEqual(unified_doc_data["document_type"], self.doc.document_type)
+        self.assertIn("is_removed", unified_doc_data)
+        self.assertEqual(unified_doc_data["is_removed"], self.doc.is_removed)
 
 
 class ListSerializerTests(TestCase):
@@ -258,5 +263,117 @@ class OverviewResponseSerializerTests(TestCase):
         self.assertEqual(len(list_data["items"]), 2)
         self.assertEqual(list_data["items"][0]["id"], 1)
         self.assertEqual(list_data["items"][0]["unified_document_id"], 10)
+
+
+class SimpleUserForListSerializerTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="user1")
+
+    def test_author_profile_returns_none_when_user_has_no_author_profile(self):
+        if hasattr(self.user, "author_profile") and self.user.author_profile:
+            self.user.author_profile.delete()
+        serializer = SimpleUserForListSerializer(self.user)
+        author_profile = serializer.get_author_profile(self.user)
+        self.assertIsNone(author_profile)
+
+
+class UnifiedDocumentForListSerializerAdditionalTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="user1")
+        self.unified_doc = ResearchhubUnifiedDocument.objects.create(document_type=DISCUSSION)
+        self.post = ResearchhubPost.objects.create(
+            title="Test Discussion",
+            created_by=self.user,
+            unified_document=self.unified_doc,
+            document_type=DISCUSSION,
+        )
+
+    def test_documents_returns_data_for_discussion_type(self):
+        serializer = UnifiedDocumentForListSerializer(self.unified_doc)
+        documents = serializer.get_documents(self.unified_doc)
+        self.assertIsNotNone(documents)
+
+    def test_documents_returns_none_for_unknown_document_type(self):
+        unified_doc = ResearchhubUnifiedDocument.objects.create(document_type="UNKNOWN")
+        serializer = UnifiedDocumentForListSerializer(unified_doc)
+        documents = serializer.get_documents(unified_doc)
+        self.assertIsNone(documents)
+
+    def test_reviews_returns_details_when_reviews_exist(self):
+        thread = RhCommentThreadModel.objects.create(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=self.post.id,
+            created_by=self.user,
+        )
+        comment = RhCommentModel.objects.create(
+            thread=thread,
+            created_by=self.user,
+            comment_content_json={"ops": [{"insert": "Test comment"}]},
+        )
+        Review.objects.create(
+            created_by=self.user,
+            score=4.5,
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=comment.id,
+            unified_document=self.unified_doc,
+        )
+        serializer = UnifiedDocumentForListSerializer(self.unified_doc)
+        reviews = serializer.get_reviews(self.unified_doc)
+        self.assertIsInstance(reviews, dict)
+        self.assertIn("avg", reviews)
+        self.assertIn("count", reviews)
+
+    def test_fundraise_returns_none_when_fundraise_serialization_fails(self):
+        fundraise = Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=self.unified_doc,
+            goal_amount=100,
+            goal_currency="USD",
+        )
+        serializer = UnifiedDocumentForListSerializer(self.unified_doc)
+        fundraise_data = serializer.get_fundraise(self.unified_doc)
+        self.assertIsNotNone(fundraise_data)
+
+    def test_grant_returns_none_when_grant_serialization_fails(self):
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=self.unified_doc,
+            amount=50000,
+            currency="USD",
+            organization="Test Organization",
+        )
+        serializer = UnifiedDocumentForListSerializer(self.unified_doc)
+        grant_data = serializer.get_grant(self.unified_doc)
+        self.assertIsNotNone(grant_data)
+
+    def test_title_returns_post_title_for_discussion_type(self):
+        serializer = UnifiedDocumentForListSerializer(self.unified_doc)
+        title = serializer.get_title(self.unified_doc)
+        self.assertEqual(title, "Test Discussion")
+
+    def test_slug_returns_post_slug_for_discussion_type(self):
+        serializer = UnifiedDocumentForListSerializer(self.unified_doc)
+        slug = serializer.get_slug(self.unified_doc)
+        self.assertIsNotNone(slug)
+
+
+class UserListOverviewSerializerTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="user1")
+        self.list_obj = List.objects.create(name="My List", created_by=self.user)
+
+    def test_lists_returns_empty_list_when_queryset_is_none(self):
+        serializer = UserListOverviewSerializer(queryset=None)
+        lists = serializer.get_lists(None)
+        self.assertEqual(lists, [])
+
+    def test_lists_uses_fallback_path_when_items_are_not_prefetched(self):
+        doc = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
+        ListItem.objects.create(parent_list=self.list_obj, unified_document=doc, created_by=self.user)
+        list_obj_not_prefetched = List.objects.get(id=self.list_obj.id)
+        serializer = UserListOverviewSerializer(queryset=[list_obj_not_prefetched])
+        lists = serializer.get_lists(None)
+        self.assertEqual(len(lists), 1)
+        self.assertEqual(len(lists[0]["items"]), 1)
 
 

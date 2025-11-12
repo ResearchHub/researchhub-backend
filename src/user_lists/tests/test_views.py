@@ -1,7 +1,7 @@
 from rest_framework import status
 from rest_framework.test import APITestCase
 from django.test.utils import override_settings
-from django.db import connection
+from django.db import connection, IntegrityError
 
 from researchhub_document.related_models.constants.document_type import PAPER
 from researchhub_document.related_models.researchhub_unified_document_model import ResearchhubUnifiedDocument
@@ -185,6 +185,17 @@ class ListItemViewSetTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("error", response.data)
 
+    def test_adding_item_handles_integrity_error_when_duplicate_exists(self):
+        ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
+        doc2 = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
+        ListItem.objects.create(parent_list=self.list_obj, unified_document=doc2, created_by=self.user)
+        response = self.client.post(
+            "/api/user_list_item/add-item-to-list/",
+            {"parent_list": self.list_obj.id, "unified_document": self.doc.id},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("error", response.data)
+
     def test_user_can_remove_document_from_list_using_remove_action(self):
         ListItem.objects.create(parent_list=self.list_obj, unified_document=self.doc, created_by=self.user)
         original_updated_date = self.list_obj.updated_date
@@ -288,3 +299,9 @@ class ListItemViewSetTests(APITestCase):
         error_msg = response.data["error"]
         self.assertIsInstance(error_msg, str)
         self.assertGreater(len(error_msg), 0)
+
+    def test_creating_list_with_validation_error_handles_string_errors_correctly(self):
+        response = self.client.post("/api/user_list/", {"name": ""})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("error", response.data)
+        self.assertIsInstance(response.data["error"], str)
