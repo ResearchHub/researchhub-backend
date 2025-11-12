@@ -65,7 +65,6 @@ class DocumentQueryBuilder:
         For example, "Smith machine learning" can match "Smith" in author fields
         and "machine learning" in title/content fields.
         """
-        # Combine author and title/content fields for cross-field matching
         all_fields = []
         for field in self.AUTHOR_FIELDS + self.TITLE_FIELDS + self.CONTENT_FIELDS:
             all_fields.append(field.get_boosted_name())
@@ -238,7 +237,7 @@ class UnifiedSearchQueryBuilder:
 
         builder = (
             DocumentQueryBuilder(query)
-            .add_author_title_combination_strategy()  # Cross-field AND (fixed)
+            .add_author_title_combination_strategy()
             .add_phrase_strategy(
                 DocumentQueryBuilder.TITLE_FIELDS + DocumentQueryBuilder.CONTENT_FIELDS,
                 slop=1,
@@ -253,7 +252,7 @@ class UnifiedSearchQueryBuilder:
                 + DocumentQueryBuilder.CONTENT_FIELDS,
                 boost_multiplier=1.0,  # Boosts handled per-field in add_fuzzy_strategy
             )
-            .add_cross_field_fallback_strategy()  # Cross-field OR fallback
+            .add_cross_field_fallback_strategy()
         )
         return builder.build()
 
