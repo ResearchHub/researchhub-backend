@@ -52,8 +52,8 @@ class FeedFilteringBackend(BaseFilterBackend):
             return queryset
 
         filter_param = request.query_params.get("filter", None)
-        force_new_param = request.query_params.get("force-new-recs", "false")
-        force_refresh = force_new_param.lower() == "true"
+        force_refresh_header = request.META.get("HTTP_RH_FORCE_REFRESH", "false")
+        force_refresh = force_refresh_header.lower() == "true"
 
         return personalize_feed_service.get_feed_queryset(
             user_id=user_id,

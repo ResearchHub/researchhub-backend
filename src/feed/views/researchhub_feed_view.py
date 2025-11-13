@@ -10,6 +10,7 @@ from feed.ordering import FeedOrderingBackend
 from feed.serializers import FeedEntrySerializer
 from feed.views.common import FeedPagination
 from feed.views.feed_view_mixin import FeedViewMixin
+from utils.throttles import FeedRecommendationRefreshThrottle
 
 
 class ResearchHubFeedPagination(FeedPagination):
@@ -22,6 +23,7 @@ class ResearchHubFeedViewSet(FeedViewMixin, ModelViewSet):
     permission_classes = []
     pagination_class = ResearchHubFeedPagination
     filter_backends = [FeedFilteringBackend, FeedOrderingBackend]
+    throttle_classes = [FeedRecommendationRefreshThrottle]
 
     def dispatch(self, request, *args, **kwargs):
         from feed.services import PersonalizeFeedService

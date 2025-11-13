@@ -187,3 +187,107 @@ class TestPersonalizedFeed(APITestCase):
         mock_get_recommendations.assert_called_once()
         call_args = mock_get_recommendations.call_args
         self.assertEqual(call_args[1]["num_results"], PERSONALIZE_CONFIG["num_results"])
+
+    @patch(
+        "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
+    )
+    def test_personalized_recs_are_throttled_when_force_refresh_header_is_true(
+        self, mock_get_recommendations
+    ):
+        """Force refresh requests should be throttled at 5/min."""
+        mock_get_recommendations.return_value = [str(self.paper_entry.id)]
+
+        url = reverse("researchhub_feed-list")
+        self.client.force_authenticate(user=self.user)
+
+        for i in range(5):
+            response = self.client.get(
+                url, {"feed_view": "personalized"}, HTTP_RH_FORCE_REFRESH="true"
+            )
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # 6th request should be throttled
+        response = self.client.get(
+            url, {"feed_view": "personalized"}, HTTP_RH_FORCE_REFRESH="true"
+        )
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+    @patch(
+        "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
+    )
+    def test_personalized_recs_are_not_throttled_when_force_refresh_header_is_absent(
+        self, mock_get_recommendations
+    ):
+        """Requests without force refresh header should not be throttled."""
+        mock_get_recommendations.return_value = [str(self.paper_entry.id)]
+
+        url = reverse("researchhub_feed-list")
+        self.client.force_authenticate(user=self.user)
+
+        # Make many requests without the header - none should be throttled
+        for i in range(10):
+            response = self.client.get(url, {"feed_view": "personalized"})
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @patch(
+        "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
+    )
+    def test_personalized_recs_are_not_throttled_when_force_refresh_header_is_false(
+        self, mock_get_recommendations
+    ):
+        """Requests with force refresh header set to false should not be throttled."""
+        mock_get_recommendations.return_value = [str(self.paper_entry.id)]
+
+        url = reverse("researchhub_feed-list")
+        self.client.force_authenticate(user=self.user)
+
+        # Make many requests with header=false - none should be throttled
+        for i in range(10):
+            response = self.client.get(
+                url, {"feed_view": "personalized"}, HTTP_RH_FORCE_REFRESH="false"
+            )
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @patch(
+        "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
+    )
+    def test_force_refresh_header_triggers_cache_bypass(self, mock_get_recommendations):
+        """Force refresh header should bypass cache, resulting in partial-cache-miss."""
+        mock_get_recommendations.return_value = [str(self.paper_entry.id)]
+
+        url = reverse("researchhub_feed-list")
+        self.client.force_authenticate(user=self.user)
+
+        # First request populates the cache
+        response = self.client.get(url, {"feed_view": "personalized"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("partial-cache-miss", response["RH-Cache"])
+
+        # Second request hits the cache
+        response = self.client.get(url, {"feed_view": "personalized"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("partial-cache-hit", response["RH-Cache"])
+
+        # Request with force-refresh header bypasses cache
+        response = self.client.get(
+            url, {"feed_view": "personalized"}, HTTP_RH_FORCE_REFRESH="true"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("partial-cache-miss", response["RH-Cache"])
+
+    @patch("feed.services.PersonalizeFeedService.get_feed_queryset")
+    def test_force_refresh_header_absent_defaults_to_false(
+        self, mock_get_feed_queryset
+    ):
+        """Without force refresh header, force_refresh should default to False."""
+        mock_get_feed_queryset.return_value = FeedEntry.objects.none()
+
+        url = reverse("researchhub_feed-list")
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get(url, {"feed_view": "personalized"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mock_get_feed_queryset.assert_called_once()
+        call_kwargs = mock_get_feed_queryset.call_args[1]
+        self.assertFalse(call_kwargs["force_refresh"])
