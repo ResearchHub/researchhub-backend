@@ -289,3 +289,15 @@ class TestPersonalizedFeed(APITestCase):
         mock_get_queryset.assert_called_once()
         call_kwargs = mock_get_queryset.call_args[1]
         self.assertFalse(call_kwargs["force_refresh"])
+
+    @patch("feed.services.PersonalizeFeedService.get_queryset")
+    def test_personalized_feed_handles_service_exception(self, mock_get_queryset):
+        mock_get_queryset.side_effect = Exception("Service Error")
+
+        url = reverse("researchhub_feed-list")
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get(url, {"feed_view": "personalized"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 0)

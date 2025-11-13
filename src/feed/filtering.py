@@ -1,7 +1,11 @@
+import logging
+
 from rest_framework.filters import BaseFilterBackend
 
 from feed.feed_config import PERSONALIZE_CONFIG
 from hub.models import Hub
+
+logger = logging.getLogger(__name__)
 
 
 class FeedFilteringBackend(BaseFilterBackend):
@@ -55,12 +59,16 @@ class FeedFilteringBackend(BaseFilterBackend):
         force_refresh_header = request.META.get("HTTP_RH_FORCE_REFRESH", "false")
         force_refresh = force_refresh_header.lower() == "true"
 
-        return personalize_feed_service.get_queryset(
-            user_id=user_id,
-            filter_param=filter_param,
-            num_results=PERSONALIZE_CONFIG["num_results"],
-            force_refresh=force_refresh,
-        )
+        try:
+            return personalize_feed_service.get_queryset(
+                user_id=user_id,
+                filter_param=filter_param,
+                num_results=PERSONALIZE_CONFIG["num_results"],
+                force_refresh=force_refresh,
+            )
+        except Exception as e:
+            logger.error(f"Personalized feed error for user {user_id}: {e}")
+            return queryset.none()
 
     def _filter_by_hub(self, hub_slug, queryset):
         try:

@@ -209,16 +209,16 @@ class PersonalizeFeedServiceTests(APITestCase):
             call_args = mock_cache.set.call_args
             self.assertEqual(call_args[1]["timeout"], 3600)
 
-    def test_personalize_api_error_returns_empty_queryset(self):
+    def test_personalize_api_error_raises_exception(self):
         self.mock_client.get_recommendations_for_user.side_effect = Exception(
             "AWS Error"
         )
 
         service = PersonalizeFeedService()
         service.personalize_client = self.mock_client
-        result = service.get_queryset(user_id=self.user.id, filter_param="new-content")
 
-        self.assertEqual(len(result), 0)
+        with self.assertRaises(Exception):
+            service.get_queryset(user_id=self.user.id, filter_param="new-content")
 
     def test_personalize_returns_empty_list(self):
         self.mock_client.get_recommendations_for_user.return_value = []

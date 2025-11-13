@@ -64,24 +64,19 @@ class PersonalizeFeedService:
         logger.info(f"Fetching recommendations for user {user_id}")
         self.cache_hit = False
 
-        try:
-            ids = self.personalize_client.get_recommendations_for_user(
-                user_id=str(user_id),
-                filter=filter_param,
-                num_results=num_results,
-            )
+        ids = self.personalize_client.get_recommendations_for_user(
+            user_id=str(user_id),
+            filter=filter_param,
+            num_results=num_results,
+        )
 
-            ids = [int(id) for id in ids] if ids else []
+        ids = [int(id) for id in ids] if ids else []
 
-            timeout = PERSONALIZE_CONFIG.get("cache_timeout", 1800)
-            cache.set(cache_key, ids, timeout=timeout)
-            logger.info(f"Cached recommendations for user {user_id}")
+        timeout = PERSONALIZE_CONFIG.get("cache_timeout", 1800)
+        cache.set(cache_key, ids, timeout=timeout)
+        logger.info(f"Cached recommendations for user {user_id}")
 
-            return ids
-
-        except Exception as e:
-            logger.error(f"Error fetching recommendations for user {user_id}: {e}")
-            return []
+        return ids
 
     def _build_cache_key(self, user_id: int, filter_param: Optional[str]) -> str:
         filter_value = filter_param if filter_param else "none"
