@@ -27,7 +27,6 @@ class PersonalizeFeedService:
         if not user_id:
             return FeedEntry.objects.none()
 
-        # Apply default filter if none specified
         if not filter_param:
             filter_param = PERSONALIZE_CONFIG["default_filter"]
 

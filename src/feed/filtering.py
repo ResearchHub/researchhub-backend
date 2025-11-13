@@ -51,7 +51,6 @@ class FeedFilteringBackend(BaseFilterBackend):
         if not personalize_feed_service:
             return queryset
 
-        # Pass None if filter not provided; service will apply default
         filter_param = request.query_params.get("filter", None)
         force_new_param = request.query_params.get("force-new-recs", "false")
         force_refresh = force_new_param.lower() == "true"

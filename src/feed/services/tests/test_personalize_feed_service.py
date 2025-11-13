@@ -66,10 +66,6 @@ class PersonalizeFeedServiceTests(APITestCase):
     def test_get_feed_queryset_uses_cache_on_second_call(
         self, mock_get_recommendations
     ):
-        """
-        Test that cache_hit flag is set correctly for cache hits and misses.
-        This flag is used to set the RH-Cache header in the view.
-        """
         entries = self._create_sample_feed_entries(count=3)
         doc_ids = [str(entry.unified_document_id) for entry in entries]
         mock_get_recommendations.return_value = doc_ids
@@ -123,7 +119,6 @@ class PersonalizeFeedServiceTests(APITestCase):
         self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 2)
 
     def test_different_filters_get_different_cache_keys(self):
-        """Same user with different filters should hit Personalize separately."""
         self.mock_client.get_recommendations_for_user.return_value = ["1", "2", "3"]
 
         service = PersonalizeFeedService()
@@ -136,7 +131,6 @@ class PersonalizeFeedServiceTests(APITestCase):
         self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 2)
 
     def test_different_users_get_different_cache_keys(self):
-        """Different users with same filter should have separate caches."""
         self.mock_client.get_recommendations_for_user.return_value = ["1", "2", "3"]
 
         service = PersonalizeFeedService()
@@ -151,7 +145,6 @@ class PersonalizeFeedServiceTests(APITestCase):
         self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 2)
 
     def test_cache_isolation_between_users(self):
-        """User A's cache should be completely isolated from User B."""
         self.mock_client.get_recommendations_for_user.side_effect = [
             ["1", "2", "3"],
             ["4", "5", "6"],
@@ -171,7 +164,6 @@ class PersonalizeFeedServiceTests(APITestCase):
         self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 2)
 
     def test_force_refresh_bypasses_cache(self):
-        """force_refresh=True should skip cache read."""
         self.mock_client.get_recommendations_for_user.return_value = ["1", "2", "3"]
 
         service = PersonalizeFeedService()
@@ -186,7 +178,6 @@ class PersonalizeFeedServiceTests(APITestCase):
         self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 2)
 
     def test_force_refresh_updates_cache_with_new_results(self):
-        """force_new_recs should update cache with new results."""
         self.mock_client.get_recommendations_for_user.return_value = ["1", "2", "3"]
 
         service = PersonalizeFeedService()
@@ -214,7 +205,6 @@ class PersonalizeFeedServiceTests(APITestCase):
         },
     )
     def test_cache_timeout_is_configurable(self):
-        """Cache timeout should come from PERSONALIZE_CONFIG."""
         self.mock_client.get_recommendations_for_user.return_value = ["1", "2", "3"]
 
         service = PersonalizeFeedService()
@@ -230,7 +220,6 @@ class PersonalizeFeedServiceTests(APITestCase):
             self.assertEqual(call_args[1]["timeout"], 3600)
 
     def test_personalize_api_error_returns_empty_queryset(self):
-        """API error should return empty queryset gracefully."""
         self.mock_client.get_recommendations_for_user.side_effect = Exception(
             "AWS Error"
         )
@@ -245,7 +234,6 @@ class PersonalizeFeedServiceTests(APITestCase):
         self.assertFalse(queryset.exists())
 
     def test_personalize_returns_empty_list(self):
-        """Empty recommendation list should return empty queryset."""
         self.mock_client.get_recommendations_for_user.return_value = []
 
         service = PersonalizeFeedService()
