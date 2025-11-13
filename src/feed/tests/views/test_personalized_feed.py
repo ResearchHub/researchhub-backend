@@ -275,12 +275,10 @@ class TestPersonalizedFeed(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("partial-cache-miss", response["RH-Cache"])
 
-    @patch("feed.services.PersonalizeFeedService.get_feed_queryset")
-    def test_force_refresh_header_absent_defaults_to_false(
-        self, mock_get_feed_queryset
-    ):
+    @patch("feed.services.PersonalizeFeedService.get_queryset")
+    def test_force_refresh_header_absent_defaults_to_false(self, mock_get_queryset):
         """Without force refresh header, force_refresh should default to False."""
-        mock_get_feed_queryset.return_value = FeedEntry.objects.none()
+        mock_get_queryset.return_value = []
 
         url = reverse("researchhub_feed-list")
         self.client.force_authenticate(user=self.user)
@@ -288,6 +286,6 @@ class TestPersonalizedFeed(APITestCase):
         response = self.client.get(url, {"feed_view": "personalized"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        mock_get_feed_queryset.assert_called_once()
-        call_kwargs = mock_get_feed_queryset.call_args[1]
+        mock_get_queryset.assert_called_once()
+        call_kwargs = mock_get_queryset.call_args[1]
         self.assertFalse(call_kwargs["force_refresh"])

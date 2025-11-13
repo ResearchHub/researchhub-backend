@@ -55,7 +55,7 @@ class FeedFilteringBackend(BaseFilterBackend):
         force_refresh_header = request.META.get("HTTP_RH_FORCE_REFRESH", "false")
         force_refresh = force_refresh_header.lower() == "true"
 
-        return personalize_feed_service.get_feed_queryset(
+        return personalize_feed_service.get_queryset(
             user_id=user_id,
             filter_param=filter_param,
             num_results=PERSONALIZE_CONFIG["num_results"],

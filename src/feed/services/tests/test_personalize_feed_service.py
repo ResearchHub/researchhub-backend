@@ -63,9 +63,7 @@ class PersonalizeFeedServiceTests(APITestCase):
     @patch(
         "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
     )
-    def test_get_feed_queryset_uses_cache_on_second_call(
-        self, mock_get_recommendations
-    ):
+    def test_get_queryset_uses_cache_on_second_call(self, mock_get_recommendations):
         entries = self._create_sample_feed_entries(count=3)
         doc_ids = [str(entry.unified_document_id) for entry in entries]
         mock_get_recommendations.return_value = doc_ids
@@ -85,7 +83,7 @@ class PersonalizeFeedServiceTests(APITestCase):
         self.assertIn("partial-cache-hit", response2["RH-Cache"])
         self.assertEqual(mock_get_recommendations.call_count, 1)
 
-    def test_get_feed_queryset_preserves_personalize_order(self):
+    def test_get_queryset_preserves_personalize_order(self):
         entries = self._create_sample_feed_entries(count=10)
 
         reversed_ids = [str(entries[i].unified_document_id) for i in range(9, -1, -1)]
@@ -93,11 +91,9 @@ class PersonalizeFeedServiceTests(APITestCase):
 
         service = PersonalizeFeedService()
         service.personalize_client = self.mock_client
-        queryset = service.get_feed_queryset(
-            user_id=self.user.id, filter_param="new-content"
-        )
+        result = service.get_queryset(user_id=self.user.id, filter_param="new-content")
 
-        result_doc_ids = list(queryset.values_list("unified_document_id", flat=True))
+        result_doc_ids = [entry.unified_document_id for entry in result]
         expected_ids = [int(id) for id in reversed_ids]
         self.assertEqual(result_doc_ids, expected_ids)
 
@@ -110,11 +106,9 @@ class PersonalizeFeedServiceTests(APITestCase):
         service = PersonalizeFeedService()
         service.personalize_client = self.mock_client
 
-        service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
+        service.get_queryset(user_id=self.user.id, filter_param="new-content")
 
-        service.get_feed_queryset(
-            user_id=self.other_user.id, filter_param="new-content"
-        )
+        service.get_queryset(user_id=self.other_user.id, filter_param="new-content")
 
         self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 2)
 
@@ -124,10 +118,10 @@ class PersonalizeFeedServiceTests(APITestCase):
         service = PersonalizeFeedService()
         service.personalize_client = self.mock_client
 
-        service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
+        service.get_queryset(user_id=self.user.id, filter_param="new-content")
         self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 1)
 
-        service.get_feed_queryset(user_id=self.user.id, filter_param="trending")
+        service.get_queryset(user_id=self.user.id, filter_param="trending")
         self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 2)
 
     def test_different_users_get_different_cache_keys(self):
@@ -136,11 +130,9 @@ class PersonalizeFeedServiceTests(APITestCase):
         service = PersonalizeFeedService()
         service.personalize_client = self.mock_client
 
-        service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
+        service.get_queryset(user_id=self.user.id, filter_param="new-content")
 
-        service.get_feed_queryset(
-            user_id=self.other_user.id, filter_param="new-content"
-        )
+        service.get_queryset(user_id=self.other_user.id, filter_param="new-content")
 
         self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 2)
 
@@ -153,13 +145,11 @@ class PersonalizeFeedServiceTests(APITestCase):
         service = PersonalizeFeedService()
         service.personalize_client = self.mock_client
 
-        service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
+        service.get_queryset(user_id=self.user.id, filter_param="new-content")
 
-        service.get_feed_queryset(
-            user_id=self.other_user.id, filter_param="new-content"
-        )
+        service.get_queryset(user_id=self.other_user.id, filter_param="new-content")
 
-        service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
+        service.get_queryset(user_id=self.user.id, filter_param="new-content")
 
         self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 2)
 
@@ -169,10 +159,10 @@ class PersonalizeFeedServiceTests(APITestCase):
         service = PersonalizeFeedService()
         service.personalize_client = self.mock_client
 
-        service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
+        service.get_queryset(user_id=self.user.id, filter_param="new-content")
         self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 1)
 
-        service.get_feed_queryset(
+        service.get_queryset(
             user_id=self.user.id, filter_param="new-content", force_refresh=True
         )
         self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 2)
@@ -183,16 +173,16 @@ class PersonalizeFeedServiceTests(APITestCase):
         service = PersonalizeFeedService()
         service.personalize_client = self.mock_client
 
-        service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
+        service.get_queryset(user_id=self.user.id, filter_param="new-content")
 
         self.mock_client.get_recommendations_for_user.return_value = ["4", "5", "6"]
 
-        service.get_feed_queryset(
+        service.get_queryset(
             user_id=self.user.id, filter_param="new-content", force_refresh=True
         )
 
         self.mock_client.get_recommendations_for_user.return_value = ["7", "8", "9"]
-        service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
+        service.get_queryset(user_id=self.user.id, filter_param="new-content")
 
         self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 2)
 
@@ -213,7 +203,7 @@ class PersonalizeFeedServiceTests(APITestCase):
         with patch("feed.services.personalize_feed_service.cache") as mock_cache:
             mock_cache.get.return_value = None
 
-            service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
+            service.get_queryset(user_id=self.user.id, filter_param="new-content")
 
             mock_cache.set.assert_called_once()
             call_args = mock_cache.set.call_args
@@ -226,23 +216,18 @@ class PersonalizeFeedServiceTests(APITestCase):
 
         service = PersonalizeFeedService()
         service.personalize_client = self.mock_client
-        queryset = service.get_feed_queryset(
-            user_id=self.user.id, filter_param="new-content"
-        )
+        result = service.get_queryset(user_id=self.user.id, filter_param="new-content")
 
-        self.assertEqual(queryset.count(), 0)
-        self.assertFalse(queryset.exists())
+        self.assertEqual(len(result), 0)
 
     def test_personalize_returns_empty_list(self):
         self.mock_client.get_recommendations_for_user.return_value = []
 
         service = PersonalizeFeedService()
         service.personalize_client = self.mock_client
-        queryset = service.get_feed_queryset(
-            user_id=self.user.id, filter_param="new-content"
-        )
+        result = service.get_queryset(user_id=self.user.id, filter_param="new-content")
 
-        self.assertEqual(queryset.count(), 0)
+        self.assertEqual(len(result), 0)
 
     def test_personalize_returns_non_existent_ids_filters_them_out(self):
         entries = self._create_sample_feed_entries(count=10)
@@ -258,12 +243,10 @@ class PersonalizeFeedServiceTests(APITestCase):
 
         service = PersonalizeFeedService()
         service.personalize_client = self.mock_client
-        queryset = service.get_feed_queryset(
-            user_id=self.user.id, filter_param="new-content"
-        )
+        result = service.get_queryset(user_id=self.user.id, filter_param="new-content")
 
-        self.assertEqual(queryset.count(), 2)
-        result_doc_ids = set(queryset.values_list("unified_document_id", flat=True))
+        self.assertEqual(len(result), 2)
+        result_doc_ids = {entry.unified_document_id for entry in result}
         expected_doc_ids = {
             entries[0].unified_document_id,
             entries[1].unified_document_id,
@@ -277,7 +260,7 @@ class PersonalizeFeedServiceTests(APITestCase):
 
             service = PersonalizeFeedService()
             service.personalize_client = self.mock_client
-            service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
+            service.get_queryset(user_id=self.user.id, filter_param="new-content")
 
             self.assertEqual(
                 self.mock_client.get_recommendations_for_user.call_count, 1

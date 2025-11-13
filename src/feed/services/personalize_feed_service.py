@@ -1,8 +1,8 @@
 import logging
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from django.core.cache import cache
-from django.db.models import Case, IntegerField, QuerySet, When
+from django.db.models import QuerySet
 
 from feed.feed_config import PERSONALIZE_CONFIG
 from feed.models import FeedEntry
@@ -17,13 +17,13 @@ class PersonalizeFeedService:
         self.personalize_client = PersonalizeClient()
         self.cache_hit = False
 
-    def get_feed_queryset(
+    def get_queryset(
         self,
         user_id: Optional[int] = None,
         filter_param: Optional[str] = None,
         num_results: Optional[int] = None,
         force_refresh: bool = False,
-    ) -> QuerySet:
+    ) -> Union[QuerySet, List[FeedEntry]]:
         if not user_id:
             return FeedEntry.objects.none()
 
@@ -87,10 +87,14 @@ class PersonalizeFeedService:
         filter_value = filter_param if filter_param else "none"
         return f"personalized_ids:user-is-{user_id}:filter-is-{filter_value}"
 
-    def _create_ordered_queryset(self, recommended_ids: List[int]) -> QuerySet:
+    def _create_ordered_queryset(self, recommended_ids: List[int]) -> List[FeedEntry]:
         if not recommended_ids:
-            return FeedEntry.objects.none()
+            return []
 
+        # Build position lookup for O(1) ordering
+        position_map = {pk: pos for pos, pk in enumerate(recommended_ids)}
+
+        # Fetch without database ordering
         queryset = FeedEntry.objects.filter(unified_document_id__in=recommended_ids)
 
         queryset = queryset.select_related(
@@ -100,15 +104,14 @@ class PersonalizeFeedService:
             "user__userverification",
         )
 
-        ordering = Case(
-            *[
-                When(unified_document_id=pk, then=pos)
-                for pos, pk in enumerate(recommended_ids)
-            ],
-            output_field=IntegerField(),
+        # Evaluate queryset and sort in memory to match recommendation order
+        # Sorting in memory is a faster alternative to ordering in the DB.
+        entries = list(queryset)
+        entries.sort(
+            key=lambda entry: position_map.get(entry.unified_document_id, float("inf"))
         )
 
-        return queryset.order_by(ordering)
+        return entries
 
     def invalidate_cache_for_user(
         self,
