@@ -4,6 +4,7 @@ from typing import List, Optional, Union
 from django.core.cache import cache
 from django.db.models import QuerySet
 
+from feed.clients.personalize_client import PersonalizeClient
 from feed.feed_config import PERSONALIZE_CONFIG
 from feed.models import FeedEntry
 
@@ -11,10 +12,8 @@ logger = logging.getLogger(__name__)
 
 
 class PersonalizeFeedService:
-    def __init__(self):
-        from feed.clients.personalize_client import PersonalizeClient
-
-        self.personalize_client = PersonalizeClient()
+    def __init__(self, personalize_client: Optional[PersonalizeClient] = None):
+        self.personalize_client = personalize_client or PersonalizeClient()
         self.cache_hit = False
 
     def get_queryset(

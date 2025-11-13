@@ -89,8 +89,7 @@ class PersonalizeFeedServiceTests(APITestCase):
         reversed_ids = [str(entries[i].unified_document_id) for i in range(9, -1, -1)]
         self.mock_client.get_recommendations_for_user.return_value = reversed_ids
 
-        service = PersonalizeFeedService()
-        service.personalize_client = self.mock_client
+        service = PersonalizeFeedService(personalize_client=self.mock_client)
         result = service.get_queryset(user_id=self.user.id, filter_param="new-content")
 
         result_doc_ids = [entry.unified_document_id for entry in result]
@@ -103,8 +102,7 @@ class PersonalizeFeedServiceTests(APITestCase):
             ["4", "5", "6"],
         ]
 
-        service = PersonalizeFeedService()
-        service.personalize_client = self.mock_client
+        service = PersonalizeFeedService(personalize_client=self.mock_client)
 
         service.get_queryset(user_id=self.user.id, filter_param="new-content")
 
@@ -115,8 +113,7 @@ class PersonalizeFeedServiceTests(APITestCase):
     def test_different_filters_get_different_cache_keys(self):
         self.mock_client.get_recommendations_for_user.return_value = ["1", "2", "3"]
 
-        service = PersonalizeFeedService()
-        service.personalize_client = self.mock_client
+        service = PersonalizeFeedService(personalize_client=self.mock_client)
 
         service.get_queryset(user_id=self.user.id, filter_param="new-content")
         self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 1)
@@ -127,8 +124,7 @@ class PersonalizeFeedServiceTests(APITestCase):
     def test_different_users_get_different_cache_keys(self):
         self.mock_client.get_recommendations_for_user.return_value = ["1", "2", "3"]
 
-        service = PersonalizeFeedService()
-        service.personalize_client = self.mock_client
+        service = PersonalizeFeedService(personalize_client=self.mock_client)
 
         service.get_queryset(user_id=self.user.id, filter_param="new-content")
 
@@ -142,8 +138,7 @@ class PersonalizeFeedServiceTests(APITestCase):
             ["4", "5", "6"],
         ]
 
-        service = PersonalizeFeedService()
-        service.personalize_client = self.mock_client
+        service = PersonalizeFeedService(personalize_client=self.mock_client)
 
         service.get_queryset(user_id=self.user.id, filter_param="new-content")
 
@@ -156,8 +151,7 @@ class PersonalizeFeedServiceTests(APITestCase):
     def test_force_refresh_bypasses_cache(self):
         self.mock_client.get_recommendations_for_user.return_value = ["1", "2", "3"]
 
-        service = PersonalizeFeedService()
-        service.personalize_client = self.mock_client
+        service = PersonalizeFeedService(personalize_client=self.mock_client)
 
         service.get_queryset(user_id=self.user.id, filter_param="new-content")
         self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 1)
@@ -170,8 +164,7 @@ class PersonalizeFeedServiceTests(APITestCase):
     def test_force_refresh_updates_cache_with_new_results(self):
         self.mock_client.get_recommendations_for_user.return_value = ["1", "2", "3"]
 
-        service = PersonalizeFeedService()
-        service.personalize_client = self.mock_client
+        service = PersonalizeFeedService(personalize_client=self.mock_client)
 
         service.get_queryset(user_id=self.user.id, filter_param="new-content")
 
@@ -197,8 +190,7 @@ class PersonalizeFeedServiceTests(APITestCase):
     def test_cache_timeout_is_configurable(self):
         self.mock_client.get_recommendations_for_user.return_value = ["1", "2", "3"]
 
-        service = PersonalizeFeedService()
-        service.personalize_client = self.mock_client
+        service = PersonalizeFeedService(personalize_client=self.mock_client)
 
         with patch("feed.services.personalize_feed_service.cache") as mock_cache:
             mock_cache.get.return_value = None
@@ -214,8 +206,7 @@ class PersonalizeFeedServiceTests(APITestCase):
             "AWS Error"
         )
 
-        service = PersonalizeFeedService()
-        service.personalize_client = self.mock_client
+        service = PersonalizeFeedService(personalize_client=self.mock_client)
 
         with self.assertRaises(Exception):
             service.get_queryset(user_id=self.user.id, filter_param="new-content")
@@ -223,8 +214,7 @@ class PersonalizeFeedServiceTests(APITestCase):
     def test_personalize_returns_empty_list(self):
         self.mock_client.get_recommendations_for_user.return_value = []
 
-        service = PersonalizeFeedService()
-        service.personalize_client = self.mock_client
+        service = PersonalizeFeedService(personalize_client=self.mock_client)
         result = service.get_queryset(user_id=self.user.id, filter_param="new-content")
 
         self.assertEqual(len(result), 0)
@@ -241,8 +231,7 @@ class PersonalizeFeedServiceTests(APITestCase):
             valid_ids + invalid_ids
         )
 
-        service = PersonalizeFeedService()
-        service.personalize_client = self.mock_client
+        service = PersonalizeFeedService(personalize_client=self.mock_client)
         result = service.get_queryset(user_id=self.user.id, filter_param="new-content")
 
         self.assertEqual(len(result), 2)
@@ -258,8 +247,7 @@ class PersonalizeFeedServiceTests(APITestCase):
             mock_cache.get.return_value = None
             self.mock_client.get_recommendations_for_user.return_value = ["1", "2", "3"]
 
-            service = PersonalizeFeedService()
-            service.personalize_client = self.mock_client
+            service = PersonalizeFeedService(personalize_client=self.mock_client)
             service.get_queryset(user_id=self.user.id, filter_param="new-content")
 
             self.assertEqual(
