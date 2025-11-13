@@ -7,6 +7,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from feed.feed_config import PERSONALIZE_CONFIG
 from feed.models import FeedEntry
 from hub.models import Hub
 from paper.models import Paper
@@ -17,7 +18,7 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 from user.tests.helpers import create_random_default_user
 
 
-class PersonalizedFeedTests(APITestCase):
+class TestPersonalizedFeed(APITestCase):
     def setUp(self):
         cache.clear()
         self.user = create_random_default_user("personalized_test_user")
@@ -171,8 +172,10 @@ class PersonalizedFeedTests(APITestCase):
     @patch(
         "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
     )
-    def test_personalized_requests_page_size_times_10(self, mock_get_recommendations):
-        """Service requests page_size * 10 recommendations for pagination."""
+    def test_personalized_requests_configured_num_results(
+        self, mock_get_recommendations
+    ):
+        """Service requests num_results from PERSONALIZE_CONFIG for pagination."""
         mock_get_recommendations.return_value = []
 
         url = reverse("researchhub_feed-list")
@@ -183,5 +186,4 @@ class PersonalizedFeedTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         mock_get_recommendations.assert_called_once()
         call_args = mock_get_recommendations.call_args
-        # Now requests page_size * 10 = 30 * 10 = 300
-        self.assertEqual(call_args[1]["num_results"], 300)
+        self.assertEqual(call_args[1]["num_results"], PERSONALIZE_CONFIG["num_results"])

@@ -1,5 +1,6 @@
 from rest_framework.filters import BaseFilterBackend
 
+from feed.feed_config import PERSONALIZE_CONFIG
 from hub.models import Hub
 
 
@@ -50,15 +51,15 @@ class FeedFilteringBackend(BaseFilterBackend):
         if not personalize_feed_service:
             return queryset
 
-        page_size = view.paginator.page_size if hasattr(view, "paginator") else 30
-        filter_param = request.query_params.get("filter", "new-content")
+        # Pass None if filter not provided; service will apply default
+        filter_param = request.query_params.get("filter", None)
         force_new_param = request.query_params.get("force-new-recs", "false")
         force_refresh = force_new_param.lower() == "true"
 
         return personalize_feed_service.get_feed_queryset(
             user_id=user_id,
             filter_param=filter_param,
-            num_results=page_size * 10,
+            num_results=PERSONALIZE_CONFIG["num_results"],
             force_refresh=force_refresh,
         )
 

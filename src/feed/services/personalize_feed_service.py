@@ -4,7 +4,7 @@ from typing import List, Optional
 from django.core.cache import cache
 from django.db.models import Case, IntegerField, QuerySet, When
 
-from feed.feed_config import FEED_CONFIG
+from feed.feed_config import PERSONALIZE_CONFIG
 from feed.models import FeedEntry
 
 logger = logging.getLogger(__name__)
@@ -20,12 +20,16 @@ class PersonalizeFeedService:
     def get_feed_queryset(
         self,
         user_id: Optional[int] = None,
-        filter_param: str = "new-content",
+        filter_param: Optional[str] = None,
         num_results: Optional[int] = None,
         force_refresh: bool = False,
     ) -> QuerySet:
         if not user_id:
             return FeedEntry.objects.none()
+
+        # Apply default filter if none specified
+        if not filter_param:
+            filter_param = PERSONALIZE_CONFIG["default_filter"]
 
         recommended_ids = self._get_recommendation_ids(
             user_id=user_id,
@@ -47,7 +51,7 @@ class PersonalizeFeedService:
         force_refresh: bool,
     ) -> List[int]:
         if num_results is None:
-            num_results = FEED_CONFIG["personalized"].get("num_results", 200)
+            num_results = PERSONALIZE_CONFIG.get("num_results", 200)
 
         cache_key = self._build_cache_key(user_id, filter_param)
 
@@ -70,7 +74,7 @@ class PersonalizeFeedService:
 
             ids = [int(id) for id in ids] if ids else []
 
-            timeout = FEED_CONFIG["personalized"].get("cache_timeout", 1800)
+            timeout = PERSONALIZE_CONFIG.get("cache_timeout", 1800)
             cache.set(cache_key, ids, timeout=timeout)
             logger.info(f"Cached recommendations for user {user_id}")
 
@@ -80,8 +84,9 @@ class PersonalizeFeedService:
             logger.error(f"Error fetching recommendations for user {user_id}: {e}")
             return []
 
-    def _build_cache_key(self, user_id: int, filter_param: str) -> str:
-        return f"personalized_ids:{user_id}:{filter_param}"
+    def _build_cache_key(self, user_id: int, filter_param: Optional[str]) -> str:
+        filter_value = filter_param if filter_param else "none"
+        return f"personalized_ids:user-is-{user_id}:filter-is-{filter_value}"
 
     def _create_ordered_queryset(self, recommended_ids: List[int]) -> QuerySet:
         if not recommended_ids:
@@ -114,12 +119,13 @@ class PersonalizeFeedService:
         if filter_param:
             filters = [filter_param]
         else:
-            filters = ["new-content", ""]
+            default_filter = PERSONALIZE_CONFIG["default_filter"]
+            filters = [default_filter, None]
 
         for filter_val in filters:
             cache_key = self._build_cache_key(
                 user_id=user_id,
-                filter_param=filter_val or "new-content",
+                filter_param=filter_val,
             )
             cache.delete(cache_key)
             logger.info(f"Invalidated cache: {cache_key}")

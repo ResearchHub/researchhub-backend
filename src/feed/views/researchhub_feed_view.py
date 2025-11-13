@@ -73,6 +73,7 @@ class ResearchHubFeedViewSet(FeedViewMixin, ModelViewSet):
                 if self.personalize_feed_service.cache_hit
                 else "partial-cache-miss"
             )
+            print(f"cache_status: {cache_status}")
             response["RH-Cache"] = cache_status + (
                 " (auth)" if request.user.is_authenticated else ""
             )

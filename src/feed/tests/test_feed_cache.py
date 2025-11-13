@@ -37,7 +37,6 @@ class CacheInvalidationTests(TestCase):
 
     def test_invalidate_feed_cache_for_user_clears_main_feed_caches(self):
         """Test that main feed caches are cleared for a user."""
-        # Set up some cache entries
         cache_keys = [
             f"feed:following:all:all:{self.user_id}:1-20",
             f"feed:following:all:all:{self.user_id}:2-20",
@@ -45,18 +44,14 @@ class CacheInvalidationTests(TestCase):
             f"feed:following:all:all:{self.user_id}:4-20",
         ]
 
-        # Set cache values
         for key in cache_keys:
             cache.set(key, {"test": "data"})
 
-        # Verify caches are set
         for key in cache_keys:
             self.assertIsNotNone(cache.get(key))
 
-        # Invalidate caches
         FeedViewMixin.invalidate_feed_cache_for_user(self.user_id)
 
-        # Verify caches are cleared
         for key in cache_keys:
             self.assertIsNone(cache.get(key))
 
@@ -69,14 +64,11 @@ class CacheInvalidationTests(TestCase):
             f"feed:following:all:researchhub:{self.user_id}:4-20",
         ]
 
-        # Set cache values
         for key in cache_keys:
             cache.set(key, {"test": "data"})
 
-        # Invalidate caches
         FeedViewMixin.invalidate_feed_cache_for_user(self.user_id)
 
-        # Verify caches are cleared
         for key in cache_keys:
             self.assertIsNone(cache.get(key))
 
@@ -89,14 +81,11 @@ class CacheInvalidationTests(TestCase):
             f"feed:following:all:all:{self.user_id}:4-20-hot_score",
         ]
 
-        # Set cache values
         for key in cache_keys:
             cache.set(key, {"test": "data"})
 
-        # Invalidate caches
         FeedViewMixin.invalidate_feed_cache_for_user(self.user_id)
 
-        # Verify caches are cleared
         for key in cache_keys:
             self.assertIsNone(cache.get(key))
 
@@ -104,41 +93,34 @@ class CacheInvalidationTests(TestCase):
         """Test that cache invalidation only affects the specified user."""
         other_user_id = 456
 
-        # Set cache for both users
         user_cache_key = f"feed:following:all:all:{self.user_id}:1-20"
         other_user_cache_key = f"feed:following:all:all:{other_user_id}:1-20"
 
         cache.set(user_cache_key, {"user": "data"})
         cache.set(other_user_cache_key, {"other": "data"})
 
-        # Invalidate only for self.user_id
         FeedViewMixin.invalidate_feed_cache_for_user(self.user_id)
 
-        # Verify only target user's cache is cleared
         self.assertIsNone(cache.get(user_cache_key))
         self.assertIsNotNone(cache.get(other_user_cache_key))
         self.assertEqual(cache.get(other_user_cache_key), {"other": "data"})
 
     def test_invalidate_feed_cache_does_not_affect_popular_feed(self):
         """Test that popular feed caches (user=none) are not affected."""
-        # Popular feed uses 'none' instead of user_id
         popular_cache_key = "feed:popular:all:all:none:1-20"
         user_cache_key = f"feed:following:all:all:{self.user_id}:1-20"
 
         cache.set(popular_cache_key, {"popular": "data"})
         cache.set(user_cache_key, {"user": "data"})
 
-        # Invalidate user cache
         FeedViewMixin.invalidate_feed_cache_for_user(self.user_id)
 
-        # Verify popular cache is not affected
         self.assertIsNotNone(cache.get(popular_cache_key))
         self.assertEqual(cache.get(popular_cache_key), {"popular": "data"})
         self.assertIsNone(cache.get(user_cache_key))
 
     def test_invalidate_feed_cache_for_user_handles_no_existing_cache(self):
         """Test that invalidation works even when no caches exist."""
-        # This should not raise any errors
         try:
             FeedViewMixin.invalidate_feed_cache_for_user(self.user_id)
         except Exception as e:
@@ -149,13 +131,10 @@ class CacheInvalidationTests(TestCase):
         """Test that cache.delete is called for all expected cache keys."""
         FeedViewMixin.invalidate_feed_cache_for_user(self.user_id)
 
-        # Verify that cache.delete was called multiple times
         self.assertGreater(mock_cache.delete.call_count, 0)
 
-        # Check that some expected keys were in the delete calls
         delete_call_args = [call[0][0] for call in mock_cache.delete.call_args_list]
 
-        # Verify some specific expected keys (only main feed, not funding)
         expected_keys = [
             f"feed:following:all:all:{self.user_id}:1-20",
             f"feed:following:all:all:{self.user_id}:2-20",
@@ -349,7 +328,6 @@ class FeedCachingTests(APITestCase):
 
         self.client.get(url, {"feed_view": "personalized"})
 
-        # Personalized feed has use_cache=False, so cache should NOT be called
         self.assertFalse(mock_cache.get.called)
         self.assertFalse(mock_cache.set.called)
 
@@ -373,27 +351,20 @@ class FeedCachingTests(APITestCase):
         url = reverse("researchhub_feed-list")
         self.client.force_authenticate(user=self.user)
 
-        # Request with authenticated user (no user_id param)
-        # Using "following" feed which has caching enabled
         response1 = self.client.get(url, {"feed_view": "following"})
         self.assertEqual(response1["RH-Cache"], "miss (auth)")
 
-        # Request with different user_id parameter
         other_user = create_random_default_user("other_cache_user")
         response2 = self.client.get(
             url, {"feed_view": "following", "user_id": str(other_user.id)}
         )
-        # Should be a cache miss because user_id differs
         self.assertEqual(response2["RH-Cache"], "miss (auth)")
 
-        # Request again with same user_id - should hit cache
         response3 = self.client.get(
             url, {"feed_view": "following", "user_id": str(other_user.id)}
         )
         self.assertEqual(response3["RH-Cache"], "hit (auth)")
 
-        # Original authenticated user request should still have its own cache
-        # (proving it has its own cache key)
         response4 = self.client.get(url, {"feed_view": "following"})
         self.assertEqual(response4["RH-Cache"], "hit (auth)")
 
@@ -405,25 +376,20 @@ class FeedCachingTests(APITestCase):
         Test that personalized feed uses service layer caching.
         IDs are cached and reused across multiple page requests.
         """
-        # Get enough feed entry IDs for pagination (need 60+ for page 2)
         feed_entries = FeedEntry.objects.all()[:80]
         feed_entry_ids = [str(entry.id) for entry in feed_entries]
 
-        # Mock Personalize to return IDs
         mock_get_recommendations.return_value = feed_entry_ids
 
         url = reverse("researchhub_feed-list")
         self.client.force_authenticate(user=self.user)
 
-        # First request - should call Personalize
         response1 = self.client.get(url, {"feed_view": "personalized"})
         self.assertEqual(response1.status_code, 200)
         self.assertEqual(mock_get_recommendations.call_count, 1)
 
-        # Second request (same page) - should use cached IDs
         response2 = self.client.get(url, {"feed_view": "personalized"})
         self.assertEqual(response2.status_code, 200)
-        # Still only called once (IDs were cached)
         self.assertEqual(mock_get_recommendations.call_count, 1)
 
     @patch(

@@ -2,8 +2,9 @@ from unittest.mock import Mock, patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
-from django.test import TestCase
+from django.urls import reverse
 from django.utils import timezone
+from rest_framework.test import APITestCase
 
 from feed.models import FeedEntry
 from feed.services import PersonalizeFeedService
@@ -15,7 +16,7 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 from user.tests.helpers import create_random_default_user
 
 
-class PersonalizeFeedServiceTests(TestCase):
+class PersonalizeFeedServiceTests(APITestCase):
     def setUp(self):
         cache.clear()
         self.user = create_random_default_user("service_test_user")
@@ -59,19 +60,34 @@ class PersonalizeFeedServiceTests(TestCase):
 
         return entries
 
-    # Basic Functionality Tests
+    @patch(
+        "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
+    )
+    def test_get_feed_queryset_uses_cache_on_second_call(
+        self, mock_get_recommendations
+    ):
+        """
+        Test that cache_hit flag is set correctly for cache hits and misses.
+        This flag is used to set the RH-Cache header in the view.
+        """
+        entries = self._create_sample_feed_entries(count=3)
+        doc_ids = [str(entry.unified_document_id) for entry in entries]
+        mock_get_recommendations.return_value = doc_ids
 
-    def test_get_feed_queryset_uses_cache_on_second_call(self):
-        self.mock_client.get_recommendations_for_user.return_value = ["1", "2", "3"]
+        url = reverse("researchhub_feed-list")
+        self.client.force_authenticate(user=self.user)
 
-        service = PersonalizeFeedService()
-        service.personalize_client = self.mock_client
+        response1 = self.client.get(url, {"feed_view": "personalized"})
+        self.assertEqual(response1.status_code, 200)
+        self.assertIn("RH-Cache", response1)
+        self.assertIn("partial-cache-miss", response1["RH-Cache"])
+        self.assertEqual(mock_get_recommendations.call_count, 1)
 
-        service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
-        self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 1)
-
-        service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
-        self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 1)
+        response2 = self.client.get(url, {"feed_view": "personalized"})
+        self.assertEqual(response2.status_code, 200)
+        self.assertIn("RH-Cache", response2)
+        self.assertIn("partial-cache-hit", response2["RH-Cache"])
+        self.assertEqual(mock_get_recommendations.call_count, 1)
 
     def test_get_feed_queryset_preserves_personalize_order(self):
         entries = self._create_sample_feed_entries(count=10)
@@ -98,18 +114,13 @@ class PersonalizeFeedServiceTests(TestCase):
         service = PersonalizeFeedService()
         service.personalize_client = self.mock_client
 
-        # Get for user 1
         service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
 
-        # Get for user 2
         service.get_feed_queryset(
             user_id=self.other_user.id, filter_param="new-content"
         )
 
-        # Should have called Personalize twice (different users)
         self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 2)
-
-    # Cache Behavior Tests
 
     def test_different_filters_get_different_cache_keys(self):
         """Same user with different filters should hit Personalize separately."""
@@ -118,13 +129,10 @@ class PersonalizeFeedServiceTests(TestCase):
         service = PersonalizeFeedService()
         service.personalize_client = self.mock_client
 
-        # Call with filter "new-content"
         service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
         self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 1)
 
-        # Call with different filter
         service.get_feed_queryset(user_id=self.user.id, filter_param="trending")
-        # Should call again (different filter)
         self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 2)
 
     def test_different_users_get_different_cache_keys(self):
@@ -134,39 +142,32 @@ class PersonalizeFeedServiceTests(TestCase):
         service = PersonalizeFeedService()
         service.personalize_client = self.mock_client
 
-        # User 1
         service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
 
-        # User 2 with same filter
         service.get_feed_queryset(
             user_id=self.other_user.id, filter_param="new-content"
         )
 
-        # Should call Personalize twice (different users)
         self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 2)
 
     def test_cache_isolation_between_users(self):
         """User A's cache should be completely isolated from User B."""
         self.mock_client.get_recommendations_for_user.side_effect = [
-            ["1", "2", "3"],  # User A
-            ["4", "5", "6"],  # User B
+            ["1", "2", "3"],
+            ["4", "5", "6"],
         ]
 
         service = PersonalizeFeedService()
         service.personalize_client = self.mock_client
 
-        # Get for user A
         service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
 
-        # Get for user B
         service.get_feed_queryset(
             user_id=self.other_user.id, filter_param="new-content"
         )
 
-        # Get for user A again - should use cache (not user B's)
         service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
 
-        # Should only call Personalize twice total (once per user)
         self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 2)
 
     def test_force_refresh_bypasses_cache(self):
@@ -176,51 +177,44 @@ class PersonalizeFeedServiceTests(TestCase):
         service = PersonalizeFeedService()
         service.personalize_client = self.mock_client
 
-        # First call - caches
         service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
         self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 1)
 
-        # Second call with force_refresh=True - should bypass cache
         service.get_feed_queryset(
             user_id=self.user.id, filter_param="new-content", force_refresh=True
         )
-        self.assertEqual(
-            self.mock_client.get_recommendations_for_user.call_count, 2
-        )  # Called again!
+        self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 2)
 
     def test_force_refresh_updates_cache_with_new_results(self):
         """force_new_recs should update cache with new results."""
-        # First return some IDs
         self.mock_client.get_recommendations_for_user.return_value = ["1", "2", "3"]
 
         service = PersonalizeFeedService()
         service.personalize_client = self.mock_client
 
-        # First call - caches [1, 2, 3]
         service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
 
-        # Change what Personalize returns
         self.mock_client.get_recommendations_for_user.return_value = ["4", "5", "6"]
 
-        # Force refresh
         service.get_feed_queryset(
             user_id=self.user.id, filter_param="new-content", force_refresh=True
         )
 
-        # Third call without force - should use NEW cached values
         self.mock_client.get_recommendations_for_user.return_value = ["7", "8", "9"]
         service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
 
-        # Should have called only twice (not three times)
         self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 2)
 
-    @patch("feed.services.personalize_feed_service.FEED_CONFIG")
-    def test_cache_timeout_is_configurable(self, mock_config):
-        """Cache timeout should come from FEED_CONFIG."""
-        mock_config.__getitem__.return_value = {
-            "cache_timeout": 3600,  # 1 hour
+    @patch(
+        "feed.services.personalize_feed_service.PERSONALIZE_CONFIG",
+        {
+            "default_filter": "new-content",
+            "cache_timeout": 3600,
             "num_results": 200,
-        }
+        },
+    )
+    def test_cache_timeout_is_configurable(self):
+        """Cache timeout should come from PERSONALIZE_CONFIG."""
         self.mock_client.get_recommendations_for_user.return_value = ["1", "2", "3"]
 
         service = PersonalizeFeedService()
@@ -231,12 +225,9 @@ class PersonalizeFeedServiceTests(TestCase):
 
             service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
 
-            # Verify cache.set was called with correct timeout
             mock_cache.set.assert_called_once()
             call_args = mock_cache.set.call_args
             self.assertEqual(call_args[1]["timeout"], 3600)
-
-    # Error Handling Tests
 
     def test_personalize_api_error_returns_empty_queryset(self):
         """API error should return empty queryset gracefully."""
@@ -250,7 +241,6 @@ class PersonalizeFeedServiceTests(TestCase):
             user_id=self.user.id, filter_param="new-content"
         )
 
-        # Should return empty queryset
         self.assertEqual(queryset.count(), 0)
         self.assertFalse(queryset.exists())
 
