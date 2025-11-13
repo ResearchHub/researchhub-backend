@@ -100,6 +100,64 @@ class TestPersonalizedFeed(APITestCase):
     @patch(
         "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
     )
+    def test_personalized_feed_preserves_recommendation_order(
+        self, mock_get_recommendations
+    ):
+        extra_docs = []
+        extra_papers = []
+        for i in range(5):
+            doc = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
+            doc.hubs.add(self.hub)
+            paper = Paper.objects.create(
+                title=f"Paper {i}",
+                paper_publish_date=timezone.now(),
+                unified_document=doc,
+            )
+            entry = FeedEntry.objects.create(
+                action="PUBLISH",
+                action_date=timezone.now(),
+                content_type=self.paper_content_type,
+                object_id=paper.id,
+                unified_document=doc,
+                content={},
+                metrics={},
+            )
+            entry.hubs.add(self.hub)
+            extra_docs.append(doc)
+            extra_papers.append(paper)
+
+        reversed_order = [
+            str(extra_docs[4].id),
+            str(extra_docs[2].id),
+            str(extra_docs[0].id),
+            str(extra_docs[3].id),
+            str(extra_docs[1].id),
+        ]
+        mock_get_recommendations.return_value = reversed_order
+
+        url = reverse("researchhub_feed-list")
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get(url, {"feed_view": "personalized"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 5)
+
+        result_paper_ids = [
+            item["content_object"]["id"] for item in response.data["results"]
+        ]
+        expected_paper_ids = [
+            extra_papers[4].id,
+            extra_papers[2].id,
+            extra_papers[0].id,
+            extra_papers[3].id,
+            extra_papers[1].id,
+        ]
+        self.assertEqual(result_paper_ids, expected_paper_ids)
+
+    @patch(
+        "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
+    )
     def test_personalized_with_user_id_param_overrides_auth(
         self, mock_get_recommendations
     ):
@@ -275,10 +333,12 @@ class TestPersonalizedFeed(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("partial-cache-miss", response["RH-Cache"])
 
-    @patch("feed.services.PersonalizeFeedService.get_queryset")
-    def test_force_refresh_header_absent_defaults_to_false(self, mock_get_queryset):
+    @patch("feed.services.PersonalizeFeedService.get_recommendation_ids")
+    def test_force_refresh_header_absent_defaults_to_false(
+        self, mock_get_recommendation_ids
+    ):
         """Without force refresh header, force_refresh should default to False."""
-        mock_get_queryset.return_value = []
+        mock_get_recommendation_ids.return_value = []
 
         url = reverse("researchhub_feed-list")
         self.client.force_authenticate(user=self.user)
@@ -286,13 +346,15 @@ class TestPersonalizedFeed(APITestCase):
         response = self.client.get(url, {"feed_view": "personalized"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        mock_get_queryset.assert_called_once()
-        call_kwargs = mock_get_queryset.call_args[1]
+        mock_get_recommendation_ids.assert_called_once()
+        call_kwargs = mock_get_recommendation_ids.call_args[1]
         self.assertFalse(call_kwargs["force_refresh"])
 
-    @patch("feed.services.PersonalizeFeedService.get_queryset")
-    def test_personalized_feed_handles_service_exception(self, mock_get_queryset):
-        mock_get_queryset.side_effect = Exception("Service Error")
+    @patch("feed.services.PersonalizeFeedService.get_recommendation_ids")
+    def test_personalized_feed_handles_service_exception(
+        self, mock_get_recommendation_ids
+    ):
+        mock_get_recommendation_ids.side_effect = Exception("Service Error")
 
         url = reverse("researchhub_feed-list")
         self.client.force_authenticate(user=self.user)

@@ -1,8 +1,10 @@
 import logging
+from typing import List
 
 from rest_framework.filters import BaseFilterBackend
 
 from feed.feed_config import PERSONALIZE_CONFIG
+from feed.models import FeedEntry
 from hub.models import Hub
 
 logger = logging.getLogger(__name__)
@@ -60,15 +62,41 @@ class FeedFilteringBackend(BaseFilterBackend):
         force_refresh = force_refresh_header.lower() == "true"
 
         try:
-            return personalize_feed_service.get_queryset(
+            recommended_ids = personalize_feed_service.get_recommendation_ids(
                 user_id=user_id,
                 filter_param=filter_param,
                 num_results=PERSONALIZE_CONFIG["num_results"],
                 force_refresh=force_refresh,
             )
+
+            if not recommended_ids:
+                return queryset.none()
+
+            return self._fetch_and_order_entries(recommended_ids)
+
         except Exception as e:
             logger.error(f"Personalized feed error for user {user_id}: {e}")
             return queryset.none()
+
+    def _fetch_and_order_entries(self, document_ids: List[int]) -> List[FeedEntry]:
+        position_map = {pk: pos for pos, pk in enumerate(document_ids)}
+
+        entries = list(
+            FeedEntry.objects.filter(
+                unified_document_id__in=document_ids
+            ).select_related(
+                "content_type",
+                "user",
+                "user__author_profile",
+                "user__userverification",
+            )
+        )
+
+        entries.sort(
+            key=lambda entry: position_map.get(entry.unified_document_id, float("inf"))
+        )
+
+        return entries
 
     def _filter_by_hub(self, hub_slug, queryset):
         try:

@@ -1,14 +1,14 @@
 import logging
-from typing import List, Optional, Union
+from typing import List, Optional
 
 from django.core.cache import cache
-from django.db.models import QuerySet
 
 from feed.clients.personalize_client import PersonalizeClient
 from feed.feed_config import PERSONALIZE_CONFIG
-from feed.models import FeedEntry
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_CACHE_TIMEOUT = 1800
 
 
 class PersonalizeFeedService:
@@ -16,30 +16,22 @@ class PersonalizeFeedService:
         self.personalize_client = personalize_client or PersonalizeClient()
         self.cache_hit = False
 
-    def get_queryset(
+    def get_recommendation_ids(
         self,
-        user_id: Optional[int] = None,
+        user_id: int,
         filter_param: Optional[str] = None,
         num_results: Optional[int] = None,
         force_refresh: bool = False,
-    ) -> Union[QuerySet, List[FeedEntry]]:
-        if not user_id:
-            return FeedEntry.objects.none()
-
+    ) -> List[int]:
         if not filter_param:
             filter_param = PERSONALIZE_CONFIG["default_filter"]
 
-        recommended_ids = self._get_recommendation_ids(
+        return self._get_recommendation_ids(
             user_id=user_id,
             filter_param=filter_param,
             num_results=num_results,
             force_refresh=force_refresh,
         )
-
-        if not recommended_ids:
-            return FeedEntry.objects.none()
-
-        return self._create_ordered_queryset(recommended_ids)
 
     def _get_recommendation_ids(
         self,
@@ -71,7 +63,7 @@ class PersonalizeFeedService:
 
         ids = [int(id) for id in ids] if ids else []
 
-        timeout = PERSONALIZE_CONFIG.get("cache_timeout", 1800)
+        timeout = PERSONALIZE_CONFIG.get("cache_timeout", DEFAULT_CACHE_TIMEOUT)
         cache.set(cache_key, ids, timeout=timeout)
         logger.info(f"Cached recommendations for user {user_id}")
 
@@ -80,32 +72,6 @@ class PersonalizeFeedService:
     def _build_cache_key(self, user_id: int, filter_param: Optional[str]) -> str:
         filter_value = filter_param if filter_param else "none"
         return f"personalized_ids:user-is-{user_id}:filter-is-{filter_value}"
-
-    def _create_ordered_queryset(self, recommended_ids: List[int]) -> List[FeedEntry]:
-        if not recommended_ids:
-            return []
-
-        # Build position lookup for O(1) ordering
-        position_map = {pk: pos for pos, pk in enumerate(recommended_ids)}
-
-        # Fetch without database ordering
-        queryset = FeedEntry.objects.filter(unified_document_id__in=recommended_ids)
-
-        queryset = queryset.select_related(
-            "content_type",
-            "user",
-            "user__author_profile",
-            "user__userverification",
-        )
-
-        # Evaluate queryset and sort in memory to match recommendation order
-        # Sorting in memory is a faster alternative to ordering in the DB.
-        entries = list(queryset)
-        entries.sort(
-            key=lambda entry: position_map.get(entry.unified_document_id, float("inf"))
-        )
-
-        return entries
 
     def invalidate_cache_for_user(
         self,
