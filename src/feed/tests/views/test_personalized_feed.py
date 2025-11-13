@@ -87,7 +87,7 @@ class TestPersonalizedFeed(APITestCase):
     def test_authenticated_user_gets_personalized_results(
         self, mock_get_recommendations
     ):
-        mock_get_recommendations.return_value = [str(self.paper_entry.id)]
+        mock_get_recommendations.return_value = [self.paper_doc.id]
 
         url = reverse("researchhub_feed-list")
         self.client.force_authenticate(user=self.user)
@@ -127,11 +127,11 @@ class TestPersonalizedFeed(APITestCase):
             extra_papers.append(paper)
 
         reversed_order = [
-            str(extra_docs[4].id),
-            str(extra_docs[2].id),
-            str(extra_docs[0].id),
-            str(extra_docs[3].id),
-            str(extra_docs[1].id),
+            extra_docs[4].id,
+            extra_docs[2].id,
+            extra_docs[0].id,
+            extra_docs[3].id,
+            extra_docs[1].id,
         ]
         mock_get_recommendations.return_value = reversed_order
 
@@ -161,7 +161,7 @@ class TestPersonalizedFeed(APITestCase):
     def test_personalized_with_user_id_param_overrides_auth(
         self, mock_get_recommendations
     ):
-        mock_get_recommendations.return_value = [str(self.paper_entry.id)]
+        mock_get_recommendations.return_value = [self.paper_doc.id]
 
         url = reverse("researchhub_feed-list")
         self.client.force_authenticate(user=self.user)
@@ -197,9 +197,7 @@ class TestPersonalizedFeed(APITestCase):
         "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
     )
     def test_personalized_filters_by_recommended_ids(self, mock_get_recommendations):
-        mock_get_recommendations.return_value = [
-            str(self.paper_entry.unified_document_id)
-        ]
+        mock_get_recommendations.return_value = [self.paper_doc.id]
 
         url = reverse("researchhub_feed-list")
         self.client.force_authenticate(user=self.user)
@@ -253,7 +251,7 @@ class TestPersonalizedFeed(APITestCase):
         self, mock_get_recommendations
     ):
         """Force refresh requests should be throttled at 5/min."""
-        mock_get_recommendations.return_value = [str(self.paper_entry.id)]
+        mock_get_recommendations.return_value = [self.paper_doc.id]
 
         url = reverse("researchhub_feed-list")
         self.client.force_authenticate(user=self.user)
@@ -277,7 +275,7 @@ class TestPersonalizedFeed(APITestCase):
         self, mock_get_recommendations
     ):
         """Requests without force refresh header should not be throttled."""
-        mock_get_recommendations.return_value = [str(self.paper_entry.id)]
+        mock_get_recommendations.return_value = [self.paper_doc.id]
 
         url = reverse("researchhub_feed-list")
         self.client.force_authenticate(user=self.user)
@@ -294,7 +292,7 @@ class TestPersonalizedFeed(APITestCase):
         self, mock_get_recommendations
     ):
         """Requests with force refresh header set to false should not be throttled."""
-        mock_get_recommendations.return_value = [str(self.paper_entry.id)]
+        mock_get_recommendations.return_value = [self.paper_doc.id]
 
         url = reverse("researchhub_feed-list")
         self.client.force_authenticate(user=self.user)
@@ -311,7 +309,7 @@ class TestPersonalizedFeed(APITestCase):
     )
     def test_force_refresh_header_triggers_cache_bypass(self, mock_get_recommendations):
         """Force refresh header should bypass cache, resulting in partial-cache-miss."""
-        mock_get_recommendations.return_value = [str(self.paper_entry.id)]
+        mock_get_recommendations.return_value = [self.paper_doc.id]
 
         url = reverse("researchhub_feed-list")
         self.client.force_authenticate(user=self.user)

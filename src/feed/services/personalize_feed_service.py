@@ -47,7 +47,7 @@ class PersonalizeFeedService:
 
         if not force_refresh:
             cached_ids = cache.get(cache_key)
-            if cached_ids is not None:
+            if cached_ids:
                 logger.debug(f"Recommendation cache hit for user {user_id}")
                 self.cache_hit = True
                 return cached_ids
@@ -60,8 +60,6 @@ class PersonalizeFeedService:
             filter=filter_param,
             num_results=num_results,
         )
-
-        ids = [int(id) for id in ids] if ids else []
 
         timeout = PERSONALIZE_CONFIG.get("cache_timeout", DEFAULT_CACHE_TIMEOUT)
         cache.set(cache_key, ids, timeout=timeout)
