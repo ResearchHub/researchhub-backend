@@ -138,7 +138,9 @@ class PersonalizedFeedTests(APITestCase):
         "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
     )
     def test_personalized_filters_by_recommended_ids(self, mock_get_recommendations):
-        mock_get_recommendations.return_value = [str(self.paper_entry.id)]
+        mock_get_recommendations.return_value = [
+            str(self.paper_entry.unified_document_id)
+        ]
 
         url = reverse("researchhub_feed-list")
         self.client.force_authenticate(user=self.user)
@@ -163,12 +165,14 @@ class PersonalizedFeedTests(APITestCase):
         response = self.client.get(url, {"feed_view": "personalized"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertGreaterEqual(len(response.data["results"]), 2)
+        # Service returns empty queryset on error (graceful degradation)
+        self.assertEqual(len(response.data["results"]), 0)
 
     @patch(
         "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
     )
-    def test_personalized_requests_page_size_times_3(self, mock_get_recommendations):
+    def test_personalized_requests_page_size_times_10(self, mock_get_recommendations):
+        """Service requests page_size * 10 recommendations for pagination."""
         mock_get_recommendations.return_value = []
 
         url = reverse("researchhub_feed-list")
@@ -179,4 +183,5 @@ class PersonalizedFeedTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         mock_get_recommendations.assert_called_once()
         call_args = mock_get_recommendations.call_args
-        self.assertEqual(call_args[1]["num_results"], 90)
+        # Now requests page_size * 10 = 30 * 10 = 300
+        self.assertEqual(call_args[1]["num_results"], 300)

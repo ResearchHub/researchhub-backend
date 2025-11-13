@@ -3,7 +3,6 @@ from django.core.cache import cache
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
-from feed.clients.personalize_client import PersonalizeClient
 from feed.feed_config import FEED_CONFIG, FEED_DEFAULTS
 from feed.filtering import FeedFilteringBackend
 from feed.models import FeedEntry
@@ -25,7 +24,9 @@ class ResearchHubFeedViewSet(FeedViewMixin, ModelViewSet):
     filter_backends = [FeedFilteringBackend, FeedOrderingBackend]
 
     def dispatch(self, request, *args, **kwargs):
-        self.personalize_client = kwargs.pop("personalize_client", PersonalizeClient())
+        from feed.services import PersonalizeFeedService
+
+        self.personalize_feed_service = PersonalizeFeedService()
         return super().dispatch(request, *args, **kwargs)
 
     def get_serializer_context(self):
@@ -60,6 +61,23 @@ class ResearchHubFeedViewSet(FeedViewMixin, ModelViewSet):
         request,
         use_cache_config=True,
     ):
+        feed_view = request.query_params.get("feed_view", "popular")
+
+        if feed_view == "personalized":
+            response = super(ResearchHubFeedViewSet, self).list(request)
+            if request.user.is_authenticated:
+                self.add_user_votes_to_response(request.user, response.data)
+
+            cache_status = (
+                "partial-cache-hit"
+                if self.personalize_feed_service.cache_hit
+                else "partial-cache-miss"
+            )
+            response["RH-Cache"] = cache_status + (
+                " (auth)" if request.user.is_authenticated else ""
+            )
+            return response
+
         page = request.query_params.get("page", "1")
         page_num = int(page)
         cache_key = self.get_cache_key(request, feed_type="researchhub")

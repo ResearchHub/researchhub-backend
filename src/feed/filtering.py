@@ -39,7 +39,6 @@ class FeedFilteringBackend(BaseFilterBackend):
 
     def _filter_personalized(self, request, queryset, view):
         user_id = request.query_params.get("user_id")
-
         if user_id:
             user_id = int(user_id)
         elif request.user.is_authenticated:
@@ -47,26 +46,21 @@ class FeedFilteringBackend(BaseFilterBackend):
         else:
             return queryset
 
-        try:
-            personalize_client = getattr(view, "personalize_client", None)
-            if not personalize_client:
-                return queryset
-
-            page_size = view.paginator.page_size if hasattr(view, "paginator") else 30
-            filter_param = request.query_params.get("filter", "new-content")
-
-            recommended_ids = personalize_client.get_recommendations_for_user(
-                user_id=str(user_id),
-                filter=filter_param,
-                num_results=page_size * 3,
-            )
-
-            if recommended_ids:
-                return queryset.filter(id__in=recommended_ids)
-
+        personalize_feed_service = getattr(view, "personalize_feed_service", None)
+        if not personalize_feed_service:
             return queryset
-        except Exception:
-            return queryset
+
+        page_size = view.paginator.page_size if hasattr(view, "paginator") else 30
+        filter_param = request.query_params.get("filter", "new-content")
+        force_new_param = request.query_params.get("force-new-recs", "false")
+        force_refresh = force_new_param.lower() == "true"
+
+        return personalize_feed_service.get_feed_queryset(
+            user_id=user_id,
+            filter_param=filter_param,
+            num_results=page_size * 10,
+            force_refresh=force_refresh,
+        )
 
     def _filter_by_hub(self, hub_slug, queryset):
         try:

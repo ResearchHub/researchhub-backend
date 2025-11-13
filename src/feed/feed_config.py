@@ -4,8 +4,10 @@ FEED_CONFIG = {
         "allowed_sorts": ["hot_score_v2", "hot_score", "latest"],
     },
     "personalized": {
-        "use_cache": False,
+        "use_cache": False,  # Response caching off (service handles ID caching)
         "allowed_sorts": [],
+        "num_results": 200,  # Fetch 200 recommendations (enough for ~7 pages)
+        "cache_timeout": 1800,  # Cache IDs for 30 minutes
     },
     "popular": {
         "use_cache": True,

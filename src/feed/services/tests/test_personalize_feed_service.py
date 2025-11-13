@@ -1,0 +1,306 @@
+from unittest.mock import Mock, patch
+
+from django.contrib.contenttypes.models import ContentType
+from django.core.cache import cache
+from django.test import TestCase
+from django.utils import timezone
+
+from feed.models import FeedEntry
+from feed.services import PersonalizeFeedService
+from hub.models import Hub
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
+from user.tests.helpers import create_random_default_user
+
+
+class PersonalizeFeedServiceTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.user = create_random_default_user("service_test_user")
+        self.other_user = create_random_default_user("other_service_user")
+        self.mock_client = Mock()
+
+    def tearDown(self):
+        cache.clear()
+
+    def _create_sample_feed_entries(self, count=10):
+        hub = Hub.objects.create(
+            name="Test Hub", slug=f"test-hub-{timezone.now().timestamp()}"
+        )
+        post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
+
+        entries = []
+        for i in range(count):
+            unified_doc = ResearchhubUnifiedDocument.objects.create(
+                document_type="POST"
+            )
+            unified_doc.hubs.add(hub)
+
+            post = ResearchhubPost.objects.create(
+                title=f"Test Post {i}",
+                document_type="POST",
+                created_by=self.user,
+                unified_document=unified_doc,
+            )
+
+            feed_entry = FeedEntry.objects.create(
+                action="PUBLISH",
+                action_date=timezone.now(),
+                content_type=post_content_type,
+                object_id=post.id,
+                unified_document=unified_doc,
+                content={},
+                metrics={},
+            )
+            feed_entry.hubs.add(hub)
+            entries.append(feed_entry)
+
+        return entries
+
+    # Basic Functionality Tests
+
+    def test_get_feed_queryset_uses_cache_on_second_call(self):
+        self.mock_client.get_recommendations_for_user.return_value = ["1", "2", "3"]
+
+        service = PersonalizeFeedService()
+        service.personalize_client = self.mock_client
+
+        service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
+        self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 1)
+
+        service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
+        self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 1)
+
+    def test_get_feed_queryset_preserves_personalize_order(self):
+        entries = self._create_sample_feed_entries(count=10)
+
+        reversed_ids = [str(entries[i].unified_document_id) for i in range(9, -1, -1)]
+        self.mock_client.get_recommendations_for_user.return_value = reversed_ids
+
+        service = PersonalizeFeedService()
+        service.personalize_client = self.mock_client
+        queryset = service.get_feed_queryset(
+            user_id=self.user.id, filter_param="new-content"
+        )
+
+        result_doc_ids = list(queryset.values_list("unified_document_id", flat=True))
+        expected_ids = [int(id) for id in reversed_ids]
+        self.assertEqual(result_doc_ids, expected_ids)
+
+    def test_different_users_get_different_recommendations(self):
+        self.mock_client.get_recommendations_for_user.side_effect = [
+            ["1", "2", "3"],
+            ["4", "5", "6"],
+        ]
+
+        service = PersonalizeFeedService()
+        service.personalize_client = self.mock_client
+
+        # Get for user 1
+        service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
+
+        # Get for user 2
+        service.get_feed_queryset(
+            user_id=self.other_user.id, filter_param="new-content"
+        )
+
+        # Should have called Personalize twice (different users)
+        self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 2)
+
+    # Cache Behavior Tests
+
+    def test_different_filters_get_different_cache_keys(self):
+        """Same user with different filters should hit Personalize separately."""
+        self.mock_client.get_recommendations_for_user.return_value = ["1", "2", "3"]
+
+        service = PersonalizeFeedService()
+        service.personalize_client = self.mock_client
+
+        # Call with filter "new-content"
+        service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
+        self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 1)
+
+        # Call with different filter
+        service.get_feed_queryset(user_id=self.user.id, filter_param="trending")
+        # Should call again (different filter)
+        self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 2)
+
+    def test_different_users_get_different_cache_keys(self):
+        """Different users with same filter should have separate caches."""
+        self.mock_client.get_recommendations_for_user.return_value = ["1", "2", "3"]
+
+        service = PersonalizeFeedService()
+        service.personalize_client = self.mock_client
+
+        # User 1
+        service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
+
+        # User 2 with same filter
+        service.get_feed_queryset(
+            user_id=self.other_user.id, filter_param="new-content"
+        )
+
+        # Should call Personalize twice (different users)
+        self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 2)
+
+    def test_cache_isolation_between_users(self):
+        """User A's cache should be completely isolated from User B."""
+        self.mock_client.get_recommendations_for_user.side_effect = [
+            ["1", "2", "3"],  # User A
+            ["4", "5", "6"],  # User B
+        ]
+
+        service = PersonalizeFeedService()
+        service.personalize_client = self.mock_client
+
+        # Get for user A
+        service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
+
+        # Get for user B
+        service.get_feed_queryset(
+            user_id=self.other_user.id, filter_param="new-content"
+        )
+
+        # Get for user A again - should use cache (not user B's)
+        service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
+
+        # Should only call Personalize twice total (once per user)
+        self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 2)
+
+    def test_force_refresh_bypasses_cache(self):
+        """force_refresh=True should skip cache read."""
+        self.mock_client.get_recommendations_for_user.return_value = ["1", "2", "3"]
+
+        service = PersonalizeFeedService()
+        service.personalize_client = self.mock_client
+
+        # First call - caches
+        service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
+        self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 1)
+
+        # Second call with force_refresh=True - should bypass cache
+        service.get_feed_queryset(
+            user_id=self.user.id, filter_param="new-content", force_refresh=True
+        )
+        self.assertEqual(
+            self.mock_client.get_recommendations_for_user.call_count, 2
+        )  # Called again!
+
+    def test_force_refresh_updates_cache_with_new_results(self):
+        """force_new_recs should update cache with new results."""
+        # First return some IDs
+        self.mock_client.get_recommendations_for_user.return_value = ["1", "2", "3"]
+
+        service = PersonalizeFeedService()
+        service.personalize_client = self.mock_client
+
+        # First call - caches [1, 2, 3]
+        service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
+
+        # Change what Personalize returns
+        self.mock_client.get_recommendations_for_user.return_value = ["4", "5", "6"]
+
+        # Force refresh
+        service.get_feed_queryset(
+            user_id=self.user.id, filter_param="new-content", force_refresh=True
+        )
+
+        # Third call without force - should use NEW cached values
+        self.mock_client.get_recommendations_for_user.return_value = ["7", "8", "9"]
+        service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
+
+        # Should have called only twice (not three times)
+        self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 2)
+
+    @patch("feed.services.personalize_feed_service.FEED_CONFIG")
+    def test_cache_timeout_is_configurable(self, mock_config):
+        """Cache timeout should come from FEED_CONFIG."""
+        mock_config.__getitem__.return_value = {
+            "cache_timeout": 3600,  # 1 hour
+            "num_results": 200,
+        }
+        self.mock_client.get_recommendations_for_user.return_value = ["1", "2", "3"]
+
+        service = PersonalizeFeedService()
+        service.personalize_client = self.mock_client
+
+        with patch("feed.services.personalize_feed_service.cache") as mock_cache:
+            mock_cache.get.return_value = None
+
+            service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
+
+            # Verify cache.set was called with correct timeout
+            mock_cache.set.assert_called_once()
+            call_args = mock_cache.set.call_args
+            self.assertEqual(call_args[1]["timeout"], 3600)
+
+    # Error Handling Tests
+
+    def test_personalize_api_error_returns_empty_queryset(self):
+        """API error should return empty queryset gracefully."""
+        self.mock_client.get_recommendations_for_user.side_effect = Exception(
+            "AWS Error"
+        )
+
+        service = PersonalizeFeedService()
+        service.personalize_client = self.mock_client
+        queryset = service.get_feed_queryset(
+            user_id=self.user.id, filter_param="new-content"
+        )
+
+        # Should return empty queryset
+        self.assertEqual(queryset.count(), 0)
+        self.assertFalse(queryset.exists())
+
+    def test_personalize_returns_empty_list(self):
+        """Empty recommendation list should return empty queryset."""
+        self.mock_client.get_recommendations_for_user.return_value = []
+
+        service = PersonalizeFeedService()
+        service.personalize_client = self.mock_client
+        queryset = service.get_feed_queryset(
+            user_id=self.user.id, filter_param="new-content"
+        )
+
+        self.assertEqual(queryset.count(), 0)
+
+    def test_personalize_returns_non_existent_ids_filters_them_out(self):
+        entries = self._create_sample_feed_entries(count=10)
+
+        valid_ids = [
+            str(entries[0].unified_document_id),
+            str(entries[1].unified_document_id),
+        ]
+        invalid_ids = ["99999", "88888"]
+        self.mock_client.get_recommendations_for_user.return_value = (
+            valid_ids + invalid_ids
+        )
+
+        service = PersonalizeFeedService()
+        service.personalize_client = self.mock_client
+        queryset = service.get_feed_queryset(
+            user_id=self.user.id, filter_param="new-content"
+        )
+
+        self.assertEqual(queryset.count(), 2)
+        result_doc_ids = set(queryset.values_list("unified_document_id", flat=True))
+        expected_doc_ids = {
+            entries[0].unified_document_id,
+            entries[1].unified_document_id,
+        }
+        self.assertEqual(result_doc_ids, expected_doc_ids)
+
+    def test_handles_none_from_cache_forces_personalize_call(self):
+        with patch("feed.services.personalize_feed_service.cache") as mock_cache:
+            mock_cache.get.return_value = None
+            self.mock_client.get_recommendations_for_user.return_value = ["1", "2", "3"]
+
+            service = PersonalizeFeedService()
+            service.personalize_client = self.mock_client
+            service.get_feed_queryset(user_id=self.user.id, filter_param="new-content")
+
+            self.assertEqual(
+                self.mock_client.get_recommendations_for_user.call_count, 1
+            )

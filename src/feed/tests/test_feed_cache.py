@@ -269,7 +269,15 @@ class FeedCachingTests(APITestCase):
         response = self.client.get(url)
         self.assertEqual(response["RH-Cache"], "miss")
 
-    def test_cache_key_differs_by_feed_view(self):
+    @patch(
+        "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
+    )
+    def test_cache_key_differs_by_feed_view(self, mock_get_recommendations):
+        feed_entries = FeedEntry.objects.all()[:10]
+        mock_get_recommendations.return_value = [
+            str(e.unified_document_id) for e in feed_entries
+        ]
+
         url = reverse("researchhub_feed-list")
         self.client.force_authenticate(user=self.user)
 
@@ -280,7 +288,7 @@ class FeedCachingTests(APITestCase):
         self.assertEqual(response2["RH-Cache"], "miss (auth)")
 
         response3 = self.client.get(url, {"feed_view": "personalized"})
-        self.assertEqual(response3["RH-Cache"], "miss (auth)")
+        self.assertEqual(response3["RH-Cache"], "partial-cache-miss (auth)")
 
         response4 = self.client.get(url, {"feed_view": "popular"})
         self.assertEqual(response4["RH-Cache"], "hit (auth)")
@@ -388,3 +396,110 @@ class FeedCachingTests(APITestCase):
         # (proving it has its own cache key)
         response4 = self.client.get(url, {"feed_view": "following"})
         self.assertEqual(response4["RH-Cache"], "hit (auth)")
+
+    @patch(
+        "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
+    )
+    def test_personalized_feed_service_layer_caching(self, mock_get_recommendations):
+        """
+        Test that personalized feed uses service layer caching.
+        IDs are cached and reused across multiple page requests.
+        """
+        # Get enough feed entry IDs for pagination (need 60+ for page 2)
+        feed_entries = FeedEntry.objects.all()[:80]
+        feed_entry_ids = [str(entry.id) for entry in feed_entries]
+
+        # Mock Personalize to return IDs
+        mock_get_recommendations.return_value = feed_entry_ids
+
+        url = reverse("researchhub_feed-list")
+        self.client.force_authenticate(user=self.user)
+
+        # First request - should call Personalize
+        response1 = self.client.get(url, {"feed_view": "personalized"})
+        self.assertEqual(response1.status_code, 200)
+        self.assertEqual(mock_get_recommendations.call_count, 1)
+
+        # Second request (same page) - should use cached IDs
+        response2 = self.client.get(url, {"feed_view": "personalized"})
+        self.assertEqual(response2.status_code, 200)
+        # Still only called once (IDs were cached)
+        self.assertEqual(mock_get_recommendations.call_count, 1)
+
+    @patch(
+        "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
+    )
+    def test_personalized_feed_cache_header(self, mock_get_recommendations):
+        feed_entries = FeedEntry.objects.all()[:5]
+        mock_get_recommendations.return_value = [
+            str(e.unified_document_id) for e in feed_entries
+        ]
+
+        url = reverse("researchhub_feed-list")
+        self.client.force_authenticate(user=self.user)
+
+        response1 = self.client.get(url, {"feed_view": "personalized"})
+        self.assertEqual(response1.status_code, 200)
+        self.assertEqual(response1["RH-Cache"], "partial-cache-miss (auth)")
+
+        response2 = self.client.get(url, {"feed_view": "personalized"})
+        self.assertEqual(response2.status_code, 200)
+        self.assertEqual(response2["RH-Cache"], "partial-cache-hit (auth)")
+
+    @patch(
+        "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
+    )
+    def test_votes_are_added_to_personalized_feed_response(
+        self, mock_get_recommendations
+    ):
+        from discussion.models import Vote
+
+        feed_entry = FeedEntry.objects.first()
+        mock_get_recommendations.return_value = [str(feed_entry.unified_document_id)]
+
+        Vote.objects.create(
+            content_type=feed_entry.content_type,
+            object_id=feed_entry.object_id,
+            created_by=self.user,
+            vote_type=1,
+        )
+
+        url = reverse("researchhub_feed-list")
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get(url, {"feed_view": "personalized"})
+        self.assertEqual(response.status_code, 200)
+
+        self.assertGreater(len(response.data["results"]), 0)
+        first_result = response.data["results"][0]
+        self.assertIn("user_vote", first_result)
+
+    @patch(
+        "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
+    )
+    def test_personalized_feed_pagination_across_multiple_pages(
+        self, mock_get_recommendations
+    ):
+        feed_entries = FeedEntry.objects.all()[:80]
+        unified_doc_ids = [str(entry.unified_document_id) for entry in feed_entries]
+
+        mock_get_recommendations.return_value = unified_doc_ids
+
+        url = reverse("researchhub_feed-list")
+        self.client.force_authenticate(user=self.user)
+
+        response1 = self.client.get(url, {"feed_view": "personalized", "page": "1"})
+        self.assertEqual(response1.status_code, 200)
+        page1_results = response1.data["results"]
+        self.assertEqual(len(page1_results), 30)
+
+        response2 = self.client.get(url, {"feed_view": "personalized", "page": "2"})
+        self.assertEqual(response2.status_code, 200)
+        page2_results = response2.data["results"]
+        self.assertGreater(len(page2_results), 0)
+
+        page1_ids = {r["id"] for r in page1_results}
+        page2_ids = {r["id"] for r in page2_results}
+        self.assertEqual(len(page1_ids & page2_ids), 0)
+
+        self.assertEqual(mock_get_recommendations.call_count, 1)
