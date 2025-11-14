@@ -1,12 +1,12 @@
 from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError
 from django.db.models import Count, Prefetch, Q
+from django.utils import timezone
 from rest_framework import serializers, viewsets
 from rest_framework.decorators import action
 from feed.models import FeedEntry
 from paper.models import Paper
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
-        
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost 
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -43,12 +43,14 @@ class ListViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         serializer.save(
-            updated_by=self.request.user
+            updated_by=self.request.user,
+            updated_date=timezone.now()
         )
 
     def perform_destroy(self, instance):
-        instance.is_removed = True
-        instance.save(update_fields=["is_removed"])
+        instance.is_removed = True 
+        instance.updated_date = timezone.now()
+        instance.save(update_fields=["is_removed", "updated_date"])
 
     @action(detail=False, methods=["get"], url_path="overview")
     def overview(self, request):
@@ -116,7 +118,7 @@ class ListItemViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         old_parent_list = serializer.instance.parent_list
         try:
-            item = serializer.save(updated_by=self.request.user)
+            item = serializer.save(updated_by=self.request.user, updated_date=timezone.now())
             self._update_parent_list_timestamp(item.parent_list)
             if old_parent_list.id != item.parent_list.id:
                 self._update_parent_list_timestamp(old_parent_list)
@@ -126,9 +128,11 @@ class ListItemViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         parent_list = instance.parent_list
         instance.is_removed = True
-        instance.save(update_fields=["is_removed"])
+        instance.updated_date = timezone.now()
+        instance.save(update_fields=["is_removed", "updated_date"])
         self._update_parent_list_timestamp(parent_list)
 
     def _update_parent_list_timestamp(self, parent_list):
         parent_list.updated_by = self.request.user
+        parent_list.updated_date = timezone.now()
         parent_list.save(update_fields=["updated_by", "updated_date"])

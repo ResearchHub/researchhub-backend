@@ -3,6 +3,9 @@ from rest_framework import serializers
 
 from feed.models import FeedEntry
 from feed.serializers import FeedEntrySerializer, serialize_feed_metrics
+from paper.models import Paper
+from researchhub_document.related_models.constants.document_type import PAPER
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 
 from .models import List, ListItem
 
@@ -48,6 +51,19 @@ class ListItemReadSerializer(serializers.ModelSerializer):
     def _get_or_create_feed_entry(self, obj):
         cached = getattr(obj.unified_document, "cached_feed_entries", None)
         if cached is not None and len(cached) > 0:
+            document = obj.unified_document
+            content_type_cache = self.context.get('content_type_cache', {})
+            
+            if document.document_type == PAPER:
+                target_content_type = content_type_cache.get(Paper)
+            else:
+                target_content_type = content_type_cache.get(ResearchhubPost)
+            
+            if target_content_type:
+                for entry in cached:
+                    if entry.content_type_id == target_content_type.id:
+                        return entry
+            
             return cached[0]
         
         content = self._get_content(obj.unified_document)
