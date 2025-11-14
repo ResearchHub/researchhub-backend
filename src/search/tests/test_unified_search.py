@@ -256,6 +256,87 @@ class UnifiedSearchServiceTests(TestCase):
         self.assertIn("content_types", aggregations)
         self.assertEqual(aggregations["years"][0]["key"], "2024")
 
+    def test_execution_time_included_in_response(self):
+        """Test that execution_time_ms is included in search response."""
+        from unittest.mock import Mock, patch
+
+        # Mock the search methods to return empty results quickly
+        empty_doc_result = {"results": [], "count": 0, "aggregations": {}}
+        empty_people_result = {"results": [], "count": 0}
+        empty_doi_result = {"results": [], "count": 0}
+
+        with (
+            patch.object(
+                self.service, "_search_documents", return_value=empty_doc_result
+            ),
+            patch.object(
+                self.service, "_search_people", return_value=empty_people_result
+            ),
+            patch.object(
+                self.service, "_search_documents_by_doi", return_value=empty_doi_result
+            ),
+        ):
+            # Mock request
+            mock_request = Mock()
+            mock_request.path = "/api/search/"
+            mock_request.build_absolute_uri = lambda path: f"https://testserver{path}"
+
+            results = self.service.search(
+                query="test query",
+                page=1,
+                page_size=10,
+                sort="relevance",
+                request=mock_request,
+            )
+
+            # Verify execution_time_ms is present and is a positive number
+            self.assertIn("execution_time_ms", results)
+            self.assertIsInstance(results["execution_time_ms"], (int, float))
+            self.assertGreaterEqual(results["execution_time_ms"], 0)
+
+    def test_execution_time_format(self):
+        """Test that execution_time_ms is properly formatted (rounded to 2 decimals)."""
+        from search.base.utils import seconds_to_milliseconds
+
+        # Test various time values
+        self.assertEqual(seconds_to_milliseconds(0.123456), 123.46)
+        self.assertEqual(seconds_to_milliseconds(0.1), 100.0)
+        self.assertEqual(seconds_to_milliseconds(1.0), 1000.0)
+        self.assertEqual(seconds_to_milliseconds(0.001), 1.0)
+        self.assertEqual(seconds_to_milliseconds(0.0001), 0.1)
+
+    def test_execution_time_in_doi_search_response(self):
+        """Test that execution_time_ms is included in DOI search response."""
+        from unittest.mock import patch
+
+        # Mock DOI search to return a result
+        mock_result = {
+            "id": "123",
+            "type": "paper",
+            "title": "Test Paper",
+            "authors": [],
+            "hubs": [],
+        }
+
+        doi_search_result = {"results": [mock_result], "count": 1}
+
+        with (
+            patch.object(
+                self.service, "_search_documents_by_doi", return_value=doi_search_result
+            ),
+            patch("utils.doi.DOI.is_doi", return_value=True),
+            patch("utils.doi.DOI.normalize_doi", return_value="10.1234/test"),
+        ):
+            results = self.service.search(query="10.1234/test", page=1, page_size=10)
+
+            # Verify execution_time_ms is present in DOI search response
+            self.assertIn("execution_time_ms", results)
+            self.assertIsInstance(results["execution_time_ms"], (int, float))
+            self.assertGreaterEqual(results["execution_time_ms"], 0)
+            # Verify it's a DOI search result (has documents, no people)
+            self.assertEqual(len(results["documents"]), 1)
+            self.assertEqual(len(results["people"]), 0)
+
 
 class UnifiedSearchViewTests(TestCase):
     """Tests for UnifiedSearchView."""

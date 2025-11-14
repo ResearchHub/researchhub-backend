@@ -76,10 +76,7 @@ class PersonalizeClient:
         user_id: str,
         filter: Optional[str] = None,
         num_results: int = 20,
-    ) -> List[str]:
-        """
-        Get personalized recommendations for a user with optional filtering.
-        """
+    ) -> List[int]:
         filter_arn = None
         filter_values = None
 
@@ -98,10 +95,12 @@ class PersonalizeClient:
                 f"timestamp: {timestamp_cutoff}"
             )
 
-        return self.get_recommendations(
+        item_ids = self.get_recommendations(
             user_id=user_id,
             campaign_arn=self.campaign_arn,
             filter_arn=filter_arn,
             filter_values=filter_values,
             num_results=num_results,
         )
+
+        return [int(item_id) for item_id in item_ids] if item_ids else []

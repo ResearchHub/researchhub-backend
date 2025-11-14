@@ -4,10 +4,12 @@ and people (authors/users).
 """
 
 import logging
+import time
 from typing import Any
 
 from opensearchpy import Q, Search
 
+from search.base.utils import seconds_to_milliseconds
 from search.documents.paper import PaperDocument
 from search.documents.person import PersonDocument
 from search.documents.post import PostDocument
@@ -39,6 +41,8 @@ class UnifiedSearchService:
         request=None,
     ) -> dict[str, Any]:
 
+        start_time = time.time()
+
         # Validate sort option
         if sort not in self.VALID_SORT_OPTIONS:
             sort = self.SORT_RELEVANCE
@@ -52,6 +56,7 @@ class UnifiedSearchService:
                 normalized_doi = DOI.normalize_doi(query)
                 doi_result = self._search_documents_by_doi(normalized_doi)
                 if doi_result["count"] > 0:
+                    execution_time = time.time() - start_time
                     return {
                         "count": doi_result["count"],
                         "next": None,
@@ -59,6 +64,7 @@ class UnifiedSearchService:
                         "documents": doi_result["results"],
                         "people": [],
                         "aggregations": {},
+                        "execution_time_ms": seconds_to_milliseconds(execution_time),
                     }
         except Exception:
             # Fallback to regular flow if DOI parsing/search fails
@@ -90,6 +96,8 @@ class UnifiedSearchService:
                     request, query, page - 1, page_size, sort
                 )
 
+        execution_time = time.time() - start_time
+
         return {
             "count": total_count,
             "next": next_url,
@@ -97,6 +105,7 @@ class UnifiedSearchService:
             "documents": document_results["results"],
             "people": people_results["results"],
             "aggregations": document_results["aggregations"],
+            "execution_time_ms": seconds_to_milliseconds(execution_time),
         }
 
     def _search_documents(
@@ -118,16 +127,12 @@ class UnifiedSearchService:
             # If the backend version doesn't support rescore, ignore gracefully
             pass
 
-        # Apply highlighting
         search = self._apply_highlighting(search, is_document=True)
 
-        # Add aggregations
         search = self._add_aggregations(search)
 
-        # Apply sorting
         search = self._apply_sort(search, sort)
 
-        # Apply pagination
         search = search[offset : offset + limit]
 
         # Optimize query performance
@@ -165,10 +170,8 @@ class UnifiedSearchService:
             logger.error(f"Document search failed: {str(e)}")
             return {"results": [], "count": 0, "aggregations": {}}
 
-        # Process results
         results = self._process_document_results(response)
 
-        # Process aggregations
         aggregations = self._process_aggregations(response)
 
         return {

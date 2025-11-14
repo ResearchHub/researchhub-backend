@@ -18,3 +18,9 @@ FEED_DEFAULTS = {
         "num_pages_to_cache": 4,
     },
 }
+
+PERSONALIZE_CONFIG = {
+    "default_filter": "new-content",
+    "num_results": 200,
+    "cache_timeout": 1800,
+}
