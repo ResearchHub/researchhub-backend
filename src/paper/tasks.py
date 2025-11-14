@@ -1,9 +1,11 @@
+import urllib.parse
 from io import BytesIO
 
 import fitz
 import requests
 from celery.utils.log import get_task_logger
 from django.apps import apps
+from django.conf import settings
 from django.core.cache import cache
 from django.core.files.base import ContentFile
 from PIL import Image
@@ -52,23 +54,36 @@ def download_pdf(paper_id, retry=0):
 
     if pdf_url:
         try:
-            pdf = download_pdf_from_url(pdf_url)
+            url = _create_download_url(pdf_url, paper.external_source)
+            pdf = download_pdf_from_url(url)
             paper.file.save(pdf.name, pdf, save=False)
             paper.save(update_fields=["file"])
             return True
         except ValueError as e:
-            logger.warning(f"No PDF at {pdf_url} - paper {paper_id}: {e}")
-            sentry.log_info(f"No PDF at {pdf_url} - paper {paper_id}: {e}")
+            logger.warning(f"No PDF at {url} - paper {paper_id}: {e}")
+            sentry.log_info(f"No PDF at {url} - paper {paper_id}: {e}")
             return False
         except Exception as e:
-            logger.warning(f"Failed to download PDF {pdf_url} - paper {paper_id}: {e}")
-            sentry.log_info(f"Failed to download PDF {pdf_url} - paper {paper_id}: {e}")
+            logger.warning(f"Failed to download PDF {url} - paper {paper_id}: {e}")
+            sentry.log_info(f"Failed to download PDF {url} - paper {paper_id}: {e}")
             download_pdf.apply_async(
                 (paper.id, retry + 1), priority=7, countdown=15 * (retry + 1)
             )
             return False
 
     return False
+
+
+def _create_download_url(url: str, external_source: str) -> str:
+    if external_source != "biorxiv":
+        return url
+
+    scraper_url = settings.SCRAPER_URL
+    if not scraper_url:
+        return url
+
+    target_url = urllib.parse.quote(url)
+    return f"{scraper_url.format(url=target_url)}"
 
 
 @app.task(queue=QUEUE_PAPER_MISC)
