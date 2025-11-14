@@ -9,9 +9,12 @@ from .models import List, ListItem
 
  
 READ_ONLY_FIELDS = ["id", "created_date", "updated_date", "created_by", "updated_by"]
-COMMON_FIELDS = READ_ONLY_FIELDS + ["is_public"]
-LIST_BASE_FIELDS = COMMON_FIELDS + ["name"]
-LIST_ITEM_FIELDS = COMMON_FIELDS + ["parent_list", "unified_document"]
+
+LIST_WRITABLE_FIELDS = ["is_public", "name"]
+LIST_ITEM_WRITABLE_FIELDS = ["is_public", "parent_list", "unified_document"]
+
+LIST_BASE_FIELDS = READ_ONLY_FIELDS + LIST_WRITABLE_FIELDS
+LIST_ITEM_FIELDS = READ_ONLY_FIELDS + LIST_ITEM_WRITABLE_FIELDS
 
 
 class ListSerializer(serializers.ModelSerializer):
@@ -98,8 +101,7 @@ class ListItemReadSerializer(serializers.ModelSerializer):
 class ListItemWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = ListItem
-        fields = LIST_ITEM_FIELDS
-        read_only_fields = READ_ONLY_FIELDS
+        fields = LIST_ITEM_WRITABLE_FIELDS
 
     def validate_parent_list(self, value):
         user = self.context["request"].user
