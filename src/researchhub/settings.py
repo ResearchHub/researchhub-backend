@@ -886,3 +886,5 @@ else:
     AWS_PERSONALIZE_FILTER_ARN_GTE_DATE = (
         "arn:aws:personalize:us-west-2:058264226692:filter/filter-gte-date"
     )
+
+SCRAPER_URL = os.environ.get("SCRAPER_URL", keys.SCRAPER_URL)
