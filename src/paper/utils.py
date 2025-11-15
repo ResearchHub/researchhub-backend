@@ -273,6 +273,11 @@ def pdf_copyright_allows_display(paper):
     Returns True if the paper can be displayed on our site.
     E.g. if the paper is open-access and has a license that allows for commercial use.
     """
+
+    # Temporary: Disable display of bioRxiv paper PDFs
+    if paper.external_source == "biorxiv":
+        return False
+
     oa_status = (
         paper.oa_status or ""
     ).lower()  # Type from https://api.openalex.org/works?group_by=oa_status:include_unknown
