@@ -202,7 +202,7 @@ class FeedEntry(DefaultModel):
             # Format breakdown from calculation data
             breakdown_data = format_breakdown_from_calc_data(calc_data)
 
-            breakdown, created = HotScoreV2Breakdown.objects.update_or_create(
+            _breakdown, _created = HotScoreV2Breakdown.objects.update_or_create(
                 feed_entry=self,
                 defaults={"breakdown_data": breakdown_data},
             )

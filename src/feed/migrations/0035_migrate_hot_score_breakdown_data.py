@@ -8,13 +8,13 @@ def migrate_breakdown_data(apps, schema_editor):
     This migration copies all existing breakdown data from the JSONField
     to the new separate table.
     """
-    FeedEntry = apps.get_model("feed", "FeedEntry")
-    HotScoreV2Breakdown = apps.get_model("feed", "HotScoreV2Breakdown")
+    feed_entry_model = apps.get_model("feed", "FeedEntry")
+    hot_score_v2_breakdown_model = apps.get_model("feed", "HotScoreV2Breakdown")
 
     # Get all entries that have non-empty breakdown data
-    entries = FeedEntry.objects.filter(hot_score_v2_breakdown__isnull=False).exclude(
-        hot_score_v2_breakdown={}
-    )
+    entries = feed_entry_model.objects.filter(
+        hot_score_v2_breakdown__isnull=False
+    ).exclude(hot_score_v2_breakdown={})
 
     total = entries.count()
     if total == 0:
@@ -30,7 +30,7 @@ def migrate_breakdown_data(apps, schema_editor):
     for i, entry in enumerate(entries, 1):
         if entry.hot_score_v2_breakdown:
             breakdowns_to_create.append(
-                HotScoreV2Breakdown(
+                hot_score_v2_breakdown_model(
                     feed_entry_id=entry.id,
                     breakdown_data=entry.hot_score_v2_breakdown,
                 )
@@ -38,7 +38,7 @@ def migrate_breakdown_data(apps, schema_editor):
 
         # Bulk create when batch is full
         if len(breakdowns_to_create) >= batch_size:
-            HotScoreV2Breakdown.objects.bulk_create(
+            hot_score_v2_breakdown_model.objects.bulk_create(
                 breakdowns_to_create, ignore_conflicts=True
             )
             print(f"Migrated {i} of {total} records...")
@@ -46,7 +46,7 @@ def migrate_breakdown_data(apps, schema_editor):
 
     # Create remaining records
     if breakdowns_to_create:
-        HotScoreV2Breakdown.objects.bulk_create(
+        hot_score_v2_breakdown_model.objects.bulk_create(
             breakdowns_to_create, ignore_conflicts=True
         )
 
@@ -59,11 +59,11 @@ def reverse_migrate(apps, schema_editor):
 
     This allows rolling back the migration if needed.
     """
-    FeedEntry = apps.get_model("feed", "FeedEntry")
-    HotScoreV2Breakdown = apps.get_model("feed", "HotScoreV2Breakdown")
+    feed_entry_model = apps.get_model("feed", "FeedEntry")
+    hot_score_v2_breakdown_model = apps.get_model("feed", "HotScoreV2Breakdown")
 
-    for breakdown in HotScoreV2Breakdown.objects.all():
-        FeedEntry.objects.filter(id=breakdown.feed_entry_id).update(
+    for breakdown in hot_score_v2_breakdown_model.objects.all():
+        feed_entry_model.objects.filter(id=breakdown.feed_entry_id).update(
             hot_score_v2_breakdown=breakdown.breakdown_data
         )
 
