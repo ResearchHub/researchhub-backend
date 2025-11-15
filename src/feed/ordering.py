@@ -6,6 +6,10 @@ from feed.feed_config import FEED_CONFIG
 class FeedOrderingBackend(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
         feed_view = request.query_params.get("feed_view", "popular")
+        # Personalized feed is ordered by the Personalize service
+        if feed_view == "personalized":
+            return queryset
+
         ordering_param = request.query_params.get("ordering")
 
         feed_config = FEED_CONFIG.get(feed_view, {})

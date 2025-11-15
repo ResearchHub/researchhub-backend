@@ -1,6 +1,13 @@
+import logging
+from typing import List
+
 from rest_framework.filters import BaseFilterBackend
 
+from feed.feed_config import PERSONALIZE_CONFIG
+from feed.models import FeedEntry
 from hub.models import Hub
+
+logger = logging.getLogger(__name__)
 
 
 class FeedFilteringBackend(BaseFilterBackend):
@@ -39,7 +46,6 @@ class FeedFilteringBackend(BaseFilterBackend):
 
     def _filter_personalized(self, request, queryset, view):
         user_id = request.query_params.get("user_id")
-
         if user_id:
             user_id = int(user_id)
         elif request.user.is_authenticated:
@@ -47,26 +53,50 @@ class FeedFilteringBackend(BaseFilterBackend):
         else:
             return queryset
 
+        personalize_feed_service = getattr(view, "personalize_feed_service", None)
+        if not personalize_feed_service:
+            return queryset
+
+        filter_param = request.query_params.get("filter", None)
+        force_refresh_header = request.META.get("HTTP_RH_FORCE_REFRESH", "false")
+        force_refresh = force_refresh_header.lower() == "true"
+
         try:
-            personalize_client = getattr(view, "personalize_client", None)
-            if not personalize_client:
-                return queryset
-
-            page_size = view.paginator.page_size if hasattr(view, "paginator") else 30
-            filter_param = request.query_params.get("filter", "new-content")
-
-            recommended_ids = personalize_client.get_recommendations_for_user(
-                user_id=str(user_id),
-                filter=filter_param,
-                num_results=page_size * 3,
+            recommended_ids = personalize_feed_service.get_recommendation_ids(
+                user_id=user_id,
+                filter_param=filter_param,
+                num_results=PERSONALIZE_CONFIG["num_results"],
+                force_refresh=force_refresh,
             )
 
-            if recommended_ids:
-                return queryset.filter(id__in=recommended_ids)
+            if not recommended_ids:
+                return queryset.none()
 
-            return queryset
-        except Exception:
-            return queryset
+            return self._fetch_and_order_entries(recommended_ids)
+
+        except Exception as e:
+            logger.error(f"Personalized feed error for user {user_id}: {e}")
+            return queryset.none()
+
+    def _fetch_and_order_entries(self, document_ids: List[int]) -> List[FeedEntry]:
+        position_map = {pk: pos for pos, pk in enumerate(document_ids)}
+
+        entries = list(
+            FeedEntry.objects.filter(
+                unified_document_id__in=document_ids
+            ).select_related(
+                "content_type",
+                "user",
+                "user__author_profile",
+                "user__userverification",
+            )
+        )
+
+        entries.sort(
+            key=lambda entry: position_map.get(entry.unified_document_id, float("inf"))
+        )
+
+        return entries
 
     def _filter_by_hub(self, hub_slug, queryset):
         try:

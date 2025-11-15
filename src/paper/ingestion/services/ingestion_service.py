@@ -293,6 +293,7 @@ class PaperIngestionService:
         return source in [
             IngestionSource.ARXIV,
             IngestionSource.ARXIV_OAI,
+            IngestionSource.BIORXIV,
             IngestionSource.CHEMRXIV,
             IngestionSource.MEDRXIV,
         ]

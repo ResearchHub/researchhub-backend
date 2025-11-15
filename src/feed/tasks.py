@@ -16,6 +16,7 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
     ResearchhubUnifiedDocument,
 )
 from user.models import User
+from user.related_models.author_model import Author
 from utils import sentry
 
 logger = logging.getLogger(__name__)
@@ -57,9 +58,12 @@ def create_feed_entry(
     if action == FeedEntry.PUBLISH and item_content_type.model == "paper":
         action_date = item.paper_publish_date
 
+    # Get authors for the item
+    authors = _get_authors_for_item(item, item_content_type)
+
     # Create and return the feed entry
     try:
-        feed_entry, created = FeedEntry.objects.update_or_create(
+        feed_entry, _ = FeedEntry.objects.update_or_create(
             content_type=item_content_type,
             object_id=item_id,
             action=action,
@@ -73,6 +77,8 @@ def create_feed_entry(
         )
         if hub_ids:
             feed_entry.hubs.add(*hub_ids)
+        if authors:
+            feed_entry.authors.set(authors)
         return feed_entry
     except Exception as e:
         # Ignore error if feed entry already exists
@@ -88,10 +94,17 @@ def refresh_feed_entry(feed_entry_id):
     content = serialize_feed_item(feed_entry.item, feed_entry.content_type)
     metrics = serialize_feed_metrics(feed_entry.item, feed_entry.content_type)
 
+    # Get authors for the item
+    authors = _get_authors_for_item(feed_entry.item, feed_entry.content_type)
+
     feed_entry.content = content
     feed_entry.metrics = metrics
     feed_entry.hot_score = feed_entry.calculate_hot_score()
     feed_entry.save(update_fields=["content", "metrics", "hot_score"])
+
+    # Update authors separately (ManyToMany field)
+    if authors:
+        feed_entry.authors.set(authors)
 
 
 @app.task
@@ -108,10 +121,17 @@ def refresh_feed_entries_for_objects(item_id, item_content_type_id):
 
         metrics = serialize_feed_metrics(feed_entry.item, item_content_type)
 
+        # Get authors for the item
+        authors = _get_authors_for_item(feed_entry.item, item_content_type)
+
         feed_entry.content = content
         feed_entry.metrics = metrics
         feed_entry.hot_score = feed_entry.calculate_hot_score()
         feed_entry.save(update_fields=["content", "metrics", "hot_score"])
+
+        # Update authors separately (ManyToMany field)
+        if authors:
+            feed_entry.authors.set(authors)
 
 
 @app.task
@@ -142,6 +162,33 @@ def _get_unified_document(
             doc = None
 
     return doc
+
+
+def _get_authors_for_item(item: Any, item_content_type: ContentType) -> list[Author]:
+    """
+    Extract authors from different content types.
+
+    Returns:
+        List of Author objects associated with the item.
+    """
+    authors = []
+
+    match item_content_type.model:
+        case "paper" | "researchhubpost":
+            # Papers and Posts have a ManyToMany relationship with authors
+            if hasattr(item, "authors"):
+                authors = list(item.authors.all())
+        case "rhcommentmodel":
+            # Comments have a created_by user with an author_profile
+            if (
+                hasattr(item, "created_by")
+                and item.created_by
+                and hasattr(item.created_by, "author_profile")
+                and item.created_by.author_profile
+            ):
+                authors = [item.created_by.author_profile]
+
+    return authors
 
 
 @app.task
