@@ -284,7 +284,6 @@ def refresh_feed_hot_scores_batch(
         update_fields.append("hot_score")
     if update_v2:
         update_fields.append("hot_score_v2")
-        update_fields.append("hot_score_v2_breakdown")
 
     if not update_fields:
         logger.warning("No update fields specified, skipping hot score refresh")
