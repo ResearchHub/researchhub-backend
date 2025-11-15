@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
-from feed.models import FeedEntry
+from feed.models import FeedEntry, HotScoreV2Breakdown
 from researchhub_document.helpers import create_post
 from user.tests.helpers import create_random_default_user
 
@@ -47,6 +47,12 @@ class TestHotScoreV2(TestCase):
         # Verify score is calculated and is an integer
         self.assertGreater(score, 0)
         self.assertIsInstance(score, int)
+
+        # Verify breakdown was created in separate table
+        self.assertTrue(hasattr(feed_entry, "hot_score_breakdown_v2"))
+        self.assertIsNotNone(feed_entry.hot_score_breakdown_v2)
+        self.assertIsInstance(feed_entry.hot_score_breakdown_v2, HotScoreV2Breakdown)
+        self.assertIn("calculation", feed_entry.hot_score_breakdown_v2.breakdown_data)
 
     def test_json_fields_used_not_models(self):
         """Test that JSON metrics are used, not model attributes."""
@@ -492,3 +498,167 @@ class TestHotScoreV2(TestCase):
         # Verify steps is a list
         self.assertIsInstance(breakdown["steps"], list)
         self.assertGreater(len(breakdown["steps"]), 0)
+
+        # Verify breakdown is stored in separate table
+        self.assertTrue(hasattr(feed_entry, "hot_score_breakdown_v2"))
+        self.assertIsNotNone(feed_entry.hot_score_breakdown_v2)
+        self.assertEqual(breakdown, feed_entry.hot_score_breakdown_v2.breakdown_data)
+
+    def test_breakdown_created_when_calculating_hot_score_v2(self):
+        """Test HotScoreV2Breakdown is created when calculate_hot_score_v2 is called."""
+        post = create_post(created_by=self.user)
+
+        content = {"id": post.id, "title": "Test Post", "bounties": [], "purchases": []}
+        metrics = {"votes": 10, "replies": 0, "review_metrics": {"count": 0}}
+
+        feed_entry = FeedEntry.objects.create(
+            item=post,
+            unified_document=post.unified_document,
+            content_type=ContentType.objects.get_for_model(post),
+            object_id=post.id,
+            action=FeedEntry.PUBLISH,
+            action_date=self.now,
+            content=content,
+            metrics=metrics,
+        )
+
+        # Initially no breakdown should exist
+        self.assertFalse(
+            hasattr(feed_entry, "hot_score_breakdown_v2")
+            and feed_entry.hot_score_breakdown_v2
+        )
+
+        # Calculate hot score
+        score = feed_entry.calculate_hot_score_v2()
+
+        # Verify breakdown was created
+        feed_entry.refresh_from_db()
+        self.assertTrue(
+            hasattr(feed_entry, "hot_score_breakdown_v2")
+            and feed_entry.hot_score_breakdown_v2 is not None
+        )
+        breakdown = feed_entry.hot_score_breakdown_v2
+        self.assertIsInstance(breakdown, HotScoreV2Breakdown)
+        self.assertEqual(breakdown.feed_entry_id, feed_entry.id)
+        self.assertIn("calculation", breakdown.breakdown_data)
+        self.assertEqual(breakdown.breakdown_data["calculation"]["final_score"], score)
+
+    def test_breakdown_updated_on_recalculation(self):
+        """Test that breakdown is updated when hot_score_v2 is recalculated."""
+        post = create_post(created_by=self.user)
+
+        content = {"id": post.id, "title": "Test Post", "bounties": [], "purchases": []}
+        metrics = {"votes": 10, "replies": 0, "review_metrics": {"count": 0}}
+
+        feed_entry = FeedEntry.objects.create(
+            item=post,
+            unified_document=post.unified_document,
+            content_type=ContentType.objects.get_for_model(post),
+            object_id=post.id,
+            action=FeedEntry.PUBLISH,
+            action_date=self.now,
+            content=content,
+            metrics=metrics,
+        )
+
+        # Calculate first time
+        score1 = feed_entry.calculate_hot_score_v2()
+        breakdown_id_1 = feed_entry.hot_score_breakdown_v2.id
+
+        # Update metrics to change score
+        feed_entry.metrics = {
+            "votes": 100,
+            "replies": 0,
+            "review_metrics": {"count": 0},
+        }
+        feed_entry.save()
+
+        # Recalculate
+        score2 = feed_entry.calculate_hot_score_v2()
+
+        # Verify same breakdown object was updated (not recreated)
+        feed_entry.refresh_from_db()
+        breakdown_id_2 = feed_entry.hot_score_breakdown_v2.id
+        self.assertEqual(breakdown_id_1, breakdown_id_2)
+
+        # Verify breakdown data was updated
+        self.assertEqual(
+            feed_entry.hot_score_breakdown_v2.breakdown_data["calculation"][
+                "final_score"
+            ],
+            score2,
+        )
+        self.assertNotEqual(score1, score2)
+
+    def test_breakdown_deleted_when_no_item(self):
+        """Test that breakdown is deleted when feed entry has no item."""
+        post = create_post(created_by=self.user)
+
+        content = {"id": post.id, "title": "Test Post", "bounties": [], "purchases": []}
+        metrics = {"votes": 10, "replies": 0, "review_metrics": {"count": 0}}
+
+        feed_entry = FeedEntry.objects.create(
+            item=post,
+            unified_document=post.unified_document,
+            content_type=ContentType.objects.get_for_model(post),
+            object_id=post.id,
+            action=FeedEntry.PUBLISH,
+            action_date=self.now,
+            content=content,
+            metrics=metrics,
+        )
+
+        # Create a breakdown first
+        feed_entry.calculate_hot_score_v2()
+        self.assertIsNotNone(feed_entry.hot_score_breakdown_v2)
+
+        # Delete the item (simulate item being deleted)
+        feed_entry.content_type = None
+        feed_entry.object_id = None
+        feed_entry.save()
+
+        # Recalculate - should delete breakdown
+        feed_entry.calculate_hot_score_v2()
+
+        # Verify breakdown was deleted
+        feed_entry.refresh_from_db()
+        self.assertFalse(
+            HotScoreV2Breakdown.objects.filter(feed_entry=feed_entry).exists()
+        )
+
+    def test_breakdown_one_to_one_relationship(self):
+        """Test that OneToOneField relationship works correctly."""
+        post = create_post(created_by=self.user)
+
+        content = {"id": post.id, "title": "Test Post", "bounties": [], "purchases": []}
+        metrics = {"votes": 10, "replies": 0, "review_metrics": {"count": 0}}
+
+        feed_entry = FeedEntry.objects.create(
+            item=post,
+            unified_document=post.unified_document,
+            content_type=ContentType.objects.get_for_model(post),
+            object_id=post.id,
+            action=FeedEntry.PUBLISH,
+            action_date=self.now,
+            content=content,
+            metrics=metrics,
+        )
+
+        feed_entry.calculate_hot_score_v2()
+
+        # Verify relationship
+        breakdown = feed_entry.hot_score_breakdown_v2
+        self.assertEqual(breakdown.feed_entry, feed_entry)
+        self.assertEqual(breakdown.feed_entry_id, feed_entry.id)
+
+        # Verify we can access feed_entry from breakdown
+        self.assertEqual(breakdown.feed_entry.id, feed_entry.id)
+
+        # Verify only one breakdown per feed_entry (unique constraint)
+        from django.db import IntegrityError
+
+        with self.assertRaises(IntegrityError):
+            HotScoreV2Breakdown.objects.create(
+                feed_entry=feed_entry,
+                breakdown_data={"test": "data"},
+            )
