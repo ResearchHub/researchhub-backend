@@ -471,6 +471,9 @@ class TestHotScoreV2(TestCase):
             metrics=metrics,
         )
 
+        # Calculate hot score to create breakdown in separate table
+        feed_entry.calculate_hot_score_v2()
+
         breakdown = get_hot_score_breakdown(feed_entry)
 
         # Verify structure
@@ -500,8 +503,11 @@ class TestHotScoreV2(TestCase):
         self.assertGreater(len(breakdown["steps"]), 0)
 
         # Verify breakdown is stored in separate table
-        self.assertTrue(hasattr(feed_entry, "hot_score_breakdown_v2"))
-        self.assertIsNotNone(feed_entry.hot_score_breakdown_v2)
+        feed_entry.refresh_from_db()
+        self.assertTrue(
+            hasattr(feed_entry, "hot_score_breakdown_v2")
+            and feed_entry.hot_score_breakdown_v2 is not None
+        )
         self.assertEqual(breakdown, feed_entry.hot_score_breakdown_v2.breakdown_data)
 
     def test_breakdown_created_when_calculating_hot_score_v2(self):
@@ -611,20 +617,18 @@ class TestHotScoreV2(TestCase):
         # Create a breakdown first
         feed_entry.calculate_hot_score_v2()
         self.assertIsNotNone(feed_entry.hot_score_breakdown_v2)
+        breakdown_id = feed_entry.hot_score_breakdown_v2.id
 
-        # Delete the item (simulate item being deleted)
-        feed_entry.content_type = None
-        feed_entry.object_id = None
-        feed_entry.save()
+        # Delete the post (simulate item being deleted)
+        post.delete()
 
-        # Recalculate - should delete breakdown
+        # Recalculate - should delete breakdown since item is now None
+        feed_entry.refresh_from_db()
         feed_entry.calculate_hot_score_v2()
 
         # Verify breakdown was deleted
         feed_entry.refresh_from_db()
-        self.assertFalse(
-            HotScoreV2Breakdown.objects.filter(feed_entry=feed_entry).exists()
-        )
+        self.assertFalse(HotScoreV2Breakdown.objects.filter(id=breakdown_id).exists())
 
     def test_breakdown_one_to_one_relationship(self):
         """Test that OneToOneField relationship works correctly."""
