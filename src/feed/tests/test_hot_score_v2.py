@@ -666,3 +666,134 @@ class TestHotScoreV2(TestCase):
                 feed_entry=feed_entry,
                 breakdown_data={"test": "data"},
             )
+
+    def test_breakdown_str_representation(self):
+        """Test HotScoreV2Breakdown __str__ method."""
+        post = create_post(created_by=self.user)
+
+        content = {"id": post.id, "title": "Test Post", "bounties": [], "purchases": []}
+        metrics = {"votes": 10, "replies": 0, "review_metrics": {"count": 0}}
+
+        feed_entry = FeedEntry.objects.create(
+            item=post,
+            unified_document=post.unified_document,
+            content_type=ContentType.objects.get_for_model(post),
+            object_id=post.id,
+            action=FeedEntry.PUBLISH,
+            action_date=self.now,
+            content=content,
+            metrics=metrics,
+        )
+
+        feed_entry.calculate_hot_score_v2()
+
+        breakdown = feed_entry.hot_score_breakdown_v2
+        str_repr = str(breakdown)
+        self.assertIn(str(feed_entry.id), str_repr)
+        self.assertIn("HotScoreV2Breakdown", str_repr)
+
+    def test_breakdown_deleted_when_no_calc_data(self):
+        """Test that breakdown is deleted when calculation returns no data."""
+        post = create_post(created_by=self.user)
+
+        content = {"id": post.id, "title": "Test Post", "bounties": [], "purchases": []}
+        metrics = {"votes": 10, "replies": 0, "review_metrics": {"count": 0}}
+
+        feed_entry = FeedEntry.objects.create(
+            item=post,
+            unified_document=post.unified_document,
+            content_type=ContentType.objects.get_for_model(post),
+            object_id=post.id,
+            action=FeedEntry.PUBLISH,
+            action_date=self.now,
+            content=content,
+            metrics=metrics,
+        )
+
+        # Create a breakdown first
+        feed_entry.calculate_hot_score_v2()
+        breakdown_id = feed_entry.hot_score_breakdown_v2.id
+
+        # Mock calculate_hot_score to return None (no calc_data)
+        from unittest.mock import patch
+
+        with patch("feed.hot_score.calculate_hot_score", return_value=None):
+            feed_entry.calculate_hot_score_v2()
+
+        # Verify breakdown was deleted
+        feed_entry.refresh_from_db()
+        self.assertFalse(HotScoreV2Breakdown.objects.filter(id=breakdown_id).exists())
+
+    def test_breakdown_deleted_on_exception(self):
+        """Test that breakdown is deleted when exception occurs during calculation."""
+        post = create_post(created_by=self.user)
+
+        content = {"id": post.id, "title": "Test Post", "bounties": [], "purchases": []}
+        metrics = {"votes": 10, "replies": 0, "review_metrics": {"count": 0}}
+
+        feed_entry = FeedEntry.objects.create(
+            item=post,
+            unified_document=post.unified_document,
+            content_type=ContentType.objects.get_for_model(post),
+            object_id=post.id,
+            action=FeedEntry.PUBLISH,
+            action_date=self.now,
+            content=content,
+            metrics=metrics,
+        )
+
+        # Create a breakdown first
+        feed_entry.calculate_hot_score_v2()
+        breakdown_id = feed_entry.hot_score_breakdown_v2.id
+
+        # Mock calculate_hot_score to raise an exception, and
+        # calculate_hot_score_for_item to return a fallback score
+        from unittest.mock import patch
+
+        with (
+            patch(
+                "feed.hot_score.calculate_hot_score",
+                side_effect=ValueError("Test error"),
+            ),
+            patch("feed.models.calculate_hot_score_for_item", return_value=42),
+        ):
+            # Should not raise, should handle gracefully
+            score = feed_entry.calculate_hot_score_v2()
+            self.assertEqual(score, 42)
+
+        # Verify breakdown was deleted on error
+        feed_entry.refresh_from_db()
+        self.assertFalse(HotScoreV2Breakdown.objects.filter(id=breakdown_id).exists())
+
+    def test_breakdown_handles_object_does_not_exist(self):
+        """Test ObjectDoesNotExist exception is handled when breakdown doesn't exist."""
+        post = create_post(created_by=self.user)
+
+        content = {"id": post.id, "title": "Test Post", "bounties": [], "purchases": []}
+        metrics = {"votes": 10, "replies": 0, "review_metrics": {"count": 0}}
+
+        feed_entry = FeedEntry.objects.create(
+            item=post,
+            unified_document=post.unified_document,
+            content_type=ContentType.objects.get_for_model(post),
+            object_id=post.id,
+            action=FeedEntry.PUBLISH,
+            action_date=self.now,
+            content=content,
+            metrics=metrics,
+        )
+
+        # Ensure no breakdown exists initially
+        from django.core.exceptions import ObjectDoesNotExist
+
+        with self.assertRaises(ObjectDoesNotExist):
+            _ = feed_entry.hot_score_breakdown_v2
+
+        # Delete the post to trigger the "no item" path
+        # This should handle ObjectDoesNotExist gracefully
+        post.delete()
+
+        # This should not raise ObjectDoesNotExist - should handle gracefully
+        feed_entry.refresh_from_db()
+        score = feed_entry.calculate_hot_score_v2()
+        self.assertEqual(score, 0)
