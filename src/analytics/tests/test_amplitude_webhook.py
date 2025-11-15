@@ -53,7 +53,7 @@ class AmplitudeWebhookTestCase(TestCase):
                     "id": str(self.post.id),
                 },
             },
-            "time": 1234567890000,
+            "time_": 1234567890000,
         }
 
         response = self.client.post(
@@ -77,7 +77,7 @@ class AmplitudeWebhookTestCase(TestCase):
                             "id": str(self.post.id),
                         },
                     },
-                    "time": 1234567890000,
+                    "time_": 1234567890000,
                 },
                 {
                     "event_type": "work_document_viewed",
@@ -89,7 +89,7 @@ class AmplitudeWebhookTestCase(TestCase):
                             "id": str(self.post.id),
                         },
                     },
-                    "time": 1234567891000,
+                    "time_": 1234567891000,
                 },
             ]
         }
@@ -115,7 +115,7 @@ class AmplitudeWebhookTestCase(TestCase):
                             "id": str(self.post.id),
                         },
                     },
-                    "time": 1234567890000,
+                    "time_": 1234567890000,
                 },
                 {
                     "event_type": "feed_item_clicked",
@@ -127,7 +127,7 @@ class AmplitudeWebhookTestCase(TestCase):
                             "id": str(self.post.id),
                         },
                     },
-                    "time": 1234567891000,
+                    "time_": 1234567891000,
                 },
             ]
         }
@@ -153,7 +153,7 @@ class AmplitudeWebhookTestCase(TestCase):
                     "id": str(self.post.id),
                 },
             },
-            "time": 1234567890000,
+            "time_": 1234567890000,
         }
 
         response = self.client.post(
