@@ -110,7 +110,7 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
             "user",
             "user__author_profile",
             "user__userverification",
-            "hot_score_breakdown_v2",  # For breakdown data when requested
+            "hot_score_breakdown_v2",
         )
 
         # Apply source filter

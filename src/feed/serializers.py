@@ -664,7 +664,6 @@ class FeedEntrySerializer(serializers.ModelSerializer):
         if include.lower() != "true":
             return None
 
-        # Return stored breakdown (already calculated) via relationship
         if hasattr(obj, "hot_score_breakdown_v2") and obj.hot_score_breakdown_v2:
             return obj.hot_score_breakdown_v2.breakdown_data
         return None

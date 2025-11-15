@@ -177,7 +177,6 @@ class FeedEntry(DefaultModel):
             # Get content type
             item = self.item
             if not item:
-                # Clear breakdown if no item
                 try:
                     if self.hot_score_breakdown_v2:
                         self.hot_score_breakdown_v2.delete()
@@ -193,7 +192,6 @@ class FeedEntry(DefaultModel):
             )
 
             if not calc_data:
-                # Clear breakdown if no calc data
                 try:
                     if self.hot_score_breakdown_v2:
                         self.hot_score_breakdown_v2.delete()
@@ -204,7 +202,6 @@ class FeedEntry(DefaultModel):
             # Format breakdown from calculation data
             breakdown_data = format_breakdown_from_calc_data(calc_data)
 
-            # Create or update breakdown object
             breakdown, created = HotScoreV2Breakdown.objects.update_or_create(
                 feed_entry=self,
                 defaults={"breakdown_data": breakdown_data},
@@ -219,7 +216,6 @@ class FeedEntry(DefaultModel):
             logging.getLogger(__name__).error(
                 f"Error calculating hot score v2 for entry {self.id}: {e}"
             )
-            # Clear breakdown on error
             try:
                 if self.hot_score_breakdown_v2:
                     self.hot_score_breakdown_v2.delete()
