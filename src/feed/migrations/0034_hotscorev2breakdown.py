@@ -24,8 +24,6 @@ class Migration(migrations.Migration):
                         verbose_name="ID",
                     ),
                 ),
-                ("created_date", models.DateTimeField(auto_now_add=True)),
-                ("updated_date", models.DateTimeField(auto_now=True)),
                 (
                     "breakdown_data",
                     models.JSONField(
@@ -33,7 +31,10 @@ class Migration(migrations.Migration):
                         db_comment="Detailed breakdown of hot_score_v2 calculation.",
                         default=dict,
                         encoder=django.core.serializers.json.DjangoJSONEncoder,
-                        help_text="Contains equation, steps, signals, time_factors, and calculation details for transparency and debugging.",
+                        help_text=(
+                            "Contains equation, steps, signals, time_factors, and "
+                            "calculation details for transparency and debugging."
+                        ),
                     ),
                 ),
                 (

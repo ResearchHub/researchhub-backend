@@ -33,8 +33,6 @@ def migrate_breakdown_data(apps, schema_editor):
                 HotScoreV2Breakdown(
                     feed_entry_id=entry.id,
                     breakdown_data=entry.hot_score_v2_breakdown,
-                    created_date=entry.created_date,
-                    updated_date=entry.updated_date,
                 )
             )
 

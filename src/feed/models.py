@@ -14,7 +14,7 @@ from user.related_models.author_model import Author
 from utils.models import DefaultModel
 
 
-class HotScoreV2Breakdown(DefaultModel):
+class HotScoreV2Breakdown(models.Model):
     """Separate table for hot score v2 breakdown JSONB data to improve performance."""
 
     feed_entry = models.OneToOneField(
