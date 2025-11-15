@@ -671,6 +671,10 @@ OPENSEARCH_DSL_PARALLEL = True
 OPENSEARCH_DSL_QUERYSET_PAGINATION = 1024
 OPENSEARCH_DSL_SIGNAL_PROCESSOR = "search.celery.CelerySignalProcessor"
 
+# Disable OpenSearch auto-sync in test environment
+if TESTING:
+    OPENSEARCH_DSL_AUTOSYNC = False
+
 
 # Web3
 # https://web3py.readthedocs.io/en/stable/
@@ -882,3 +886,5 @@ else:
     AWS_PERSONALIZE_FILTER_ARN_GTE_DATE = (
         "arn:aws:personalize:us-west-2:058264226692:filter/filter-gte-date"
     )
+
+SCRAPER_URL = os.environ.get("SCRAPER_URL", keys.SCRAPER_URL)

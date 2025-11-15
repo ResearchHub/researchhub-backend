@@ -181,9 +181,26 @@ def get_location_for_unsupported_pdf(csl_item):
 
 
 def download_pdf_from_url(url: str) -> ContentFile:
+    """
+    Downloads a PDF from a URL and validates that it's actually a PDF.
+
+    Raises:
+        ValueError: If the URL does not point to a PDF file
+    """
     scraper = cloudscraper.create_scraper()
-    with scraper.get(url, timeout=10) as response:
+    with scraper.get(url, timeout=60) as response:
         response.raise_for_status()
+
+        # Validate that the response is a PDF
+        content_type = response.headers.get("content-type", "").lower()
+        filename_header = response.headers.get("filename", "").lower()
+        is_pdf = "application/pdf" in content_type or ".pdf" in filename_header
+
+        if not is_pdf:
+            raise ValueError(
+                f"URL does not point to a PDF file. Content-Type: {content_type}"
+            )
+
         content = response.content
 
     filename = url.split("/").pop()
