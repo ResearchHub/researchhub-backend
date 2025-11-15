@@ -72,6 +72,7 @@ class AmplitudeEvent:
         content_type: ContentType,
         object_id: int,
         event_timestamp: datetime,
+        personalize_rec_id: Optional[str] = None,
     ):
         self.user = user
         self.event_type = event_type
@@ -79,6 +80,7 @@ class AmplitudeEvent:
         self.content_type = content_type
         self.object_id = object_id
         self.event_timestamp = event_timestamp
+        self.personalize_rec_id = personalize_rec_id
 
 
 class AmplitudeEventParser:
@@ -213,6 +215,11 @@ class AmplitudeEventParser:
             else:
                 event_timestamp = datetime.now()
 
+            recommendation_id = event_props.get("recommendation_id")
+            personalize_rec_id = (
+                str(recommendation_id) if recommendation_id is not None else None
+            )
+
             amplitude_event = AmplitudeEvent(
                 user=user,
                 event_type=db_event_type,
@@ -220,6 +227,7 @@ class AmplitudeEventParser:
                 content_type=content_type,
                 object_id=object_id,
                 event_timestamp=event_timestamp,
+                personalize_rec_id=personalize_rec_id,
             )
 
             return amplitude_event
