@@ -75,7 +75,7 @@ def download_pdf(paper_id, retry=0):
 
 
 def _create_download_url(url: str, external_source: str) -> str:
-    if external_source != "biorxiv":
+    if external_source not in ["arxiv", "biorxiv"]:
         return url
 
     scraper_url = settings.SCRAPER_URL
