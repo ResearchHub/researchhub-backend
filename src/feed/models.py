@@ -14,6 +14,41 @@ from user.related_models.author_model import Author
 from utils.models import DefaultModel
 
 
+class HotScoreV2Breakdown(DefaultModel):
+    """Separate table for hot score v2 breakdown JSONB data to improve performance."""
+
+    feed_entry = models.OneToOneField(
+        "FeedEntry",
+        on_delete=models.CASCADE,
+        related_name="hot_score_breakdown_v2",
+        db_index=True,
+        help_text="The feed entry this breakdown belongs to.",
+    )
+    breakdown_data = models.JSONField(
+        encoder=DjangoJSONEncoder,
+        default=dict,
+        blank=True,
+        null=False,
+        db_comment="Detailed breakdown of hot_score_v2 calculation.",
+        help_text=(
+            "Contains equation, steps, signals, time_factors, and calculation "
+            "details for transparency and debugging."
+        ),
+    )
+
+    class Meta:
+        db_table = "feed_hotscorev2breakdown"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["feed_entry"],
+                name="unique_feed_entry_breakdown",
+            ),
+        ]
+
+    def __str__(self):
+        return f"HotScoreV2Breakdown for FeedEntry {self.feed_entry_id}"
+
+
 class FeedEntry(DefaultModel):
     OPEN = "OPEN"
     PUBLISH = "PUBLISH"
@@ -45,18 +80,6 @@ class FeedEntry(DefaultModel):
         default=0,
         help_text="New hot score algorithm (v2)",
         db_index=True,
-    )
-
-    hot_score_v2_breakdown = models.JSONField(
-        encoder=DjangoJSONEncoder,
-        default=dict,
-        blank=True,
-        null=False,
-        db_comment="Detailed breakdown of hot_score_v2 calculation.",
-        help_text=(
-            "Contains equation, steps, signals, time_factors, and calculation "
-            "details for transparency and debugging."
-        ),
     )
 
     metrics = models.JSONField(
@@ -145,6 +168,7 @@ class FeedEntry(DefaultModel):
     def calculate_hot_score_v2(self):
         """Calculate hot score using new v2 algorithm and store breakdown."""
         from django.contrib.contenttypes.models import ContentType
+        from django.core.exceptions import ObjectDoesNotExist
 
         from feed.hot_score import calculate_hot_score
         from feed.hot_score_breakdown import format_breakdown_from_calc_data
@@ -153,7 +177,12 @@ class FeedEntry(DefaultModel):
             # Get content type
             item = self.item
             if not item:
-                self.hot_score_v2_breakdown = {}
+                # Clear breakdown if no item
+                try:
+                    if self.hot_score_breakdown_v2:
+                        self.hot_score_breakdown_v2.delete()
+                except ObjectDoesNotExist:
+                    pass
                 return 0
 
             item_content_type = ContentType.objects.get_for_model(item)
@@ -164,11 +193,22 @@ class FeedEntry(DefaultModel):
             )
 
             if not calc_data:
-                self.hot_score_v2_breakdown = {}
+                # Clear breakdown if no calc data
+                try:
+                    if self.hot_score_breakdown_v2:
+                        self.hot_score_breakdown_v2.delete()
+                except ObjectDoesNotExist:
+                    pass
                 return 0
 
             # Format breakdown from calculation data
-            self.hot_score_v2_breakdown = format_breakdown_from_calc_data(calc_data)
+            breakdown_data = format_breakdown_from_calc_data(calc_data)
+
+            # Create or update breakdown object
+            breakdown, created = HotScoreV2Breakdown.objects.update_or_create(
+                feed_entry=self,
+                defaults={"breakdown_data": breakdown_data},
+            )
 
             # Return the score
             return calc_data["final_score"]
@@ -179,7 +219,12 @@ class FeedEntry(DefaultModel):
             logging.getLogger(__name__).error(
                 f"Error calculating hot score v2 for entry {self.id}: {e}"
             )
-            self.hot_score_v2_breakdown = {}
+            # Clear breakdown on error
+            try:
+                if self.hot_score_breakdown_v2:
+                    self.hot_score_breakdown_v2.delete()
+            except ObjectDoesNotExist:
+                pass
             # Fallback: calculate score directly
             score = calculate_hot_score_for_item(self)
             return score

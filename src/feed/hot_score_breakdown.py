@@ -13,7 +13,8 @@ def get_hot_score_breakdown(feed_entry):
     """
     Get detailed breakdown of hot score calculation with equation and steps.
 
-    Uses calculate_hot_score() as single source of truth.
+    Uses stored breakdown if available, otherwise calculates it using
+    calculate_hot_score() as single source of truth.
 
     Args:
         feed_entry: FeedEntry instance
@@ -21,6 +22,14 @@ def get_hot_score_breakdown(feed_entry):
     Returns:
         dict with formatted breakdown
     """
+    # Use stored breakdown if available
+    if (
+        hasattr(feed_entry, "hot_score_breakdown_v2")
+        and feed_entry.hot_score_breakdown_v2
+    ):
+        return feed_entry.hot_score_breakdown_v2.breakdown_data
+
+    # Otherwise calculate it
     from django.contrib.contenttypes.models import ContentType
 
     from feed.hot_score import calculate_hot_score
