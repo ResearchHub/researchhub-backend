@@ -72,10 +72,10 @@ class AmplitudeEvent:
         content_type: ContentType,
         object_id: int,
         event_timestamp: datetime,
-        session_id: Optional[str] = None,
+        external_user_id: Optional[str] = None,
     ):
         self.user = user
-        self.session_id = session_id
+        self.external_user_id = external_user_id
         self.event_type = event_type
         self.unified_document = unified_document
         self.content_type = content_type
@@ -119,7 +119,7 @@ class AmplitudeEventParser:
             db_event_type = AMPLITUDE_TO_DB_EVENT_MAP[event_type]
 
             user_id = event_props.get("user_id")
-            session_id = event.get("amplitude_id") or event_props.get("amplitude_id")
+            external_user_id = event.get("amplitude_id") or event_props.get("amplitude_id")
 
             user = None
             if user_id:
@@ -129,12 +129,12 @@ class AmplitudeEventParser:
                 except (ValueError, User.DoesNotExist) as e:
                     logger.warning(
                         f"Invalid user_id '{user_id}' for event_type "
-                        f"'{event_type}': {e}. Continuing with session_id only."
+                        f"'{event_type}': {e}. Continuing with external_user_id only."
                     )
 
-            if not user and not session_id:
+            if not user and not external_user_id:
                 logger.warning(
-                    f"No user_id or session_id (amplitude_id) found for event_type "
+                    f"No user_id or external_user_id (amplitude_id) found for event_type "
                     f"'{event_type}'. Event: {event}"
                 )
                 return None
@@ -144,7 +144,7 @@ class AmplitudeEventParser:
                 user_identifier = (
                     user_id
                     if user_id
-                    else f"session_id:{session_id}" if session_id else "unknown"
+                    else f"external_user_id:{external_user_id}" if external_user_id else "unknown"
                 )
                 logger.warning(
                     f"No related_work data found for event_type '{event_type}', "
@@ -231,7 +231,7 @@ class AmplitudeEventParser:
                 content_type=content_type,
                 object_id=object_id,
                 event_timestamp=event_timestamp,
-                session_id=session_id,
+                external_user_id=external_user_id,
             )
 
             return amplitude_event

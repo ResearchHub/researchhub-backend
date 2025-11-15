@@ -61,7 +61,7 @@ class UserInteractionsModelTests(TestCase):
 
         UserInteractions.objects.create(
             user=self.user,
-            session_id="test_session_123",
+            external_user_id="test_session_123",
             event=PAGE_VIEW,
             unified_document=self.unified_document,
             content_type=self.content_type,
@@ -73,7 +73,7 @@ class UserInteractionsModelTests(TestCase):
         with self.assertRaises(IntegrityError):
             UserInteractions.objects.create(
                 user=self.user,
-                session_id="test_session_123",
+                external_user_id="test_session_123",
                 event=PAGE_VIEW,
                 unified_document=self.unified_document,
                 content_type=self.content_type,
@@ -89,7 +89,7 @@ class UserInteractionsModelTests(TestCase):
         # Create page view today
         interaction1 = UserInteractions.objects.create(
             user=self.user,
-            session_id="test_session_123",
+            external_user_id="test_session_123",
             event=PAGE_VIEW,
             unified_document=self.unified_document,
             content_type=self.content_type,
@@ -100,7 +100,7 @@ class UserInteractionsModelTests(TestCase):
         # Create page view tomorrow - should succeed
         interaction2 = UserInteractions.objects.create(
             user=self.user,
-            session_id="test_session_123",
+            external_user_id="test_session_123",
             event=PAGE_VIEW,
             unified_document=self.unified_document,
             content_type=self.content_type,
@@ -120,7 +120,7 @@ class UserInteractionsModelTests(TestCase):
         # Create page view for first user
         interaction1 = UserInteractions.objects.create(
             user=self.user,
-            session_id="test_session_user1",
+            external_user_id="test_session_user1",
             event=PAGE_VIEW,
             unified_document=self.unified_document,
             content_type=self.content_type,
@@ -131,7 +131,7 @@ class UserInteractionsModelTests(TestCase):
         # Create page view for second user same day - should succeed
         interaction2 = UserInteractions.objects.create(
             user=user2,
-            session_id="test_session_user2",
+            external_user_id="test_session_user2",
             event=PAGE_VIEW,
             unified_document=self.unified_document,
             content_type=self.content_type,

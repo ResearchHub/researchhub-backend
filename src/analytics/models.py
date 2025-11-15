@@ -30,12 +30,12 @@ class UserInteractions(DefaultModel):
         null=True,
         blank=True,
     )
-    session_id = models.CharField(
+    external_user_id = models.CharField(
         max_length=255,
         null=True,
         blank=True,
         help_text=(
-            "Session ID (from Amplitude analytics_id) for anonymous and "
+            "External user ID (from Amplitude analytics_id) for anonymous and "
             "authenticated users"
         ),
     )
@@ -64,7 +64,7 @@ class UserInteractions(DefaultModel):
     class Meta:
         indexes = [
             models.Index(fields=["user"]),
-            models.Index(fields=["session_id"]),
+            models.Index(fields=["external_user_id"]),
             models.Index(fields=["event"]),
             models.Index(fields=["event_timestamp"]),
             models.Index(
@@ -90,7 +90,7 @@ class UserInteractions(DefaultModel):
             # Daily uniqueness for repeatable events
             models.UniqueConstraint(
                 TruncDate("event_timestamp"),
-                "session_id",
+                "external_user_id",
                 "event",
                 "unified_document",
                 "content_type",
@@ -102,7 +102,9 @@ class UserInteractions(DefaultModel):
 
     def __str__(self):
         user_identifier = (
-            self.user_id if self.user_id else f"session_id:{self.session_id}"
+            self.user_id
+            if self.user_id
+            else f"external_user_id:{self.external_user_id}"
         )
         return (
             f"UserInteraction: {user_identifier} - {self.event} - "

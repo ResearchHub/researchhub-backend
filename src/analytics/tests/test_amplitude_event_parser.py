@@ -176,7 +176,7 @@ class AmplitudeEventParserTests(TestCase):
             interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsNone(interaction)
-        self.assertIn("No user_id or session_id (amplitude_id) found", log.output[0])
+        self.assertIn("No user_id or external_user_id (amplitude_id) found", log.output[0])
 
     def test_invalid_event_type_returns_none(self):
         """Test that invalid event types return None."""
