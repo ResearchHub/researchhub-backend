@@ -8,6 +8,7 @@ from utils.models import DefaultAuthenticatedModel, SoftDeletableModel
 
 class List(DefaultAuthenticatedModel, SoftDeletableModel):
     name = models.CharField(max_length=120)
+    updated_date = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"{self.created_by}:{self.name}"
@@ -34,6 +35,8 @@ class ListItem(DefaultAuthenticatedModel, SoftDeletableModel):
         on_delete=models.CASCADE,
         related_name="user_list_items",
     )
+    
+    updated_date = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-created_date"]
