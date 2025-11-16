@@ -105,7 +105,7 @@ class ListItemViewSetTests(APITestCase):
             "parent_list": other_list.id,
             "unified_document": self.doc.id,
         })
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_cannot_add_item_to_deleted_list(self):
         self.list.is_removed = True
