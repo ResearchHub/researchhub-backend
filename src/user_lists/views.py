@@ -2,20 +2,27 @@ from django.db import IntegrityError
 from django.db.models import Count, Q
 from rest_framework import status, viewsets
 from rest_framework.mixins import DestroyModelMixin
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from researchhub_document.models import ResearchhubUnifiedDocument
-from researchhub_document.serializers import ResearchhubUnifiedDocumentSerializer
+from feed.views.common import FeedPagination
 
 from .models import List, ListItem
 from .serializers import ListSerializer, ListItemSerializer
+
+
+class ListPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
 
 
 class ListViewSet(viewsets.ModelViewSet):
     queryset = List.objects.filter(is_removed=False)
     serializer_class = ListSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = ListPagination
 
     def get_queryset(self):
         return self.queryset.filter(created_by=self.request.user).annotate(
@@ -33,25 +40,26 @@ class ListItemViewSet(DestroyModelMixin, viewsets.GenericViewSet):
     queryset = ListItem.objects.filter(is_removed=False)
     serializer_class = ListItemSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = FeedPagination
 
     def get_queryset(self):
         return self.queryset.filter(parent_list__created_by=self.request.user)
 
     def list(self, request, *args, **kwargs):
-        parent_list = request.query_params.get("parent_list")
-        if not parent_list:
+        parent_list_id = request.query_params.get("parent_list")
+        if not parent_list_id:
             return Response({"error": "parent_list is required"}, status=status.HTTP_400_BAD_REQUEST)
+        check_list_exists = List.objects.filter(id=parent_list_id, created_by=request.user, is_removed=False).exists()
+        if not check_list_exists:
+            return Response({"error": "List not found"}, status=status.HTTP_404_NOT_FOUND)
         
-        items = self.get_queryset().filter(parent_list_id=parent_list).values_list("unified_document_id", flat=True)
-        unified_docs = ResearchhubUnifiedDocument.objects.filter(id__in=items, is_removed=False)
+        list_items = self.get_queryset().filter(
+            parent_list_id=parent_list_id, unified_document__is_removed=False
+        )
         
-        page = self.paginate_queryset(unified_docs)
-        if page is not None:
-            serializer = ResearchhubUnifiedDocumentSerializer(page, many=True, context={"request": request})
-            return self.get_paginated_response(serializer.data)
-        
-        serializer = ResearchhubUnifiedDocumentSerializer(unified_docs, many=True, context={"request": request})
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        page = self.paginate_queryset(list_items)
+        serializer = self.get_serializer(page or list_items, many=True)
+        return self.get_paginated_response(serializer.data) if page else Response(serializer.data)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
