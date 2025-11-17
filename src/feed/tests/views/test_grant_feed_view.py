@@ -102,8 +102,6 @@ class GrantFeedViewTests(APITestCase):
         # Should return all 3 grants since we removed filtering
         self.assertEqual(len(response.data["results"]), 3)
 
-
-
     def test_grant_feed_order_open_first(self):
         """Test that grant feed orders OPEN grants first"""
         self.client.force_authenticate(self.user)
@@ -168,18 +166,18 @@ class GrantFeedViewTests(APITestCase):
         # Get all grants and find the specific ones we want to test
         response = self.client.get("/api/grant_feed/")
         results = response.data["results"]
-        
+
         # Find open grant (not expired)
         open_grant = None
         closed_grant = None
-        
+
         for result in results:
             grant_data = result["content_object"]["grant"]
             if grant_data["status"] == "OPEN":
                 open_grant = grant_data
             elif grant_data["status"] == "CLOSED":
                 closed_grant = grant_data
-        
+
         # Test open grant (not expired)
         self.assertIsNotNone(open_grant, "Open grant not found in results")
         self.assertFalse(open_grant["is_expired"])
@@ -195,7 +193,7 @@ class GrantFeedViewTests(APITestCase):
 
         # Should have results since we return all grants
         self.assertGreater(len(response.data["results"]), 0)
-        
+
         # Check that grant data is included in the first result
         result = response.data["results"][0]
         content_object = result["content_object"]
@@ -364,7 +362,9 @@ class GrantFeedViewTests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["results"]), 1)
-        self.assertEqual(response.data["results"][0]["content_object"]["title"], "Open Grant")
+        self.assertEqual(
+            response.data["results"][0]["content_object"]["title"], "Open Grant"
+        )
 
     def test_grant_feed_filter_by_status_closed(self):
         """Test grant feed filtering by CLOSED status"""
@@ -373,7 +373,9 @@ class GrantFeedViewTests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["results"]), 1)
-        self.assertEqual(response.data["results"][0]["content_object"]["title"], "Closed Grant")
+        self.assertEqual(
+            response.data["results"][0]["content_object"]["title"], "Closed Grant"
+        )
 
     def test_grant_feed_filter_by_status_completed(self):
         """Test grant feed filtering by COMPLETED status"""
@@ -382,7 +384,9 @@ class GrantFeedViewTests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["results"]), 1)
-        self.assertEqual(response.data["results"][0]["content_object"]["title"], "Completed Grant")
+        self.assertEqual(
+            response.data["results"][0]["content_object"]["title"], "Completed Grant"
+        )
 
     def test_grant_feed_filter_by_organization(self):
         """Test grant feed filtering by organization"""
@@ -391,7 +395,9 @@ class GrantFeedViewTests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["results"]), 1)
-        self.assertEqual(response.data["results"][0]["content_object"]["title"], "Open Grant")
+        self.assertEqual(
+            response.data["results"][0]["content_object"]["title"], "Open Grant"
+        )
 
     def test_grant_feed_filter_by_organization_partial_match(self):
         """Test grant feed filtering by organization with partial match"""
@@ -400,7 +406,9 @@ class GrantFeedViewTests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["results"]), 1)
-        self.assertEqual(response.data["results"][0]["content_object"]["title"], "Open Grant")
+        self.assertEqual(
+            response.data["results"][0]["content_object"]["title"], "Open Grant"
+        )
 
     def test_grant_feed_multiple_filters(self):
         """Test grant feed with multiple filters"""
@@ -409,48 +417,63 @@ class GrantFeedViewTests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["results"]), 1)
-        self.assertEqual(response.data["results"][0]["content_object"]["title"], "Open Grant")
+        self.assertEqual(
+            response.data["results"][0]["content_object"]["title"], "Open Grant"
+        )
 
     def test_grant_feed_no_grants(self):
         """Test grant feed with filters that return no results"""
         self.client.force_authenticate(self.user)
-        response = self.client.get("/api/grant_feed/?status=OPEN&organization=NONEXISTENT")
+        response = self.client.get(
+            "/api/grant_feed/?status=OPEN&organization=NONEXISTENT"
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["results"]), 0)
 
     def test_ordering_validation(self):
         """Test that FundOrderingFilter handles different ordering scenarios correctly for grants."""
-        from feed.filters import FundOrderingFilter
         from unittest.mock import Mock, patch
-        from rest_framework.test import APIRequestFactory
+
         from rest_framework.request import Request
-        
+        from rest_framework.test import APIRequestFactory
+
+        from feed.filters import FundOrderingFilter
+
         filter_instance = FundOrderingFilter()
         factory = APIRequestFactory()
         mock_queryset = Mock()
         mock_view = Mock()
-        
+
         # Setup view with ordering_fields and is_grant_view
-        mock_view.ordering_fields = ['newest', 'upvotes', 'most_applicants', 'amount_raised']
-        mock_view.ordering = 'newest'
+        mock_view.ordering_fields = [
+            "newest",
+            "upvotes",
+            "most_applicants",
+            "amount_raised",
+        ]
+        mock_view.ordering = "newest"
         mock_view.is_grant_view = True
-        
+
         # Test custom sorting (upvotes) - patch the specific sorting method
-        request = factory.get('/?ordering=upvotes')
+        request = factory.get("/?ordering=upvotes")
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes, \
-             patch.object(filter_instance, '_apply_include_ended_filter') as mock_filter:
+        with (
+            patch.object(filter_instance, "_apply_upvotes_sorting") as mock_upvotes,
+            patch.object(filter_instance, "_apply_include_ended_filter") as mock_filter,
+        ):
             mock_filter.return_value = mock_queryset
             mock_upvotes.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
             mock_upvotes.assert_called_once_with(mock_queryset)
-        
+
         # Test newest sorting (default - no ordering param)
-        request = factory.get('/')
+        request = factory.get("/")
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_newest_sorting') as mock_newest, \
-             patch.object(filter_instance, '_apply_include_ended_filter') as mock_filter:
+        with (
+            patch.object(filter_instance, "_apply_newest_sorting") as mock_newest,
+            patch.object(filter_instance, "_apply_include_ended_filter") as mock_filter,
+        ):
             mock_filter.return_value = mock_queryset
             mock_newest.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
@@ -458,13 +481,15 @@ class GrantFeedViewTests(APITestCase):
             assert mock_newest.call_count == 1
             args = mock_newest.call_args[0]
             assert args[0] == mock_queryset
-            assert 'model_class' in args[1]  # model_config has model_class
-        
+            assert "model_class" in args[1]  # model_config has model_class
+
         # Test with '-' prefix - should be stripped and work
-        request = factory.get('/?ordering=-upvotes')
+        request = factory.get("/?ordering=-upvotes")
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes, \
-             patch.object(filter_instance, '_apply_include_ended_filter') as mock_filter:
+        with (
+            patch.object(filter_instance, "_apply_upvotes_sorting") as mock_upvotes,
+            patch.object(filter_instance, "_apply_include_ended_filter") as mock_filter,
+        ):
             mock_filter.return_value = mock_queryset
             mock_upvotes.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
@@ -473,15 +498,15 @@ class GrantFeedViewTests(APITestCase):
     def test_ordering_validation_integration(self):
         """Test ordering validation through the actual grant feed API endpoint."""
         self.client.force_authenticate(self.user)
-        
+
         # Test valid ordering
         response = self.client.get("/api/grant_feed/?ordering=upvotes")
         self.assertEqual(response.status_code, 200)
-        
+
         # Test invalid ordering - should fall back to default (newest)
         response = self.client.get("/api/grant_feed/?ordering=invalid_field")
         self.assertEqual(response.status_code, 200)
-        
+
         # Test with '-' prefix - should work
         response = self.client.get("/api/grant_feed/?ordering=-upvotes")
         self.assertEqual(response.status_code, 200)
