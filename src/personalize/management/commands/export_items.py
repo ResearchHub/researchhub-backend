@@ -7,9 +7,9 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import connection, reset_queries
 from django.db.models import Q, QuerySet
 
-from analytics.constants.personalize_constants import SUPPORTED_DOCUMENT_TYPES
 from analytics.models import UserInteractions
-from analytics.services.personalize_export_service import PersonalizeExportService
+from personalize.config.constants import SUPPORTED_DOCUMENT_TYPES
+from personalize.services.export_service import ExportService
 from researchhub_document.models import ResearchhubUnifiedDocument
 
 
@@ -151,7 +151,7 @@ class Command(BaseCommand):
 
         self.stdout.write(f"Exporting {total} items to {filename}...")
 
-        service = PersonalizeExportService(
+        service = ExportService(
             chunk_size=1000,
             debug=self.debug_mode,
             since_publish_date=since_publish_date,
@@ -461,7 +461,7 @@ class Command(BaseCommand):
                 avg_fetch_q = sum(fetch_queries) / len(fetch_queries)
                 if avg_fetch_q > 10:
                     self.stdout.write(
-                        f"     - High query count in fetch ({avg_fetch_q:.0f} avg) - consider optimizing PersonalizeRelatedDataFetcher"
+                        f"     - High query count in fetch ({avg_fetch_q:.0f} avg) - consider optimizing RelatedDataFetcher"
                     )
             elif avg_eval_time > avg_fetch_time and avg_eval_time > avg_map_time:
                 self.stdout.write(

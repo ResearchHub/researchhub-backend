@@ -3,9 +3,9 @@ from typing import List
 
 from rest_framework.filters import BaseFilterBackend
 
-from feed.feed_config import PERSONALIZE_CONFIG
 from feed.models import FeedEntry
 from hub.models import Hub
+from personalize.config.settings import PERSONALIZE_CONFIG
 
 logger = logging.getLogger(__name__)
 

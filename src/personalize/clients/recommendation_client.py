@@ -13,7 +13,7 @@ from utils.aws import create_client
 logger = logging.getLogger(__name__)
 
 
-class PersonalizeClient:
+class RecommendationClient:
     """
     Client for interacting with AWS Personalize to get personalized recommendations.
     """

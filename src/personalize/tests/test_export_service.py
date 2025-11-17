@@ -1,5 +1,5 @@
 """
-Tests for PersonalizeExportService.
+Tests for ExportService.
 """
 
 import csv
@@ -8,14 +8,14 @@ from unittest.mock import patch
 
 from django.test import TestCase
 
-from analytics.constants.personalize_constants import CSV_HEADERS
-from analytics.services.personalize_export_service import PersonalizeExportService
 from analytics.tests.helpers import (
     create_prefetched_grant,
     create_prefetched_paper,
     create_prefetched_post,
     create_prefetched_proposal,
 )
+from personalize.config.constants import CSV_HEADERS
+from personalize.services.export_service import ExportService
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
@@ -43,7 +43,7 @@ class ExportItemsIteratorTests(TestCase):
                 "posts__authors",
             )
         )
-        service = PersonalizeExportService(chunk_size=10)
+        service = ExportService(chunk_size=10)
 
         # Act
         items = list(service.export_items(queryset))
@@ -70,7 +70,7 @@ class ExportItemsIteratorTests(TestCase):
                 "posts__authors",
             )
         )
-        service = PersonalizeExportService(chunk_size=2)
+        service = ExportService(chunk_size=2)
 
         # Act
         items = list(service.export_items(queryset))
@@ -82,7 +82,7 @@ class ExportItemsIteratorTests(TestCase):
         """export_items should handle empty queryset gracefully."""
         # Arrange
         queryset = ResearchhubUnifiedDocument.objects.none()
-        service = PersonalizeExportService(chunk_size=10)
+        service = ExportService(chunk_size=10)
 
         # Act
         items = list(service.export_items(queryset))
@@ -107,7 +107,7 @@ class ExportItemsIteratorTests(TestCase):
                 "posts__authors",
             )
         )
-        service = PersonalizeExportService(chunk_size=10)
+        service = ExportService(chunk_size=10)
 
         # Act
         with patch.object(
@@ -140,7 +140,7 @@ class ExportToCSVTests(TestCase):
                 "posts__authors",
             )
         )
-        service = PersonalizeExportService(chunk_size=10)
+        service = ExportService(chunk_size=10)
 
         # Act
         with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".csv") as f:
@@ -176,7 +176,7 @@ class ExportToCSVTests(TestCase):
                 "posts__authors",
             )
         )
-        service = PersonalizeExportService(chunk_size=10)
+        service = ExportService(chunk_size=10)
 
         # Act
         with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".csv") as f:
@@ -205,7 +205,7 @@ class ExportToCSVTests(TestCase):
                 "posts__authors",
             )
         )
-        service = PersonalizeExportService(chunk_size=10)
+        service = ExportService(chunk_size=10)
 
         # Act
         with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".csv") as f:
@@ -235,7 +235,7 @@ class ExportToCSVTests(TestCase):
                 "posts__authors",
             )
         )
-        service = PersonalizeExportService(chunk_size=2)
+        service = ExportService(chunk_size=2)
 
         # Act
         with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".csv") as f:
@@ -276,7 +276,7 @@ class IntegrationTests(TestCase):
                 "posts__authors",
             )
         )
-        service = PersonalizeExportService(chunk_size=10)
+        service = ExportService(chunk_size=10)
 
         # Act
         with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".csv") as f:
@@ -316,7 +316,7 @@ class IntegrationTests(TestCase):
                 "posts__authors",
             )
         )
-        service = PersonalizeExportService(chunk_size=10)
+        service = ExportService(chunk_size=10)
 
         # Act
         items = list(service.export_items(queryset))

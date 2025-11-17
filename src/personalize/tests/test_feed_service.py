@@ -7,8 +7,8 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from feed.models import FeedEntry
-from feed.services import PersonalizeFeedService
 from hub.models import Hub
+from personalize.services.feed_service import FeedService
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -16,7 +16,7 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 from user.tests.helpers import create_random_default_user
 
 
-class PersonalizeFeedServiceTests(APITestCase):
+class FeedServiceTests(APITestCase):
     def setUp(self):
         cache.clear()
         self.user = create_random_default_user("service_test_user")
@@ -61,7 +61,7 @@ class PersonalizeFeedServiceTests(APITestCase):
         return entries
 
     @patch(
-        "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
+        "personalize.clients.recommendation_client.RecommendationClient.get_recommendations_for_user"
     )
     def test_get_recommendation_ids_uses_cache_on_second_call(
         self, mock_get_recommendations
@@ -89,7 +89,7 @@ class PersonalizeFeedServiceTests(APITestCase):
         reversed_ids = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
         self.mock_client.get_recommendations_for_user.return_value = reversed_ids
 
-        service = PersonalizeFeedService(personalize_client=self.mock_client)
+        service = FeedService(personalize_client=self.mock_client)
         result = service.get_recommendation_ids(
             user_id=self.user.id, filter_param="new-content"
         )
@@ -102,7 +102,7 @@ class PersonalizeFeedServiceTests(APITestCase):
             [4, 5, 6],
         ]
 
-        service = PersonalizeFeedService(personalize_client=self.mock_client)
+        service = FeedService(personalize_client=self.mock_client)
 
         service.get_recommendation_ids(user_id=self.user.id, filter_param="new-content")
 
@@ -115,7 +115,7 @@ class PersonalizeFeedServiceTests(APITestCase):
     def test_different_filters_get_different_cache_keys(self):
         self.mock_client.get_recommendations_for_user.return_value = [1, 2, 3]
 
-        service = PersonalizeFeedService(personalize_client=self.mock_client)
+        service = FeedService(personalize_client=self.mock_client)
 
         service.get_recommendation_ids(user_id=self.user.id, filter_param="new-content")
         self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 1)
@@ -126,7 +126,7 @@ class PersonalizeFeedServiceTests(APITestCase):
     def test_different_users_get_different_cache_keys(self):
         self.mock_client.get_recommendations_for_user.return_value = [1, 2, 3]
 
-        service = PersonalizeFeedService(personalize_client=self.mock_client)
+        service = FeedService(personalize_client=self.mock_client)
 
         service.get_recommendation_ids(user_id=self.user.id, filter_param="new-content")
 
@@ -142,7 +142,7 @@ class PersonalizeFeedServiceTests(APITestCase):
             [4, 5, 6],
         ]
 
-        service = PersonalizeFeedService(personalize_client=self.mock_client)
+        service = FeedService(personalize_client=self.mock_client)
 
         service.get_recommendation_ids(user_id=self.user.id, filter_param="new-content")
 
@@ -157,7 +157,7 @@ class PersonalizeFeedServiceTests(APITestCase):
     def test_force_refresh_bypasses_cache(self):
         self.mock_client.get_recommendations_for_user.return_value = [1, 2, 3]
 
-        service = PersonalizeFeedService(personalize_client=self.mock_client)
+        service = FeedService(personalize_client=self.mock_client)
 
         service.get_recommendation_ids(user_id=self.user.id, filter_param="new-content")
         self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 1)
@@ -170,7 +170,7 @@ class PersonalizeFeedServiceTests(APITestCase):
     def test_force_refresh_updates_cache_with_new_results(self):
         self.mock_client.get_recommendations_for_user.return_value = [1, 2, 3]
 
-        service = PersonalizeFeedService(personalize_client=self.mock_client)
+        service = FeedService(personalize_client=self.mock_client)
 
         service.get_recommendation_ids(user_id=self.user.id, filter_param="new-content")
 
@@ -196,7 +196,7 @@ class PersonalizeFeedServiceTests(APITestCase):
     def test_cache_timeout_is_configurable(self):
         self.mock_client.get_recommendations_for_user.return_value = [1, 2, 3]
 
-        service = PersonalizeFeedService(personalize_client=self.mock_client)
+        service = FeedService(personalize_client=self.mock_client)
 
         with patch("feed.services.personalize_feed_service.cache") as mock_cache:
             mock_cache.get.return_value = None
@@ -214,7 +214,7 @@ class PersonalizeFeedServiceTests(APITestCase):
             "AWS Error"
         )
 
-        service = PersonalizeFeedService(personalize_client=self.mock_client)
+        service = FeedService(personalize_client=self.mock_client)
 
         with self.assertRaises(Exception):
             service.get_recommendation_ids(
@@ -224,7 +224,7 @@ class PersonalizeFeedServiceTests(APITestCase):
     def test_personalize_returns_empty_list(self):
         self.mock_client.get_recommendations_for_user.return_value = []
 
-        service = PersonalizeFeedService(personalize_client=self.mock_client)
+        service = FeedService(personalize_client=self.mock_client)
         result = service.get_recommendation_ids(
             user_id=self.user.id, filter_param="new-content"
         )
@@ -238,7 +238,7 @@ class PersonalizeFeedServiceTests(APITestCase):
             valid_ids + invalid_ids
         )
 
-        service = PersonalizeFeedService(personalize_client=self.mock_client)
+        service = FeedService(personalize_client=self.mock_client)
         result = service.get_recommendation_ids(
             user_id=self.user.id, filter_param="new-content"
         )
@@ -251,7 +251,7 @@ class PersonalizeFeedServiceTests(APITestCase):
             mock_cache.get.return_value = None
             self.mock_client.get_recommendations_for_user.return_value = [1, 2, 3]
 
-            service = PersonalizeFeedService(personalize_client=self.mock_client)
+            service = FeedService(personalize_client=self.mock_client)
             service.get_recommendation_ids(
                 user_id=self.user.id, filter_param="new-content"
             )
