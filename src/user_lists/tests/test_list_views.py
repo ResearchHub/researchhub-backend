@@ -89,3 +89,11 @@ class ListViewSetTests(APITestCase):
         list_obj = List.all_objects.get(pk=list_obj.pk)
         self.assertTrue(list_obj.is_removed)
 
+    def test_authenticated_user_can_retrieve_others_list(self):
+        list_obj = List.objects.create(name="Other User's List", created_by=self.user)
+        
+        self.client.force_authenticate(user=self.other_user)
+        response = self.client.get(f"/api/user_list/{list_obj.id}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["name"], "Other User's List")
+

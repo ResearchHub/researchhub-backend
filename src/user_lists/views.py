@@ -25,9 +25,14 @@ class ListViewSet(viewsets.ModelViewSet):
     pagination_class = ListPagination
 
     def get_queryset(self):
-        return self.queryset.filter(created_by=self.request.user).annotate(
+        qs = self.queryset.annotate(
             item_count=Count("items", filter=Q(items__is_removed=False))
         ).order_by("-updated_date")
+        
+        if self.action in ["list", "update", "partial_update", "destroy"]:
+            qs = qs.filter(created_by=self.request.user)
+        
+        return qs
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
@@ -49,12 +54,12 @@ class ListItemViewSet(DestroyModelMixin, viewsets.GenericViewSet):
         parent_list_id = request.query_params.get("parent_list")
         if not parent_list_id:
             return Response({"error": "parent_list is required"}, status=status.HTTP_400_BAD_REQUEST)
-        check_list_exists = List.objects.filter(id=parent_list_id, created_by=request.user, is_removed=False).exists()
+        check_list_exists = List.objects.filter(id=parent_list_id, is_removed=False).exists()
         if not check_list_exists:
             return Response({"error": "List not found"}, status=status.HTTP_404_NOT_FOUND)
         
-        list_items = self.get_queryset().filter(
-            parent_list_id=parent_list_id, unified_document__is_removed=False
+        list_items = ListItem.objects.filter(
+            parent_list_id=parent_list_id, is_removed=False, unified_document__is_removed=False
         )
         
         page = self.paginate_queryset(list_items)

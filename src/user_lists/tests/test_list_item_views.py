@@ -116,3 +116,11 @@ class ListItemViewSetTests(APITestCase):
         self.assertEqual(len(response.data["results"]), 1)
         self.assertIsNone(response.data["results"][0]["feed_entry"])
 
+    def test_authenticated_user_can_view_others_list(self):
+        ListItem.objects.create(parent_list=self.list, unified_document=self.doc, created_by=self.user)
+        
+        self.client.force_authenticate(user=self.other_user)
+        response = self.client.get(f"/api/user_list_item/?parent_list={self.list.id}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 1)
+
