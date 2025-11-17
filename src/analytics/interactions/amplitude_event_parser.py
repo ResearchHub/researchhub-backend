@@ -73,6 +73,7 @@ class AmplitudeEvent:
         object_id: int,
         event_timestamp: datetime,
         external_user_id: Optional[str] = None,
+        personalize_rec_id: Optional[str] = None,
     ):
         self.user = user
         self.external_user_id = external_user_id
@@ -81,6 +82,7 @@ class AmplitudeEvent:
         self.content_type = content_type
         self.object_id = object_id
         self.event_timestamp = event_timestamp
+        self.personalize_rec_id = personalize_rec_id
 
 
 class AmplitudeEventParser:
@@ -119,7 +121,9 @@ class AmplitudeEventParser:
             db_event_type = AMPLITUDE_TO_DB_EVENT_MAP[event_type]
 
             user_id = event_props.get("user_id")
-            external_user_id = event.get("amplitude_id") or event_props.get("amplitude_id")
+            external_user_id = event.get("amplitude_id") or event_props.get(
+                "amplitude_id"
+            )
 
             user = None
             if user_id:
@@ -144,7 +148,11 @@ class AmplitudeEventParser:
                 user_identifier = (
                     user_id
                     if user_id
-                    else f"external_user_id:{external_user_id}" if external_user_id else "unknown"
+                    else (
+                        f"external_user_id:{external_user_id}"
+                        if external_user_id
+                        else "unknown"
+                    )
                 )
                 logger.warning(
                     f"No related_work data found for event_type '{event_type}', "
@@ -224,6 +232,11 @@ class AmplitudeEventParser:
             else:
                 event_timestamp = datetime.now()
 
+            recommendation_id = event_props.get("recommendation_id")
+            personalize_rec_id = (
+                str(recommendation_id) if recommendation_id is not None else None
+            )
+
             amplitude_event = AmplitudeEvent(
                 user=user,
                 event_type=db_event_type,
@@ -232,6 +245,7 @@ class AmplitudeEventParser:
                 object_id=object_id,
                 event_timestamp=event_timestamp,
                 external_user_id=external_user_id,
+                personalize_rec_id=personalize_rec_id,
             )
 
             return amplitude_event

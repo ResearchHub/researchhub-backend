@@ -5,15 +5,13 @@ from typing import Callable, Iterator, Optional
 from django.db import connection, reset_queries
 from django.db.models import QuerySet
 
-from analytics.constants.personalize_constants import CSV_HEADERS
-from analytics.items.personalize_item_mapper import PersonalizeItemMapper
-from analytics.utils.personalize_related_data_fetcher import (
-    PersonalizeRelatedDataFetcher,
-)
+from personalize.config.constants import CSV_HEADERS
+from personalize.services.item_mapper import ItemMapper
+from personalize.utils.related_data_fetcher import RelatedDataFetcher
 from researchhub_document.models import ResearchhubUnifiedDocument
 
 
-class PersonalizeExportService:
+class ExportService:
     """Service for exporting ResearchHub documents to Personalize format."""
 
     def __init__(
@@ -22,8 +20,8 @@ class PersonalizeExportService:
         self.chunk_size = chunk_size
         self.debug = debug
         self.since_publish_date = since_publish_date
-        self.fetcher = PersonalizeRelatedDataFetcher()
-        self.mapper = PersonalizeItemMapper()
+        self.fetcher = RelatedDataFetcher()
+        self.mapper = ItemMapper()
         self.chunk_timings = []  # Store timing details for debugging
         self.failed_ids = []  # Track IDs of items that failed to map
         self.filtered_by_date_ids = []  # Track IDs filtered by publish date

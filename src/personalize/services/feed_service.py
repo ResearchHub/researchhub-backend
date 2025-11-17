@@ -3,17 +3,17 @@ from typing import List, Optional
 
 from django.core.cache import cache
 
-from feed.clients.personalize_client import PersonalizeClient
-from feed.feed_config import PERSONALIZE_CONFIG
+from personalize.clients.recommendation_client import RecommendationClient
+from personalize.config.settings import PERSONALIZE_CONFIG
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_CACHE_TIMEOUT = 1800
 
 
-class PersonalizeFeedService:
-    def __init__(self, personalize_client: Optional[PersonalizeClient] = None):
-        self.personalize_client = personalize_client or PersonalizeClient()
+class FeedService:
+    def __init__(self, personalize_client: Optional[RecommendationClient] = None):
+        self.personalize_client = personalize_client or RecommendationClient()
         self.cache_hit = False
 
     def get_recommendation_ids(

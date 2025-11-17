@@ -151,6 +151,11 @@ class PaperCopyrightTest(TestCase, TestHelper):
         self.paper.save()
         self.assertFalse(pdf_copyright_allows_display(self.paper))
 
+    def test_dont_display_pdf_if_biorxiv(self):
+        self.paper.external_source = "biorxiv"
+        self.paper.save()
+        self.assertFalse(pdf_copyright_allows_display(self.paper))
+
     # Unit-test serializers
 
     def test_paper_serializer_hides_file_if_pdf_copyrighted(self):

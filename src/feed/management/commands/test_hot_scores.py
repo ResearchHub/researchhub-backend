@@ -232,10 +232,10 @@ class Command(BaseCommand):
 
         # Use stored breakdown if available, otherwise calculate
         if (
-            hasattr(feed_entry, "hot_score_v2_breakdown")
-            and feed_entry.hot_score_v2_breakdown
+            hasattr(feed_entry, "hot_score_breakdown_v2")
+            and feed_entry.hot_score_breakdown_v2
         ):
-            breakdown = feed_entry.hot_score_v2_breakdown
+            breakdown = feed_entry.hot_score_breakdown_v2.breakdown_data
 
             # Convert breakdown format to legacy format for compatibility
             return {

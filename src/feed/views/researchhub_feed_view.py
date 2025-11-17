@@ -26,9 +26,9 @@ class ResearchHubFeedViewSet(FeedViewMixin, ModelViewSet):
     throttle_classes = [FeedRecommendationRefreshThrottle]
 
     def dispatch(self, request, *args, **kwargs):
-        from feed.services import PersonalizeFeedService
+        from personalize.services.feed_service import FeedService
 
-        self.personalize_feed_service = PersonalizeFeedService()
+        self.personalize_feed_service = FeedService()
         return super().dispatch(request, *args, **kwargs)
 
     def get_serializer_context(self):

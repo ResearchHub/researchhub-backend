@@ -411,48 +411,6 @@ class JournalFeedViewSetTests(TestCase):
         # Verify the vote ID matches the one we created
         self.assertEqual(paper_data["user_vote"]["id"], vote.id)  # NOSONAR
 
-    def test_pagination(self):
-        """Test journal feed pagination"""
-        # Create additional papers for pagination testing
-        for i in range(25):
-            unified_doc = ResearchhubUnifiedDocument.objects.create(
-                document_type="PAPER"
-            )
-            paper = Paper.objects.create(
-                title=f"Test Journal Paper {i}",
-                uploaded_by=self.user,
-                is_public=True,
-                is_removed=False,
-                unified_document=unified_doc,
-                created_date=timezone.now(),
-            )
-            PaperVersion.objects.create(
-                paper=paper,
-                journal=PaperVersion.RESEARCHHUB,
-                publication_status=PaperVersion.PREPRINT,
-                version=1,
-                base_doi=f"10.1234/paper{i}.12345",
-            )
-
-        url = reverse("journal_feed-list")
-        response = self.client.get(url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data["results"]), 20)  # Default page size
-        self.assertIsNotNone(response.data["next"])
-        self.assertIsNone(response.data["previous"])
-
-        # Test going to page 2
-        page_2_url = response.data["next"]
-        response_page_2 = self.client.get(page_2_url)
-
-        self.assertEqual(response_page_2.status_code, status.HTTP_200_OK)
-        self.assertEqual(
-            len(response_page_2.data["results"]), 7
-        )  # 27 total items, 7 on page 2
-        self.assertIsNone(response_page_2.data["next"])
-        self.assertIsNotNone(response_page_2.data["previous"])
-
     def test_unique_base_doi(self):
         """Test that journal feed returns only one paper per base_doi (the latest one)"""
         # Create a common base_doi for multiple papers

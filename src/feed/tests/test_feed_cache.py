@@ -249,7 +249,7 @@ class FeedCachingTests(APITestCase):
         self.assertEqual(response["RH-Cache"], "miss")
 
     @patch(
-        "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
+        "personalize.clients.recommendation_client.RecommendationClient.get_recommendations_for_user"
     )
     def test_cache_key_differs_by_feed_view(self, mock_get_recommendations):
         feed_entries = FeedEntry.objects.all()[:10]
@@ -369,7 +369,7 @@ class FeedCachingTests(APITestCase):
         self.assertEqual(response4["RH-Cache"], "hit (auth)")
 
     @patch(
-        "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
+        "personalize.clients.recommendation_client.RecommendationClient.get_recommendations_for_user"
     )
     def test_personalized_feed_service_layer_caching(self, mock_get_recommendations):
         """
@@ -393,7 +393,7 @@ class FeedCachingTests(APITestCase):
         self.assertEqual(mock_get_recommendations.call_count, 1)
 
     @patch(
-        "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
+        "personalize.clients.recommendation_client.RecommendationClient.get_recommendations_for_user"
     )
     def test_personalized_feed_cache_header(self, mock_get_recommendations):
         feed_entries = FeedEntry.objects.all()[:5]
@@ -413,7 +413,7 @@ class FeedCachingTests(APITestCase):
         self.assertEqual(response2["RH-Cache"], "partial-cache-hit (auth)")
 
     @patch(
-        "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
+        "personalize.clients.recommendation_client.RecommendationClient.get_recommendations_for_user"
     )
     def test_votes_are_added_to_personalized_feed_response(
         self, mock_get_recommendations
@@ -441,7 +441,7 @@ class FeedCachingTests(APITestCase):
         self.assertIn("user_vote", first_result)
 
     @patch(
-        "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
+        "personalize.clients.recommendation_client.RecommendationClient.get_recommendations_for_user"
     )
     def test_personalized_feed_pagination_across_multiple_pages(
         self, mock_get_recommendations

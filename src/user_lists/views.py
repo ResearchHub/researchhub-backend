@@ -1,55 +1,44 @@
-from django.utils import timezone
+from django.db import IntegrityError
+from django.db.models import Count, Q
 from rest_framework import status, viewsets
-from rest_framework.mixins import CreateModelMixin, DestroyModelMixin, UpdateModelMixin
+from rest_framework.mixins import DestroyModelMixin
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from researchhub.permissions import IsObjectOwner
 
-from .models import List
-from .serializers import ListSerializer
-
-
-def _update_list_timestamp(list_obj, user):
-    list_obj.updated_date = timezone.now()
-    list_obj.updated_by = user
-    list_obj.save(update_fields=["updated_date", "updated_by"])
+from .models import List, ListItem
+from .serializers import ListSerializer, ListItemSerializer
 
 
-class ListViewSet(CreateModelMixin, UpdateModelMixin, DestroyModelMixin, viewsets.GenericViewSet):
+class ListViewSet(viewsets.ModelViewSet):
     queryset = List.objects.filter(is_removed=False)
     serializer_class = ListSerializer
-    permission_classes = [IsAuthenticated, IsObjectOwner]
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return self.queryset.filter(created_by=self.request.user)
-
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        if not serializer.is_valid():
-            # Format validation errors into a single error message
-            error_messages = []
-            for field, errors in serializer.errors.items():
-                if isinstance(errors, list):
-                    error_messages.extend([f"{field}: {error}" for error in errors])
-                else:
-                    error_messages.append(f"{field}: {errors}")
-            error_message = " ".join(error_messages) if error_messages else "Validation error"
-            return Response({"error": error_message}, status=status.HTTP_400_BAD_REQUEST)
-        
-        self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        return self.queryset.filter(created_by=self.request.user).annotate(
+            item_count=Count("items", filter=Q(items__is_removed=False))
+        ).order_by("-updated_date")
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
 
     def perform_update(self, serializer):
-        instance = serializer.save(updated_by=self.request.user)
-        _update_list_timestamp(instance, self.request.user)
+        serializer.save(updated_by=self.request.user)
 
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        instance.delete()
-        instance.items.filter(is_removed=False).delete()
-        return Response({"success": True}, status=status.HTTP_200_OK)
 
+class ListItemViewSet(DestroyModelMixin, viewsets.GenericViewSet):
+    queryset = ListItem.objects.filter(is_removed=False)
+    serializer_class = ListItemSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return self.queryset.filter(parent_list__created_by=self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            serializer.save(created_by=request.user)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except IntegrityError:
+            return Response({"error": "Document already exists in list"}, status=status.HTTP_400_BAD_REQUEST)

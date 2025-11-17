@@ -11,7 +11,6 @@ class List(DefaultAuthenticatedModel, SoftDeletableModel):
 
     def __str__(self):
         return f"{self.created_by}:{self.name}"
-
     class Meta:
         ordering = ["name"]
         indexes = [ 

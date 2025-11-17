@@ -9,7 +9,7 @@ from reputation.models import BountySolution
 from researchhub_document.models import ResearchhubUnifiedDocument
 
 
-class PersonalizeRelatedDataFetcher:
+class RelatedDataFetcher:
     """Fetches related data for Personalize item auxiliary data."""
 
     def fetch_all(self, doc_ids: list[int]) -> dict:

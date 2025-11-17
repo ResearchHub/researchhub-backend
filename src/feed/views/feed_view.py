@@ -13,9 +13,9 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
-from feed.clients.personalize_client import PersonalizeClient
 from feed.views.feed_view_mixin import FeedViewMixin
 from hub.models import Hub
+from personalize.clients.recommendation_client import RecommendationClient
 
 from ..models import FeedEntry
 from ..serializers import FeedEntrySerializer
@@ -36,7 +36,9 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
     cache_enabled = settings.TESTING or settings.CLOUD
 
     def dispatch(self, request, *args, **kwargs):
-        self.personalize_client = kwargs.pop("personalize_client", PersonalizeClient())
+        self.personalize_client = kwargs.pop(
+            "personalize_client", RecommendationClient()
+        )
         return super().dispatch(request, *args, **kwargs)
 
     def get_serializer_context(self):
@@ -110,6 +112,7 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
             "user",
             "user__author_profile",
             "user__userverification",
+            "hot_score_breakdown_v2",
         )
 
         # Apply source filter
