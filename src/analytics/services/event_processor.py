@@ -64,6 +64,7 @@ class EventProcessor:
                         interaction.is_synced_with_personalize
                     ),
                     "personalize_rec_id": interaction.personalize_rec_id,
+                    "impression": interaction.impression,
                 },
             )
             user_identifier = user_id if user_id else f"external_user_id:{external_user_id}"

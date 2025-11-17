@@ -74,6 +74,7 @@ class AmplitudeEvent:
         event_timestamp: datetime,
         external_user_id: Optional[str] = None,
         personalize_rec_id: Optional[str] = None,
+        impression: Optional[str] = None,
     ):
         self.user = user
         self.external_user_id = external_user_id
@@ -83,6 +84,7 @@ class AmplitudeEvent:
         self.object_id = object_id
         self.event_timestamp = event_timestamp
         self.personalize_rec_id = personalize_rec_id
+        self.impression = impression
 
 
 class AmplitudeEventParser:
@@ -237,6 +239,12 @@ class AmplitudeEventParser:
                 str(recommendation_id) if recommendation_id is not None else None
             )
 
+            # Extract and convert impression array to pipe-delimited string
+            impression = None
+            impression_array = event_props.get("impression")
+            if impression_array and isinstance(impression_array, list):
+                impression = "|".join(str(item) for item in impression_array)
+
             amplitude_event = AmplitudeEvent(
                 user=user,
                 event_type=db_event_type,
@@ -246,6 +254,7 @@ class AmplitudeEventParser:
                 event_timestamp=event_timestamp,
                 external_user_id=external_user_id,
                 personalize_rec_id=personalize_rec_id,
+                impression=impression,
             )
 
             return amplitude_event
