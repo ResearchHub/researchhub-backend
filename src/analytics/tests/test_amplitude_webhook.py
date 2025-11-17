@@ -165,8 +165,8 @@ class AmplitudeWebhookTestCase(TestCase):
         self.assertEqual(response.data["processed"], 0)
         self.assertEqual(response.data["failed"], 1)
 
-    def test_webhook_processes_event_with_impressions(self):
-        """Test that the webhook processes events with impressions."""
+    def test_webhook_processes_event_with_impression(self):
+        """Test that the webhook processes events with impression."""
         from analytics.models import UserInteractions
 
         payload = {
@@ -191,9 +191,9 @@ class AmplitudeWebhookTestCase(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["processed"], 1)
 
-        # Verify the interaction was created with impressions
+        # Verify the interaction was created with impression
         final_count = UserInteractions.objects.count()
         self.assertEqual(final_count, initial_count + 1)
 
         interaction = UserInteractions.objects.latest("created_date")
-        self.assertEqual(interaction.impressions, "123|456|789")
+        self.assertEqual(interaction.impression, "123|456|789")

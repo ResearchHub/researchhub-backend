@@ -557,8 +557,8 @@ class AmplitudeEventParserTests(TestCase):
         self.assertIsInstance(interaction, AmplitudeEvent)
         self.assertEqual(interaction.personalize_rec_id, recommendation_id)
 
-    def test_extracts_impressions_from_event_properties(self):
-        """Test that impressions array is extracted and converted to pipe-delimited string."""
+    def test_extracts_impression_from_event_properties(self):
+        """Test that impression array is extracted and converted to pipe-delimited string."""
         impression_array = ["123", "456", "789"]
         event = {
             "event_type": "feed_item_clicked",
@@ -577,10 +577,10 @@ class AmplitudeEventParserTests(TestCase):
         interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsInstance(interaction, AmplitudeEvent)
-        self.assertEqual(interaction.impressions, "123|456|789")
+        self.assertEqual(interaction.impression, "123|456|789")
 
-    def test_extracts_impressions_with_single_item(self):
-        """Test that single-item impressions array is converted correctly."""
+    def test_extracts_impression_with_single_item(self):
+        """Test that single-item impression array is converted correctly."""
         impression_array = ["123"]
         event = {
             "event_type": "feed_item_clicked",
@@ -599,10 +599,10 @@ class AmplitudeEventParserTests(TestCase):
         interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsInstance(interaction, AmplitudeEvent)
-        self.assertEqual(interaction.impressions, "123")
+        self.assertEqual(interaction.impression, "123")
 
-    def test_missing_impressions_defaults_to_none(self):
-        """Test that events without impressions have None impressions."""
+    def test_missing_impression_defaults_to_none(self):
+        """Test that events without impression have None impression."""
         event = {
             "event_type": "feed_item_clicked",
             "event_properties": {
@@ -619,10 +619,10 @@ class AmplitudeEventParserTests(TestCase):
         interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsInstance(interaction, AmplitudeEvent)
-        self.assertIsNone(interaction.impressions)
+        self.assertIsNone(interaction.impression)
 
-    def test_non_list_impressions_ignored(self):
-        """Test that non-list impressions are ignored."""
+    def test_non_list_impression_ignored(self):
+        """Test that non-list impression is ignored."""
         event = {
             "event_type": "feed_item_clicked",
             "event_properties": {
@@ -640,10 +640,10 @@ class AmplitudeEventParserTests(TestCase):
         interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsInstance(interaction, AmplitudeEvent)
-        self.assertIsNone(interaction.impressions)
+        self.assertIsNone(interaction.impression)
 
-    def test_empty_impressions_array_defaults_to_none(self):
-        """Test that empty impressions array results in None."""
+    def test_empty_impression_array_defaults_to_none(self):
+        """Test that empty impression array results in None."""
         event = {
             "event_type": "feed_item_clicked",
             "event_properties": {
@@ -661,9 +661,9 @@ class AmplitudeEventParserTests(TestCase):
         interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsInstance(interaction, AmplitudeEvent)
-        self.assertIsNone(interaction.impressions)
+        self.assertIsNone(interaction.impression)
 
-    def test_impressions_with_numeric_values_converted_to_string(self):
+    def test_impression_with_numeric_values_converted_to_string(self):
         """Test that numeric impression values are converted to strings."""
         impression_array = [123, 456, 789]
         event = {
@@ -683,4 +683,4 @@ class AmplitudeEventParserTests(TestCase):
         interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsInstance(interaction, AmplitudeEvent)
-        self.assertEqual(interaction.impressions, "123|456|789")
+        self.assertEqual(interaction.impression, "123|456|789")

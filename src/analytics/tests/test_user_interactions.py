@@ -135,9 +135,9 @@ class UserInteractionsModelTests(TestCase):
 
         self.assertNotEqual(interaction1.id, interaction2.id)
 
-    def test_impressions_field_can_be_set(self):
-        """Test that impressions field can be set on UserInteractions."""
-        impressions = "123|456|789"
+    def test_impression_field_can_be_set(self):
+        """Test that impression field can be set on UserInteractions."""
+        impression = "123|456|789"
         interaction = UserInteractions.objects.create(
             user=self.user,
             event=PAGE_VIEW,
@@ -145,13 +145,13 @@ class UserInteractionsModelTests(TestCase):
             content_type=self.content_type,
             object_id=self.post.id,
             event_timestamp=timezone.now(),
-            impressions=impressions,
+            impression=impression,
         )
 
-        self.assertEqual(interaction.impressions, impressions)
+        self.assertEqual(interaction.impression, impression)
 
-    def test_impressions_field_can_be_none(self):
-        """Test that impressions field can be None."""
+    def test_impression_field_can_be_none(self):
+        """Test that impression field can be None."""
         interaction = UserInteractions.objects.create(
             user=self.user,
             event=PAGE_VIEW,
@@ -159,7 +159,7 @@ class UserInteractionsModelTests(TestCase):
             content_type=self.content_type,
             object_id=self.post.id,
             event_timestamp=timezone.now(),
-            impressions=None,
+            impression=None,
         )
 
-        self.assertIsNone(interaction.impressions)
+        self.assertIsNone(interaction.impression)

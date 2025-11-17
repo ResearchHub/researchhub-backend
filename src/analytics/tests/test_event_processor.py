@@ -315,8 +315,8 @@ class EventProcessorTestCase(TestCase):
         )
         self.assertEqual(interaction.personalize_rec_id, recommendation_id)
 
-    def test_process_event_with_impressions_stores_pipe_delimited_string(self):
-        """Test that impressions array is stored as pipe-delimited string."""
+    def test_process_event_with_impression_stores_pipe_delimited_string(self):
+        """Test that impression array is stored as pipe-delimited string."""
         impression_array = ["123", "456", "789"]
         event = {
             "event_type": "feed_item_clicked",
@@ -338,14 +338,14 @@ class EventProcessorTestCase(TestCase):
 
         self.assertEqual(final_count, initial_count + 1)
 
-        # Verify the created interaction has impressions
+        # Verify the created interaction has impression
         interaction = UserInteractions.objects.latest("created_date")
         self.assertEqual(interaction.user, self.user)
         self.assertEqual(interaction.event, FEED_ITEM_CLICK)
-        self.assertEqual(interaction.impressions, "123|456|789")
+        self.assertEqual(interaction.impression, "123|456|789")
 
-    def test_process_event_without_impressions_stores_none(self):
-        """Test that events without impressions store None."""
+    def test_process_event_without_impression_stores_none(self):
+        """Test that events without impression store None."""
         event = {
             "event_type": "feed_item_clicked",
             "event_properties": {
@@ -365,12 +365,12 @@ class EventProcessorTestCase(TestCase):
 
         self.assertEqual(final_count, initial_count + 1)
 
-        # Verify the created interaction has None impressions
+        # Verify the created interaction has None impression
         interaction = UserInteractions.objects.latest("created_date")
-        self.assertIsNone(interaction.impressions)
+        self.assertIsNone(interaction.impression)
 
     def test_process_event_with_single_impression(self):
-        """Test that single-item impressions array is stored correctly."""
+        """Test that single-item impression array is stored correctly."""
         impression_array = ["123"]
         event = {
             "event_type": "feed_item_clicked",
@@ -389,10 +389,10 @@ class EventProcessorTestCase(TestCase):
         self.processor.process_event(event)
 
         interaction = UserInteractions.objects.latest("created_date")
-        self.assertEqual(interaction.impressions, "123")
+        self.assertEqual(interaction.impression, "123")
 
-    def test_process_event_with_impressions_and_recommendation_id(self):
-        """Test that both impressions and recommendation_id are stored."""
+    def test_process_event_with_impression_and_recommendation_id(self):
+        """Test that both impression and recommendation_id are stored."""
         impression_array = ["123", "456"]
         recommendation_id = "rec_12345"
         event = {
@@ -413,5 +413,5 @@ class EventProcessorTestCase(TestCase):
         self.processor.process_event(event)
 
         interaction = UserInteractions.objects.latest("created_date")
-        self.assertEqual(interaction.impressions, "123|456")
+        self.assertEqual(interaction.impression, "123|456")
         self.assertEqual(interaction.personalize_rec_id, recommendation_id)

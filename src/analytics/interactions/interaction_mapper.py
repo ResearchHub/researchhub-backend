@@ -66,5 +66,5 @@ def map_from_amplitude_event(amplitude_event: AmplitudeEvent) -> UserInteraction
         event_timestamp=amplitude_event.event_timestamp,
         is_synced_with_personalize=False,
         personalize_rec_id=amplitude_event.personalize_rec_id,
-        impressions=amplitude_event.impressions,
+        impression=amplitude_event.impression,
     )
