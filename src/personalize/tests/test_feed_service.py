@@ -186,7 +186,7 @@ class FeedServiceTests(APITestCase):
         self.assertEqual(self.mock_client.get_recommendations_for_user.call_count, 2)
 
     @patch(
-        "feed.services.personalize_feed_service.PERSONALIZE_CONFIG",
+        "personalize.services.feed_service.PERSONALIZE_CONFIG",
         {
             "default_filter": "new-content",
             "cache_timeout": 3600,
@@ -198,7 +198,7 @@ class FeedServiceTests(APITestCase):
 
         service = FeedService(personalize_client=self.mock_client)
 
-        with patch("feed.services.personalize_feed_service.cache") as mock_cache:
+        with patch("personalize.services.feed_service.cache") as mock_cache:
             mock_cache.get.return_value = None
 
             service.get_recommendation_ids(
@@ -247,7 +247,7 @@ class FeedServiceTests(APITestCase):
         self.assertEqual(result, [1, 2, 99999, 88888])
 
     def test_handles_none_from_cache_forces_personalize_call(self):
-        with patch("feed.services.personalize_feed_service.cache") as mock_cache:
+        with patch("personalize.services.feed_service.cache") as mock_cache:
             mock_cache.get.return_value = None
             self.mock_client.get_recommendations_for_user.return_value = [1, 2, 3]
 
