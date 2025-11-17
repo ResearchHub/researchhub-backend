@@ -23,6 +23,7 @@ from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from user.related_models.author_model import Author
 from user.views.follow_view_mixins import create_follow
 
 User = get_user_model()
@@ -818,3 +819,105 @@ class FeedViewSetTests(TestCase):
                     dates[i + 1],
                     "Feed items not sorted by action_date when using default sort",
                 )
+
+    def test_following_feed_with_followed_author(self):
+        """Test that following an author returns their papers/posts in the feed."""
+        # Arrange
+        followed_author = Author.objects.create(
+            first_name="Followed",
+            last_name="Author",
+        )
+        create_follow(self.user, followed_author)
+
+        # Create a paper by the followed author in a hub we don't follow
+        author_paper_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER"
+        )
+        author_paper_doc.hubs.add(self.other_hub)
+        author_paper = Paper.objects.create(
+            title="Paper by Followed Author",
+            paper_publish_date=timezone.now(),
+            unified_document=author_paper_doc,
+        )
+
+        author_paper_entry = FeedEntry.objects.create(
+            user=self.other_user,
+            action="PUBLISH",
+            action_date=timezone.now(),
+            content_type=self.paper_content_type,
+            object_id=author_paper.id,
+            unified_document=author_paper_doc,
+            metrics={"votes": 25, "comments": 5},
+        )
+        author_paper_entry.hubs.add(self.other_hub)
+        author_paper_entry.authors.add(followed_author)
+
+        cache.clear()
+
+        url = reverse("feed-list")
+
+        # Act
+        response = self.client.get(url, {"feed_view": "following"})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        result_ids = [r["content_object"]["id"] for r in response.data["results"]]
+
+        # Should see paper from followed author even though it's in an unfollowed hub
+        self.assertIn(author_paper.id, result_ids)
+        # Should still see paper from followed hub
+        self.assertIn(self.paper.id, result_ids)
+        # Should not see paper from unfollowed hub by unfollowed author
+        self.assertNotIn(self.other_paper.id, result_ids)
+
+    def test_following_feed_with_only_followed_author(self):
+        """Test that following only authors (no hubs) returns their content."""
+        # Arrange
+        # Remove all hub follows
+        self.user.following.all().delete()
+
+        followed_author = Author.objects.create(
+            first_name="Only",
+            last_name="Author",
+        )
+        create_follow(self.user, followed_author)
+
+        # Create a paper by the followed author
+        author_paper_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER"
+        )
+        author_paper_doc.hubs.add(self.other_hub)
+        author_paper = Paper.objects.create(
+            title="Paper by Only Followed Author",
+            paper_publish_date=timezone.now(),
+            unified_document=author_paper_doc,
+        )
+
+        author_paper_entry = FeedEntry.objects.create(
+            user=self.other_user,
+            action="PUBLISH",
+            action_date=timezone.now(),
+            content_type=self.paper_content_type,
+            object_id=author_paper.id,
+            unified_document=author_paper_doc,
+            metrics={"votes": 25, "comments": 5},
+        )
+        author_paper_entry.hubs.add(self.other_hub)
+        author_paper_entry.authors.add(followed_author)
+
+        cache.clear()
+
+        url = reverse("feed-list")
+
+        # Act
+        response = self.client.get(url, {"feed_view": "following"})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        result_ids = [r["content_object"]["id"] for r in response.data["results"]]
+
+        # Should see paper from followed author
+        self.assertIn(author_paper.id, result_ids)
+        # Should not see papers from unfollowed hubs/authors
+        self.assertNotIn(self.paper.id, result_ids)
+        self.assertNotIn(self.other_paper.id, result_ids)

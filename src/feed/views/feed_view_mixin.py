@@ -9,6 +9,7 @@ from hub.models import Hub
 from paper.related_models.paper_model import Paper
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from user.related_models.author_model import Author
 
 
 class FeedViewMixin:
@@ -19,6 +20,10 @@ class FeedViewMixin:
     DEFAULT_CACHE_TIMEOUT = 60 * 10
 
     _content_types = {}
+
+    @property
+    def _author_content_type(self):
+        return self._get_content_type(Author)
 
     @property
     def _comment_content_type(self):
@@ -208,6 +213,20 @@ class FeedViewMixin:
         return list(
             self.request.user.following.filter(
                 content_type=self._hub_content_type
+            ).values_list("object_id", flat=True)
+        )
+
+    def get_followed_author_ids(self):
+        """
+        Get IDs of authors followed by the current user.
+        Returns empty list if user is not authenticated.
+        """
+        if not self.request.user.is_authenticated:
+            return []
+
+        return list(
+            self.request.user.following.filter(
+                content_type=self._author_content_type
             ).values_list("object_id", flat=True)
         )
 
