@@ -22,9 +22,6 @@ class ListViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         serializer.save(updated_by=self.request.user)
 
-    def perform_destroy(self, instance):
-        instance.delete()
-
 
 class ListItemViewSet(DestroyModelMixin, viewsets.GenericViewSet):
     queryset = ListItem.objects.filter(is_removed=False)
@@ -37,16 +34,8 @@ class ListItemViewSet(DestroyModelMixin, viewsets.GenericViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
-        parent_list = serializer.validated_data.get('parent_list')
-        if parent_list.created_by != request.user or parent_list.is_removed:
-            return Response({"error": "Invalid list"}, status=status.HTTP_400_BAD_REQUEST)
-        
         try:
             serializer.save(created_by=request.user)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         except IntegrityError:
             return Response({"error": "Document already exists in list"}, status=status.HTTP_400_BAD_REQUEST)
-
-    def perform_destroy(self, instance):
-        instance.delete()

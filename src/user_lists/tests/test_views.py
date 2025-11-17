@@ -59,7 +59,7 @@ class ListViewSetTests(APITestCase):
         list_obj = List.objects.create(name="My List", created_by=self.user)
         response = self.client.delete(f"/api/user_list/{list_obj.id}/")
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        list_obj.refresh_from_db()
+        list_obj = List.all_objects.get(pk=list_obj.pk)
         self.assertTrue(list_obj.is_removed)
 
 
@@ -121,7 +121,7 @@ class ListItemViewSetTests(APITestCase):
         item = ListItem.objects.create(parent_list=self.list, unified_document=self.doc, created_by=self.user)
         response = self.client.delete(f"/api/user_list_item/{item.id}/")
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        item.refresh_from_db()
+        item = ListItem.all_objects.get(pk=item.pk)
         self.assertTrue(item.is_removed)
 
     def test_user_cannot_delete_item_from_another_users_list(self):
