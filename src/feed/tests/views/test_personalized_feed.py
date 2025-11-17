@@ -7,10 +7,10 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from feed.feed_config import PERSONALIZE_CONFIG
 from feed.models import FeedEntry
 from hub.models import Hub
 from paper.models import Paper
+from personalize.config.settings import PERSONALIZE_CONFIG
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -82,7 +82,7 @@ class TestPersonalizedFeed(APITestCase):
         self.assertGreaterEqual(len(response.data["results"]), 2)
 
     @patch(
-        "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
+        "personalize.clients.recommendation_client.RecommendationClient.get_recommendations_for_user"
     )
     def test_authenticated_user_gets_personalized_results(
         self, mock_get_recommendations
@@ -98,7 +98,7 @@ class TestPersonalizedFeed(APITestCase):
         self.assertTrue(mock_get_recommendations.called)
 
     @patch(
-        "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
+        "personalize.clients.recommendation_client.RecommendationClient.get_recommendations_for_user"
     )
     def test_personalized_feed_preserves_recommendation_order(
         self, mock_get_recommendations
@@ -156,7 +156,7 @@ class TestPersonalizedFeed(APITestCase):
         self.assertEqual(result_paper_ids, expected_paper_ids)
 
     @patch(
-        "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
+        "personalize.clients.recommendation_client.RecommendationClient.get_recommendations_for_user"
     )
     def test_personalized_with_user_id_param_overrides_auth(
         self, mock_get_recommendations
@@ -176,7 +176,7 @@ class TestPersonalizedFeed(APITestCase):
         self.assertEqual(call_args[1]["user_id"], str(self.other_user.id))
 
     @patch(
-        "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
+        "personalize.clients.recommendation_client.RecommendationClient.get_recommendations_for_user"
     )
     def test_personalized_uses_new_content_filter_by_default(
         self, mock_get_recommendations
@@ -194,7 +194,7 @@ class TestPersonalizedFeed(APITestCase):
         self.assertEqual(call_args[1]["filter"], "new-content")
 
     @patch(
-        "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
+        "personalize.clients.recommendation_client.RecommendationClient.get_recommendations_for_user"
     )
     def test_personalized_filters_by_recommended_ids(self, mock_get_recommendations):
         mock_get_recommendations.return_value = [self.paper_doc.id]
@@ -211,7 +211,7 @@ class TestPersonalizedFeed(APITestCase):
         )
 
     @patch(
-        "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
+        "personalize.clients.recommendation_client.RecommendationClient.get_recommendations_for_user"
     )
     def test_personalized_handles_client_exception(self, mock_get_recommendations):
         mock_get_recommendations.side_effect = Exception("AWS Error")
@@ -226,7 +226,7 @@ class TestPersonalizedFeed(APITestCase):
         self.assertEqual(len(response.data["results"]), 0)
 
     @patch(
-        "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
+        "personalize.clients.recommendation_client.RecommendationClient.get_recommendations_for_user"
     )
     def test_personalized_requests_configured_num_results(
         self, mock_get_recommendations
@@ -245,7 +245,7 @@ class TestPersonalizedFeed(APITestCase):
         self.assertEqual(call_args[1]["num_results"], PERSONALIZE_CONFIG["num_results"])
 
     @patch(
-        "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
+        "personalize.clients.recommendation_client.RecommendationClient.get_recommendations_for_user"
     )
     def test_personalized_recs_are_throttled_when_force_refresh_header_is_true(
         self, mock_get_recommendations
@@ -269,7 +269,7 @@ class TestPersonalizedFeed(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
 
     @patch(
-        "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
+        "personalize.clients.recommendation_client.RecommendationClient.get_recommendations_for_user"
     )
     def test_personalized_recs_are_not_throttled_when_force_refresh_header_is_absent(
         self, mock_get_recommendations
@@ -286,7 +286,7 @@ class TestPersonalizedFeed(APITestCase):
             self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     @patch(
-        "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
+        "personalize.clients.recommendation_client.RecommendationClient.get_recommendations_for_user"
     )
     def test_personalized_recs_are_not_throttled_when_force_refresh_header_is_false(
         self, mock_get_recommendations
@@ -305,7 +305,7 @@ class TestPersonalizedFeed(APITestCase):
             self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     @patch(
-        "feed.clients.personalize_client.PersonalizeClient.get_recommendations_for_user"
+        "personalize.clients.recommendation_client.RecommendationClient.get_recommendations_for_user"
     )
     def test_force_refresh_header_triggers_cache_bypass(self, mock_get_recommendations):
         """Force refresh header should bypass cache, resulting in partial-cache-miss."""
@@ -331,7 +331,7 @@ class TestPersonalizedFeed(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("partial-cache-miss", response["RH-Cache"])
 
-    @patch("feed.services.PersonalizeFeedService.get_recommendation_ids")
+    @patch("personalize.services.feed_service.FeedService.get_recommendation_ids")
     def test_force_refresh_header_absent_defaults_to_false(
         self, mock_get_recommendation_ids
     ):
@@ -348,7 +348,7 @@ class TestPersonalizedFeed(APITestCase):
         call_kwargs = mock_get_recommendation_ids.call_args[1]
         self.assertFalse(call_kwargs["force_refresh"])
 
-    @patch("feed.services.PersonalizeFeedService.get_recommendation_ids")
+    @patch("personalize.services.feed_service.FeedService.get_recommendation_ids")
     def test_personalized_feed_handles_service_exception(
         self, mock_get_recommendation_ids
     ):

@@ -4,7 +4,7 @@ Mapper class for converting ResearchhubUnifiedDocument to AWS Personalize items.
 
 from typing import Dict, Optional, Protocol, runtime_checkable
 
-from analytics.constants.personalize_constants import (
+from personalize.config.constants import (
     BLUESKY_COUNT_TOTAL,
     BOUNTY_HAS_SOLUTIONS,
     CITATION_COUNT_TOTAL,
@@ -28,7 +28,7 @@ from analytics.constants.personalize_constants import (
     TWEET_COUNT_TOTAL,
     UPVOTE_SCORE,
 )
-from analytics.utils.personalize_item_utils import prepare_text_for_personalize
+from personalize.utils.item_utils import prepare_text_for_personalize
 from utils.time import datetime_to_epoch_seconds
 
 
@@ -47,7 +47,7 @@ class PrefetchedUnifiedDocument(Protocol):
     score: int
 
 
-class PersonalizeItemMapper:
+class ItemMapper:
     """Mapper for converting ResearchHub documents to Personalize items."""
 
     def map_to_item(
@@ -129,7 +129,7 @@ class PersonalizeItemMapper:
             timestamp = datetime_to_epoch_seconds(prefetched_doc.created_date)
 
         # Hub processing
-        from analytics.constants.personalize_constants import MAX_HUB_IDS
+        from personalize.config.constants import MAX_HUB_IDS
 
         hub_ids = []
         hub_l1 = None

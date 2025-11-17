@@ -1,3 +1,3 @@
-from feed.clients.personalize_client import PersonalizeClient
+from personalize.clients.recommendation_client import RecommendationClient
 
-__all__ = ["PersonalizeClient"]
+__all__ = ["RecommendationClient"]

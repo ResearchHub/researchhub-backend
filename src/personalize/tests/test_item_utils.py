@@ -4,8 +4,8 @@ Tests for Personalize item utility functions.
 
 from django.test import TestCase
 
-from analytics.constants.personalize_constants import MAX_TEXT_LENGTH
-from analytics.utils.personalize_item_utils import prepare_text_for_personalize
+from personalize.config.constants import MAX_TEXT_LENGTH
+from personalize.utils.item_utils import prepare_text_for_personalize
 
 
 class CleanTextForCSVTests(TestCase):
