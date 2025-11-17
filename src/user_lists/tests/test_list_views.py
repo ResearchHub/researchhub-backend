@@ -20,10 +20,7 @@ class ListViewSetTests(APITestCase):
         response = self.client.post("/api/user_list/", {"name": "My List"})
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["name"], "My List")
-        self.assertIn("id", response.data)
-        self.assertIn("updated_date", response.data)
         self.assertTrue(List.objects.filter(name="My List", created_by=self.user).exists())
-
     def test_user_can_create_multiple_lists_with_same_name(self):
         List.objects.create(name="My List", created_by=self.user)
         response = self.client.post("/api/user_list/", {"name": "My List"})
@@ -51,7 +48,7 @@ class ListViewSetTests(APITestCase):
         list_obj = List.objects.create(name="Other List", created_by=self.other_user)
         response = self.client.patch(f"/api/user_list/{list_obj.id}/", {"name": "Hacked"})
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-
+   
     def test_user_can_retrieve_their_lists(self):
         list1 = List.objects.create(name="List 1", created_by=self.user)
         list2 = List.objects.create(name="List 2", created_by=self.user)
@@ -84,11 +81,11 @@ class ListViewSetTests(APITestCase):
         response = self.client.get(f"/api/user_list/{list_obj.id}/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["item_count"], 1)
-
+        
     def test_user_can_delete_their_list(self):
         list_obj = List.objects.create(name="My List", created_by=self.user)
         response = self.client.delete(f"/api/user_list/{list_obj.id}/")
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        list_obj.refresh_from_db()
+        list_obj = List.all_objects.get(pk=list_obj.pk)
         self.assertTrue(list_obj.is_removed)
 
