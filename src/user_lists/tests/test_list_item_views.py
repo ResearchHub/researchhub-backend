@@ -8,8 +8,6 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 from user.tests.helpers import create_random_authenticated_user
 
 from user_lists.models import List, ListItem
-
-
 class ListItemViewSetTests(APITestCase):
     def setUp(self):
         self.user = create_random_authenticated_user("user1")
@@ -67,7 +65,7 @@ class ListItemViewSetTests(APITestCase):
         item = ListItem.objects.create(parent_list=self.list, unified_document=self.doc, created_by=self.user)
         response = self.client.delete(f"/api/user_list_item/{item.id}/")
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        item.refresh_from_db()
+        item = ListItem.all_objects.get(pk=item.pk)
         self.assertTrue(item.is_removed)
 
     def test_user_cannot_delete_item_from_another_users_list(self):
