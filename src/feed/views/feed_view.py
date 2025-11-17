@@ -6,7 +6,7 @@ import logging
 
 from django.conf import settings
 from django.core.cache import cache
-from django.db.models import Case, IntegerField, Value, When
+from django.db.models import Case, IntegerField, Q, Value, When
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny
@@ -124,10 +124,16 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
         # Apply following filter only for "following" view
         if feed_view == "following":
             followed_hub_ids = self.get_followed_hub_ids()
-            if followed_hub_ids:
-                queryset = queryset.filter(
-                    hubs__id__in=followed_hub_ids,
-                )
+            followed_author_ids = self.get_followed_author_ids()
+
+            if followed_hub_ids or followed_author_ids:
+                following_filter = Q()
+                if followed_hub_ids:
+                    following_filter |= Q(hubs__id__in=followed_hub_ids)
+                if followed_author_ids:
+                    following_filter |= Q(authors__id__in=followed_author_ids)
+
+                queryset = queryset.filter(following_filter)
 
             # Only show paper and post for all following views
             queryset = queryset.filter(
