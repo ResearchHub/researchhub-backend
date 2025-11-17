@@ -1,19 +1,35 @@
 """
-Contribution Weight System for Tiered Reputation Scoring
+Contribution Weight System for Funding-Based Reputation Scoring
 
-This module implements weighted reputation scoring where different contribution
-types receive different reputation amounts based on effort and complexity.
+This module implements funding-based reputation scoring where reputation is primarily
+earned through RSC (ResearchCoin) flows, with minimal base reputation for content creation.
+
+REVISED: Based on feedback
+- Tips: Curved scaling (generous, hard to game)
+- Bounties: Generous tiers (manually reviewed quality)
+- Proposals: Logarithmic scaling (prevent dominance)
+- Funders: 1.5x bonus (encourage giving RSC)
+- Content creation: Minimal/zero (prevent spam)
+- Verified account: 100 REP one-time (quality > ID)
 
 Example:
     >>> from reputation.related_models.contribution_weight import ContributionWeight
     >>> 
-    >>> # Simple upvote
-    >>> rep = ContributionWeight.calculate_reputation_change('UPVOTE')
-    >>> # Returns: 1
+    >>> # Tip received
+    >>> rep = ContributionWeight.calculate_reputation_from_rsc('TIP_RECEIVED', 10)
+    >>> # Returns: 10 (curved scaling)
     >>> 
-    >>> # Peer review
-    >>> rep = ContributionWeight.calculate_reputation_change('PEER_REVIEW')
-    >>> # Returns: 15
+    >>> # Bounty payout
+    >>> rep = ContributionWeight.calculate_reputation_from_rsc('BOUNTY_PAYOUT', 150)
+    >>> # Returns: 50 (generous tier)
+    >>> 
+    >>> # Proposal funded
+    >>> rep = ContributionWeight.calculate_reputation_from_rsc('PROPOSAL_FUNDED', 1000)
+    >>> # Returns: 100 (logarithmic tier 1)
+    >>> 
+    >>> # Funding proposal (with bonus)
+    >>> rep = ContributionWeight.calculate_reputation_from_rsc('PROPOSAL_FUNDING_CONTRIBUTION', 1000, is_funder=True)
+    >>> # Returns: 150 (100 × 1.5 funder bonus)
 """
 
 from django.conf import settings
@@ -23,67 +39,308 @@ class ContributionWeight:
     """
     Registry and calculator for contribution reputation weights.
     
-    This class defines base weights for different contribution types.
-    
-    Attributes:
-        All contribution type constants (UPVOTE, COMMENT, PEER_REVIEW, etc.)
-        BASE_WEIGHTS: Dict mapping contribution types to base reputation values
+    Primary focus: RSC flows → Reputation
+    Secondary: Basic engagement (upvotes)
+    Minimal: Content creation (anti-spam)
     """
     
     # ==========================================
-    # Contribution Type Constants
+    # RSC Flow Types (Primary Reputation Source)
     # ==========================================
     
-    # Low effort, high volume
+    # Receiving RSC
+    TIP_RECEIVED = 'TIP_RECEIVED'                           # Tips on content
+    BOUNTY_PAYOUT = 'BOUNTY_PAYOUT'                         # Bounty payments (mostly peer reviews)
+    PROPOSAL_FUNDED = 'PROPOSAL_FUNDED'                     # Proposal funding received
+    
+    # Giving RSC (incentivize funders)
+    PROPOSAL_FUNDING_CONTRIBUTION = 'PROPOSAL_FUNDING_CONTRIBUTION'  # User funds proposal
+    
+    # ==========================================
+    # Basic Engagement Types
+    # ==========================================
+    
     UPVOTE = 'UPVOTE'
-    DOWNVOTE = 'DOWNVOTE'
+    DOWNVOTE = 'DOWNVOTE'  # Currently unused, reserved for V2
     
-    # System-generated (not user actions)
-    CITATION = 'CITATION'
+    # ==========================================
+    # Content Creation Types (Minimal REP)
+    # ==========================================
     
-    # Medium effort
     COMMENT = 'COMMENT'
     THREAD_CREATED = 'THREAD_CREATED'
-    BOUNTY_CREATED = 'BOUNTY_CREATED'
     POST_CREATED = 'POST_CREATED'
-    
-    # High effort
+    BOUNTY_CREATED = 'BOUNTY_CREATED'
     PEER_REVIEW = 'PEER_REVIEW'
-    BOUNTY_SOLUTION = 'BOUNTY_SOLUTION'
-    
-    # Exceptional effort
-    PAPER_PUBLISHED = 'PAPER_PUBLISHED'
-    BOUNTY_FUNDED = 'BOUNTY_FUNDED'
     
     # ==========================================
-    # Base Weights
+    # Special Types
     # ==========================================
     
+    VERIFIED_ACCOUNT = 'VERIFIED_ACCOUNT'
+    DELETION_PENALTY = 'DELETION_PENALTY'
+    
+    # ==========================================
+    # Configuration Constants
+    # ==========================================
+    
+    # Verified account one-time bonus 
+    VERIFIED_ACCOUNT_BONUS = 100
+    
+    # Funder bonus multiplier 
+    FUNDER_BONUS_MULTIPLIER = 1.5
+    
+    # Content creation base weights 
+    CONTENT_CREATION_WEIGHTS = {
+        BOUNTY_CREATED: 5,     
+        POST_CREATED: 2,       
+        THREAD_CREATED: 1,    
+        COMMENT: 0,            
+        PEER_REVIEW: 0,   
+    }
+    
+    # Basic engagement weights
     BASE_WEIGHTS = {
-        # Low effort (1x)
         UPVOTE: 1,
-        DOWNVOTE: 1,
-        
-        # System-generated (tracked but calculated separately)
-        CITATION: 0,  # Citations use their own scoring algorithm
-        
-        # Medium effort (3-10x)
-        COMMENT: 3,
-        THREAD_CREATED: 5,
-        BOUNTY_CREATED: 5,
-        POST_CREATED: 10,
-        
-        # High effort (15-20x)
-        PEER_REVIEW: 15,
-        BOUNTY_SOLUTION: 20,
-        
-        # Exceptional effort (30-50x)
-        BOUNTY_FUNDED: 30,
-        PAPER_PUBLISHED: 50,
+        DOWNVOTE: -1,  # Reserved for V2
     }
     
     # ==========================================
-    # Configuration Methods
+    # RSC → REP Conversion Methods
+    # ==========================================
+    
+    @classmethod
+    def calculate_tip_reputation(cls, tip_amount):
+        """
+        Calculate reputation for tips received using curved scaling.
+        
+        CURVED FORMULA: REP = amount^0.85
+        
+        Why curved: tips mean extremely good review/comment, more important than just making 
+        a comment (3 REP). More difficult to game since tip costs real money."
+        
+        The curve rewards tips generously while preventing linear farming.
+        
+        Args:
+            tip_amount (float): Tip amount in dollars/RSC
+            
+        Returns:
+            int: Reputation points to award
+            
+        Examples:
+            >>> calculate_tip_reputation(1)
+            1
+            >>> calculate_tip_reputation(10)
+            10
+            >>> calculate_tip_reputation(100)
+            70
+        """
+        if tip_amount <= 0:
+            return 0
+        
+        # Curved scaling: sub-linear but generous
+        return int(tip_amount ** 0.85)
+    
+    @classmethod
+    def calculate_bounty_reputation(cls, bounty_amount):
+        """
+        Calculate reputation for bounty payouts using generous tiered linear.
+        
+        99.9% of bounties are peer review bounties ($150 standard).
+        All are manually reviewed for quality by ResearchHub editors.
+        
+        Tiers:
+        - $0-$200: 0.33 REP per $ (~$150 → 50 REP)
+        - $200-$1000: 50 + 0.3 REP per $ above $200
+        - $1000+: 50 + 240 + 0.25 REP per $ above $1000
+        
+        Args:
+            bounty_amount (float): Bounty amount in dollars/RSC
+            
+        Returns:
+            int: Reputation points to award
+            
+        Examples:
+            >>> calculate_bounty_reputation(150)
+            50
+            >>> calculate_bounty_reputation(500)
+            150
+            >>> calculate_bounty_reputation(1000)
+            250
+        """
+        if bounty_amount <= 0:
+            return 0
+        
+        if bounty_amount < 200:
+            # Lower tier: generous 0.33 per $
+            return int(bounty_amount * 0.33)
+        elif bounty_amount < 1000:
+            # Mid tier: 50 base + 0.3 per $ above $200
+            return int(50 + (bounty_amount - 200) * 0.3)
+        else:
+            # Upper tier: 50 + 240 + 0.25 per $ above $1000
+            return int(50 + 240 + (bounty_amount - 1000) * 0.25)
+    
+    @classmethod
+    def calculate_proposal_reputation(cls, proposal_amount, is_funder=False):
+        """
+        Calculate reputation for proposals using logarithmic scaling.
+        
+        LOGARITHMIC TIERS:
+        "Logistic based function could be good fit to prevent mega-proposals 
+        from dominating reputation."
+        
+        Tiers (diminishing returns):
+        - $0-$1K: 0.1 REP per $1 (100%)
+        - $1K-$100K: 0.01 REP per $1 (10%)
+        - $100K-$1M: 0.001 REP per $1 (1%)
+        - $1M+: 0.0001 REP per $1 (0.1%)
+        
+        FUNDER BONUS: 1.5x multiplier
+
+        
+        Args:
+            proposal_amount (float): Proposal amount in dollars/RSC
+            is_funder (bool): True if user is giving RSC (gets 1.5x bonus)
+            
+        Returns:
+            int: Reputation points to award
+            
+        Examples:
+            >>> # Creator receiving
+            >>> calculate_proposal_reputation(1000, is_funder=False)
+            100
+            >>> calculate_proposal_reputation(10000, is_funder=False)
+            190
+            >>> calculate_proposal_reputation(1000000, is_funder=False)
+            1990
+            
+            >>> # Funder giving (1.5x bonus)
+            >>> calculate_proposal_reputation(1000, is_funder=True)
+            150
+        """
+        if proposal_amount <= 0:
+            return 0
+        
+        rep = 0
+        remaining = proposal_amount
+        
+        # Tier 1: $0-$1,000 at 0.1 REP per $1
+        tier1_amount = min(remaining, 1000)
+        rep += tier1_amount * 0.1
+        remaining -= tier1_amount
+        
+        if remaining <= 0:
+            return int(rep * (cls.FUNDER_BONUS_MULTIPLIER if is_funder else 1.0))
+        
+        # Tier 2: $1,000-$100,000 at 0.01 REP per $1 (10x harder)
+        tier2_amount = min(remaining, 99000)
+        rep += tier2_amount * 0.01
+        remaining -= tier2_amount
+        
+        if remaining <= 0:
+            return int(rep * (cls.FUNDER_BONUS_MULTIPLIER if is_funder else 1.0))
+        
+        # Tier 3: $100,000-$1,000,000 at 0.001 REP per $1 (100x harder)
+        tier3_amount = min(remaining, 900000)
+        rep += tier3_amount * 0.001
+        remaining -= tier3_amount
+        
+        if remaining <= 0:
+            return int(rep * (cls.FUNDER_BONUS_MULTIPLIER if is_funder else 1.0))
+        
+        # Tier 4: $1,000,000+ at 0.0001 REP per $1 (1000x harder)
+        rep += remaining * 0.0001
+        
+        # Apply funder bonus if applicable
+        return int(rep * (cls.FUNDER_BONUS_MULTIPLIER if is_funder else 1.0))
+    
+    @classmethod
+    def calculate_reputation_from_rsc(cls, contribution_type, rsc_amount, is_funder=False):
+        """
+        Main dispatcher for RSC → REP conversion.
+        
+        Routes to appropriate calculation method based on contribution type.
+        
+        Args:
+            contribution_type (str): Type of RSC flow (TIP_RECEIVED, BOUNTY_PAYOUT, etc.)
+            rsc_amount (float): Amount of RSC in dollars
+            is_funder (bool): True if user is giving RSC (for proposal funding)
+            
+        Returns:
+            int: Reputation points to award
+            
+        Examples:
+            >>> calculate_reputation_from_rsc('TIP_RECEIVED', 10)
+            10
+            >>> calculate_reputation_from_rsc('BOUNTY_PAYOUT', 150)
+            50
+            >>> calculate_reputation_from_rsc('PROPOSAL_FUNDED', 1000)
+            100
+            >>> calculate_reputation_from_rsc('PROPOSAL_FUNDING_CONTRIBUTION', 1000, is_funder=True)
+            150
+        """
+        if contribution_type == cls.TIP_RECEIVED:
+            return cls.calculate_tip_reputation(rsc_amount)
+        
+        elif contribution_type == cls.BOUNTY_PAYOUT:
+            return cls.calculate_bounty_reputation(rsc_amount)
+        
+        elif contribution_type in [cls.PROPOSAL_FUNDED, cls.PROPOSAL_FUNDING_CONTRIBUTION]:
+            # Proposal funding uses same curve, but funders get bonus
+            is_funding_contribution = (contribution_type == cls.PROPOSAL_FUNDING_CONTRIBUTION)
+            return cls.calculate_proposal_reputation(rsc_amount, is_funder=is_funding_contribution)
+        
+        else:
+            return 0
+    
+    # ==========================================
+    # Main Calculation Method
+    # ==========================================
+    
+    @classmethod
+    def calculate_reputation_change(cls, contribution_type):
+        """
+        Calculate reputation change for non-RSC contributions.
+        
+        Minimal content creation REP to prevent spam.
+        Most reputation comes from RSC flows + upvotes.
+        
+        
+        Args:
+            contribution_type (str): Type of contribution (UPVOTE, COMMENT, etc.)
+                
+        Returns:
+            int: Reputation change amount
+            
+        Examples:
+            >>> calculate_reputation_change('UPVOTE')
+            1
+            >>> calculate_reputation_change('COMMENT')
+            0
+            >>> calculate_reputation_change('PEER_REVIEW')
+            0
+            >>> calculate_reputation_change('BOUNTY_CREATED')
+            5
+        """
+        # Check basic weights (upvotes/downvotes)
+        if contribution_type in cls.BASE_WEIGHTS:
+            return cls.BASE_WEIGHTS[contribution_type]
+        
+        # Check content creation (minimal)
+        if contribution_type in cls.CONTENT_CREATION_WEIGHTS:
+            return cls.CONTENT_CREATION_WEIGHTS[contribution_type]
+        
+        # Check for settings override
+        overrides = getattr(settings, 'CONTRIBUTION_WEIGHT_OVERRIDES', {})
+        if contribution_type in overrides:
+            return overrides[contribution_type]
+        
+        # Default: no reputation
+        return 0
+    
+    # ==========================================
+    # Configuration & Feature Flag
     # ==========================================
     
     @classmethod
@@ -97,59 +354,28 @@ class ContributionWeight:
         return getattr(settings, 'TIERED_SCORING_ENABLED', False)
     
     @classmethod
-    def get_base_weight(cls, contribution_type):
+    def get_verified_account_bonus(cls):
         """
-        Get base weight for a contribution type.
+        Get verified account bonus amount.
         
-        Can be overridden via settings.CONTRIBUTION_WEIGHT_OVERRIDES
+        Can be overridden via settings.VERIFIED_ACCOUNT_BONUS
         
-        Args:
-            contribution_type (str): The type of contribution
-            
         Returns:
-            int: Base reputation weight for this contribution type
+            int: One-time reputation bonus for verification (default: 100)
         """
-        overrides = getattr(settings, 'CONTRIBUTION_WEIGHT_OVERRIDES', {})
-        
-        if contribution_type in overrides:
-            return overrides[contribution_type]
-        
-        return cls.BASE_WEIGHTS.get(contribution_type, 1)
-    
-    # ==========================================
-    # Core Calculation Methods
-    # ==========================================
+        return getattr(settings, 'VERIFIED_ACCOUNT_BONUS', cls.VERIFIED_ACCOUNT_BONUS)
     
     @classmethod
-    def calculate_reputation_change(cls, contribution_type, contribution_context=None):
+    def get_funder_bonus_multiplier(cls):
         """
-        Calculate reputation change for a contribution.
+        Get funder bonus multiplier.
         
-        This is the main entry point for calculating how much reputation
-        a user should receive for a given contribution.
+        Can be overridden via settings.FUNDER_BONUS_MULTIPLIER
         
-        Args:
-            contribution_type (str): Type of contribution (UPVOTE, COMMENT, etc.)
-            contribution_context (dict, optional): Unused, kept for API compatibility
-                
         Returns:
-            int: Reputation change amount based on contribution type
-            
-        Examples:
-            >>> # Simple upvote
-            >>> calculate_reputation_change('UPVOTE')
-            1
-            
-            >>> # Comment
-            >>> calculate_reputation_change('COMMENT')
-            3
-            
-            >>> # Peer review
-            >>> calculate_reputation_change('PEER_REVIEW')
-            15
+            float: Multiplier for funders (default: 1.5)
         """
-        # Get base weight (this is the only reputation value now)
-        return cls.get_base_weight(contribution_type)
+        return getattr(settings, 'FUNDER_BONUS_MULTIPLIER', cls.FUNDER_BONUS_MULTIPLIER)
     
     # ==========================================
     # Utility Methods
@@ -169,15 +395,17 @@ class ContributionWeight:
         display_names = {
             cls.UPVOTE: 'Upvote',
             cls.DOWNVOTE: 'Downvote',
-            cls.CITATION: 'Citation',
+            cls.TIP_RECEIVED: 'Tip Received',
+            cls.BOUNTY_PAYOUT: 'Bounty Payout',
+            cls.PROPOSAL_FUNDED: 'Proposal Funded',
+            cls.PROPOSAL_FUNDING_CONTRIBUTION: 'Proposal Funding Contribution',
             cls.COMMENT: 'Comment',
             cls.THREAD_CREATED: 'Thread Created',
-            cls.BOUNTY_CREATED: 'Bounty Created',
             cls.POST_CREATED: 'Post Created',
+            cls.BOUNTY_CREATED: 'Bounty Created',
             cls.PEER_REVIEW: 'Peer Review',
-            cls.BOUNTY_SOLUTION: 'Bounty Solution',
-            cls.BOUNTY_FUNDED: 'High-Value Bounty',
-            cls.PAPER_PUBLISHED: 'Paper Published',
+            cls.VERIFIED_ACCOUNT: 'Verified Account',
+            cls.DELETION_PENALTY: 'Content Deletion Penalty',
         }
         
         return display_names.get(contribution_type, contribution_type)
@@ -190,7 +418,21 @@ class ContributionWeight:
         Returns:
             list: All contribution type constants
         """
-        return list(cls.BASE_WEIGHTS.keys())
+        return [
+            cls.TIP_RECEIVED,
+            cls.BOUNTY_PAYOUT,
+            cls.PROPOSAL_FUNDED,
+            cls.PROPOSAL_FUNDING_CONTRIBUTION,
+            cls.UPVOTE,
+            cls.DOWNVOTE,
+            cls.COMMENT,
+            cls.THREAD_CREATED,
+            cls.POST_CREATED,
+            cls.BOUNTY_CREATED,
+            cls.PEER_REVIEW,
+            cls.VERIFIED_ACCOUNT,
+            cls.DELETION_PENALTY,
+        ]
     
     @classmethod
     def validate_contribution_type(cls, contribution_type):
@@ -203,5 +445,4 @@ class ContributionWeight:
         Returns:
             bool: True if valid, False otherwise
         """
-        return contribution_type in cls.BASE_WEIGHTS
-
+        return contribution_type in cls.get_all_contribution_types()
