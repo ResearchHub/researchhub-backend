@@ -10,6 +10,18 @@ class FasterDjangoPaginator(Paginator):
         return self.object_list.values("id").count()
 
 
+class NoCountPaginator(Paginator):
+    """
+    Custom paginator that doesn't perform COUNT queries.
+    """
+
+    @cached_property
+    def count(self):
+        # Return a large number to avoid triggering "last page" logic
+        # This prevents the expensive COUNT(*) query
+        return 9999999
+
+
 class MediumPageLimitPagination(PageNumberPagination):
     page_size_query_param = "page_limit"
     max_page_size = 100
