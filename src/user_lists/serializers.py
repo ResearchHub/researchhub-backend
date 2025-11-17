@@ -4,6 +4,8 @@ from .models import List, ListItem
 
 
 class ListSerializer(serializers.ModelSerializer):
+    item_count = serializers.IntegerField(read_only=True, required=False)
+
     class Meta:
         model = List
         fields = [
@@ -14,6 +16,7 @@ class ListSerializer(serializers.ModelSerializer):
             "updated_date",
             "created_by",
             "updated_by",
+            "item_count",
         ]
         read_only_fields = ["id", "created_date", "updated_date", "created_by", "updated_by"]
 

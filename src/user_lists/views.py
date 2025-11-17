@@ -1,4 +1,5 @@
 from django.db import IntegrityError
+from django.db.models import Count, Q
 from rest_framework import status, viewsets
 from rest_framework.mixins import DestroyModelMixin
 from rest_framework.permissions import IsAuthenticated
@@ -14,7 +15,9 @@ class ListViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return self.queryset.filter(created_by=self.request.user)
+        return self.queryset.filter(created_by=self.request.user).annotate(
+            item_count=Count("items", filter=Q(items__is_removed=False))
+        ).order_by("-updated_date")
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
