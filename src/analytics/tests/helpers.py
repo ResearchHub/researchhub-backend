@@ -8,10 +8,10 @@ from decimal import Decimal
 import pytz
 from django.contrib.contenttypes.models import ContentType
 
-from analytics.constants.personalize_constants import DELIMITER
 from hub.models import Hub
 from paper.models import Paper
 from paper.related_models.authorship_model import Authorship
+from personalize.config.constants import DELIMITER
 from purchase.models import Fundraise, Grant, GrantApplication, Purchase
 from reputation.models import Bounty, BountySolution, Escrow
 from researchhub_document.helpers import create_post

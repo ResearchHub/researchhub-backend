@@ -1,3 +1,3 @@
-from .personalize_feed_service import PersonalizeFeedService
+from personalize.services.feed_service import FeedService
 
-__all__ = ["PersonalizeFeedService"]
+__all__ = ["FeedService"]

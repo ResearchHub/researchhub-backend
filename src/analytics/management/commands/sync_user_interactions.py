@@ -159,7 +159,7 @@ class Command(BaseCommand):
                         interaction.event,
                         event_weight,
                         "",  # DEVICE - not yet tracked
-                        "",  # IMPRESSION - not yet tracked
+                        interaction.impression or "",  # IMPRESSION
                         interaction.personalize_rec_id or "",  # RECOMMENDATION_ID
                     ]
                 )
