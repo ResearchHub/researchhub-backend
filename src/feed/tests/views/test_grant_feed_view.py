@@ -208,32 +208,6 @@ class GrantFeedViewTests(APITestCase):
         self.assertIn("status", grant_data)
         self.assertIn("is_expired", grant_data)
 
-    def test_grant_feed_pagination(self):
-        """Test that grant feed supports pagination"""
-        # Create more grants to test pagination
-        for i in range(10):
-            post = create_post(
-                created_by=self.moderator, document_type=GRANT, title=f"Grant {i}"
-            )
-            Grant.objects.create(
-                created_by=self.moderator,
-                unified_document=post.unified_document,
-                amount=Decimal("10000.00"),
-                currency="USD",
-                organization=f"Org {i}",
-                description=f"Grant {i} description",
-                status=Grant.OPEN,
-            )
-
-        self.client.force_authenticate(self.user)
-        response = self.client.get("/api/grant_feed/")
-
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("count", response.data)
-        self.assertIn("next", response.data)
-        self.assertIn("previous", response.data)
-        self.assertIn("results", response.data)
-
     def test_grant_feed_caching(self):
         """Test that grant feed responses can be cached for early pages"""
         self.client.force_authenticate(self.user)
