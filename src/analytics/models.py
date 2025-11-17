@@ -49,6 +49,11 @@ class UserInteractions(DefaultModel):
         null=True,
         blank=True,
     )
+    impressions = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Pipe-delimited unified document IDs from Amplitude events",
+    )
 
     class Meta:
         indexes = [

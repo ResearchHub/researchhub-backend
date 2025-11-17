@@ -164,3 +164,36 @@ class AmplitudeWebhookTestCase(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["processed"], 0)
         self.assertEqual(response.data["failed"], 1)
+
+    def test_webhook_processes_event_with_impressions(self):
+        """Test that the webhook processes events with impressions."""
+        from analytics.models import UserInteractions
+
+        payload = {
+            "event_type": "feed_item_clicked",
+            "event_properties": {
+                "user_id": str(self.user.id),
+                "impression": ["123", "456", "789"],
+                "related_work": {
+                    "unified_document_id": str(self.post.unified_document.id),
+                    "content_type": "researchhubpost",
+                    "id": str(self.post.id),
+                },
+            },
+            "time": 1234567890000,
+        }
+
+        initial_count = UserInteractions.objects.count()
+        response = self.client.post(
+            self.url, data=json.dumps(payload), content_type="application/json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["processed"], 1)
+
+        # Verify the interaction was created with impressions
+        final_count = UserInteractions.objects.count()
+        self.assertEqual(final_count, initial_count + 1)
+
+        interaction = UserInteractions.objects.latest("created_date")
+        self.assertEqual(interaction.impressions, "123|456|789")

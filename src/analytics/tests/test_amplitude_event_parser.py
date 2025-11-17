@@ -556,3 +556,131 @@ class AmplitudeEventParserTests(TestCase):
 
         self.assertIsInstance(interaction, AmplitudeEvent)
         self.assertEqual(interaction.personalize_rec_id, recommendation_id)
+
+    def test_extracts_impressions_from_event_properties(self):
+        """Test that impressions array is extracted and converted to pipe-delimited string."""
+        impression_array = ["123", "456", "789"]
+        event = {
+            "event_type": "feed_item_clicked",
+            "event_properties": {
+                "user_id": self.user.id,
+                "impression": impression_array,
+                "related_work": {
+                    "unified_document_id": self.post.unified_document.id,
+                    "content_type": "researchhubpost",
+                    "id": self.post.id,
+                },
+            },
+            "time": int(timezone.now().timestamp() * 1000),
+        }
+
+        interaction = self.parser.parse_amplitude_event(event)
+
+        self.assertIsInstance(interaction, AmplitudeEvent)
+        self.assertEqual(interaction.impressions, "123|456|789")
+
+    def test_extracts_impressions_with_single_item(self):
+        """Test that single-item impressions array is converted correctly."""
+        impression_array = ["123"]
+        event = {
+            "event_type": "feed_item_clicked",
+            "event_properties": {
+                "user_id": self.user.id,
+                "impression": impression_array,
+                "related_work": {
+                    "unified_document_id": self.post.unified_document.id,
+                    "content_type": "researchhubpost",
+                    "id": self.post.id,
+                },
+            },
+            "time": int(timezone.now().timestamp() * 1000),
+        }
+
+        interaction = self.parser.parse_amplitude_event(event)
+
+        self.assertIsInstance(interaction, AmplitudeEvent)
+        self.assertEqual(interaction.impressions, "123")
+
+    def test_missing_impressions_defaults_to_none(self):
+        """Test that events without impressions have None impressions."""
+        event = {
+            "event_type": "feed_item_clicked",
+            "event_properties": {
+                "user_id": self.user.id,
+                "related_work": {
+                    "unified_document_id": self.post.unified_document.id,
+                    "content_type": "researchhubpost",
+                    "id": self.post.id,
+                },
+            },
+            "time": int(timezone.now().timestamp() * 1000),
+        }
+
+        interaction = self.parser.parse_amplitude_event(event)
+
+        self.assertIsInstance(interaction, AmplitudeEvent)
+        self.assertIsNone(interaction.impressions)
+
+    def test_non_list_impressions_ignored(self):
+        """Test that non-list impressions are ignored."""
+        event = {
+            "event_type": "feed_item_clicked",
+            "event_properties": {
+                "user_id": self.user.id,
+                "impression": "not_an_array",
+                "related_work": {
+                    "unified_document_id": self.post.unified_document.id,
+                    "content_type": "researchhubpost",
+                    "id": self.post.id,
+                },
+            },
+            "time": int(timezone.now().timestamp() * 1000),
+        }
+
+        interaction = self.parser.parse_amplitude_event(event)
+
+        self.assertIsInstance(interaction, AmplitudeEvent)
+        self.assertIsNone(interaction.impressions)
+
+    def test_empty_impressions_array_defaults_to_none(self):
+        """Test that empty impressions array results in None."""
+        event = {
+            "event_type": "feed_item_clicked",
+            "event_properties": {
+                "user_id": self.user.id,
+                "impression": [],
+                "related_work": {
+                    "unified_document_id": self.post.unified_document.id,
+                    "content_type": "researchhubpost",
+                    "id": self.post.id,
+                },
+            },
+            "time": int(timezone.now().timestamp() * 1000),
+        }
+
+        interaction = self.parser.parse_amplitude_event(event)
+
+        self.assertIsInstance(interaction, AmplitudeEvent)
+        self.assertIsNone(interaction.impressions)
+
+    def test_impressions_with_numeric_values_converted_to_string(self):
+        """Test that numeric impression values are converted to strings."""
+        impression_array = [123, 456, 789]
+        event = {
+            "event_type": "feed_item_clicked",
+            "event_properties": {
+                "user_id": self.user.id,
+                "impression": impression_array,
+                "related_work": {
+                    "unified_document_id": self.post.unified_document.id,
+                    "content_type": "researchhubpost",
+                    "id": self.post.id,
+                },
+            },
+            "time": int(timezone.now().timestamp() * 1000),
+        }
+
+        interaction = self.parser.parse_amplitude_event(event)
+
+        self.assertIsInstance(interaction, AmplitudeEvent)
+        self.assertEqual(interaction.impressions, "123|456|789")

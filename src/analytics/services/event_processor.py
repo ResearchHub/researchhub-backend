@@ -42,6 +42,7 @@ class EventProcessor:
                         interaction.is_synced_with_personalize
                     ),
                     "personalize_rec_id": interaction.personalize_rec_id,
+                    "impressions": interaction.impressions,
                 },
             )
             logger.debug(

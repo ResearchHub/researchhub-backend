@@ -314,3 +314,104 @@ class EventProcessorTestCase(TestCase):
             unified_document=self.post.unified_document,
         )
         self.assertEqual(interaction.personalize_rec_id, recommendation_id)
+
+    def test_process_event_with_impressions_stores_pipe_delimited_string(self):
+        """Test that impressions array is stored as pipe-delimited string."""
+        impression_array = ["123", "456", "789"]
+        event = {
+            "event_type": "feed_item_clicked",
+            "event_properties": {
+                "user_id": str(self.user.id),
+                "impression": impression_array,
+                "related_work": {
+                    "unified_document_id": str(self.post.unified_document.id),
+                    "content_type": "researchhubpost",
+                    "id": str(self.post.id),
+                },
+            },
+            "time": int(datetime.now().timestamp() * 1000),
+        }
+
+        initial_count = UserInteractions.objects.count()
+        self.processor.process_event(event)
+        final_count = UserInteractions.objects.count()
+
+        self.assertEqual(final_count, initial_count + 1)
+
+        # Verify the created interaction has impressions
+        interaction = UserInteractions.objects.latest("created_date")
+        self.assertEqual(interaction.user, self.user)
+        self.assertEqual(interaction.event, FEED_ITEM_CLICK)
+        self.assertEqual(interaction.impressions, "123|456|789")
+
+    def test_process_event_without_impressions_stores_none(self):
+        """Test that events without impressions store None."""
+        event = {
+            "event_type": "feed_item_clicked",
+            "event_properties": {
+                "user_id": str(self.user.id),
+                "related_work": {
+                    "unified_document_id": str(self.post.unified_document.id),
+                    "content_type": "researchhubpost",
+                    "id": str(self.post.id),
+                },
+            },
+            "time": int(datetime.now().timestamp() * 1000),
+        }
+
+        initial_count = UserInteractions.objects.count()
+        self.processor.process_event(event)
+        final_count = UserInteractions.objects.count()
+
+        self.assertEqual(final_count, initial_count + 1)
+
+        # Verify the created interaction has None impressions
+        interaction = UserInteractions.objects.latest("created_date")
+        self.assertIsNone(interaction.impressions)
+
+    def test_process_event_with_single_impression(self):
+        """Test that single-item impressions array is stored correctly."""
+        impression_array = ["123"]
+        event = {
+            "event_type": "feed_item_clicked",
+            "event_properties": {
+                "user_id": str(self.user.id),
+                "impression": impression_array,
+                "related_work": {
+                    "unified_document_id": str(self.post.unified_document.id),
+                    "content_type": "researchhubpost",
+                    "id": str(self.post.id),
+                },
+            },
+            "time": int(datetime.now().timestamp() * 1000),
+        }
+
+        self.processor.process_event(event)
+
+        interaction = UserInteractions.objects.latest("created_date")
+        self.assertEqual(interaction.impressions, "123")
+
+    def test_process_event_with_impressions_and_recommendation_id(self):
+        """Test that both impressions and recommendation_id are stored."""
+        impression_array = ["123", "456"]
+        recommendation_id = "rec_12345"
+        event = {
+            "event_type": "feed_item_clicked",
+            "event_properties": {
+                "user_id": str(self.user.id),
+                "impression": impression_array,
+                "recommendation_id": recommendation_id,
+                "related_work": {
+                    "unified_document_id": str(self.post.unified_document.id),
+                    "content_type": "researchhubpost",
+                    "id": str(self.post.id),
+                },
+            },
+            "time": int(datetime.now().timestamp() * 1000),
+        }
+
+        self.processor.process_event(event)
+
+        interaction = UserInteractions.objects.latest("created_date")
+        self.assertEqual(interaction.impressions, "123|456")
+        self.assertEqual(interaction.personalize_rec_id, recommendation_id)
