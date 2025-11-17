@@ -430,3 +430,129 @@ class AmplitudeEventParserTests(TestCase):
 
         self.assertIsNone(interaction)
         self.assertIn("Unexpected error parsing event", log.output[0])
+
+    def test_extracts_recommendation_id_from_event_properties(self):
+        """Test that recommendation_id is extracted from event_properties."""
+        recommendation_id = "rec_12345"
+        event = {
+            "event_type": "feed_item_clicked",
+            "event_properties": {
+                "user_id": self.user.id,
+                "recommendation_id": recommendation_id,
+                "related_work": {
+                    "unified_document_id": self.post.unified_document.id,
+                    "content_type": "researchhubpost",
+                    "id": self.post.id,
+                },
+            },
+            "time": int(timezone.now().timestamp() * 1000),
+        }
+
+        interaction = self.parser.parse_amplitude_event(event)
+
+        self.assertIsInstance(interaction, AmplitudeEvent)
+        self.assertEqual(interaction.personalize_rec_id, recommendation_id)
+
+    def test_extracts_recommendation_id_with_numeric_value(self):
+        """Test that numeric recommendation_id is converted to string."""
+        recommendation_id = 12345
+        event = {
+            "event_type": "feed_item_clicked",
+            "event_properties": {
+                "user_id": self.user.id,
+                "recommendation_id": recommendation_id,
+                "related_work": {
+                    "unified_document_id": self.post.unified_document.id,
+                    "content_type": "researchhubpost",
+                    "id": self.post.id,
+                },
+            },
+            "time": int(timezone.now().timestamp() * 1000),
+        }
+
+        interaction = self.parser.parse_amplitude_event(event)
+
+        self.assertIsInstance(interaction, AmplitudeEvent)
+        self.assertEqual(interaction.personalize_rec_id, "12345")
+
+    def test_missing_recommendation_id_defaults_to_none(self):
+        """Test that events without recommendation_id have None personalize_rec_id."""
+        event = {
+            "event_type": "feed_item_clicked",
+            "event_properties": {
+                "user_id": self.user.id,
+                "related_work": {
+                    "unified_document_id": self.post.unified_document.id,
+                    "content_type": "researchhubpost",
+                    "id": self.post.id,
+                },
+            },
+            "time": int(timezone.now().timestamp() * 1000),
+        }
+
+        interaction = self.parser.parse_amplitude_event(event)
+
+        self.assertIsInstance(interaction, AmplitudeEvent)
+        self.assertIsNone(interaction.personalize_rec_id)
+
+    def test_empty_recommendation_id_defaults_to_none(self):
+        """Test that empty string recommendation_id is handled."""
+        event = {
+            "event_type": "feed_item_clicked",
+            "event_properties": {
+                "user_id": self.user.id,
+                "recommendation_id": "",
+                "related_work": {
+                    "unified_document_id": self.post.unified_document.id,
+                    "content_type": "researchhubpost",
+                    "id": self.post.id,
+                },
+            },
+            "time": int(timezone.now().timestamp() * 1000),
+        }
+
+        interaction = self.parser.parse_amplitude_event(event)
+
+        self.assertIsInstance(interaction, AmplitudeEvent)
+        self.assertEqual(interaction.personalize_rec_id, "")
+
+    def test_none_recommendation_id_defaults_to_none(self):
+        """Test that None recommendation_id results in None personalize_rec_id."""
+        event = {
+            "event_type": "feed_item_clicked",
+            "event_properties": {
+                "user_id": self.user.id,
+                "recommendation_id": None,
+                "related_work": {
+                    "unified_document_id": self.post.unified_document.id,
+                    "content_type": "researchhubpost",
+                    "id": self.post.id,
+                },
+            },
+            "time": int(timezone.now().timestamp() * 1000),
+        }
+
+        interaction = self.parser.parse_amplitude_event(event)
+
+        self.assertIsInstance(interaction, AmplitudeEvent)
+        self.assertIsNone(interaction.personalize_rec_id)
+
+    def test_recommendation_id_with_flat_format(self):
+        """Test that recommendation_id works with flat format event_properties."""
+        recommendation_id = "rec_67890"
+        event = {
+            "event_type": "feed_item_clicked",
+            "event_properties": {
+                "user_id": self.user.id,
+                "recommendation_id": recommendation_id,
+                "related_work.content_type": "researchhubpost",
+                "related_work.id": self.post.id,
+                "related_work.unified_document_id": self.post.unified_document.id,
+            },
+            "time": int(timezone.now().timestamp() * 1000),
+        }
+
+        interaction = self.parser.parse_amplitude_event(event)
+
+        self.assertIsInstance(interaction, AmplitudeEvent)
+        self.assertEqual(interaction.personalize_rec_id, recommendation_id)
