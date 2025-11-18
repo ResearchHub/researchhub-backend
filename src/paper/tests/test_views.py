@@ -806,19 +806,25 @@ class PaperViewsTests(TestCase):
         self.user = create_random_authenticated_user("paper_views_user")
         self.trouble_maker = create_random_authenticated_user("trouble_maker")
 
-    def test_check_url_is_true_if_url_has_pdf(self):
+    @patch("paper.views.paper_views.check_url_contains_pdf")
+    def test_check_url_is_true_if_url_has_pdf(self, mock_check_url):
+        mock_check_url.return_value = True
         url = self.base_url + "check_url/"
         data = {"url": "https://bitcoin.org/bitcoin.pdf"}
         response = get_authenticated_post_response(self.user, url, data)
         self.assertContains(response, "true", status_code=200)
 
-    def test_check_url_is_false_if_url_does_NOT_have_pdf(self):
+    @patch("paper.views.paper_views.check_url_contains_pdf")
+    def test_check_url_is_false_if_url_does_NOT_have_pdf(self, mock_check_url):
+        mock_check_url.return_value = False
         url = self.base_url + "check_url/"
         data = {"url": "https://bitcoin.org/en/"}
         response = get_authenticated_post_response(self.user, url, data)
         self.assertContains(response, "false", status_code=200)
 
-    def test_check_url_is_false_for_malformed_url(self):
+    @patch("paper.views.paper_views.check_url_contains_pdf")
+    def test_check_url_is_false_for_malformed_url(self, mock_check_url):
+        mock_check_url.return_value = False
         url = self.base_url + "check_url/"
         data = {"url": "bitcoin.org/bitcoin.pdf/"}
         response = get_authenticated_post_response(self.user, url, data)
