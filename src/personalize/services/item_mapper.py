@@ -64,19 +64,6 @@ class ItemMapper:
         rfp_data: dict,
         review_count_data: dict,
     ) -> Dict[str, Optional[str]]:
-        """
-        Map a prefetched ResearchhubUnifiedDocument to CSV format.
-
-        Args:
-            prefetched_doc: UnifiedDocument with prefetched relations
-            bounty_data: Dict with has_active_bounty and has_solutions flags
-            proposal_data: Dict with is_open and has_funders flags
-            rfp_data: Dict with is_open and has_applicants flags
-            review_count_data: Dict mapping doc_id to review count
-
-        Returns:
-            Dictionary with keys matching CSV_HEADERS
-        """
         return self._map_to_item(
             prefetched_doc, bounty_data, proposal_data, rfp_data, review_count_data
         )
@@ -89,19 +76,6 @@ class ItemMapper:
         rfp_data: dict,
         review_count_data: dict,
     ) -> Dict[str, str]:
-        """
-        Map a prefetched ResearchhubUnifiedDocument to AWS Personalize API format.
-
-        Args:
-            prefetched_doc: UnifiedDocument with prefetched relations
-            bounty_data: Dict with has_active_bounty and has_solutions flags
-            proposal_data: Dict with is_open and has_funders flags
-            rfp_data: Dict with is_open and has_applicants flags
-            review_count_data: Dict mapping doc_id to review count
-
-        Returns:
-            Dictionary with 'itemId' and 'properties' keys for AWS API
-        """
         item_data = self._map_to_item(
             prefetched_doc, bounty_data, proposal_data, rfp_data, review_count_data
         )
@@ -127,19 +101,6 @@ class ItemMapper:
         rfp_data: dict,
         review_count_data: dict,
     ) -> Dict[str, Optional[str]]:
-        """
-        Map a prefetched ResearchhubUnifiedDocument to a Personalize item dictionary.
-
-        Args:
-            prefetched_doc: UnifiedDocument with prefetched relations
-            bounty_data: Dict with has_active_bounty and has_solutions flags
-            proposal_data: Dict with is_open and has_funders flags
-            rfp_data: Dict with is_open and has_applicants flags
-            review_count_data: Dict mapping doc_id to review count
-
-        Returns:
-            Dictionary with keys matching CSV_HEADERS
-        """
         # Initialize row with default values from constants
         row = {field: default for field, default in FIELD_DEFAULTS.items()}
 
