@@ -79,10 +79,6 @@ class EventProcessor:
             )
 
             if created and (interaction.user_id or interaction.external_user_id):
-                logger.info(
-                    f"Queueing Personalize event sync: interaction={interaction.id}, "
-                    f"event={event_type}, user={user_identifier_for_logging}"
-                )
                 sync_interaction_event_to_personalize_task.delay(interaction.id)
 
         except Exception as e:
