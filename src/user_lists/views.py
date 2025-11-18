@@ -1,7 +1,7 @@
 from django.db import IntegrityError
 from django.db.models import Count, Q
 from rest_framework import status, viewsets
-from rest_framework.mixins import DestroyModelMixin
+from rest_framework.mixins import DestroyModelMixin, ListModelMixin
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -36,14 +36,19 @@ class ListViewSet(viewsets.ModelViewSet):
         serializer.save(updated_by=self.request.user)
 
 
-class ListItemViewSet(DestroyModelMixin, viewsets.GenericViewSet):
+class ListItemViewSet(ListModelMixin, DestroyModelMixin, viewsets.GenericViewSet):
     queryset = ListItem.objects.filter(is_removed=False)
     serializer_class = ListItemSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = FeedPagination
 
     def get_queryset(self):
-        return self.queryset.filter(parent_list__created_by=self.request.user)
+        qs = self.queryset.filter(parent_list__created_by=self.request.user)
+        parent_list_id = self.request.query_params.get("parent_list")
+        if parent_list_id:
+            qs = qs.filter(parent_list_id=parent_list_id, unified_document__is_removed=False)
+        
+        return qs
 
     def list(self, request, *args, **kwargs):
         parent_list_id = request.query_params.get("parent_list")
@@ -52,14 +57,7 @@ class ListItemViewSet(DestroyModelMixin, viewsets.GenericViewSet):
         check_list_exists = List.objects.filter(id=parent_list_id, created_by=request.user, is_removed=False).exists()
         if not check_list_exists:
             return Response({"error": "List not found"}, status=status.HTTP_404_NOT_FOUND)
-        
-        list_items = self.get_queryset().filter(
-            parent_list_id=parent_list_id, unified_document__is_removed=False
-        )
-        
-        page = self.paginate_queryset(list_items)
-        serializer = self.get_serializer(page or list_items, many=True)
-        return self.get_paginated_response(serializer.data) if page else Response(serializer.data)
+        return super().list(request, *args, **kwargs)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)

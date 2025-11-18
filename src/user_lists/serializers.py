@@ -43,15 +43,17 @@ class ListItemSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_date", "updated_date", "created_by", "updated_by", "feed_entry"]
     
     def get_feed_entry(self, obj):
-        try:
-            feed_entry = FeedEntry.objects.exclude(
-                content_type=ContentType.objects.get_for_model(RhCommentModel)
-            ).select_related(
-                "content_type", "user", "user__author_profile", "user__userverification"
-            ).get(unified_document_id=obj.unified_document_id)
+        feed_entry = FeedEntry.objects.filter(
+            unified_document_id=obj.unified_document_id
+        ).exclude(
+            content_type=ContentType.objects.get_for_model(RhCommentModel)
+        ).select_related(
+            "content_type", "user", "user__author_profile", "user__userverification"
+        ).first()
+        
+        if feed_entry:
             return FeedEntrySerializer(feed_entry, context=self.context).data
-        except FeedEntry.DoesNotExist:
-            return None
+        return None
     
     def validate(self, data):
         request = self.context.get("request")
