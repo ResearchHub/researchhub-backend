@@ -1,9 +1,11 @@
 import logging
 from typing import List
 
+from analytics.constants.event_types import EVENT_WEIGHTS
+from analytics.models import UserInteractions
 from personalize.clients.sync_client import SyncClient
 from personalize.services.item_mapper import ItemMapper
-from personalize.types import SyncResultWithSkipped
+from personalize.types import SyncResult, SyncResultWithSkipped
 from personalize.utils.related_data_fetcher import RelatedDataFetcher
 from researchhub_document.models import ResearchhubUnifiedDocument
 
@@ -80,3 +82,41 @@ class SyncService:
         self, unified_doc: ResearchhubUnifiedDocument
     ) -> SyncResultWithSkipped:
         return self.sync_items([unified_doc])
+
+    def sync_event(self, interaction: UserInteractions) -> SyncResult:
+        if not interaction.user_id or not interaction.unified_document_id:
+            return {
+                "success": False,
+                "synced": 0,
+                "failed": 1,
+                "errors": ["Missing user_id or unified_document_id"],
+            }
+
+        user_id = str(interaction.user_id)
+        session_id = str(interaction.user_id)
+        event_value = EVENT_WEIGHTS.get(interaction.event, 1.0)
+
+        event = {
+            "eventId": str(interaction.id),
+            "eventType": interaction.event,
+            "eventValue": event_value,
+            "itemId": str(interaction.unified_document_id),
+            "sentAt": int(interaction.event_timestamp.timestamp()),
+        }
+
+        if interaction.impression:
+            event["impression"] = interaction.impression.split("|")
+
+        if interaction.personalize_rec_id:
+            event["recommendationId"] = interaction.personalize_rec_id
+
+        logger.info(
+            f"Sending event to Personalize: user={user_id}, "
+            f"event_type={interaction.event}, item={interaction.unified_document_id}"
+        )
+
+        result = self.sync_client.put_events(user_id, session_id, [event])
+
+        logger.info(f"Personalize event response: {result}")
+
+        return result

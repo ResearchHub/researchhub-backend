@@ -4,6 +4,7 @@ from typing import Any, Dict
 from analytics.interactions.amplitude_event_parser import AmplitudeEventParser
 from analytics.interactions.interaction_mapper import map_from_amplitude_event
 from analytics.models import UserInteractions
+from personalize.services.sync_service import SyncService
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +14,7 @@ class EventProcessor:
 
     def __init__(self):
         self.amplitude_parser = AmplitudeEventParser()
+        self.sync_service = SyncService()
 
     def process_event(self, event: Dict[str, Any]) -> None:
         """Process a single event."""
@@ -60,9 +62,7 @@ class EventProcessor:
                     "user": interaction.user,
                     "external_user_id": interaction.external_user_id,
                     "event_timestamp": interaction.event_timestamp,
-                    "is_synced_with_personalize": (
-                        interaction.is_synced_with_personalize
-                    ),
+                    "is_synced_with_personalize": False,
                     "personalize_rec_id": interaction.personalize_rec_id,
                     "impression": interaction.impression,
                 },
@@ -72,6 +72,29 @@ class EventProcessor:
                 f"Successfully processed interaction: {event_type} for user "
                 f"{user_identifier}"
             )
+
+            if created and interaction.user_id:
+                try:
+                    sync_result = self.sync_service.sync_event(interaction)
+                    if sync_result["success"]:
+                        interaction.is_synced_with_personalize = True
+                        interaction.save(update_fields=["is_synced_with_personalize"])
+                        logger.info(
+                            f"Successfully synced event to Personalize: "
+                            f"{event_type} for user {user_id}"
+                        )
+                    else:
+                        logger.warning(
+                            f"Failed to sync event to Personalize: "
+                            f"{event_type} for user {user_id}. "
+                            f"Errors: {sync_result['errors']}"
+                        )
+                except Exception as sync_error:
+                    logger.error(
+                        f"Exception while syncing event to Personalize: "
+                        f"{event_type} for user {user_id} - {sync_error}"
+                    )
+
         except Exception as e:
             user_identifier = user_id if user_id else f"external_user_id:{external_user_id}"
             logger.error(
