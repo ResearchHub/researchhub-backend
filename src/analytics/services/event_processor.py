@@ -4,7 +4,7 @@ from typing import Any, Dict
 from analytics.interactions.amplitude_event_parser import AmplitudeEventParser
 from analytics.interactions.interaction_mapper import map_from_amplitude_event
 from analytics.models import UserInteractions
-from personalize.services.sync_service import SyncService
+from personalize.tasks import sync_interaction_event_to_personalize_task
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +14,6 @@ class EventProcessor:
 
     def __init__(self):
         self.amplitude_parser = AmplitudeEventParser()
-        self.sync_service = SyncService()
 
     def process_event(self, event: Dict[str, Any]) -> None:
         """Process a single event."""
@@ -26,12 +25,16 @@ class EventProcessor:
         # Check parsing first - raise exception if it fails
         amplitude_event = self.amplitude_parser.parse_amplitude_event(event)
         if amplitude_event is None:
-            user_identifier = (
-                user_id
-                if user_id
-                else (f"external_user_id:{external_user_id}" if external_user_id else "unknown")
+            if user_id:
+                user_identifier_for_logging = user_id
+            elif external_user_id:
+                user_identifier_for_logging = f"external_user_id:{external_user_id}"
+            else:
+                user_identifier_for_logging = "unknown"
+            error_msg = (
+                f"Could not parse event {event_type} "
+                f"for user {user_identifier_for_logging}"
             )
-            error_msg = f"Could not parse event {event_type} for user {user_identifier}"
             logger.error(error_msg)
             raise ValueError(error_msg)
 
@@ -67,39 +70,28 @@ class EventProcessor:
                     "impression": interaction.impression,
                 },
             )
-            user_identifier = user_id if user_id else f"external_user_id:{external_user_id}"
+            user_identifier_for_logging = (
+                user_id if user_id else f"external_user_id:{external_user_id}"
+            )
             logger.debug(
                 f"Successfully processed interaction: {event_type} for user "
-                f"{user_identifier}"
+                f"{user_identifier_for_logging}"
             )
 
-            if created and interaction.user_id:
-                try:
-                    sync_result = self.sync_service.sync_event(interaction)
-                    if sync_result["success"]:
-                        interaction.is_synced_with_personalize = True
-                        interaction.save(update_fields=["is_synced_with_personalize"])
-                        logger.info(
-                            f"Successfully synced event to Personalize: "
-                            f"{event_type} for user {user_id}"
-                        )
-                    else:
-                        logger.warning(
-                            f"Failed to sync event to Personalize: "
-                            f"{event_type} for user {user_id}. "
-                            f"Errors: {sync_result['errors']}"
-                        )
-                except Exception as sync_error:
-                    logger.error(
-                        f"Exception while syncing event to Personalize: "
-                        f"{event_type} for user {user_id} - {sync_error}"
-                    )
+            if created and (interaction.user_id or interaction.external_user_id):
+                logger.info(
+                    f"Queueing Personalize event sync: interaction={interaction.id}, "
+                    f"event={event_type}, user={user_identifier_for_logging}"
+                )
+                sync_interaction_event_to_personalize_task.delay(interaction.id)
 
         except Exception as e:
-            user_identifier = user_id if user_id else f"external_user_id:{external_user_id}"
+            user_identifier_for_logging = (
+                user_id if user_id else f"external_user_id:{external_user_id}"
+            )
             logger.error(
                 f"Failed to save interaction: {event_type} for user "
-                f"{user_identifier} - {e}"
+                f"{user_identifier_for_logging} - {e}"
             )
             # Re-raise so webhook view can count it as failed
             raise

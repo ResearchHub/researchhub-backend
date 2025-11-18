@@ -6,6 +6,10 @@ from analytics.models import UserInteractions
 from personalize.clients.sync_client import SyncClient
 from personalize.services.item_mapper import ItemMapper
 from personalize.types import SyncResult, SyncResultWithSkipped
+from personalize.utils.personalize_utils import (
+    build_session_id_for_anonymous,
+    build_session_id_for_user,
+)
 from personalize.utils.related_data_fetcher import RelatedDataFetcher
 from researchhub_document.models import ResearchhubUnifiedDocument
 
@@ -84,16 +88,31 @@ class SyncService:
         return self.sync_items([unified_doc])
 
     def sync_event(self, interaction: UserInteractions) -> SyncResult:
-        if not interaction.user_id or not interaction.unified_document_id:
+        if not interaction.unified_document_id:
             return {
                 "success": False,
                 "synced": 0,
                 "failed": 1,
-                "errors": ["Missing user_id or unified_document_id"],
+                "errors": ["Missing unified_document_id"],
             }
 
-        user_id = str(interaction.user_id)
-        session_id = str(interaction.user_id)
+        if not interaction.user_id and not interaction.external_user_id:
+            return {
+                "success": False,
+                "synced": 0,
+                "failed": 1,
+                "errors": ["Missing both user_id and external_user_id"],
+            }
+
+        if interaction.user_id:
+            user_id = str(interaction.user_id)
+            session_id = build_session_id_for_user(
+                interaction.user_id, interaction.event_timestamp
+            )
+        else:
+            user_id = interaction.external_user_id
+            session_id = build_session_id_for_anonymous(interaction.external_user_id)
+
         event_value = EVENT_WEIGHTS.get(interaction.event, 1.0)
 
         event = {

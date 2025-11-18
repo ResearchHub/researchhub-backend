@@ -1,9 +1,12 @@
+import logging
 from typing import List
 
 from django.conf import settings
 
 from personalize.types import SyncResult
 from utils.aws import create_client
+
+logger = logging.getLogger(__name__)
 
 
 class SyncClient:
@@ -66,6 +69,7 @@ class SyncClient:
                 batch_num = i // self.BATCH_SIZE + 1
                 error_msg = f"Failed to send event batch {batch_num}: {str(e)}"
                 errors.append(error_msg)
+                logger.error(f"[AWS Personalize] {error_msg}")
 
         return {
             "success": failed == 0,

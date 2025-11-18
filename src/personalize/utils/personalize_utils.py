@@ -1,22 +1,11 @@
-"""
-Shared utility functions for AWS Personalize data export.
-"""
-
 from datetime import datetime
-from typing import Optional
 
 
-def datetime_to_epoch_seconds(dt: Optional[datetime]) -> Optional[int]:
-    """
-    Convert a datetime to Unix epoch seconds.
+def build_session_id_for_user(user_id: int, timestamp: datetime) -> str:
+    date_str = timestamp.strftime("%Y_%m_%d")
+    return f"sess_user_{user_id}_{date_str}"
 
-    Args:
-        dt: Datetime object (can be timezone-aware or naive)
 
-    Returns:
-        Unix timestamp as integer, or None if dt is None
-    """
-    if dt is None:
-        return None
-
-    return int(dt.timestamp())
+def build_session_id_for_anonymous(external_user_id: str) -> str:
+    """Build a session ID for an anonymous user. A"""
+    return f"sess_anon_{external_user_id}"
