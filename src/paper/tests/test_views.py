@@ -889,8 +889,11 @@ class PaperDOITests(APITestCase):
         self.assertEqual(response.data["doi"], test_doi)
         self.assertEqual(response.data["id"], paper.id)
 
+    @patch("utils.openalex.OpenAlex.get_authors")
     @patch("utils.openalex.OpenAlex.get_work_by_doi")
-    def test_retrieve_by_doi_new_paper_from_openalex(self, mock_get_work):
+    def test_retrieve_by_doi_new_paper_from_openalex(
+        self, mock_get_work, mock_get_authors
+    ):
         """Test creating a new paper from OpenAlex when DOI not found"""
         test_doi = "10.1234/new.123"
         mock_work = {
@@ -901,7 +904,7 @@ class PaperDOITests(APITestCase):
             "authorships": [
                 {
                     "author": {
-                        "id": "A123",
+                        "id": "https://openalex.org/A123",
                         "display_name": "Test Author",
                     },
                     "author_position": "first",
@@ -912,6 +915,20 @@ class PaperDOITests(APITestCase):
             "publication_year": 2023,
         }
         mock_get_work.return_value = mock_work
+
+        mock_author = {
+            "id": "https://openalex.org/A123",
+            "display_name": "Test Author",
+            "orcid": None,
+            "summary_stats": {
+                "h_index": 10,
+                "i10_index": 5,
+                "2yr_mean_citedness": 2.0,
+            },
+            "works_count": 20,
+            "cited_by_count": 100,
+        }
+        mock_get_authors.return_value = ([mock_author], None)
 
         url = reverse("paper-retrieve-by-doi")
         response = self.client.get(url + f"?doi={test_doi}")
