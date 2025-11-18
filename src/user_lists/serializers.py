@@ -25,6 +25,17 @@ class ListSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "created_date", "updated_date", "created_by", "updated_by"]
 
+class ListOverviewSerializer(serializers.ModelSerializer):
+    list_id = serializers.IntegerField(source="id", read_only=True)
+    unified_documents = serializers.SerializerMethodField()
+
+    class Meta:
+        model = List
+        fields = ["list_id", "name", "unified_documents"]
+
+    def get_unified_documents(self, obj):
+        return [item.unified_document_id for item in obj.items.all()]
+        
 class ListItemSerializer(serializers.ModelSerializer):
     feed_entry = serializers.SerializerMethodField()
 
