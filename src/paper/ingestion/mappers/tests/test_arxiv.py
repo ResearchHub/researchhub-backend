@@ -375,7 +375,7 @@ class TestArXivMapper(TestCase):
         self.assertEqual(paper.url, "https://arxiv.org/abs/2509.10432v1")
         self.assertEqual(
             paper.pdf_url,
-            "https://arxiv.org/pdf/2509.10432v1",
+            "https://arxiv.org/pdf/2509.10432v1.pdf",
         )
 
     def test_map_to_hubs(self):
