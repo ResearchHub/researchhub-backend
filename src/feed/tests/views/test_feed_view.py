@@ -818,3 +818,54 @@ class FeedViewSetTests(TestCase):
                     dates[i + 1],
                     "Feed items not sorted by action_date when using default sort",
                 )
+
+    def test_pagination_no_next_link_when_results_less_than_page_size(self):
+        """Test that next link is not included when results are less than page size"""
+        # Arrange - we have 3 feed entries from setUp
+        url = reverse("feed-list")
+
+        # Act - Request with page_size larger than total results
+        response = self.client.get(url, {"page_size": 100})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 3)
+        self.assertIsNone(
+            response.data["next"],
+            "Next link should be None when results are less than page size",
+        )
+
+    def test_pagination_includes_next_link_when_results_equal_page_size(self):
+        """Test that next link is included when results equal page size"""
+        # Arrange
+        for i in range(17):  # We already have 3 from setUp
+            unified_doc = ResearchhubUnifiedDocument.objects.create(
+                document_type="PAPER"
+            )
+            paper = Paper.objects.create(
+                title=f"Test Paper {i}",
+                paper_publish_date=timezone.now(),
+                unified_document=unified_doc,
+            )
+            unified_doc.hubs.add(self.hub)
+            FeedEntry.objects.create(
+                user=self.user,
+                action="PUBLISH",
+                action_date=paper.paper_publish_date,
+                content_type=self.paper_content_type,
+                object_id=paper.id,
+                unified_document=paper.unified_document,
+            )
+
+        url = reverse("feed-list")
+
+        # Act
+        response = self.client.get(url)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 20)
+        self.assertIsNotNone(
+            response.data["next"],
+            "Next link should be present when results equal page size",
+        )
