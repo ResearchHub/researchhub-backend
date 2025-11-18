@@ -133,6 +133,33 @@ class ProposalReputationTests(TestCase):
         self.assertEqual(rep_receiver, 100)
         self.assertEqual(rep_funder, 150)  # 100 * 1.5
     
+    def test_proposal_tier_4_mega(self):
+        """Proposals over $1M should use tier 4 (0.0001 per $)."""
+        rep = ContributionWeight.calculate_proposal_reputation(2000000, is_funder=False)
+        # Tier 1: 1000 * 0.1 = 100
+        # Tier 2: 99000 * 0.01 = 990
+        # Tier 3: 900000 * 0.001 = 900
+        # Tier 4: 1000000 * 0.0001 = 100
+        # Total: 2090
+        self.assertEqual(rep, 2090)
+    
+    def test_proposal_tier_4_with_funder_bonus(self):
+        """Tier 4 proposals with funder bonus should use correct multiplier."""
+        rep = ContributionWeight.calculate_proposal_reputation(2000000, is_funder=True)
+        # Base: 2090 (from tier 4)
+        # With 1.5x bonus: 3135
+        self.assertEqual(rep, 3135)
+    
+    def test_proposal_zero_amount(self):
+        """Zero proposal amount should return 0 REP."""
+        rep = ContributionWeight.calculate_proposal_reputation(0, is_funder=False)
+        self.assertEqual(rep, 0)
+    
+    def test_proposal_negative_amount(self):
+        """Negative proposal amount should return 0 REP."""
+        rep = ContributionWeight.calculate_proposal_reputation(-1000, is_funder=False)
+        self.assertEqual(rep, 0)
+    
     def test_proposal_funder_bonus_large_amount(self):
         """Funder bonus should apply to all tiers."""
         rep_receiver = ContributionWeight.calculate_proposal_reputation(100000, is_funder=False)
