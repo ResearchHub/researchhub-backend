@@ -879,6 +879,7 @@ if PRODUCTION:
     AWS_PERSONALIZE_FILTER_ARN_GTE_DATE = (
         "arn:aws:personalize:us-west-2:975049929542:filter/filter-gte-date"
     )
+    AWS_PERSONALIZE_DATASET_ARN = "arn:aws:personalize:us-west-2:975049929542:dataset/prod-researchhub-recommendations/ITEMS"
 else:
     # Non-production environments use test campaign
     AWS_PERSONALIZE_CAMPAIGN_ARN = (
@@ -887,5 +888,6 @@ else:
     AWS_PERSONALIZE_FILTER_ARN_GTE_DATE = (
         "arn:aws:personalize:us-west-2:058264226692:filter/filter-gte-date"
     )
+    AWS_PERSONALIZE_DATASET_ARN = "arn:aws:personalize:us-west-2:058264226692:dataset/staging-researchhub-recommendations/ITEMS"
 
 SCRAPER_URL = os.environ.get("SCRAPER_URL", keys.SCRAPER_URL)
