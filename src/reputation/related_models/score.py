@@ -156,6 +156,52 @@ class Score(DefaultModel):
         score.save()
 
         return score
+    
+    @classmethod
+    def update_score_funding(
+        cls,
+        author,
+        hub,
+        rsc_amount,
+        content,
+        contribution_type,
+        is_funder=False,
+    ):
+        """
+        Update score for RSC-based contributions (tips, bounties, proposals).
+        
+        Convenience wrapper around ScoreChange.create_score_change_funding().
+        Always tracks data; scoring depends on feature flag.
+        
+        Args:
+            author: Author whose score to update
+            hub: Hub for the score
+            rsc_amount: Amount of RSC (Decimal or float)
+            content: The content object (tip, bounty, proposal, etc.)
+            contribution_type: Type of RSC flow ('TIP_RECEIVED', 'BOUNTY_PAYOUT', etc.)
+            is_funder: True if user is giving RSC (for proposal funding bonus)
+        
+        Returns:
+            Score object (or None if feature flag disabled and we skip scoring)
+        """
+        from reputation.related_models.contribution_weight import ContributionWeight
+        
+        score = cls.get_or_create_score(author, hub)
+        content_type = ContentType.objects.get_for_model(content)
+        
+        score_change = ScoreChange.create_score_change_funding(
+            score=score,
+            rsc_amount=rsc_amount,
+            content_type=content_type,
+            object_id=content.id,
+            contribution_type=contribution_type,
+            is_funder=is_funder,
+        )
+        
+        score.score = score_change.score_after_change
+        score.save()
+        
+        return score
 
 
 class ScoreChange(DefaultModel):
@@ -464,6 +510,159 @@ class ScoreChange(DefaultModel):
             rep += rep_change
 
         return rep
+
+    @classmethod
+    def create_score_change_funding(
+        cls,
+        score,
+        rsc_amount,
+        content_type,
+        object_id,
+        contribution_type,
+        is_funder=False,
+    ):
+        """
+        Create score change for RSC-based contributions.
+        
+        Always tracks contribution_type and rsc_amount for data collection.
+        Score calculation depends on feature flag:
+        - Flag ON: Use funding-based formulas
+        - Flag OFF: Use minimal/flat scoring
+        
+        Args:
+            score: Score object
+            rsc_amount: Amount of RSC (Decimal or float)
+            content_type: ContentType of the related object
+            object_id: ID of the related object
+            contribution_type: Type of RSC flow ('TIP_RECEIVED', 'BOUNTY_PAYOUT', etc.)
+            is_funder: True if user is giving RSC (for proposal funding bonus)
+        
+        Returns:
+            ScoreChange object
+        """
+        from reputation.related_models.contribution_weight import ContributionWeight
+        
+        algorithm_variables = AlgorithmVariables.objects.filter(hub=score.hub).latest(
+            "created_date"
+        )
+        previous_score_change = cls.get_latest_score_change(score, algorithm_variables)
+        
+        previous_score = 0
+        previous_variable_counts = {
+            "citations": 0,
+            "votes": 0,
+            "rsc_received": 0,
+        }
+        if previous_score_change:
+            previous_score = previous_score_change.score_after_change
+            previous_variable_counts = previous_score_change.variable_counts
+        
+        current_variable_counts = previous_variable_counts.copy()
+        current_variable_counts["rsc_received"] = (
+            current_variable_counts.get("rsc_received", 0) + float(rsc_amount)
+        )
+        
+        # Calculate reputation (depends on feature flag)
+        if ContributionWeight.is_tiered_scoring_enabled():
+            # Use new funding-based formulas
+            score_value_change = ContributionWeight.calculate_reputation_from_rsc(
+                contribution_type,
+                float(rsc_amount),
+                is_funder=is_funder
+            )
+        else:
+            # Feature flag OFF: minimal scoring (0 for now, can change to 1 if needed)
+            score_value_change = 0
+        
+        current_rep = previous_score + score_value_change
+        
+        # ALWAYS store contribution_type and rsc_amount (for data & future recalculation)
+        score_change = cls(
+            algorithm_version=ALGORITHM_VERSION,
+            algorithm_variables=algorithm_variables,
+            score_after_change=current_rep,
+            score_change=score_value_change,
+            raw_value_change=1,
+            changed_content_type=content_type,
+            changed_object_id=object_id,
+            changed_object_field="rsc_amount",
+            variable_counts=current_variable_counts,
+            score=score,
+            contribution_type=contribution_type,
+            rsc_amount=rsc_amount,
+            is_deleted=False,
+        )
+        score_change.save()
+        
+        return score_change
+    
+    @classmethod
+    def apply_deletion_penalty(cls, score, deleted_content_id, deleted_content_type):
+        """
+        Apply penalty when user deletes content they received RSC for.
+        
+        Logic:
+        - Find all RSC-based score changes for this content (rsc_amount > 0)
+        - Deduct that reputation
+        - Mark as is_deleted=True to prevent double-penalizing
+        - Keep vote-based reputation (voters earned those)
+        
+        Args:
+            score: Score object
+            deleted_content_id: ID of deleted content
+            deleted_content_type: ContentType of deleted content
+        
+        Returns:
+            int: Total reputation penalty applied (positive number)
+        """
+        # Find all RSC-based score changes for this content that aren't already penalized
+        rsc_score_changes = cls.objects.filter(
+            score=score,
+            changed_object_id=deleted_content_id,
+            changed_content_type=deleted_content_type,
+            is_deleted=False,
+            rsc_amount__gt=0,
+        )
+        
+        total_penalty = 0
+        
+        for sc in rsc_score_changes:
+            # Track penalty amount
+            total_penalty += sc.score_change
+            
+            # Mark as deleted (prevents re-processing)
+            sc.is_deleted = True
+            sc.save()
+        
+        if total_penalty > 0:
+            # Create negative score change for the penalty
+            algorithm_variables = AlgorithmVariables.objects.filter(hub=score.hub).latest(
+                "created_date"
+            )
+            previous_score_change = cls.get_latest_score_change(score, algorithm_variables)
+            
+            penalty_score_change = cls(
+                algorithm_version=ALGORITHM_VERSION,
+                algorithm_variables=algorithm_variables,
+                score_after_change=previous_score_change.score_after_change - total_penalty,
+                score_change=-total_penalty,
+                raw_value_change=-1,
+                changed_content_type=deleted_content_type,
+                changed_object_id=deleted_content_id,
+                changed_object_field="deletion_penalty",
+                variable_counts=previous_score_change.variable_counts,
+                score=score,
+                contribution_type='DELETION_PENALTY',
+                rsc_amount=0,
+                is_deleted=True,
+            )
+            penalty_score_change.save()
+            
+            # Update score total
+            score.score = penalty_score_change.score_after_change
+            score.save()
+        
+        return total_penalty
 
     def vote_change(vote, previous_score_change):
         vote_values = {
