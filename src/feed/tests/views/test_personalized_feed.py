@@ -361,3 +361,53 @@ class TestPersonalizedFeed(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 0)
+
+    @patch("personalize.services.feed_service.FeedService.get_recommendation_ids")
+    def test_personalized_feed_includes_recommendation_id_on_items(
+        self, mock_get_recommendation_ids
+    ):
+        # Arrange
+        mock_get_recommendation_ids.return_value = {
+            "item_ids": [self.paper_doc.id],
+            "recommendation_id": "test-rec-id-abc123",
+        }
+
+        url = reverse("researchhub_feed-list")
+        self.client.force_authenticate(user=self.user)
+
+        # Act
+        response = self.client.get(url, {"feed_view": "personalized"})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 1)
+
+        for item in response.data["results"]:
+            self.assertEqual(item["recommendation_id"], "test-rec-id-abc123")
+
+        self.assertNotIn("recommendation_id", response.data)
+
+    @patch("personalize.services.feed_service.FeedService.get_recommendation_ids")
+    def test_personalized_feed_filters_only_papers(self, mock_get_recommendation_ids):
+        # Arrange
+        mock_get_recommendation_ids.return_value = {
+            "item_ids": [self.paper_doc.id, self.post_doc.id],
+            "recommendation_id": "test-rec-id-xyz",
+        }
+
+        url = reverse("researchhub_feed-list")
+        self.client.force_authenticate(user=self.user)
+
+        # Act
+        response = self.client.get(url, {"feed_view": "personalized"})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        result_ids = [r["content_object"]["id"] for r in response.data["results"]]
+        content_types = [r["content_type"] for r in response.data["results"]]
+
+        self.assertIn(self.paper.id, result_ids)
+        self.assertNotIn(self.post.id, result_ids)
+        self.assertIn("PAPER", content_types)
+        self.assertNotIn("RESEARCHHUBPOST", content_types)

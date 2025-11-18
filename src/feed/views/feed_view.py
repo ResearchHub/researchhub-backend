@@ -1,62 +1,109 @@
-"""
-Standard feed view for ResearchHub.
-"""
-
-import logging
-
 from django.conf import settings
 from django.core.cache import cache
-from django.db.models import Case, IntegerField, Value, When
-from rest_framework import status
-from rest_framework.decorators import action
-from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
+from feed.feed_config import FEED_CONFIG, FEED_DEFAULTS
+from feed.filtering import FeedFilteringBackend
+from feed.models import FeedEntry
+from feed.ordering import FeedOrderingBackend
+from feed.serializers import FeedEntrySerializer
+from feed.views.common import FeedPagination as BaseFeedPagination
 from feed.views.feed_view_mixin import FeedViewMixin
-from hub.models import Hub
-from personalize.clients.recommendation_client import RecommendationClient
+from utils.throttles import FeedRecommendationRefreshThrottle
 
-from ..models import FeedEntry
-from ..serializers import FeedEntrySerializer
-from .common import FeedPagination
 
-logger = logging.getLogger(__name__)
+class FeedPagination(BaseFeedPagination):
+    page_size = 30
 
 
 class FeedViewSet(FeedViewMixin, ModelViewSet):
-    """
-    ViewSet for accessing the main feed of ResearchHub activities.
-    Supports filtering by hub, following status, and sorting by popularity.
-    """
-
+    queryset = FeedEntry.objects.all()
     serializer_class = FeedEntrySerializer
     permission_classes = []
     pagination_class = FeedPagination
-    cache_enabled = settings.TESTING or settings.CLOUD
+    filter_backends = [FeedFilteringBackend, FeedOrderingBackend]
+    throttle_classes = [FeedRecommendationRefreshThrottle]
 
     def dispatch(self, request, *args, **kwargs):
-        self.personalize_client = kwargs.pop(
-            "personalize_client", RecommendationClient()
-        )
+        from personalize.services.feed_service import FeedService
+
+        self.personalize_feed_service = FeedService()
         return super().dispatch(request, *args, **kwargs)
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
         context.update(self.get_common_serializer_context())
+
+        if hasattr(self, "_personalize_recommendation_id"):
+            context["recommendation_id"] = self._personalize_recommendation_id
+
         return context
 
     def list(self, request, *args, **kwargs):
+        feed_view = request.query_params.get("feed_view", "popular")
+        feed_config = FEED_CONFIG.get(feed_view, {})
+        use_cache_for_feed = feed_config.get("use_cache", False)
+
+        return self.get_cached_list_response(
+            request,
+            use_cache_config=use_cache_for_feed,
+        )
+
+    def get_queryset(self):
+        queryset = FeedEntry.objects.all()
+
+        queryset = queryset.select_related(
+            "content_type",
+            "user",
+            "user__author_profile",
+            "user__userverification",
+        )
+
+        return queryset
+
+    def get_cached_list_response(
+        self,
+        request,
+        use_cache_config=True,
+    ):
+        feed_view = request.query_params.get("feed_view", "popular")
+
+        if feed_view == "personalized":
+            response = super(FeedViewSet, self).list(request)
+
+            if request.user.is_authenticated:
+                self.add_user_votes_to_response(request.user, response.data)
+
+            cache_status = (
+                "partial-cache-hit"
+                if self.personalize_feed_service.cache_hit
+                else "partial-cache-miss"
+            )
+
+            response["RH-Cache"] = cache_status + (
+                " (auth)" if request.user.is_authenticated else ""
+            )
+            return response
+
         page = request.query_params.get("page", "1")
         page_num = int(page)
-        cache_key = self.get_cache_key(request)
+        cache_key = self.get_cache_key(request, feed_type="researchhub")
 
         disable_cache_token = request.query_params.get("disable_cache")
         force_disable_cache = disable_cache_token == settings.HEALTH_CHECK_TOKEN
-        use_cache = not force_disable_cache and self.cache_enabled and page_num < 4
+
+        cache_enabled = settings.TESTING or settings.CLOUD
+        num_pages_to_cache = FEED_DEFAULTS["cache"]["num_pages_to_cache"]
+
+        use_cache = (
+            not force_disable_cache
+            and cache_enabled
+            and use_cache_config
+            and page_num <= num_pages_to_cache
+        )
 
         if use_cache:
-            # try to get cached response
             cached_response = cache.get(cache_key)
             if cached_response:
                 if request.user.is_authenticated:
@@ -67,10 +114,9 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
                 )
                 return response
 
-        response = super().list(request, *args, **kwargs)
+        response = super(FeedViewSet, self).list(request)
 
         if use_cache:
-            # cache response
             cache.set(cache_key, response.data, timeout=self.DEFAULT_CACHE_TIMEOUT)
 
         if request.user.is_authenticated:
@@ -80,194 +126,3 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
             " (auth)" if request.user.is_authenticated else ""
         )
         return response
-
-    def get_queryset(self):
-        """
-        Filter feed entries based on the feed view ('following' or 'latest')
-        and additional filters. For 'following' view, show items related to what
-        user follows. For 'latest' view, show all items. Ensure that the result
-        contains only the most recent entry per (content_type, object_id),
-        ordered globally by the most recent action_date.
-        """
-        feed_view = self.request.query_params.get("feed_view", "latest")
-        hub_slug = self.request.query_params.get("hub_slug")
-        source = self.request.query_params.get("source", "all")
-        sort_by = self.request.query_params.get("sort_by", "latest")
-        hot_score_version = self.request.query_params.get("hot_score_version", "v1")
-        hot_score_field = "hot_score_v2" if hot_score_version == "v2" else "hot_score"
-
-        # Use FeedEntry for all queries, sorted by hot_score or action_date
-        queryset = FeedEntry.objects.all()
-
-        # Apply sorting based on feed_view and sort_by
-        if feed_view == "popular" or (
-            feed_view == "following" and sort_by == "hot_score"
-        ):
-            queryset = queryset.order_by(f"-{hot_score_field}")
-        else:
-            queryset = queryset.order_by("-action_date")
-
-        queryset = queryset.select_related(
-            "content_type",
-            "user",
-            "user__author_profile",
-            "user__userverification",
-            "hot_score_breakdown_v2",
-        )
-
-        # Apply source filter
-        # If source is 'researchhub', then only show items that are related to
-        # ResearchHub content. Since we don't have a dedicated field for this,
-        # a simplified heuristic is to filter out papers (papers are ingested via
-        # OpenAlex and do not originate on ResearchHub).
-        if source == "researchhub":
-            queryset = queryset.exclude(content_type=self._paper_content_type)
-
-        # Apply following filter only for "following" view
-        if feed_view == "following":
-            followed_hub_ids = self.get_followed_hub_ids()
-            if followed_hub_ids:
-                queryset = queryset.filter(
-                    hubs__id__in=followed_hub_ids,
-                )
-
-            # Only show paper and post for all following views
-            queryset = queryset.filter(
-                content_type__in=[
-                    self._paper_content_type,
-                    self._post_content_type,
-                ]
-            )
-
-        # Handle both popular view and following view with hot_score sorting
-        if feed_view == "popular" or (
-            feed_view == "following" and sort_by == "hot_score"
-        ):
-            # Only show paper and post for both popular and following with hot_score
-            queryset = queryset.filter(
-                content_type__in=[
-                    self._paper_content_type,
-                    self._post_content_type,
-                ]
-            )
-
-            if hub_slug:
-                try:
-                    hub = Hub.objects.get(slug=hub_slug)
-                except Hub.DoesNotExist:
-                    return Response(
-                        {"error": "Hub not found"}, status=status.HTTP_404_NOT_FOUND
-                    )
-
-                queryset = queryset.filter(
-                    hubs__in=[hub],
-                )
-
-            return queryset.distinct()
-
-        # Latest / Following
-
-        # For other feed views (latest, following with hub filter)
-        # Apply hub filter if hub_id is provided
-        if hub_slug:
-            try:
-                hub = Hub.objects.get(slug=hub_slug)
-            except Hub.DoesNotExist:
-                return Response(
-                    {"error": "Hub not found"}, status=status.HTTP_404_NOT_FOUND
-                )
-
-            queryset = queryset.filter(
-                hubs__in=[hub],
-            )
-
-        return queryset.distinct()
-
-    def _get_queryset_for_personalized(self, item_ids):
-        """
-        Get FeedEntry queryset for personalized recommendations.
-
-        """
-        if not item_ids:
-            return FeedEntry.objects.none()
-
-        item_ids = [int(item_id) for item_id in item_ids]
-
-        preserved_order = [
-            When(unified_document_id=item_id, then=Value(idx))
-            for idx, item_id in enumerate(item_ids)
-        ]
-
-        queryset = (
-            FeedEntry.objects.filter(unified_document_id__in=item_ids)
-            .filter(content_type__in=[self._paper_content_type])
-            .order_by(Case(*preserved_order, output_field=IntegerField()))
-            .select_related(
-                "content_type",
-                "user",
-                "user__author_profile",
-                "user__userverification",
-            )
-            .distinct()
-        )
-
-        return queryset
-
-    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
-    def personalized(self, request):
-        """
-        Get personalized feed entries for a user using AWS Personalize.
-
-        Accepts optional user_id parameter for testing purposes.
-        TODO: Remove user_id parameter and re-enable authentication requirement.
-        """
-        try:
-            # Get user_id from query params or authenticated user
-            user_id = request.query_params.get("user_id")
-            if user_id:
-                user_id = int(user_id)
-            elif request.user.is_authenticated:
-                user_id = request.user.id
-            else:
-                return Response(
-                    {
-                        "error": (
-                            "user_id parameter required for unauthenticated requests"
-                        )
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            page_size = int(
-                request.query_params.get("page_size", self.pagination_class.page_size)
-            )
-            # Request more items to account for items to avoid multiple requests
-            num_results = min(page_size * 8, 200)
-
-            item_ids = self.personalize_client.get_recommendations_for_user(
-                user_id=user_id,
-                # Default to new-content filter (Content from last N days)
-                filter=request.query_params.get("filter", "new-content"),
-                num_results=num_results,
-            )
-
-            queryset = self._get_queryset_for_personalized(item_ids)
-
-            page = self.paginate_queryset(queryset)
-            serializer = self.get_serializer(page, many=True)
-            response = self.get_paginated_response(serializer.data)
-
-            # Add user votes only if user is authenticated
-            if request.user.is_authenticated:
-                self.add_user_votes_to_response(request.user, response.data)
-
-            return response
-
-        except Exception as e:
-            logger.error(
-                f"Error getting personalized feed for user {user_id}: {str(e)}"
-            )
-            return Response(
-                {"error": "Failed to retrieve personalized recommendations"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )

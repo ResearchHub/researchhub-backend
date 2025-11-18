@@ -34,12 +34,10 @@ import search.urls
 import user.views
 from analytics.views import AmplitudeWebhookView
 from feed.views import (
-    FeedV2ViewSet,
     FeedViewSet,
     FundingFeedViewSet,
     GrantFeedViewSet,
     JournalFeedViewSet,
-    ResearchHubFeedViewSet,
 )
 from organizations.views import NonprofitFundraiseLinkViewSet, NonprofitOrgViewSet
 from paper.views import paper_upload_views
@@ -50,7 +48,7 @@ from review.views.peer_review_view import PeerReviewViewSet
 from review.views.review_view import ReviewViewSet
 from user.views import author_views, editor_views, moderator_view, persona_webhook_view
 from user.views.custom_verify_email_view import CustomVerifyEmailView
-from user_lists.views import ListViewSet, ListItemViewSet
+from user_lists.views import ListItemViewSet, ListViewSet
 from user_saved.views import UserSavedView
 
 router = routers.DefaultRouter()
@@ -196,14 +194,6 @@ router.register(r"grant_feed", GrantFeedViewSet, basename="grant_feed")
 
 router.register(r"journal_feed", JournalFeedViewSet, basename="journal_feed")
 
-# V2 API
-router_v2 = routers.DefaultRouter()
-
-router_v2.register(r"feed", FeedV2ViewSet, basename="feed_v2")
-router_v2.register(
-    r"researchhub_feed", ResearchHubFeedViewSet, basename="researchhub_feed"
-)
-
 urlpatterns = [
     # Health check
     path(
@@ -212,8 +202,6 @@ urlpatterns = [
         include("health_check.urls"),
     ),
     re_path(r"^api/", include(router.urls)),
-    # v2 endpoints
-    re_path(r"^api/v2/", include(router_v2.urls)),
     # TODO: calvinhlee - consolidate all mod views into 1 set
     path("api/get_hub_active_contributors/", editor_views.get_hub_active_contributors),
     path(

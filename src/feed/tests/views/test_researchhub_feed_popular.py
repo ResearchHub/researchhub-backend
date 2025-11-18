@@ -207,3 +207,24 @@ class PopularFeedTests(APITestCase):
             first_score = results[0].get("hot_score_v2", 0)
             second_score = results[1].get("hot_score_v2", 0)
             self.assertGreaterEqual(first_score, second_score)
+
+    def test_feed_content_type_filtering(self):
+        url = reverse("researchhub_feed-list")
+
+        # Arrange
+
+        # Act
+        popular_response = self.client.get(url, {"feed_view": "popular"})
+
+        # Assert
+        popular_result_ids = [
+            r["content_object"]["id"] for r in popular_response.data["results"]
+        ]
+        popular_content_types = [
+            r["content_type"] for r in popular_response.data["results"]
+        ]
+
+        self.assertIn(self.high_score_paper.id, popular_result_ids)
+        self.assertIn(self.medium_score_post.id, popular_result_ids)
+        self.assertIn("PAPER", popular_content_types)
+        self.assertIn("RESEARCHHUBPOST", popular_content_types)

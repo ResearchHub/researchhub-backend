@@ -35,12 +35,18 @@ class FeedFilteringBackend(BaseFilterBackend):
         if hub_slug:
             queryset = self._filter_by_hub(hub_slug, queryset)
 
+        queryset = queryset.filter(content_type=view._paper_content_type)
+
         return queryset
 
     def _filter_popular(self, request, queryset, view):
         hub_slug = request.query_params.get("hub_slug")
         if hub_slug:
             queryset = self._filter_by_hub(hub_slug, queryset)
+
+        queryset = queryset.filter(
+            content_type__in=[view._paper_content_type, view._post_content_type]
+        )
 
         return queryset
 
@@ -62,28 +68,35 @@ class FeedFilteringBackend(BaseFilterBackend):
         force_refresh = force_refresh_header.lower() == "true"
 
         try:
-            recommended_ids = personalize_feed_service.get_recommendation_ids(
+            result = personalize_feed_service.get_recommendation_ids(
                 user_id=user_id,
                 filter_param=filter_param,
                 num_results=PERSONALIZE_CONFIG["num_results"],
                 force_refresh=force_refresh,
             )
 
+            recommended_ids = result.get("item_ids", [])
+            view._personalize_recommendation_id = result.get("recommendation_id")
+
             if not recommended_ids:
                 return queryset.none()
 
-            return self._fetch_and_order_entries(recommended_ids)
+            recommended_ids = [18346]
+            return self._fetch_and_order_entries(recommended_ids, view)
 
         except Exception as e:
             logger.error(f"Personalized feed error for user {user_id}: {e}")
             return queryset.none()
 
-    def _fetch_and_order_entries(self, document_ids: List[int]) -> List[FeedEntry]:
+    def _fetch_and_order_entries(
+        self, document_ids: List[int], view
+    ) -> List[FeedEntry]:
         position_map = {pk: pos for pos, pk in enumerate(document_ids)}
 
         entries = list(
             FeedEntry.objects.filter(
-                unified_document_id__in=document_ids
+                unified_document_id__in=document_ids,
+                content_type=view._paper_content_type,
             ).select_related(
                 "content_type",
                 "user",

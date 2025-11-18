@@ -304,3 +304,24 @@ class FollowingFeedTests(APITestCase):
         for result in results:
             content_type = result.get("content_type")
             self.assertIn(content_type, ["PAPER", "RESEARCHHUBPOST", "RHCOMMENTMODEL"])
+
+    def test_following_feed_filters_only_papers(self):
+        url = reverse("researchhub_feed-list")
+
+        # Arrange
+        self.client.force_authenticate(user=self.user)
+
+        # Act
+        response = self.client.get(url, {"feed_view": "following"})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.data["results"]
+
+        result_ids = [r["content_object"]["id"] for r in results]
+        content_types = [r["content_type"] for r in results]
+
+        self.assertIn(self.followed_paper.id, result_ids)
+        self.assertNotIn(self.followed_post.id, result_ids)
+        self.assertIn("PAPER", content_types)
+        self.assertNotIn("RESEARCHHUBPOST", content_types)
