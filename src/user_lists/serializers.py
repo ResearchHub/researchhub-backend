@@ -34,7 +34,10 @@ class ListOverviewSerializer(serializers.ModelSerializer):
         fields = ["list_id", "name", "unified_documents"]
 
     def get_unified_documents(self, obj):
-        return [item.unified_document_id for item in obj.items.all()]
+        return [
+            {"list_item_id": item.id, "unified_document_id": item.unified_document_id}
+            for item in obj.items.all()
+        ]
         
 class ListItemSerializer(serializers.ModelSerializer):
     feed_entry = serializers.SerializerMethodField()
