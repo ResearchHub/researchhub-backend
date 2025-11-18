@@ -80,6 +80,25 @@ class SyncService:
     ) -> SyncResultWithSkipped:
         return self.sync_items([unified_doc])
 
+    def _build_interaction_event(self, interaction: UserInteractions) -> dict:
+        event_value = EVENT_WEIGHTS.get(interaction.event, 1.0)
+
+        event = {
+            "eventId": str(interaction.id),
+            "eventType": interaction.event,
+            "eventValue": event_value,
+            "itemId": str(interaction.unified_document_id),
+            "sentAt": int(interaction.event_timestamp.timestamp()),
+        }
+
+        if interaction.impression:
+            event["impression"] = interaction.impression.split("|")
+
+        if interaction.personalize_rec_id:
+            event["recommendationId"] = interaction.personalize_rec_id
+
+        return event
+
     def sync_event(self, interaction: UserInteractions) -> SyncResult:
         if not interaction.unified_document_id:
             return {
@@ -106,22 +125,7 @@ class SyncService:
             user_id = interaction.external_user_id
             session_id = build_session_id_for_anonymous(interaction.external_user_id)
 
-        event_value = EVENT_WEIGHTS.get(interaction.event, 1.0)
-
-        event = {
-            "eventId": str(interaction.id),
-            "eventType": interaction.event,
-            "eventValue": event_value,
-            "itemId": str(interaction.unified_document_id),
-            "sentAt": int(interaction.event_timestamp.timestamp()),
-        }
-
-        if interaction.impression:
-            event["impression"] = interaction.impression.split("|")
-
-        if interaction.personalize_rec_id:
-            event["recommendationId"] = interaction.personalize_rec_id
-
+        event = self._build_interaction_event(interaction)
         result = self.sync_client.put_events(user_id, session_id, [event])
 
         return result
