@@ -116,26 +116,32 @@ class EventSyncTests(TestCase):
         self.assertEqual(result["failed"], 0)
         self.assertTrue(result["success"])
 
-    def test_session_id_formatting_for_authenticated_and_anonymous_users(self):
+    def test_session_id_formatting_for_authenticated_users(self):
         # Arrange
         user_id = 12345
-        external_user_id = "amp_anon_xyz789"
         test_date = datetime(2025, 11, 18, 14, 30, 0, tzinfo=pytz.UTC)
 
         # Act
-        authenticated_session = build_session_id_for_user(user_id, test_date)
-        anonymous_session = build_session_id_for_anonymous(external_user_id)
+        session_id = build_session_id_for_user(user_id, test_date)
 
         # Assert
-        self.assertEqual(authenticated_session, "sess_user_12345_2025_11_18")
-        self.assertRegex(authenticated_session, r"^sess_user_\d+_\d{4}_\d{2}_\d{2}$")
-        self.assertEqual(anonymous_session, f"sess_anon_{external_user_id}")
-        self.assertRegex(anonymous_session, r"^sess_anon_.+$")
+        self.assertEqual(session_id, "sess_user_12345_2025_11_18")
 
         different_date = datetime(2025, 11, 19, 10, 0, 0, tzinfo=pytz.UTC)
         different_session = build_session_id_for_user(user_id, different_date)
-        self.assertNotEqual(authenticated_session, different_session)
+        self.assertNotEqual(session_id, different_session)
         self.assertEqual(different_session, "sess_user_12345_2025_11_19")
+
+    def test_session_id_formatting_for_anonymous_users(self):
+        # Arrange
+        external_user_id = "amp_anon_xyz789"
+
+        # Act
+        session_id = build_session_id_for_anonymous(external_user_id)
+
+        # Assert
+        self.assertEqual(session_id, f"sess_anon_{external_user_id}")
+        self.assertRegex(session_id, r"^sess_anon_.+$")
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
     @patch("personalize.tasks.SyncService")
