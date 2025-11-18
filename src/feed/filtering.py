@@ -81,7 +81,6 @@ class FeedFilteringBackend(BaseFilterBackend):
             if not recommended_ids:
                 return queryset.none()
 
-            recommended_ids = [18346]
             return self._fetch_and_order_entries(recommended_ids, view)
 
         except Exception as e:

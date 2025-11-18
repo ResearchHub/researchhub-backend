@@ -8,13 +8,9 @@ from .funding_feed_view import FundingFeedViewSet
 from .grant_feed_view import GrantFeedViewSet
 from .journal_feed_view import JournalFeedViewSet
 
-# Backward compatibility alias
-ResearchHubFeedViewSet = FeedViewSet
-
 __all__ = [
     "FeedViewSet",
     "FeedV2ViewSet",
-    "ResearchHubFeedViewSet",
     "FundingFeedViewSet",
     "GrantFeedViewSet",
     "JournalFeedViewSet",
