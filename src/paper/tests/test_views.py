@@ -34,9 +34,10 @@ class PaperApiTests(APITestCase):
     def test_fetches_author_works_by_doi_if_name_matches(
         self, mock_get_works, mock_get_data_from_doi
     ):
-        with open("./paper/tests/openalex_author_works.json", "r") as works_file, open(
-            "./paper/tests/openalex_single_work.json", "r"
-        ) as single_work_file:
+        with (
+            open("./paper/tests/openalex_author_works.json", "r") as works_file,
+            open("./paper/tests/openalex_single_work.json", "r") as single_work_file,
+        ):
             # Set up a user that has a matching name to the one in the mocked response
             user_with_published_works = create_user(
                 first_name="Yang",
@@ -61,9 +62,10 @@ class PaperApiTests(APITestCase):
     def test_cannot_fetch_author_works_by_doi_if_name_mismatch(
         self, mock_get_works, mock_get_data_from_doi
     ):
-        with open("./paper/tests/openalex_author_works.json", "r") as works_file, open(
-            "./paper/tests/openalex_single_work.json", "r"
-        ) as single_work_file:
+        with (
+            open("./paper/tests/openalex_author_works.json", "r") as works_file,
+            open("./paper/tests/openalex_single_work.json", "r") as single_work_file,
+        ):
             # Set up a user that has a matching name to the one in the mocked response
             user_with_published_works = create_user(
                 first_name="Name",
@@ -89,9 +91,10 @@ class PaperApiTests(APITestCase):
     def test_fetch_author_works_by_doi_can_accept_optional_author_id(
         self, mock_get_works, mock_get_data_from_doi
     ):
-        with open("./paper/tests/openalex_author_works.json", "r") as works_file, open(
-            "./paper/tests/openalex_single_work.json", "r"
-        ) as single_work_file:
+        with (
+            open("./paper/tests/openalex_author_works.json", "r") as works_file,
+            open("./paper/tests/openalex_single_work.json", "r") as single_work_file,
+        ):
             # Set up a user that has a matching name to the one in the mocked response
             user_with_published_works = create_user(
                 first_name="Name",
