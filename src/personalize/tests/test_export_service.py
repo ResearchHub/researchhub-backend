@@ -112,7 +112,7 @@ class ExportItemsIteratorTests(TestCase):
         # Act
         with patch.object(
             service.mapper,
-            "map_to_item",
+            "map_to_csv_item",
             side_effect=[Exception("Error"), {"ITEM_ID": "123"}],
         ):
             items = list(service.export_items(queryset))
