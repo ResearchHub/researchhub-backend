@@ -63,6 +63,9 @@ class ContributionWeight:
     UPVOTE = 'UPVOTE'
     DOWNVOTE = 'DOWNVOTE'  # Currently unused, reserved for V2
     
+    # System-generated (tracked separately)
+    CITATION = 'CITATION'  # Citations use existing scoring algorithm
+    
     # ==========================================
     # Content Creation Types (Minimal REP)
     # ==========================================
@@ -96,7 +99,8 @@ class ContributionWeight:
         POST_CREATED: 2,       
         THREAD_CREATED: 1,    
         COMMENT: 0,            
-        PEER_REVIEW: 0,   
+        PEER_REVIEW: 0,
+        CITATION: 0,  # Citations use separate scoring algorithm
     }
     
     # Basic engagement weights
@@ -112,14 +116,18 @@ class ContributionWeight:
     @classmethod
     def calculate_tip_reputation(cls, tip_amount):
         """
-        Calculate reputation for tips received using curved scaling.
+        Calculate reputation for tips received using tiered generous scaling.
         
-        CURVED FORMULA: REP = amount^0.85
+        TIERED FORMULA: Generous at small amounts, tapering at larger amounts
         
-        Why curved: tips mean extremely good review/comment, more important than just making 
-        a comment (3 REP). More difficult to game since tip costs real money."
+        Why generous tiered: Tips mean extremely good review/comment, more important than 
+        just making a comment (3 REP). More difficult to game since tip costs real money.
         
-        The curve rewards tips generously while preventing linear farming.
+        Tiers (generous rewards):
+        - $0-10: 1.0x linear ($10 → 10 REP)
+        - $11-50: 10 + 0.75x above $10 ($50 → 40 REP)
+        - $51-100: 40 + 0.6x above $50 ($100 → 70 REP)
+        - $100+: 70 + 0.55x above $100 ($200 → 125 REP)
         
         Args:
             tip_amount (float): Tip amount in dollars/RSC
@@ -132,14 +140,37 @@ class ContributionWeight:
             1
             >>> calculate_tip_reputation(10)
             10
+            >>> calculate_tip_reputation(50)
+            40
             >>> calculate_tip_reputation(100)
             70
         """
         if tip_amount <= 0:
             return 0
         
-        # Curved scaling: sub-linear but generous
-        return int(tip_amount ** 0.85)
+        # Tier 1: $0-10 at 1.0x (linear, generous for small tips)
+        if tip_amount <= 10:
+            return int(tip_amount)
+        
+        rep = 10
+        remaining = tip_amount - 10
+        
+        # Tier 2: $11-50 at 0.75x
+        if remaining <= 40:
+            return int(rep + remaining * 0.75)
+        
+        rep += 40 * 0.75  # 30
+        remaining -= 40
+        
+        # Tier 3: $51-100 at 0.6x
+        if remaining <= 50:
+            return int(rep + remaining * 0.6)
+        
+        rep += 50 * 0.6  # 30
+        remaining -= 50
+        
+        # Tier 4: $100+ at 0.55x
+        return int(rep + remaining * 0.55)
     
     @classmethod
     def calculate_bounty_reputation(cls, bounty_amount):
@@ -323,6 +354,11 @@ class ContributionWeight:
             >>> calculate_reputation_change('BOUNTY_CREATED')
             5
         """
+        # Check for settings override first (highest priority)
+        overrides = getattr(settings, 'CONTRIBUTION_WEIGHT_OVERRIDES', {})
+        if contribution_type in overrides:
+            return overrides[contribution_type]
+        
         # Check basic weights (upvotes/downvotes)
         if contribution_type in cls.BASE_WEIGHTS:
             return cls.BASE_WEIGHTS[contribution_type]
@@ -330,11 +366,6 @@ class ContributionWeight:
         # Check content creation (minimal)
         if contribution_type in cls.CONTENT_CREATION_WEIGHTS:
             return cls.CONTENT_CREATION_WEIGHTS[contribution_type]
-        
-        # Check for settings override
-        overrides = getattr(settings, 'CONTRIBUTION_WEIGHT_OVERRIDES', {})
-        if contribution_type in overrides:
-            return overrides[contribution_type]
         
         # Default: no reputation
         return 0
@@ -395,6 +426,7 @@ class ContributionWeight:
         display_names = {
             cls.UPVOTE: 'Upvote',
             cls.DOWNVOTE: 'Downvote',
+            cls.CITATION: 'Citation',
             cls.TIP_RECEIVED: 'Tip Received',
             cls.BOUNTY_PAYOUT: 'Bounty Payout',
             cls.PROPOSAL_FUNDED: 'Proposal Funded',
@@ -425,6 +457,7 @@ class ContributionWeight:
             cls.PROPOSAL_FUNDING_CONTRIBUTION,
             cls.UPVOTE,
             cls.DOWNVOTE,
+            cls.CITATION,
             cls.COMMENT,
             cls.THREAD_CREATED,
             cls.POST_CREATED,
