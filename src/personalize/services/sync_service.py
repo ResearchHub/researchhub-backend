@@ -70,15 +70,8 @@ class SyncService:
                 "errors": [],
             }
 
-        logger.info(
-            f"Sending {len(items)} items to Personalize: "
-            f"item_ids={[item.get('itemId') for item in items]}"
-        )
-
         result = self.sync_client.put_items(items)
         result["skipped"] = skipped
-
-        logger.info(f"Personalize sync response: {result}")
 
         return result
 
@@ -129,13 +122,6 @@ class SyncService:
         if interaction.personalize_rec_id:
             event["recommendationId"] = interaction.personalize_rec_id
 
-        logger.info(
-            f"Sending event to Personalize: user={user_id}, "
-            f"event_type={interaction.event}, item={interaction.unified_document_id}"
-        )
-
         result = self.sync_client.put_events(user_id, session_id, [event])
-
-        logger.info(f"Personalize event response: {result}")
 
         return result
