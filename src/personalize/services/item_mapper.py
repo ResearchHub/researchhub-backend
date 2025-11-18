@@ -2,6 +2,7 @@
 Mapper class for converting ResearchhubUnifiedDocument to AWS Personalize items.
 """
 
+import json
 from typing import Dict, Optional, Protocol, runtime_checkable
 
 from personalize.config.constants import (
@@ -50,7 +51,12 @@ class PrefetchedUnifiedDocument(Protocol):
 class ItemMapper:
     """Mapper for converting ResearchHub documents to Personalize items."""
 
-    def map_to_item(
+    @staticmethod
+    def _to_camel_case(snake_str: str) -> str:
+        components = snake_str.split("_")
+        return components[0].lower() + "".join(x.title() for x in components[1:])
+
+    def map_to_csv_item(
         self,
         prefetched_doc: PrefetchedUnifiedDocument,
         bounty_data: dict,
@@ -58,19 +64,43 @@ class ItemMapper:
         rfp_data: dict,
         review_count_data: dict,
     ) -> Dict[str, Optional[str]]:
-        """
-        Map a prefetched ResearchhubUnifiedDocument to a Personalize item dictionary.
+        return self._map_to_item(
+            prefetched_doc, bounty_data, proposal_data, rfp_data, review_count_data
+        )
 
-        Args:
-            prefetched_doc: UnifiedDocument with prefetched relations
-            bounty_data: Dict with has_active_bounty and has_solutions flags
-            proposal_data: Dict with is_open and has_funders flags
-            rfp_data: Dict with is_open and has_applicants flags
-            review_count_data: Dict mapping doc_id to review count
+    def map_to_api_item(
+        self,
+        prefetched_doc: PrefetchedUnifiedDocument,
+        bounty_data: dict,
+        proposal_data: dict,
+        rfp_data: dict,
+        review_count_data: dict,
+    ) -> Dict[str, str]:
+        item_data = self._map_to_item(
+            prefetched_doc, bounty_data, proposal_data, rfp_data, review_count_data
+        )
 
-        Returns:
-            Dictionary with keys matching CSV_HEADERS
-        """
+        item_id = item_data.pop(ITEM_ID)
+
+        properties_dict = {}
+        for key, value in item_data.items():
+            if value is not None:
+                camel_key = self._to_camel_case(key)
+                if isinstance(value, bool):
+                    properties_dict[camel_key] = "True" if value else "False"
+                else:
+                    properties_dict[camel_key] = value
+
+        return {"itemId": str(item_id), "properties": json.dumps(properties_dict)}
+
+    def _map_to_item(
+        self,
+        prefetched_doc: PrefetchedUnifiedDocument,
+        bounty_data: dict,
+        proposal_data: dict,
+        rfp_data: dict,
+        review_count_data: dict,
+    ) -> Dict[str, Optional[str]]:
         # Initialize row with default values from constants
         row = {field: default for field, default in FIELD_DEFAULTS.items()}
 
