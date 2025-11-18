@@ -95,7 +95,7 @@ class ListItemViewSetTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_list_returns_items_with_feed_entries(self):
-        item = ListItem.objects.create(parent_list=self.list, unified_document=self.doc, created_by=self.user)
+        ListItem.objects.create(parent_list=self.list, unified_document=self.doc, created_by=self.user)
         FeedEntry.objects.create(
             unified_document=self.doc,
             user=self.user,
@@ -110,7 +110,7 @@ class ListItemViewSetTests(APITestCase):
         self.assertIsNotNone(response.data["results"][0]["feed_entry"])
 
     def test_list_item_without_feed_entry_returns_none(self):
-        item = ListItem.objects.create(parent_list=self.list, unified_document=self.doc, created_by=self.user)
+        ListItem.objects.create(parent_list=self.list, unified_document=self.doc, created_by=self.user)
         response = self.client.get(f"/api/user_list_item/?parent_list={self.list.id}")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 1)
