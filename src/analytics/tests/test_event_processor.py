@@ -32,7 +32,7 @@ class EventProcessorTestCase(TestCase):
                     "id": str(self.post.id),
                 },
             },
-            "time": int(datetime.now().timestamp() * 1000),
+            "time_": int(datetime.now().timestamp() * 1000),
         }
 
         initial_count = UserInteractions.objects.count()
@@ -63,7 +63,7 @@ class EventProcessorTestCase(TestCase):
                     "id": str(self.post.id),
                 },
             },
-            "time": int(datetime.now().timestamp() * 1000),
+            "time_": int(datetime.now().timestamp() * 1000),
         }
 
         # Process the same event twice
@@ -88,7 +88,7 @@ class EventProcessorTestCase(TestCase):
                     "id": str(self.post.id),
                 },
             },
-            "time": int(datetime.now().timestamp() * 1000),
+            "time_": int(datetime.now().timestamp() * 1000),
         }
 
         initial_count = UserInteractions.objects.count()
@@ -113,7 +113,7 @@ class EventProcessorTestCase(TestCase):
                     "id": str(self.post.id),
                 },
             },
-            "time": int(datetime.now().timestamp() * 1000),
+            "time_": int(datetime.now().timestamp() * 1000),
         }
 
         initial_count = UserInteractions.objects.count()
@@ -138,7 +138,7 @@ class EventProcessorTestCase(TestCase):
                     "id": str(self.post.id),
                 },
             },
-            "time": int(datetime.now().timestamp() * 1000),
+            "time_": int(datetime.now().timestamp() * 1000),
         }
 
         with patch("analytics.services.event_processor.logger") as mock_logger:
@@ -160,7 +160,7 @@ class EventProcessorTestCase(TestCase):
                 "related_work.id": str(self.post.id),
                 "related_work.unified_document_id": str(self.post.unified_document.id),
             },
-            "time": int(datetime.now().timestamp() * 1000),
+            "time_": int(datetime.now().timestamp() * 1000),
         }
 
         initial_count = UserInteractions.objects.count()
@@ -186,7 +186,7 @@ class EventProcessorTestCase(TestCase):
                 "related_work.content_type": "invalid_model",
                 "related_work.id": str(self.post.id),
             },
-            "time": int(datetime.now().timestamp() * 1000),
+            "time_": int(datetime.now().timestamp() * 1000),
         }
 
         initial_count = UserInteractions.objects.count()
