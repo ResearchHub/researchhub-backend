@@ -19,7 +19,7 @@ class FeedPagination(PageNumberPagination):
     page_size = 20
     page_size_query_param = "page_size"
     max_page_size = 100
-    # django_paginator_class = NoCountPaginator
+    django_paginator_class = NoCountPaginator
 
     def get_paginated_response(self, data):
         """
@@ -28,14 +28,14 @@ class FeedPagination(PageNumberPagination):
         """
         # FIXME: Only include next link if there are results equal to page size
         # to avoid repeated requests for empty pages
-        # next_link = None
-        # if data and len(data) >= self.page_size:
-        #     next_link = self.get_next_link()
+        next_link = None
+        if data and len(data) == 0:
+            next_link = self.get_next_link()
 
         return Response(
             OrderedDict(
                 [
-                    ("next", self.get_next_link()),
+                    ("next", next_link),
                     ("previous", self.get_previous_link()),
                     ("results", data),
                 ]
