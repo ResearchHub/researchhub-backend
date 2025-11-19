@@ -77,6 +77,12 @@ class EventProcessor:
             if created and (interaction.user_id or interaction.external_user_id):
                 sync_interaction_event_to_personalize_task.delay(interaction.id)
 
+            # Log successful processing
+            logger.debug(
+                f"Successfully processed interaction: {event_type} for user "
+                f"{user_identifier_for_logging}"
+            )
+
         except Exception as e:
             user_identifier_for_logging = (
                 user_id if user_id else f"external_user_id:{external_user_id}"
