@@ -22,7 +22,6 @@ class ScoreChangeContributionTypeTests(TestCase):
         self.author = self.user.author_profile
         self.hub = create_hub()
         
-        # Create algorithm variables
         self.algorithm_variables = AlgorithmVariables.objects.create(
             hub=self.hub,
             variables={
@@ -35,7 +34,6 @@ class ScoreChangeContributionTypeTests(TestCase):
     
     def test_scorechange_has_contribution_type_field(self):
         """ScoreChange should have contribution_type field."""
-        # Create a ScoreChange with contribution_type
         score_change = ScoreChange.objects.create(
             algorithm_version=2,
             algorithm_variables=self.algorithm_variables,
@@ -50,10 +48,8 @@ class ScoreChangeContributionTypeTests(TestCase):
             contribution_type=ContributionWeight.COMMENT,
         )
         
-        # Verify it was saved
         self.assertEqual(score_change.contribution_type, ContributionWeight.COMMENT)
         
-        # Verify we can retrieve it
         retrieved = ScoreChange.objects.get(id=score_change.id)
         self.assertEqual(retrieved.contribution_type, ContributionWeight.COMMENT)
     
@@ -70,15 +66,12 @@ class ScoreChangeContributionTypeTests(TestCase):
             changed_object_field='score',
             variable_counts={},
             score=self.score,
-            # contribution_type not specified
         )
         
-        # Should default to UPVOTE
         self.assertEqual(score_change.contribution_type, 'UPVOTE')
     
     def test_scorechange_query_by_contribution_type(self):
         """Should be able to query ScoreChange by contribution_type."""
-        # Create multiple score changes with different types
         ScoreChange.objects.create(
             algorithm_version=2,
             algorithm_variables=self.algorithm_variables,
@@ -121,7 +114,6 @@ class ScoreChangeContributionTypeTests(TestCase):
             contribution_type=ContributionWeight.UPVOTE,
         )
         
-        # Query by contribution type
         comments = ScoreChange.objects.filter(
             contribution_type=ContributionWeight.COMMENT
         )
@@ -142,11 +134,9 @@ class ScoreChangeContributionTypeTests(TestCase):
     
     def test_scorechange_index_on_contribution_type(self):
         """Verify indexes exist for efficient querying."""
-        # Check that the model has the expected indexes
         indexes = ScoreChange._meta.indexes
         index_names = [idx.name for idx in indexes]
         
-        # Should have our custom indexes
         self.assertIn('idx_score_contribution_type', index_names)
         self.assertIn('idx_contribution_type_date', index_names)
     
@@ -183,10 +173,8 @@ class ScoreChangeContributionTypeTests(TestCase):
             )
             created_changes.append(score_change)
         
-        # Verify all were created
         self.assertEqual(len(created_changes), len(contribution_types))
         
-        # Verify all can be retrieved with correct type
         for idx, score_change in enumerate(created_changes):
             retrieved = ScoreChange.objects.get(id=score_change.id)
             self.assertEqual(retrieved.contribution_type, contribution_types[idx])
