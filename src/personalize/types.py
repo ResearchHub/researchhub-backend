@@ -1,4 +1,4 @@
-from typing import List, TypedDict
+from typing import List, Optional, TypedDict
 
 
 class SyncResult(TypedDict):
@@ -14,3 +14,14 @@ class SyncResultWithSkipped(TypedDict):
     failed: int
     skipped: int
     errors: List[str]
+
+
+class PersonalizeEvent(TypedDict, total=False):
+    eventId: str
+    eventType: str
+    eventValue: float
+    impression: List[str]
+    itemId: str
+    recommendationId: str
+    properties: str
+    sentAt: int

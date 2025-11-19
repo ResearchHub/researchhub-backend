@@ -1,9 +1,15 @@
 import logging
 from typing import List
 
+from analytics.constants.event_types import EVENT_WEIGHTS
+from analytics.models import UserInteractions
 from personalize.clients.sync_client import SyncClient
 from personalize.services.item_mapper import ItemMapper
-from personalize.types import SyncResultWithSkipped
+from personalize.types import SyncResult, SyncResultWithSkipped
+from personalize.utils.personalize_utils import (
+    build_session_id_for_anonymous,
+    build_session_id_for_user,
+)
 from personalize.utils.related_data_fetcher import RelatedDataFetcher
 from researchhub_document.models import ResearchhubUnifiedDocument
 
@@ -64,15 +70,8 @@ class SyncService:
                 "errors": [],
             }
 
-        logger.info(
-            f"Sending {len(items)} items to Personalize: "
-            f"item_ids={[item.get('itemId') for item in items]}"
-        )
-
         result = self.sync_client.put_items(items)
         result["skipped"] = skipped
-
-        logger.info(f"Personalize sync response: {result}")
 
         return result
 
@@ -80,3 +79,53 @@ class SyncService:
         self, unified_doc: ResearchhubUnifiedDocument
     ) -> SyncResultWithSkipped:
         return self.sync_items([unified_doc])
+
+    def _build_interaction_event(self, interaction: UserInteractions) -> dict:
+        event_value = EVENT_WEIGHTS.get(interaction.event, 1.0)
+
+        event = {
+            "eventId": str(interaction.id),
+            "eventType": interaction.event,
+            "eventValue": event_value,
+            "itemId": str(interaction.unified_document_id),
+            "sentAt": int(interaction.event_timestamp.timestamp()),
+        }
+
+        if interaction.impression:
+            event["impression"] = interaction.impression.split("|")
+
+        if interaction.personalize_rec_id:
+            event["recommendationId"] = interaction.personalize_rec_id
+
+        return event
+
+    def sync_event(self, interaction: UserInteractions) -> SyncResult:
+        if not interaction.unified_document_id:
+            return {
+                "success": False,
+                "synced": 0,
+                "failed": 1,
+                "errors": ["Missing unified_document_id"],
+            }
+
+        if not interaction.user_id and not interaction.external_user_id:
+            return {
+                "success": False,
+                "synced": 0,
+                "failed": 1,
+                "errors": ["Missing both user_id and external_user_id"],
+            }
+
+        if interaction.user_id:
+            user_id = str(interaction.user_id)
+            session_id = build_session_id_for_user(
+                interaction.user_id, interaction.event_timestamp
+            )
+        else:
+            user_id = interaction.external_user_id
+            session_id = build_session_id_for_anonymous(interaction.external_user_id)
+
+        event = self._build_interaction_event(interaction)
+        result = self.sync_client.put_events(user_id, session_id, [event])
+
+        return result
