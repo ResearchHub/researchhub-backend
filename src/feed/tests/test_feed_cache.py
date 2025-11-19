@@ -15,6 +15,7 @@ from rest_framework.test import APITestCase
 from feed.models import FeedEntry
 from feed.views.feed_view_mixin import FeedViewMixin
 from hub.models import Hub
+from paper.models import Paper
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -160,36 +161,60 @@ class FeedCachingTests(APITestCase):
         create_follow(self.user, self.hub)
 
         self.post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
+        self.paper_content_type = ContentType.objects.get_for_model(Paper)
 
         for i in range(150):
-            unified_doc = ResearchhubUnifiedDocument.objects.create(
-                document_type="POST"
-            )
-            unified_doc.hubs.add(self.hub)
+            if i % 2 == 0:
+                unified_doc = ResearchhubUnifiedDocument.objects.create(
+                    document_type="PAPER"
+                )
+                unified_doc.hubs.add(self.hub)
 
-            post = ResearchhubPost.objects.create(
-                title=f"Test Post {i}",
-                document_type="POST",
-                created_by=self.user,
-                unified_document=unified_doc,
-            )
+                paper = Paper.objects.create(
+                    title=f"Test Paper {i}",
+                    paper_publish_date=timezone.now(),
+                    unified_document=unified_doc,
+                )
 
-            feed_entry = FeedEntry.objects.create(
-                action="PUBLISH",
-                action_date=timezone.now(),
-                object_id=post.id,
-                content_type=self.post_content_type,
-                unified_document=unified_doc,
-                content={},
-                metrics={},
-            )
-            feed_entry.hubs.add(self.hub)
+                feed_entry = FeedEntry.objects.create(
+                    action="PUBLISH",
+                    action_date=timezone.now(),
+                    object_id=paper.id,
+                    content_type=self.paper_content_type,
+                    unified_document=unified_doc,
+                    content={},
+                    metrics={},
+                )
+                feed_entry.hubs.add(self.hub)
+            else:
+                unified_doc = ResearchhubUnifiedDocument.objects.create(
+                    document_type="POST"
+                )
+                unified_doc.hubs.add(self.hub)
+
+                post = ResearchhubPost.objects.create(
+                    title=f"Test Post {i}",
+                    document_type="POST",
+                    created_by=self.user,
+                    unified_document=unified_doc,
+                )
+
+                feed_entry = FeedEntry.objects.create(
+                    action="PUBLISH",
+                    action_date=timezone.now(),
+                    object_id=post.id,
+                    content_type=self.post_content_type,
+                    unified_document=unified_doc,
+                    content={},
+                    metrics={},
+                )
+                feed_entry.hubs.add(self.hub)
 
     def tearDown(self):
         cache.clear()
 
     def test_pages_1_through_4_are_cached(self):
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
 
         for page in range(1, 5):
             response1 = self.client.get(url, {"page": page})
@@ -201,7 +226,7 @@ class FeedCachingTests(APITestCase):
             self.assertEqual(response2["RH-Cache"], "hit")
 
     def test_page_5_and_beyond_not_cached(self):
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
 
         response1 = self.client.get(url, {"page": 5})
         self.assertEqual(response1.status_code, 200)
@@ -212,7 +237,7 @@ class FeedCachingTests(APITestCase):
         self.assertEqual(response2["RH-Cache"], "miss")
 
     def test_health_check_token_bypasses_cache(self):
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
 
         response1 = self.client.get(url)
         self.assertEqual(response1["RH-Cache"], "miss")
@@ -224,7 +249,7 @@ class FeedCachingTests(APITestCase):
         self.assertEqual(response3["RH-Cache"], "miss")
 
     def test_cache_hit_includes_header_for_authenticated_user(self):
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
 
         response1 = self.client.get(url)
@@ -234,7 +259,7 @@ class FeedCachingTests(APITestCase):
         self.assertEqual(response2["RH-Cache"], "hit (auth)")
 
     def test_cache_hit_includes_header_for_anonymous_user(self):
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
 
         response1 = self.client.get(url)
         self.assertEqual(response1["RH-Cache"], "miss")
@@ -243,7 +268,7 @@ class FeedCachingTests(APITestCase):
         self.assertEqual(response2["RH-Cache"], "hit")
 
     def test_cache_miss_includes_header(self):
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
 
         response = self.client.get(url)
         self.assertEqual(response["RH-Cache"], "miss")
@@ -257,7 +282,7 @@ class FeedCachingTests(APITestCase):
             str(e.unified_document_id) for e in feed_entries
         ]
 
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
 
         response1 = self.client.get(url, {"feed_view": "popular"})
@@ -273,7 +298,7 @@ class FeedCachingTests(APITestCase):
         self.assertEqual(response4["RH-Cache"], "hit (auth)")
 
     def test_cache_key_differs_by_ordering(self):
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
 
         response1 = self.client.get(url, {"ordering": "hot_score_v2"})
         self.assertEqual(response1["RH-Cache"], "miss")
@@ -285,7 +310,7 @@ class FeedCachingTests(APITestCase):
         self.assertEqual(response3["RH-Cache"], "hit")
 
     def test_cache_key_differs_by_hub_slug(self):
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
         hub2 = Hub.objects.create(name="Another Hub", slug="another-hub")
 
         response1 = self.client.get(url, {"hub_slug": self.hub.slug})
@@ -298,7 +323,7 @@ class FeedCachingTests(APITestCase):
         self.assertEqual(response3["RH-Cache"], "hit")
 
     def test_cache_key_includes_researchhub_feed_type(self):
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
 
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
@@ -307,9 +332,9 @@ class FeedCachingTests(APITestCase):
         researchhub_keys = [key for key in cache_keys if "researchhub_" in str(key)]
         self.assertGreater(len(researchhub_keys), 0)
 
-    @patch("feed.views.researchhub_feed_view.cache")
+    @patch("feed.views.feed_view.cache")
     def test_following_feed_respects_use_cache_config(self, mock_cache):
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
 
         mock_cache.get.return_value = None
@@ -319,9 +344,9 @@ class FeedCachingTests(APITestCase):
         self.assertTrue(mock_cache.get.called)
         self.assertTrue(mock_cache.set.called)
 
-    @patch("feed.views.researchhub_feed_view.cache")
+    @patch("feed.views.feed_view.cache")
     def test_personalized_feed_respects_use_cache_config(self, mock_cache):
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
 
         mock_cache.get.return_value = None
@@ -331,9 +356,9 @@ class FeedCachingTests(APITestCase):
         self.assertFalse(mock_cache.get.called)
         self.assertFalse(mock_cache.set.called)
 
-    @patch("feed.views.researchhub_feed_view.cache")
+    @patch("feed.views.feed_view.cache")
     def test_popular_feed_respects_use_cache_config(self, mock_cache):
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
 
         mock_cache.get.return_value = None
 
@@ -348,7 +373,7 @@ class FeedCachingTests(APITestCase):
         cache keys are different from authenticated user's cache.
         This prevents cache collision when admins request feeds for different users.
         """
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
 
         response1 = self.client.get(url, {"feed_view": "following"})
@@ -381,7 +406,7 @@ class FeedCachingTests(APITestCase):
 
         mock_get_recommendations.return_value = feed_entry_ids
 
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
 
         response1 = self.client.get(url, {"feed_view": "personalized"})
@@ -401,7 +426,7 @@ class FeedCachingTests(APITestCase):
             str(e.unified_document_id) for e in feed_entries
         ]
 
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
 
         response1 = self.client.get(url, {"feed_view": "personalized"})
@@ -421,7 +446,10 @@ class FeedCachingTests(APITestCase):
         from discussion.models import Vote
 
         feed_entry = FeedEntry.objects.first()
-        mock_get_recommendations.return_value = [str(feed_entry.unified_document_id)]
+        mock_get_recommendations.return_value = {
+            "item_ids": [feed_entry.unified_document_id],
+            "recommendation_id": "test-rec-id",
+        }
 
         Vote.objects.create(
             content_type=feed_entry.content_type,
@@ -430,7 +458,7 @@ class FeedCachingTests(APITestCase):
             vote_type=1,
         )
 
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
 
         response = self.client.get(url, {"feed_view": "personalized"})
@@ -447,11 +475,14 @@ class FeedCachingTests(APITestCase):
         self, mock_get_recommendations
     ):
         feed_entries = FeedEntry.objects.all()[:80]
-        unified_doc_ids = [str(entry.unified_document_id) for entry in feed_entries]
+        unified_doc_ids = [entry.unified_document_id for entry in feed_entries]
 
-        mock_get_recommendations.return_value = unified_doc_ids
+        mock_get_recommendations.return_value = {
+            "item_ids": unified_doc_ids,
+            "recommendation_id": "test-rec-id",
+        }
 
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
 
         response1 = self.client.get(url, {"feed_view": "personalized", "page": "1"})
