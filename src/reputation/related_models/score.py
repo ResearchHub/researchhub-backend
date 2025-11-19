@@ -341,7 +341,6 @@ class ScoreChange(DefaultModel):
 
         current_rep = previous_score + score_value_change
 
-        # Determine contribution type based on vote direction
         contribution_type = (
             ContributionWeight.UPVOTE if raw_value_change > 0 
             else ContributionWeight.DOWNVOTE

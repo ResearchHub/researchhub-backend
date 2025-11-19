@@ -1,21 +1,5 @@
 """
 Unit tests for ContributionWeight system (Funding-Based).
-
-REVISED: Based on community feedback from Dominikus, Scott, Ruslan, Xavier
-- Tips use curved scaling (generous, hard to game)
-- Bounties use generous tiers (manually reviewed)
-- Proposals use logarithmic scaling (prevent dominance)
-- Funders get 1.5x bonus (encourage giving RSC)
-- Content creation minimal/zero (prevent spam)
-- Verified account 100 REP (quality > ID)
-
-Tests cover:
-- RSC → REP conversion (tips, bounties, proposals)
-- Curved and logarithmic formulas
-- Funder bonus
-- Content creation weights (minimal)
-- Feature flags
-- Edge cases
 """
 
 from django.test import TestCase, override_settings
@@ -24,10 +8,10 @@ from reputation.related_models.contribution_weight import ContributionWeight
 
 
 class TipReputationTests(TestCase):
-    """Test curved scaling for tips."""
+    """Test tip reputation calculation."""
     
     def test_tip_curved_scaling(self):
-        """Tips should use curved formula (amount^0.85)."""
+        """Test tip scaling formula."""
         test_cases = [
             (1, 1),
             (5, 5),
@@ -60,24 +44,21 @@ class TipReputationTests(TestCase):
 
 
 class BountyReputationTests(TestCase):
-    """Test generous tiered scaling for bounty payouts."""
+    """Test bounty reputation calculation."""
     
     def test_bounty_tier_1(self):
-        """Bounties under $200 use 0.33 multiplier."""
-        # $150 standard peer review bounty
+        """Test bounty tier 1 calculation."""
         rep = ContributionWeight.calculate_bounty_reputation(150)
-        self.assertEqual(rep, 49)  # 150 * 0.33 = 49.5 → 49
+        self.assertEqual(rep, 49)
     
     def test_bounty_tier_2(self):
-        """Bounties $200-$1000 use tiered formula."""
+        """Test bounty tier 2 calculation."""
         rep = ContributionWeight.calculate_bounty_reputation(500)
-        # 50 + (500-200) * 0.3 = 50 + 90 = 140
         self.assertAlmostEqual(rep, 140, delta=2)
     
     def test_bounty_tier_3(self):
-        """Bounties over $1000 use upper tier."""
+        """Test bounty tier 3 calculation."""
         rep = ContributionWeight.calculate_bounty_reputation(2000)
-        # 50 + 240 + (2000-1000) * 0.25 = 50 + 240 + 250 = 540
         self.assertAlmostEqual(rep, 540, delta=5)
     
     def test_bounty_zero_amount(self):
@@ -92,62 +73,44 @@ class BountyReputationTests(TestCase):
 
 
 class ProposalReputationTests(TestCase):
-    """Test logarithmic scaling for proposals."""
+    """Test proposal reputation calculation."""
     
     def test_proposal_tier_1(self):
-        """Proposals under $1K use 0.1 per $."""
+        """Test proposal tier 1 calculation."""
         rep = ContributionWeight.calculate_proposal_reputation(1000, is_funder=False)
-        self.assertEqual(rep, 100)  # 1000 * 0.1
+        self.assertEqual(rep, 100)
     
     def test_proposal_tier_2(self):
-        """Proposals $1K-$100K use logarithmic scaling."""
+        """Test proposal tier 2 calculation."""
         rep = ContributionWeight.calculate_proposal_reputation(10000, is_funder=False)
-        # Tier 1: 1000 * 0.1 = 100
-        # Tier 2: 9000 * 0.01 = 90
-        # Total: 190
         self.assertEqual(rep, 190)
     
     def test_proposal_tier_3(self):
-        """Proposals $100K-$1M use further diminished scaling."""
+        """Test proposal tier 3 calculation."""
         rep = ContributionWeight.calculate_proposal_reputation(100000, is_funder=False)
-        # Tier 1: 1000 * 0.1 = 100
-        # Tier 2: 99000 * 0.01 = 990
-        # Tier 3: 0
-        # Total: 1090
         self.assertEqual(rep, 1090)
     
     def test_proposal_mega(self):
-        """Mega proposals use tier 4 (ultra-diminished)."""
+        """Test mega proposal calculation."""
         rep = ContributionWeight.calculate_proposal_reputation(1000000, is_funder=False)
-        # Tier 1: 1000 * 0.1 = 100
-        # Tier 2: 99000 * 0.01 = 990
-        # Tier 3: 900000 * 0.001 = 900
-        # Total: 1990
         self.assertEqual(rep, 1990)
     
     def test_proposal_funder_bonus(self):
-        """Funders should get 1.5x bonus."""
+        """Test funder bonus calculation."""
         rep_receiver = ContributionWeight.calculate_proposal_reputation(1000, is_funder=False)
         rep_funder = ContributionWeight.calculate_proposal_reputation(1000, is_funder=True)
         
         self.assertEqual(rep_receiver, 100)
-        self.assertEqual(rep_funder, 150)  # 100 * 1.5
+        self.assertEqual(rep_funder, 150)
     
     def test_proposal_tier_4_mega(self):
-        """Proposals over $1M should use tier 4 (0.0001 per $)."""
+        """Test proposal tier 4 calculation."""
         rep = ContributionWeight.calculate_proposal_reputation(2000000, is_funder=False)
-        # Tier 1: 1000 * 0.1 = 100
-        # Tier 2: 99000 * 0.01 = 990
-        # Tier 3: 900000 * 0.001 = 900
-        # Tier 4: 1000000 * 0.0001 = 100
-        # Total: 2090
         self.assertEqual(rep, 2090)
     
     def test_proposal_tier_4_with_funder_bonus(self):
-        """Tier 4 proposals with funder bonus should use correct multiplier."""
+        """Test tier 4 with funder bonus calculation."""
         rep = ContributionWeight.calculate_proposal_reputation(2000000, is_funder=True)
-        # Base: 2090 (from tier 4)
-        # With 1.5x bonus: 3135
         self.assertEqual(rep, 3135)
     
     def test_proposal_zero_amount(self):
@@ -161,12 +124,12 @@ class ProposalReputationTests(TestCase):
         self.assertEqual(rep, 0)
     
     def test_proposal_funder_bonus_large_amount(self):
-        """Funder bonus should apply to all tiers."""
+        """Test funder bonus with large amount."""
         rep_receiver = ContributionWeight.calculate_proposal_reputation(100000, is_funder=False)
         rep_funder = ContributionWeight.calculate_proposal_reputation(100000, is_funder=True)
         
         self.assertEqual(rep_receiver, 1090)
-        self.assertEqual(rep_funder, 1635)  # 1090 * 1.5
+        self.assertEqual(rep_funder, 1635)
     
     def test_proposal_via_main_method(self):
         """Proposals should work via calculate_reputation_from_rsc."""
@@ -175,44 +138,44 @@ class ProposalReputationTests(TestCase):
 
 
 class ContentCreationTests(TestCase):
-    """Test minimal/zero reputation for content creation (anti-spam)."""
+    """Test content creation reputation."""
     
     def test_comment_zero_rep(self):
-        """Comments should give 0 base REP (get REP from tips/votes instead)."""
+        """Test comment reputation."""
         rep = ContributionWeight.calculate_reputation_change('COMMENT')
         self.assertEqual(rep, 0)
     
     def test_peer_review_zero_rep(self):
-        """Peer reviews should give 0 base REP (get REP from bounty payouts)."""
+        """Test peer review reputation."""
         rep = ContributionWeight.calculate_reputation_change('PEER_REVIEW')
         self.assertEqual(rep, 0)
     
     def test_thread_minimal_rep(self):
-        """Threads should give minimal REP (reduced from 5 to 1)."""
+        """Test thread reputation."""
         rep = ContributionWeight.calculate_reputation_change('THREAD_CREATED')
         self.assertEqual(rep, 1)
     
     def test_post_minimal_rep(self):
-        """Posts should give minimal REP (reduced from 10 to 2)."""
+        """Test post reputation."""
         rep = ContributionWeight.calculate_reputation_change('POST_CREATED')
         self.assertEqual(rep, 2)
     
     def test_bounty_created_keeps_rep(self):
-        """Bounty creation keeps REP (funding research is good)."""
+        """Test bounty creation reputation."""
         rep = ContributionWeight.calculate_reputation_change('BOUNTY_CREATED')
         self.assertEqual(rep, 5)
 
 
 class EngagementTests(TestCase):
-    """Test basic engagement (upvotes/downvotes)."""
+    """Test engagement reputation."""
     
     def test_upvote_gives_one_rep(self):
-        """Upvotes should give 1 REP."""
+        """Test upvote reputation."""
         rep = ContributionWeight.calculate_reputation_change('UPVOTE')
         self.assertEqual(rep, 1)
     
     def test_downvote_negative_rep(self):
-        """Downvotes should give -1 REP (reserved for V2)."""
+        """Test downvote reputation."""
         rep = ContributionWeight.calculate_reputation_change('DOWNVOTE')
         self.assertEqual(rep, -1)
 
@@ -328,47 +291,37 @@ class EdgeCaseTests(TestCase):
 
 
 class RegressionTests(TestCase):
-    """Regression tests for specific documented scenarios."""
+    """Regression tests for specific scenarios."""
     
     def test_quality_peer_reviewer_scenario(self):
-        """Test the documented quality peer reviewer scenario."""
-        # 10 peer reviews with $150 bounties
+        """Test quality peer reviewer scenario."""
         bounty_rep = sum(
             ContributionWeight.calculate_reputation_from_rsc('BOUNTY_PAYOUT', 150)
             for _ in range(10)
         )
         
-        # Should be approximately 500 REP (10 × 50)
         self.assertAlmostEqual(bounty_rep, 500, delta=10)
     
     def test_generous_funder_scenario(self):
-        """Test the documented generous funder scenario."""
-        # Fund $5K across proposals (with 1.5x bonus)
+        """Test generous funder scenario."""
         funding_rep = ContributionWeight.calculate_reputation_from_rsc(
             'PROPOSAL_FUNDING_CONTRIBUTION',
             5000,
             is_funder=True
         )
         
-        # Tier 1: 1000 * 0.1 = 100
-        # Tier 2: 4000 * 0.01 = 40
-        # Total: 140 * 1.5 = 210
         self.assertAlmostEqual(funding_rep, 210, delta=10)
     
     def test_verified_vs_quality_work(self):
-        """Quality work should be worth much more than just verification."""
-        # Verified account
+        """Test verified account vs quality work reputation."""
         verified_rep = ContributionWeight.VERIFIED_ACCOUNT_BONUS
         
-        # Quality peer reviewer with 3 bounties
         quality_rep = sum(
             ContributionWeight.calculate_reputation_from_rsc('BOUNTY_PAYOUT', 150)
             for _ in range(3)
         )
         
-        # Quality work should be > verified
         self.assertGreater(quality_rep, verified_rep)
-        # Specifically, ~150 REP (3×50) vs 100 REP
         self.assertGreater(quality_rep / verified_rep, 1.3)
 
 
@@ -379,52 +332,42 @@ class IntegrationTests(TestCase):
         """Test a complete user journey with mixed contributions."""
         total_rep = 0
         
-        # Get verified
-        total_rep += ContributionWeight.VERIFIED_ACCOUNT_BONUS  # 100
+        total_rep += ContributionWeight.VERIFIED_ACCOUNT_BONUS
         
-        # Write 5 peer reviews, 3 get paid
         for _ in range(3):
-            total_rep += ContributionWeight.calculate_reputation_from_rsc('BOUNTY_PAYOUT', 150)  # ~150
+            total_rep += ContributionWeight.calculate_reputation_from_rsc('BOUNTY_PAYOUT', 150)
         
-        # Receive 10 tips totaling $120
-        total_rep += ContributionWeight.calculate_tip_reputation(120)  # ~80
+        total_rep += ContributionWeight.calculate_tip_reputation(120)
         
-        # Get 50 upvotes
-        total_rep += 50 * ContributionWeight.calculate_reputation_change('UPVOTE')  # 50
+        total_rep += 50 * ContributionWeight.calculate_reputation_change('UPVOTE')
         
-        # Create 2 bounties
-        total_rep += 2 * ContributionWeight.calculate_reputation_change('BOUNTY_CREATED')  # 10
+        total_rep += 2 * ContributionWeight.calculate_reputation_change('BOUNTY_CREATED')
         
-        # Fund 1 proposal with $500
         total_rep += ContributionWeight.calculate_reputation_from_rsc(
             'PROPOSAL_FUNDING_CONTRIBUTION', 
             500, 
             is_funder=True
-        )  # ~75
+        )
         
-        # Total should be approximately: 100 + 150 + 80 + 50 + 10 + 75 = 465
         self.assertGreater(total_rep, 400)
         self.assertLess(total_rep, 500)
     
     def test_proposal_funding_both_sides(self):
         """Test proposal funding from both creator and funder perspective."""
-        # Creator receives $10K
         creator_rep = ContributionWeight.calculate_reputation_from_rsc(
             'PROPOSAL_FUNDED',
             10000,
             is_funder=False
         )
         
-        # Funder gives $10K (gets 1.5x bonus)
         funder_rep = ContributionWeight.calculate_reputation_from_rsc(
             'PROPOSAL_FUNDING_CONTRIBUTION',
             10000,
             is_funder=True
         )
         
-        # Both should get REP, funder gets 50% more
-        self.assertEqual(creator_rep, 190)  # Logarithmic
-        self.assertEqual(funder_rep, 285)   # 190 * 1.5
+        self.assertEqual(creator_rep, 190)
+        self.assertEqual(funder_rep, 285)
         self.assertAlmostEqual(funder_rep / creator_rep, 1.5, delta=0.01)
 
 
@@ -433,9 +376,9 @@ class ConfigurationTests(TestCase):
     
     @override_settings(CONTRIBUTION_WEIGHT_OVERRIDES={'COMMENT': 5})
     def test_weight_override(self):
-        """Content weight overrides should work."""
+        """Test content weight override."""
         rep = ContributionWeight.calculate_reputation_change('COMMENT')
-        self.assertEqual(rep, 5)  # Overridden from 0 to 5
+        self.assertEqual(rep, 5)
     
     @override_settings(VERIFIED_ACCOUNT_BONUS=200)
     def test_verified_bonus_override(self):
@@ -455,26 +398,22 @@ class DocumentationExampleTests(TestCase):
     
     def test_module_docstring_examples(self):
         """Test all examples from module docstring."""
-        # Tip
         self.assertEqual(
             ContributionWeight.calculate_reputation_from_rsc('TIP_RECEIVED', 10),
             10
         )
         
-        # Bounty
         self.assertAlmostEqual(
             ContributionWeight.calculate_reputation_from_rsc('BOUNTY_PAYOUT', 150),
             50,
             delta=2
         )
         
-        # Proposal
         self.assertEqual(
             ContributionWeight.calculate_reputation_from_rsc('PROPOSAL_FUNDED', 1000),
             100
         )
         
-        # Funder
         self.assertEqual(
             ContributionWeight.calculate_reputation_from_rsc('PROPOSAL_FUNDING_CONTRIBUTION', 1000, is_funder=True),
             150
