@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional
+from typing import Any, Dict, Optional
 
 from django.core.cache import cache
 
@@ -22,7 +22,7 @@ class FeedService:
         filter_param: Optional[str] = None,
         num_results: Optional[int] = None,
         force_refresh: bool = False,
-    ) -> List[int]:
+    ) -> Dict[str, Any]:
         if not filter_param:
             filter_param = PERSONALIZE_CONFIG["default_filter"]
 
@@ -39,33 +39,33 @@ class FeedService:
         filter_param: str,
         num_results: Optional[int],
         force_refresh: bool,
-    ) -> List[int]:
+    ) -> Dict[str, Any]:
         if num_results is None:
             num_results = PERSONALIZE_CONFIG.get("num_results", 200)
 
         cache_key = self._build_cache_key(user_id, filter_param)
 
         if not force_refresh:
-            cached_ids = cache.get(cache_key)
-            if cached_ids:
+            cached_result = cache.get(cache_key)
+            if cached_result:
                 logger.debug(f"Recommendation cache hit for user {user_id}")
                 self.cache_hit = True
-                return cached_ids
+                return cached_result
 
         logger.info(f"Fetching recommendations for user {user_id}")
         self.cache_hit = False
 
-        ids = self.personalize_client.get_recommendations_for_user(
+        result = self.personalize_client.get_recommendations_for_user(
             user_id=str(user_id),
             filter=filter_param,
             num_results=num_results,
         )
 
         timeout = PERSONALIZE_CONFIG.get("cache_timeout", DEFAULT_CACHE_TIMEOUT)
-        cache.set(cache_key, ids, timeout=timeout)
+        cache.set(cache_key, result, timeout=timeout)
         logger.info(f"Cached recommendations for user {user_id}")
 
-        return ids
+        return result
 
     def _build_cache_key(self, user_id: int, filter_param: Optional[str]) -> str:
         filter_value = filter_param if filter_param else "none"

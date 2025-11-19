@@ -630,6 +630,7 @@ class FeedEntrySerializer(serializers.ModelSerializer):
     hot_score_v2 = serializers.IntegerField()
     hot_score_breakdown = serializers.SerializerMethodField()
     external_metadata = serializers.SerializerMethodField()
+    recommendation_id = serializers.SerializerMethodField()
 
     class Meta:
         model = FeedEntry
@@ -645,6 +646,7 @@ class FeedEntrySerializer(serializers.ModelSerializer):
             "hot_score_v2",
             "hot_score_breakdown",
             "external_metadata",
+            "recommendation_id",
         ]
 
     def get_author(self, obj):
@@ -686,6 +688,9 @@ class FeedEntrySerializer(serializers.ModelSerializer):
 
     def get_content_type(self, obj):
         return obj.content_type.model.upper()
+
+    def get_recommendation_id(self, obj):
+        return self.context.get("recommendation_id")
 
 
 def serialize_feed_metrics(item, item_content_type):
