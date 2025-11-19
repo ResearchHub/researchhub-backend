@@ -290,7 +290,13 @@ class PaperIngestionService:
         """
         Check if the ingestion source supports PDF download.
         """
-        return source in [IngestionSource.ARXIV, IngestionSource.ARXIV_OAI]
+        return source in [
+            IngestionSource.ARXIV,
+            IngestionSource.ARXIV_OAI,
+            IngestionSource.BIORXIV,
+            IngestionSource.CHEMRXIV,
+            IngestionSource.MEDRXIV,
+        ]
 
     def _save_paper(self, paper: Paper) -> Paper:
         """
@@ -339,6 +345,7 @@ class PaperIngestionService:
             "paper_publish_date",
             "raw_authors",
             "external_metadata",
+            "external_source",
             "pdf_license",
             "pdf_license_url",
             "pdf_url",

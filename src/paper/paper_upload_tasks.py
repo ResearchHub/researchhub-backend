@@ -12,7 +12,6 @@ from celery.utils.log import get_task_logger
 from cloudscraper.exceptions import CloudflareChallengeError
 from django.apps import apps
 from django.contrib.admin.options import get_content_type_for_model
-from django.contrib.postgres.search import SearchQuery
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Q
@@ -572,7 +571,6 @@ def celery_create_paper(self, celery_data):
             paper.hub.add(*async_paper_updator.hubs)
 
         paper.full_clean()
-        paper.get_abstract_backup(should_save=False)
         paper.get_pdf_link(should_save=False)
         with transaction.atomic():
             paper.save()

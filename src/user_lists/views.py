@@ -1,0 +1,44 @@
+from django.db import IntegrityError
+from django.db.models import Count, Q
+from rest_framework import status, viewsets
+from rest_framework.mixins import DestroyModelMixin
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+
+from .models import List, ListItem
+from .serializers import ListSerializer, ListItemSerializer
+
+
+class ListViewSet(viewsets.ModelViewSet):
+    queryset = List.objects.filter(is_removed=False)
+    serializer_class = ListSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return self.queryset.filter(created_by=self.request.user).annotate(
+            item_count=Count("items", filter=Q(items__is_removed=False))
+        ).order_by("-updated_date")
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+    def perform_update(self, serializer):
+        serializer.save(updated_by=self.request.user)
+
+
+class ListItemViewSet(DestroyModelMixin, viewsets.GenericViewSet):
+    queryset = ListItem.objects.filter(is_removed=False)
+    serializer_class = ListItemSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return self.queryset.filter(parent_list__created_by=self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            serializer.save(created_by=request.user)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except IntegrityError:
+            return Response({"error": "Document already exists in list"}, status=status.HTTP_400_BAD_REQUEST)

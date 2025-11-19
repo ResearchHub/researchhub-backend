@@ -66,19 +66,25 @@ class AmplitudeEvent:
 
     def __init__(
         self,
-        user: User,
+        user: Optional[User],
         event_type: str,
         unified_document: ResearchhubUnifiedDocument,
         content_type: ContentType,
         object_id: int,
         event_timestamp: datetime,
+        external_user_id: Optional[str] = None,
+        personalize_rec_id: Optional[str] = None,
+        impression: Optional[str] = None,
     ):
         self.user = user
+        self.external_user_id = external_user_id
         self.event_type = event_type
         self.unified_document = unified_document
         self.content_type = content_type
         self.object_id = object_id
         self.event_timestamp = event_timestamp
+        self.personalize_rec_id = personalize_rec_id
+        self.impression = impression
 
 
 class AmplitudeEventParser:
@@ -117,27 +123,42 @@ class AmplitudeEventParser:
             db_event_type = AMPLITUDE_TO_DB_EVENT_MAP[event_type]
 
             user_id = event_props.get("user_id")
-            if not user_id:
-                logger.warning(
-                    f"No user_id in event_properties for event_type '{event_type}'. "
-                    f"Event: {event}"
-                )
-                return None
+            external_user_id = event.get("amplitude_id") or event_props.get(
+                "amplitude_id"
+            )
 
-            try:
-                user_id = int(user_id)
-                user = User.objects.get(id=user_id)
-            except (ValueError, User.DoesNotExist) as e:
+            user = None
+            if user_id:
+                try:
+                    user_id_int = int(user_id)
+                    user = User.objects.get(id=user_id_int)
+                except (ValueError, User.DoesNotExist) as e:
+                    logger.warning(
+                        f"Invalid user_id '{user_id}' for event_type "
+                        f"'{event_type}': {e}. Continuing with external_user_id only."
+                    )
+
+            if not user and not external_user_id:
                 logger.warning(
-                    f"Invalid user_id '{user_id}' for event_type '{event_type}': {e}"
+                    f"No user_id or external_user_id (amplitude_id) found for event_type "
+                    f"'{event_type}'. Event: {event}"
                 )
                 return None
 
             related_work = extract_related_work(event_props)
             if not related_work:
+                user_identifier = (
+                    user_id
+                    if user_id
+                    else (
+                        f"external_user_id:{external_user_id}"
+                        if external_user_id
+                        else "unknown"
+                    )
+                )
                 logger.warning(
                     f"No related_work data found for event_type '{event_type}', "
-                    f"user_id '{user_id}'. Event: {event}"
+                    f"user: '{user_identifier}'. Event: {event}"
                 )
                 return None
 
@@ -207,11 +228,22 @@ class AmplitudeEventParser:
                 )
                 return None
 
-            timestamp_ms = event.get("time")
+            timestamp_ms = event.get("_time")
             if timestamp_ms:
                 event_timestamp = datetime.fromtimestamp(timestamp_ms / 1000)
             else:
                 event_timestamp = datetime.now()
+
+            recommendation_id = event_props.get("recommendation_id")
+            personalize_rec_id = (
+                str(recommendation_id) if recommendation_id is not None else None
+            )
+
+            # Extract and convert impression array to pipe-delimited string
+            impression = None
+            impression_array = event_props.get("impression")
+            if impression_array and isinstance(impression_array, list):
+                impression = "|".join(str(item) for item in impression_array)
 
             amplitude_event = AmplitudeEvent(
                 user=user,
@@ -220,6 +252,9 @@ class AmplitudeEventParser:
                 content_type=content_type,
                 object_id=object_id,
                 event_timestamp=event_timestamp,
+                external_user_id=external_user_id,
+                personalize_rec_id=personalize_rec_id,
+                impression=impression,
             )
 
             return amplitude_event

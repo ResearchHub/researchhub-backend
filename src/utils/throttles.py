@@ -7,6 +7,7 @@ from researchhub.settings import EMAIL_WHITELIST
 THROTTLE_RATES = {
     "user.burst": "7/min",
     "user.sustained": "60/day",
+    "force_refresh": "5/min",
 }
 
 
@@ -31,10 +32,7 @@ class UserCaptchaThrottle(UserRateThrottle):
         if (
             (self.rate is None)
             or (request.method in SAFE_METHODS)
-            or (
-                request.user.is_authenticated
-                and (request.user.email is not None)
-            )
+            or (request.user.is_authenticated and (request.user.email is not None))
             or (request.user.is_authenticated and request.user.moderator)
             or (request.user.email in EMAIL_WHITELIST)
         ):
@@ -124,6 +122,18 @@ class UserSustainedRateThrottle(UserCaptchaThrottle):
 def captcha_unlock(request):
     UserSustainedRateThrottle().captcha_complete(request)
     UserBurstRateThrottle().captcha_complete(request)
+
+
+class FeedRecommendationRefreshThrottle(UserRateThrottle):
+    scope = "force_refresh"
+    rate = "5/min"
+
+    def allow_request(self, request, view):
+        # Only throttle if the force refresh header is present and set to "true"
+        force_refresh = request.META.get("HTTP_RH_FORCE_REFRESH", "").lower() == "true"
+        if not force_refresh:
+            return True
+        return super().allow_request(request, view)
 
 
 THROTTLE_CLASSES = [

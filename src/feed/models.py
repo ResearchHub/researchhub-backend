@@ -10,7 +10,43 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
     ResearchhubUnifiedDocument,
 )
 from user.models import User
+from user.related_models.author_model import Author
 from utils.models import DefaultModel
+
+
+class HotScoreV2Breakdown(models.Model):
+    """Separate table for hot score v2 breakdown JSONB data to improve performance."""
+
+    feed_entry = models.OneToOneField(
+        "FeedEntry",
+        on_delete=models.CASCADE,
+        related_name="hot_score_breakdown_v2",
+        db_index=True,
+        help_text="The feed entry this breakdown belongs to.",
+    )
+    breakdown_data = models.JSONField(
+        encoder=DjangoJSONEncoder,
+        default=dict,
+        blank=True,
+        null=False,
+        db_comment="Detailed breakdown of hot_score_v2 calculation.",
+        help_text=(
+            "Contains equation, steps, signals, time_factors, and calculation "
+            "details for transparency and debugging."
+        ),
+    )
+
+    class Meta:
+        db_table = "feed_hotscorev2breakdown"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["feed_entry"],
+                name="unique_feed_entry_breakdown",
+            ),
+        ]
+
+    def __str__(self):
+        return f"HotScoreV2Breakdown for FeedEntry {self.feed_entry_id}"
 
 
 class FeedEntry(DefaultModel):
@@ -46,18 +82,6 @@ class FeedEntry(DefaultModel):
         db_index=True,
     )
 
-    hot_score_v2_breakdown = models.JSONField(
-        encoder=DjangoJSONEncoder,
-        default=dict,
-        blank=True,
-        null=False,
-        db_comment="Detailed breakdown of hot_score_v2 calculation.",
-        help_text=(
-            "Contains equation, steps, signals, time_factors, and calculation "
-            "details for transparency and debugging."
-        ),
-    )
-
     metrics = models.JSONField(
         encoder=DjangoJSONEncoder,
         default=dict,
@@ -66,9 +90,14 @@ class FeedEntry(DefaultModel):
         null=False,
     )
 
-    # The hubs associated with the feed entry.
     hubs = models.ManyToManyField(
         Hub,
+        blank=True,
+        related_name="feed_entries",
+    )
+
+    authors = models.ManyToManyField(
+        Author,
         blank=True,
         related_name="feed_entries",
     )
@@ -139,6 +168,7 @@ class FeedEntry(DefaultModel):
     def calculate_hot_score_v2(self):
         """Calculate hot score using new v2 algorithm and store breakdown."""
         from django.contrib.contenttypes.models import ContentType
+        from django.core.exceptions import ObjectDoesNotExist
 
         from feed.hot_score import calculate_hot_score
         from feed.hot_score_breakdown import format_breakdown_from_calc_data
@@ -147,7 +177,11 @@ class FeedEntry(DefaultModel):
             # Get content type
             item = self.item
             if not item:
-                self.hot_score_v2_breakdown = {}
+                try:
+                    if self.hot_score_breakdown_v2:
+                        self.hot_score_breakdown_v2.delete()
+                except ObjectDoesNotExist:
+                    pass
                 return 0
 
             item_content_type = ContentType.objects.get_for_model(item)
@@ -158,11 +192,20 @@ class FeedEntry(DefaultModel):
             )
 
             if not calc_data:
-                self.hot_score_v2_breakdown = {}
+                try:
+                    if self.hot_score_breakdown_v2:
+                        self.hot_score_breakdown_v2.delete()
+                except ObjectDoesNotExist:
+                    pass
                 return 0
 
             # Format breakdown from calculation data
-            self.hot_score_v2_breakdown = format_breakdown_from_calc_data(calc_data)
+            breakdown_data = format_breakdown_from_calc_data(calc_data)
+
+            _breakdown, _created = HotScoreV2Breakdown.objects.update_or_create(
+                feed_entry=self,
+                defaults={"breakdown_data": breakdown_data},
+            )
 
             # Return the score
             return calc_data["final_score"]
@@ -173,174 +216,11 @@ class FeedEntry(DefaultModel):
             logging.getLogger(__name__).error(
                 f"Error calculating hot score v2 for entry {self.id}: {e}"
             )
-            self.hot_score_v2_breakdown = {}
+            try:
+                if self.hot_score_breakdown_v2:
+                    self.hot_score_breakdown_v2.delete()
+            except ObjectDoesNotExist:
+                pass
             # Fallback: calculate score directly
             score = calculate_hot_score_for_item(self)
             return score
-
-
-class FeedEntryPopular(models.Model):
-    """
-    Materialized view for popular feed entries, based on the `FeedEntry` model.
-    This view is used to optimize the performance of feed entry queries.
-    """
-
-    id = models.BigIntegerField(primary_key=True)
-
-    action = models.TextField(choices=FeedEntry.action_choices)
-    action_date = models.DateTimeField()
-    content = models.JSONField(default=dict)
-
-    content_type = models.ForeignKey(
-        ContentType,
-        on_delete=models.DO_NOTHING,
-        db_column="content_type_id",
-        related_name="popular_feed_entries",
-    )
-    hot_score = models.FloatField()
-    # The hubs associated with the feed entry.
-    hubs = models.ManyToManyField(
-        Hub,
-        through="FeedEntryPopularHubs",
-        blank=True,
-        related_name="popular_feed_entries",
-    )
-    item = GenericForeignKey("content_type", "object_id")
-    object_id = models.PositiveIntegerField()
-    metrics = models.JSONField(default=dict)
-    unified_document = models.ForeignKey(
-        ResearchhubUnifiedDocument,
-        on_delete=models.DO_NOTHING,
-        db_column="unified_document_id",
-        related_name="popular_feed_entries",
-    )
-    user = models.ForeignKey(
-        User,
-        on_delete=models.DO_NOTHING,
-        db_column="user_id",
-        related_name="popular_feed_entries",
-        null=True,
-        blank=True,
-    )
-
-    created_date = models.DateTimeField()
-    updated_date = models.DateTimeField()
-
-    class Meta:
-        managed = False
-        db_table = "feed_feedentry_popular"
-        ordering = ["-hot_score"]
-
-    @classmethod
-    def refresh(cls):
-        """
-        Refresh the materialized view.
-        """
-        from django.db import connection
-
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "REFRESH MATERIALIZED VIEW CONCURRENTLY feed_feedentry_popular"
-            )
-            cursor.execute("SELECT pg_prewarm('feed_feedentry_popular')")
-
-
-class FeedEntryPopularHubs(models.Model):
-    feedentrypopular = models.ForeignKey(
-        "FeedEntryPopular",
-        db_column="feedentry_id",
-        on_delete=models.DO_NOTHING,
-    )
-    hub = models.ForeignKey(
-        Hub,
-        db_column="hub_id",
-        on_delete=models.DO_NOTHING,
-    )
-
-    class Meta:
-        managed = False
-        db_table = "feed_feedentry_hubs"
-        unique_together = (("feedentrypopular", "hub"),)
-
-
-class FeedEntryLatest(models.Model):
-    """
-    Materialized view for latest feed entries, based on the `FeedEntry` model.
-    This view is used to optimize the performance of feed entry queries.
-    """
-
-    id = models.BigIntegerField(primary_key=True)
-
-    action = models.TextField(choices=FeedEntry.action_choices)
-    action_date = models.DateTimeField()
-    content = models.JSONField(default=dict)
-
-    content_type = models.ForeignKey(
-        ContentType,
-        on_delete=models.DO_NOTHING,
-        db_column="content_type_id",
-        related_name="latest_feed_entries",
-    )
-    # The hubs associated with the feed entry.
-    hubs = models.ManyToManyField(
-        Hub,
-        through="FeedEntryLatestHubs",
-        related_name="latest_feed_entries",
-        blank=True,
-    )
-    item = GenericForeignKey("content_type", "object_id")
-    object_id = models.PositiveIntegerField()
-    metrics = models.JSONField(default=dict)
-    unified_document = models.ForeignKey(
-        ResearchhubUnifiedDocument,
-        on_delete=models.DO_NOTHING,
-        db_column="unified_document_id",
-        related_name="latest_feed_entries",
-    )
-    user = models.ForeignKey(
-        User,
-        on_delete=models.DO_NOTHING,
-        db_column="user_id",
-        related_name="latest_feed_entries",
-        null=True,
-        blank=True,
-    )
-
-    created_date = models.DateTimeField()
-    updated_date = models.DateTimeField()
-
-    class Meta:
-        managed = False
-        db_table = "feed_feedentry_latest"
-        ordering = ["-action_date"]
-
-    @classmethod
-    def refresh(cls):
-        """
-        Refresh the materialized view.
-        """
-        from django.db import connection
-
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "REFRESH MATERIALIZED VIEW CONCURRENTLY feed_feedentry_latest"
-            )
-            cursor.execute("SELECT pg_prewarm('feed_feedentry_latest')")
-
-
-class FeedEntryLatestHubs(models.Model):
-    feedentrylatest = models.ForeignKey(
-        "FeedEntryLatest",
-        db_column="feedentry_id",
-        on_delete=models.DO_NOTHING,
-    )
-    hub = models.ForeignKey(
-        Hub,
-        db_column="hub_id",
-        on_delete=models.DO_NOTHING,
-    )
-
-    class Meta:
-        managed = False
-        db_table = "feed_feedentry_hubs"
-        unique_together = (("feedentrylatest", "hub"),)

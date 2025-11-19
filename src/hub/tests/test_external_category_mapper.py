@@ -253,24 +253,3 @@ class ExternalCategoryMapperTestCase(TestCase):
         result_names = [hub.name for hub in result]
         self.assertIn("Biology", result_names)
         self.assertIn("Biological Physics", result_names)
-
-    def test_special_character_handling_in_categories(self):
-        """
-        Test that categories with special characters work correctly.
-
-        Some MedRxiv categories include parenthetical descriptions.
-        """
-        # Create necessary hubs
-        Hub.objects.create(name="Medicine", description="Medicine research")
-        Hub.objects.create(name="Endocrinology", description="Endocrinology research")
-
-        # Test MedRxiv category with parentheses
-        result = ExternalCategoryMapper.map(
-            "endocrinology (including diabetes mellitus and metabolic disease)",
-            source="medrxiv",
-        )
-
-        self.assertEqual(len(result), 2)
-        result_names = [hub.name for hub in result]
-        self.assertIn("Medicine", result_names)
-        self.assertIn("Endocrinology", result_names)

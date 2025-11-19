@@ -1,6 +1,5 @@
 import regex as re
 import requests
-from bs4 import BeautifulSoup
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.indexes import HashIndex
@@ -14,22 +13,15 @@ from manubot.cite.unpaywall import Unpaywall
 import utils.sentry as sentry
 from discussion.models import AbstractGenericReactionModel, Vote
 from hub.models import Hub
-from hub.serializers import DynamicHubSerializer
 from paper.lib import journal_hosts
 from paper.related_models.citation_model import Citation
 from paper.utils import get_csl_item, populate_pdf_url_from_journal_url
 from purchase.models import Purchase
 from reputation.models import Score, ScoreChange
 from reputation.related_models.paper_reward import HubCitationValue
-from researchhub.lib import CREATED_LOCATIONS
 from researchhub.settings import TESTING
 from researchhub_comment.models import RhCommentThreadModel
-from researchhub_document.related_models.constants.editor_type import (
-    EDITOR_TYPES,
-    TEXT_FIELD,
-)
 from utils.aws import lambda_compress_and_linearize_pdf
-from utils.http import scraper_get_url
 
 DOI_IDENTIFIER = "10."
 ARXIV_IDENTIFIER = "arXiv:"
@@ -44,9 +36,6 @@ class Paper(AbstractGenericReactionModel):
     PRE_REGISTRATION = "PRE_REGISTRATION"
 
     PAPER_TYPE_CHOICES = [(REGULAR, REGULAR), (PRE_REGISTRATION, PRE_REGISTRATION)]
-
-    CREATED_LOCATION_PROGRESS = CREATED_LOCATIONS["PROGRESS"]
-    CREATED_LOCATION_CHOICES = [(CREATED_LOCATION_PROGRESS, "Progress")]
 
     rh_threads = GenericRelation(
         RhCommentThreadModel,
@@ -83,13 +72,6 @@ class Paper(AbstractGenericReactionModel):
         blank=True,
         validators=[FileExtensionValidator(["pdf"])],
     )
-    file_created_location = models.CharField(
-        choices=CREATED_LOCATION_CHOICES,
-        max_length=255,
-        default=None,
-        null=True,
-        blank=True,
-    )
     retrieved_from_external_source = models.BooleanField(default=False)
     is_open_access = models.BooleanField(default=None, null=True, blank=True)
     oa_status = models.CharField(max_length=8, default=None, null=True, blank=True)
@@ -124,26 +106,6 @@ class Paper(AbstractGenericReactionModel):
     paper_publish_date = models.DateTimeField(null=True, blank=True)
     raw_authors = JSONField(blank=True, null=True)
     abstract = models.TextField(default=None, null=True, blank=True)
-    abstract_src = models.FileField(
-        blank=True,
-        default=None,
-        help_text="""
-            Abstract_src is different field than abstract field.
-            Abstract is legacy text field where as abstract_src field is a src field that is
-            intended to be used along with different types of text editors from the frontend.
-        """,
-        max_length=512,
-        null=True,
-        upload_to="uploads/paper_abstract_src/%Y/%m/%d/",
-    )
-    abstract_src_type = models.CharField(
-        blank=False,
-        choices=EDITOR_TYPES,
-        default=TEXT_FIELD,
-        help_text="Indicates which text editor was used for abstract section.",
-        max_length=32,
-        null=True,
-    )
     references = models.ManyToManyField(
         "self", symmetrical=False, related_name="referenced_by", blank=True
     )
@@ -271,25 +233,6 @@ class Paper(AbstractGenericReactionModel):
                 users.append(author.user)
 
         return users
-
-    @property
-    def hubs_indexing(self):
-        serializer = DynamicHubSerializer(
-            self.hubs.all(),
-            many=True,
-            context={},
-            _include_fields=[
-                "id",
-                "name",
-                "slug",
-            ],
-        )
-
-        return serializer.data
-
-    @property
-    def hubs_indexing_flat(self):
-        return [hub.name for hub in self.hubs.all()]
 
     @property
     def hot_score(self):
@@ -460,29 +403,6 @@ class Paper(AbstractGenericReactionModel):
             self.save()
         return license
 
-    def get_abstract_backup(self, should_save=False):
-        if not self.abstract:
-            if self.url and "cell.com" in self.url:
-                try:
-                    url_resp = scraper_get_url(self.url)
-                    soup = BeautifulSoup(url_resp.text, "lxml")
-                    summary = soup.find(
-                        "h2", {"data-left-hand-nav": "Summary"}
-                    ).find_next_sibling()
-                    summary.find("h3").decompose()
-                    summary.find("div", {"class": "mediaPlayer"}).decompose()
-                except Exception as e:
-                    sentry.log_error(e)
-                    return None
-
-                self.abstract = summary.text
-
-                if should_save:
-                    self.save()
-
-                return self.abstract
-        return None
-
     def get_pdf_link(self, should_save=False):
         if not self.url:
             return None, None
@@ -623,9 +543,6 @@ class Figure(models.Model):
     PREVIEW = "PREVIEW"
     FIGURE_TYPE_CHOICES = [(FIGURE, "Figure"), (PREVIEW, "Preview")]
 
-    CREATED_LOCATION_PROGRESS = CREATED_LOCATIONS["PROGRESS"]
-    CREATED_LOCATION_CHOICES = [(CREATED_LOCATION_PROGRESS, "Progress")]
-
     file = models.FileField(
         upload_to="uploads/figures/%Y/%m/%d", default=None, null=True, blank=True
     )
@@ -635,13 +552,6 @@ class Figure(models.Model):
     updated_date = models.DateTimeField(auto_now=True)
     created_by = models.ForeignKey(
         "user.User", on_delete=models.SET_NULL, related_name="figures", null=True
-    )
-    created_location = models.CharField(
-        choices=CREATED_LOCATION_CHOICES,
-        max_length=255,
-        default=None,
-        null=True,
-        blank=True,
     )
 
     class Meta:

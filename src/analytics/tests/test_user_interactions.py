@@ -61,6 +61,7 @@ class UserInteractionsModelTests(TestCase):
 
         UserInteractions.objects.create(
             user=self.user,
+            external_user_id="test_session_123",
             event=PAGE_VIEW,
             unified_document=self.unified_document,
             content_type=self.content_type,
@@ -72,6 +73,7 @@ class UserInteractionsModelTests(TestCase):
         with self.assertRaises(IntegrityError):
             UserInteractions.objects.create(
                 user=self.user,
+                external_user_id="test_session_123",
                 event=PAGE_VIEW,
                 unified_document=self.unified_document,
                 content_type=self.content_type,
@@ -87,6 +89,7 @@ class UserInteractionsModelTests(TestCase):
         # Create page view today
         interaction1 = UserInteractions.objects.create(
             user=self.user,
+            external_user_id="test_session_123",
             event=PAGE_VIEW,
             unified_document=self.unified_document,
             content_type=self.content_type,
@@ -97,6 +100,7 @@ class UserInteractionsModelTests(TestCase):
         # Create page view tomorrow - should succeed
         interaction2 = UserInteractions.objects.create(
             user=self.user,
+            external_user_id="test_session_123",
             event=PAGE_VIEW,
             unified_document=self.unified_document,
             content_type=self.content_type,
@@ -116,6 +120,7 @@ class UserInteractionsModelTests(TestCase):
         # Create page view for first user
         interaction1 = UserInteractions.objects.create(
             user=self.user,
+            external_user_id="test_session_user1",
             event=PAGE_VIEW,
             unified_document=self.unified_document,
             content_type=self.content_type,
@@ -126,6 +131,7 @@ class UserInteractionsModelTests(TestCase):
         # Create page view for second user same day - should succeed
         interaction2 = UserInteractions.objects.create(
             user=user2,
+            external_user_id="test_session_user2",
             event=PAGE_VIEW,
             unified_document=self.unified_document,
             content_type=self.content_type,
@@ -134,3 +140,32 @@ class UserInteractionsModelTests(TestCase):
         )
 
         self.assertNotEqual(interaction1.id, interaction2.id)
+
+    def test_impression_field_can_be_set(self):
+        """Test that impression field can be set on UserInteractions."""
+        impression = "123|456|789"
+        interaction = UserInteractions.objects.create(
+            user=self.user,
+            event=PAGE_VIEW,
+            unified_document=self.unified_document,
+            content_type=self.content_type,
+            object_id=self.post.id,
+            event_timestamp=timezone.now(),
+            impression=impression,
+        )
+
+        self.assertEqual(interaction.impression, impression)
+
+    def test_impression_field_can_be_none(self):
+        """Test that impression field can be None."""
+        interaction = UserInteractions.objects.create(
+            user=self.user,
+            event=PAGE_VIEW,
+            unified_document=self.unified_document,
+            content_type=self.content_type,
+            object_id=self.post.id,
+            event_timestamp=timezone.now(),
+            impression=None,
+        )
+
+        self.assertIsNone(interaction.impression)

@@ -4,7 +4,6 @@ import re
 import requests
 import rest_framework.serializers as serializers
 from django.contrib.admin.options import get_content_type_for_model
-from django.core.files.base import ContentFile
 from django.db import IntegrityError, transaction
 from django.db.models import Case, IntegerField, Value, When
 from django.http import QueryDict
@@ -379,7 +378,6 @@ class PaperSerializer(BasePaperSerializer):
             "csl_item",
             "discussion_count",
             "external_source",
-            "file_created_location",
             "id",
             "is_open_access",
             "is_removed",
@@ -423,11 +421,7 @@ class PaperSerializer(BasePaperSerializer):
                         validated_data.pop(read_only_field, None)
 
                 self._add_url(file, validated_data)
-                [
-                    _,
-                    abstract_src_encoded_file,
-                    abstract_src_type,
-                ] = self._clean_abstract_or_abstract_src(validated_data)
+                self._clean_abstract(validated_data)
                 self._add_raw_authors(validated_data)
 
                 paper = None
@@ -517,18 +511,9 @@ class PaperSerializer(BasePaperSerializer):
                     if read_only_field in validated_data:
                         validated_data.pop(read_only_field, None)
                 self._add_url(file, validated_data)
-                [
-                    _,
-                    abstract_src_encoded_file,
-                    abstract_src_type,
-                ] = self._clean_abstract_or_abstract_src(validated_data)
+                self._clean_abstract(validated_data)
 
                 paper = super(PaperSerializer, self).update(instance, validated_data)
-                if abstract_src_encoded_file and abstract_src_type:
-                    paper.abstract_src.save(
-                        f"RH-PAPER-ABSTRACT-SRC-USER-{request.user.id}.txt",
-                        abstract_src_encoded_file,
-                    )
                 paper.full_clean(exclude=["paper_type"])
 
                 unified_doc = paper.unified_document
@@ -606,21 +591,11 @@ class PaperSerializer(BasePaperSerializer):
                 validated_data["pdf_url"] = pdf_url
         return
 
-    def _clean_abstract_or_abstract_src(self, data):
+    def _clean_abstract(self, data):
         abstract = data.get("abstract")
         if abstract:
             cleaned_text = clean_abstract(abstract)
             data.update(abstract=cleaned_text)
-
-        abstract_src = data.get("abstract_src")
-        abstract_src_type = data.get("abstract_src_type")
-        abstract_src_encoded_file = None
-        if abstract_src is not None:
-            abstract_src_encoded_file = ContentFile(data["abstract_src"].encode())
-        if abstract_src and abstract_src_type:
-            data.update(abstract_src=abstract_src_encoded_file)
-
-        return [abstract, abstract_src_encoded_file, abstract_src_type]
 
     def _add_raw_authors(self, validated_data):
         raw_authors = validated_data["raw_authors"]
@@ -729,7 +704,6 @@ class DynamicPaperSerializer(
     DynamicModelFieldSerializer, GenericReactionSerializerMixin
 ):
     authors = serializers.SerializerMethodField()
-    abstract_src_markdown = serializers.SerializerMethodField()
     boost_amount = serializers.SerializerMethodField()
     bounties = serializers.SerializerMethodField()
     discussions = serializers.SerializerMethodField()
@@ -776,13 +750,6 @@ class DynamicPaperSerializer(
             authorships, many=True, context=context, **_context_fields
         )
         return serializer.data
-
-    def get_abstract_src_markdown(self, paper):
-        try:
-            return paper.abstract_src.read().decode("utf-8")
-        except Exception:
-            # abstract src file may not be present which is ok
-            return None
 
     def get_user_vote(self, paper):
         vote = None

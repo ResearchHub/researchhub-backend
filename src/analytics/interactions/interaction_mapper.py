@@ -36,6 +36,7 @@ def map_from_upvote(vote: Vote) -> UserInteractions:
 
     return UserInteractions(
         user=vote.created_by,
+        external_user_id=None,
         event=UPVOTE,
         unified_document=unified_doc,
         content_type=vote.content_type,
@@ -59,11 +60,13 @@ def map_from_amplitude_event(amplitude_event: AmplitudeEvent) -> UserInteraction
     """
     return UserInteractions(
         user=amplitude_event.user,
+        external_user_id=amplitude_event.external_user_id,
         event=amplitude_event.event_type,
         unified_document=amplitude_event.unified_document,
         content_type=amplitude_event.content_type,
         object_id=amplitude_event.object_id,
         event_timestamp=amplitude_event.event_timestamp,
         is_synced_with_personalize=False,
-        personalize_rec_id=None,
+        personalize_rec_id=amplitude_event.personalize_rec_id,
+        impression=amplitude_event.impression,
     )

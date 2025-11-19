@@ -285,6 +285,7 @@ class OpenAlexTasksTests(TestCase):
         mock_mapped_paper.pdf_license_url = (
             "https://creativecommons.org/licenses/by/4.0/"
         )
+        mock_mapped_paper.citations = 25
 
         mock_mapper = Mock()
         mock_mapper.map_to_paper.return_value = mock_mapped_paper
@@ -338,6 +339,7 @@ class OpenAlexTasksTests(TestCase):
         mock_mapped_paper.pdf_url = "https://new.com/paper.pdf"
         mock_mapped_paper.pdf_license = "cc-by"
         mock_mapped_paper.pdf_license_url = None
+        mock_mapped_paper.citations = 30
 
         mock_mapper = Mock()
         mock_mapper.map_to_paper.return_value = mock_mapped_paper
@@ -462,6 +464,7 @@ class OpenAlexTasksTests(TestCase):
         mock_mapped_paper.pdf_url = "https://example.com/paper.pdf"
         mock_mapped_paper.pdf_license = "cc-by"
         mock_mapped_paper.pdf_license_url = None
+        mock_mapped_paper.citations = 15
 
         mock_mapper = Mock()
         mock_mapper.map_to_paper.return_value = mock_mapped_paper

@@ -133,10 +133,8 @@ class TestArXivOAIMapper(TestCase):
         )
 
         # Check URLs
-        self.assertEqual(
-            paper.pdf_url, "http://arxiv.org/pdf/2507.00004.pdf"  # NOSONAR - http
-        )
-        self.assertEqual(paper.url, "http://arxiv.org/abs/2507.00004")  # NOSONAR - http
+        self.assertEqual(paper.pdf_url, "https://arxiv.org/pdf/2507.00004.pdf")
+        self.assertEqual(paper.url, "https://arxiv.org/abs/2507.00004")
 
         # Check external metadata
         self.assertEqual(paper.external_metadata["external_id"], "2507.00004")
@@ -177,11 +175,11 @@ class TestArXivOAIMapper(TestCase):
         # Check links
         self.assertEqual(
             parsed["links"]["alternate"],
-            "http://arxiv.org/abs/2507.00004",  # NOSONAR - http
+            "https://arxiv.org/abs/2507.00004",
         )
         self.assertEqual(
             parsed["links"]["pdf"],
-            "http://arxiv.org/pdf/2507.00004.pdf",  # NOSONAR - http
+            "https://arxiv.org/pdf/2507.00004.pdf",
         )
 
     def test_format_arxiv_doi(self):

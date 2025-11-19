@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 @registry.register_document
 class PostDocument(BaseDocument):
     auto_refresh = True
-    hubs_flat = es_fields.TextField(attr="hubs_indexing_flat")
+    hubs_flat = es_fields.TextField()
     hot_score = es_fields.IntegerField(attr="hot_score")
     score = es_fields.IntegerField(attr="score")
     discussion_count = es_fields.IntegerField(attr="discussion_count")
@@ -39,7 +39,6 @@ class PostDocument(BaseDocument):
         },
     )
     hubs = es_fields.ObjectField(
-        attr="hubs_indexing",
         properties={
             "id": es_fields.IntegerField(),
             "name": es_fields.KeywordField(),
@@ -61,6 +60,21 @@ class PostDocument(BaseDocument):
             }
             for author in instance.authors.all()
         ]
+
+    def prepare_hubs(self, instance) -> list[dict[str, Any]]:
+        """Prepare hubs data for indexing."""
+        return [
+            {
+                "id": hub.id,
+                "name": hub.name,
+                "slug": hub.slug,
+            }
+            for hub in instance.hubs.all()
+        ]
+
+    def prepare_hubs_flat(self, instance) -> list[str]:
+        """Prepare flat list of hub names for indexing."""
+        return [hub.name for hub in instance.hubs.all()]
 
     class Index:
         name = "post"

@@ -180,21 +180,33 @@ def get_location_for_unsupported_pdf(csl_item):
     )
 
 
-def download_pdf(url):
-    if check_url_contains_pdf(url):
-        pdf = get_pdf_from_url(url)
-        filename = url.split("/").pop()
-        return pdf, filename
-    return None, None
+def download_pdf_from_url(url: str) -> ContentFile:
+    """
+    Downloads a PDF from a URL and validates that it's actually a PDF.
 
-
-def get_pdf_from_url(url):
+    Raises:
+        ValueError: If the URL does not point to a PDF file
+    """
     scraper = cloudscraper.create_scraper()
-    response = scraper.get(url, timeout=3)
+    with scraper.get(url, timeout=60) as response:
+        response.raise_for_status()
+
+        # Validate that the response is a PDF
+        content_type = response.headers.get("content-type", "").lower()
+        filename_header = response.headers.get("filename", "").lower()
+        is_pdf = "application/pdf" in content_type or ".pdf" in filename_header
+
+        if not is_pdf:
+            raise ValueError(
+                f"URL does not point to a PDF file. Content-Type: {content_type}"
+            )
+
+        content = response.content
+
     filename = url.split("/").pop()
     if not filename.endswith(".pdf"):
         filename += ".pdf"
-    pdf = ContentFile(response.content, name=filename)
+    pdf = ContentFile(content, name=filename)
     return pdf
 
 
@@ -261,6 +273,11 @@ def pdf_copyright_allows_display(paper):
     Returns True if the paper can be displayed on our site.
     E.g. if the paper is open-access and has a license that allows for commercial use.
     """
+
+    # Temporary: Disable display of bioRxiv paper PDFs
+    if paper.external_source == "biorxiv":
+        return False
+
     oa_status = (
         paper.oa_status or ""
     ).lower()  # Type from https://api.openalex.org/works?group_by=oa_status:include_unknown
