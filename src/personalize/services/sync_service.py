@@ -91,11 +91,10 @@ class SyncService:
             "sentAt": int(interaction.event_timestamp.timestamp()),
         }
 
-        if interaction.impression:
-            event["impression"] = interaction.impression.split("|")
-
         if interaction.personalize_rec_id:
             event["recommendationId"] = interaction.personalize_rec_id
+        elif interaction.impression:
+            event["impression"] = interaction.impression.split("|")
 
         return event
 
