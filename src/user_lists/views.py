@@ -43,9 +43,17 @@ class ListItemViewSet(ListModelMixin, DestroyModelMixin, viewsets.GenericViewSet
     pagination_class = FeedPagination
 
     def get_queryset(self):
-        qs = self.queryset.filter(parent_list__created_by=self.request.user)
+        qs = self.queryset.filter(
+            parent_list__created_by=self.request.user
+        ).select_related(
+            'unified_document'
+        ).prefetch_related(
+            'unified_document__paper',
+            'unified_document__posts'
+        )
+        
         parent_list_id = self.request.query_params.get("parent_list")
-        if parent_list_id:
+        if parent_list_id and parent_list_id.isdigit():
             qs = qs.filter(parent_list_id=parent_list_id, unified_document__is_removed=False)
         
         return qs
@@ -54,6 +62,10 @@ class ListItemViewSet(ListModelMixin, DestroyModelMixin, viewsets.GenericViewSet
         parent_list_id = request.query_params.get("parent_list")
         if not parent_list_id:
             return Response({"error": "parent_list is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not parent_list_id.isdigit():
+            return Response({"error": "List not found"}, status=status.HTTP_404_NOT_FOUND)
+        
         check_list_exists = List.objects.filter(id=parent_list_id, created_by=request.user, is_removed=False).exists()
         if not check_list_exists:
             return Response({"error": "List not found"}, status=status.HTTP_404_NOT_FOUND)
