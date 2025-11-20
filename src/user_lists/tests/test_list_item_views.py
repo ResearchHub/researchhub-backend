@@ -129,7 +129,7 @@ class ListItemViewSetTests(APITestCase):
         post_doc = ResearchhubUnifiedDocument.objects.create(document_type=DISCUSSION)
         post_doc.created_by = self.user
         post_doc.save()
-        post = ResearchhubPost.objects.create(
+        ResearchhubPost.objects.create(
             title="Test Post",
             renderable_text="Test content",
             unified_document=post_doc,
