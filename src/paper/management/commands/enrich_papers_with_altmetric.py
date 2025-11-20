@@ -4,7 +4,7 @@ Management command for enriching papers with Altmetric metrics.
 
 from django.core.management.base import BaseCommand
 
-from paper.ingestion.clients.altmetric import AltmetricClient
+from paper.ingestion.clients.enrichment.altmetric import AltmetricClient
 from paper.ingestion.mappers.altmetric import AltmetricMapper
 from paper.ingestion.services import PaperMetricsEnrichmentService
 from paper.models import Paper

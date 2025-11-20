@@ -2,8 +2,8 @@ import logging
 
 from celery.exceptions import MaxRetriesExceededError
 
-from paper.ingestion.clients.altmetric import AltmetricClient
-from paper.ingestion.clients.openalex import OpenAlexClient
+from paper.ingestion.clients.enrichment.altmetric import AltmetricClient
+from paper.ingestion.clients.enrichment.openalex import OpenAlexClient
 from paper.ingestion.mappers.altmetric import AltmetricMapper
 from paper.ingestion.mappers.openalex import OpenAlexMapper
 from paper.ingestion.services.metrics_enrichment import PaperMetricsEnrichmentService

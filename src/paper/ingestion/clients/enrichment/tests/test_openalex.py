@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import requests
 
-from paper.ingestion.clients.openalex import OpenAlexClient, OpenAlexConfig
+from paper.ingestion.clients.enrichment.openalex import OpenAlexClient, OpenAlexConfig
 from paper.ingestion.exceptions import FetchError, TimeoutError
 
 
