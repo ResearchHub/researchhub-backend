@@ -17,28 +17,28 @@ class ListViewSetTests(APITestCase):
         self.client.force_authenticate(user=self.user)
 
     def test_user_can_create_list(self):
-        response = self.client.post("/api/user_list/", {"name": "My List"})
+        response = self.client.post("/api/lists/", {"name": "My List"})
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["name"], "My List")
         self.assertTrue(List.objects.filter(name="My List", created_by=self.user).exists())
     def test_user_can_create_multiple_lists_with_same_name(self):
         List.objects.create(name="My List", created_by=self.user)
-        response = self.client.post("/api/user_list/", {"name": "My List"})
+        response = self.client.post("/api/lists/", {"name": "My List"})
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(List.objects.filter(name="My List", created_by=self.user).count(), 2)
 
     def test_unauthenticated_user_cannot_create_list(self):
         self.client.force_authenticate(user=None)
-        response = self.client.post("/api/user_list/", {"name": "My List"})
+        response = self.client.post("/api/lists/", {"name": "My List"})
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_creating_list_without_name_fails(self):
-        response = self.client.post("/api/user_list/", {})
+    def test_creating_list_without_name_returns_error(self):
+        response = self.client.post("/api/lists/", {})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_can_update_their_list(self):
         list_obj = List.objects.create(name="My List", created_by=self.user)
-        response = self.client.patch(f"/api/user_list/{list_obj.id}/", {"name": "Updated List"})
+        response = self.client.patch(f"/api/lists/{list_obj.id}/", {"name": "Updated List"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         list_obj.refresh_from_db()
         self.assertEqual(list_obj.name, "Updated List")
@@ -46,7 +46,7 @@ class ListViewSetTests(APITestCase):
 
     def test_user_cannot_update_another_users_list(self):
         list_obj = List.objects.create(name="Other List", created_by=self.other_user)
-        response = self.client.patch(f"/api/user_list/{list_obj.id}/", {"name": "Hacked"})
+        response = self.client.patch(f"/api/lists/{list_obj.id}/", {"name": "Hacked"})
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
    
     def test_user_can_retrieve_their_lists(self):
@@ -55,7 +55,7 @@ class ListViewSetTests(APITestCase):
         doc = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
         ListItem.objects.create(parent_list=list1, unified_document=doc, created_by=self.user)
         
-        response = self.client.get("/api/user_list/")
+        response = self.client.get("/api/lists/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 2)
         
@@ -78,13 +78,13 @@ class ListViewSetTests(APITestCase):
         item1.is_removed = True
         item1.save()
         
-        response = self.client.get(f"/api/user_list/{list_obj.id}/")
+        response = self.client.get(f"/api/lists/{list_obj.id}/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["item_count"], 1)
         
     def test_user_can_delete_their_list(self):
         list_obj = List.objects.create(name="My List", created_by=self.user)
-        response = self.client.delete(f"/api/user_list/{list_obj.id}/")
+        response = self.client.delete(f"/api/lists/{list_obj.id}/")
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         list_obj = List.all_objects.get(pk=list_obj.pk)
         self.assertTrue(list_obj.is_removed)
