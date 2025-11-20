@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 
 import requests
 
-from paper.ingestion.clients.chemrxiv import ChemRxivClient, ChemRxivConfig
+from paper.ingestion.clients.preprints.chemrxiv import ChemRxivClient, ChemRxivConfig
 from paper.ingestion.exceptions import FetchError, RetryExhaustedError, TimeoutError
 
 
