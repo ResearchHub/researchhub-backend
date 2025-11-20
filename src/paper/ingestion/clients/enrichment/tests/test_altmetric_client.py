@@ -1,7 +1,7 @@
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
-from paper.ingestion.clients.altmetric import AltmetricClient
+from paper.ingestion.clients.enrichment.altmetric import AltmetricClient
 
 
 class TestAltmetricClient(TestCase):
@@ -24,7 +24,7 @@ class TestAltmetricClient(TestCase):
         for input_doi, expected in test_cases:
             self.assertEqual(self.client._clean_doi(input_doi), expected)
 
-    @patch("paper.ingestion.clients.altmetric.retryable_requests_session")
+    @patch("paper.ingestion.clients.enrichment.altmetric.retryable_requests_session")
     def test_fetch_by_doi_success(self, mock_session):
         """Test successful DOI fetch."""
         mock_response = Mock()
@@ -52,7 +52,7 @@ class TestAltmetricClient(TestCase):
             timeout=self.client.timeout,
         )
 
-    @patch("paper.ingestion.clients.altmetric.retryable_requests_session")
+    @patch("paper.ingestion.clients.enrichment.altmetric.retryable_requests_session")
     def test_fetch_by_doi_not_found(self, mock_session):
         """Test DOI fetch when paper is not found in Altmetric."""
         mock_response = Mock()
@@ -66,7 +66,7 @@ class TestAltmetricClient(TestCase):
 
         self.assertIsNone(result)
 
-    @patch("paper.ingestion.clients.altmetric.retryable_requests_session")
+    @patch("paper.ingestion.clients.enrichment.altmetric.retryable_requests_session")
     def test_fetch_by_doi_rate_limited(self, mock_session):
         """Test DOI fetch when rate limited."""
         mock_response = Mock()
@@ -90,7 +90,7 @@ class TestAltmetricClient(TestCase):
         result = self.client.fetch_by_doi(None)
         self.assertIsNone(result)
 
-    @patch("paper.ingestion.clients.altmetric.retryable_requests_session")
+    @patch("paper.ingestion.clients.enrichment.altmetric.retryable_requests_session")
     def test_fetch_network_error(self, mock_session):
         """Test fetch with network error."""
         mock_session_instance = Mock()
@@ -100,7 +100,7 @@ class TestAltmetricClient(TestCase):
         result = self.client.fetch_by_doi("10.1038/nature12373")
         self.assertIsNone(result)
 
-    @patch("paper.ingestion.clients.altmetric.retryable_requests_session")
+    @patch("paper.ingestion.clients.enrichment.altmetric.retryable_requests_session")
     def test_fetch_by_arxiv_id_success(self, mock_session):
         """
         Test successful arXiv ID fetch.
@@ -134,7 +134,7 @@ class TestAltmetricClient(TestCase):
             timeout=self.client.timeout,
         )
 
-    @patch("paper.ingestion.clients.altmetric.retryable_requests_session")
+    @patch("paper.ingestion.clients.enrichment.altmetric.retryable_requests_session")
     def test_fetch_by_arxiv_id_not_found(self, mock_session):
         """
         Test arXiv ID fetch when paper is not found in Altmetric.
@@ -153,7 +153,7 @@ class TestAltmetricClient(TestCase):
         # Assert
         self.assertIsNone(result)
 
-    @patch("paper.ingestion.clients.altmetric.retryable_requests_session")
+    @patch("paper.ingestion.clients.enrichment.altmetric.retryable_requests_session")
     def test_fetch_by_arxiv_id_rate_limited(self, mock_session):
         """
         Test arXiv ID fetch when rate limited.
@@ -184,7 +184,7 @@ class TestAltmetricClient(TestCase):
         result = self.client.fetch_by_arxiv_id(None)
         self.assertIsNone(result)
 
-    @patch("paper.ingestion.clients.altmetric.retryable_requests_session")
+    @patch("paper.ingestion.clients.enrichment.altmetric.retryable_requests_session")
     def test_fetch_by_arxiv_id_network_error(self, mock_session):
         """
         Test arXiv ID fetch with network error.
@@ -200,7 +200,7 @@ class TestAltmetricClient(TestCase):
         # Assert
         self.assertIsNone(result)
 
-    @patch("paper.ingestion.clients.altmetric.retryable_requests_session")
+    @patch("paper.ingestion.clients.enrichment.altmetric.retryable_requests_session")
     def test_fetch_by_arxiv_id_with_version(self, mock_session):
         """
         Test arXiv ID fetch with version number (e.g., 2301.12345v1).
