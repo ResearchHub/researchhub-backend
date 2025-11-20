@@ -1,11 +1,58 @@
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import serializers
 
-from feed.models import FeedEntry
-from feed.serializers import FeedEntrySerializer
-from researchhub_comment.related_models.rh_comment_model import RhCommentModel
+from feed.serializers import PaperSerializer, PostSerializer, SimpleAuthorSerializer
+from researchhub_document.related_models.constants.document_type import (
+    PAPER,
+    RESEARCHHUB_POST_DOCUMENT_TYPES,
+)
 
 from .models import List, ListItem
+
+
+class ListItemUnifiedDocumentSerializer(serializers.Serializer):
+    content_type = serializers.SerializerMethodField()
+    content_object = serializers.SerializerMethodField()
+    created_date = serializers.DateTimeField()
+    author = serializers.SerializerMethodField()
+    metrics = serializers.SerializerMethodField()
+    
+    def get_content_type(self, obj):
+            document = obj.get_document()
+            if not document:
+                return obj.document_type
+            return ContentType.objects.get_for_model(type(document)).model.upper()
+    
+    def get_content_object(self, obj):
+            document = obj.get_document()
+            if not document:
+                return None
+            
+            if obj.document_type == PAPER:
+                return PaperSerializer(document).data
+            elif obj.document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
+                return PostSerializer(document).data
+            
+            return None
+    
+    def get_author(self, obj):
+        if obj.created_by and hasattr(obj.created_by, "author_profile"):
+            return SimpleAuthorSerializer(obj.created_by.author_profile).data
+        return None
+    
+    def get_metrics(self, obj):
+            document = obj.get_document()
+            metrics = {}
+            if not document:
+                return metrics
+            
+            if hasattr(document, "score"):
+                metrics["votes"] = document.score
+            
+            if hasattr(document, "get_discussion_count"):
+                metrics["comments"] = document.get_discussion_count()
+            
+            return metrics
 
 
 class ListSerializer(serializers.ModelSerializer):
@@ -40,7 +87,7 @@ class ListOverviewSerializer(serializers.ModelSerializer):
         ]
         
 class ListItemSerializer(serializers.ModelSerializer):
-    feed_entry = serializers.SerializerMethodField()
+    document = serializers.SerializerMethodField()
 
     class Meta:
         model = ListItem
@@ -52,21 +99,13 @@ class ListItemSerializer(serializers.ModelSerializer):
             "updated_date",
             "created_by",
             "updated_by",
-            "feed_entry",
+            "document",
         ]
-        read_only_fields = ["id", "created_date", "updated_date", "created_by", "updated_by", "feed_entry"]
+        read_only_fields = ["id", "created_date", "updated_date", "created_by", "updated_by", "document"]
     
-    def get_feed_entry(self, obj):
-        feed_entry = FeedEntry.objects.filter(
-            unified_document_id=obj.unified_document_id
-        ).exclude(
-            content_type=ContentType.objects.get_for_model(RhCommentModel)
-        ).select_related(
-            "content_type", "user", "user__author_profile", "user__userverification"
-        ).first()
-        
-        if feed_entry:
-            return FeedEntrySerializer(feed_entry, context=self.context).data
+    def get_document(self, obj):
+        if obj.unified_document:
+            return ListItemUnifiedDocumentSerializer(obj.unified_document, context=self.context).data
         return None
     
     def validate(self, data):

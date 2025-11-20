@@ -1,11 +1,14 @@
-from django.contrib.contenttypes.models import ContentType
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from feed.models import FeedEntry
 from paper.models import Paper
-from researchhub_document.related_models.constants.document_type import PAPER
+from researchhub_comment.related_models.rh_comment_model import RhCommentModel
+from researchhub_comment.related_models.rh_comment_thread_model import RhCommentThreadModel
+from researchhub_document.related_models.constants.document_type import (
+    DISCUSSION,
+    PAPER,
+)
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -19,13 +22,14 @@ class ListItemViewSetTests(APITestCase):
         self.client.force_authenticate(user=self.user)
         self.list = List.objects.create(name="My List", created_by=self.user)
         self.doc = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
+        self.doc.created_by = self.user
+        self.doc.save()
         self.paper = Paper.objects.create(
             title="Test Paper",
             paper_publish_date="2025-01-01",
             unified_document=self.doc,
             uploaded_by=self.user,
         )
-        self.paper_content_type = ContentType.objects.get_for_model(Paper)
 
     def test_user_can_add_item_to_list(self):
         response = self.client.post("/api/user_list_item/", {
@@ -94,25 +98,101 @@ class ListItemViewSetTests(APITestCase):
         response = self.client.get("/api/user_list_item/?parent_list=99999")
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_list_returns_items_with_feed_entries(self):
-        item = ListItem.objects.create(parent_list=self.list, unified_document=self.doc, created_by=self.user)
-        FeedEntry.objects.create(
-            unified_document=self.doc,
-            user=self.user,
-            content_type=self.paper_content_type,
-            object_id=self.paper.id,
-            action=FeedEntry.PUBLISH,
-            action_date=timezone.now(),
+    def test_list_handles_invalid_parent_list_id(self):
+        response = self.client.get("/api/user_list_item/?parent_list=abc")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_list_returns_items_with_document_serialization(self):
+        ListItem.objects.create(
+            parent_list=self.list, unified_document=self.doc, created_by=self.user
         )
         response = self.client.get(f"/api/user_list_item/?parent_list={self.list.id}")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 1)
-        self.assertIsNotNone(response.data["results"][0]["feed_entry"])
+        self.assertIsNotNone(response.data["results"][0]["document"])
+        self.assertEqual(
+            response.data["results"][0]["document"]["content_type"], "PAPER"
+        )
 
-    def test_list_item_without_feed_entry_returns_none(self):
-        item = ListItem.objects.create(parent_list=self.list, unified_document=self.doc, created_by=self.user)
+    def test_list_item_serializes_paper_correctly(self):
+        ListItem.objects.create(
+            parent_list=self.list, unified_document=self.doc, created_by=self.user
+        )
         response = self.client.get(f"/api/user_list_item/?parent_list={self.list.id}")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data["results"]), 1)
-        self.assertIsNone(response.data["results"][0]["feed_entry"])
+        document_data = response.data["results"][0]["document"]
+        self.assertIsNotNone(document_data["content_object"])
+        self.assertEqual(document_data["content_object"]["title"], "Test Paper")
+        self.assertIn("metrics", document_data)
+
+    def test_list_item_serializes_post_correctly(self):
+        post_doc = ResearchhubUnifiedDocument.objects.create(document_type=DISCUSSION)
+        post_doc.created_by = self.user
+        post_doc.save()
+        ResearchhubPost.objects.create(
+            title="Test Post",
+            renderable_text="Test content",
+            unified_document=post_doc,
+            created_by=self.user,
+            document_type=DISCUSSION,
+        )
+        ListItem.objects.create(
+            parent_list=self.list, unified_document=post_doc, created_by=self.user
+        )
+        response = self.client.get(f"/api/user_list_item/?parent_list={self.list.id}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        document_data = response.data["results"][0]["document"]
+        self.assertEqual(document_data["content_type"], "RESEARCHHUBPOST")
+        self.assertEqual(document_data["content_object"]["title"], "Test Post")
+
+    def test_list_returns_empty_when_no_items_in_list(self):
+        response = self.client.get(f"/api/user_list_item/?parent_list={self.list.id}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 0)
+
+    def test_list_item_metrics_include_votes(self):
+        self.paper.score = 42
+        self.paper.save()
+        ListItem.objects.create(
+            parent_list=self.list, unified_document=self.doc, created_by=self.user
+        )
+        response = self.client.get(f"/api/user_list_item/?parent_list={self.list.id}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        metrics = response.data["results"][0]["document"]["metrics"]
+        self.assertEqual(metrics["votes"], 42)
+
+    def test_list_item_metrics_include_comments(self):
+        ListItem.objects.create(
+            parent_list=self.list, unified_document=self.doc, created_by=self.user
+        )
+        thread = RhCommentThreadModel.objects.create(
+            content_object=self.paper, created_by=self.user
+        )
+        RhCommentModel.objects.create(
+            thread=thread, created_by=self.user, comment_content_json={}
+        )
+        response = self.client.get(f"/api/user_list_item/?parent_list={self.list.id}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        metrics = response.data["results"][0]["document"]["metrics"]
+        self.assertIn("comments", metrics)
+
+    def test_list_excludes_removed_unified_documents(self):
+        ListItem.objects.create(
+            parent_list=self.list, unified_document=self.doc, created_by=self.user
+        )
+        self.doc.is_removed = True
+        self.doc.save()
+        response = self.client.get(f"/api/user_list_item/?parent_list={self.list.id}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 0)
+
+    def test_document_field_includes_author_info(self):
+        ListItem.objects.create(
+            parent_list=self.list, unified_document=self.doc, created_by=self.user
+        )
+        response = self.client.get(f"/api/user_list_item/?parent_list={self.list.id}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        document_data = response.data["results"][0]["document"]
+        self.assertIsNotNone(document_data["author"])
+        self.assertEqual(document_data["author"]["id"], self.user.author_profile.id)
 
