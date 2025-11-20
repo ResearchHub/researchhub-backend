@@ -1,9 +1,9 @@
 from paper.ingestion.clients.base import BaseClient
-from paper.ingestion.clients.biorxiv import BioRxivClient, BioRxivConfig
 from paper.ingestion.clients.chemrxiv import ChemRxivClient, ChemRxivConfig
-from paper.ingestion.clients.medrxiv import MedRxivClient, MedRxivConfig
 from paper.ingestion.clients.preprints.arxiv import ArXivClient, ArXivConfig
 from paper.ingestion.clients.preprints.arxiv_oai import ArXivOAIClient, ArXivOAIConfig
+from paper.ingestion.clients.preprints.biorxiv import BioRxivClient, BioRxivConfig
+from paper.ingestion.clients.preprints.medrxiv import MedRxivClient, MedRxivConfig
 from paper.ingestion.constants import IngestionSource
 
 

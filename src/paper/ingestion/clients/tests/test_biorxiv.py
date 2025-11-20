@@ -6,7 +6,7 @@ from datetime import datetime
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
-from paper.ingestion.clients.biorxiv import BioRxivClient, BioRxivConfig
+from paper.ingestion.clients.preprints.biorxiv import BioRxivClient, BioRxivConfig
 
 
 class TestBioRxivClient(TestCase):
