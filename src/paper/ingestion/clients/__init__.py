@@ -3,10 +3,10 @@ Client modules for fetching papers from various sources.
 """
 
 from .base import BaseClient, ClientConfig
-from .chemrxiv import ChemRxivClient, ChemRxivConfig
 from .preprints.arxiv import ArXivClient, ArXivConfig
 from .preprints.arxiv_oai import ArXivOAIClient, ArXivOAIConfig
 from .preprints.biorxiv import BioRxivClient, BioRxivConfig
+from .preprints.chemrxiv import ChemRxivClient, ChemRxivConfig
 from .preprints.medrxiv import MedRxivClient, MedRxivConfig
 
 __all__ = [

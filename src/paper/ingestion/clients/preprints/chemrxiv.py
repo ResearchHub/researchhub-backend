@@ -10,8 +10,8 @@ from typing import Any, Dict, List, Optional, Union
 
 import requests
 
-from ..exceptions import FetchError, TimeoutError
-from .base import BaseClient, ClientConfig
+from ...exceptions import FetchError, TimeoutError
+from ..base import BaseClient, ClientConfig
 
 logger = logging.getLogger(__name__)
 
