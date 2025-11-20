@@ -30,7 +30,7 @@ class ListSerializerTests(APITestCase):
     def setUp(self):
         self.user = create_random_authenticated_user("user1")
 
-    def test_serializes_list_with_all_fields_and_item_count(self):
+    def test_list_includes_all_fields_and_item_count(self):
         list_obj = List.objects.create(name="My List", created_by=self.user)
         doc = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
         ListItem.objects.create(
@@ -66,7 +66,7 @@ class ListItemSerializerTests(APITestCase):
             uploaded_by=self.user,
         )
 
-    def test_serializes_list_item_with_document_field(self):
+    def test_list_item_includes_document_field(self):
         item = ListItem.objects.create(
             parent_list=self.list, unified_document=self.doc, created_by=self.user
         )
@@ -80,7 +80,7 @@ class ListItemSerializerTests(APITestCase):
         self.assertIsNotNone(data["document"])
         self.assertEqual(data["document"]["content_type"], "PAPER")
 
-    def test_serializes_item_with_valid_document(self):
+    def test_item_includes_valid_document(self):
         item = ListItem.objects.create(
             parent_list=self.list, unified_document=self.doc, created_by=self.user
         )
@@ -88,7 +88,7 @@ class ListItemSerializerTests(APITestCase):
         self.assertIsNotNone(serializer.data["document"])
         self.assertIsNotNone(serializer.data["document"]["content_object"])
     
-    def test_returns_none_when_no_unified_document(self):
+    def test_returns_none_when_unified_document_is_missing(self):
         from unittest.mock import Mock
         
         mock_item = Mock(spec=ListItem)
@@ -103,9 +103,9 @@ class ListItemSerializerTests(APITestCase):
         serializer = ListItemSerializer(mock_item)
         self.assertIsNone(serializer.data["document"])
 
-    def test_validates_user_cannot_add_to_other_users_list(self):
+    def test_user_cannot_add_to_other_users_list(self):
         factory = RequestFactory()
-        request = factory.post("/api/user_list_item/")
+        request = factory.post("/api/list/")
         request.user = self.user
 
         other_list = List.objects.create(
@@ -118,9 +118,9 @@ class ListItemSerializerTests(APITestCase):
         self.assertFalse(serializer.is_valid())
         self.assertIn("Invalid list", str(serializer.errors))
 
-    def test_validates_user_cannot_add_to_removed_list(self):
+    def test_user_cannot_add_to_removed_list(self):
         factory = RequestFactory()
-        request = factory.post("/api/user_list_item/")
+        request = factory.post("/api/list/")
         request.user = self.user
 
         removed_list = List.objects.create(
@@ -147,7 +147,7 @@ class ListItemUnifiedDocumentSerializerTests(APITestCase):
             uploaded_by=self.user,
         )
 
-    def test_serializes_paper_with_content_author_and_metrics(self):
+    def test_paper_includes_content_author_and_metrics(self):
         self.paper.score = 42
         self.paper.save()
         
@@ -168,7 +168,7 @@ class ListItemUnifiedDocumentSerializerTests(APITestCase):
         self.assertIn("comments", data["metrics"])
         self.assertIsNotNone(data["created_date"])
 
-    def test_serializes_post_correctly(self):
+    def test_post_content_type_is_correct(self):
         post_doc = ResearchhubUnifiedDocument.objects.create(document_type=DISCUSSION)
         post_doc.created_by = self.user
         post_doc.save()
@@ -186,7 +186,7 @@ class ListItemUnifiedDocumentSerializerTests(APITestCase):
         self.assertEqual(data["content_type"], "RESEARCHHUBPOST")
         self.assertEqual(data["content_object"]["title"], "Test Post")
 
-    def test_handles_unsupported_document_types(self):
+    def test_unsupported_document_types_return_none(self):
         unsupported_doc = ResearchhubUnifiedDocument.objects.create(
             document_type="QUESTION"
         )

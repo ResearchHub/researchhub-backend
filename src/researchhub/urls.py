@@ -112,8 +112,8 @@ router.register(r"transactions", purchase.views.BalanceViewSet, basename="transa
 
 router.register(r"user", user.views.UserViewSet)
 
-router.register(r"user_list", ListViewSet, basename="user_list")
-router.register(r"user_list_item", ListItemViewSet, basename="user_list_item")
+router.register(r"lists", ListViewSet, basename="lists")
+router.register(r"list", ListItemViewSet, basename="list")
 
 router.register(r"withdrawal", reputation.views.WithdrawalViewSet)
 

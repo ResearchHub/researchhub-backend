@@ -32,7 +32,7 @@ class ListItemViewSetTests(APITestCase):
         )
 
     def test_user_can_add_item_to_list(self):
-        response = self.client.post("/api/user_list_item/", {
+        response = self.client.post("/api/list/", {
             "parent_list": self.list.id,
             "unified_document": self.doc.id,
         })
@@ -45,7 +45,7 @@ class ListItemViewSetTests(APITestCase):
 
     def test_unauthenticated_user_cannot_add_item_to_list(self):
         self.client.force_authenticate(user=None)
-        response = self.client.post("/api/user_list_item/", {
+        response = self.client.post("/api/list/", {
             "parent_list": self.list.id,
             "unified_document": self.doc.id,
         })
@@ -53,7 +53,7 @@ class ListItemViewSetTests(APITestCase):
 
     def test_cannot_add_duplicate_item_to_list(self):
         ListItem.objects.create(parent_list=self.list, unified_document=self.doc, created_by=self.user)
-        response = self.client.post("/api/user_list_item/", {
+        response = self.client.post("/api/list/", {
             "parent_list": self.list.id,
             "unified_document": self.doc.id,
         })
@@ -61,7 +61,7 @@ class ListItemViewSetTests(APITestCase):
 
     def test_cannot_add_item_to_another_users_list(self):
         other_list = List.objects.create(name="Other List", created_by=self.other_user)
-        response = self.client.post("/api/user_list_item/", {
+        response = self.client.post("/api/list/", {
             "parent_list": other_list.id,
             "unified_document": self.doc.id,
         })
@@ -70,7 +70,7 @@ class ListItemViewSetTests(APITestCase):
     def test_cannot_add_item_to_deleted_list(self):
         self.list.is_removed = True
         self.list.save()
-        response = self.client.post("/api/user_list_item/", {
+        response = self.client.post("/api/list/", {
             "parent_list": self.list.id,
             "unified_document": self.doc.id,
         })
@@ -78,7 +78,7 @@ class ListItemViewSetTests(APITestCase):
 
     def test_user_can_delete_item_from_their_list(self):
         item = ListItem.objects.create(parent_list=self.list, unified_document=self.doc, created_by=self.user)
-        response = self.client.delete(f"/api/user_list_item/{item.id}/")
+        response = self.client.delete(f"/api/list/{item.id}/")
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         item = ListItem.all_objects.get(pk=item.pk)
         self.assertTrue(item.is_removed)
@@ -86,27 +86,19 @@ class ListItemViewSetTests(APITestCase):
     def test_user_cannot_delete_item_from_another_users_list(self):
         other_list = List.objects.create(name="Other List", created_by=self.other_user)
         item = ListItem.objects.create(parent_list=other_list, unified_document=self.doc, created_by=self.other_user)
-        response = self.client.delete(f"/api/user_list_item/{item.id}/")
+        response = self.client.delete(f"/api/list/{item.id}/")
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_list_requires_parent_list_param(self):
-        response = self.client.get("/api/user_list_item/")
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("parent_list is required", response.data["error"])
-
-    def test_list_returns_404_for_nonexistent_list(self):
-        response = self.client.get("/api/user_list_item/?parent_list=99999")
+    def test_listing_items_requires_valid_list_id(self):
+        response = self.client.get("/api/list/99999/")
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertIn("List not found", response.data["error"])
 
-    def test_list_handles_invalid_parent_list_id(self):
-        response = self.client.get("/api/user_list_item/?parent_list=abc")
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-
-    def test_list_returns_items_with_document_serialization(self):
+    def test_listing_items_returns_document_data(self):
         ListItem.objects.create(
             parent_list=self.list, unified_document=self.doc, created_by=self.user
         )
-        response = self.client.get(f"/api/user_list_item/?parent_list={self.list.id}")
+        response = self.client.get(f"/api/list/{self.list.id}/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 1)
         self.assertIsNotNone(response.data["results"][0]["document"])
@@ -114,18 +106,18 @@ class ListItemViewSetTests(APITestCase):
             response.data["results"][0]["document"]["content_type"], "PAPER"
         )
 
-    def test_list_item_serializes_paper_correctly(self):
+    def test_list_item_includes_paper_content(self):
         ListItem.objects.create(
             parent_list=self.list, unified_document=self.doc, created_by=self.user
         )
-        response = self.client.get(f"/api/user_list_item/?parent_list={self.list.id}")
+        response = self.client.get(f"/api/list/{self.list.id}/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         document_data = response.data["results"][0]["document"]
         self.assertIsNotNone(document_data["content_object"])
         self.assertEqual(document_data["content_object"]["title"], "Test Paper")
         self.assertIn("metrics", document_data)
 
-    def test_list_item_serializes_post_correctly(self):
+    def test_list_item_includes_post_content(self):
         post_doc = ResearchhubUnifiedDocument.objects.create(document_type=DISCUSSION)
         post_doc.created_by = self.user
         post_doc.save()
@@ -139,14 +131,14 @@ class ListItemViewSetTests(APITestCase):
         ListItem.objects.create(
             parent_list=self.list, unified_document=post_doc, created_by=self.user
         )
-        response = self.client.get(f"/api/user_list_item/?parent_list={self.list.id}")
+        response = self.client.get(f"/api/list/{self.list.id}/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         document_data = response.data["results"][0]["document"]
         self.assertEqual(document_data["content_type"], "RESEARCHHUBPOST")
         self.assertEqual(document_data["content_object"]["title"], "Test Post")
 
-    def test_list_returns_empty_when_no_items_in_list(self):
-        response = self.client.get(f"/api/user_list_item/?parent_list={self.list.id}")
+    def test_listing_items_returns_empty_when_list_is_empty(self):
+        response = self.client.get(f"/api/list/{self.list.id}/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 0)
 
@@ -156,7 +148,7 @@ class ListItemViewSetTests(APITestCase):
         ListItem.objects.create(
             parent_list=self.list, unified_document=self.doc, created_by=self.user
         )
-        response = self.client.get(f"/api/user_list_item/?parent_list={self.list.id}")
+        response = self.client.get(f"/api/list/{self.list.id}/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         metrics = response.data["results"][0]["document"]["metrics"]
         self.assertEqual(metrics["votes"], 42)
@@ -171,18 +163,18 @@ class ListItemViewSetTests(APITestCase):
         RhCommentModel.objects.create(
             thread=thread, created_by=self.user, comment_content_json={}
         )
-        response = self.client.get(f"/api/user_list_item/?parent_list={self.list.id}")
+        response = self.client.get(f"/api/list/{self.list.id}/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         metrics = response.data["results"][0]["document"]["metrics"]
         self.assertIn("comments", metrics)
 
-    def test_list_excludes_removed_unified_documents(self):
+    def test_listing_items_excludes_removed_documents(self):
         ListItem.objects.create(
             parent_list=self.list, unified_document=self.doc, created_by=self.user
         )
         self.doc.is_removed = True
         self.doc.save()
-        response = self.client.get(f"/api/user_list_item/?parent_list={self.list.id}")
+        response = self.client.get(f"/api/list/{self.list.id}/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 0)
 
@@ -190,7 +182,7 @@ class ListItemViewSetTests(APITestCase):
         ListItem.objects.create(
             parent_list=self.list, unified_document=self.doc, created_by=self.user
         )
-        response = self.client.get(f"/api/user_list_item/?parent_list={self.list.id}")
+        response = self.client.get(f"/api/list/{self.list.id}/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         document_data = response.data["results"][0]["document"]
         self.assertIsNotNone(document_data["author"])

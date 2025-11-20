@@ -2,7 +2,6 @@ from django.db import IntegrityError
 from django.db.models import Count, Prefetch, Q
 from rest_framework import status, viewsets
 from rest_framework.mixins import DestroyModelMixin, ListModelMixin
-from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.decorators import action
@@ -12,17 +11,11 @@ from .models import List, ListItem
 from .serializers import ListOverviewSerializer, ListSerializer, ListItemSerializer
 
 
-class ListPagination(PageNumberPagination):
-    page_size = 20
-    page_size_query_param = "page_size"
-    max_page_size = 100
-
-
 class ListViewSet(viewsets.ModelViewSet):
     queryset = List.objects.filter(is_removed=False)
     serializer_class = ListSerializer
     permission_classes = [IsAuthenticated]
-    pagination_class = ListPagination
+    pagination_class = FeedPagination
 
     def get_queryset(self):
         return self.queryset.filter(created_by=self.request.user).annotate(
@@ -60,24 +53,21 @@ class ListItemViewSet(ListModelMixin, DestroyModelMixin, viewsets.GenericViewSet
             'unified_document__posts'
         )
         
-        parent_list_id = self.request.query_params.get("parent_list")
-        if parent_list_id and parent_list_id.isdigit():
-            qs = qs.filter(parent_list_id=parent_list_id, unified_document__is_removed=False)
+        if self.action == 'retrieve':
+            list_id = self.kwargs.get('pk')
+            if list_id:
+                qs = qs.filter(parent_list_id=list_id, unified_document__is_removed=False)
         
         return qs
 
-    def list(self, request, *args, **kwargs):
-        parent_list_id = request.query_params.get("parent_list")
-        if not parent_list_id:
-            return Response({"error": "parent_list is required"}, status=status.HTTP_400_BAD_REQUEST)
+    def retrieve(self, request, *args, **kwargs):
+        list_id = kwargs.get('pk')
         
-        if not parent_list_id.isdigit():
-            return Response({"error": "List not found"}, status=status.HTTP_404_NOT_FOUND)
-        
-        check_list_exists = List.objects.filter(id=parent_list_id, created_by=request.user, is_removed=False).exists()
+        check_list_exists = List.objects.filter(id=list_id, created_by=request.user, is_removed=False).exists()
         if not check_list_exists:
             return Response({"error": "List not found"}, status=status.HTTP_404_NOT_FOUND)
-        return super().list(request, *args, **kwargs)
+        
+        return self.list(request, *args, **kwargs)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
