@@ -107,13 +107,15 @@ class ListViewSetTests(APITestCase):
         list1_data = next(item for item in response.data["lists"] if item["list_id"] == list1.id)
         self.assertEqual(list1_data["name"], "List 1")
         self.assertEqual(len(list1_data["unified_documents"]), 2)
-        self.assertIn(doc1.id, list1_data["unified_documents"])
-        self.assertIn(doc2.id, list1_data["unified_documents"])
+        list1_doc_ids = [item["unified_document_id"] for item in list1_data["unified_documents"]]
+        self.assertIn(doc1.id, list1_doc_ids)
+        self.assertIn(doc2.id, list1_doc_ids)
 
         list2_data = next(item for item in response.data["lists"] if item["list_id"] == list2.id)
         self.assertEqual(list2_data["name"], "List 2")
         self.assertEqual(len(list2_data["unified_documents"]), 1)
-        self.assertIn(doc3.id, list2_data["unified_documents"])
+        list2_doc_ids = [item["unified_document_id"] for item in list2_data["unified_documents"]]
+        self.assertIn(doc3.id, list2_doc_ids)
 
     def test_list_overview_excludes_removed_items(self):
         list_obj = List.objects.create(name="My List", created_by=self.user)
@@ -132,5 +134,6 @@ class ListViewSetTests(APITestCase):
         list_data = next(item for item in response.data["lists"] if item["list_id"] == list_obj.id)
         self.assertEqual(list_data["name"], "My List")
         self.assertEqual(len(list_data["unified_documents"]), 1)
-        self.assertIn(doc2.id, list_data["unified_documents"])
-        self.assertNotIn(doc1.id, list_data["unified_documents"])
+        doc_ids = [item["unified_document_id"] for item in list_data["unified_documents"]]
+        self.assertIn(doc2.id, doc_ids)
+        self.assertNotIn(doc1.id, doc_ids)
