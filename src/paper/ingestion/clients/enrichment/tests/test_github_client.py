@@ -119,45 +119,9 @@ class TestGithubMetricsClient(TestCase):
         self.mock_github_client = Mock(spec=GithubClient)
         self.client = GithubMetricsClient(github_client=self.mock_github_client)
 
-    def test_count_term_mentions_success(self):
+    def test_get_mentions(self):
         """
-        Test counting term mentions successfully.
-        """
-        # Arrange
-        self.mock_github_client.search.side_effect = [
-            {"total_count": 5, "items": []},  # issues
-            {"total_count": 3, "items": []},  # commits
-            {"total_count": 2, "items": []},  # repositories
-        ]
-
-        # Act
-        result = self.client.count_term_mentions("10.1234/test")
-
-        # Assert
-        self.assertEqual(result, 10)
-        self.assertEqual(self.mock_github_client.search.call_count, 3)
-
-    def test_count_term_mentions_with_custom_areas(self):
-        """
-        Test counting term mentions with custom search areas.
-        """
-        # Arrange
-        self.mock_github_client.search.return_value = {"total_count": 7, "items": []}
-
-        # Act
-        result = self.client.count_term_mentions(
-            "10.1234/test", search_areas=["issues"]
-        )
-
-        # Assert
-        self.assertEqual(result, 7)
-        self.mock_github_client.search.assert_called_once_with(
-            endpoint="issues", query="10.1234/test", per_page=1
-        )
-
-    def test_get_detailed_metrics_success(self):
-        """
-        Test getting detailed metrics successfully.
+        Test getting mentions successfully.
         """
         # Arrange
         self.mock_github_client.search.side_effect = [
@@ -167,7 +131,7 @@ class TestGithubMetricsClient(TestCase):
         ]
 
         # Act
-        result = self.client.get_detailed_metrics("10.1234/test")
+        result = self.client.get_mentions("10.1234/test")
 
         # Assert
         self.assertIsNotNone(result)
@@ -177,15 +141,15 @@ class TestGithubMetricsClient(TestCase):
         self.assertEqual(result["breakdown"]["commits"], 3)
         self.assertEqual(result["breakdown"]["repositories"], 2)
 
-    def test_get_detailed_metrics_no_results(self):
+    def test_get_mentions_no_results(self):
         """
-        Test getting detailed metrics when no results found.
+        Test getting mentions when no results found.
         """
         # Arrange
         self.mock_github_client.search.return_value = {"total_count": 0, "items": []}
 
         # Act
-        result = self.client.get_detailed_metrics("10.1234/notfound")
+        result = self.client.get_mentions("10.1234/notfound")
 
         # Assert - Should return valid response with 0 counts
         assert result is not None
@@ -195,9 +159,9 @@ class TestGithubMetricsClient(TestCase):
         self.assertEqual(result["breakdown"]["commits"], 0)
         self.assertEqual(result["breakdown"]["repositories"], 0)
 
-    def test_get_detailed_metrics_partial_failure(self):
+    def test_get_mentions_partial_failure(self):
         """
-        Test getting detailed metrics with partial search failures.
+        Test getting mentions with partial search failures.
         """
         # Arrange
         self.mock_github_client.search.side_effect = [
@@ -207,7 +171,7 @@ class TestGithubMetricsClient(TestCase):
         ]
 
         # Act
-        result = self.client.get_detailed_metrics("10.1234/test")
+        result = self.client.get_mentions("10.1234/test")
 
         # Assert
         self.assertIsNotNone(result)
@@ -217,15 +181,15 @@ class TestGithubMetricsClient(TestCase):
         self.assertIn("repositories", result["breakdown"])
         self.assertNotIn("commits", result["breakdown"])
 
-    def test_get_detailed_metrics_all_failures(self):
+    def test_get_mentions_all_failures(self):
         """
-        Test getting detailed metrics when all searches fail.
+        Test getting mentions when all searches fail.
         """
         # Arrange
         self.mock_github_client.search.return_value = None
 
         # Act
-        result = self.client.get_detailed_metrics("10.1234/test")
+        result = self.client.get_mentions("10.1234/test")
 
         # Assert
         self.assertIsNone(result)

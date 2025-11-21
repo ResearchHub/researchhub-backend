@@ -111,30 +111,14 @@ class GithubMetricsClient:
         """
         self.github_client = github_client or GithubClient()
 
-    def count_term_mentions(
-        self, term: str, search_areas: Optional[list] = None
-    ) -> Optional[int]:
-        """
-        Count the number of times a term is mentioned across GitHub.
-
-        Args:
-            term: The term to search for (e.g., the DOI `10.1145/234286.1057812`)
-            search_areas: List of areas to search. If None, uses default areas.
-
-        Returns:
-            Integer count of total mentions across all areas if successful.
-        """
-        metrics = self.get_detailed_metrics(term, search_areas)
-        return metrics["total_mentions"] if metrics else None
-
-    def get_detailed_metrics(
+    def get_mentions(
         self, term: str, search_areas: Optional[list] = None
     ) -> Optional[Dict]:
         """
-        Get detailed metrics about term mentions on GitHub.
+        Get mentions of a term on GitHub.
 
         Args:
-            term: The term to search for
+            term: The term to search for (e.g., the DOI `10.1145/234286.1057812`).
             search_areas: List of areas to search. If None, uses default areas.
 
         Returns:
