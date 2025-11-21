@@ -100,7 +100,7 @@ class ListViewSetTests(APITestCase):
         ListItem.objects.create(parent_list=list1, unified_document=doc2, created_by=self.user)
         ListItem.objects.create(parent_list=list2, unified_document=doc3, created_by=self.user)
 
-        response = self.client.get("/api/lists/overview/")
+        response = self.client.get("/api/list/overview/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["lists"]), 2)
 
@@ -128,7 +128,7 @@ class ListViewSetTests(APITestCase):
         item1.is_removed = True
         item1.save()
 
-        response = self.client.get("/api/lists/overview/")
+        response = self.client.get("/api/list/overview/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         list_data = next(item for item in response.data["lists"] if item["list_id"] == list_obj.id)
