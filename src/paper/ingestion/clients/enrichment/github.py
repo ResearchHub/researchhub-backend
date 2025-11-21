@@ -82,14 +82,14 @@ class GithubClient:
         except requests.HTTPError as e:
             logger.error(
                 f"GitHub API {endpoint} search error. "
-                f"Status: {e.response.status_code}, Query: {query}"
+                f"Status: {e.response.status_code}, query: {query}"
             )
             raise
         except requests.Timeout:
-            logger.error(f"Timeout for GitHub {endpoint} search, " f"Query: {query}")
+            logger.error(f"Timeout for GitHub {endpoint} search, query: {query}")
             raise
         except requests.RequestException as e:
-            logger.error(f"GitHub {endpoint} search failed, Query: {query}: {str(e)}")
+            logger.error(f"GitHub {endpoint} search failed, query: {query}: {str(e)}")
             raise
 
 
