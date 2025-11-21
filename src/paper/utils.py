@@ -273,11 +273,6 @@ def pdf_copyright_allows_display(paper):
     Returns True if the paper can be displayed on our site.
     E.g. if the paper is open-access and has a license that allows for commercial use.
     """
-
-    # Temporary: Disable display of bioRxiv paper PDFs
-    if paper.external_source == "biorxiv":
-        return False
-
     oa_status = (
         paper.oa_status or ""
     ).lower()  # Type from https://api.openalex.org/works?group_by=oa_status:include_unknown
@@ -285,6 +280,10 @@ def pdf_copyright_allows_display(paper):
         paper.pdf_license or ""
     ).lower()  # Type from https://api.openalex.org/works?group_by=primary_location.license:include_unknown
     is_pdf_removed_by_moderator = paper.is_pdf_removed_by_moderator
+
+    # Temporary: Disable display of bioRxiv paper PDFs (except for CC0 licensed papers)
+    if paper.external_source == "biorxiv":
+        return license.startswith("cc0")
 
     # we're going to assume that if a moderator removed it,
     # it was because of copyright issues
