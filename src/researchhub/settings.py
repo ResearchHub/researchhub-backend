@@ -906,3 +906,11 @@ else:
     AWS_PERSONALIZE_TRACKING_ID = "977ca9c1-8518-4408-bb82-efaa0e744c15"
 
 SCRAPER_URL = os.environ.get("SCRAPER_URL", keys.SCRAPER_URL)
+
+# Bluesky
+BLUESKY_USERNAME = os.environ.get(
+    "BLUESKY_USERNAME", getattr(keys, "BLUESKY_USERNAME", "")
+)
+BLUESKY_PASSWORD = os.environ.get(
+    "BLUESKY_PASSWORD", getattr(keys, "BLUESKY_PASSWORD", "")
+)
