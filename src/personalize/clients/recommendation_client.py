@@ -4,7 +4,7 @@ Client for interacting with AWS Personalize service.
 
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from django.conf import settings
 
@@ -33,7 +33,7 @@ class RecommendationClient:
         filter_arn: Optional[str] = None,
         filter_values: Optional[Dict[str, str]] = None,
         num_results: int = 20,
-    ) -> List[str]:
+    ) -> Dict[str, Any]:
         """
         Get personalized recommendations from AWS Personalize.
         """
@@ -56,13 +56,16 @@ class RecommendationClient:
 
             response = self.client.get_recommendations(**params)
 
-            # Extract item IDs from response
+            recommendation_id = response.get("recommendationId")
             item_list = response.get("itemList", [])
             item_ids = [item["itemId"] for item in item_list]
 
             logger.info(f"Retrieved {len(item_ids)} recommendations for user {user_id}")
 
-            return item_ids
+            return {
+                "item_ids": item_ids,
+                "recommendation_id": recommendation_id,
+            }
 
         except Exception as e:
             logger.error(
@@ -76,7 +79,7 @@ class RecommendationClient:
         user_id: str,
         filter: Optional[str] = None,
         num_results: int = 20,
-    ) -> List[int]:
+    ) -> Dict[str, Any]:
         filter_arn = None
         filter_values = None
 
@@ -95,7 +98,7 @@ class RecommendationClient:
                 f"timestamp: {timestamp_cutoff}"
             )
 
-        item_ids = self.get_recommendations(
+        result = self.get_recommendations(
             user_id=user_id,
             campaign_arn=self.campaign_arn,
             filter_arn=filter_arn,
@@ -103,4 +106,8 @@ class RecommendationClient:
             num_results=num_results,
         )
 
-        return [int(item_id) for item_id in item_ids] if item_ids else []
+        item_ids = result.get("item_ids", [])
+        return {
+            "item_ids": [int(item_id) for item_id in item_ids] if item_ids else [],
+            "recommendation_id": result.get("recommendation_id"),
+        }

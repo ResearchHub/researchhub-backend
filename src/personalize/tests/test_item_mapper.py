@@ -64,7 +64,7 @@ class DocumentTypeTests(TestCase):
         batch_data = create_batch_data()
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -83,7 +83,7 @@ class DocumentTypeTests(TestCase):
         batch_data = create_batch_data()
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -104,7 +104,7 @@ class DocumentTypeTests(TestCase):
         batch_data = create_batch_data()
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -125,7 +125,7 @@ class DocumentTypeTests(TestCase):
         batch_data = create_batch_data()
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -144,7 +144,7 @@ class DocumentTypeTests(TestCase):
         batch_data = create_batch_data()
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -170,7 +170,7 @@ class BountyFlagTests(TestCase):
         batch_data = create_batch_data(has_active_bounty=True)
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -189,7 +189,7 @@ class BountyFlagTests(TestCase):
         batch_data = create_batch_data(has_active_bounty=False)
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -211,7 +211,7 @@ class BountyFlagTests(TestCase):
         batch_data = create_batch_data(has_solutions=True)
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -230,7 +230,7 @@ class BountyFlagTests(TestCase):
         batch_data = create_batch_data(has_solutions=False)
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -256,7 +256,7 @@ class ProposalFlagTests(TestCase):
         batch_data = create_batch_data(proposal_has_funders=True)
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -275,7 +275,7 @@ class ProposalFlagTests(TestCase):
         batch_data = create_batch_data(proposal_has_funders=False)
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -294,7 +294,7 @@ class ProposalFlagTests(TestCase):
         batch_data = create_batch_data(proposal_is_open=True)
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -316,7 +316,7 @@ class ProposalFlagTests(TestCase):
         batch_data = create_batch_data(proposal_is_open=False)
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -339,7 +339,7 @@ class RFPFlagTests(TestCase):
         batch_data = create_batch_data(rfp_is_open=True)
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -358,7 +358,7 @@ class RFPFlagTests(TestCase):
         batch_data = create_batch_data(rfp_is_open=False)
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -380,7 +380,7 @@ class RFPFlagTests(TestCase):
         batch_data = create_batch_data(rfp_has_applicants=True)
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -399,7 +399,7 @@ class RFPFlagTests(TestCase):
         batch_data = create_batch_data(rfp_has_applicants=False)
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -422,7 +422,7 @@ class CommonFieldTests(TestCase):
         batch_data = create_batch_data()
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -443,7 +443,7 @@ class CommonFieldTests(TestCase):
         batch_data = create_batch_data()
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -463,7 +463,7 @@ class CommonFieldTests(TestCase):
         batch_data = create_batch_data()
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -483,7 +483,7 @@ class CommonFieldTests(TestCase):
         batch_data = create_batch_data()
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -520,7 +520,7 @@ class CommonFieldTests(TestCase):
         batch_data = create_batch_data()
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -544,7 +544,7 @@ class HubTests(TestCase):
         batch_data = create_batch_data()
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -566,7 +566,7 @@ class HubTests(TestCase):
         batch_data = create_batch_data()
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -587,7 +587,7 @@ class HubTests(TestCase):
         batch_data = create_batch_data()
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -608,7 +608,7 @@ class HubTests(TestCase):
         batch_data = create_batch_data()
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -631,7 +631,7 @@ class PaperSpecificFieldTests(TestCase):
         batch_data = create_batch_data()
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -653,7 +653,7 @@ class PaperSpecificFieldTests(TestCase):
         batch_data = create_batch_data()
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -674,7 +674,7 @@ class PaperSpecificFieldTests(TestCase):
         batch_data = create_batch_data()
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -694,7 +694,7 @@ class PaperSpecificFieldTests(TestCase):
         batch_data = create_batch_data()
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -714,7 +714,7 @@ class PaperSpecificFieldTests(TestCase):
         batch_data = create_batch_data()
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -733,7 +733,7 @@ class PaperSpecificFieldTests(TestCase):
         batch_data = create_batch_data()
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -757,7 +757,7 @@ class PostSpecificFieldTests(TestCase):
         batch_data = create_batch_data()
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -779,7 +779,7 @@ class PostSpecificFieldTests(TestCase):
         batch_data = create_batch_data()
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -800,7 +800,7 @@ class PostSpecificFieldTests(TestCase):
         batch_data = create_batch_data()
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -830,7 +830,7 @@ class EdgeCaseTests(TestCase):
 
         # Act & Assert
         with self.assertRaises(ValueError) as context:
-            mapper.map_to_item(
+            mapper.map_to_csv_item(
                 mock_doc,
                 bounty_data=batch_data["bounty"],
                 proposal_data=batch_data["proposal"],
@@ -854,7 +854,7 @@ class EdgeCaseTests(TestCase):
         batch_data = create_batch_data()
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -877,7 +877,7 @@ class EdgeCaseTests(TestCase):
         batch_data = create_batch_data()
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -900,7 +900,7 @@ class EdgeCaseTests(TestCase):
         batch_data = create_batch_data()
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -923,7 +923,7 @@ class DefaultValuesTests(TestCase):
         batch_data = create_batch_data()
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -947,7 +947,7 @@ class DefaultValuesTests(TestCase):
         batch_data = create_batch_data()
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -979,7 +979,7 @@ class DefaultValuesTests(TestCase):
         batch_data = create_batch_data()
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -1015,7 +1015,7 @@ class DefaultValuesTests(TestCase):
         batch_data = create_batch_data()
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -1055,7 +1055,7 @@ class DefaultValuesTests(TestCase):
         batch_data["review_count"] = {unified_doc.id: 5}
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],
@@ -1080,7 +1080,7 @@ class DefaultValuesTests(TestCase):
         batch_data["review_count"] = {}
 
         # Act
-        result = mapper.map_to_item(
+        result = mapper.map_to_csv_item(
             unified_doc,
             bounty_data=batch_data["bounty"],
             proposal_data=batch_data["proposal"],

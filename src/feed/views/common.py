@@ -29,7 +29,7 @@ class FeedPagination(PageNumberPagination):
         # FIXME: Only include next link if there are results equal to page size
         # to avoid repeated requests for empty pages
         next_link = None
-        if data and len(data) >= self.page_size:
+        if data and len(data) > 0:
             next_link = self.get_next_link()
 
         return Response(

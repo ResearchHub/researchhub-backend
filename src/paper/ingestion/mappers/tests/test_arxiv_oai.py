@@ -29,6 +29,7 @@ class TestArXivOAIMapper(TestCase):
         fixtures_dir = os.path.join(
             os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
             "clients",
+            "preprints",
             "tests",
             "fixtures",
         )
@@ -133,7 +134,7 @@ class TestArXivOAIMapper(TestCase):
         )
 
         # Check URLs
-        self.assertEqual(paper.pdf_url, "https://arxiv.org/pdf/2507.00004")
+        self.assertEqual(paper.pdf_url, "https://arxiv.org/pdf/2507.00004.pdf")
         self.assertEqual(paper.url, "https://arxiv.org/abs/2507.00004")
 
         # Check external metadata
@@ -179,7 +180,7 @@ class TestArXivOAIMapper(TestCase):
         )
         self.assertEqual(
             parsed["links"]["pdf"],
-            "https://arxiv.org/pdf/2507.00004",
+            "https://arxiv.org/pdf/2507.00004.pdf",
         )
 
     def test_format_arxiv_doi(self):

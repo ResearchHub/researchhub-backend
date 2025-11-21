@@ -204,7 +204,7 @@ class ExportService:
                         continue  # Skip - filtered by publish date
 
             try:
-                item_row = self.mapper.map_to_item(
+                item_row = self.mapper.map_to_csv_item(
                     unified_doc,
                     bounty_data=bounty_data.get(unified_doc.id, {}),
                     proposal_data=proposal_data.get(unified_doc.id, {}),

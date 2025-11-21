@@ -100,7 +100,7 @@ class PopularFeedTests(APITestCase):
         cache.clear()
 
     def test_unauthenticated_user_gets_results(self):
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
 
         response = self.client.get(url, {"feed_view": "popular"})
 
@@ -108,7 +108,7 @@ class PopularFeedTests(APITestCase):
         self.assertGreaterEqual(len(response.data["results"]), 3)
 
     def test_authenticated_user_gets_results(self):
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
 
         response = self.client.get(url, {"feed_view": "popular"})
@@ -117,7 +117,7 @@ class PopularFeedTests(APITestCase):
         self.assertGreaterEqual(len(response.data["results"]), 3)
 
     def test_popular_returns_all_entries(self):
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
 
         response = self.client.get(url, {"feed_view": "popular"})
 
@@ -128,7 +128,7 @@ class PopularFeedTests(APITestCase):
         self.assertIn(self.low_score_paper.id, result_ids)
 
     def test_popular_with_hub_slug_filters_correctly(self):
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
 
         response = self.client.get(url, {"feed_view": "popular", "hub_slug": "hub-1"})
 
@@ -139,7 +139,7 @@ class PopularFeedTests(APITestCase):
         self.assertNotIn(self.low_score_paper.id, result_ids)
 
     def test_popular_with_invalid_hub_slug_returns_empty(self):
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
 
         response = self.client.get(
             url, {"feed_view": "popular", "hub_slug": "nonexistent-hub"}
@@ -149,7 +149,7 @@ class PopularFeedTests(APITestCase):
         self.assertEqual(len(response.data["results"]), 0)
 
     def test_popular_orders_by_hot_score_v2(self):
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
 
         response = self.client.get(
             url, {"feed_view": "popular", "ordering": "hot_score_v2"}
@@ -165,7 +165,7 @@ class PopularFeedTests(APITestCase):
             self.assertGreaterEqual(first_score, second_score)
 
     def test_popular_orders_by_hot_score(self):
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
 
         response = self.client.get(
             url, {"feed_view": "popular", "ordering": "hot_score"}
@@ -181,7 +181,7 @@ class PopularFeedTests(APITestCase):
         self.assertLess(high_index, low_index)
 
     def test_popular_defaults_to_hot_score_v2(self):
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
 
         response = self.client.get(url, {"feed_view": "popular"})
 
@@ -195,7 +195,7 @@ class PopularFeedTests(APITestCase):
             self.assertGreaterEqual(first_score, second_score)
 
     def test_popular_rejects_latest_ordering(self):
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
 
         response = self.client.get(url, {"feed_view": "popular", "ordering": "latest"})
 
@@ -207,3 +207,24 @@ class PopularFeedTests(APITestCase):
             first_score = results[0].get("hot_score_v2", 0)
             second_score = results[1].get("hot_score_v2", 0)
             self.assertGreaterEqual(first_score, second_score)
+
+    def test_feed_content_type_filtering(self):
+        url = reverse("feed-list")
+
+        # Arrange
+
+        # Act
+        popular_response = self.client.get(url, {"feed_view": "popular"})
+
+        # Assert
+        popular_result_ids = [
+            r["content_object"]["id"] for r in popular_response.data["results"]
+        ]
+        popular_content_types = [
+            r["content_type"] for r in popular_response.data["results"]
+        ]
+
+        self.assertIn(self.high_score_paper.id, popular_result_ids)
+        self.assertIn(self.medium_score_post.id, popular_result_ids)
+        self.assertIn("PAPER", popular_content_types)
+        self.assertIn("RESEARCHHUBPOST", popular_content_types)

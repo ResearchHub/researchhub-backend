@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from hub.models import Hub
 from institution.models import Institution
-from paper.ingestion.clients.openalex import OpenAlexClient
+from paper.ingestion.clients.enrichment.openalex import OpenAlexClient
 from paper.ingestion.mappers.openalex import OpenAlexMapper
 from paper.models import Paper
 from paper.related_models.authorship_model import Authorship
