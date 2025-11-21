@@ -1,7 +1,8 @@
 from django.db import IntegrityError
 from django.db.models import Count, Q
 from rest_framework import status, viewsets
-from rest_framework.mixins import DestroyModelMixin, ListModelMixin
+from rest_framework.exceptions import NotFound
+from rest_framework.mixins import CreateModelMixin, DestroyModelMixin, ListModelMixin
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination 
@@ -32,13 +33,16 @@ class ListViewSet(viewsets.ModelViewSet):
         serializer.save(updated_by=self.request.user)
 
 
-class ListItemViewSet(ListModelMixin, DestroyModelMixin, viewsets.GenericViewSet):
+class ListItemViewSet(CreateModelMixin, ListModelMixin, DestroyModelMixin, viewsets.GenericViewSet):
     queryset = ListItem.objects.filter(is_removed=False)
     serializer_class = ListItemSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = ListPagination
+    lookup_field = 'item_id'
+    lookup_url_kwarg = 'item_id'
 
     def get_queryset(self):
+        list_id = self.kwargs.get('list_id')
         qs = self.queryset.filter(
             parent_list__created_by=self.request.user
         ).select_related(
@@ -48,21 +52,19 @@ class ListItemViewSet(ListModelMixin, DestroyModelMixin, viewsets.GenericViewSet
             'unified_document__posts'
         )
         
-        if self.action == 'retrieve':
-            list_id = self.kwargs.get('pk')
-            if list_id:
-                qs = qs.filter(parent_list_id=list_id, unified_document__is_removed=False)
+        if list_id:
+            qs = qs.filter(parent_list_id=list_id, unified_document__is_removed=False)
         
         return qs
 
-    def retrieve(self, request, *args, **kwargs):
-        list_id = kwargs.get('pk')
+    def list(self, request, *args, **kwargs):
+        list_id = kwargs.get('list_id')
         
         check_list_exists = List.objects.filter(id=list_id, created_by=request.user, is_removed=False).exists()
         if not check_list_exists:
             return Response({"error": "List not found"}, status=status.HTTP_404_NOT_FOUND)
         
-        return self.list(request, *args, **kwargs)
+        return super().list(request, *args, **kwargs)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -72,3 +74,11 @@ class ListItemViewSet(ListModelMixin, DestroyModelMixin, viewsets.GenericViewSet
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         except IntegrityError:
             return Response({"error": "Document already exists in list"}, status=status.HTTP_400_BAD_REQUEST)
+
+    def get_object(self):
+        queryset = self.filter_queryset(self.get_queryset())
+        item_id = self.kwargs.get('item_id')
+        obj = queryset.filter(id=item_id).first()
+        if not obj:
+            raise NotFound("Item not found")
+        return obj
