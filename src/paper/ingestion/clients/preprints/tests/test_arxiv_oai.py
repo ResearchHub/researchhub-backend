@@ -7,7 +7,7 @@ from datetime import datetime
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
-from paper.ingestion.clients.arxiv_oai import ArXivOAIClient, ArXivOAIConfig
+from paper.ingestion.clients.preprints.arxiv_oai import ArXivOAIClient, ArXivOAIConfig
 
 
 class TestArXivOAIClient(TestCase):

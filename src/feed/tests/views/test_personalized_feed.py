@@ -74,7 +74,7 @@ class TestPersonalizedFeed(APITestCase):
         cache.clear()
 
     def test_unauthenticated_without_user_id_gets_unfiltered(self):
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
 
         response = self.client.get(url, {"feed_view": "personalized"})
 
@@ -87,9 +87,12 @@ class TestPersonalizedFeed(APITestCase):
     def test_authenticated_user_gets_personalized_results(
         self, mock_get_recommendations
     ):
-        mock_get_recommendations.return_value = [self.paper_doc.id]
+        mock_get_recommendations.return_value = {
+            "item_ids": [self.paper_doc.id],
+            "recommendation_id": "test-rec-id",
+        }
 
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
 
         response = self.client.get(url, {"feed_view": "personalized"})
@@ -133,9 +136,12 @@ class TestPersonalizedFeed(APITestCase):
             extra_docs[3].id,
             extra_docs[1].id,
         ]
-        mock_get_recommendations.return_value = reversed_order
+        mock_get_recommendations.return_value = {
+            "item_ids": reversed_order,
+            "recommendation_id": "test-rec-id",
+        }
 
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
 
         response = self.client.get(url, {"feed_view": "personalized"})
@@ -161,9 +167,12 @@ class TestPersonalizedFeed(APITestCase):
     def test_personalized_with_user_id_param_overrides_auth(
         self, mock_get_recommendations
     ):
-        mock_get_recommendations.return_value = [self.paper_doc.id]
+        mock_get_recommendations.return_value = {
+            "item_ids": [self.paper_doc.id],
+            "recommendation_id": "test-rec-id",
+        }
 
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
 
         response = self.client.get(
@@ -181,9 +190,12 @@ class TestPersonalizedFeed(APITestCase):
     def test_personalized_uses_new_content_filter_by_default(
         self, mock_get_recommendations
     ):
-        mock_get_recommendations.return_value = []
+        mock_get_recommendations.return_value = {
+            "item_ids": [],
+            "recommendation_id": None,
+        }
 
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
 
         response = self.client.get(url, {"feed_view": "personalized"})
@@ -197,9 +209,12 @@ class TestPersonalizedFeed(APITestCase):
         "personalize.clients.recommendation_client.RecommendationClient.get_recommendations_for_user"
     )
     def test_personalized_filters_by_recommended_ids(self, mock_get_recommendations):
-        mock_get_recommendations.return_value = [self.paper_doc.id]
+        mock_get_recommendations.return_value = {
+            "item_ids": [self.paper_doc.id],
+            "recommendation_id": "test-rec-id",
+        }
 
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
 
         response = self.client.get(url, {"feed_view": "personalized"})
@@ -216,7 +231,7 @@ class TestPersonalizedFeed(APITestCase):
     def test_personalized_handles_client_exception(self, mock_get_recommendations):
         mock_get_recommendations.side_effect = Exception("AWS Error")
 
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
 
         response = self.client.get(url, {"feed_view": "personalized"})
@@ -232,9 +247,12 @@ class TestPersonalizedFeed(APITestCase):
         self, mock_get_recommendations
     ):
         """Service requests num_results from PERSONALIZE_CONFIG for pagination."""
-        mock_get_recommendations.return_value = []
+        mock_get_recommendations.return_value = {
+            "item_ids": [],
+            "recommendation_id": None,
+        }
 
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
 
         response = self.client.get(url, {"feed_view": "personalized"})
@@ -251,9 +269,12 @@ class TestPersonalizedFeed(APITestCase):
         self, mock_get_recommendations
     ):
         """Force refresh requests should be throttled at 5/min."""
-        mock_get_recommendations.return_value = [self.paper_doc.id]
+        mock_get_recommendations.return_value = {
+            "item_ids": [self.paper_doc.id],
+            "recommendation_id": "test-rec-id",
+        }
 
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
 
         for i in range(5):
@@ -275,9 +296,12 @@ class TestPersonalizedFeed(APITestCase):
         self, mock_get_recommendations
     ):
         """Requests without force refresh header should not be throttled."""
-        mock_get_recommendations.return_value = [self.paper_doc.id]
+        mock_get_recommendations.return_value = {
+            "item_ids": [self.paper_doc.id],
+            "recommendation_id": "test-rec-id",
+        }
 
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
 
         # Make many requests without the header - none should be throttled
@@ -292,9 +316,12 @@ class TestPersonalizedFeed(APITestCase):
         self, mock_get_recommendations
     ):
         """Requests with force refresh header set to false should not be throttled."""
-        mock_get_recommendations.return_value = [self.paper_doc.id]
+        mock_get_recommendations.return_value = {
+            "item_ids": [self.paper_doc.id],
+            "recommendation_id": "test-rec-id",
+        }
 
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
 
         # Make many requests with header=false - none should be throttled
@@ -309,9 +336,12 @@ class TestPersonalizedFeed(APITestCase):
     )
     def test_force_refresh_header_triggers_cache_bypass(self, mock_get_recommendations):
         """Force refresh header should bypass cache, resulting in partial-cache-miss."""
-        mock_get_recommendations.return_value = [self.paper_doc.id]
+        mock_get_recommendations.return_value = {
+            "item_ids": [self.paper_doc.id],
+            "recommendation_id": "test-rec-id",
+        }
 
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
 
         # First request populates the cache
@@ -338,7 +368,7 @@ class TestPersonalizedFeed(APITestCase):
         """Without force refresh header, force_refresh should default to False."""
         mock_get_recommendation_ids.return_value = []
 
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
 
         response = self.client.get(url, {"feed_view": "personalized"})
@@ -354,10 +384,60 @@ class TestPersonalizedFeed(APITestCase):
     ):
         mock_get_recommendation_ids.side_effect = Exception("Service Error")
 
-        url = reverse("researchhub_feed-list")
+        url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
 
         response = self.client.get(url, {"feed_view": "personalized"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 0)
+
+    @patch("personalize.services.feed_service.FeedService.get_recommendation_ids")
+    def test_personalized_feed_includes_recommendation_id_on_items(
+        self, mock_get_recommendation_ids
+    ):
+        # Arrange
+        mock_get_recommendation_ids.return_value = {
+            "item_ids": [self.paper_doc.id],
+            "recommendation_id": "test-rec-id-abc123",
+        }
+
+        url = reverse("feed-list")
+        self.client.force_authenticate(user=self.user)
+
+        # Act
+        response = self.client.get(url, {"feed_view": "personalized"})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 1)
+
+        for item in response.data["results"]:
+            self.assertEqual(item["recommendation_id"], "test-rec-id-abc123")
+
+        self.assertNotIn("recommendation_id", response.data)
+
+    @patch("personalize.services.feed_service.FeedService.get_recommendation_ids")
+    def test_personalized_feed_filters_only_papers(self, mock_get_recommendation_ids):
+        # Arrange
+        mock_get_recommendation_ids.return_value = {
+            "item_ids": [self.paper_doc.id, self.post_doc.id],
+            "recommendation_id": "test-rec-id-xyz",
+        }
+
+        url = reverse("feed-list")
+        self.client.force_authenticate(user=self.user)
+
+        # Act
+        response = self.client.get(url, {"feed_view": "personalized"})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        result_ids = [r["content_object"]["id"] for r in response.data["results"]]
+        content_types = [r["content_type"] for r in response.data["results"]]
+
+        self.assertIn(self.paper.id, result_ids)
+        self.assertNotIn(self.post.id, result_ids)
+        self.assertIn("PAPER", content_types)
+        self.assertNotIn("RESEARCHHUBPOST", content_types)

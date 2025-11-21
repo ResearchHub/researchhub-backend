@@ -34,9 +34,10 @@ class PaperApiTests(APITestCase):
     def test_fetches_author_works_by_doi_if_name_matches(
         self, mock_get_works, mock_get_data_from_doi
     ):
-        with open("./paper/tests/openalex_author_works.json", "r") as works_file, open(
-            "./paper/tests/openalex_single_work.json", "r"
-        ) as single_work_file:
+        with (
+            open("./paper/tests/openalex_author_works.json", "r") as works_file,
+            open("./paper/tests/openalex_single_work.json", "r") as single_work_file,
+        ):
             # Set up a user that has a matching name to the one in the mocked response
             user_with_published_works = create_user(
                 first_name="Yang",
@@ -61,9 +62,10 @@ class PaperApiTests(APITestCase):
     def test_cannot_fetch_author_works_by_doi_if_name_mismatch(
         self, mock_get_works, mock_get_data_from_doi
     ):
-        with open("./paper/tests/openalex_author_works.json", "r") as works_file, open(
-            "./paper/tests/openalex_single_work.json", "r"
-        ) as single_work_file:
+        with (
+            open("./paper/tests/openalex_author_works.json", "r") as works_file,
+            open("./paper/tests/openalex_single_work.json", "r") as single_work_file,
+        ):
             # Set up a user that has a matching name to the one in the mocked response
             user_with_published_works = create_user(
                 first_name="Name",
@@ -89,9 +91,10 @@ class PaperApiTests(APITestCase):
     def test_fetch_author_works_by_doi_can_accept_optional_author_id(
         self, mock_get_works, mock_get_data_from_doi
     ):
-        with open("./paper/tests/openalex_author_works.json", "r") as works_file, open(
-            "./paper/tests/openalex_single_work.json", "r"
-        ) as single_work_file:
+        with (
+            open("./paper/tests/openalex_author_works.json", "r") as works_file,
+            open("./paper/tests/openalex_single_work.json", "r") as single_work_file,
+        ):
             # Set up a user that has a matching name to the one in the mocked response
             user_with_published_works = create_user(
                 first_name="Name",
@@ -803,19 +806,25 @@ class PaperViewsTests(TestCase):
         self.user = create_random_authenticated_user("paper_views_user")
         self.trouble_maker = create_random_authenticated_user("trouble_maker")
 
-    def test_check_url_is_true_if_url_has_pdf(self):
+    @patch("paper.views.paper_views.check_url_contains_pdf")
+    def test_check_url_is_true_if_url_has_pdf(self, mock_check_url):
+        mock_check_url.return_value = True
         url = self.base_url + "check_url/"
         data = {"url": "https://bitcoin.org/bitcoin.pdf"}
         response = get_authenticated_post_response(self.user, url, data)
         self.assertContains(response, "true", status_code=200)
 
-    def test_check_url_is_false_if_url_does_NOT_have_pdf(self):
+    @patch("paper.views.paper_views.check_url_contains_pdf")
+    def test_check_url_is_false_if_url_does_NOT_have_pdf(self, mock_check_url):
+        mock_check_url.return_value = False
         url = self.base_url + "check_url/"
         data = {"url": "https://bitcoin.org/en/"}
         response = get_authenticated_post_response(self.user, url, data)
         self.assertContains(response, "false", status_code=200)
 
-    def test_check_url_is_false_for_malformed_url(self):
+    @patch("paper.views.paper_views.check_url_contains_pdf")
+    def test_check_url_is_false_for_malformed_url(self, mock_check_url):
+        mock_check_url.return_value = False
         url = self.base_url + "check_url/"
         data = {"url": "bitcoin.org/bitcoin.pdf/"}
         response = get_authenticated_post_response(self.user, url, data)
@@ -889,8 +898,11 @@ class PaperDOITests(APITestCase):
         self.assertEqual(response.data["doi"], test_doi)
         self.assertEqual(response.data["id"], paper.id)
 
+    @patch("utils.openalex.OpenAlex.get_authors")
     @patch("utils.openalex.OpenAlex.get_work_by_doi")
-    def test_retrieve_by_doi_new_paper_from_openalex(self, mock_get_work):
+    def test_retrieve_by_doi_new_paper_from_openalex(
+        self, mock_get_work, mock_get_authors
+    ):
         """Test creating a new paper from OpenAlex when DOI not found"""
         test_doi = "10.1234/new.123"
         mock_work = {
@@ -901,7 +913,7 @@ class PaperDOITests(APITestCase):
             "authorships": [
                 {
                     "author": {
-                        "id": "A123",
+                        "id": "https://openalex.org/A123",
                         "display_name": "Test Author",
                     },
                     "author_position": "first",
@@ -912,6 +924,20 @@ class PaperDOITests(APITestCase):
             "publication_year": 2023,
         }
         mock_get_work.return_value = mock_work
+
+        mock_author = {
+            "id": "https://openalex.org/A123",
+            "display_name": "Test Author",
+            "orcid": None,
+            "summary_stats": {
+                "h_index": 10,
+                "i10_index": 5,
+                "2yr_mean_citedness": 2.0,
+            },
+            "works_count": 20,
+            "cited_by_count": 100,
+        }
+        mock_get_authors.return_value = ([mock_author], None)
 
         url = reverse("paper-retrieve-by-doi")
         response = self.client.get(url + f"?doi={test_doi}")

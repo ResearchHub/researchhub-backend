@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from django.utils import timezone
 
-from paper.ingestion.clients.altmetric import AltmetricClient
+from paper.ingestion.clients.enrichment.altmetric import AltmetricClient
 from paper.ingestion.mappers.altmetric import AltmetricMapper
 from paper.models import Paper
 
