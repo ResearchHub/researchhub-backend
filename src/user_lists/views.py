@@ -1,7 +1,7 @@
 from django.db import IntegrityError
 from django.db.models import Count, Q
+from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets
-from rest_framework.exceptions import NotFound
 from rest_framework.mixins import CreateModelMixin, DestroyModelMixin, ListModelMixin
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -67,7 +67,7 @@ class ListItemViewSet(CreateModelMixin, ListModelMixin, DestroyModelMixin, views
         return super().list(request, *args, **kwargs)
 
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+        serializer = self.get_serializer(data={**request.data, 'parent_list': kwargs.get('list_id')})
         serializer.is_valid(raise_exception=True)
         try:
             serializer.save(created_by=request.user)
@@ -78,7 +78,5 @@ class ListItemViewSet(CreateModelMixin, ListModelMixin, DestroyModelMixin, views
     def get_object(self):
         queryset = self.filter_queryset(self.get_queryset())
         item_id = self.kwargs.get('item_id')
-        obj = queryset.filter(id=item_id).first()
-        if not obj:
-            raise NotFound("Item not found")
+        obj = get_object_or_404(queryset, id=item_id)
         return obj
