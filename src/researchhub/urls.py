@@ -204,12 +204,12 @@ urlpatterns = [
 
     # Nested routes for list items
     path(
-        "api/list/<int:list_id>/items/",
+        "api/list/<int:list_id>/item/",
         ListItemViewSet.as_view({"get": "list", "post": "create"}),
         name="list-items",
     ),
     path(
-        "api/list/<int:list_id>/items/<int:item_id>/",
+        "api/list/<int:list_id>/item/<int:item_id>/",
         ListItemViewSet.as_view({"delete": "destroy"}),
         name="list-item-detail",
     ),
