@@ -4,18 +4,21 @@ from rest_framework import status, viewsets
 from rest_framework.mixins import DestroyModelMixin, ListModelMixin
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.pagination import PageNumberPagination
-from feed.views.common import FeedPagination
+from rest_framework.pagination import PageNumberPagination 
 
 from .models import List, ListItem
 from .serializers import ListSerializer, ListItemSerializer
 
+class ListPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
 
 class ListViewSet(viewsets.ModelViewSet):
     queryset = List.objects.filter(is_removed=False)
     serializer_class = ListSerializer
     permission_classes = [IsAuthenticated]
-    pagination_class = PageNumberPagination
+    pagination_class = ListPagination
 
     def get_queryset(self):
         return self.queryset.filter(created_by=self.request.user).annotate(
@@ -33,7 +36,7 @@ class ListItemViewSet(ListModelMixin, DestroyModelMixin, viewsets.GenericViewSet
     queryset = ListItem.objects.filter(is_removed=False)
     serializer_class = ListItemSerializer
     permission_classes = [IsAuthenticated]
-    pagination_class = FeedPagination
+    pagination_class = ListPagination
 
     def get_queryset(self):
         qs = self.queryset.filter(
