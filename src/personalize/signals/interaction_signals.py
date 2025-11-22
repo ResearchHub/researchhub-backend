@@ -15,11 +15,6 @@ logger = logging.getLogger(__name__)
 def sync_interaction_to_personalize(sender, instance, created, **kwargs):
     """
     Sync newly created UserInteractions to Personalize.
-
-    This signal handles syncing all UserInteractions (from both internal events
-    like UPVOTE and external events from Amplitude) to Personalize.
-
-    The sync happens asynchronously via Celery task.
     """
     if not created:
         return

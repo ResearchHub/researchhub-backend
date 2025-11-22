@@ -12,13 +12,6 @@ logger = get_task_logger(__name__)
 
 @app.task(queue=QUEUE_PAPER_MISC, max_retries=3, retry_backoff=True)
 def create_upvote_interaction_task(vote_id):
-    """
-    Create a UserInteraction from a Vote with vote_type=UPVOTE.
-
-    This task runs asynchronously to avoid blocking the vote creation endpoint.
-    The UserInteraction will then be synced to Personalize via the
-    interaction_signals sync signal.
-    """
     try:
         vote = Vote.objects.get(id=vote_id)
     except Vote.DoesNotExist:

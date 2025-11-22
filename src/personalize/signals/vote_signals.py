@@ -12,13 +12,7 @@ logger = logging.getLogger(__name__)
 @receiver(post_save, sender=Vote, dispatch_uid="personalize_upvote_interaction")
 def create_upvote_interaction(sender, instance, created, **kwargs):
     """
-    Trigger async creation of UserInteraction when Vote with vote_type=UPVOTE.
-
-    This signal handles internal UPVOTE events and triggers an async Celery task
-    to create a UserInteraction record. The UserInteraction will then be synced
-    to Personalize via the interaction_signals sync signal.
-
-    The task runs asynchronously to avoid blocking the vote creation endpoint.
+    Trigger creation of UserInteraction when Vote with vote_type=UPVOTE.
     """
     if not created:
         return
@@ -35,7 +29,7 @@ def create_upvote_interaction(sender, instance, created, **kwargs):
     try:
         create_upvote_interaction_task.delay(instance.id)
         logger.debug(
-            f"Triggered async UserInteraction creation task for UPVOTE: "
+            f"Triggered UserInteraction creation task for UPVOTE: "
             f"vote_id={instance.id}, user_id={instance.created_by_id}"
         )
     except Exception as e:
