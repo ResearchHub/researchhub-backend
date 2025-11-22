@@ -9,12 +9,14 @@ from analytics.constants.event_types import FEED_ITEM_CLICK, PAGE_VIEW, UPVOTE
 from analytics.models import UserInteractions
 from analytics.services.event_processor import EventProcessor
 from analytics.tests.helpers import create_prefetched_paper
+from discussion.models import Vote
 from personalize.clients.sync_client import SyncClient
-from personalize.tasks import sync_interaction_event_to_personalize_task
+from personalize.tasks import create_upvote_interaction_task
 from personalize.utils.personalize_utils import (
     build_session_id_for_anonymous,
     build_session_id_for_user,
 )
+from researchhub_document.helpers import create_post
 from user.tests.helpers import create_random_default_user
 
 
@@ -177,6 +179,7 @@ class EventSyncTests(TestCase):
         mock_service.sync_event.return_value = self.mock_sync_result_success
         MockSyncService.return_value = mock_service
 
+        # Act - Creating UserInteraction should trigger signal which calls sync task
         interaction = UserInteractions.objects.create(
             user=self.user,
             event=FEED_ITEM_CLICK,
@@ -186,9 +189,6 @@ class EventSyncTests(TestCase):
             event_timestamp=datetime.now(pytz.UTC),
             is_synced_with_personalize=False,
         )
-
-        # Act
-        sync_interaction_event_to_personalize_task(interaction.id)
 
         # Assert
         mock_service.sync_event.assert_called_once()
@@ -203,6 +203,7 @@ class EventSyncTests(TestCase):
         mock_service.sync_event.return_value = self.mock_sync_result_failure
         MockSyncService.return_value = mock_service
 
+        # Act - Creating UserInteraction should trigger signal which calls sync task
         interaction = UserInteractions.objects.create(
             user=self.user,
             event=PAGE_VIEW,
@@ -213,10 +214,85 @@ class EventSyncTests(TestCase):
             is_synced_with_personalize=False,
         )
 
-        # Act
-        with self.assertRaises(Exception):
-            sync_interaction_event_to_personalize_task(interaction.id)
-
         # Assert
+        mock_service.sync_event.assert_called_once()
         interaction.refresh_from_db()
         self.assertFalse(interaction.is_synced_with_personalize)
+
+
+class UpvoteInteractionTaskTests(TestCase):
+    def setUp(self):
+        self.user = create_random_default_user("upvote_task_test_user")
+        self.post = create_post(created_by=self.user)
+        self.content_type = ContentType.objects.get_for_model(self.post)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("personalize.signals.vote_signals.create_upvote_interaction_task")
+    @patch("personalize.signals.interaction_signals.sync_interaction_to_personalize")
+    def test_create_upvote_interaction_task_creates_user_interaction(
+        self, mock_sync_signal, mock_vote_signal
+    ):
+        vote = Vote.objects.create(
+            created_by=self.user,
+            content_type=self.content_type,
+            object_id=self.post.id,
+            vote_type=Vote.UPVOTE,
+        )
+
+        initial_count = UserInteractions.objects.count()
+        create_upvote_interaction_task(vote.id)
+        final_count = UserInteractions.objects.count()
+
+        self.assertEqual(final_count, initial_count + 1)
+
+        interaction = UserInteractions.objects.latest("created_date")
+        self.assertEqual(interaction.user, self.user)
+        self.assertEqual(interaction.event, UPVOTE)
+        self.assertEqual(interaction.unified_document, self.post.unified_document)
+        self.assertEqual(interaction.content_type, self.content_type)
+        self.assertEqual(interaction.object_id, self.post.id)
+        self.assertFalse(interaction.is_synced_with_personalize)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("personalize.signals.vote_signals.create_upvote_interaction_task")
+    @patch("personalize.signals.interaction_signals.sync_interaction_to_personalize")
+    def test_create_upvote_interaction_task_handles_duplicate(
+        self, mock_sync_signal, mock_vote_signal
+    ):
+        vote = Vote.objects.create(
+            created_by=self.user,
+            content_type=self.content_type,
+            object_id=self.post.id,
+            vote_type=Vote.UPVOTE,
+        )
+
+        create_upvote_interaction_task(vote.id)
+        initial_count = UserInteractions.objects.count()
+
+        create_upvote_interaction_task(vote.id)
+        final_count = UserInteractions.objects.count()
+
+        self.assertEqual(final_count, initial_count)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    def test_create_upvote_interaction_task_skips_non_upvote(self):
+        vote = Vote.objects.create(
+            created_by=self.user,
+            content_type=self.content_type,
+            object_id=self.post.id,
+            vote_type=Vote.DOWNVOTE,
+        )
+
+        initial_count = UserInteractions.objects.count()
+        create_upvote_interaction_task(vote.id)
+        final_count = UserInteractions.objects.count()
+
+        self.assertEqual(final_count, initial_count)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    def test_create_upvote_interaction_task_handles_missing_vote(self):
+        initial_count = UserInteractions.objects.count()
+        create_upvote_interaction_task(99999)
+        final_count = UserInteractions.objects.count()
+
+        self.assertEqual(final_count, initial_count)
