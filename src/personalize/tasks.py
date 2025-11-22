@@ -47,6 +47,15 @@ def create_upvote_interaction_task(vote_id):
         )
         return
 
+    # Skip self-upvotes (user upvoting their own document)
+    doc_creator = unified_doc.created_by
+    if doc_creator and vote.created_by_id == doc_creator.id:
+        logger.debug(
+            f"Vote {vote_id} is a self-upvote (user {vote.created_by_id} upvoting "
+            f"their own document {unified_doc.id}), skipping UserInteraction creation"
+        )
+        return
+
     try:
         interaction = map_from_upvote(vote)
 

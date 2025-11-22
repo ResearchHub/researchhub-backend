@@ -223,7 +223,8 @@ class EventSyncTests(TestCase):
 class UpvoteInteractionTaskTests(TestCase):
     def setUp(self):
         self.user = create_random_default_user("upvote_task_test_user")
-        self.post = create_post(created_by=self.user)
+        self.post_owner = create_random_default_user("post_owner_user")
+        self.post = create_post(created_by=self.post_owner)
         self.content_type = ContentType.objects.get_for_model(self.post)
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
@@ -389,3 +390,80 @@ class UpvoteInteractionTaskTests(TestCase):
         final_count = UserInteractions.objects.count()
 
         self.assertEqual(final_count, initial_count)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("personalize.signals.interaction_signals.sync_interaction_to_personalize")
+    @patch("personalize.signals.vote_signals.create_upvote_interaction")
+    def test_create_upvote_interaction_task_skips_self_upvote_on_post(
+        self, mock_vote_signal, mock_interaction_signal
+    ):
+        # Create a post by the same user
+        self_post = create_post(created_by=self.user)
+        content_type = ContentType.objects.get_for_model(self_post)
+
+        # User upvotes their own post
+        vote = Vote.objects.create(
+            created_by=self.user,
+            content_type=content_type,
+            object_id=self_post.id,
+            vote_type=Vote.UPVOTE,
+        )
+
+        initial_count = UserInteractions.objects.count()
+        create_upvote_interaction_task(vote.id)
+        final_count = UserInteractions.objects.count()
+
+        # Should not create UserInteraction for self-upvote
+        self.assertEqual(final_count, initial_count)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("personalize.signals.interaction_signals.sync_interaction_to_personalize")
+    @patch("personalize.signals.vote_signals.create_upvote_interaction")
+    def test_create_upvote_interaction_task_skips_self_upvote_on_paper(
+        self, mock_vote_signal, mock_interaction_signal
+    ):
+        paper = create_prefetched_paper(title="Test Paper", user=self.user)
+        content_type = ContentType.objects.get_for_model(paper.paper)
+
+        vote = Vote.objects.create(
+            created_by=self.user,
+            content_type=content_type,
+            object_id=paper.paper.id,
+            vote_type=Vote.UPVOTE,
+        )
+
+        initial_count = UserInteractions.objects.count()
+        create_upvote_interaction_task(vote.id)
+        final_count = UserInteractions.objects.count()
+
+        # Should not create UserInteraction for self-upvote
+        self.assertEqual(final_count, initial_count)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("personalize.signals.interaction_signals.sync_interaction_to_personalize")
+    @patch("personalize.signals.vote_signals.create_upvote_interaction")
+    def test_create_upvote_interaction_task_creates_interaction_for_other_user_upvote(
+        self, mock_vote_signal, mock_interaction_signal
+    ):
+        other_user = create_random_default_user("other_user")
+        other_post = create_post(created_by=other_user)
+        content_type = ContentType.objects.get_for_model(other_post)
+
+        vote = Vote.objects.create(
+            created_by=self.user,
+            content_type=content_type,
+            object_id=other_post.id,
+            vote_type=Vote.UPVOTE,
+        )
+
+        initial_count = UserInteractions.objects.count()
+        create_upvote_interaction_task(vote.id)
+        final_count = UserInteractions.objects.count()
+
+        # Should create UserInteraction for upvote on someone else's document
+        self.assertEqual(final_count, initial_count + 1)
+
+        interaction = UserInteractions.objects.latest("created_date")
+        self.assertEqual(interaction.user, self.user)
+        self.assertEqual(interaction.event, UPVOTE)
+        self.assertEqual(interaction.unified_document, other_post.unified_document)
