@@ -110,8 +110,7 @@ router.register(r"transactions", purchase.views.BalanceViewSet, basename="transa
 
 router.register(r"user", user.views.UserViewSet)
 
-router.register(r"user_list", ListViewSet, basename="user_list")
-router.register(r"user_list_item", ListItemViewSet, basename="user_list_item")
+router.register(r"list", ListViewSet, basename="list")
 
 router.register(r"withdrawal", reputation.views.WithdrawalViewSet)
 
@@ -202,6 +201,18 @@ urlpatterns = [
         include("health_check.urls"),
     ),
     re_path(r"^api/", include(router.urls)),
+
+    # Nested routes for list items
+    path(
+        "api/list/<int:list_id>/item/",
+        ListItemViewSet.as_view({"get": "list", "post": "create"}),
+        name="list-items",
+    ),
+    path(
+        "api/list/<int:list_id>/item/<int:item_id>/",
+        ListItemViewSet.as_view({"delete": "destroy"}),
+        name="list-item-detail",
+    ),
     # TODO: calvinhlee - consolidate all mod views into 1 set
     path("api/get_hub_active_contributors/", editor_views.get_hub_active_contributors),
     path(
