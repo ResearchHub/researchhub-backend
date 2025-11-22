@@ -1,14 +1,15 @@
 from django.db import IntegrityError
-from django.db.models import Count, Q
+from django.db.models import Count, Prefetch, Q
 from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets
 from rest_framework.mixins import CreateModelMixin, DestroyModelMixin, ListModelMixin
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.pagination import PageNumberPagination 
+from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
 
 from .models import List, ListItem
-from .serializers import ListSerializer, ListItemSerializer
+from .serializers import ListOverviewSerializer, ListSerializer, ListItemSerializer
 
 class ListPagination(PageNumberPagination):
     page_size = 20
@@ -32,6 +33,14 @@ class ListViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         serializer.save(updated_by=self.request.user)
 
+    @action(detail=False, methods=["get"])
+    def overview(self, request):
+        lists = self.get_queryset().prefetch_related(
+            Prefetch("items", queryset=ListItem.objects.filter(is_removed=False))
+        )
+
+        serializer = ListOverviewSerializer(lists, many=True, context=self.get_serializer_context())
+        return Response({"lists": serializer.data}, status=status.HTTP_200_OK)
 
 class ListItemViewSet(CreateModelMixin, ListModelMixin, DestroyModelMixin, viewsets.GenericViewSet):
     queryset = ListItem.objects.filter(is_removed=False)

@@ -89,3 +89,51 @@ class ListViewSetTests(APITestCase):
         list_obj = List.all_objects.get(pk=list_obj.pk)
         self.assertTrue(list_obj.is_removed)
 
+    def test_list_overview_returns_all_lists_with_documents(self):
+        list1 = List.objects.create(name="List 1", created_by=self.user)
+        list2 = List.objects.create(name="List 2", created_by=self.user)
+        doc1 = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
+        doc2 = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
+        doc3 = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
+
+        ListItem.objects.create(parent_list=list1, unified_document=doc1, created_by=self.user)
+        ListItem.objects.create(parent_list=list1, unified_document=doc2, created_by=self.user)
+        ListItem.objects.create(parent_list=list2, unified_document=doc3, created_by=self.user)
+
+        response = self.client.get("/api/list/overview/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["lists"]), 2)
+
+        list1_data = next(item for item in response.data["lists"] if item["list_id"] == list1.id)
+        self.assertEqual(list1_data["name"], "List 1")
+        self.assertEqual(len(list1_data["unified_documents"]), 2)
+        list1_doc_ids = [item["unified_document_id"] for item in list1_data["unified_documents"]]
+        self.assertIn(doc1.id, list1_doc_ids)
+        self.assertIn(doc2.id, list1_doc_ids)
+
+        list2_data = next(item for item in response.data["lists"] if item["list_id"] == list2.id)
+        self.assertEqual(list2_data["name"], "List 2")
+        self.assertEqual(len(list2_data["unified_documents"]), 1)
+        list2_doc_ids = [item["unified_document_id"] for item in list2_data["unified_documents"]]
+        self.assertIn(doc3.id, list2_doc_ids)
+
+    def test_list_overview_excludes_removed_items(self):
+        list_obj = List.objects.create(name="My List", created_by=self.user)
+        doc1 = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
+        doc2 = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
+
+        item1 = ListItem.objects.create(parent_list=list_obj, unified_document=doc1, created_by=self.user)
+        ListItem.objects.create(parent_list=list_obj, unified_document=doc2, created_by=self.user)
+
+        item1.is_removed = True
+        item1.save()
+
+        response = self.client.get("/api/list/overview/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        list_data = next(item for item in response.data["lists"] if item["list_id"] == list_obj.id)
+        self.assertEqual(list_data["name"], "My List")
+        self.assertEqual(len(list_data["unified_documents"]), 1)
+        doc_ids = [item["unified_document_id"] for item in list_data["unified_documents"]]
+        self.assertIn(doc2.id, doc_ids)
+        self.assertNotIn(doc1.id, doc_ids)
