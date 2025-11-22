@@ -65,7 +65,10 @@ class VoteSignalTests(TestCase):
         self.content_type = ContentType.objects.get_for_model(self.post)
 
     @patch("personalize.signals.vote_signals.create_upvote_interaction_task")
-    def test_signal_queues_task_on_upvote_creation(self, mock_task):
+    @patch("personalize.signals.vote_signals.transaction")
+    def test_signal_queues_task_on_upvote_creation(self, mock_transaction, mock_task):
+        mock_transaction.on_commit = lambda func: func()
+
         vote = Vote.objects.create(
             created_by=self.user,
             content_type=self.content_type,
@@ -76,7 +79,10 @@ class VoteSignalTests(TestCase):
         mock_task.delay.assert_called_once_with(vote.id)
 
     @patch("personalize.signals.vote_signals.create_upvote_interaction_task")
-    def test_signal_skips_on_downvote_creation(self, mock_task):
+    @patch("personalize.signals.vote_signals.transaction")
+    def test_signal_skips_on_downvote_creation(self, mock_transaction, mock_task):
+        mock_transaction.on_commit = lambda func: func()
+
         Vote.objects.create(
             created_by=self.user,
             content_type=self.content_type,
@@ -87,7 +93,10 @@ class VoteSignalTests(TestCase):
         mock_task.delay.assert_not_called()
 
     @patch("personalize.signals.vote_signals.create_upvote_interaction_task")
-    def test_signal_skips_on_vote_update(self, mock_task):
+    @patch("personalize.signals.vote_signals.transaction")
+    def test_signal_skips_on_vote_update(self, mock_transaction, mock_task):
+        mock_transaction.on_commit = lambda func: func()
+
         vote = Vote.objects.create(
             created_by=self.user,
             content_type=self.content_type,

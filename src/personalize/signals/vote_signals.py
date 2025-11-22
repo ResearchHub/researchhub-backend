@@ -1,5 +1,6 @@
 import logging
 
+from django.db import transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
@@ -26,16 +27,19 @@ def create_upvote_interaction(sender, instance, created, **kwargs):
         )
         return
 
-    try:
-        create_upvote_interaction_task.delay(instance.id)
-        logger.debug(
-            f"Triggered UserInteraction creation task for UPVOTE: "
-            f"vote_id={instance.id}, user_id={instance.created_by_id}"
-        )
-    except Exception as e:
-        logger.error(
-            f"Exception triggering UserInteraction creation task for UPVOTE: "
-            f"vote_id={instance.id}, error={str(e)}",
-            exc_info=True,
-        )
-        # Don't re-raise - we don't want to break the vote creation process
+    def trigger_task():
+        try:
+            create_upvote_interaction_task.delay(instance.id)
+            logger.debug(
+                f"Triggered async UserInteraction creation task for UPVOTE: "
+                f"vote_id={instance.id}, user_id={instance.created_by_id}"
+            )
+        except Exception as e:
+            logger.error(
+                f"Exception triggering UserInteraction creation task for UPVOTE: "
+                f"vote_id={instance.id}, error={str(e)}",
+                exc_info=True,
+            )
+            # Don't re-raise - we don't want to break the vote creation process
+
+    transaction.on_commit(trigger_task)

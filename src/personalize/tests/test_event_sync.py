@@ -1,5 +1,5 @@
 from datetime import datetime
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, PropertyMock, patch
 
 import pytz
 from django.contrib.contenttypes.models import ContentType
@@ -293,6 +293,99 @@ class UpvoteInteractionTaskTests(TestCase):
     def test_create_upvote_interaction_task_handles_missing_vote(self):
         initial_count = UserInteractions.objects.count()
         create_upvote_interaction_task(99999)
+        final_count = UserInteractions.objects.count()
+
+        self.assertEqual(final_count, initial_count)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("personalize.tasks.Vote.objects.get")
+    def test_create_upvote_interaction_task_skips_vote_without_user(
+        self, mock_vote_get
+    ):
+        vote = Vote.objects.create(
+            created_by=self.user,
+            content_type=self.content_type,
+            object_id=self.post.id,
+            vote_type=Vote.UPVOTE,
+        )
+        # Mock vote to have no created_by_id
+        vote.created_by_id = None
+        mock_vote_get.return_value = vote
+
+        initial_count = UserInteractions.objects.count()
+        create_upvote_interaction_task(vote.id)
+        final_count = UserInteractions.objects.count()
+
+        self.assertEqual(final_count, initial_count)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("personalize.tasks.Vote.objects.get")
+    def test_create_upvote_interaction_task_handles_unified_doc_exception(
+        self, mock_vote_get
+    ):
+        vote = Vote.objects.create(
+            created_by=self.user,
+            content_type=self.content_type,
+            object_id=self.post.id,
+            vote_type=Vote.UPVOTE,
+        )
+        mock_vote_get.return_value = vote
+
+        # Mock unified_document property to raise an exception
+        with patch.object(
+            Vote, "unified_document", new_callable=PropertyMock
+        ) as mock_unified_doc:
+            mock_unified_doc.side_effect = Exception("No unified doc")
+
+            initial_count = UserInteractions.objects.count()
+            create_upvote_interaction_task(vote.id)
+            final_count = UserInteractions.objects.count()
+
+            self.assertEqual(final_count, initial_count)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("personalize.tasks.Vote.objects.get")
+    def test_create_upvote_interaction_task_handles_none_unified_document(
+        self, mock_vote_get
+    ):
+        vote = Vote.objects.create(
+            created_by=self.user,
+            content_type=self.content_type,
+            object_id=self.post.id,
+            vote_type=Vote.UPVOTE,
+        )
+        mock_vote_get.return_value = vote
+
+        # Mock unified_document property to return None
+        with patch.object(
+            Vote, "unified_document", new_callable=PropertyMock
+        ) as mock_unified_doc:
+            mock_unified_doc.return_value = None
+
+            initial_count = UserInteractions.objects.count()
+            create_upvote_interaction_task(vote.id)
+            final_count = UserInteractions.objects.count()
+
+            self.assertEqual(final_count, initial_count)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("personalize.tasks.map_from_upvote")
+    def test_create_upvote_interaction_task_handles_mapping_exception(
+        self, mock_map_from_upvote
+    ):
+        vote = Vote.objects.create(
+            created_by=self.user,
+            content_type=self.content_type,
+            object_id=self.post.id,
+            vote_type=Vote.UPVOTE,
+        )
+
+        # Mock map_from_upvote to raise an exception
+        mock_map_from_upvote.side_effect = Exception("Mapping failed")
+
+        initial_count = UserInteractions.objects.count()
+        with self.assertRaises(Exception):
+            create_upvote_interaction_task(vote.id)
         final_count = UserInteractions.objects.count()
 
         self.assertEqual(final_count, initial_count)
