@@ -119,14 +119,6 @@ class UnifiedSearchService:
         query_obj = self.query_builder.build_document_query(query)
         search = search.query(query_obj)
 
-        # Light rescore to reward author+title co-occurrence in top results
-        try:
-            rescore_block = self.query_builder.build_rescore_query(query)
-            search = search.extra(rescore=[rescore_block])
-        except Exception:
-            # If the backend version doesn't support rescore, ignore gracefully
-            pass
-
         search = self._apply_highlighting(search, is_document=True)
 
         search = self._add_aggregations(search)
@@ -166,8 +158,14 @@ class UnifiedSearchService:
         # Execute search
         try:
             response = search.execute()
+            if response.hits.total.value > 0:
+                logger.info(
+                    f"First hit index: {response.hits[0].meta.index if response.hits else 'N/A'}"
+                )
         except Exception as e:
-            logger.error(f"Document search failed: {str(e)}")
+            logger.error(
+                f"Document search failed for query '{query}': {str(e)}", exc_info=True
+            )
             return {"results": [], "count": 0, "aggregations": {}}
 
         results = self._process_document_results(response)
