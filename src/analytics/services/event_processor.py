@@ -4,7 +4,6 @@ from typing import Any, Dict
 from analytics.interactions.amplitude_event_parser import AmplitudeEventParser
 from analytics.interactions.interaction_mapper import map_from_amplitude_event
 from analytics.models import UserInteractions
-from personalize.tasks import sync_interaction_event_to_personalize_task
 
 logger = logging.getLogger(__name__)
 
@@ -73,9 +72,6 @@ class EventProcessor:
             user_identifier_for_logging = (
                 user_id if user_id else f"external_user_id:{external_user_id}"
             )
-
-            if created and (interaction.user_id or interaction.external_user_id):
-                sync_interaction_event_to_personalize_task.delay(interaction.id)
 
             # Log successful processing
             logger.debug(

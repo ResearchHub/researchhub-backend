@@ -1,0 +1,48 @@
+import logging
+
+from django.db import transaction
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+from discussion.models import Vote
+from personalize.tasks import create_upvote_interaction_task
+from utils.sentry import log_error, log_info
+
+logger = logging.getLogger(__name__)
+
+
+@receiver(post_save, sender=Vote, dispatch_uid="personalize_upvote_interaction")
+def create_upvote_interaction(sender, instance, created, **kwargs):
+    """
+    Trigger creation of UserInteraction when Vote with vote_type=UPVOTE.
+    """
+    if not created:
+        return
+
+    if instance.vote_type != Vote.UPVOTE:
+        return
+
+    if not instance.created_by_id:
+        log_info(
+            f"Vote {instance.id} has no created_by user, skipping UserInteraction task"
+        )
+        return
+
+    def trigger_task():
+        try:
+            create_upvote_interaction_task.delay(instance.id)
+            logger.debug(
+                f"Triggered async UserInteraction creation task for UPVOTE: "
+                f"vote_id={instance.id}, user_id={instance.created_by_id}"
+            )
+        except Exception as e:
+            log_error(
+                e,
+                message=(
+                    f"Exception triggering UserInteraction creation task for UPVOTE: "
+                    f"vote_id={instance.id}"
+                ),
+            )
+            # Don't re-raise - we don't want to break the vote creation process
+
+    transaction.on_commit(trigger_task)
