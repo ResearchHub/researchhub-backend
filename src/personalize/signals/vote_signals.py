@@ -6,6 +6,7 @@ from django.dispatch import receiver
 
 from discussion.models import Vote
 from personalize.tasks import create_upvote_interaction_task
+from utils.sentry import log_error, log_info
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ def create_upvote_interaction(sender, instance, created, **kwargs):
         return
 
     if not instance.created_by_id:
-        logger.debug(
+        log_info(
             f"Vote {instance.id} has no created_by user, skipping UserInteraction task"
         )
         return
@@ -35,10 +36,12 @@ def create_upvote_interaction(sender, instance, created, **kwargs):
                 f"vote_id={instance.id}, user_id={instance.created_by_id}"
             )
         except Exception as e:
-            logger.error(
-                f"Exception triggering UserInteraction creation task for UPVOTE: "
-                f"vote_id={instance.id}, error={str(e)}",
-                exc_info=True,
+            log_error(
+                e,
+                message=(
+                    f"Exception triggering UserInteraction creation task for UPVOTE: "
+                    f"vote_id={instance.id}"
+                ),
             )
             # Don't re-raise - we don't want to break the vote creation process
 
