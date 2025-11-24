@@ -23,6 +23,8 @@ class FieldConfig:
 
 class DocumentQueryBuilder:
 
+    MAX_QUERY_WORDS_FOR_AUTHOR_TITLE_COMBO = 7
+
     # Field configurations
     TITLE_FIELDS = [
         FieldConfig(
@@ -32,8 +34,36 @@ class DocumentQueryBuilder:
     ]
 
     AUTHOR_FIELDS = [
-        FieldConfig("raw_authors.full_name", boost=3.0, query_types=["cross_fields"]),
-        FieldConfig("authors.full_name", boost=3.0, query_types=["cross_fields"]),
+        FieldConfig(
+            "raw_authors.full_name",
+            boost=3.0,
+            query_types=["cross_fields", "fuzzy", "prefix"],
+        ),
+        FieldConfig(
+            "raw_authors.last_name",
+            boost=2.5,
+            query_types=["cross_fields", "fuzzy", "prefix"],
+        ),
+        FieldConfig(
+            "raw_authors.first_name",
+            boost=2.0,
+            query_types=["cross_fields", "fuzzy", "prefix"],
+        ),
+        FieldConfig(
+            "authors.full_name",
+            boost=3.0,
+            query_types=["cross_fields", "fuzzy", "prefix"],
+        ),
+        FieldConfig(
+            "authors.last_name",
+            boost=2.5,
+            query_types=["cross_fields", "fuzzy", "prefix"],
+        ),
+        FieldConfig(
+            "authors.first_name",
+            boost=2.0,
+            query_types=["cross_fields", "fuzzy", "prefix"],
+        ),
     ]
 
     CONTENT_FIELDS = [
@@ -47,6 +77,13 @@ class DocumentQueryBuilder:
         self.should_clauses: list[Q] = []
         self._add_doi_match_if_applicable()
 
+    @staticmethod
+    def _limit_query_to_max_words(query: str, max_words: int) -> str:
+        words = query.split()
+        if len(words) <= max_words:
+            return query
+        return " ".join(words[:max_words])
+
     def _add_doi_match_if_applicable(self):
         """Add DOI exact match if query is a DOI."""
         try:
@@ -59,40 +96,86 @@ class DocumentQueryBuilder:
             pass
 
     def add_author_title_combination_strategy(self) -> "DocumentQueryBuilder":
-        """Add strategy that requires author and title to co-occur."""
-        author_fields = [field.get_boosted_name() for field in self.AUTHOR_FIELDS]
-        title_fields = [field.get_boosted_name() for field in self.TITLE_FIELDS]
+        """Add strategy that allows author and title to co-occur.
 
+        Uses a bool query with should clauses to ensure flexible matching:
+        - Cross_fields query for flexible term matching across fields
+        - Bool query requiring author match AND title match
+
+        For example, "Smith machine learning" can match "Smith" in author fields
+        and "machine learning" in title fields.
+        """
+        # Truncate query to prevent query explosion with long queries
+        truncated_query = self._limit_query_to_max_words(
+            self.query, self.MAX_QUERY_WORDS_FOR_AUTHOR_TITLE_COMBO
+        )
+
+        author_fields = []
+        title_fields = []
+        for field in self.AUTHOR_FIELDS:
+            author_fields.append(field.get_boosted_name())
+        for field in self.TITLE_FIELDS:
+            title_fields.append(field.get_boosted_name())
+
+        # Strategy 1: Bool query that requires author match AND title match
+        # HIGHEST PRIORITY - should rank first when both author and title match
+        author_queries = []
+        for field in self.AUTHOR_FIELDS:
+            author_queries.append(
+                Q(
+                    "match",
+                    **{
+                        field.name: {
+                            "query": truncated_query,
+                            "operator": "or",  # Any term can match
+                        }
+                    },
+                )
+            )
+
+        title_queries = []
+        for field in self.TITLE_FIELDS:
+            title_queries.append(
+                Q(
+                    "match",
+                    **{
+                        field.name: {
+                            "query": truncated_query,
+                            "operator": "or",  # Any term can match
+                        }
+                    },
+                )
+            )
+
+        # Combine: (author match) AND (title match)
+        # Very high boost to ensure author+title matches rank first
+        # This is the most relevant match type for queries like "gordon protein folding"
+        if author_queries and title_queries:
+            author_match = Q("bool", should=author_queries, minimum_should_match=1)
+            title_match = Q("bool", should=title_queries, minimum_should_match=1)
+            # Boost of 15.0 ensures author+title combos rank above title-only matches
+            author_title_combo = Q("bool", must=[author_match, title_match], boost=15.0)
+            self.should_clauses.append(author_title_combo)
+
+        # Strategy 2: Cross-field matching - allows terms to match across fields
+        # Lower boost than author+title combo, but still useful for flexible matching
+        all_fields = author_fields + title_fields
         combo_query = Q(
-            "constant_score",
-            filter=Q(
-                "bool",
-                must=[
-                    Q(
-                        "multi_match",
-                        query=self.query,
-                        type="cross_fields",
-                        operator="or",
-                        fields=author_fields,
-                    ),
-                    Q(
-                        "multi_match",
-                        query=self.query,
-                        type="best_fields",
-                        operator="and",
-                        fields=title_fields,
-                    ),
-                ],
-            ),
-            boost=4.0,
+            "multi_match",
+            query=self.query,
+            type="cross_fields",
+            operator="or",
+            fields=all_fields,
+            boost=6.0,
         )
         self.should_clauses.append(combo_query)
+
         return self
 
     def add_phrase_strategy(
         self, fields: list[FieldConfig], slop: int = 1, boost_multiplier: float = 1.0
     ) -> "DocumentQueryBuilder":
-        """Add phrase match strategy for specified fields."""
+
         queries = []
         for field in fields:
             if "phrase" in (field.query_types or []):
@@ -181,6 +264,8 @@ class DocumentQueryBuilder:
                 field_list.append(boosted_name)
 
         if field_list:
+            # Use best_fields instead of cross_fields - fuzziness not allowed
+            # with cross_fields type
             fuzzy_query = Q(
                 "multi_match",
                 query=self.query,
@@ -190,6 +275,90 @@ class DocumentQueryBuilder:
                 operator=operator,
             )
             self.should_clauses.append(fuzzy_query)
+        return self
+
+    def add_author_name_strategy(self) -> "DocumentQueryBuilder":
+        author_fields = []
+        for field in self.AUTHOR_FIELDS:
+            author_fields.append(field.get_boosted_name())
+
+        if author_fields:
+            author_query = Q(
+                "multi_match",
+                query=self.query,
+                type="best_fields",
+                fields=author_fields,
+                operator="or",
+                fuzziness="AUTO",
+                boost=2.5,  # Boost author-specific queries
+            )
+            self.should_clauses.append(author_query)
+        return self
+
+    def add_simple_match_strategy(
+        self, fields: list[FieldConfig], boost_multiplier: float = 1.0
+    ) -> "DocumentQueryBuilder":
+        for field in fields:
+            # Strategy 1: Phrase match (highest relevance) - like suggest endpoint
+            self.should_clauses.append(
+                Q(
+                    "match_phrase",
+                    **{
+                        field.name: {
+                            "query": self.query,
+                            "boost": field.boost * boost_multiplier,
+                        }
+                    },
+                )
+            )
+            # Strategy 2: Match with AND operator - all words must be in field
+            self.should_clauses.append(
+                Q(
+                    "match",
+                    **{
+                        field.name: {
+                            "query": self.query,
+                            "operator": "and",
+                            "boost": field.boost * boost_multiplier * 0.7,
+                        }
+                    },
+                )
+            )
+            # Strategy 3: Fuzzy match for typos
+            self.should_clauses.append(
+                Q(
+                    "match",
+                    **{
+                        field.name: {
+                            "query": self.query,
+                            "fuzziness": "AUTO",
+                            "boost": field.boost * boost_multiplier * 0.3,
+                        }
+                    },
+                )
+            )
+        return self
+
+    def add_cross_field_fallback_strategy(self) -> "DocumentQueryBuilder":
+        """Add cross-field OR fallback strategy for partial matches.
+
+        This ensures results even when strict AND matching fails.
+        Uses OR operator to allow partial matches across fields.
+        """
+        # Combine all fields for broad coverage
+        all_fields = []
+        for field in self.AUTHOR_FIELDS + self.TITLE_FIELDS + self.CONTENT_FIELDS:
+            all_fields.append(field.get_boosted_name())
+
+        fallback_query = Q(
+            "multi_match",
+            query=self.query,
+            type="cross_fields",
+            operator="or",
+            fields=all_fields,
+            boost=1.5,
+        )
+        self.should_clauses.append(fallback_query)
         return self
 
     def build(self) -> Q:
@@ -224,21 +393,40 @@ class UnifiedSearchQueryBuilder:
 
         builder = (
             DocumentQueryBuilder(query)
+            # PRIORITY 1: Author+title combination strategy (highest boost)
+            # This ensures "gordon protein folding" ranks papers with both
+            # "Gordon" in authors AND "protein folding" in title at the top
             .add_author_title_combination_strategy()
+            # PRIORITY 2: Simple per-field match strategy for titles
+            # This ensures basic queries like "protein folding" work reliably
+            .add_simple_match_strategy(
+                DocumentQueryBuilder.TITLE_FIELDS,
+                boost_multiplier=1.0,  # Full boost for reliable matches
+            )
+            # PRIORITY 3: Author fields separately
+            .add_simple_match_strategy(
+                DocumentQueryBuilder.AUTHOR_FIELDS,
+                boost_multiplier=0.8,  # Slightly lower boost for authors
+            )
+            # PRIORITY 4: Other strategies for comprehensive coverage
+            .add_author_name_strategy()  # Dedicated author name search
             .add_phrase_strategy(
                 DocumentQueryBuilder.TITLE_FIELDS + DocumentQueryBuilder.CONTENT_FIELDS,
                 slop=1,
                 boost_multiplier=0.6,  # Reduce boosts (5.0 -> 3.0)
             )
             .add_prefix_strategy(
-                DocumentQueryBuilder.TITLE_FIELDS, boost_multiplier=0.5
+                DocumentQueryBuilder.TITLE_FIELDS + DocumentQueryBuilder.AUTHOR_FIELDS,
+                boost_multiplier=0.5,
             )
             .add_fuzzy_strategy(
                 DocumentQueryBuilder.TITLE_FIELDS
                 + DocumentQueryBuilder.AUTHOR_FIELDS
                 + DocumentQueryBuilder.CONTENT_FIELDS,
+                operator="or",  # Use OR for better partial matching
                 boost_multiplier=1.0,  # Boosts handled per-field in add_fuzzy_strategy
             )
+            .add_cross_field_fallback_strategy()
         )
         return builder.build()
 
