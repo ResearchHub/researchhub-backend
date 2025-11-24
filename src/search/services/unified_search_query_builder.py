@@ -23,9 +23,6 @@ class FieldConfig:
 
 class DocumentQueryBuilder:
 
-    # Query limits to prevent query explosion
-    # Most search queries are 1-5 words, 95% are under 7 words
-    # Limiting author+title combo to 7 words prevents large query trees
     MAX_QUERY_WORDS_FOR_AUTHOR_TITLE_COMBO = 7
 
     # Field configurations
@@ -81,7 +78,7 @@ class DocumentQueryBuilder:
         self._add_doi_match_if_applicable()
 
     @staticmethod
-    def _truncate_query_to_words(query: str, max_words: int) -> str:
+    def _limit_query_to_max_words(query: str, max_words: int) -> str:
         words = query.split()
         if len(words) <= max_words:
             return query
@@ -107,12 +104,9 @@ class DocumentQueryBuilder:
 
         For example, "Smith machine learning" can match "Smith" in author fields
         and "machine learning" in title fields.
-
-        Note: Query is truncated to MAX_QUERY_WORDS_FOR_AUTHOR_TITLE_COMBO words
-        to prevent query explosion with very long queries (e.g., 10+ words).
         """
         # Truncate query to prevent query explosion with long queries
-        truncated_query = self._truncate_query_to_words(
+        truncated_query = self._limit_query_to_max_words(
             self.query, self.MAX_QUERY_WORDS_FOR_AUTHOR_TITLE_COMBO
         )
 
@@ -124,7 +118,6 @@ class DocumentQueryBuilder:
             title_fields.append(field.get_boosted_name())
 
         # Strategy 1: Bool query that requires author match AND title match
-        # This ensures at least one term matches authors and at least one matches title
         # HIGHEST PRIORITY - should rank first when both author and title match
         author_queries = []
         for field in self.AUTHOR_FIELDS:
@@ -166,16 +159,14 @@ class DocumentQueryBuilder:
 
         # Strategy 2: Cross-field matching - allows terms to match across fields
         # Lower boost than author+title combo, but still useful for flexible matching
-        # Uses full query (not truncated) as multi_match handles long queries
-        # efficiently
         all_fields = author_fields + title_fields
         combo_query = Q(
             "multi_match",
-            query=self.query,  # Full query - multi_match handles long queries well
+            query=self.query,
             type="cross_fields",
             operator="or",
             fields=all_fields,
-            boost=6.0,  # Increased from 4.0 but still lower than author+title combo
+            boost=6.0,
         )
         self.should_clauses.append(combo_query)
 
@@ -184,7 +175,7 @@ class DocumentQueryBuilder:
     def add_phrase_strategy(
         self, fields: list[FieldConfig], slop: int = 1, boost_multiplier: float = 1.0
     ) -> "DocumentQueryBuilder":
-        """Add phrase match strategy for specified fields."""
+
         queries = []
         for field in fields:
             if "phrase" in (field.query_types or []):
@@ -279,7 +270,7 @@ class DocumentQueryBuilder:
                 "multi_match",
                 query=self.query,
                 fields=field_list,
-                type="best_fields",  # Changed from cross_fields
+                type="best_fields",
                 fuzziness="AUTO",
                 operator=operator,
             )
@@ -287,11 +278,6 @@ class DocumentQueryBuilder:
         return self
 
     def add_author_name_strategy(self) -> "DocumentQueryBuilder":
-        """Add dedicated strategy for author name searches.
-
-        Uses best_fields type for better single-field matching, which is ideal
-        for queries like "Smith" or "John Smith" that should match author names.
-        """
         author_fields = []
         for field in self.AUTHOR_FIELDS:
             author_fields.append(field.get_boosted_name())
@@ -312,16 +298,6 @@ class DocumentQueryBuilder:
     def add_simple_match_strategy(
         self, fields: list[FieldConfig], boost_multiplier: float = 1.0
     ) -> "DocumentQueryBuilder":
-        """Add simple per-field match strategy similar to suggest endpoint.
-
-        This creates match queries per field with AND operator (all words must
-        be in the field) for reliable matching. This is simpler and more
-        reliable than cross_fields queries.
-
-        Matches the suggest endpoint's construct_hybrid_bool_query pattern:
-        - Adds queries directly to should clauses (not wrapped in dis_max)
-        - Each field gets phrase, AND match, and fuzzy match queries
-        """
         for field in fields:
             # Strategy 1: Phrase match (highest relevance) - like suggest endpoint
             self.should_clauses.append(
