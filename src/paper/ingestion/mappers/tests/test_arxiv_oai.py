@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 from django.test import TestCase
 
 from hub.models import Hub
-from paper.ingestion.mappers.arxiv_oai import ArXivOAIMapper
+from paper.ingestion.mappers import ArXivOAIMapper
 from paper.models import Paper
 
 

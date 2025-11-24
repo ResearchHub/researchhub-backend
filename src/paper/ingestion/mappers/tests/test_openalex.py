@@ -7,7 +7,7 @@ import os
 
 from django.test import TestCase
 
-from paper.ingestion.mappers.openalex import OpenAlexMapper
+from paper.ingestion.mappers import OpenAlexMapper
 from paper.models import Paper
 
 

@@ -8,7 +8,7 @@ from django.test import TestCase
 
 from hub.models import Hub
 from institution.models import Institution
-from paper.ingestion.mappers.chemrxiv import ChemRxivMapper
+from paper.ingestion.mappers import ChemRxivMapper
 from paper.models import Paper
 from paper.related_models.authorship_model import Authorship
 from user.related_models.author_model import Author

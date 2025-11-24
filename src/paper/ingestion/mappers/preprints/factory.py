@@ -6,14 +6,14 @@ from typing import Dict
 
 from hub.mappers.external_category_mapper import ExternalCategoryMapper
 from paper.ingestion.constants import IngestionSource
-from paper.ingestion.mappers.arxiv_oai import ArXivOAIMapper
 
+from ..base import BaseMapper
+from ..enrichment.openalex import OpenAlexMapper
 from .arxiv import ArXivMapper
-from .base import BaseMapper
+from .arxiv_oai import ArXivOAIMapper
 from .biorxiv import BioRxivMapper
 from .chemrxiv import ChemRxivMapper
 from .medrxiv import MedRxivMapper
-from .openalex import OpenAlexMapper
 
 
 class MapperFactory:

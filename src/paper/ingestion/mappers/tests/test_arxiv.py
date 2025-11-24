@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 from django.test import TestCase
 
 from hub.models import Hub
-from paper.ingestion.mappers.arxiv import ArXivMapper
+from paper.ingestion.mappers import ArXivMapper
 from paper.models import Paper
 
 
