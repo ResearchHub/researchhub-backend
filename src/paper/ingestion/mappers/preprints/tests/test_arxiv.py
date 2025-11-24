@@ -2,8 +2,8 @@
 Tests for ArXiv mapper.
 """
 
-import os
 import xml.etree.ElementTree as ET
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
@@ -29,20 +29,14 @@ class TestArXivMapper(TestCase):
         )
 
         # Load fixture files
-        fixtures_dir = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            "clients",
-            "preprints",
-            "tests",
-            "fixtures",
-        )
+        fixtures_dir = Path(__file__).parent / "fixtures"
 
         # Read the sample response XML
-        with open(os.path.join(fixtures_dir, "arxiv_sample_response.xml"), "r") as f:
+        with open(fixtures_dir / "arxiv_sample_response.xml", "r") as f:
             self.sample_response_xml = f.read()
 
         # Read the empty response XML
-        with open(os.path.join(fixtures_dir, "arxiv_empty_response.xml"), "r") as f:
+        with open(fixtures_dir / "arxiv_empty_response.xml", "r") as f:
             self.empty_response_xml = f.read()
 
         # Extract individual entries from the sample response
