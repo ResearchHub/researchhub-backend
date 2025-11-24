@@ -4,8 +4,7 @@ from celery.exceptions import MaxRetriesExceededError
 
 from paper.ingestion.clients.enrichment.altmetric import AltmetricClient
 from paper.ingestion.clients.enrichment.openalex import OpenAlexClient
-from paper.ingestion.mappers.altmetric import AltmetricMapper
-from paper.ingestion.mappers.openalex import OpenAlexMapper
+from paper.ingestion.mappers import AltmetricMapper, OpenAlexMapper
 from paper.ingestion.services.metrics_enrichment import PaperMetricsEnrichmentService
 from paper.ingestion.services.openalex_enrichment import PaperOpenAlexEnrichmentService
 from researchhub.celery import QUEUE_PAPER_MISC, app

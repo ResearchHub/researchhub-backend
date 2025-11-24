@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from django.test import TestCase
 
-from paper.ingestion.mappers.altmetric import AltmetricMapper
+from paper.ingestion.mappers import AltmetricMapper
 
 
 class AltmetricMapperTests(TestCase):
