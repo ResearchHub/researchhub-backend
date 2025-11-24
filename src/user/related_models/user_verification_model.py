@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import CheckConstraint, Q
 from django.utils.translation import gettext_lazy as _
 
 from user.related_models.user_model import User
@@ -36,13 +37,27 @@ class UserVerification(models.Model):
         blank=False,
         unique=True,
     )
-    first_name = models.TextField()
-    last_name = models.TextField()
+    first_name = models.TextField(blank=True, null=True)
+    last_name = models.TextField(blank=True, null=True)
     status = models.TextField(choices=Status.choices)
     verified_by = models.TextField(choices=Type.choices)
     external_id = models.TextField()
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            CheckConstraint(
+                check=(
+                    Q(first_name__isnull=False) & ~Q(first_name="")
+                    | Q(last_name__isnull=False) & ~Q(last_name="")
+                ),
+                name="user_verification_name_required",
+                violation_error_message=(
+                    "Either first_name or last_name must be provided"
+                ),
+            )
+        ]
 
     @property
     def is_verified(self) -> bool:
