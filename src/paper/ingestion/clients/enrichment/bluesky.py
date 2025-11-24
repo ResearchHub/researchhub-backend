@@ -83,10 +83,6 @@ class BlueskyClient:
 
         Returns:
             Response JSON dict if successful, None if error occurred
-
-        Raises:
-            UnauthorizedError: If authentication fails after retry
-            NetworkError: If network request fails
         """
         if not self.authenticated:
             self._authenticate()
