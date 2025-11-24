@@ -2,13 +2,13 @@
 Tests for ArXiv OAI mapper.
 """
 
-import os
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
 
 from hub.models import Hub
-from paper.ingestion.mappers.arxiv_oai import ArXivOAIMapper
+from paper.ingestion.mappers import ArXivOAIMapper
 from paper.models import Paper
 
 
@@ -26,18 +26,10 @@ class TestArXivOAIMapper(TestCase):
         )
 
         # Load fixture files
-        fixtures_dir = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            "clients",
-            "preprints",
-            "tests",
-            "fixtures",
-        )
+        fixtures_dir = Path(__file__).parent / "fixtures"
 
         # Read the sample metadata XML
-        with open(
-            os.path.join(fixtures_dir, "arxiv_oai_metadata_sample.xml"), "r"
-        ) as f:
+        with open(fixtures_dir / "arxiv_oai_metadata_sample.xml", "r") as f:
             self.sample_metadata_xml = f.read()
 
         # Create parsed records for testing

@@ -7,7 +7,7 @@ from unittest.mock import PropertyMock, patch
 from django.test import TestCase
 
 from hub.models import Hub
-from paper.ingestion.mappers.medrxiv import MedRxivMapper
+from paper.ingestion.mappers import MedRxivMapper
 from paper.models import Paper
 
 

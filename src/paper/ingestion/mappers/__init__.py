@@ -2,18 +2,24 @@
 Mapper modules for transforming source data to domain models.
 """
 
-from .arxiv import ArXivMapper
-from .arxiv_oai import ArXivOAIMapper
 from .base import BaseMapper
-from .biorxiv import BioRxivMapper
-from .chemrxiv import ChemRxivMapper
-from .openalex import OpenAlexMapper
+from .enrichment.altmetric import AltmetricMapper
+from .enrichment.openalex import OpenAlexMapper
+from .preprints.arxiv import ArXivMapper
+from .preprints.arxiv_oai import ArXivOAIMapper
+from .preprints.biorxiv import BioRxivMapper
+from .preprints.chemrxiv import ChemRxivMapper
+from .preprints.factory import MapperFactory
+from .preprints.medrxiv import MedRxivMapper
 
 __all__ = [
+    "AltmetricMapper",
     "ArXivMapper",
     "ArXivOAIMapper",
     "BaseMapper",
     "BioRxivMapper",
     "ChemRxivMapper",
+    "MapperFactory",
+    "MedRxivMapper",
     "OpenAlexMapper",
 ]

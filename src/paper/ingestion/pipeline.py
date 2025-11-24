@@ -14,7 +14,7 @@ from django.utils import timezone
 from paper.ingestion.clients.client_factory import ClientFactory
 from paper.ingestion.constants import IngestionSource
 from paper.ingestion.exceptions import FetchError, RetryExhaustedError
-from paper.ingestion.mappers.factory import MapperFactory
+from paper.ingestion.mappers import MapperFactory
 from paper.ingestion.services import PaperIngestionService
 from paper.models import PaperFetchLog
 from researchhub.celery import QUEUE_PULL_PAPERS, app

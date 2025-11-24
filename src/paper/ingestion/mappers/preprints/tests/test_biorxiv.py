@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 from django.test import TestCase
 
 from hub.models import Hub
-from paper.ingestion.mappers.biorxiv import BioRxivMapper
+from paper.ingestion.mappers import BioRxivMapper
 from paper.models import Paper
 
 

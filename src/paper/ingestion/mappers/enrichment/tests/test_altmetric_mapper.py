@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from django.test import TestCase
 
-from paper.ingestion.mappers.altmetric import AltmetricMapper
+from paper.ingestion.mappers import AltmetricMapper
 
 
 class AltmetricMapperTests(TestCase):
@@ -77,7 +77,7 @@ class AltmetricMapperTests(TestCase):
                 "1d": 0,
                 "at": 140.5,
             },
-            "url": "http://dx.doi.org/10.1038/news.2011.490",
+            "url": "http://dx.doi.org/10.1038/news.2011.490",  # NOSONAR - http
             "added_on": 1313946657,
             "published_on": 1313884800,
             "subjects": ["science"],
