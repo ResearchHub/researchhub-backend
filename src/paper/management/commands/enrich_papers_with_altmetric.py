@@ -5,6 +5,7 @@ Management command for enriching papers with Altmetric metrics.
 from django.core.management.base import BaseCommand
 
 from paper.ingestion.clients.enrichment.altmetric import AltmetricClient
+from paper.ingestion.clients.enrichment.github import GithubMetricsClient
 from paper.ingestion.mappers.enrichment.altmetric import AltmetricMapper
 from paper.ingestion.services import PaperMetricsEnrichmentService
 from paper.models import Paper
@@ -30,7 +31,11 @@ class Command(BaseCommand):
         days = options["days"]
         paper_id = options.get("paper_id")
 
-        service = PaperMetricsEnrichmentService(AltmetricClient(), AltmetricMapper())
+        service = PaperMetricsEnrichmentService(
+            github_metrics_client=GithubMetricsClient(),
+            altmetric_client=AltmetricClient(),
+            altmetric_mapper=AltmetricMapper(),
+        )
 
         if paper_id:
             # Enrich single paper
