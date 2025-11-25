@@ -8,8 +8,15 @@ FEED_CONFIG = {
         "allowed_sorts": [],
     },
     "popular": {
-        "use_cache": False,
         "allowed_sorts": ["aws_trending", "hot_score_v2", "hot_score"],
+        # Per-ordering cache settings:
+        # - aws_trending: No full-page cache (IDs cached in FeedService)
+        # - hot_score_v2/hot_score: Full-page cache for DB sorts
+        "cache_by_ordering": {
+            "aws_trending": False,
+            "hot_score_v2": True,
+            "hot_score": True,
+        },
     },
 }
 

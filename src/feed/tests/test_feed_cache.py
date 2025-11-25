@@ -217,11 +217,11 @@ class FeedCachingTests(APITestCase):
         url = reverse("feed-list")
 
         for page in range(1, 5):
-            response1 = self.client.get(url, {"page": page})
+            response1 = self.client.get(url, {"page": page, "ordering": "hot_score_v2"})
             self.assertEqual(response1.status_code, 200)
             self.assertEqual(response1["RH-Cache"], "miss")
 
-            response2 = self.client.get(url, {"page": page})
+            response2 = self.client.get(url, {"page": page, "ordering": "hot_score_v2"})
             self.assertEqual(response2.status_code, 200)
             self.assertEqual(response2["RH-Cache"], "hit")
 
@@ -239,32 +239,38 @@ class FeedCachingTests(APITestCase):
     def test_health_check_token_bypasses_cache(self):
         url = reverse("feed-list")
 
-        response1 = self.client.get(url)
+        response1 = self.client.get(url, {"ordering": "hot_score_v2"})
         self.assertEqual(response1["RH-Cache"], "miss")
 
-        response2 = self.client.get(url)
+        response2 = self.client.get(url, {"ordering": "hot_score_v2"})
         self.assertEqual(response2["RH-Cache"], "hit")
 
-        response3 = self.client.get(url, {"disable_cache": settings.HEALTH_CHECK_TOKEN})
+        response3 = self.client.get(
+            url,
+            {
+                "ordering": "hot_score_v2",
+                "disable_cache": settings.HEALTH_CHECK_TOKEN,
+            },
+        )
         self.assertEqual(response3["RH-Cache"], "miss")
 
     def test_cache_hit_includes_header_for_authenticated_user(self):
         url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
 
-        response1 = self.client.get(url)
+        response1 = self.client.get(url, {"ordering": "hot_score_v2"})
         self.assertEqual(response1["RH-Cache"], "miss (auth)")
 
-        response2 = self.client.get(url)
+        response2 = self.client.get(url, {"ordering": "hot_score_v2"})
         self.assertEqual(response2["RH-Cache"], "hit (auth)")
 
     def test_cache_hit_includes_header_for_anonymous_user(self):
         url = reverse("feed-list")
 
-        response1 = self.client.get(url)
+        response1 = self.client.get(url, {"ordering": "hot_score_v2"})
         self.assertEqual(response1["RH-Cache"], "miss")
 
-        response2 = self.client.get(url)
+        response2 = self.client.get(url, {"ordering": "hot_score_v2"})
         self.assertEqual(response2["RH-Cache"], "hit")
 
     def test_cache_miss_includes_header(self):
@@ -285,7 +291,9 @@ class FeedCachingTests(APITestCase):
         url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
 
-        response1 = self.client.get(url, {"feed_view": "popular"})
+        response1 = self.client.get(
+            url, {"feed_view": "popular", "ordering": "hot_score_v2"}
+        )
         self.assertEqual(response1["RH-Cache"], "miss (auth)")
 
         response2 = self.client.get(url, {"feed_view": "following"})
@@ -294,7 +302,9 @@ class FeedCachingTests(APITestCase):
         response3 = self.client.get(url, {"feed_view": "personalized"})
         self.assertEqual(response3["RH-Cache"], "partial-cache-miss (auth)")
 
-        response4 = self.client.get(url, {"feed_view": "popular"})
+        response4 = self.client.get(
+            url, {"feed_view": "popular", "ordering": "hot_score_v2"}
+        )
         self.assertEqual(response4["RH-Cache"], "hit (auth)")
 
     def test_cache_key_differs_by_ordering(self):
@@ -313,13 +323,19 @@ class FeedCachingTests(APITestCase):
         url = reverse("feed-list")
         hub2 = Hub.objects.create(name="Another Hub", slug="another-hub")
 
-        response1 = self.client.get(url, {"hub_slug": self.hub.slug})
+        response1 = self.client.get(
+            url, {"hub_slug": self.hub.slug, "ordering": "hot_score_v2"}
+        )
         self.assertEqual(response1["RH-Cache"], "miss")
 
-        response2 = self.client.get(url, {"hub_slug": hub2.slug})
+        response2 = self.client.get(
+            url, {"hub_slug": hub2.slug, "ordering": "hot_score_v2"}
+        )
         self.assertEqual(response2["RH-Cache"], "miss")
 
-        response3 = self.client.get(url, {"hub_slug": self.hub.slug})
+        response3 = self.client.get(
+            url, {"hub_slug": self.hub.slug, "ordering": "hot_score_v2"}
+        )
         self.assertEqual(response3["RH-Cache"], "hit")
 
     def test_cache_key_includes_researchhub_feed_type(self):
@@ -362,7 +378,7 @@ class FeedCachingTests(APITestCase):
 
         mock_cache.get.return_value = None
 
-        self.client.get(url, {"feed_view": "popular"})
+        self.client.get(url, {"feed_view": "popular", "ordering": "hot_score_v2"})
 
         self.assertTrue(mock_cache.get.called)
         self.assertTrue(mock_cache.set.called)

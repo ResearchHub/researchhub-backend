@@ -42,13 +42,98 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
 
     def list(self, request, *args, **kwargs):
         feed_view = request.query_params.get("feed_view", "popular")
-        feed_config = FEED_CONFIG.get(feed_view, {})
-        use_cache_for_feed = feed_config.get("use_cache", False)
 
-        return self.get_cached_list_response(
-            request,
-            use_cache_config=use_cache_for_feed,
+        if feed_view == "personalized":
+            return self._get_personalized_response(request)
+
+        feed_config = FEED_CONFIG.get(feed_view, {})
+        use_cache = self._get_cache_setting_for_feed(request, feed_config)
+        return self._get_cached_response(request, feed_view, use_cache)
+
+    def _get_personalized_response(self, request):
+        """Handle personalized feed with partial caching."""
+        response = super(FeedViewSet, self).list(request)
+
+        if request.user.is_authenticated:
+            self.add_user_votes_to_response(request.user, response.data)
+
+        cache_status = (
+            "partial-cache-hit"
+            if self.personalize_feed_service.cache_hit
+            else "partial-cache-miss"
         )
+        response["RH-Cache"] = self._with_auth_suffix(request, cache_status)
+        return response
+
+    def _get_cached_response(self, request, feed_view, use_cache_config):
+        """Handle cacheable feeds (popular, following)."""
+        page_num = int(request.query_params.get("page", "1"))
+        cache_key = self.get_cache_key(request, feed_type="researchhub")
+        num_pages_to_cache = FEED_DEFAULTS["cache"]["num_pages_to_cache"]
+
+        disable_cache_token = request.query_params.get("disable_cache")
+        force_disable_cache = disable_cache_token == settings.HEALTH_CHECK_TOKEN
+        cache_enabled = settings.TESTING or settings.CLOUD
+
+        use_cache = (
+            not force_disable_cache
+            and cache_enabled
+            and use_cache_config
+            and page_num <= num_pages_to_cache
+        )
+
+        # Try cache first
+        if use_cache:
+            cached_response = cache.get(cache_key)
+            if cached_response:
+                if request.user.is_authenticated:
+                    self.add_user_votes_to_response(request.user, cached_response)
+                response = Response(cached_response)
+                response["RH-Cache"] = self._with_auth_suffix(request, "hit")
+                return response
+
+        # Fetch fresh data
+        response = super(FeedViewSet, self).list(request)
+
+        if use_cache:
+            cache.set(cache_key, response.data, timeout=self.DEFAULT_CACHE_TIMEOUT)
+
+        if request.user.is_authenticated:
+            self.add_user_votes_to_response(request.user, response.data)
+
+        response["RH-Cache"] = self._with_auth_suffix(request, "miss")
+        self._add_feed_source_header(response, feed_view)
+        return response
+
+    def _get_cache_setting_for_feed(self, request, feed_config):
+        """
+        Determine cache setting based on feed type and ordering.
+
+        - aws_trending: No full-page cache (IDs cached separately in FeedService)
+        - hot_score_v2/hot_score: Full-page cache enabled
+        """
+        cache_by_ordering = feed_config.get("cache_by_ordering")
+        if cache_by_ordering:
+            ordering = request.query_params.get("ordering")
+            allowed = feed_config.get("allowed_sorts", [])
+            effective_ordering = (
+                ordering if ordering in allowed else (allowed[0] if allowed else None)
+            )
+            return cache_by_ordering.get(effective_ordering, False)
+
+        # Fall back to simple use_cache setting
+        return feed_config.get("use_cache", False)
+
+    def _with_auth_suffix(self, request, status):
+        """Add auth suffix to cache status."""
+        return status + (" (auth)" if request.user.is_authenticated else "")
+
+    def _add_feed_source_header(self, response, feed_view):
+        """Add X-Feed-Source header for popular feed."""
+        if feed_view == "popular":
+            feed_source = getattr(self, "_feed_source", None)
+            if feed_source:
+                response["X-Feed-Source"] = feed_source
 
     def get_queryset(self):
         queryset = FeedEntry.objects.all()
@@ -61,75 +146,3 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
         )
 
         return queryset
-
-    def get_cached_list_response(
-        self,
-        request,
-        use_cache_config=True,
-    ):
-        feed_view = request.query_params.get("feed_view", "popular")
-
-        if feed_view == "personalized":
-            response = super(FeedViewSet, self).list(request)
-
-            if request.user.is_authenticated:
-                self.add_user_votes_to_response(request.user, response.data)
-
-            cache_status = (
-                "partial-cache-hit"
-                if self.personalize_feed_service.cache_hit
-                else "partial-cache-miss"
-            )
-
-            response["RH-Cache"] = cache_status + (
-                " (auth)" if request.user.is_authenticated else ""
-            )
-            return response
-
-        page = request.query_params.get("page", "1")
-        page_num = int(page)
-        cache_key = self.get_cache_key(request, feed_type="researchhub")
-
-        disable_cache_token = request.query_params.get("disable_cache")
-        force_disable_cache = disable_cache_token == settings.HEALTH_CHECK_TOKEN
-
-        cache_enabled = settings.TESTING or settings.CLOUD
-        num_pages_to_cache = FEED_DEFAULTS["cache"]["num_pages_to_cache"]
-
-        use_cache = (
-            not force_disable_cache
-            and cache_enabled
-            and use_cache_config
-            and page_num <= num_pages_to_cache
-        )
-
-        if use_cache:
-            cached_response = cache.get(cache_key)
-            if cached_response:
-                if request.user.is_authenticated:
-                    self.add_user_votes_to_response(request.user, cached_response)
-                response = Response(cached_response)
-                response["RH-Cache"] = "hit" + (
-                    " (auth)" if request.user.is_authenticated else ""
-                )
-                return response
-
-        response = super(FeedViewSet, self).list(request)
-
-        if use_cache:
-            cache.set(cache_key, response.data, timeout=self.DEFAULT_CACHE_TIMEOUT)
-
-        if request.user.is_authenticated:
-            self.add_user_votes_to_response(request.user, response.data)
-
-        response["RH-Cache"] = "miss" + (
-            " (auth)" if request.user.is_authenticated else ""
-        )
-
-        # Add feed source header for popular feed
-        if feed_view == "popular":
-            feed_source = getattr(self, "_feed_source", None)
-            if feed_source:
-                response["X-Feed-Source"] = feed_source
-
-        return response
