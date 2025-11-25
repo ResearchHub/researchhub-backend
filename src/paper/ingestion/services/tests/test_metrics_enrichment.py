@@ -37,13 +37,26 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
             "score": 140.5,
         }
 
+        # Sample GitHub mentions response
+        self.sample_github_response = {
+            "total_mentions": 15,
+            "term": "10.1038/news.2011.490",
+            "breakdown": {
+                "issues": 10,
+                "commits": 3,
+                "repositories": 2,
+            },
+        }
+
         # Create mocks for client and mapper
         self.mock_client = Mock()
         self.mock_mapper = Mock()
+        self.mock_github_client = Mock()
 
         self.service = PaperMetricsEnrichmentService(
             altmetric_client=self.mock_client,
             altmetric_mapper=self.mock_mapper,
+            github_metrics_client=self.mock_github_client,
         )
 
     def test_get_recent_papers_with_dois(self):
@@ -273,3 +286,105 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         self.assertEqual(results.error_count, 1)
         self.assertEqual(results.success_count, 0)
         self.assertEqual(results.success_count, 0)
+
+    def test_enrich_paper_with_github_mentions(self):
+        """
+        Test successful enrichment of a paper with GitHub mentions.
+        """
+        # Arrange
+        self.mock_github_client.get_mentions.return_value = self.sample_github_response
+
+        # Act
+        result = self.service.enrich_paper_with_github_mentions(self.paper)
+
+        # Assert
+        self.assertEqual(result.status, "success")
+        self.assertEqual(
+            result.metrics, {"github_mentions": self.sample_github_response}
+        )
+
+        # Verify client was called with the correct DOI
+        self.mock_github_client.get_mentions.assert_called_once_with(
+            self.paper.doi, search_areas=["issues"]
+        )
+
+        # Verify paper was updated
+        self.paper.refresh_from_db()
+        self.assertIsNotNone(self.paper.external_metadata)
+        self.assertIn("metrics", self.paper.external_metadata)
+        self.assertIn("github_mentions", self.paper.external_metadata["metrics"])
+        self.assertEqual(
+            self.paper.external_metadata["metrics"]["github_mentions"],
+            self.sample_github_response,
+        )
+
+    def test_enrich_paper_with_github_mentions_not_found(self):
+        """
+        Test GitHub enrichment when no mentions are found.
+        """
+        # Arrange
+        self.mock_github_client.get_mentions.return_value = None
+
+        # Act
+        result = self.service.enrich_paper_with_github_mentions(self.paper)
+
+        # Assert
+        self.assertEqual(result.status, "not_found")
+        self.assertEqual(result.reason, "no_github_mentions")
+
+        # Verify client was called
+        self.mock_github_client.get_mentions.assert_called_once_with(
+            self.paper.doi, search_areas=["issues"]
+        )
+
+    def test_enrich_paper_with_github_mentions_preserves_existing_metadata(self):
+        """
+        Test that GitHub enrichment preserves existing metadata.
+        """
+        # Arrange
+        self.paper.external_metadata = {
+            "existing_key": "existing_value",
+            "metrics": {
+                "altmetric_score": 50.0,
+            },
+        }
+        self.paper.save()
+
+        self.mock_github_client.get_mentions.return_value = self.sample_github_response
+
+        # Act
+        result = self.service.enrich_paper_with_github_mentions(self.paper)
+
+        # Assert
+        self.assertEqual(result.status, "success")
+
+        # Verify existing metadata is preserved
+        self.paper.refresh_from_db()
+        self.assertEqual(self.paper.external_metadata["existing_key"], "existing_value")
+
+        # Verify both old and new metrics exist
+        self.assertIn("metrics", self.paper.external_metadata)
+        self.assertIn("github_mentions", self.paper.external_metadata["metrics"])
+        self.assertEqual(
+            self.paper.external_metadata["metrics"]["github_mentions"],
+            self.sample_github_response,
+        )
+
+    def test_enrich_paper_with_github_mentions_handles_api_error(self):
+        """
+        Test GitHub enrichment handles API errors gracefully.
+        """
+        # Arrange
+        self.mock_github_client.get_mentions.side_effect = Exception("D'oh!")
+
+        # Act
+        result = self.service.enrich_paper_with_github_mentions(self.paper)
+
+        # Assert
+        self.assertEqual(result.status, "error")
+        self.assertEqual(result.reason, "D'oh!")
+
+        # Verify client was called
+        self.mock_github_client.get_mentions.assert_called_once_with(
+            self.paper.doi, search_areas=["issues"]
+        )
