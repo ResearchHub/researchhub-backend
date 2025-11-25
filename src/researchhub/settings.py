@@ -905,6 +905,8 @@ else:
     )
     AWS_PERSONALIZE_TRACKING_ID = "977ca9c1-8518-4408-bb82-efaa0e744c15"
 
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", getattr(keys, "GITHUB_TOKEN", ""))
+
 SCRAPER_URL = os.environ.get("SCRAPER_URL", keys.SCRAPER_URL)
 
 # Bluesky
