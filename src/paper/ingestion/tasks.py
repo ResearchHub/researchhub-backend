@@ -132,6 +132,7 @@ def update_recent_papers_with_github_metrics(days: int = 7):
     service = PaperMetricsEnrichmentService(
         altmetric_client=None,
         altmetric_mapper=None,
+        bluesky_metrics_client=None,
         github_metrics_client=github_metrics_client,
     )
 
