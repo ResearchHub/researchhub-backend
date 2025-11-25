@@ -74,6 +74,8 @@ class DocumentQueryBuilder:
     def __init__(self, query: str):
         """Initialize builder with search query."""
         self.query = query
+        # Pre-split query terms for reuse in fuzzy-gating heuristics
+        self._query_terms: list[str] = [w for w in (query or "").split() if w]
         self.should_clauses: list[Q] = []
         self._add_doi_match_if_applicable()
 
@@ -83,6 +85,10 @@ class DocumentQueryBuilder:
         if len(words) <= max_words:
             return query
         return " ".join(words[:max_words])
+
+    # Heuristic for gating aggressive fuzzy strategies.
+    def _is_short_query(self, max_terms: int = 3) -> bool:
+        return len(self._query_terms) <= max_terms
 
     def _add_doi_match_if_applicable(self):
         """Add DOI exact match if query is a DOI."""
@@ -241,8 +247,21 @@ class DocumentQueryBuilder:
     ) -> "DocumentQueryBuilder":
         """Add fuzzy match strategy for specified fields."""
         field_list = []
+        # For longer queries, fuzzy matching on large body fields can easily
+        # overpower exact/phrase matches. We therefore:
+        #   - Restrict fuzzy on long queries to author/title fields only.
+        #   - Allow content-field fuzziness only for short queries.
+        restrict_to_author_title_only = not self._is_short_query(max_terms=4)
+        author_title_names = {f.name for f in (self.AUTHOR_FIELDS + self.TITLE_FIELDS)}
+
         for field in fields:
             if "fuzzy" in (field.query_types or []):
+                if (
+                    restrict_to_author_title_only
+                    and field.name not in author_title_names
+                ):
+                    # Skip fuzzy on content fields for longer queries.
+                    continue
                 # Fuzzy strategy uses different boosts:
                 # - Titles: 4.0 (from 5.0 base)
                 # - Authors: 2.0 (from 3.0 base)
@@ -324,19 +343,23 @@ class DocumentQueryBuilder:
                     },
                 )
             )
-            # Strategy 3: Fuzzy match for typos
-            self.should_clauses.append(
-                Q(
-                    "match",
-                    **{
-                        field.name: {
-                            "query": self.query,
-                            "fuzziness": "AUTO",
-                            "boost": field.boost * boost_multiplier * 0.3,
-                        }
-                    },
+            # Strategy 3: Fuzzy match for typos (gated)
+            if self._is_short_query(max_terms=4) and field.name not in [
+                "abstract",
+                "renderable_text",
+            ]:
+                self.should_clauses.append(
+                    Q(
+                        "match",
+                        **{
+                            field.name: {
+                                "query": self.query,
+                                "fuzziness": "AUTO",
+                                "boost": field.boost * boost_multiplier * 0.3,
+                            }
+                        },
+                    )
                 )
-            )
         return self
 
     def add_cross_field_fallback_strategy(self) -> "DocumentQueryBuilder":
@@ -356,7 +379,7 @@ class DocumentQueryBuilder:
             type="cross_fields",
             operator="or",
             fields=all_fields,
-            boost=1.5,
+            boost=0.8,
         )
         self.should_clauses.append(fallback_query)
         return self
