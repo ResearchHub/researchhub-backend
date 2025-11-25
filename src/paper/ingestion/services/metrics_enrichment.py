@@ -213,14 +213,24 @@ class PaperMetricsEnrichmentService:
 
     def _update_paper_metrics(self, paper: Paper, metrics: Dict[str, Any]) -> None:
         """
-        Update paper's external_metadata with metrics while preserving other keys.
+        Update paper's external_metadata with metrics while preserving existing metrics.
+
+        New metrics are merged with existing metrics, allowing multiple enrichment
+        sources (e.g., Altmetric and GitHub) to coexist without overwriting each other.
         """
         if paper.external_metadata is None:
             paper.external_metadata = {}
 
+        # Get existing metrics or start with empty dict
+        existing_metrics = paper.external_metadata.get("metrics", {})
+        if not isinstance(existing_metrics, dict):
+            existing_metrics = {}
+
         # Serialize and deserialize to ensure all values are JSON-safe
-        paper.external_metadata["metrics"] = json.loads(
-            json.dumps(metrics, default=str)
-        )
+        new_metrics = json.loads(json.dumps(metrics, default=str))
+
+        # Merge new metrics into existing metrics
+        existing_metrics.update(new_metrics)
+        paper.external_metadata["metrics"] = existing_metrics
 
         paper.save(update_fields=["external_metadata"])

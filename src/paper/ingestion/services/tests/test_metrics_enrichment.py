@@ -260,6 +260,7 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
             self.sample_altmetric_response,  # First paper succeeds
             None,  # Second paper not found
         ]
+        self.mock_mapper.map_metrics.return_value = self.mapped_metrics
 
         paper_ids = [self.paper.id, paper2.id]
 
@@ -339,13 +340,14 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
 
     def test_enrich_paper_with_github_mentions_preserves_existing_metadata(self):
         """
-        Test that GitHub enrichment preserves existing metadata.
+        Test that GitHub enrichment preserves existing metadata and existing metrics.
         """
         # Arrange
         self.paper.external_metadata = {
             "existing_key": "existing_value",
             "metrics": {
                 "altmetric_score": 50.0,
+                "twitter_count": 100,
             },
         }
         self.paper.save()
@@ -364,6 +366,14 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
 
         # Verify both old and new metrics exist
         self.assertIn("metrics", self.paper.external_metadata)
+
+        # Verify existing metrics are preserved (not overwritten)
+        self.assertEqual(
+            self.paper.external_metadata["metrics"]["altmetric_score"], 50.0
+        )
+        self.assertEqual(self.paper.external_metadata["metrics"]["twitter_count"], 100)
+
+        # Verify new GitHub metrics were added
         self.assertIn("github_mentions", self.paper.external_metadata["metrics"])
         self.assertEqual(
             self.paper.external_metadata["metrics"]["github_mentions"],
