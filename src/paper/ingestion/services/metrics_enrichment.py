@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from django.utils import timezone
 
-from paper.ingestion.clients import GithubMetricsClient
+from paper.ingestion.clients import BlueskyMetricsClient, GithubMetricsClient
 from paper.ingestion.clients.enrichment.altmetric import AltmetricClient
 from paper.ingestion.mappers import AltmetricMapper
 from paper.models import Paper
@@ -47,6 +47,7 @@ class PaperMetricsEnrichmentService:
         altmetric_client: AltmetricClient,
         altmetric_mapper: AltmetricMapper,
         github_metrics_client: GithubMetricsClient,
+        bluesky_metrics_client: BlueskyMetricsClient,
     ):
         """
         Constructor.
@@ -55,10 +56,12 @@ class PaperMetricsEnrichmentService:
             altmetric_client: Client for fetching Altmetric data
             altmetric_mapper: Mapper for transforming Altmetric data
             github_metrics_client: Client for fetching GitHub metrics
+            bluesky_metrics_client: Client for fetching Bluesky metrics
         """
         self.altmetric_client = altmetric_client
         self.altmetric_mapper = altmetric_mapper
         self.github_metrics_client = github_metrics_client
+        self.bluesky_metrics_client = bluesky_metrics_client
 
     def get_recent_papers_with_dois(self, days: int) -> List[int]:
         """
@@ -114,6 +117,42 @@ class PaperMetricsEnrichmentService:
 
         except Exception as e:
             logger.error(f"Error fetching GitHub mentions for paper {paper.id}: {e}")
+            return EnrichmentResult(status="error", reason=str(e))
+
+    def enrich_paper_with_bluesky(self, paper: Paper) -> EnrichmentResult:
+        """
+        Fetch Bluesky metrics for the given paper and update its external_metadata.
+
+        Args:
+            paper: Paper instance to enrich
+
+        Returns:
+            EnrichmentResult with status and details
+        """
+        if not paper.doi:
+            logger.warning(f"Paper {paper.id} has no DOI, skipping Bluesky enrichment")
+            return EnrichmentResult(status="skipped", reason="no_doi")
+
+        try:
+            result = self.bluesky_metrics_client.get_metrics(paper.doi)
+
+            if result is None:
+                logger.info(f"No Bluesky posts found for paper {paper.id}")
+                return EnrichmentResult(status="not_found", reason="no_bluesky_posts")
+
+            self._update_paper_metrics(paper, {"bluesky": result})
+
+            logger.info(
+                f"Successfully saved {result['post_count']} Bluesky posts for paper {paper.id}."
+            )
+
+            return EnrichmentResult(
+                status="success",
+                metrics={"bluesky": result},
+            )
+
+        except Exception as e:
+            logger.error(f"Error fetching Bluesky metrics for paper {paper.id}: {e}")
             return EnrichmentResult(status="error", reason=str(e))
 
     def enrich_paper_with_altmetric(self, paper: Paper) -> EnrichmentResult:
