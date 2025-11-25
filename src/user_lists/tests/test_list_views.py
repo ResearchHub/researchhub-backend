@@ -1,6 +1,7 @@
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from paper.tests.helpers import create_paper
 from researchhub_document.related_models.constants.document_type import PAPER
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -137,3 +138,47 @@ class ListViewSetTests(APITestCase):
         doc_ids = [item["unified_document_id"] for item in list_data["unified_documents"]]
         self.assertIn(doc2.id, doc_ids)
         self.assertNotIn(doc1.id, doc_ids)
+
+
+class ListSharingTests(APITestCase):
+    def setUp(self):
+        self.user = create_random_authenticated_user("user1")
+        self.other_user = create_random_authenticated_user("user2")
+        self.client.force_authenticate(user=self.user)
+
+    def test_public_list_viewing(self):
+        public_list = List.objects.create(name="Public List", created_by=self.other_user, is_public=True)
+        private_list = List.objects.create(name="Private List", created_by=self.other_user, is_public=False)
+        paper = create_paper(uploaded_by=self.other_user)
+        ListItem.objects.create(parent_list=public_list, unified_document=paper.unified_document, created_by=self.other_user)
+        
+        response = self.client.get(f"/api/list/{public_list.id}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["created_by"], self.other_user.id)
+        
+        response = self.client.get(f"/api/list/{public_list.id}/item/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 1)
+        
+        response = self.client.get(f"/api/list/{private_list.id}/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_cannot_modify_others_list(self):
+        list_obj = List.objects.create(name="Other List", created_by=self.other_user, is_public=True)
+        paper = create_paper(uploaded_by=self.user)
+        item = ListItem.objects.create(parent_list=list_obj, unified_document=paper.unified_document, created_by=self.other_user)
+        
+        self.assertEqual(self.client.patch(f"/api/list/{list_obj.id}/", {"name": "Hacked"}).status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(self.client.delete(f"/api/list/{list_obj.id}/").status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(self.client.post(f"/api/list/{list_obj.id}/item/", {"parent_list": list_obj.id, "unified_document": paper.unified_document.id}).status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(self.client.delete(f"/api/list/{list_obj.id}/item/{item.id}/").status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_list_privacy(self):
+        List.objects.create(name="My List", created_by=self.user)
+        List.objects.create(name="Other List", created_by=self.other_user)
+        
+        self.assertEqual(len(self.client.get("/api/list/").data["results"]), 1)
+        self.assertEqual(len(self.client.get("/api/list/overview/").data["lists"]), 1)
+        
+        self.client.force_authenticate(user=None)
+        self.assertEqual(self.client.get(f"/api/list/1/").status_code, status.HTTP_401_UNAUTHORIZED)

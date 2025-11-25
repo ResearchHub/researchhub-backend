@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 
+from researchhub.permissions import IsObjectOwner
 from .models import List, ListItem
 from .serializers import ListOverviewSerializer, ListSerializer, ListItemSerializer
 
@@ -22,8 +23,22 @@ class ListViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     pagination_class = ListPagination
 
+    def get_permissions(self):
+        if self.action == "retrieve":
+            return [IsAuthenticated()]
+        elif self.action in ["update", "partial_update", "destroy"]:
+            return [IsAuthenticated(), IsObjectOwner()]
+        return [IsAuthenticated()]
+
     def get_queryset(self):
-        return self.queryset.filter(created_by=self.request.user).annotate(
+        queryset = self.queryset
+        
+        if self.action == "retrieve":
+            return queryset.filter(is_public=True).annotate(
+                item_count=Count("items", filter=Q(items__is_removed=False))
+            )
+        
+        return queryset.filter(created_by=self.request.user).annotate(
             item_count=Count("items", filter=Q(items__is_removed=False))
         ).order_by("-updated_date")
 
@@ -50,16 +65,27 @@ class ListItemViewSet(CreateModelMixin, ListModelMixin, DestroyModelMixin, views
     lookup_field = 'item_id'
     lookup_url_kwarg = 'item_id'
 
+    def get_permissions(self):
+        if self.action == "list":
+            return [IsAuthenticated()]
+        return [IsAuthenticated()]
+
     def get_queryset(self):
         list_id = self.kwargs.get('list_id')
-        qs = self.queryset.filter(
-            parent_list__created_by=self.request.user
-        ).select_related(
+        user = self.request.user
+        qs = self.queryset.select_related(
             'unified_document'
         ).prefetch_related(
             'unified_document__paper',
             'unified_document__posts'
         )
+        
+        if self.action == "list":
+            qs = qs.filter(
+                Q(parent_list__is_public=True) | Q(parent_list__created_by=user)
+            )
+        else:
+            qs = qs.filter(parent_list__created_by=user)
         
         if list_id:
             qs = qs.filter(parent_list_id=list_id, unified_document__is_removed=False)
@@ -68,8 +94,15 @@ class ListItemViewSet(CreateModelMixin, ListModelMixin, DestroyModelMixin, views
 
     def list(self, request, *args, **kwargs):
         list_id = kwargs.get('list_id')
+        user = request.user
         
-        check_list_exists = List.objects.filter(id=list_id, created_by=request.user, is_removed=False).exists()
+        check_list_exists = List.objects.filter(
+            id=list_id,
+            is_removed=False
+        ).filter(
+            Q(is_public=True) | Q(created_by=user)
+        ).first()
+        
         if not check_list_exists:
             return Response({"error": "List not found"}, status=status.HTTP_404_NOT_FOUND)
         
