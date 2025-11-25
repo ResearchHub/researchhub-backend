@@ -3,9 +3,12 @@ from typing import List
 
 from rest_framework.filters import BaseFilterBackend
 
+from feed.feed_config import FEED_CONFIG
 from feed.models import FeedEntry
 from hub.models import Hub
 from personalize.config.settings import PERSONALIZE_CONFIG
+from personalize.services.feed_service import DEFAULT_NUM_RESULTS
+from utils.sentry import log_error
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +51,91 @@ class FeedFilteringBackend(BaseFilterBackend):
             content_type__in=[view._paper_content_type, view._post_content_type]
         )
 
+        # Check if aws_trending ordering is requested (it's the default)
+        ordering_param = request.query_params.get("ordering")
+        feed_config = FEED_CONFIG.get("popular", {})
+        allowed_sorts = feed_config.get("allowed_sorts", [])
+
+        # Determine effective ordering (use default if not specified or invalid)
+        if ordering_param and ordering_param in allowed_sorts:
+            effective_ordering = ordering_param
+        elif allowed_sorts:
+            effective_ordering = allowed_sorts[0]  # Default is aws_trending
+        else:
+            effective_ordering = None
+
+        # If aws_trending is requested, fetch from AWS Personalize
+        if effective_ordering == "aws_trending":
+            return self._filter_popular_with_trending(request, queryset, view)
+
+        # For hot_score or hot_score_v2, return queryset for ordering backend to handle
+        view._feed_source = "researchhub"
         return queryset
+
+    def _filter_popular_with_trending(self, request, queryset, view):
+        """
+        Fetch trending IDs from AWS Personalize and return sorted entries.
+        Falls back to queryset ordering on failure.
+        """
+        personalize_feed_service = getattr(view, "personalize_feed_service", None)
+        if not personalize_feed_service:
+            logger.warning("personalize_feed_service not available, using fallback")
+            view._feed_source = "researchhub"
+            return queryset
+
+        force_refresh_header = request.META.get("HTTP_RH_FORCE_REFRESH", "false")
+        force_refresh = force_refresh_header.lower() == "true"
+
+        try:
+            result = personalize_feed_service.get_trending_ids(
+                num_results=PERSONALIZE_CONFIG.get("num_results", DEFAULT_NUM_RESULTS),
+                force_refresh=force_refresh,
+            )
+
+            trending_ids = result.get("item_ids", [])
+
+            if not trending_ids:
+                logger.warning("No trending IDs returned, using fallback")
+                view._feed_source = "researchhub"
+                return queryset
+
+            view._feed_source = "aws"
+
+            return self._fetch_and_order_entries_for_trending(
+                trending_ids, queryset, view
+            )
+
+        except Exception as e:
+            log_error(
+                e,
+                message="AWS Personalize trending failed, falling back to hot_score_v2",
+                json_data={"feed_view": "popular", "ordering": "aws_trending"},
+            )
+            logger.error(f"Trending feed error: {e}")
+            view._feed_source = "researchhub"
+            return queryset
+
+    def _fetch_and_order_entries_for_trending(
+        self, document_ids: List[int], queryset, view
+    ) -> List[FeedEntry]:
+        """
+        Fetch and order entries based on trending document IDs.
+        Filters by the documents in the trending list and sorts in-memory.
+        """
+        position_map = {pk: pos for pos, pk in enumerate(document_ids)}
+
+        # Apply the document ID filter while preserving other queryset filters
+        entries = list(
+            queryset.filter(
+                unified_document_id__in=document_ids,
+            )
+        )
+
+        entries.sort(
+            key=lambda entry: position_map.get(entry.unified_document_id, float("inf"))
+        )
+
+        return entries
 
     def _filter_personalized(self, request, queryset, view):
         user_id = request.query_params.get("user_id")

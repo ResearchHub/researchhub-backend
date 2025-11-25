@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.urls import reverse
@@ -180,19 +182,28 @@ class PopularFeedTests(APITestCase):
         low_index = result_ids.index(self.low_score_paper.id)
         self.assertLess(high_index, low_index)
 
-    def test_popular_defaults_to_hot_score_v2(self):
+    @patch(
+        "personalize.clients.recommendation_client"
+        ".RecommendationClient.get_trending_items"
+    )
+    def test_popular_defaults_to_aws_trending(self, mock_get_trending):
+        """Test that popular feed defaults to aws_trending ordering."""
+        doc_ids = [
+            self.high_score_entry.unified_document_id,
+            self.medium_score_entry.unified_document_id,
+            self.low_score_entry.unified_document_id,
+        ]
+        mock_get_trending.return_value = {
+            "item_ids": doc_ids,
+            "recommendation_id": "test-trending-id",
+        }
         url = reverse("feed-list")
 
         response = self.client.get(url, {"feed_view": "popular"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        results = response.data["results"]
-        self.assertGreaterEqual(len(results), 2)
-
-        if len(results) >= 2:
-            first_score = results[0].get("hot_score_v2", 0)
-            second_score = results[1].get("hot_score_v2", 0)
-            self.assertGreaterEqual(first_score, second_score)
+        mock_get_trending.assert_called_once()
+        self.assertEqual(response.get("X-Feed-Source"), "aws")
 
     def test_popular_rejects_latest_ordering(self):
         url = reverse("feed-list")
@@ -228,3 +239,184 @@ class PopularFeedTests(APITestCase):
         self.assertIn(self.medium_score_post.id, popular_result_ids)
         self.assertIn("PAPER", popular_content_types)
         self.assertIn("RESEARCHHUBPOST", popular_content_types)
+
+    def test_popular_with_hot_score_v2_ordering_skips_aws(self):
+        url = reverse("feed-list")
+
+        response = self.client.get(
+            url, {"feed_view": "popular", "ordering": "hot_score_v2"}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should have X-Feed-Source header as "researchhub"
+        self.assertEqual(response.get("X-Feed-Source"), "researchhub")
+
+    def test_popular_with_hot_score_ordering_skips_aws(self):
+        url = reverse("feed-list")
+
+        response = self.client.get(
+            url, {"feed_view": "popular", "ordering": "hot_score"}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.get("X-Feed-Source"), "researchhub")
+
+    @patch(
+        "personalize.clients.recommendation_client"
+        ".RecommendationClient.get_trending_items"
+    )
+    def test_popular_fallback_on_aws_error(self, mock_get_trending):
+        mock_get_trending.side_effect = Exception("AWS Error")
+        url = reverse("feed-list")
+
+        response = self.client.get(url, {"feed_view": "popular"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.get("X-Feed-Source"), "researchhub")
+        # Results should still be returned, ordered by hot_score_v2
+        self.assertGreaterEqual(len(response.data["results"]), 1)
+
+    @patch(
+        "personalize.clients.recommendation_client"
+        ".RecommendationClient.get_trending_items"
+    )
+    def test_popular_fallback_on_empty_trending_ids(self, mock_get_trending):
+        mock_get_trending.return_value = {"item_ids": [], "recommendation_id": None}
+        url = reverse("feed-list")
+
+        response = self.client.get(url, {"feed_view": "popular"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.get("X-Feed-Source"), "researchhub")
+
+    @patch(
+        "personalize.clients.recommendation_client"
+        ".RecommendationClient.get_trending_items"
+    )
+    def test_popular_x_feed_source_header_aws(self, mock_get_trending):
+        doc_ids = [
+            self.high_score_entry.unified_document_id,
+            self.medium_score_entry.unified_document_id,
+            self.low_score_entry.unified_document_id,
+        ]
+        mock_get_trending.return_value = {
+            "item_ids": doc_ids,
+            "recommendation_id": "test-trending-id",
+        }
+        url = reverse("feed-list")
+
+        response = self.client.get(url, {"feed_view": "popular"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.get("X-Feed-Source"), "aws")
+
+    @patch(
+        "personalize.clients.recommendation_client"
+        ".RecommendationClient.get_trending_items"
+    )
+    def test_popular_trending_preserves_aws_order(self, mock_get_trending):
+        ordered_doc_ids = [
+            self.low_score_entry.unified_document_id,
+            self.medium_score_entry.unified_document_id,
+            self.high_score_entry.unified_document_id,
+        ]
+        mock_get_trending.return_value = {
+            "item_ids": ordered_doc_ids,
+            "recommendation_id": "test-trending-id",
+        }
+        url = reverse("feed-list")
+
+        response = self.client.get(url, {"feed_view": "popular"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.data["results"]
+        result_doc_ids = []
+        for r in results:
+            # unified_document_id may be at top level or nested in content_object
+            doc_id = r.get("unified_document_id")
+            if doc_id is None and "content_object" in r:
+                doc_id = r["content_object"].get("unified_document_id")
+            result_doc_ids.append(doc_id)
+
+        # Verify order matches AWS response (low, medium, high)
+        low_idx = result_doc_ids.index(self.low_score_entry.unified_document_id)
+        medium_idx = result_doc_ids.index(self.medium_score_entry.unified_document_id)
+        high_idx = result_doc_ids.index(self.high_score_entry.unified_document_id)
+        self.assertLess(low_idx, medium_idx)
+        self.assertLess(medium_idx, high_idx)
+
+    @patch(
+        "personalize.clients.recommendation_client"
+        ".RecommendationClient.get_trending_items"
+    )
+    def test_popular_trending_pagination(self, mock_get_trending):
+        # Create more entries for pagination testing
+        doc_ids = []
+
+        for i in range(50):
+            doc = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
+            doc.hubs.add(self.hub1)
+            paper = Paper.objects.create(
+                title=f"Pagination Paper {i}",
+                paper_publish_date=timezone.now(),
+                unified_document=doc,
+            )
+            entry = FeedEntry.objects.create(
+                action="PUBLISH",
+                action_date=timezone.now(),
+                content_type=self.paper_content_type,
+                object_id=paper.id,
+                unified_document=doc,
+                hot_score=i,
+                hot_score_v2=i,
+                content={},
+                metrics={},
+            )
+            entry.hubs.add(self.hub1)
+            doc_ids.append(doc.id)
+
+        mock_get_trending.return_value = {
+            "item_ids": doc_ids,
+            "recommendation_id": "test-trending-id",
+        }
+        url = reverse("feed-list")
+
+        def get_doc_ids(results):
+            doc_ids = set()
+            for r in results:
+                doc_id = r.get("unified_document_id")
+                if doc_id is None and "content_object" in r:
+                    doc_id = r["content_object"].get("unified_document_id")
+                if doc_id:
+                    doc_ids.add(doc_id)
+            return doc_ids
+
+        # Get page 1
+        response1 = self.client.get(url, {"feed_view": "popular", "page": 1})
+        self.assertEqual(response1.status_code, status.HTTP_200_OK)
+        page1_ids = get_doc_ids(response1.data["results"])
+
+        # Get page 2
+        response2 = self.client.get(url, {"feed_view": "popular", "page": 2})
+        self.assertEqual(response2.status_code, status.HTTP_200_OK)
+        page2_ids = get_doc_ids(response2.data["results"])
+
+        # Pages should not overlap
+        self.assertEqual(len(page1_ids & page2_ids), 0)
+
+    @patch("feed.filtering.log_error")
+    @patch(
+        "personalize.clients.recommendation_client"
+        ".RecommendationClient.get_trending_items"
+    )
+    def test_popular_fallback_logs_to_sentry(self, mock_get_trending, mock_log_error):
+        """Test that AWS errors are logged to Sentry."""
+        mock_get_trending.side_effect = Exception("AWS Connection Error")
+        url = reverse("feed-list")
+
+        response = self.client.get(url, {"feed_view": "popular"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mock_log_error.assert_called_once()
+        call_args = mock_log_error.call_args
+        self.assertIn("AWS Personalize", call_args[1].get("message", ""))

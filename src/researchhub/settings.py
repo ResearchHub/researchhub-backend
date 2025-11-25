@@ -888,6 +888,9 @@ if PRODUCTION:
         "event-tracker/48c238fc-6fa4-4bcb-80ab-cc0edf063ab8"
     )
     AWS_PERSONALIZE_TRACKING_ID = "48c238fc-6fa4-4bcb-80ab-cc0edf063ab8"
+    AWS_PERSONALIZE_TRENDING_CAMPAIGN_ARN = (
+        "arn:aws:personalize:us-west-2:975049929542:campaign/trending"
+    )
 else:
     AWS_PERSONALIZE_CAMPAIGN_ARN = (
         "arn:aws:personalize:us-west-2:058264226692:campaign/Personalization"
@@ -904,6 +907,9 @@ else:
         "event-tracker/977ca9c1-8518-4408-bb82-efaa0e744c15"
     )
     AWS_PERSONALIZE_TRACKING_ID = "977ca9c1-8518-4408-bb82-efaa0e744c15"
+    AWS_PERSONALIZE_TRENDING_CAMPAIGN_ARN = (
+        "arn:aws:personalize:us-west-2:058264226692:campaign/trending"
+    )
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", getattr(keys, "GITHUB_TOKEN", ""))
 

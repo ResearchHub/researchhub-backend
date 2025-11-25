@@ -125,4 +125,11 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
         response["RH-Cache"] = "miss" + (
             " (auth)" if request.user.is_authenticated else ""
         )
+
+        # Add feed source header for popular feed
+        if feed_view == "popular":
+            feed_source = getattr(self, "_feed_source", None)
+            if feed_source:
+                response["X-Feed-Source"] = feed_source
+
         return response
