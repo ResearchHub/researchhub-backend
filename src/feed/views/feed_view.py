@@ -46,9 +46,7 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
         if feed_view == "personalized":
             return self._get_personalized_response(request)
 
-        feed_config = FEED_CONFIG.get(feed_view, {})
-        use_cache = self._get_cache_setting_for_feed(request, feed_config)
-        return self._get_cached_response(request, feed_view, use_cache)
+        return self._get_feed_response(request, feed_view)
 
     def _get_personalized_response(self, request):
         """Handle personalized feed with partial caching."""
@@ -65,22 +63,11 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
         response["RH-Cache"] = self._with_auth_suffix(request, cache_status)
         return response
 
-    def _get_cached_response(self, request, feed_view, use_cache_config):
-        """Handle cacheable feeds (popular, following)."""
-        page_num = int(request.query_params.get("page", "1"))
+    def _get_feed_response(self, request, feed_view):
+        """Handle feed response with optional caching."""
+        feed_config = FEED_CONFIG.get(feed_view, {})
+        use_cache = self._should_use_cache(request, feed_config)
         cache_key = self.get_cache_key(request, feed_type="researchhub")
-        num_pages_to_cache = FEED_DEFAULTS["cache"]["num_pages_to_cache"]
-
-        disable_cache_token = request.query_params.get("disable_cache")
-        force_disable_cache = disable_cache_token == settings.HEALTH_CHECK_TOKEN
-        cache_enabled = settings.TESTING or settings.CLOUD
-
-        use_cache = (
-            not force_disable_cache
-            and cache_enabled
-            and use_cache_config
-            and page_num <= num_pages_to_cache
-        )
 
         # Try cache first
         if use_cache:
@@ -105,9 +92,30 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
         self._add_feed_source_header(response, feed_view)
         return response
 
-    def _get_cache_setting_for_feed(self, request, feed_config):
+    def _should_use_cache(self, request, feed_config):
+        # Feed/ordering config check
+        if not self._feed_allows_caching(request, feed_config):
+            return False
+
+        # Environment check
+        if not (settings.TESTING or settings.CLOUD):
+            return False
+
+        # Health check override
+        disable_token = request.query_params.get("disable_cache")
+        if disable_token == settings.HEALTH_CHECK_TOKEN:
+            return False
+
+        # Page limit check
+        page_num = int(request.query_params.get("page", "1"))
+        if page_num > FEED_DEFAULTS["cache"]["num_pages_to_cache"]:
+            return False
+
+        return True
+
+    def _feed_allows_caching(self, request, feed_config):
         """
-        Determine cache setting based on feed type and ordering.
+        Check if feed type/ordering allows caching (from config).
 
         - aws_trending: No full-page cache (IDs cached separately in FeedService)
         - hot_score_v2/hot_score: Full-page cache enabled
