@@ -128,10 +128,8 @@ class Command(BaseCommand):
                         ending="\r",
                     )
             except ValueError as e:
-                # Skip votes with missing required data
                 skipped += 1
-                if skipped <= 10:  # Only show first 10 warnings
-                    self.stdout.write(self.style.WARNING(f"\nSkipping vote: {e}"))
+                self.stdout.write(self.style.WARNING(f"\nSkipping vote: {e}"))
                 continue
             except Exception as e:
                 self.stdout.write(self.style.ERROR(f"\nUnexpected error: {e}"))
@@ -179,10 +177,8 @@ class Command(BaseCommand):
                         ending="\r",
                     )
             except (ValueError, AttributeError, TypeError) as e:
-                # Skip comments with missing required data or attributes
                 skipped += 1
-                if skipped <= 10:  # Only show first 10 warnings
-                    self.stdout.write(self.style.WARNING(f"\nSkipping comment: {e}"))
+                self.stdout.write(self.style.WARNING(f"\nSkipping comment: {e}"))
                 continue
             except Exception as e:
                 self.stdout.write(self.style.ERROR(f"\nUnexpected error: {e}"))

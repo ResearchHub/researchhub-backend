@@ -19,7 +19,11 @@ def create_upvote_interaction_task(vote_id):
         logger.error(f"Vote {vote_id} not found")
         return
 
-    if vote.vote_type != Vote.UPVOTE or not vote.created_by_id:
+    if vote.vote_type != Vote.UPVOTE:
+        return
+
+    if not vote.created_by_id:
+        logger.warning(f"Vote {vote_id} missing created_by_id")
         return
 
     try:
@@ -28,6 +32,7 @@ def create_upvote_interaction_task(vote_id):
         return
 
     if not unified_doc:
+        logger.warning(f"Vote {vote_id} missing unified_document")
         return
 
     # Skip self-upvotes
@@ -60,6 +65,7 @@ def create_comment_interaction_task(comment_id):
         return
 
     if not comment.created_by_id or not comment.unified_document:
+        logger.warning(f"Comment {comment_id} missing required fields")
         return
 
     try:
