@@ -42,7 +42,7 @@ class BlueskyClient:
         self.authenticated = False
         self._authenticate()
 
-    def _authenticate(self) -> bool:
+    def _authenticate(self):
         """
         Authenticate with Bluesky and obtain an access token.
 
