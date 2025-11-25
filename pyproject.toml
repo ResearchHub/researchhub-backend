@@ -56,6 +56,7 @@ dependencies = [
     "sentry-sdk==1.45.1",
     "stripe>=11.2.0,<12.0.0",
     "web3[tester]==7.10.0",
+    "atproto>=0.0.63",
 ]
 
 [dependency-groups]
