@@ -46,8 +46,8 @@ class PaperMetricsEnrichmentService:
         self,
         altmetric_client: AltmetricClient,
         altmetric_mapper: AltmetricMapper,
-        github_metrics_client: GithubMetricsClient,
         bluesky_metrics_client: BlueskyMetricsClient,
+        github_metrics_client: GithubMetricsClient,
     ):
         """
         Constructor.
