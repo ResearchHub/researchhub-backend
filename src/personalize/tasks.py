@@ -64,8 +64,14 @@ def create_comment_interaction_task(comment_id):
         logger.error(f"Comment {comment_id} not found")
         return
 
-    if not comment.created_by_id or not comment.unified_document:
-        logger.warning(f"Comment {comment_id} missing required fields")
+    if not comment.created_by_id:
+        logger.warning(f"Comment {comment_id} missing created_by_id")
+        return
+
+    try:
+        unified_doc = comment.unified_document
+    except Exception:
+        logger.warning(f"Comment {comment_id} missing unified_document")
         return
 
     try:
