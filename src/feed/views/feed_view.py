@@ -49,7 +49,6 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
         return self._get_feed_response(request, feed_view)
 
     def _get_personalized_response(self, request):
-        """Handle personalized feed with partial caching."""
         response = super(FeedViewSet, self).list(request)
 
         if request.user.is_authenticated:
@@ -64,7 +63,6 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
         return response
 
     def _get_feed_response(self, request, feed_view):
-        """Handle feed response with optional caching."""
         feed_config = FEED_CONFIG.get(feed_view, {})
         use_cache = self._should_use_cache(request, feed_config)
         cache_key = self.get_cache_key(request, feed_type="researchhub")
