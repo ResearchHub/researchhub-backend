@@ -51,28 +51,19 @@ class FeedFilteringBackend(BaseFilterBackend):
             content_type__in=[view._paper_content_type, view._post_content_type]
         )
 
-        # Check if aws_trending ordering is requested (it's the default)
-        ordering_param = request.query_params.get("ordering")
-        feed_config = FEED_CONFIG.get("popular", {})
-        allowed_sorts = feed_config.get("allowed_sorts", [])
+        ordering = request.query_params.get("ordering")
+        allowed_sorts = FEED_CONFIG.get("popular", {}).get("allowed_sorts", [])
+        default = allowed_sorts[0] if allowed_sorts else None
+        effective_ordering = ordering if ordering in allowed_sorts else default
 
-        # Determine effective ordering (use default if not specified or invalid)
-        if ordering_param and ordering_param in allowed_sorts:
-            effective_ordering = ordering_param
-        elif allowed_sorts:
-            effective_ordering = allowed_sorts[0]  # Default is aws_trending
-        else:
-            effective_ordering = None
-
-        # If aws_trending is requested, fetch from AWS Personalize
         if effective_ordering == "aws_trending":
-            return self._filter_popular_with_trending(request, queryset, view)
+            return self._filter_popular_with_aws_trending(request, queryset, view)
 
         # For hot_score or hot_score_v2, return queryset for ordering backend to handle
         view._feed_source = "researchhub"
         return queryset
 
-    def _filter_popular_with_trending(self, request, queryset, view):
+    def _filter_popular_with_aws_trending(self, request, queryset, view):
         """
         Fetch trending IDs from AWS Personalize and return sorted entries.
         Falls back to queryset ordering on failure.

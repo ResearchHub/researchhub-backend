@@ -10,12 +10,10 @@ class FeedOrderingBackend(BaseFilterBackend):
         if feed_view == "personalized":
             return queryset
 
-        # Check if popular feed was already sorted by AWS Personalize
         # If _feed_source is "aws", filtering already handled sorting in-memory
         feed_source = getattr(view, "_feed_source", None)
 
         if feed_view == "popular" and feed_source == "aws":
-            # Already sorted by filtering backend via in-memory sort
             return queryset
 
         # If researchhub (fallback), use hot_score_v2 ordering
