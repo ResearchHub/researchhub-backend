@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from django.utils import timezone
 
+from paper.ingestion.clients import GithubMetricsClient
 from paper.ingestion.clients.enrichment.altmetric import AltmetricClient
 from paper.ingestion.mappers import AltmetricMapper
 from paper.models import Paper
@@ -45,6 +46,7 @@ class PaperMetricsEnrichmentService:
         self,
         altmetric_client: AltmetricClient,
         altmetric_mapper: AltmetricMapper,
+        github_metrics_client: GithubMetricsClient,
     ):
         """
         Constructor.
@@ -52,9 +54,11 @@ class PaperMetricsEnrichmentService:
         Args:
             altmetric_client: Client for fetching Altmetric data
             altmetric_mapper: Mapper for transforming Altmetric data
+            github_metrics_client: Client for fetching GitHub metrics
         """
         self.altmetric_client = altmetric_client
         self.altmetric_mapper = altmetric_mapper
+        self.github_metrics_client = github_metrics_client
 
     def get_recent_papers_with_dois(self, days: int) -> List[int]:
         """
@@ -73,6 +77,44 @@ class PaperMetricsEnrichmentService:
             .values_list("id", flat=True)
         )
         return list(paper_ids)
+
+    def enrich_paper_with_github_mentions(self, paper: Paper) -> EnrichmentResult:
+        """
+        Fetch GitHub mention metrics for the given paper and update its
+        external_metadata.
+
+        Args:
+            paper: Paper instance to enrich
+        Returns:
+            EnrichmentResult with status and details
+        """
+        if not paper.doi:
+            logger.warning(f"Paper {paper.id} has no DOI, skipping GitHub enrichment")
+            return EnrichmentResult(status="skipped", reason="no_doi")
+
+        try:
+            result = self.github_metrics_client.get_mentions(
+                paper.doi, search_areas=["issues"]
+            )
+
+            if result is None:
+                logger.info(f"No GitHub mentions found for paper {paper.id}")
+                return EnrichmentResult(status="not_found", reason="no_github_mentions")
+
+            self._update_paper_metrics(paper, {"github_mentions": result})
+
+            logger.info(
+                f"Successfully saved {result['total_mentions']} mentions for paper {paper.id}."
+            )
+
+            return EnrichmentResult(
+                status="success",
+                metrics={"github_mentions": result},
+            )
+
+        except Exception as e:
+            logger.error(f"Error fetching GitHub mentions for paper {paper.id}: {e}")
+            return EnrichmentResult(status="error", reason=str(e))
 
     def enrich_paper_with_altmetric(self, paper: Paper) -> EnrichmentResult:
         """
