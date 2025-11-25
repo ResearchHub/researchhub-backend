@@ -2,14 +2,16 @@ import csv
 from datetime import datetime
 from typing import List, Optional
 
+from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.db.models import QuerySet
 
 from analytics.constants.event_types import EVENT_WEIGHTS
-from analytics.interactions.interaction_mapper import map_from_upvote
+from analytics.interactions.interaction_mapper import map_from_comment, map_from_upvote
 from analytics.models import UserInteractions
 from discussion.models import Vote
+from researchhub_comment.models import RhCommentModel
 
 
 class Command(BaseCommand):
@@ -20,6 +22,12 @@ class Command(BaseCommand):
             "--mode",
             required=True,
             choices=["import", "export"],
+        )
+        parser.add_argument(
+            "--source",
+            choices=["votes", "comments", "all"],
+            default="all",
+            help="Source of interactions to import (default: all)",
         )
         parser.add_argument("--start-date", help="YYYY-MM-DD (UTC)")
         parser.add_argument("--end-date", help="YYYY-MM-DD (UTC)")
@@ -33,6 +41,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         mode = options["mode"]
+        source = options.get("source", "all")
         start_date = self._parse_date(options.get("start_date"))
         end_date = self._parse_date(options.get("end_date"))
 
@@ -40,7 +49,7 @@ class Command(BaseCommand):
             raise CommandError("start-date must be before end-date")
 
         if mode == "import":
-            self.handle_import(start_date, end_date, options["batch_size"])
+            self.handle_import(start_date, end_date, options["batch_size"], source)
         else:
             self.handle_export(start_date, end_date, options["mark_synced"])
 
@@ -49,17 +58,57 @@ class Command(BaseCommand):
         start_date: Optional[datetime],
         end_date: Optional[datetime],
         batch_size: int,
+        source: str = "all",
     ):
         """Import Interactions from source models into UserInteractions table."""
 
-        self.stdout.write("Importing interactions...")
+        self.stdout.write(f"Importing interactions from source: {source}...")
 
+        total_processed = 0
+        total_created = 0
+        total_skipped = 0
+
+        # Import from votes
+        if source in ["votes", "all"]:
+            self.stdout.write("Processing votes...")
+            processed, created, skipped = self._import_from_votes(
+                start_date, end_date, batch_size
+            )
+            total_processed += processed
+            total_created += created
+            total_skipped += skipped
+
+        # Import from comments
+        if source in ["comments", "all"]:
+            self.stdout.write("Processing comments...")
+            processed, created, skipped = self._import_from_comments(
+                start_date, end_date, batch_size
+            )
+            total_processed += processed
+            total_created += created
+            total_skipped += skipped
+
+        skipped_msg = f", {total_skipped} skipped" if total_skipped else ""
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"\nImport complete: {total_processed} processed, "
+                f"{total_created} created{skipped_msg}"
+            )
+        )
+
+    def _import_from_votes(
+        self,
+        start_date: Optional[datetime],
+        end_date: Optional[datetime],
+        batch_size: int,
+    ) -> tuple:
+        """Import interactions from Vote model."""
         queryset = self._get_upvote_queryset(start_date, end_date)
         total = queryset.count()
 
         if total == 0:
-            self.stdout.write(self.style.WARNING("No records found"))
-            return
+            self.stdout.write(self.style.WARNING("No vote records found"))
+            return 0, 0, 0
 
         processed = 0
         created = 0
@@ -75,15 +124,13 @@ class Command(BaseCommand):
                     created += self._insert_batch(batch)
                     batch = []
                     self.stdout.write(
-                        f"Progress: {processed}/{total} "
+                        f"Votes Progress: {processed}/{total} "
                         f"({created} created, {skipped} skipped)",
                         ending="\r",
                     )
             except ValueError as e:
-                # Skip votes with missing required data
                 skipped += 1
-                if skipped <= 10:  # Only show first 10 warnings
-                    self.stdout.write(self.style.WARNING(f"\nSkipping: {e}"))
+                self.stdout.write(self.style.WARNING(f"\nSkipping vote: {e}"))
                 continue
             except Exception as e:
                 self.stdout.write(self.style.ERROR(f"\nUnexpected error: {e}"))
@@ -93,11 +140,62 @@ class Command(BaseCommand):
             created += self._insert_batch(batch)
 
         self.stdout.write(
-            self.style.SUCCESS(
-                f"\nImport complete: {processed} processed, {created} created"
-                + (f", {skipped} skipped" if skipped else "")
-            )
+            f"\nVotes: {processed} processed, {created} created"
+            + (f", {skipped} skipped" if skipped else "")
         )
+        return processed, created, skipped
+
+    def _import_from_comments(
+        self,
+        start_date: Optional[datetime],
+        end_date: Optional[datetime],
+        batch_size: int,
+    ) -> tuple:
+        """Import interactions from RhCommentModel."""
+        queryset = self._get_comment_queryset(start_date, end_date)
+        total = queryset.count()
+
+        if total == 0:
+            self.stdout.write(self.style.WARNING("No comment records found"))
+            return 0, 0, 0
+
+        # Fetch ContentType once for all comments to avoid N queries
+        comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
+
+        processed = 0
+        created = 0
+        skipped = 0
+        batch = []
+
+        for comment in queryset.iterator():
+            try:
+                batch.append(map_from_comment(comment, comment_content_type))
+                processed += 1
+
+                if len(batch) >= batch_size:
+                    created += self._insert_batch(batch)
+                    batch = []
+                    self.stdout.write(
+                        f"Comments Progress: {processed}/{total} "
+                        f"({created} created, {skipped} skipped)",
+                        ending="\r",
+                    )
+            except (ValueError, AttributeError, TypeError) as e:
+                skipped += 1
+                self.stdout.write(self.style.WARNING(f"\nSkipping comment: {e}"))
+                continue
+            except Exception as e:
+                self.stdout.write(self.style.ERROR(f"\nUnexpected error: {e}"))
+                continue
+
+        if batch:
+            created += self._insert_batch(batch)
+
+        self.stdout.write(
+            f"\nComments: {processed} processed, {created} created"
+            + (f", {skipped} skipped" if skipped else "")
+        )
+        return processed, created, skipped
 
     def handle_export(
         self,
@@ -215,6 +313,16 @@ class Command(BaseCommand):
         queryset = Vote.objects.select_related("created_by").filter(
             vote_type=Vote.UPVOTE
         )
+        if start_date:
+            queryset = queryset.filter(created_date__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(created_date__lte=end_date)
+        return queryset
+
+    def _get_comment_queryset(
+        self, start_date: Optional[datetime], end_date: Optional[datetime]
+    ) -> QuerySet:
+        queryset = RhCommentModel.objects.select_related("created_by")
         if start_date:
             queryset = queryset.filter(created_date__gte=start_date)
         if end_date:

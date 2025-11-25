@@ -6,6 +6,7 @@ class PersonalizeConfig(AppConfig):
     name = "personalize"
 
     def ready(self):
+        import personalize.signals.comment_signals  # noqa: F401
+        import personalize.signals.interaction_signals  # noqa: F401
         import personalize.signals.paper_signals  # noqa: F401
         import personalize.signals.vote_signals  # noqa: F401
-        import personalize.signals.interaction_signals  # noqa: F401

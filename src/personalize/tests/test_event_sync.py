@@ -5,17 +5,32 @@ import pytz
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase, override_settings
 
-from analytics.constants.event_types import FEED_ITEM_CLICK, PAGE_VIEW, UPVOTE
+from analytics.constants.event_types import (
+    COMMENT_CREATED,
+    FEED_ITEM_CLICK,
+    PAGE_VIEW,
+    PEER_REVIEW_CREATED,
+    UPVOTE,
+)
+from analytics.interactions.interaction_mapper import map_from_comment
 from analytics.models import UserInteractions
 from analytics.services.event_processor import EventProcessor
 from analytics.tests.helpers import create_prefetched_paper
 from discussion.models import Vote
 from personalize.clients.sync_client import SyncClient
-from personalize.tasks import create_upvote_interaction_task
+from personalize.tasks import (
+    create_comment_interaction_task,
+    create_upvote_interaction_task,
+)
 from personalize.utils.personalize_utils import (
     build_session_id_for_anonymous,
     build_session_id_for_user,
 )
+from researchhub_comment.constants.rh_comment_thread_types import (
+    COMMUNITY_REVIEW,
+    GENERIC_COMMENT,
+)
+from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_document.helpers import create_post
 from user.tests.helpers import create_random_default_user
 
@@ -467,3 +482,184 @@ class UpvoteInteractionTaskTests(TestCase):
         self.assertEqual(interaction.user, self.user)
         self.assertEqual(interaction.event, UPVOTE)
         self.assertEqual(interaction.unified_document, other_post.unified_document)
+
+
+class CommentInteractionTaskTests(TestCase):
+    def setUp(self):
+        self.user = create_random_default_user("comment_task_test_user")
+        self.post_owner = create_random_default_user("post_owner_user")
+        self.post = create_post(created_by=self.post_owner)
+
+    def _create_comment(self, comment_type=GENERIC_COMMENT, created_by=None):
+        """Helper to create a comment on the post."""
+        if created_by is None:
+            created_by = self.user
+
+        thread, _ = RhCommentThreadModel.objects.get_or_create(
+            content_type=ContentType.objects.get_for_model(self.post),
+            object_id=self.post.id,
+            defaults={"created_by": created_by},
+        )
+
+        comment = RhCommentModel.objects.create(
+            created_by=created_by,
+            thread=thread,
+            comment_type=comment_type,
+            comment_content_json={"ops": [{"insert": "Test comment"}]},
+        )
+        return comment
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("personalize.signals.comment_signals.create_comment_interaction_task")
+    @patch("personalize.signals.interaction_signals.sync_interaction_to_personalize")
+    def test_create_comment_interaction_task_creates_comment_user_interaction(
+        self, mock_sync_signal, mock_comment_signal
+    ):
+        comment = self._create_comment(comment_type=GENERIC_COMMENT)
+
+        initial_count = UserInteractions.objects.count()
+        create_comment_interaction_task(comment.id)
+        final_count = UserInteractions.objects.count()
+
+        self.assertEqual(final_count, initial_count + 1)
+
+        interaction = UserInteractions.objects.latest("created_date")
+        self.assertEqual(interaction.user, self.user)
+        self.assertEqual(interaction.event, COMMENT_CREATED)
+        self.assertEqual(interaction.unified_document, self.post.unified_document)
+        self.assertEqual(
+            interaction.content_type, ContentType.objects.get_for_model(RhCommentModel)
+        )
+        self.assertEqual(interaction.object_id, comment.id)
+        self.assertFalse(interaction.is_synced_with_personalize)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("personalize.signals.comment_signals.create_comment_interaction_task")
+    @patch("personalize.signals.interaction_signals.sync_interaction_to_personalize")
+    def test_create_comment_interaction_task_creates_peer_review_user_interaction(
+        self, mock_sync_signal, mock_comment_signal
+    ):
+        comment = self._create_comment(comment_type=COMMUNITY_REVIEW)
+
+        initial_count = UserInteractions.objects.count()
+        create_comment_interaction_task(comment.id)
+        final_count = UserInteractions.objects.count()
+
+        self.assertEqual(final_count, initial_count + 1)
+
+        interaction = UserInteractions.objects.latest("created_date")
+        self.assertEqual(interaction.user, self.user)
+        self.assertEqual(interaction.event, PEER_REVIEW_CREATED)
+        self.assertEqual(interaction.unified_document, self.post.unified_document)
+        self.assertEqual(
+            interaction.content_type, ContentType.objects.get_for_model(RhCommentModel)
+        )
+        self.assertEqual(interaction.object_id, comment.id)
+        self.assertFalse(interaction.is_synced_with_personalize)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("personalize.signals.comment_signals.create_comment_interaction_task")
+    @patch("personalize.signals.interaction_signals.sync_interaction_to_personalize")
+    def test_create_comment_interaction_task_is_idempotent(
+        self, mock_sync_signal, mock_comment_signal
+    ):
+        comment = self._create_comment()
+
+        create_comment_interaction_task(comment.id)
+        initial_count = UserInteractions.objects.count()
+
+        # Call again - should not create duplicate
+        create_comment_interaction_task(comment.id)
+        final_count = UserInteractions.objects.count()
+
+        self.assertEqual(final_count, initial_count)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    def test_create_comment_interaction_task_handles_missing_comment(self):
+        initial_count = UserInteractions.objects.count()
+        create_comment_interaction_task(99999)
+        final_count = UserInteractions.objects.count()
+
+        self.assertEqual(final_count, initial_count)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    def test_create_comment_interaction_task_handles_none_unified_document(self):
+        comment = self._create_comment()
+
+        # Mock unified_document property to return None
+        with patch.object(
+            RhCommentModel, "unified_document", new_callable=PropertyMock
+        ) as mock_unified_doc:
+            mock_unified_doc.return_value = None
+
+            initial_count = UserInteractions.objects.count()
+            create_comment_interaction_task(comment.id)
+            final_count = UserInteractions.objects.count()
+
+            self.assertEqual(final_count, initial_count)
+
+    def test_map_from_comment_raises_exception_on_unified_doc_error(self):
+        """Test that mapper raises exception when unified_document property fails."""
+
+        comment = self._create_comment()
+
+        # Mock unified_document to raise an exception
+        with patch.object(
+            RhCommentModel, "unified_document", new_callable=PropertyMock
+        ) as mock_unified_doc:
+            mock_unified_doc.side_effect = Exception("Database error")
+
+            with self.assertRaises(Exception) as context:
+                map_from_comment(comment)
+
+            self.assertIn("Database error", str(context.exception))
+
+    def test_map_from_comment_raises_on_missing_attributes(self):
+        """Test that mapper raises AttributeError when comment lacks attributes."""
+
+        # Create a mock object without the created_date attribute
+        mock_comment = Mock(spec=[])  # Empty spec means no attributes
+        mock_comment.id = 999
+        mock_comment.comment_type = GENERIC_COMMENT
+        mock_comment.created_by = None
+        mock_comment.unified_document = None
+        # Don't set created_date - this will raise AttributeError
+
+        with self.assertRaises(AttributeError):
+            map_from_comment(mock_comment)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("personalize.tasks.log_error")
+    @patch("personalize.tasks.map_from_comment")
+    def test_create_comment_interaction_task_logs_mapper_exceptions_to_sentry(
+        self, mock_map, mock_log_error
+    ):
+        """Test that task catches mapper exceptions and logs them to Sentry."""
+        comment = self._create_comment()
+
+        # Make mapper raise an exception
+        mock_map.side_effect = Exception("Mapper failed unexpectedly")
+
+        # Task should catch exception, log to Sentry, and re-raise
+        with self.assertRaises(Exception) as context:
+            create_comment_interaction_task(comment.id)
+
+        # Verify the exception message
+        self.assertIn("Mapper failed unexpectedly", str(context.exception))
+
+        # Verify log_error was called to log to Sentry
+        mock_log_error.assert_called_once()
+        call_args = mock_log_error.call_args
+
+        # First argument should be the exception
+        self.assertIsInstance(call_args[0][0], Exception)
+        self.assertIn("Mapper failed unexpectedly", str(call_args[0][0]))
+
+        # Should have a message keyword argument with comment_id
+        self.assertIn("message", call_args[1])
+        self.assertIn(str(comment.id), call_args[1]["message"])
+
+        # No UserInteraction should have been created
+        interactions = UserInteractions.objects.filter(object_id=comment.id)
+        self.assertEqual(interactions.count(), 0)
+        self.assertEqual(interactions.count(), 0)

@@ -2,10 +2,16 @@
 Functional mappers for converting source records to UserInteractions.
 """
 
-from analytics.constants.event_types import UPVOTE
+from typing import Optional
+
+from django.contrib.contenttypes.models import ContentType
+
+from analytics.constants.event_types import COMMENT_CREATED, PEER_REVIEW_CREATED, UPVOTE
 from analytics.interactions.amplitude_event_parser import AmplitudeEvent
 from analytics.models import UserInteractions
 from discussion.models import Vote
+from researchhub_comment.constants.rh_comment_thread_types import COMMUNITY_REVIEW
+from researchhub_comment.models import RhCommentModel
 
 
 def map_from_upvote(vote: Vote) -> UserInteractions:
@@ -69,4 +75,32 @@ def map_from_amplitude_event(amplitude_event: AmplitudeEvent) -> UserInteraction
         is_synced_with_personalize=False,
         personalize_rec_id=amplitude_event.personalize_rec_id,
         impression=amplitude_event.impression,
+    )
+
+
+def map_from_comment(
+    comment, content_type: Optional[ContentType] = None
+) -> UserInteractions:
+    """
+    Map a RhCommentModel record to a UserInteractions instance (not saved to database).
+    """
+    if content_type is None:
+        content_type = ContentType.objects.get_for_model(RhCommentModel)
+
+    event_type = (
+        PEER_REVIEW_CREATED
+        if comment.comment_type == COMMUNITY_REVIEW
+        else COMMENT_CREATED
+    )
+
+    return UserInteractions(
+        user=comment.created_by,
+        external_user_id=None,
+        event=event_type,
+        unified_document=comment.unified_document,
+        content_type=content_type,
+        object_id=comment.id,
+        event_timestamp=comment.created_date,
+        is_synced_with_personalize=False,
+        personalize_rec_id=None,
     )
