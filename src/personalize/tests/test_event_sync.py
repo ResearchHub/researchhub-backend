@@ -27,8 +27,8 @@ from personalize.utils.personalize_utils import (
     build_session_id_for_user,
 )
 from researchhub_comment.constants.rh_comment_thread_types import (
+    COMMUNITY_REVIEW,
     GENERIC_COMMENT,
-    PEER_REVIEW,
 )
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_document.helpers import create_post
@@ -539,7 +539,7 @@ class CommentInteractionTaskTests(TestCase):
     def test_create_comment_interaction_task_creates_peer_review_user_interaction(
         self, mock_sync_signal, mock_comment_signal
     ):
-        comment = self._create_comment(comment_type=PEER_REVIEW)
+        comment = self._create_comment(comment_type=COMMUNITY_REVIEW)
 
         initial_count = UserInteractions.objects.count()
         create_comment_interaction_task(comment.id)

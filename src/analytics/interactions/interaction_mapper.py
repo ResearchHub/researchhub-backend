@@ -10,7 +10,7 @@ from analytics.constants.event_types import COMMENT_CREATED, PEER_REVIEW_CREATED
 from analytics.interactions.amplitude_event_parser import AmplitudeEvent
 from analytics.models import UserInteractions
 from discussion.models import Vote
-from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
+from researchhub_comment.constants.rh_comment_thread_types import COMMUNITY_REVIEW
 from researchhub_comment.models import RhCommentModel
 
 
@@ -88,7 +88,9 @@ def map_from_comment(
         content_type = ContentType.objects.get_for_model(RhCommentModel)
 
     event_type = (
-        PEER_REVIEW_CREATED if comment.comment_type == PEER_REVIEW else COMMENT_CREATED
+        PEER_REVIEW_CREATED
+        if comment.comment_type == COMMUNITY_REVIEW
+        else COMMENT_CREATED
     )
 
     return UserInteractions(
