@@ -74,13 +74,9 @@ class FeedFilteringBackend(BaseFilterBackend):
             view._feed_source = "researchhub"
             return queryset
 
-        force_refresh_header = request.META.get("HTTP_RH_FORCE_REFRESH", "false")
-        force_refresh = force_refresh_header.lower() == "true"
-
         try:
             result = personalize_feed_service.get_trending_ids(
                 num_results=PERSONALIZE_CONFIG.get("num_results", DEFAULT_NUM_RESULTS),
-                force_refresh=force_refresh,
             )
 
             trending_ids = result.get("item_ids", [])
