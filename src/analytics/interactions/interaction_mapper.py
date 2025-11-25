@@ -2,6 +2,8 @@
 Functional mappers for converting source records to UserInteractions.
 """
 
+from typing import Optional
+
 from django.contrib.contenttypes.models import ContentType
 
 from analytics.constants.event_types import COMMENT_CREATED, PEER_REVIEW_CREATED, UPVOTE
@@ -76,15 +78,18 @@ def map_from_amplitude_event(amplitude_event: AmplitudeEvent) -> UserInteraction
     )
 
 
-def map_from_comment(comment) -> UserInteractions:
+def map_from_comment(
+    comment, content_type: Optional[ContentType] = None
+) -> UserInteractions:
     """
     Map a RhCommentModel record to a UserInteractions instance (not saved to database).
     """
+    if content_type is None:
+        content_type = ContentType.objects.get_for_model(RhCommentModel)
+
     event_type = (
         PEER_REVIEW_CREATED if comment.comment_type == PEER_REVIEW else COMMENT_CREATED
     )
-
-    content_type = ContentType.objects.get_for_model(RhCommentModel)
 
     return UserInteractions(
         user=comment.created_by,

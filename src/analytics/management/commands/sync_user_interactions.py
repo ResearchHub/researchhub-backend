@@ -2,6 +2,7 @@ import csv
 from datetime import datetime
 from typing import List, Optional
 
+from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.db.models import QuerySet
@@ -158,6 +159,9 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING("No comment records found"))
             return 0, 0, 0
 
+        # Fetch ContentType once for all comments to avoid N queries
+        comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
+
         processed = 0
         created = 0
         skipped = 0
@@ -165,7 +169,7 @@ class Command(BaseCommand):
 
         for comment in queryset.iterator():
             try:
-                batch.append(map_from_comment(comment))
+                batch.append(map_from_comment(comment, comment_content_type))
                 processed += 1
 
                 if len(batch) >= batch_size:
