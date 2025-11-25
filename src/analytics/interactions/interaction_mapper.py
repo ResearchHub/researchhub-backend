@@ -9,6 +9,7 @@ from analytics.interactions.amplitude_event_parser import AmplitudeEvent
 from analytics.models import UserInteractions
 from discussion.models import Vote
 from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
+from researchhub_comment.models import RhCommentModel
 
 
 def map_from_upvote(vote: Vote) -> UserInteractions:
@@ -79,13 +80,9 @@ def map_from_comment(comment) -> UserInteractions:
     """
     Map a RhCommentModel record to a UserInteractions instance (not saved to database).
     """
-    # Determine event type based on comment_type
     event_type = (
         PEER_REVIEW_CREATED if comment.comment_type == PEER_REVIEW else COMMENT_CREATED
     )
-
-    # Get ContentType for RhCommentModel
-    from researchhub_comment.models import RhCommentModel
 
     content_type = ContentType.objects.get_for_model(RhCommentModel)
 

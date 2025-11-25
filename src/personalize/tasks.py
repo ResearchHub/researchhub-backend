@@ -71,6 +71,9 @@ def create_comment_interaction_task(comment_id):
     try:
         unified_doc = comment.unified_document
     except Exception:
+        return
+
+    if not unified_doc:
         logger.warning(f"Comment {comment_id} missing unified_document")
         return
 

@@ -27,11 +27,6 @@ def create_comment_interaction(sender, instance, created, **kwargs):
     def trigger_task():
         try:
             create_comment_interaction_task.delay(instance.id)
-            logger.debug(
-                f"Triggered async UserInteraction creation task for Comment: "
-                f"comment_id={instance.id}, user_id={instance.created_by_id}, "
-                f"comment_type={instance.comment_type}"
-            )
         except Exception as e:
             log_error(
                 e,

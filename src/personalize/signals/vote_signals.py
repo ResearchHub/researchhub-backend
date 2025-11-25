@@ -31,10 +31,6 @@ def create_upvote_interaction(sender, instance, created, **kwargs):
     def trigger_task():
         try:
             create_upvote_interaction_task.delay(instance.id)
-            logger.debug(
-                f"Triggered async UserInteraction creation task for UPVOTE: "
-                f"vote_id={instance.id}, user_id={instance.created_by_id}"
-            )
         except Exception as e:
             log_error(
                 e,
@@ -43,6 +39,5 @@ def create_upvote_interaction(sender, instance, created, **kwargs):
                     f"vote_id={instance.id}"
                 ),
             )
-            # Don't re-raise - we don't want to break the vote creation process
 
     transaction.on_commit(trigger_task)

@@ -12,6 +12,7 @@ from analytics.constants.event_types import (
     PEER_REVIEW_CREATED,
     UPVOTE,
 )
+from analytics.interactions.interaction_mapper import map_from_comment
 from analytics.models import UserInteractions
 from analytics.services.event_processor import EventProcessor
 from analytics.tests.helpers import create_prefetched_paper
@@ -29,7 +30,7 @@ from researchhub_comment.constants.rh_comment_thread_types import (
     GENERIC_COMMENT,
     PEER_REVIEW,
 )
-from researchhub_comment.models import RhCommentModel
+from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_document.helpers import create_post
 from user.tests.helpers import create_random_default_user
 
@@ -494,9 +495,6 @@ class CommentInteractionTaskTests(TestCase):
         if created_by is None:
             created_by = self.user
 
-        # Get or create thread for the post
-        from researchhub_comment.models import RhCommentThreadModel
-
         thread, _ = RhCommentThreadModel.objects.get_or_create(
             content_type=ContentType.objects.get_for_model(self.post),
             object_id=self.post.id,
@@ -602,7 +600,6 @@ class CommentInteractionTaskTests(TestCase):
 
     def test_map_from_comment_raises_exception_on_unified_doc_error(self):
         """Test that mapper raises exception when unified_document property fails."""
-        from analytics.interactions.interaction_mapper import map_from_comment
 
         comment = self._create_comment()
 
@@ -619,7 +616,6 @@ class CommentInteractionTaskTests(TestCase):
 
     def test_map_from_comment_raises_on_missing_attributes(self):
         """Test that mapper raises AttributeError when comment lacks attributes."""
-        from analytics.interactions.interaction_mapper import map_from_comment
 
         # Create a mock object without the created_date attribute
         mock_comment = Mock(spec=[])  # Empty spec means no attributes
@@ -665,4 +661,5 @@ class CommentInteractionTaskTests(TestCase):
 
         # No UserInteraction should have been created
         interactions = UserInteractions.objects.filter(object_id=comment.id)
+        self.assertEqual(interactions.count(), 0)
         self.assertEqual(interactions.count(), 0)
