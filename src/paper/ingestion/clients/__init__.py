@@ -5,6 +5,7 @@ Client modules for fetching papers from various sources.
 from .base import BaseClient, ClientConfig
 from .enrichment.altmetric import AltmetricClient
 from .enrichment.bluesky import BlueskyClient, BlueskyMetricsClient
+from .enrichment.github import GithubClient, GithubMetricsClient
 from .enrichment.openalex import OpenAlexClient
 from .preprints.arxiv import ArXivClient, ArXivConfig
 from .preprints.arxiv_oai import ArXivOAIClient, ArXivOAIConfig
@@ -26,6 +27,8 @@ __all__ = [
     "ChemRxivClient",
     "ChemRxivConfig",
     "ClientConfig",
+    "GithubClient",
+    "GithubMetricsClient",
     "MedRxivClient",
     "MedRxivConfig",
     "OpenAlexClient",
