@@ -27,6 +27,38 @@ class DocumentQueryBuilder:
     MAX_TERMS_FOR_SHORT_QUERY = 3
     MAX_TERMS_FOR_FUZZY_CONTENT_FIELDS = 4
 
+    # Maps (strategy_type, field_category) -> boost value
+    STRATEGY_BOOSTS = {
+        # Simple match strategy boosts
+        ("simple_match", "title"): 1.0,
+        ("simple_match", "author"): 0.8,
+        ("simple_match", "content"): 1.0,
+        ("simple_match_and", "all"): 0.7,
+        ("simple_match_fuzzy", "all"): 0.3,
+        ("phrase", "title"): 0.6,
+        ("phrase", "abstract"): 0.75,
+        ("phrase", "content"): 0.6,
+        ("prefix", "all"): 0.5,
+        ("fuzzy", "title"): 4.0,
+        ("fuzzy", "author"): 2.0,
+        ("fuzzy", "content"): None,
+        ("simple_match", "author"): 0.8,  # 80% of base boost for authors
+        ("simple_match", "content"): 1.0,  # Full base boost for content
+        # Simple match sub-strategy multipliers (applied to base strategy boost)
+        ("simple_match_and", "all"): 0.7,  # AND operator gets 70% of strategy boost
+        ("simple_match_fuzzy", "all"): 0.3,  # Fuzzy gets 30% of strategy boost
+        # Phrase strategy boosts
+        ("phrase", "title"): 0.6,  # 60% of base boost for titles
+        ("phrase", "abstract"): 0.75,  # 75% of base boost for abstract
+        ("phrase", "content"): 0.6,  # 60% of base boost for other content
+        # Prefix strategy boosts
+        ("prefix", "all"): 0.5,  # 50% of base boost for prefix matches
+        # Fuzzy strategy boosts (absolute values, not multipliers)
+        ("fuzzy", "title"): 4.0,  # Absolute boost for fuzzy title matches
+        ("fuzzy", "author"): 2.0,  # Absolute boost for fuzzy author matches
+        ("fuzzy", "content"): None,  # Uses field.boost (fallback)
+    }
+
     # Field configurations
     TITLE_FIELDS = [
         FieldConfig(
@@ -187,7 +219,7 @@ class DocumentQueryBuilder:
         return self
 
     def add_phrase_strategy(
-        self, fields: list[FieldConfig], slop: int = 1, boost_multiplier: float = 1.0
+        self, fields: list[FieldConfig], slop: int = 1
     ) -> "DocumentQueryBuilder":
 
         queries = []
@@ -195,12 +227,13 @@ class DocumentQueryBuilder:
             if "phrase" in (field.query_types or []):
                 # Abstract gets slop=2, titles get slop=1
                 field_slop = 2 if field.name == "abstract" else slop
-                # Abstract gets boost=1.5 (0.75 multiplier),
-                # titles get boost=3.0 (0.6 multiplier)
+                # Get boost from config
                 if field.name == "abstract":
-                    field_boost = field.boost * 0.75
+                    strategy_boost = self.STRATEGY_BOOSTS[("phrase", "abstract")]
                 else:
-                    field_boost = field.boost * boost_multiplier
+                    category = self._get_field_category(field)
+                    strategy_boost = self.STRATEGY_BOOSTS[("phrase", category)]
+                field_boost = field.boost * strategy_boost
                 queries.append(
                     Q(
                         "match_phrase",
@@ -223,10 +256,10 @@ class DocumentQueryBuilder:
         self,
         fields: list[FieldConfig],
         max_expansions: int = 20,
-        boost_multiplier: float = 1.0,
     ) -> "DocumentQueryBuilder":
         """Add phrase prefix strategy for specified fields."""
         queries = []
+        prefix_boost = self.STRATEGY_BOOSTS[("prefix", "all")]
         for field in fields:
             if "prefix" in (field.query_types or []):
                 queries.append(
@@ -236,7 +269,7 @@ class DocumentQueryBuilder:
                             field.name: {
                                 "query": self.query,
                                 "max_expansions": max_expansions,
-                                "boost": field.boost * boost_multiplier,
+                                "boost": field.boost * prefix_boost,
                             }
                         },
                     )
@@ -258,15 +291,14 @@ class DocumentQueryBuilder:
             return True
         return restrict_to_author_title_only and field.name not in author_title_names
 
-    def _calculate_fuzzy_boost(
-        self, field: FieldConfig, boost_multiplier: float
-    ) -> float:
-        """Calculate fuzzy boost for a field."""
+    def _get_fuzzy_boost(self, field: FieldConfig) -> float:
+        """Get fuzzy boost for a field from strategy config."""
         if field.name in ["paper_title", "title"]:
-            return 4.0
+            return self.STRATEGY_BOOSTS[("fuzzy", "title")]
         if "authors" in field.name:
-            return 2.0
-        return field.boost * boost_multiplier
+            return self.STRATEGY_BOOSTS[("fuzzy", "author")]
+        # For content fields, use base boost (config has None as fallback)
+        return field.boost
 
     def _format_boosted_field_name(self, field_name: str, boost: float) -> str:
         """Format field name with boost suffix."""
@@ -280,7 +312,6 @@ class DocumentQueryBuilder:
         self,
         fields: list[FieldConfig],
         operator: str = "and",
-        boost_multiplier: float = 1.0,
     ) -> "DocumentQueryBuilder":
         """Add fuzzy match strategy for specified fields."""
         field_list = []
@@ -293,7 +324,7 @@ class DocumentQueryBuilder:
             ):
                 continue
 
-            fuzzy_boost = self._calculate_fuzzy_boost(field, boost_multiplier)
+            fuzzy_boost = self._get_fuzzy_boost(field)
             boosted_name = self._format_boosted_field_name(field.name, fuzzy_boost)
             field_list.append(boosted_name)
 
@@ -368,23 +399,36 @@ class DocumentQueryBuilder:
             self.should_clauses.append(author_query)
         return self
 
+    def _get_field_category(self, field: FieldConfig) -> str:
+        """Determine field category for boost lookup."""
+        if field.name in ["paper_title", "title"]:
+            return "title"
+        if "authors" in field.name:
+            return "author"
+        return "content"
+
     def add_simple_match_strategy(
-        self, fields: list[FieldConfig], boost_multiplier: float = 1.0
+        self, fields: list[FieldConfig]
     ) -> "DocumentQueryBuilder":
         for field in fields:
-            # Strategy 1: Phrase match (highest relevance) - like suggest endpoint
+            category = self._get_field_category(field)
+            strategy_boost = self.STRATEGY_BOOSTS[("simple_match", category)]
+            base_boost = field.boost * strategy_boost
+
+            # Strategy 1: Phrase match (highest relevance)
             self.should_clauses.append(
                 Q(
                     "match_phrase",
                     **{
                         field.name: {
                             "query": self.query,
-                            "boost": field.boost * boost_multiplier,
+                            "boost": base_boost,
                         }
                     },
                 )
             )
             # Strategy 2: Match with AND operator - all words must be in field
+            and_multiplier = self.STRATEGY_BOOSTS[("simple_match_and", "all")]
             self.should_clauses.append(
                 Q(
                     "match",
@@ -392,7 +436,7 @@ class DocumentQueryBuilder:
                         field.name: {
                             "query": self.query,
                             "operator": "and",
-                            "boost": field.boost * boost_multiplier * 0.7,
+                            "boost": base_boost * and_multiplier,
                         }
                     },
                 )
@@ -403,6 +447,7 @@ class DocumentQueryBuilder:
                 "abstract",
                 "renderable_text",
             ]:
+                fuzzy_multiplier = self.STRATEGY_BOOSTS[("simple_match_fuzzy", "all")]
                 self.should_clauses.append(
                     Q(
                         "match",
@@ -410,7 +455,7 @@ class DocumentQueryBuilder:
                             field.name: {
                                 "query": self.query,
                                 "fuzziness": "AUTO",
-                                "boost": field.boost * boost_multiplier * 0.3,
+                                "boost": base_boost * fuzzy_multiplier,
                             }
                         },
                     )
@@ -472,44 +517,50 @@ class UnifiedSearchQueryBuilder:
         builder = DocumentQueryBuilder(query)
         is_single_word = DocumentQueryBuilder._is_single_word_query(query)
 
+        title_fields = DocumentQueryBuilder.TITLE_FIELDS
+        author_fields = DocumentQueryBuilder.AUTHOR_FIELDS
+        content_fields = DocumentQueryBuilder.CONTENT_FIELDS
+
         builder = (
-            builder.add_simple_match_strategy(
-                DocumentQueryBuilder.TITLE_FIELDS,
-                boost_multiplier=1.0,
-            )
-            .add_simple_match_strategy(
-                DocumentQueryBuilder.AUTHOR_FIELDS,
-                boost_multiplier=0.8,
-            )
+            builder.add_simple_match_strategy(title_fields)
+            .add_simple_match_strategy(author_fields)
             .add_author_name_strategy()
-            .add_phrase_strategy(
-                DocumentQueryBuilder.TITLE_FIELDS + DocumentQueryBuilder.CONTENT_FIELDS,
-                slop=1,
-                boost_multiplier=0.6,
-            )
+            .add_phrase_strategy(title_fields + content_fields, slop=1)
         )
 
         if not is_single_word:
             builder = builder.add_author_title_combination_strategy()
 
+        # max_expansions limits unique terms OpenSearch collects from the index
+        # that match the prefix of the LAST word. Prevents query explosion.
+        #
+        # Examples:
+        # - Query: "systematic"
+        #   - Matches: "systematic review", "systematic analysis", etc.
+        #   - max_expansions=10: collects up to 10 unique terms following
+        #     "systematic" (e.g., "review", "analysis", "design"...)
+        #
+        # - Query: "systematic design"
+        #   - Matches: "systematic design patterns", etc.
+        #   - max_expansions=20: collects up to 20 unique terms following
+        #     "design" (e.g., "patterns", "methodology"...)
+        #
+        # Lower (10) for single-word reduces overhead.
+        # Higher (20) for multi-word improves recall.
         prefix_expansions = 10 if is_single_word else 20
         builder = builder.add_prefix_strategy(
-            DocumentQueryBuilder.TITLE_FIELDS + DocumentQueryBuilder.AUTHOR_FIELDS,
+            title_fields + author_fields,
             max_expansions=prefix_expansions,
-            boost_multiplier=0.5,
         )
 
         if is_single_word:
             builder = builder.add_fuzzy_strategy_single_word(
-                DocumentQueryBuilder.TITLE_FIELDS + DocumentQueryBuilder.AUTHOR_FIELDS,
+                title_fields + author_fields
             )
         else:
             builder = builder.add_fuzzy_strategy(
-                DocumentQueryBuilder.TITLE_FIELDS
-                + DocumentQueryBuilder.AUTHOR_FIELDS
-                + DocumentQueryBuilder.CONTENT_FIELDS,
+                title_fields + author_fields + content_fields,
                 operator="or",
-                boost_multiplier=1.0,
             )
 
         builder = builder.add_cross_field_fallback_strategy()

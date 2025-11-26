@@ -10,13 +10,6 @@ import utils.sentry as sentry
 logger = logging.getLogger(__name__)
 
 
-def log_first_hit_index(response) -> None:
-    """Log the index of the first hit if results are available."""
-    if response.hits.total.value > 0:
-        first_hit_index = response.hits[0].meta.index if response.hits else "N/A"
-        logger.info(f"First hit index: {first_hit_index}")
-
-
 def extract_opensearch_error_details(exception: Exception) -> dict[str, Any]:
     """Extract OpenSearch-specific error details from exception."""
     details = {}
@@ -81,8 +74,8 @@ def log_search_error(
 ) -> None:
     """Log search view errors with enhanced details and Sentry integration.
 
-    This function is designed to be exception-safe - if any part of the
-    error handling fails, it will still attempt to log basic information.
+    Called from exception handlers - if this function itself raises an exception,
+    Sentry will automatically capture it.
 
     Args:
         exception: The exception that occurred
@@ -91,65 +84,36 @@ def log_search_error(
         page_size: Optional page size
         sort: Optional sort option
     """
-    try:
-        exception_type = type(exception).__name__
-        exception_message = str(exception)
-    except Exception:
-        exception_type = "UnknownException"
-        exception_message = "Failed to extract exception details"
+    exception_type = type(exception).__name__
+    exception_message = str(exception)
+    opensearch_details = extract_opensearch_error_details(exception)
 
-    try:
-        opensearch_details = extract_opensearch_error_details(exception)
-    except Exception:
-        opensearch_details = {}
+    opensearch_suffix = (
+        f", opensearch_details={opensearch_details}" if opensearch_details else ""
+    )
 
-    try:
-        opensearch_suffix = (
-            f", opensearch_details={opensearch_details}" if opensearch_details else ""
-        )
-    except Exception:
-        opensearch_suffix = ""
+    log_message = (
+        "Unified search error - "
+        f"query='{query}', "
+        f"page={page}, "
+        f"page_size={page_size}, "
+        f"sort={sort}, "
+        f"exception_type={exception_type}, "
+        f"exception_message={exception_message}" + opensearch_suffix
+    )
+    logger.error(log_message, exc_info=True)
 
-    try:
-        log_message = (
-            "Unified search error - "
-            f"query='{query}', "
-            f"page={page}, "
-            f"page_size={page_size}, "
-            f"sort={sort}, "
-            f"exception_type={exception_type}, "
-            f"exception_message={exception_message}" + opensearch_suffix
-        )
-        logger.error(log_message, exc_info=True)
-    except Exception as log_error:
-        try:
-            logger.error(
-                f"Unified search error - Failed to format log message: {log_error}",
-                exc_info=True,
-            )
-        except Exception:
-            pass
-
-    try:
-        sentry_data = {
-            "query": query,
-            "page": page,
-            "page_size": page_size,
-            "sort": sort,
-            "exception_type": exception_type,
-        }
-        if opensearch_details:
-            sentry_data["opensearch_details"] = opensearch_details
-        sentry.log_error(
-            exception,
-            message=f"Unified search error: {exception_type}",
-            json_data=sentry_data,
-        )
-    except Exception as sentry_error:
-        try:
-            logger.error(
-                f"Failed to log search error to Sentry: {sentry_error}",
-                exc_info=True,
-            )
-        except Exception:
-            pass
+    sentry_data = {
+        "query": query,
+        "page": page,
+        "page_size": page_size,
+        "sort": sort,
+        "exception_type": exception_type,
+    }
+    if opensearch_details:
+        sentry_data["opensearch_details"] = opensearch_details
+    sentry.log_error(
+        exception,
+        message=f"Unified search error: {exception_type}",
+        json_data=sentry_data,
+    )

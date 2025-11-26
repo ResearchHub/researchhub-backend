@@ -11,7 +11,7 @@ from opensearchpy import Q, Search
 from search.base.utils import seconds_to_milliseconds
 from search.documents.paper import PaperDocument
 from search.documents.post import PostDocument
-from search.services.search_error_utils import handle_search_error, log_first_hit_index
+from search.services.search_error_utils import handle_search_error
 from search.services.unified_search_query_builder import UnifiedSearchQueryBuilder
 from utils.doi import DOI
 
@@ -151,7 +151,7 @@ class UnifiedSearchService:
         # Execute search
         try:
             response = search.execute()
-            log_first_hit_index(response)
+            self._log_first_hit_index(response)
         except Exception as e:
             handle_search_error(e, query, offset, limit, sort)
             return {"results": [], "count": 0}
@@ -162,6 +162,12 @@ class UnifiedSearchService:
             "results": results,
             "count": response.hits.total.value,
         }
+
+    def _log_first_hit_index(self, response) -> None:
+        """Log the index of the first hit if results are available."""
+        if response.hits.total.value > 0:
+            first_hit_index = response.hits[0].meta.index if response.hits else "N/A"
+            logger.info(f"First hit index: {first_hit_index}")
 
     def _search_documents_by_doi(self, normalized_doi: str) -> dict[str, Any]:
 
