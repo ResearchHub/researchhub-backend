@@ -4,6 +4,10 @@ from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from search.services.unified_search_query_builder import (
+    DocumentQueryBuilder,
+    FieldConfig,
+)
 from search.services.unified_search_service import UnifiedSearchService
 
 
@@ -14,7 +18,6 @@ class UnifiedSearchServiceTests(TestCase):
     def test_init(self):
         self.assertIsNotNone(self.service.paper_index)
         self.assertIsNotNone(self.service.post_index)
-        self.assertIsNotNone(self.service.person_index)
 
     def test_build_document_query(self):
         query = self.service.query_builder.build_document_query("machine learning")
@@ -23,14 +26,6 @@ class UnifiedSearchServiceTests(TestCase):
         self.assertIn("bool", qd)
         self.assertIn("should", qd["bool"])
         self.assertGreater(len(qd["bool"]["should"]), 0)
-
-    def test_build_person_query(self):
-        query = self.service.query_builder.build_person_query("Jane Doe")
-        self.assertIsNotNone(query)
-        self.assertEqual(query.to_dict()["multi_match"]["query"], "Jane Doe")
-        fields = query.to_dict()["multi_match"]["fields"]
-        self.assertIn("full_name^5", fields)
-        self.assertIn("description^1", fields)
 
     def test_apply_sort_relevance(self):
         from opensearchpy import Search
@@ -60,32 +55,13 @@ class UnifiedSearchServiceTests(TestCase):
         from opensearchpy import Search
 
         search = Search()
-        highlighted_search = self.service._apply_highlighting(search, is_document=True)
+        highlighted_search = self.service._apply_highlighting(search)
         highlight_dict = highlighted_search.to_dict().get("highlight", {})
         self.assertIn("fields", highlight_dict)
         self.assertIn("paper_title", highlight_dict["fields"])
         self.assertIn("abstract", highlight_dict["fields"])
         self.assertEqual(highlight_dict["pre_tags"], ["<mark>"])
         self.assertEqual(highlight_dict["post_tags"], ["</mark>"])
-
-    def test_apply_highlighting_people(self):
-        from opensearchpy import Search
-
-        search = Search()
-        highlighted_search = self.service._apply_highlighting(search, is_document=False)
-        highlight_dict = highlighted_search.to_dict().get("highlight", {})
-        self.assertIn("fields", highlight_dict)
-        self.assertIn("full_name", highlight_dict["fields"])
-        self.assertIn("description", highlight_dict["fields"])
-
-    def test_add_aggregations(self):
-        from opensearchpy import Search
-
-        search = Search()
-        agg_search = self.service._add_aggregations(search)
-        agg_dict = agg_search.to_dict().get("aggs", {})
-        self.assertIn("years", agg_dict)
-        self.assertIn("content_types", agg_dict)
 
     def test_process_document_results_paper(self):
         mock_hit = MagicMock()
@@ -122,63 +98,13 @@ class UnifiedSearchServiceTests(TestCase):
         self.assertEqual(result["authors"][0]["first_name"], "John")
         self.assertEqual(result["authors"][0]["last_name"], "Doe")
 
-    def test_process_people_results(self):
-        mock_hit = MagicMock()
-        mock_hit.id = "789"
-        mock_hit.meta.score = 12.0
-        mock_hit.full_name = "Alice Johnson"
-        mock_hit.profile_image = "https://example.com/image.jpg"
-        mock_hit.user_reputation = 5000
-        mock_hit.user_id = 100
-        mock_hit.headline = {"title": "Professor"}
-        mock_hit.institutions = [{"id": 1, "name": "MIT"}]
-        mock_hit.meta.highlight = None
-
-        mock_response = MagicMock()
-        mock_response.hits = [mock_hit]
-
-        results = self.service._process_people_results(mock_response)
-
-        self.assertEqual(len(results), 1)
-        result = results[0]
-        self.assertEqual(result["id"], "789")
-        self.assertEqual(result["full_name"], "Alice Johnson")
-        self.assertEqual(result["user_reputation"], 5000)
-        self.assertEqual(len(result["institutions"]), 1)
-
-    def test_process_aggregations(self):
-        mock_bucket_year = MagicMock()
-        mock_bucket_year.key_as_string = "2024"
-        mock_bucket_year.doc_count = 45
-
-        mock_bucket_type = MagicMock()
-        mock_bucket_type.key = "paper"
-        mock_bucket_type.doc_count = 100
-
-        mock_aggs = MagicMock()
-        mock_aggs.years.buckets = [mock_bucket_year]
-        mock_aggs.content_types.buckets = [mock_bucket_type]
-
-        mock_response = MagicMock()
-        mock_response.aggregations = mock_aggs
-
-        aggregations = self.service._process_aggregations(mock_response)
-
-        self.assertIn("years", aggregations)
-        self.assertIn("content_types", aggregations)
-        self.assertEqual(aggregations["years"][0]["key"], "2024")
-
     def test_execution_time_included_in_response(self):
-        empty_doc_result = {"results": [], "count": 0, "aggregations": {}}
-        empty_people_result = {"results": [], "count": 0}
+        empty_doc_result = {"results": [], "count": 0}
         empty_doi_result = {"results": [], "count": 0}
 
         with (
             patch.object(
                 self.service, "_search_documents", return_value=empty_doc_result
-            ),
-            patch.object(
-                self.service, "_search_people", return_value=empty_people_result
             ),
             patch.object(
                 self.service, "_search_documents_by_doi", return_value=empty_doi_result
@@ -199,6 +125,41 @@ class UnifiedSearchServiceTests(TestCase):
             self.assertIn("execution_time_ms", results)
             self.assertIsInstance(results["execution_time_ms"], (int, float))
             self.assertGreaterEqual(results["execution_time_ms"], 0)
+
+    def test_add_fuzzy_strategy_long_query_skips_content_fields(self):
+        builder = DocumentQueryBuilder("one two three four five")
+        fields = [
+            FieldConfig("abstract", boost=2.0, query_types=["fuzzy"]),
+            FieldConfig("paper_title", boost=5.0, query_types=["fuzzy"]),
+        ]
+        builder.add_fuzzy_strategy(fields)
+        query_dict = builder.build().to_dict()
+        fields_in_query = query_dict["bool"]["should"][0]["multi_match"]["fields"]
+        self.assertIn("paper_title^4", fields_in_query)
+        self.assertNotIn("abstract", fields_in_query)
+
+    def test_add_fuzzy_strategy_short_query_includes_all_fields(self):
+        builder = DocumentQueryBuilder("test")
+        fields = [
+            FieldConfig("abstract", boost=2.0, query_types=["fuzzy"]),
+            FieldConfig("paper_title", boost=5.0, query_types=["fuzzy"]),
+            FieldConfig("raw_authors.full_name", boost=3.0, query_types=["fuzzy"]),
+            FieldConfig("renderable_text", boost=1.0, query_types=["fuzzy"]),
+        ]
+        builder.add_fuzzy_strategy(fields)
+        query_dict = builder.build().to_dict()
+        fields_in_query = query_dict["bool"]["should"][0]["multi_match"]["fields"]
+        self.assertIn("paper_title^4", fields_in_query)
+        self.assertIn("abstract^2", fields_in_query)
+        self.assertIn("raw_authors.full_name^2", fields_in_query)
+        self.assertIn("renderable_text", fields_in_query)
+
+    def test_add_fuzzy_strategy_no_fuzzy_fields_returns_empty(self):
+        builder = DocumentQueryBuilder("test")
+        fields = [FieldConfig("title", boost=5.0, query_types=["phrase"])]
+        builder.add_fuzzy_strategy(fields)
+        query_dict = builder.build().to_dict()
+        self.assertNotIn("multi_match", str(query_dict))
 
 
 class UnifiedSearchViewTests(TestCase):

@@ -1,6 +1,5 @@
 """
-Unified search service for searching across documents (papers/posts)
-and people (authors/users).
+Unified search service for searching across documents (papers/posts).
 """
 
 import logging
@@ -11,8 +10,8 @@ from opensearchpy import Q, Search
 
 from search.base.utils import seconds_to_milliseconds
 from search.documents.paper import PaperDocument
-from search.documents.person import PersonDocument
 from search.documents.post import PostDocument
+from search.services.search_error_utils import handle_search_error
 from search.services.unified_search_query_builder import UnifiedSearchQueryBuilder
 from utils.doi import DOI
 
@@ -29,7 +28,6 @@ class UnifiedSearchService:
     def __init__(self):
         self.paper_index = PaperDocument._index._name
         self.post_index = PostDocument._index._name
-        self.person_index = PersonDocument._index._name
         self.query_builder = UnifiedSearchQueryBuilder()
 
     def search(
@@ -73,11 +71,8 @@ class UnifiedSearchService:
         # Search documents (papers and posts)
         document_results = self._search_documents(query, offset, page_size, sort)
 
-        # Search people (authors/users)
-        people_results = self._search_people(query, offset, page_size, sort)
-
-        # Combine results
-        total_count = document_results["count"] + people_results["count"]
+        # Total count is just document count
+        total_count = document_results["count"]
 
         # Calculate pagination URLs
         next_url = None
@@ -103,8 +98,8 @@ class UnifiedSearchService:
             "next": next_url,
             "previous": previous_url,
             "documents": document_results["results"],
-            "people": people_results["results"],
-            "aggregations": document_results["aggregations"],
+            "people": [],
+            "aggregations": {},
             "execution_time_ms": seconds_to_milliseconds(execution_time),
         }
 
@@ -119,9 +114,7 @@ class UnifiedSearchService:
         query_obj = self.query_builder.build_document_query(query)
         search = search.query(query_obj)
 
-        search = self._apply_highlighting(search, is_document=True)
-
-        search = self._add_aggregations(search)
+        search = self._apply_highlighting(search)
 
         search = self._apply_sort(search, sort)
 
@@ -158,85 +151,23 @@ class UnifiedSearchService:
         # Execute search
         try:
             response = search.execute()
-            if response.hits.total.value > 0:
-                logger.info(
-                    f"First hit index: {response.hits[0].meta.index if response.hits else 'N/A'}"
-                )
+            self._log_first_hit_index(response)
         except Exception as e:
-            logger.error(
-                f"Document search failed for query '{query}': {str(e)}", exc_info=True
-            )
-            return {"results": [], "count": 0, "aggregations": {}}
+            handle_search_error(e, query, offset, limit, sort)
+            return {"results": [], "count": 0}
 
         results = self._process_document_results(response)
 
-        aggregations = self._process_aggregations(response)
-
-        return {
-            "results": results,
-            "count": response.hits.total.value,
-            "aggregations": aggregations,
-        }
-
-    def _search_people(
-        self, query: str, offset: int, limit: int, sort: str
-    ) -> dict[str, Any]:
-        # Create search for people
-        search = Search(index=self.person_index)
-
-        # Build query
-        query_obj = self.query_builder.build_person_query(query)
-        search = search.query(query_obj)
-
-        # Apply highlighting
-        search = self._apply_highlighting(search, is_document=False)
-
-        # Apply sorting (simplified for people)
-        if sort == self.SORT_NEWEST:
-            search = search.sort("-created_date", {"_score": {"order": "desc"}})
-        else:
-            # For people, default to relevance or reputation-based scoring
-            search = search.sort({"_score": {"order": "desc"}})
-
-        # Apply pagination
-        search = search[offset : offset + limit]
-
-        # Optimize query performance
-        search = search.extra(
-            track_total_hits=True,
-            timeout="5s",
-        )
-
-        # Source filtering for performance
-        search = search.source(
-            [
-                "id",
-                "first_name",
-                "last_name",
-                "full_name",
-                "profile_image",
-                "headline",
-                "description",
-                "institutions",
-                "user_reputation",
-                "user_id",
-            ]
-        )
-
-        # Execute search
-        try:
-            response = search.execute()
-        except Exception as e:
-            logger.error(f"People search failed: {str(e)}")
-            return {"results": [], "count": 0}
-
-        # Process results
-        results = self._process_people_results(response)
-
         return {
             "results": results,
             "count": response.hits.total.value,
         }
+
+    def _log_first_hit_index(self, response) -> None:
+        """Log the index of the first hit if results are available."""
+        if response.hits.total.value > 0:
+            first_hit_index = response.hits[0].meta.index if response.hits else "N/A"
+            logger.info(f"First hit index: {first_hit_index}")
 
     def _search_documents_by_doi(self, normalized_doi: str) -> dict[str, Any]:
 
@@ -304,25 +235,18 @@ class UnifiedSearchService:
         results = self._process_document_results(response)
         return {"results": results, "count": response.hits.total.value}
 
-    def _apply_highlighting(self, search: Search, is_document: bool = True) -> Search:
+    def _apply_highlighting(self, search: Search) -> Search:
         """
         Apply highlighting configuration to search.
         """
-        if is_document:
-            highlight_fields = {
-                "paper_title": {"number_of_fragments": 0},
-                "title": {"number_of_fragments": 0},
-                "abstract": {"fragment_size": 200, "number_of_fragments": 1},
-                "renderable_text": {"fragment_size": 200, "number_of_fragments": 1},
-                "raw_authors.full_name": {"number_of_fragments": 0},
-                "authors.full_name": {"number_of_fragments": 0},
-            }
-        else:
-            highlight_fields = {
-                "full_name": {"number_of_fragments": 0},
-                "description": {"fragment_size": 200, "number_of_fragments": 1},
-                "headline.title": {"fragment_size": 150, "number_of_fragments": 1},
-            }
+        highlight_fields = {
+            "paper_title": {"number_of_fragments": 0},
+            "title": {"number_of_fragments": 0},
+            "abstract": {"fragment_size": 200, "number_of_fragments": 1},
+            "renderable_text": {"fragment_size": 200, "number_of_fragments": 1},
+            "raw_authors.full_name": {"number_of_fragments": 0},
+            "authors.full_name": {"number_of_fragments": 0},
+        }
 
         search = search.highlight_options(
             pre_tags=["<mark>"],
@@ -331,27 +255,6 @@ class UnifiedSearchService:
 
         for field, options in highlight_fields.items():
             search = search.highlight(field, **options)
-
-        return search
-
-    def _add_aggregations(self, search: Search) -> Search:
-
-        # Year aggregation (from created_date or paper_publish_date)
-        search.aggs.bucket(
-            "years",
-            "date_histogram",
-            field="created_date",
-            calendar_interval="year",
-            format="yyyy",
-        )
-
-        # Content type aggregation (from index name)
-        search.aggs.bucket(
-            "content_types",
-            "terms",
-            field="_index",
-            size=10,
-        )
 
         return search
 
@@ -471,122 +374,6 @@ class UnifiedSearchService:
             results.append(result)
 
         return results
-
-    def _extract_people_highlights(self, highlights) -> tuple[str | None, str | None]:
-        """Extract snippet and matched field from people highlights."""
-        if not highlights:
-            return None, None
-
-        # Priority: name > headline > description
-        if hasattr(highlights, "full_name"):
-            return highlights.full_name[0], "name"
-        if hasattr(highlights, "headline"):
-            return highlights.headline[0], "headline"
-        if hasattr(highlights, "description"):
-            return highlights.description[0], "description"
-
-        return None, None
-
-    def _process_headline(self, headline) -> dict[str, Any] | None:
-        """Process headline field from a search hit."""
-        if not headline:
-            return None
-
-        if hasattr(headline, "to_dict"):
-            return headline.to_dict()
-        return headline
-
-    def _process_institutions(self, hit) -> list[dict[str, Any]]:
-        """Process and format institutions from a search hit."""
-        institutions = getattr(hit, "institutions", [])
-        if not institutions:
-            return []
-
-        return [
-            {"id": inst.get("id"), "name": inst.get("name")} for inst in institutions
-        ]
-
-    def _process_people_results(self, response) -> list[dict[str, Any]]:
-        results = []
-
-        for hit in response.hits:
-            # Get highlights
-            highlights = getattr(hit.meta, "highlight", None)
-            snippet, matched_field = self._extract_people_highlights(highlights)
-
-            # Build result object
-            result = {
-                "id": hit.id,
-                "full_name": getattr(hit, "full_name", ""),
-                "profile_image": getattr(hit, "profile_image", None),
-                "snippet": snippet,
-                "matched_field": matched_field,
-                "user_reputation": getattr(hit, "user_reputation", 0),
-                "user_id": getattr(hit, "user_id", None),
-                "_search_score": hit.meta.score,
-            }
-
-            # Add headline
-            headline = getattr(hit, "headline", None)
-            processed_headline = self._process_headline(headline)
-            if processed_headline:
-                result["headline"] = processed_headline
-
-            # Add institutions
-            result["institutions"] = self._process_institutions(hit)
-
-            results.append(result)
-
-        return results
-
-    def _process_year_aggregation(self, aggs) -> list[dict[str, Any]]:
-        """Process year aggregation from response aggregations."""
-        if not hasattr(aggs, "years"):
-            return []
-
-        return [
-            {"key": bucket.key_as_string, "doc_count": bucket.doc_count}
-            for bucket in aggs.years.buckets
-        ]
-
-    def _process_content_type_aggregation(self, aggs) -> list[dict[str, Any]]:
-        """Process content type aggregation from response aggregations."""
-        if not hasattr(aggs, "content_types"):
-            return []
-
-        # Map index names to friendly names
-        type_mapping = {"paper": "paper", "post": "post"}
-        content_types = []
-
-        for bucket in aggs.content_types.buckets:
-            index_name = bucket.key
-            for key, value in type_mapping.items():
-                if key in index_name:
-                    content_types.append({"key": value, "doc_count": bucket.doc_count})
-                    break
-
-        return content_types
-
-    def _process_aggregations(self, response) -> dict[str, Any]:
-
-        aggregations = {}
-
-        if not hasattr(response, "aggregations"):
-            return aggregations
-
-        aggs = response.aggregations
-
-        # Process year aggregation
-        years = self._process_year_aggregation(aggs)
-        if years:
-            aggregations["years"] = years
-
-        # Process content type aggregation
-        content_types = self._process_content_type_aggregation(aggs)
-        if content_types:
-            aggregations["content_types"] = content_types
-
-        return aggregations
 
     def _build_page_url(
         self, request, query: str, page: int, page_size: int, sort: str

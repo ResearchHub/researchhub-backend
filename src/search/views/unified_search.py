@@ -1,5 +1,5 @@
 """
-Unified search view for searching across documents and people.
+Unified search view for searching across documents (papers/posts).
 """
 
 import logging
@@ -13,6 +13,7 @@ from search.serializers.search import (
     UnifiedSearchRequestSerializer,
     UnifiedSearchResultSerializer,
 )
+from search.services.search_error_utils import log_search_error
 from search.services.unified_search_service import UnifiedSearchService
 
 logger = logging.getLogger(__name__)
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 class UnifiedSearchView(APIView):
     """
-    Unified search endpoint for searching across all content types.
+    Unified search endpoint for searching across documents (papers/posts).
 
     GET /api/search/?q=<query>&page=<page>&page_size=<size>&sort=<sort>
 
@@ -28,11 +29,10 @@ class UnifiedSearchView(APIView):
         - q (required): Search query string
         - page (optional): Page number, default=1
         - page_size (optional): Number of results per page, default=10, max=100
-        - sort (optional): Sort option - relevance (default), newest, hot, upvoted
+        - sort (optional): Sort option - relevance (default), newest
 
     Returns:
-        Unified search results with separate sections for documents and people,
-        plus aggregations for filtering.
+        Unified search results with documents (papers and posts).
     """
 
     permission_classes = [AllowAny]
@@ -67,7 +67,7 @@ class UnifiedSearchView(APIView):
             return Response(result_serializer.data, status=status.HTTP_200_OK)
 
         except Exception as e:
-            logger.error(f"Unified search error: {str(e)}", exc_info=True)
+            log_search_error(e, query=query, page=page, page_size=page_size, sort=sort)
             return Response(
                 {"error": "An error occurred while processing your search"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
