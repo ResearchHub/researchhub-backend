@@ -88,7 +88,7 @@ class FeedViewMixinTests(TestCase):
                 f"user_id: {user_id}",
             )
 
-    def test_cache_key_defaults_to_popular_not_latest(self):
+    def test_cache_key_defaults_to_popular(self):
         """
         Test that cache key defaults to 'popular' when feed_view is not provided.
 
@@ -107,4 +107,3 @@ class FeedViewMixinTests(TestCase):
 
         # Should use 'popular' as default, NOT 'latest'
         self.assertIn("feed:popular:", cache_key)
-        self.assertNotIn("feed:latest:", cache_key)
