@@ -48,15 +48,41 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
             },
         }
 
+        # Sample Bluesky response
+        self.sample_bluesky_response = {
+            "post_count": 5,
+            "total_likes": 120,
+            "total_reposts": 30,
+            "total_replies": 15,
+            "total_quotes": 8,
+            "posts": [
+                {
+                    "uri": "at://did:plc:abc123/app.bsky.feed.post/xyz",
+                    "cid": "bafyreigxyz",
+                    "author_handle": "researcher.bsky.social",
+                    "author_display_name": "Dr. Researcher",
+                    "author_did": "did:plc:abc123",
+                    "text": "Great paper on DOI 10.1038/news.2011.490",
+                    "created_at": "2024-01-15T10:30:00Z",
+                    "like_count": 50,
+                    "repost_count": 10,
+                    "reply_count": 5,
+                    "quote_count": 3,
+                },
+            ],
+        }
+
         # Create mocks for client and mapper
         self.mock_client = Mock()
         self.mock_mapper = Mock()
         self.mock_github_client = Mock()
+        self.mock_bluesky_client = Mock()
 
         self.service = PaperMetricsEnrichmentService(
             altmetric_client=self.mock_client,
             altmetric_mapper=self.mock_mapper,
             github_metrics_client=self.mock_github_client,
+            bluesky_metrics_client=self.mock_bluesky_client,
         )
 
     def test_get_recent_papers_with_dois(self):
@@ -398,3 +424,127 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         self.mock_github_client.get_mentions.assert_called_once_with(
             self.paper.doi, search_areas=["issues"]
         )
+
+    def test_enrich_paper_with_bluesky_success(self):
+        """
+        Test successful enrichment of a paper with Bluesky metrics.
+        """
+        # Arrange
+        self.mock_bluesky_client.get_metrics.return_value = self.sample_bluesky_response
+
+        # Act
+        result = self.service.enrich_paper_with_bluesky(self.paper)
+
+        # Assert
+        self.assertEqual(result.status, "success")
+        self.assertEqual(result.metrics, {"bluesky": self.sample_bluesky_response})
+
+        # Verify client was called with the correct DOI
+        self.mock_bluesky_client.get_metrics.assert_called_once_with(self.paper.doi)
+
+        # Verify paper was updated
+        self.paper.refresh_from_db()
+        self.assertIsNotNone(self.paper.external_metadata)
+        self.assertIn("metrics", self.paper.external_metadata)
+        self.assertIn("bluesky", self.paper.external_metadata["metrics"])
+        self.assertEqual(
+            self.paper.external_metadata["metrics"]["bluesky"],
+            self.sample_bluesky_response,
+        )
+
+    def test_enrich_paper_with_bluesky_not_found(self):
+        """
+        Test Bluesky enrichment when no posts are found.
+        """
+        # Arrange
+        self.mock_bluesky_client.get_metrics.return_value = None
+
+        # Act
+        result = self.service.enrich_paper_with_bluesky(self.paper)
+
+        # Assert
+        self.assertEqual(result.status, "not_found")
+        self.assertEqual(result.reason, "no_bluesky_posts")
+
+        # Verify client was called
+        self.mock_bluesky_client.get_metrics.assert_called_once_with(self.paper.doi)
+
+    def test_enrich_paper_with_bluesky_no_doi(self):
+        """
+        Test Bluesky enrichment is skipped for papers without DOI.
+        """
+        # Act
+        result = self.service.enrich_paper_with_bluesky(self.paper_without_doi)
+
+        # Assert
+        self.assertEqual(result.status, "skipped")
+        self.assertEqual(result.reason, "no_doi")
+
+        # Verify client was not called
+        self.mock_bluesky_client.get_metrics.assert_not_called()
+
+    def test_enrich_paper_with_bluesky_preserves_existing_metadata(self):
+        """
+        Test that Bluesky enrichment preserves existing metadata and existing metrics.
+        """
+        # Arrange
+        self.paper.external_metadata = {
+            "existing_key": "existing_value",
+            "metrics": {
+                "altmetric_score": 50.0,
+                "github_mentions": {"total_mentions": 10},
+            },
+        }
+        self.paper.save()
+
+        self.mock_bluesky_client.get_metrics.return_value = self.sample_bluesky_response
+
+        # Act
+        result = self.service.enrich_paper_with_bluesky(self.paper)
+
+        # Assert
+        self.assertEqual(result.status, "success")
+
+        # Verify existing metadata is preserved
+        self.paper.refresh_from_db()
+        self.assertEqual(self.paper.external_metadata["existing_key"], "existing_value")
+
+        # Verify both old and new metrics exist
+        self.assertIn("metrics", self.paper.external_metadata)
+
+        # Verify existing metrics are preserved (not overwritten)
+        self.assertEqual(
+            self.paper.external_metadata["metrics"]["altmetric_score"], 50.0
+        )
+        self.assertEqual(
+            self.paper.external_metadata["metrics"]["github_mentions"][
+                "total_mentions"
+            ],
+            10,
+        )
+
+        # Verify new Bluesky metrics were added
+        self.assertIn("bluesky", self.paper.external_metadata["metrics"])
+        self.assertEqual(
+            self.paper.external_metadata["metrics"]["bluesky"],
+            self.sample_bluesky_response,
+        )
+
+    def test_enrich_paper_with_bluesky_handles_api_error(self):
+        """
+        Test Bluesky enrichment handles API errors gracefully.
+        """
+        # Arrange
+        self.mock_bluesky_client.get_metrics.side_effect = Exception(
+            "Bluesky API error"
+        )
+
+        # Act
+        result = self.service.enrich_paper_with_bluesky(self.paper)
+
+        # Assert
+        self.assertEqual(result.status, "error")
+        self.assertEqual(result.reason, "Bluesky API error")
+
+        # Verify client was called
+        self.mock_bluesky_client.get_metrics.assert_called_once_with(self.paper.doi)

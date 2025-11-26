@@ -5,6 +5,7 @@ Management command for enriching papers with Altmetric metrics.
 from django.core.management.base import BaseCommand
 
 from paper.ingestion.clients.enrichment.altmetric import AltmetricClient
+from paper.ingestion.clients.enrichment.bluesky import BlueskyMetricsClient
 from paper.ingestion.clients.enrichment.github import GithubMetricsClient
 from paper.ingestion.mappers.enrichment.altmetric import AltmetricMapper
 from paper.ingestion.services import PaperMetricsEnrichmentService
@@ -32,6 +33,7 @@ class Command(BaseCommand):
         paper_id = options.get("paper_id")
 
         service = PaperMetricsEnrichmentService(
+            bluesky_metrics_client=BlueskyMetricsClient(),
             github_metrics_client=GithubMetricsClient(),
             altmetric_client=AltmetricClient(),
             altmetric_mapper=AltmetricMapper(),

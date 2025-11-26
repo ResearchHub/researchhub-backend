@@ -65,7 +65,6 @@ class BlueskyClient:
             self.client.login(self.username, self.password)
             self.authenticated = True
             logger.info("Successfully authenticated with Bluesky")
-            return True
 
         except Exception as e:
             logger.error(f"Bluesky authentication failed: {str(e)}")
