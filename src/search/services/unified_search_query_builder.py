@@ -78,6 +78,12 @@ class DocumentQueryBuilder:
         self._add_doi_match_if_applicable()
 
     @staticmethod
+    def _is_single_word_query(query: str) -> bool:
+        """Check if query is a single word (after stripping whitespace)."""
+        words = query.strip().split()
+        return len(words) == 1
+
+    @staticmethod
     def _limit_query_to_max_words(query: str, max_words: int) -> str:
         words = query.split()
         if len(words) <= max_words:
@@ -277,6 +283,45 @@ class DocumentQueryBuilder:
             self.should_clauses.append(fuzzy_query)
         return self
 
+    def add_fuzzy_strategy_single_word(
+        self,
+        fields: list[FieldConfig],
+    ) -> "DocumentQueryBuilder":
+        """Add fuzzy match strategy with stricter fuzziness for single-word queries."""
+        field_list = []
+        for field in fields:
+            if "fuzzy" in (field.query_types or []):
+                # Fuzzy strategy uses different boosts:
+                # - Titles: 4.0 (from 5.0 base)
+                # - Authors: 2.0 (from 3.0 base)
+                if field.name in ["paper_title", "title"]:
+                    fuzzy_boost = 4.0
+                elif "authors" in field.name:
+                    fuzzy_boost = 2.0
+                else:
+                    fuzzy_boost = field.boost
+
+                if math.isclose(fuzzy_boost, 1.0):
+                    boosted_name = field.name
+                elif math.isclose(fuzzy_boost, round(fuzzy_boost)):
+                    boosted_name = f"{field.name}^{int(round(fuzzy_boost))}"
+                else:
+                    boosted_name = f"{field.name}^{fuzzy_boost}"
+                field_list.append(boosted_name)
+
+        if field_list:
+            # Use stricter fuzziness (1 edit distance) instead of AUTO for single words
+            fuzzy_query = Q(
+                "multi_match",
+                query=self.query,
+                fields=field_list,
+                type="best_fields",
+                fuzziness=1,  # Stricter than AUTO for single words
+                operator="or",
+            )
+            self.should_clauses.append(fuzzy_query)
+        return self
+
     def add_author_name_strategy(self) -> "DocumentQueryBuilder":
         author_fields = []
         for field in self.AUTHOR_FIELDS:
@@ -390,44 +435,94 @@ class PersonQueryBuilder:
 class UnifiedSearchQueryBuilder:
 
     def build_document_query(self, query: str) -> Q:
+        """Build document query with complexity limits for single-word queries."""
+        builder = DocumentQueryBuilder(query)
+        is_single_word = DocumentQueryBuilder._is_single_word_query(query)
 
-        builder = (
-            DocumentQueryBuilder(query)
-            # PRIORITY 1: Author+title combination strategy (highest boost)
-            # This ensures "gordon protein folding" ranks papers with both
-            # "Gordon" in authors AND "protein folding" in title at the top
-            .add_author_title_combination_strategy()
-            # PRIORITY 2: Simple per-field match strategy for titles
-            # This ensures basic queries like "protein folding" work reliably
-            .add_simple_match_strategy(
-                DocumentQueryBuilder.TITLE_FIELDS,
-                boost_multiplier=1.0,  # Full boost for reliable matches
+        if is_single_word:
+            # For single-word queries, use simplified strategy to reduce complexity
+            # Skip expensive strategies that don't add value for single words
+            builder = (
+                builder
+                # PRIORITY 1: Simple per-field match strategy for titles
+                # Essential for basic single-word queries
+                .add_simple_match_strategy(
+                    DocumentQueryBuilder.TITLE_FIELDS,
+                    boost_multiplier=1.0,  # Full boost for reliable matches
+                )
+                # PRIORITY 2: Author fields separately
+                .add_simple_match_strategy(
+                    DocumentQueryBuilder.AUTHOR_FIELDS,
+                    boost_multiplier=0.8,  # Slightly lower boost for authors
+                )
+                # PRIORITY 3: Author name strategy (useful for single-word author names)
+                .add_author_name_strategy()
+                # PRIORITY 4: Phrase match (still useful for single words)
+                .add_phrase_strategy(
+                    DocumentQueryBuilder.TITLE_FIELDS
+                    + DocumentQueryBuilder.CONTENT_FIELDS,
+                    slop=1,
+                    boost_multiplier=0.6,
+                )
+                # PRIORITY 5: Prefix strategy with reduced expansions for single words
+                .add_prefix_strategy(
+                    DocumentQueryBuilder.TITLE_FIELDS
+                    + DocumentQueryBuilder.AUTHOR_FIELDS,
+                    max_expansions=10,  # Reduced from default 20
+                    boost_multiplier=0.5,
+                )
+                # PRIORITY 6: Fuzzy strategy with stricter fuzziness (1 instead of AUTO)
+                # Only for titles and authors to reduce noise
+                .add_fuzzy_strategy_single_word(
+                    DocumentQueryBuilder.TITLE_FIELDS
+                    + DocumentQueryBuilder.AUTHOR_FIELDS,
+                )
+                # PRIORITY 7: Cross-field fallback (essential for coverage)
+                .add_cross_field_fallback_strategy()
             )
-            # PRIORITY 3: Author fields separately
-            .add_simple_match_strategy(
-                DocumentQueryBuilder.AUTHOR_FIELDS,
-                boost_multiplier=0.8,  # Slightly lower boost for authors
+        else:
+            # For multi-word queries, use full strategy set
+            builder = (
+                builder
+                # PRIORITY 1: Author+title combination strategy (highest boost)
+                # This ensures "gordon protein folding" ranks papers with both
+                # "Gordon" in authors AND "protein folding" in title at the top
+                .add_author_title_combination_strategy()
+                # PRIORITY 2: Simple per-field match strategy for titles
+                # This ensures basic queries like "protein folding" work reliably
+                .add_simple_match_strategy(
+                    DocumentQueryBuilder.TITLE_FIELDS,
+                    boost_multiplier=1.0,  # Full boost for reliable matches
+                )
+                # PRIORITY 3: Author fields separately
+                .add_simple_match_strategy(
+                    DocumentQueryBuilder.AUTHOR_FIELDS,
+                    boost_multiplier=0.8,  # Slightly lower boost for authors
+                )
+                # PRIORITY 4: Other strategies for comprehensive coverage
+                .add_author_name_strategy()  # Dedicated author name search
+                .add_phrase_strategy(
+                    DocumentQueryBuilder.TITLE_FIELDS
+                    + DocumentQueryBuilder.CONTENT_FIELDS,
+                    slop=1,
+                    boost_multiplier=0.6,  # Reduce boosts (5.0 -> 3.0)
+                )
+                .add_prefix_strategy(
+                    DocumentQueryBuilder.TITLE_FIELDS
+                    + DocumentQueryBuilder.AUTHOR_FIELDS,
+                    boost_multiplier=0.5,
+                )
+                .add_fuzzy_strategy(
+                    DocumentQueryBuilder.TITLE_FIELDS
+                    + DocumentQueryBuilder.AUTHOR_FIELDS
+                    + DocumentQueryBuilder.CONTENT_FIELDS,
+                    operator="or",  # Use OR for better partial matching
+                    # Boosts handled per-field in add_fuzzy_strategy
+                    boost_multiplier=1.0,
+                )
+                .add_cross_field_fallback_strategy()
             )
-            # PRIORITY 4: Other strategies for comprehensive coverage
-            .add_author_name_strategy()  # Dedicated author name search
-            .add_phrase_strategy(
-                DocumentQueryBuilder.TITLE_FIELDS + DocumentQueryBuilder.CONTENT_FIELDS,
-                slop=1,
-                boost_multiplier=0.6,  # Reduce boosts (5.0 -> 3.0)
-            )
-            .add_prefix_strategy(
-                DocumentQueryBuilder.TITLE_FIELDS + DocumentQueryBuilder.AUTHOR_FIELDS,
-                boost_multiplier=0.5,
-            )
-            .add_fuzzy_strategy(
-                DocumentQueryBuilder.TITLE_FIELDS
-                + DocumentQueryBuilder.AUTHOR_FIELDS
-                + DocumentQueryBuilder.CONTENT_FIELDS,
-                operator="or",  # Use OR for better partial matching
-                boost_multiplier=1.0,  # Boosts handled per-field in add_fuzzy_strategy
-            )
-            .add_cross_field_fallback_strategy()
-        )
+
         return builder.build()
 
     def build_person_query(self, query: str) -> Q:
