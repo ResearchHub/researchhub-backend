@@ -11,6 +11,7 @@ from opensearchpy import Q, Search
 from search.base.utils import seconds_to_milliseconds
 from search.documents.paper import PaperDocument
 from search.documents.post import PostDocument
+from search.services.search_error_utils import handle_search_error, log_first_hit_index
 from search.services.unified_search_query_builder import UnifiedSearchQueryBuilder
 from utils.doi import DOI
 
@@ -150,9 +151,9 @@ class UnifiedSearchService:
         # Execute search
         try:
             response = search.execute()
-            self._log_first_hit_index(response)
+            log_first_hit_index(response)
         except Exception as e:
-            self._handle_search_error(e, query, offset, limit, sort)
+            handle_search_error(e, query, offset, limit, sort)
             return {"results": [], "count": 0}
 
         results = self._process_document_results(response)
@@ -264,65 +265,6 @@ class UnifiedSearchService:
             search = search.sort({"_score": {"order": "desc"}})
 
         return search
-
-    def _log_first_hit_index(self, response) -> None:
-        """Log the index of the first hit if results are available."""
-        if response.hits.total.value > 0:
-            first_hit_index = response.hits[0].meta.index if response.hits else "N/A"
-            logger.info(f"First hit index: {first_hit_index}")
-
-    def _extract_opensearch_error_details(self, exception: Exception) -> dict[str, Any]:
-        """Extract OpenSearch-specific error details from exception."""
-        details = {}
-        if hasattr(exception, "info"):
-            details["info"] = str(exception.info)
-        if hasattr(exception, "status_code"):
-            details["status_code"] = exception.status_code
-        if hasattr(exception, "error"):
-            details["error"] = str(exception.error)
-        if hasattr(exception, "message"):
-            details["message"] = str(exception.message)
-        return details
-
-    def _categorize_error(self, exception_type: str, exception_message: str) -> str:
-        """Categorize error based on exception type and message."""
-        message_lower = exception_message.lower()
-        if "timeout" in message_lower or "Timeout" in exception_type:
-            return "timeout"
-        if "connection" in message_lower or "Connection" in exception_type:
-            return "connection"
-        if "NotFound" in exception_type:
-            return "not_found"
-        return "unknown"
-
-    def _handle_search_error(
-        self,
-        exception: Exception,
-        query: str,
-        offset: int,
-        limit: int,
-        sort: str,
-    ) -> None:
-        """Handle and log search errors with enhanced details."""
-        exception_type = type(exception).__name__
-        exception_message = str(exception)
-        opensearch_details = self._extract_opensearch_error_details(exception)
-        error_category = self._categorize_error(exception_type, exception_message)
-
-        opensearch_suffix = (
-            f", opensearch_details={opensearch_details}" if opensearch_details else ""
-        )
-        logger.error(
-            "Document search failed - "
-            f"query='{query}', "
-            f"offset={offset}, "
-            f"limit={limit}, "
-            f"sort={sort}, "
-            f"exception_type={exception_type}, "
-            f"exception_message={exception_message}, "
-            f"error_category={error_category}" + opensearch_suffix,
-            exc_info=True,
-        )
 
     def _extract_document_highlights(self, highlights) -> tuple[str | None, str | None]:
         """Extract snippet and matched field from document highlights."""
