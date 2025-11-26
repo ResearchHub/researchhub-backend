@@ -76,7 +76,9 @@ class FeedFilteringBackend(BaseFilterBackend):
 
         try:
             result = personalize_feed_service.get_trending_ids(
-                num_results=PERSONALIZE_CONFIG.get("num_results", DEFAULT_NUM_RESULTS),
+                num_results=PERSONALIZE_CONFIG.get(
+                    "trending_num_results", DEFAULT_NUM_RESULTS
+                ),
             )
 
             trending_ids = result.get("item_ids", [])
