@@ -66,7 +66,34 @@ class UnifiedSearchView(APIView):
             return Response(result_serializer.data, status=status.HTTP_200_OK)
 
         except Exception as e:
-            logger.error(f"Unified search error: {str(e)}", exc_info=True)
+            # Enhanced error logging with query details
+            exception_type = type(e).__name__
+            exception_message = str(e)
+
+            # Extract OpenSearch response details if available
+            opensearch_details = {}
+            if hasattr(e, "info"):
+                opensearch_details["info"] = str(e.info)
+            if hasattr(e, "status_code"):
+                opensearch_details["status_code"] = e.status_code
+            if hasattr(e, "error"):
+                opensearch_details["error"] = str(e.error)
+
+            opensearch_suffix = (
+                f", opensearch_details={opensearch_details}"
+                if opensearch_details
+                else ""
+            )
+            logger.error(
+                "Unified search error - "
+                f"query='{query}', "
+                f"page={page}, "
+                f"page_size={page_size}, "
+                f"sort={sort}, "
+                f"exception_type={exception_type}, "
+                f"exception_message={exception_message}" + opensearch_suffix,
+                exc_info=True,
+            )
             return Response(
                 {"error": "An error occurred while processing your search"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,

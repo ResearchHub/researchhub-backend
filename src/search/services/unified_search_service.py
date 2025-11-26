@@ -156,8 +156,48 @@ class UnifiedSearchService:
                 )
                 logger.info(f"First hit index: {first_hit_index}")
         except Exception as e:
+            # Enhanced error logging with query and search parameters
+            exception_type = type(e).__name__
+            exception_message = str(e)
+
+            # Extract OpenSearch-specific error details
+            opensearch_details = {}
+            if hasattr(e, "info"):
+                opensearch_details["info"] = str(e.info)
+            if hasattr(e, "status_code"):
+                opensearch_details["status_code"] = e.status_code
+            if hasattr(e, "error"):
+                opensearch_details["error"] = str(e.error)
+            if hasattr(e, "message"):
+                opensearch_details["message"] = str(e.message)
+
+            # Check for common OpenSearch exception types
+            error_category = "unknown"
+            if "timeout" in exception_message.lower() or "Timeout" in exception_type:
+                error_category = "timeout"
+            elif (
+                "connection" in exception_message.lower()
+                or "Connection" in exception_type
+            ):
+                error_category = "connection"
+            elif "NotFound" in exception_type:
+                error_category = "not_found"
+
+            opensearch_suffix = (
+                f", opensearch_details={opensearch_details}"
+                if opensearch_details
+                else ""
+            )
             logger.error(
-                f"Document search failed for query '{query}': {str(e)}", exc_info=True
+                "Document search failed - "
+                f"query='{query}', "
+                f"offset={offset}, "
+                f"limit={limit}, "
+                f"sort={sort}, "
+                f"exception_type={exception_type}, "
+                f"exception_message={exception_message}, "
+                f"error_category={error_category}" + opensearch_suffix,
+                exc_info=True,
             )
             return {"results": [], "count": 0}
 
