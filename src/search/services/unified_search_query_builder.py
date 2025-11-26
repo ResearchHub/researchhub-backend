@@ -117,14 +117,6 @@ class DocumentQueryBuilder:
     def _get_query_term_count(self) -> int:
         return len(self._query_terms)
 
-    def _is_single_word(self) -> bool:
-        return self._get_query_term_count() == 1
-
-    def _is_short_query(self, max_terms: int | None = None) -> bool:
-        if max_terms is None:
-            max_terms = self.MAX_TERMS_FOR_SHORT_QUERY
-        return self._get_query_term_count() <= max_terms
-
     def _is_short_enough_for_fuzzy_content(self) -> bool:
         return self._get_query_term_count() <= self.MAX_TERMS_FOR_FUZZY_CONTENT_FIELDS
 
@@ -349,12 +341,7 @@ class DocumentQueryBuilder:
                 else:
                     fuzzy_boost = field.boost
 
-                if math.isclose(fuzzy_boost, 1.0):
-                    boosted_name = field.name
-                elif math.isclose(fuzzy_boost, round(fuzzy_boost)):
-                    boosted_name = f"{field.name}^{int(round(fuzzy_boost))}"
-                else:
-                    boosted_name = f"{field.name}^{fuzzy_boost}"
+                boosted_name = self._format_boosted_field_name(field.name, fuzzy_boost)
                 field_list.append(boosted_name)
 
         if field_list:
