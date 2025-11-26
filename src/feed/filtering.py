@@ -8,6 +8,7 @@ from feed.models import FeedEntry
 from hub.models import Hub
 from personalize.config.settings import PERSONALIZE_CONFIG
 from personalize.services.feed_service import DEFAULT_NUM_RESULTS
+from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from utils.sentry import log_error
 
 logger = logging.getLogger(__name__)
@@ -126,13 +127,17 @@ class FeedFilteringBackend(BaseFilterBackend):
         """
         Fetch and order entries based on trending document IDs.
         Filters by the documents in the trending list and sorts in-memory.
+        Excludes PREREGISTRATION documents from results.
         """
         position_map = {pk: pos for pos, pk in enumerate(document_ids)}
 
         # Apply the document ID filter while preserving other queryset filters
+        # Exclude PREREGISTRATION documents from trending results
         entries = list(
             queryset.filter(
                 unified_document_id__in=document_ids,
+            ).exclude(
+                unified_document__document_type=PREREGISTRATION,
             )
         )
 
