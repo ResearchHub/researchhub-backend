@@ -100,7 +100,9 @@ class UserInteractions(DefaultModel):
                 "unified_document",
                 "content_type",
                 "object_id",
-                condition=models.Q(event__in=["FEED_ITEM_CLICK", "PAGE_VIEW"]),
+                condition=models.Q(
+                    event__in=["FEED_ITEM_CLICK", "PAGE_VIEW", "DOCUMENT_TAB_CLICKED"]
+                ),
                 name="unique_daily_repeatable_interactions",
             ),
         ]
