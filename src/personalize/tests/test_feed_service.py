@@ -61,7 +61,8 @@ class FeedServiceTests(APITestCase):
         return entries
 
     @patch(
-        "personalize.clients.recommendation_client.RecommendationClient.get_recommendations_for_user"
+        "personalize.clients.recommendation_client"
+        ".RecommendationClient.get_recommendations_for_user"
     )
     def test_get_recommendation_ids_uses_cache_on_second_call(
         self, mock_get_recommendations
@@ -293,3 +294,135 @@ class FeedServiceTests(APITestCase):
             self.assertEqual(
                 self.mock_client.get_recommendations_for_user.call_count, 1
             )
+
+    def test_get_trending_ids_returns_trending_items(self):
+        self.mock_client.get_trending_items.return_value = {
+            "item_ids": [1, 2, 3, 4, 5],
+            "recommendation_id": "trending-rec-id",
+        }
+
+        service = FeedService(personalize_client=self.mock_client)
+        result = service.get_trending_ids()
+
+        self.assertEqual(result.get("item_ids"), [1, 2, 3, 4, 5])
+        self.assertEqual(result.get("recommendation_id"), "trending-rec-id")
+
+    def test_get_trending_ids_uses_cache(self):
+        self.mock_client.get_trending_items.return_value = {
+            "item_ids": [1, 2, 3],
+            "recommendation_id": "trending-rec-id",
+        }
+
+        service = FeedService(personalize_client=self.mock_client)
+
+        # First call - should hit AWS
+        service.get_trending_ids()
+        self.assertEqual(self.mock_client.get_trending_items.call_count, 1)
+        self.assertFalse(service.cache_hit_trending)
+
+        # Second call - should use cache
+        service.get_trending_ids()
+        self.assertEqual(self.mock_client.get_trending_items.call_count, 1)
+        self.assertTrue(service.cache_hit_trending)
+
+    def test_get_trending_ids_cache_is_global(self):
+        self.mock_client.get_trending_items.return_value = {
+            "item_ids": [1, 2, 3],
+            "recommendation_id": "trending-rec-id",
+        }
+
+        service = FeedService(personalize_client=self.mock_client)
+
+        # Call with no user context
+        service.get_trending_ids()
+        self.assertEqual(self.mock_client.get_trending_items.call_count, 1)
+
+        # Create a new service instance (simulating different request)
+        service2 = FeedService(personalize_client=self.mock_client)
+        service2.get_trending_ids()
+
+        # Should still be only 1 call (cache hit)
+        self.assertEqual(self.mock_client.get_trending_items.call_count, 1)
+
+    def test_get_trending_ids_force_refresh_bypasses_cache(self):
+        self.mock_client.get_trending_items.return_value = {
+            "item_ids": [1, 2, 3],
+            "recommendation_id": "trending-rec-id",
+        }
+
+        service = FeedService(personalize_client=self.mock_client)
+
+        service.get_trending_ids()
+        self.assertEqual(self.mock_client.get_trending_items.call_count, 1)
+
+        service.get_trending_ids(force_refresh=True)
+        self.assertEqual(self.mock_client.get_trending_items.call_count, 2)
+
+    def test_invalidate_trending_cache(self):
+        self.mock_client.get_trending_items.return_value = {
+            "item_ids": [1, 2, 3],
+            "recommendation_id": "trending-rec-id",
+        }
+
+        service = FeedService(personalize_client=self.mock_client)
+
+        # Populate cache
+        service.get_trending_ids()
+        self.assertEqual(self.mock_client.get_trending_items.call_count, 1)
+
+        # Verify cache is used
+        service.get_trending_ids()
+        self.assertEqual(self.mock_client.get_trending_items.call_count, 1)
+
+        # Invalidate cache
+        service.invalidate_trending_cache()
+
+        # Should hit AWS again
+        service.get_trending_ids()
+        self.assertEqual(self.mock_client.get_trending_items.call_count, 2)
+
+    def test_trending_api_error_raises_exception(self):
+        self.mock_client.get_trending_items.side_effect = Exception("AWS Error")
+
+        service = FeedService(personalize_client=self.mock_client)
+
+        with self.assertRaises(Exception):
+            service.get_trending_ids()
+
+    def test_trending_returns_empty_list(self):
+        self.mock_client.get_trending_items.return_value = {
+            "item_ids": [],
+            "recommendation_id": None,
+        }
+
+        service = FeedService(personalize_client=self.mock_client)
+        result = service.get_trending_ids()
+
+        self.assertEqual(len(result.get("item_ids", [])), 0)
+
+    @patch(
+        "personalize.services.feed_service.PERSONALIZE_CONFIG",
+        {
+            "default_filter": "new-content",
+            "cache_timeout": 1800,
+            "num_results": 100,
+        },
+    )
+    def test_trending_uses_num_results_from_config(self):
+        self.mock_client.get_trending_items.return_value = {
+            "item_ids": [1, 2, 3],
+            "recommendation_id": "trending-rec-id",
+        }
+
+        service = FeedService(personalize_client=self.mock_client)
+        service.get_trending_ids()
+
+        self.mock_client.get_trending_items.assert_called_with(
+            filter="new-content", num_results=100
+        )
+
+    def test_trending_cache_key_format(self):
+        service = FeedService(personalize_client=self.mock_client)
+        cache_key = service._build_trending_cache_key(200, "new-content")
+
+        self.assertEqual(cache_key, "trending_ids:num-200:filter-is-new-content")

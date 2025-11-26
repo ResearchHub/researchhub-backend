@@ -8,8 +8,12 @@ FEED_CONFIG = {
         "allowed_sorts": [],
     },
     "popular": {
-        "use_cache": True,
-        "allowed_sorts": ["hot_score_v2", "hot_score"],
+        "allowed_sorts": ["aws_trending", "hot_score_v2", "hot_score"],
+        "cache_by_ordering": {
+            "aws_trending": False,
+            "hot_score_v2": True,
+            "hot_score": True,
+        },
     },
 }
 

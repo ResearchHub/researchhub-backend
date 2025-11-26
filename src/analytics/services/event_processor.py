@@ -47,7 +47,11 @@ class EventProcessor:
                 "object_id": interaction.object_id,
             }
 
-            if interaction.event in ["FEED_ITEM_CLICK", "PAGE_VIEW"]:
+            if interaction.event in [
+                "FEED_ITEM_CLICK",
+                "PAGE_VIEW",
+                "DOCUMENT_TAB_CLICKED",
+            ]:
                 lookup_kwargs["event_timestamp__date"] = (
                     interaction.event_timestamp.date()
                 )

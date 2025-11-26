@@ -9,12 +9,14 @@ from personalize.config.settings import PERSONALIZE_CONFIG
 logger = logging.getLogger(__name__)
 
 DEFAULT_CACHE_TIMEOUT = 1800
+DEFAULT_NUM_RESULTS = 200
 
 
 class FeedService:
     def __init__(self, personalize_client: Optional[RecommendationClient] = None):
         self.personalize_client = personalize_client or RecommendationClient()
         self.cache_hit = False
+        self.cache_hit_trending = False
 
     def get_recommendation_ids(
         self,
@@ -41,7 +43,7 @@ class FeedService:
         force_refresh: bool,
     ) -> Dict[str, Any]:
         if num_results is None:
-            num_results = PERSONALIZE_CONFIG.get("num_results", 200)
+            num_results = PERSONALIZE_CONFIG.get("num_results", DEFAULT_NUM_RESULTS)
 
         cache_key = self._build_cache_key(user_id, filter_param)
 
@@ -89,3 +91,62 @@ class FeedService:
             )
             cache.delete(cache_key)
             logger.info(f"Invalidated cache: {cache_key}")
+
+    def get_trending_ids(
+        self,
+        filter_param: Optional[str] = None,
+        num_results: Optional[int] = None,
+        force_refresh: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Get globally trending item IDs from AWS Personalize.
+        Results are cached globally (not per-user).
+        """
+        if not filter_param:
+            filter_param = PERSONALIZE_CONFIG["default_filter"]
+
+        if num_results is None:
+            num_results = PERSONALIZE_CONFIG.get("num_results", DEFAULT_NUM_RESULTS)
+
+        cache_key = self._build_trending_cache_key(num_results, filter_param)
+
+        if not force_refresh:
+            cached_result = cache.get(cache_key)
+            if cached_result:
+                logger.debug("Trending cache hit")
+                self.cache_hit_trending = True
+                return cached_result
+
+        logger.info("Fetching trending items from AWS Personalize")
+        self.cache_hit_trending = False
+
+        result = self.personalize_client.get_trending_items(
+            filter=filter_param,
+            num_results=num_results,
+        )
+
+        timeout = PERSONALIZE_CONFIG.get("cache_timeout", DEFAULT_CACHE_TIMEOUT)
+        cache.set(cache_key, result, timeout=timeout)
+        logger.info(f"Cached {len(result.get('item_ids', []))} trending items")
+
+        return result
+
+    def _build_trending_cache_key(
+        self, num_results: int, filter_param: Optional[str] = None
+    ) -> str:
+        filter_value = filter_param if filter_param else "none"
+        return f"trending_ids:num-{num_results}:filter-is-{filter_value}"
+
+    def invalidate_trending_cache(
+        self,
+        filter_param: Optional[str] = None,
+        num_results: Optional[int] = None,
+    ) -> None:
+        """Invalidate trending cache."""
+        if num_results is None:
+            num_results = PERSONALIZE_CONFIG.get("num_results", DEFAULT_NUM_RESULTS)
+        if not filter_param:
+            filter_param = PERSONALIZE_CONFIG["default_filter"]
+        cache_key = self._build_trending_cache_key(num_results, filter_param)
+        cache.delete(cache_key)
+        logger.info(f"Invalidated trending cache: {cache_key}")

@@ -4,7 +4,11 @@ from unittest.mock import patch
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
-from analytics.constants.event_types import FEED_ITEM_CLICK, PAGE_VIEW
+from analytics.constants.event_types import (
+    DOCUMENT_TAB_CLICKED,
+    FEED_ITEM_CLICK,
+    PAGE_VIEW,
+)
 from analytics.models import UserInteractions
 from analytics.services.event_processor import EventProcessor
 from researchhub_document.helpers import create_post
@@ -100,6 +104,31 @@ class EventProcessorTestCase(TestCase):
         # Verify the created interaction
         interaction = UserInteractions.objects.latest("created_date")
         self.assertEqual(interaction.event, PAGE_VIEW)
+
+    def test_process_event_with_document_tab_clicked_creates_interaction(self):
+        """Test process_event creates UserInteractions for document_tab_clicked."""
+        event = {
+            "event_type": "document_tab_clicked",
+            "event_properties": {
+                "user_id": str(self.user.id),
+                "related_work": {
+                    "unified_document_id": str(self.post.unified_document.id),
+                    "content_type": "researchhubpost",
+                    "id": str(self.post.id),
+                },
+            },
+            "time_": int(datetime.now().timestamp() * 1000),
+        }
+
+        initial_count = UserInteractions.objects.count()
+        self.processor.process_event(event)
+        final_count = UserInteractions.objects.count()
+
+        self.assertEqual(final_count, initial_count + 1)
+
+        # Verify the created interaction
+        interaction = UserInteractions.objects.latest("created_date")
+        self.assertEqual(interaction.event, DOCUMENT_TAB_CLICKED)
 
     def test_process_event_raises_exception_for_invalid_event(self):
         """Test that process_event raises ValueError for invalid events."""

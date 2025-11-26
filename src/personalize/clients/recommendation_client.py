@@ -19,11 +19,13 @@ class RecommendationClient:
     """
 
     NEW_CONTENT_FILTER_DAYS = 60
+    TRENDING_NEW_CONTENT_FILTER_DAYS = 60
 
     def __init__(self):
         """Initialize the Personalize runtime client."""
         self.client = create_client("personalize-runtime")
         self.campaign_arn = settings.AWS_PERSONALIZE_CAMPAIGN_ARN
+        self.trending_campaign_arn = settings.AWS_PERSONALIZE_TRENDING_CAMPAIGN_ARN
         self.filter_arn_gte_date = settings.AWS_PERSONALIZE_FILTER_ARN_GTE_DATE
 
     def get_recommendations(
@@ -111,3 +113,49 @@ class RecommendationClient:
             "item_ids": [int(item_id) for item_id in item_ids] if item_ids else [],
             "recommendation_id": result.get("recommendation_id"),
         }
+
+    def get_trending_items(
+        self,
+        filter: Optional[str] = None,
+        num_results: int = 200,
+    ) -> Dict[str, Any]:
+        """
+        Get global trending items from AWS Personalize.
+        """
+        try:
+            params = {
+                "campaignArn": self.trending_campaign_arn,
+                "numResults": num_results,
+            }
+
+            # Apply filtering
+            if filter == "new-content":
+                # Filter to content from last N days (20 days for trending)
+                cutoff_date = datetime.now() - timedelta(
+                    days=self.TRENDING_NEW_CONTENT_FILTER_DAYS
+                )
+                timestamp_cutoff = int(cutoff_date.timestamp())
+
+                params["filterArn"] = self.filter_arn_gte_date
+                params["filterValues"] = {"DATE": str(timestamp_cutoff)}
+
+                logger.info(
+                    f"Applying new-content filter for trending (last "
+                    f"{self.TRENDING_NEW_CONTENT_FILTER_DAYS} days) with "
+                    f"timestamp: {timestamp_cutoff}"
+                )
+
+            response = self.client.get_recommendations(**params)
+
+            recommendation_id = response.get("recommendationId")
+            item_list = response.get("itemList", [])
+            item_ids = [int(item["itemId"]) for item in item_list]
+
+            return {
+                "item_ids": item_ids,
+                "recommendation_id": recommendation_id,
+            }
+
+        except Exception as e:
+            logger.error(f"Error getting trending items from Personalize: {e}")
+            raise
