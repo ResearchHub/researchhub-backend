@@ -19,7 +19,7 @@ class RecommendationClient:
     """
 
     NEW_CONTENT_FILTER_DAYS = 60
-    TRENDING_NEW_CONTENT_FILTER_DAYS = 20
+    TRENDING_NEW_CONTENT_FILTER_DAYS = 60
 
     def __init__(self):
         """Initialize the Personalize runtime client."""
