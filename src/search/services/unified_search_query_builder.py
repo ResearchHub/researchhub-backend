@@ -24,6 +24,9 @@ class FieldConfig:
 class DocumentQueryBuilder:
 
     MAX_QUERY_WORDS_FOR_AUTHOR_TITLE_COMBO = 7
+    # Query complexity thresholds
+    MAX_TERMS_FOR_SHORT_QUERY = 3
+    MAX_TERMS_FOR_FUZZY_CONTENT_FIELDS = 4
 
     # Field configurations
     TITLE_FIELDS = [
@@ -74,12 +77,13 @@ class DocumentQueryBuilder:
     def __init__(self, query: str):
         """Initialize builder with search query."""
         self.query = query
+        # Pre-split query terms for reuse in fuzzy-gating heuristics
+        self._query_terms: list[str] = [w for w in (query or "").split() if w]
         self.should_clauses: list[Q] = []
         self._add_doi_match_if_applicable()
 
     @staticmethod
     def _is_single_word_query(query: str) -> bool:
-        """Check if query is a single word (after stripping whitespace)."""
         words = query.strip().split()
         return len(words) == 1
 
@@ -89,6 +93,20 @@ class DocumentQueryBuilder:
         if len(words) <= max_words:
             return query
         return " ".join(words[:max_words])
+
+    def _get_query_term_count(self) -> int:
+        return len(self._query_terms)
+
+    def _is_single_word(self) -> bool:
+        return self._get_query_term_count() == 1
+
+    def _is_short_query(self, max_terms: int | None = None) -> bool:
+        if max_terms is None:
+            max_terms = self.MAX_TERMS_FOR_SHORT_QUERY
+        return self._get_query_term_count() <= max_terms
+
+    def _is_short_enough_for_fuzzy_content(self) -> bool:
+        return self._get_query_term_count() <= self.MAX_TERMS_FOR_FUZZY_CONTENT_FIELDS
 
     def _add_doi_match_if_applicable(self):
         """Add DOI exact match if query is a DOI."""
@@ -101,16 +119,8 @@ class DocumentQueryBuilder:
         except Exception:
             pass
 
+    # Add strategy that allows author and title to co-occur.
     def add_author_title_combination_strategy(self) -> "DocumentQueryBuilder":
-        """Add strategy that allows author and title to co-occur.
-
-        Uses a bool query with should clauses to ensure flexible matching:
-        - Cross_fields query for flexible term matching across fields
-        - Bool query requiring author match AND title match
-
-        For example, "Smith machine learning" can match "Smith" in author fields
-        and "machine learning" in title fields.
-        """
         # Truncate query to prevent query explosion with long queries
         truncated_query = self._limit_query_to_max_words(
             self.query, self.MAX_QUERY_WORDS_FOR_AUTHOR_TITLE_COMBO
@@ -133,7 +143,7 @@ class DocumentQueryBuilder:
                     **{
                         field.name: {
                             "query": truncated_query,
-                            "operator": "or",  # Any term can match
+                            "operator": "or",
                         }
                     },
                 )
@@ -147,7 +157,7 @@ class DocumentQueryBuilder:
                     **{
                         field.name: {
                             "query": truncated_query,
-                            "operator": "or",  # Any term can match
+                            "operator": "or",
                         }
                     },
                 )
@@ -155,7 +165,6 @@ class DocumentQueryBuilder:
 
         # Combine: (author match) AND (title match)
         # Very high boost to ensure author+title matches rank first
-        # This is the most relevant match type for queries like "gordon protein folding"
         if author_queries and title_queries:
             author_match = Q("bool", should=author_queries, minimum_should_match=1)
             title_match = Q("bool", should=title_queries, minimum_should_match=1)
@@ -245,10 +254,22 @@ class DocumentQueryBuilder:
         operator: str = "and",
         boost_multiplier: float = 1.0,
     ) -> "DocumentQueryBuilder":
-        """Add fuzzy match strategy for specified fields."""
         field_list = []
+        # For longer queries, fuzzy matching on large body fields can easily
+        # overpower exact/phrase matches. We therefore:
+        #   - Restrict fuzzy on long queries to author/title fields only.
+        #   - Allow content-field fuzziness only for short queries.
+        restrict_to_author_title_only = not self._is_short_enough_for_fuzzy_content()
+        author_title_names = {f.name for f in (self.AUTHOR_FIELDS + self.TITLE_FIELDS)}
+
         for field in fields:
             if "fuzzy" in (field.query_types or []):
+                if (
+                    restrict_to_author_title_only
+                    and field.name not in author_title_names
+                ):
+                    # Skip fuzzy on content fields for longer queries.
+                    continue
                 # Fuzzy strategy uses different boosts:
                 # - Titles: 4.0 (from 5.0 base)
                 # - Authors: 2.0 (from 3.0 base)
@@ -369,19 +390,24 @@ class DocumentQueryBuilder:
                     },
                 )
             )
-            # Strategy 3: Fuzzy match for typos
-            self.should_clauses.append(
-                Q(
-                    "match",
-                    **{
-                        field.name: {
-                            "query": self.query,
-                            "fuzziness": "AUTO",
-                            "boost": field.boost * boost_multiplier * 0.3,
-                        }
-                    },
+            # Strategy 3: Fuzzy match for typos (gated)
+            # Only apply fuzzy matching for short queries and exclude content fields
+            if self._is_short_enough_for_fuzzy_content() and field.name not in [
+                "abstract",
+                "renderable_text",
+            ]:
+                self.should_clauses.append(
+                    Q(
+                        "match",
+                        **{
+                            field.name: {
+                                "query": self.query,
+                                "fuzziness": "AUTO",
+                                "boost": field.boost * boost_multiplier * 0.3,
+                            }
+                        },
+                    )
                 )
-            )
         return self
 
     def add_cross_field_fallback_strategy(self) -> "DocumentQueryBuilder":
@@ -401,7 +427,7 @@ class DocumentQueryBuilder:
             type="cross_fields",
             operator="or",
             fields=all_fields,
-            boost=1.5,
+            boost=0.8,
         )
         self.should_clauses.append(fallback_query)
         return self

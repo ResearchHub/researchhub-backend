@@ -4,6 +4,10 @@ from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from search.services.unified_search_query_builder import (
+    DocumentQueryBuilder,
+    FieldConfig,
+)
 from search.services.unified_search_service import UnifiedSearchService
 
 
@@ -121,6 +125,41 @@ class UnifiedSearchServiceTests(TestCase):
             self.assertIn("execution_time_ms", results)
             self.assertIsInstance(results["execution_time_ms"], (int, float))
             self.assertGreaterEqual(results["execution_time_ms"], 0)
+
+    def test_add_fuzzy_strategy_long_query_skips_content_fields(self):
+        builder = DocumentQueryBuilder("one two three four five")
+        fields = [
+            FieldConfig("abstract", boost=2.0, query_types=["fuzzy"]),
+            FieldConfig("paper_title", boost=5.0, query_types=["fuzzy"]),
+        ]
+        builder.add_fuzzy_strategy(fields)
+        query_dict = builder.build().to_dict()
+        fields_in_query = query_dict["bool"]["should"][0]["multi_match"]["fields"]
+        self.assertIn("paper_title^4", fields_in_query)
+        self.assertNotIn("abstract", fields_in_query)
+
+    def test_add_fuzzy_strategy_short_query_includes_all_fields(self):
+        builder = DocumentQueryBuilder("test")
+        fields = [
+            FieldConfig("abstract", boost=2.0, query_types=["fuzzy"]),
+            FieldConfig("paper_title", boost=5.0, query_types=["fuzzy"]),
+            FieldConfig("raw_authors.full_name", boost=3.0, query_types=["fuzzy"]),
+            FieldConfig("renderable_text", boost=1.0, query_types=["fuzzy"]),
+        ]
+        builder.add_fuzzy_strategy(fields)
+        query_dict = builder.build().to_dict()
+        fields_in_query = query_dict["bool"]["should"][0]["multi_match"]["fields"]
+        self.assertIn("paper_title^4", fields_in_query)
+        self.assertIn("abstract^2", fields_in_query)
+        self.assertIn("raw_authors.full_name^2", fields_in_query)
+        self.assertIn("renderable_text", fields_in_query)
+
+    def test_add_fuzzy_strategy_no_fuzzy_fields_returns_empty(self):
+        builder = DocumentQueryBuilder("test")
+        fields = [FieldConfig("title", boost=5.0, query_types=["phrase"])]
+        builder.add_fuzzy_strategy(fields)
+        query_dict = builder.build().to_dict()
+        self.assertNotIn("multi_match", str(query_dict))
 
 
 class UnifiedSearchViewTests(TestCase):
