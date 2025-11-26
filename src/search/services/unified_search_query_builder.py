@@ -1,6 +1,5 @@
 import math
 from dataclasses import dataclass
-from typing import Any
 
 from opensearchpy import Q
 
@@ -248,47 +247,55 @@ class DocumentQueryBuilder:
             self.should_clauses.append(prefix_query)
         return self
 
+    def _should_skip_fuzzy_field(
+        self,
+        field: FieldConfig,
+        restrict_to_author_title_only: bool,
+        author_title_names: set[str],
+    ) -> bool:
+        """Check if fuzzy field should be skipped for longer queries."""
+        if "fuzzy" not in (field.query_types or []):
+            return True
+        return restrict_to_author_title_only and field.name not in author_title_names
+
+    def _calculate_fuzzy_boost(
+        self, field: FieldConfig, boost_multiplier: float
+    ) -> float:
+        """Calculate fuzzy boost for a field."""
+        if field.name in ["paper_title", "title"]:
+            return 4.0
+        if "authors" in field.name:
+            return 2.0
+        return field.boost * boost_multiplier
+
+    def _format_boosted_field_name(self, field_name: str, boost: float) -> str:
+        """Format field name with boost suffix."""
+        if math.isclose(boost, 1.0):
+            return field_name
+        if math.isclose(boost, round(boost)):
+            return f"{field_name}^{int(round(boost))}"
+        return f"{field_name}^{boost}"
+
     def add_fuzzy_strategy(
         self,
         fields: list[FieldConfig],
         operator: str = "and",
         boost_multiplier: float = 1.0,
     ) -> "DocumentQueryBuilder":
+        """Add fuzzy match strategy for specified fields."""
         field_list = []
-        # For longer queries, fuzzy matching on large body fields can easily
-        # overpower exact/phrase matches. We therefore:
-        #   - Restrict fuzzy on long queries to author/title fields only.
-        #   - Allow content-field fuzziness only for short queries.
         restrict_to_author_title_only = not self._is_short_enough_for_fuzzy_content()
         author_title_names = {f.name for f in (self.AUTHOR_FIELDS + self.TITLE_FIELDS)}
 
         for field in fields:
-            if "fuzzy" in (field.query_types or []):
-                if (
-                    restrict_to_author_title_only
-                    and field.name not in author_title_names
-                ):
-                    # Skip fuzzy on content fields for longer queries.
-                    continue
-                # Fuzzy strategy uses different boosts:
-                # - Titles: 4.0 (from 5.0 base)
-                # - Authors: 2.0 (from 3.0 base)
-                # - Abstract: 2.0 (same)
-                # - Renderable text: 1.0 (same)
-                if field.name in ["paper_title", "title"]:
-                    fuzzy_boost = 4.0
-                elif "authors" in field.name:
-                    fuzzy_boost = 2.0
-                else:
-                    fuzzy_boost = field.boost * boost_multiplier
+            if self._should_skip_fuzzy_field(
+                field, restrict_to_author_title_only, author_title_names
+            ):
+                continue
 
-                if math.isclose(fuzzy_boost, 1.0):
-                    boosted_name = field.name
-                elif math.isclose(fuzzy_boost, round(fuzzy_boost)):
-                    boosted_name = f"{field.name}^{int(round(fuzzy_boost))}"
-                else:
-                    boosted_name = f"{field.name}^{fuzzy_boost}"
-                field_list.append(boosted_name)
+            fuzzy_boost = self._calculate_fuzzy_boost(field, boost_multiplier)
+            boosted_name = self._format_boosted_field_name(field.name, fuzzy_boost)
+            field_list.append(boosted_name)
 
         if field_list:
             # Use best_fields instead of cross_fields - fuzziness not allowed
@@ -555,36 +562,3 @@ class UnifiedSearchQueryBuilder:
 
         builder = PersonQueryBuilder(query)
         return builder.build()
-
-    def build_rescore_query(self, query: str) -> dict[str, Any]:
-
-        return {
-            "window_size": 100,
-            "query": {
-                "rescore_query": {
-                    "bool": {
-                        "must": [
-                            {
-                                "multi_match": {
-                                    "query": query,
-                                    "type": "cross_fields",
-                                    "fields": [
-                                        "raw_authors.full_name^2",
-                                        "authors.full_name^2",
-                                    ],
-                                }
-                            },
-                            {
-                                "multi_match": {
-                                    "query": query,
-                                    "type": "best_fields",
-                                    "fields": ["paper_title^3", "title^3"],
-                                }
-                            },
-                        ]
-                    }
-                },
-                "query_weight": 0.9,
-                "rescore_query_weight": 0.1,
-            },
-        }
