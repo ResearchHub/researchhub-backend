@@ -1,5 +1,5 @@
 """
-Unified search view for searching across documents and people.
+Unified search view for searching across documents (papers/posts).
 """
 
 import logging
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 class UnifiedSearchView(APIView):
     """
-    Unified search endpoint for searching across all content types.
+    Unified search endpoint for searching across documents (papers/posts).
 
     GET /api/search/?q=<query>&page=<page>&page_size=<size>&sort=<sort>
 
@@ -28,11 +28,10 @@ class UnifiedSearchView(APIView):
         - q (required): Search query string
         - page (optional): Page number, default=1
         - page_size (optional): Number of results per page, default=10, max=100
-        - sort (optional): Sort option - relevance (default), newest, hot, upvoted
+        - sort (optional): Sort option - relevance (default), newest
 
     Returns:
-        Unified search results with separate sections for documents and people,
-        plus aggregations for filtering.
+        Unified search results with documents (papers and posts).
     """
 
     permission_classes = [AllowAny]
