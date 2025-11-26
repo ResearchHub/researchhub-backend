@@ -33,30 +33,19 @@ class DocumentQueryBuilder:
         ("simple_match", "title"): 1.0,
         ("simple_match", "author"): 0.8,
         ("simple_match", "content"): 1.0,
+        # Simple match sub-strategy multipliers
         ("simple_match_and", "all"): 0.7,
         ("simple_match_fuzzy", "all"): 0.3,
+        # Phrase strategy boosts
         ("phrase", "title"): 0.6,
         ("phrase", "abstract"): 0.75,
         ("phrase", "content"): 0.6,
+        # Prefix strategy boosts
         ("prefix", "all"): 0.5,
+        # Fuzzy strategy boosts (absolute values, not multipliers)
         ("fuzzy", "title"): 4.0,
         ("fuzzy", "author"): 2.0,
         ("fuzzy", "content"): None,
-        ("simple_match", "author"): 0.8,  # 80% of base boost for authors
-        ("simple_match", "content"): 1.0,  # Full base boost for content
-        # Simple match sub-strategy multipliers (applied to base strategy boost)
-        ("simple_match_and", "all"): 0.7,  # AND operator gets 70% of strategy boost
-        ("simple_match_fuzzy", "all"): 0.3,  # Fuzzy gets 30% of strategy boost
-        # Phrase strategy boosts
-        ("phrase", "title"): 0.6,  # 60% of base boost for titles
-        ("phrase", "abstract"): 0.75,  # 75% of base boost for abstract
-        ("phrase", "content"): 0.6,  # 60% of base boost for other content
-        # Prefix strategy boosts
-        ("prefix", "all"): 0.5,  # 50% of base boost for prefix matches
-        # Fuzzy strategy boosts (absolute values, not multipliers)
-        ("fuzzy", "title"): 4.0,  # Absolute boost for fuzzy title matches
-        ("fuzzy", "author"): 2.0,  # Absolute boost for fuzzy author matches
-        ("fuzzy", "content"): None,  # Uses field.boost (fallback)
     }
 
     # Field configurations
