@@ -51,7 +51,7 @@ class UnifiedSearchServiceTests(TestCase):
         from opensearchpy import Search
 
         search = Search()
-        highlighted_search = self.service._apply_highlighting(search, is_document=True)
+        highlighted_search = self.service._apply_highlighting(search)
         highlight_dict = highlighted_search.to_dict().get("highlight", {})
         self.assertIn("fields", highlight_dict)
         self.assertIn("paper_title", highlight_dict["fields"])
