@@ -74,8 +74,11 @@ class FeedFilteringBackend(BaseFilterBackend):
             view._feed_source = "researchhub"
             return queryset
 
+        filter_param = request.query_params.get("filter", None)
+
         try:
             result = personalize_feed_service.get_trending_ids(
+                filter_param=filter_param,
                 num_results=PERSONALIZE_CONFIG.get(
                     "trending_num_results", DEFAULT_NUM_RESULTS
                 ),
