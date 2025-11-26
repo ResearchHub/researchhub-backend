@@ -15,6 +15,10 @@ FEED_CONFIG = {
             "hot_score": True,
         },
     },
+    "latest": {
+        "use_cache": True,
+        "allowed_sorts": [],
+    },
 }
 
 FEED_DEFAULTS = {

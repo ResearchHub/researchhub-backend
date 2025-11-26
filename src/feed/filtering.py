@@ -21,8 +21,21 @@ class FeedFilteringBackend(BaseFilterBackend):
             return self._filter_following(request, queryset, view)
         elif feed_view == "personalized":
             return self._filter_personalized(request, queryset, view)
+        elif feed_view == "latest":
+            return self._filter_latest(request, queryset, view)
         else:
             return self._filter_popular(request, queryset, view)
+
+    def _filter_latest(self, request, queryset, view):
+        hub_slug = request.query_params.get("hub_slug")
+        if hub_slug:
+            queryset = self._filter_by_hub(hub_slug, queryset)
+
+        queryset = queryset.filter(
+            content_type__in=[view._paper_content_type, view._post_content_type]
+        )
+
+        return queryset
 
     def _filter_following(self, request, queryset, view):
         if not request.user.is_authenticated:
