@@ -1,7 +1,7 @@
 import uuid
 from unittest.mock import MagicMock, patch
 
-from django.contrib.auth import get_user_model 
+from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.test import TestCase
@@ -21,7 +21,10 @@ from purchase.related_models.grant_model import Grant
 from purchase.related_models.purchase_model import Purchase
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import Escrow
-from researchhub_document.related_models.constants.document_type import GRANT, PREREGISTRATION
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+)
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -311,7 +314,7 @@ class FundingFeedViewSetTests(TestCase):
         request.user = anon_user
 
         cache_key = viewset.get_cache_key(request, "funding")
-        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20")
+        self.assertEqual(cache_key, "funding_feed:popular:all:all:none:1-20")
 
         # Authenticated user
         request = request_factory.get("/api/funding_feed/")
@@ -324,7 +327,7 @@ class FundingFeedViewSetTests(TestCase):
         request.user = mock_user
 
         cache_key = viewset.get_cache_key(request, "funding")
-        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20")
+        self.assertEqual(cache_key, "funding_feed:popular:all:all:none:1-20")
 
         # Custom page and page size
         request = request_factory.get("/api/funding_feed/?page=3&page_size=10")
@@ -332,7 +335,7 @@ class FundingFeedViewSetTests(TestCase):
         request.user = mock_user
 
         cache_key = viewset.get_cache_key(request, "funding")
-        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:3-10")
+        self.assertEqual(cache_key, "funding_feed:popular:all:all:none:3-10")
 
     def test_preregistration_post_only(self):
         """Test that funding feed only returns preregistration posts"""
@@ -1076,8 +1079,8 @@ class FundingFeedViewSetTests(TestCase):
         )
 
     def test_include_ended_parameter(self):
-        """Test include_ended parameter behavior and fundraise_status=CLOSED override""" 
-        
+        """Test include_ended parameter behavior and fundraise_status=CLOSED override"""
+
         # Create an expired OPEN fundraise (past end_date but status still OPEN)
         expired_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION
@@ -1088,7 +1091,7 @@ class FundingFeedViewSetTests(TestCase):
             document_type=PREREGISTRATION,
             unified_document=expired_doc,
         )
-        
+
         escrow_expired = Escrow.objects.create(
             amount_holding=0,
             hold_type=Escrow.FUNDRAISE,
@@ -1096,21 +1099,22 @@ class FundingFeedViewSetTests(TestCase):
             content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
             object_id=expired_doc.id,
         )
-        
+
         Fundraise.objects.create(
             created_by=self.user,
             unified_document=expired_doc,
             escrow=escrow_expired,
             status=Fundraise.OPEN,
             goal_amount=100,
-            end_date=timezone.now() - timezone.timedelta(days=10),  # Expired 10 days ago
+            end_date=timezone.now()
+            - timezone.timedelta(days=10),  # Expired 10 days ago
         )
 
         # Test default behavior (include_ended=true)
         url = reverse("funding_feed-list")
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
+
         # Should include all items: self.post (OPEN), self.other_post (COMPLETED), expired_post (OPEN+Expired)
         post_ids = [item["content_object"]["id"] for item in response.data["results"]]
         self.assertIn(self.post.id, post_ids)
@@ -1121,7 +1125,7 @@ class FundingFeedViewSetTests(TestCase):
         url = reverse("funding_feed-list") + "?include_ended=false"
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
+
         # Should exclude expired_post but include self.post (OPEN+Active) and self.other_post (COMPLETED)
         post_ids = [item["content_object"]["id"] for item in response.data["results"]]
         self.assertIn(self.post.id, post_ids)
@@ -1139,7 +1143,7 @@ class FundingFeedViewSetTests(TestCase):
             document_type=PREREGISTRATION,
             unified_document=mixed_doc,
         )
-        
+
         # Create completed fundraise (will be included by fundraise_status=CLOSED)
         completed_escrow = Escrow.objects.create(
             amount_holding=0,
@@ -1156,7 +1160,7 @@ class FundingFeedViewSetTests(TestCase):
             goal_amount=100,
             end_date=timezone.now() - timezone.timedelta(days=5),
         )
-        
+
         # Create open-expired fundraise (would be excluded by include_ended=false without override)
         open_expired_escrow = Escrow.objects.create(
             amount_holding=50,
@@ -1175,91 +1179,102 @@ class FundingFeedViewSetTests(TestCase):
         )
 
         # Test fundraise_status=CLOSED overrides include_ended=false
-        url = reverse("funding_feed-list") + "?fundraise_status=CLOSED&include_ended=false"
+        url = (
+            reverse("funding_feed-list")
+            + "?fundraise_status=CLOSED&include_ended=false"
+        )
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
+
         # Should include the mixed_post because it has a COMPLETED fundraise
         # The include_ended override prevents filtering out the open-expired fundraise
         post_ids = [item["content_object"]["id"] for item in response.data["results"]]
-        self.assertNotIn(self.post.id, post_ids)  # OPEN fundraise - filtered out by fundraise_status=CLOSED
+        self.assertNotIn(
+            self.post.id, post_ids
+        )  # OPEN fundraise - filtered out by fundraise_status=CLOSED
         self.assertIn(self.other_post.id, post_ids)  # COMPLETED fundraise - included
-        self.assertNotIn(expired_post.id, post_ids)  # OPEN fundraise - filtered out by fundraise_status=CLOSED
-        self.assertIn(mixed_post.id, post_ids)  # Has COMPLETED fundraise - included despite open-expired one
+        self.assertNotIn(
+            expired_post.id, post_ids
+        )  # OPEN fundraise - filtered out by fundraise_status=CLOSED
+        self.assertIn(
+            mixed_post.id, post_ids
+        )  # Has COMPLETED fundraise - included despite open-expired one
 
     def test_include_ended_default_behavior(self):
         """Test that include_ended defaults to true when not specified"""
         url = reverse("funding_feed-list")
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
+
         # Should return all items (default behavior)
-        self.assertEqual(len(response.data["results"]), 2)  # self.post and self.other_post
+        self.assertEqual(
+            len(response.data["results"]), 2
+        )  # self.post and self.other_post
 
     def test_upvotes_sorting(self):
         """Test sorting by upvotes (descending)"""
         # Create posts with different upvote counts
-        from researchhub_document.related_models.document_filter_model import DocumentFilter
-        
+        from researchhub_document.related_models.document_filter_model import (
+            DocumentFilter,
+        )
+
         # Post with high upvotes
         high_upvotes_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION
         )
-        high_upvotes_filter = DocumentFilter.objects.create(
-            upvoted_all=100
-        )
+        high_upvotes_filter = DocumentFilter.objects.create(upvoted_all=100)
         high_upvotes_doc.document_filter = high_upvotes_filter
         high_upvotes_doc.save()
-        
+
         ResearchhubPost.objects.create(
             title="High Upvotes Post",
             created_by=self.user,
             document_type=PREREGISTRATION,
             unified_document=high_upvotes_doc,
         )
-        
+
         # Post with low upvotes
         low_upvotes_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION
         )
-        low_upvotes_filter = DocumentFilter.objects.create(
-            upvoted_all=10
-        )
+        low_upvotes_filter = DocumentFilter.objects.create(upvoted_all=10)
         low_upvotes_doc.document_filter = low_upvotes_filter
         low_upvotes_doc.save()
-        
+
         ResearchhubPost.objects.create(
             title="Low Upvotes Post",
             created_by=self.user,
             document_type=PREREGISTRATION,
             unified_document=low_upvotes_doc,
         )
-        
+
         # Test sorting by upvotes
         url = reverse("funding_feed-list")
         response = self.client.get(url, {"ordering": "upvotes"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
+
         # Should be sorted by upvotes descending
         results = response.data["results"]
         self.assertGreaterEqual(len(results), 2)
-        
+
         # Find our test posts in the results
         high_upvotes_found = False
         low_upvotes_found = False
         high_upvotes_index = -1
         low_upvotes_index = -1
-        
+
         for i, result in enumerate(results):
             # Check both direct title and content_object title
-            title = result.get("title") or result.get("content_object", {}).get("title", "")
+            title = result.get("title") or result.get("content_object", {}).get(
+                "title", ""
+            )
             if title == "High Upvotes Post":
                 high_upvotes_found = True
                 high_upvotes_index = i
             elif title == "Low Upvotes Post":
                 low_upvotes_found = True
                 low_upvotes_index = i
-        
+
         self.assertTrue(high_upvotes_found)
         self.assertTrue(low_upvotes_found)
         self.assertLess(high_upvotes_index, low_upvotes_index)
@@ -1277,7 +1292,7 @@ class FundingFeedViewSetTests(TestCase):
             document_type=PREREGISTRATION,
             unified_document=many_apps_doc,
         )
-        
+
         # Create a fundraise for this post
         many_apps_fundraise = Fundraise.objects.create(
             created_by=self.user,
@@ -1285,13 +1300,12 @@ class FundingFeedViewSetTests(TestCase):
             goal_amount=1000,
             goal_currency=USD,
         )
-        
+
         # Create multiple contributors for the fundraise
         for i in range(3):
             # Create a separate user for each contribution
             contributor = User.objects.create_user(
-                username=f"contributor{i}",
-                password=uuid.uuid4().hex
+                username=f"contributor{i}", password=uuid.uuid4().hex
             )
             # Create a purchase/contribution to the fundraise
             Purchase.objects.create(
@@ -1301,7 +1315,7 @@ class FundingFeedViewSetTests(TestCase):
                 purchase_method=Purchase.OFF_CHAIN,
                 amount="100",
             )
-        
+
         # Post with few applications
         few_apps_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION
@@ -1312,7 +1326,7 @@ class FundingFeedViewSetTests(TestCase):
             document_type=PREREGISTRATION,
             unified_document=few_apps_doc,
         )
-        
+
         # Create a fundraise for this post
         few_apps_fundraise = Fundraise.objects.create(
             created_by=self.user,
@@ -1320,11 +1334,10 @@ class FundingFeedViewSetTests(TestCase):
             goal_amount=500,
             goal_currency=USD,
         )
-        
+
         # Create one contributor for the fundraise
         contributor = User.objects.create_user(
-            username="few_contributor",
-            password=uuid.uuid4().hex
+            username="few_contributor", password=uuid.uuid4().hex
         )
         # Create a purchase/contribution to the fundraise
         Purchase.objects.create(
@@ -1334,32 +1347,34 @@ class FundingFeedViewSetTests(TestCase):
             purchase_method=Purchase.OFF_CHAIN,
             amount="50",
         )
-        
+
         # Test sorting by most applicants
         url = reverse("funding_feed-list")
         response = self.client.get(url, {"ordering": "most_applicants"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
+
         # Should be sorted by application count descending
         results = response.data["results"]
         self.assertGreaterEqual(len(results), 2)
-        
+
         # Find our test posts in the results
         many_apps_found = False
         few_apps_found = False
         many_apps_index = -1
         few_apps_index = -1
-        
+
         for i, result in enumerate(results):
             # Check both direct title and content_object title
-            title = result.get("title") or result.get("content_object", {}).get("title", "")
+            title = result.get("title") or result.get("content_object", {}).get(
+                "title", ""
+            )
             if title == "Many Applications Post":
                 many_apps_found = True
                 many_apps_index = i
             elif title == "Few Applications Post":
                 few_apps_found = True
                 few_apps_index = i
-        
+
         self.assertTrue(many_apps_found)
         self.assertTrue(few_apps_found)
         self.assertLess(many_apps_index, few_apps_index)
@@ -1367,7 +1382,7 @@ class FundingFeedViewSetTests(TestCase):
     def test_amount_raised_sorting(self):
         """Test sorting by amount raised (descending)"""
         from reputation.models import Escrow
-        
+
         # Post with high amount raised
         high_amount_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION
@@ -1378,7 +1393,7 @@ class FundingFeedViewSetTests(TestCase):
             document_type=PREREGISTRATION,
             unified_document=high_amount_doc,
         )
-        
+
         # Create fundraise first
         high_amount_fundraise = Fundraise.objects.create(
             created_by=self.user,
@@ -1386,11 +1401,12 @@ class FundingFeedViewSetTests(TestCase):
             goal_amount=1000,
             goal_currency=USD,
         )
-        
+
         # Create escrow with high amount
         from django.contrib.contenttypes.models import ContentType
+
         fundraise_content_type = ContentType.objects.get_for_model(Fundraise)
-        
+
         high_amount_escrow = Escrow.objects.create(
             created_by=self.user,
             hold_type=Escrow.FUNDRAISE,
@@ -1399,11 +1415,11 @@ class FundingFeedViewSetTests(TestCase):
             content_type=fundraise_content_type,
             object_id=high_amount_fundraise.id,
         )
-        
+
         # Link escrow to fundraise
         high_amount_fundraise.escrow = high_amount_escrow
         high_amount_fundraise.save()
-        
+
         # Post with low amount raised
         low_amount_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION
@@ -1414,7 +1430,7 @@ class FundingFeedViewSetTests(TestCase):
             document_type=PREREGISTRATION,
             unified_document=low_amount_doc,
         )
-        
+
         # Create fundraise first
         low_amount_fundraise = Fundraise.objects.create(
             created_by=self.user,
@@ -1422,7 +1438,7 @@ class FundingFeedViewSetTests(TestCase):
             goal_amount=500,
             goal_currency=USD,
         )
-        
+
         # Create escrow with low amount
         low_amount_escrow = Escrow.objects.create(
             created_by=self.user,
@@ -1432,70 +1448,82 @@ class FundingFeedViewSetTests(TestCase):
             content_type=fundraise_content_type,
             object_id=low_amount_fundraise.id,
         )
-        
+
         # Link escrow to fundraise
         low_amount_fundraise.escrow = low_amount_escrow
         low_amount_fundraise.save()
-        
+
         # Test sorting by amount raised
         url = reverse("funding_feed-list")
         response = self.client.get(url, {"ordering": "amount_raised"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
+
         # Should be sorted by amount raised descending
         results = response.data["results"]
         self.assertGreaterEqual(len(results), 2)
-        
+
         # Find our test posts in the results
         high_amount_found = False
         low_amount_found = False
         high_amount_index = -1
         low_amount_index = -1
-        
+
         for i, result in enumerate(results):
             # Check both direct title and content_object title
-            title = result.get("title") or result.get("content_object", {}).get("title", "")
+            title = result.get("title") or result.get("content_object", {}).get(
+                "title", ""
+            )
             if title == "High Amount Post":
                 high_amount_found = True
                 high_amount_index = i
             elif title == "Low Amount Post":
                 low_amount_found = True
                 low_amount_index = i
-        
+
         self.assertTrue(high_amount_found)
         self.assertTrue(low_amount_found)
         self.assertLess(high_amount_index, low_amount_index)
 
     def test_ordering_validation(self):
         """Test that FundOrderingFilter handles different ordering scenarios correctly."""
-        from feed.filters import FundOrderingFilter
         from unittest.mock import Mock, patch
-        
+
+        from feed.filters import FundOrderingFilter
+
         filter_instance = FundOrderingFilter()
         factory = APIRequestFactory()
         mock_queryset = Mock()
         mock_view = Mock()
-        
+
         # Setup view with ordering_fields
-        mock_view.ordering_fields = ['best', 'upvotes', 'most_applicants', 'amount_raised']
-        mock_view.ordering = 'best'
+        mock_view.ordering_fields = [
+            "best",
+            "upvotes",
+            "most_applicants",
+            "amount_raised",
+        ]
+        mock_view.ordering = "best"
         mock_view.is_grant_view = False
-        
+
         # Test custom sorting (upvotes) - patch the specific sorting method
-        request = factory.get('/?ordering=upvotes')
+        request = factory.get("/?ordering=upvotes")
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes, \
-             patch.object(filter_instance, '_apply_include_ended_filter') as mock_filter:
+        with (
+            patch.object(filter_instance, "_apply_upvotes_sorting") as mock_upvotes,
+            patch.object(filter_instance, "_apply_include_ended_filter") as mock_filter,
+        ):
             mock_filter.return_value = mock_queryset
             mock_upvotes.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
             mock_upvotes.assert_called_once_with(mock_queryset)
-        
+
         # Test best sorting (default - no ordering param for funding feeds)
-        request = factory.get('/')
+        request = factory.get("/")
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_best_sorting') as mock_best, \
-             patch.object(filter_instance, '_apply_include_ended_filter') as mock_filter:
+        with (
+            patch.object(filter_instance, "_apply_best_sorting") as mock_best,
+            patch.object(filter_instance, "_apply_include_ended_filter") as mock_filter,
+        ):
             mock_filter.return_value = mock_queryset
             mock_best.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
@@ -1503,13 +1531,15 @@ class FundingFeedViewSetTests(TestCase):
             self.assertEqual(mock_best.call_count, 1)
             args = mock_best.call_args[0]
             self.assertEqual(args[0], mock_queryset)
-            self.assertIn('model_class', args[1])  # model_config has model_class
-        
+            self.assertIn("model_class", args[1])  # model_config has model_class
+
         # Test best sorting (explicit best)
-        request = factory.get('/?ordering=best')
+        request = factory.get("/?ordering=best")
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_best_sorting') as mock_best, \
-             patch.object(filter_instance, '_apply_include_ended_filter') as mock_filter:
+        with (
+            patch.object(filter_instance, "_apply_best_sorting") as mock_best,
+            patch.object(filter_instance, "_apply_include_ended_filter") as mock_filter,
+        ):
             mock_filter.return_value = mock_queryset
             mock_best.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
@@ -1517,33 +1547,39 @@ class FundingFeedViewSetTests(TestCase):
             self.assertEqual(mock_best.call_count, 1)
             args = mock_best.call_args[0]
             self.assertEqual(args[0], mock_queryset)
-            self.assertIn('model_class', args[1])  # model_config has model_class
-        
+            self.assertIn("model_class", args[1])  # model_config has model_class
+
         # Test with '-' prefix - should be stripped and work
-        request = factory.get('/?ordering=-upvotes')
+        request = factory.get("/?ordering=-upvotes")
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes, \
-             patch.object(filter_instance, '_apply_include_ended_filter') as mock_filter:
+        with (
+            patch.object(filter_instance, "_apply_upvotes_sorting") as mock_upvotes,
+            patch.object(filter_instance, "_apply_include_ended_filter") as mock_filter,
+        ):
             mock_filter.return_value = mock_queryset
             mock_upvotes.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
             mock_upvotes.assert_called_once_with(mock_queryset)
-        
+
         # Test comma-separated values - should take first field
-        request = factory.get('/?ordering=upvotes,created_date')
+        request = factory.get("/?ordering=upvotes,created_date")
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes, \
-             patch.object(filter_instance, '_apply_include_ended_filter') as mock_filter:
+        with (
+            patch.object(filter_instance, "_apply_upvotes_sorting") as mock_upvotes,
+            patch.object(filter_instance, "_apply_include_ended_filter") as mock_filter,
+        ):
             mock_filter.return_value = mock_queryset
             mock_upvotes.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
             mock_upvotes.assert_called_once_with(mock_queryset)
-        
+
         # Test whitespace handling
-        request = factory.get('/?ordering= upvotes ')
+        request = factory.get("/?ordering= upvotes ")
         drf_request = Request(request)
-        with patch.object(filter_instance, '_apply_upvotes_sorting') as mock_upvotes, \
-             patch.object(filter_instance, '_apply_include_ended_filter') as mock_filter:
+        with (
+            patch.object(filter_instance, "_apply_upvotes_sorting") as mock_upvotes,
+            patch.object(filter_instance, "_apply_include_ended_filter") as mock_filter,
+        ):
             mock_filter.return_value = mock_queryset
             mock_upvotes.return_value = mock_queryset
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
@@ -1552,19 +1588,27 @@ class FundingFeedViewSetTests(TestCase):
     def test_ordering_validation_integration(self):
         """Test ordering validation through the actual API endpoint."""
         # Test valid ordering
-        response = self.client.get(reverse("funding_feed-list"), {"ordering": "upvotes"})
+        response = self.client.get(
+            reverse("funding_feed-list"), {"ordering": "upvotes"}
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
+
         # Test invalid ordering - should fall back to default (best)
-        response = self.client.get(reverse("funding_feed-list"), {"ordering": "invalid_field"})
+        response = self.client.get(
+            reverse("funding_feed-list"), {"ordering": "invalid_field"}
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
+
         # Test with '-' prefix - should work
-        response = self.client.get(reverse("funding_feed-list"), {"ordering": "-upvotes"})
+        response = self.client.get(
+            reverse("funding_feed-list"), {"ordering": "-upvotes"}
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
+
         # Test multiple fields - should take first valid one
-        response = self.client.get(reverse("funding_feed-list"), {"ordering": "invalid_field,upvotes"})
+        response = self.client.get(
+            reverse("funding_feed-list"), {"ordering": "invalid_field,upvotes"}
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def _create_fundraise_post(self, title, amount, status, created_date=None):
@@ -1579,7 +1623,7 @@ class FundingFeedViewSetTests(TestCase):
         if created_date:
             ResearchhubPost.objects.filter(id=post.id).update(created_date=created_date)
             post.refresh_from_db()
-        
+
         escrow = Escrow.objects.create(
             amount_holding=amount,
             amount_paid=0,
@@ -1597,73 +1641,90 @@ class FundingFeedViewSetTests(TestCase):
             goal_currency=USD,
         )
         return post.id
-    
+
     def test_best_sorting_orders_by_open_and_amount_first(self):
         """Test best sorting: open items sorted by amount descending"""
         high = self._create_fundraise_post("High", 1000, Fundraise.OPEN)
         low = self._create_fundraise_post("Low", 100, Fundraise.OPEN)
-        
+
         response = self.client.get(reverse("funding_feed-list"), {"ordering": "best"})
         result_ids = [r["content_object"]["id"] for r in response.data["results"]]
-        
+
         self.assertLess(result_ids.index(high), result_ids.index(low))
-    
+
     def test_best_sorting_orders_closed_by_date(self):
         """Test best sorting: closed items sorted by date descending"""
         old = self._create_fundraise_post(
-            "Old", 1000, Fundraise.COMPLETED, 
-            timezone.now() - timezone.timedelta(days=5)
+            "Old",
+            1000,
+            Fundraise.COMPLETED,
+            timezone.now() - timezone.timedelta(days=5),
         )
         new = self._create_fundraise_post("New", 100, Fundraise.COMPLETED)
-        
+
         response = self.client.get(reverse("funding_feed-list"), {"ordering": "best"})
         result_ids = [r["content_object"]["id"] for r in response.data["results"]]
-        
+
         self.assertLess(result_ids.index(new), result_ids.index(old))
-    
+
     def test_best_sorting_orders_shows_closed_after_open(self):
         """Test best sorting: all open items appear before closed items"""
         open_item = self._create_fundraise_post("Open", 100, Fundraise.OPEN)
         closed_item = self._create_fundraise_post("Closed", 1000, Fundraise.COMPLETED)
-        
+
         response = self.client.get(reverse("funding_feed-list"), {"ordering": "best"})
         result_ids = [r["content_object"]["id"] for r in response.data["results"]]
-        
+
         self.assertLess(result_ids.index(open_item), result_ids.index(closed_item))
-    
+
     def test_best_sorting_ignores_historical_fundraises(self):
         """Test best sorting: only counts open fundraise amount, not historical closed"""
         # Post with $10k closed + $50 open
         doc = ResearchhubUnifiedDocument.objects.create(document_type=PREREGISTRATION)
         post_historical = ResearchhubPost.objects.create(
-            title="Historical", created_by=self.user, 
-            document_type=PREREGISTRATION, unified_document=doc
+            title="Historical",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=doc,
         )
         ct = ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
-        
+
         # Closed fundraise $10k
         Fundraise.objects.create(
-            created_by=self.user, unified_document=doc, status=Fundraise.COMPLETED,
+            created_by=self.user,
+            unified_document=doc,
+            status=Fundraise.COMPLETED,
             escrow=Escrow.objects.create(
-                amount_holding=0, amount_paid=10000, hold_type=Escrow.FUNDRAISE,
-                created_by=self.user, content_type=ct, object_id=doc.id
-            )
+                amount_holding=0,
+                amount_paid=10000,
+                hold_type=Escrow.FUNDRAISE,
+                created_by=self.user,
+                content_type=ct,
+                object_id=doc.id,
+            ),
         )
         # Open fundraise $50
         Fundraise.objects.create(
-            created_by=self.user, unified_document=doc, status=Fundraise.OPEN,
+            created_by=self.user,
+            unified_document=doc,
+            status=Fundraise.OPEN,
             escrow=Escrow.objects.create(
-                amount_holding=50, amount_paid=0, hold_type=Escrow.FUNDRAISE,
-                created_by=self.user, content_type=ct, object_id=doc.id
-            )
+                amount_holding=50,
+                amount_paid=0,
+                hold_type=Escrow.FUNDRAISE,
+                created_by=self.user,
+                content_type=ct,
+                object_id=doc.id,
+            ),
         )
-        
+
         # Post with $500 open only
         post_current = self._create_fundraise_post("Current", 500, Fundraise.OPEN)
-        
+
         response = self.client.get(reverse("funding_feed-list"), {"ordering": "best"})
         result_ids = [r["content_object"]["id"] for r in response.data["results"]]
-        
-        # $500 open should rank higher than $50 open (ignoring $10k closed)
-        self.assertLess(result_ids.index(post_current), result_ids.index(post_historical.id))
 
+        # $500 open should rank higher than $50 open (ignoring $10k closed)
+        self.assertLess(
+            result_ids.index(post_current), result_ids.index(post_historical.id)
+        )

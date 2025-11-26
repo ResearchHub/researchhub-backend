@@ -17,13 +17,13 @@ class FeedViewMixinTests(TestCase):
                 {},
                 False,
                 None,
-                "feed:latest:all:all:none:1-20",
+                "feed:popular:all:all:none:1-20",
             ),
             (
                 {"source": "researchhub"},
                 False,
                 None,
-                "feed:latest:all:researchhub:none:1-20",
+                "feed:popular:all:researchhub:none:1-20",
             ),
             (
                 {"feed_view": "following"},
@@ -35,7 +35,7 @@ class FeedViewMixinTests(TestCase):
                 {"hub_slug": "science"},
                 False,
                 None,
-                "feed:latest:science:all:none:1-20",
+                "feed:popular:science:all:none:1-20",
             ),
             (
                 {"feed_view": "popular"},
@@ -44,10 +44,16 @@ class FeedViewMixinTests(TestCase):
                 "feed:popular:all:all:none:1-20",
             ),
             (
+                {"feed_view": "latest"},
+                False,
+                None,
+                "feed:latest:all:all:none:1-20",
+            ),
+            (
                 {"page": "3", "page_size": "50"},
                 False,
                 None,
-                "feed:latest:all:all:none:3-50",
+                "feed:popular:all:all:none:3-50",
             ),
             (
                 {
@@ -81,3 +87,23 @@ class FeedViewMixinTests(TestCase):
                 f"Failed with params: {query_params}, auth: {is_authenticated}, "
                 f"user_id: {user_id}",
             )
+
+    def test_cache_key_defaults_to_popular(self):
+        """
+        Test that cache key defaults to 'popular' when feed_view is not provided.
+
+        This prevents cache collision between popular and latest feeds when clients
+        omit the feed_view parameter (since popular is the default in the view).
+        """
+        view = FeedViewMixin()
+
+        mock_request = Mock()
+        mock_request.query_params = {}  # No feed_view provided
+        mock_request.user = Mock()
+        mock_request.user.is_authenticated = False
+        mock_request.user.id = None
+
+        cache_key = view.get_cache_key(mock_request)
+
+        # Should use 'popular' as default, NOT 'latest'
+        self.assertIn("feed:popular:", cache_key)

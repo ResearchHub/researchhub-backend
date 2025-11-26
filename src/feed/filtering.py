@@ -8,6 +8,7 @@ from feed.models import FeedEntry
 from hub.models import Hub
 from personalize.config.settings import PERSONALIZE_CONFIG
 from personalize.services.feed_service import DEFAULT_NUM_RESULTS
+from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from utils.sentry import log_error
 
 logger = logging.getLogger(__name__)
@@ -21,8 +22,21 @@ class FeedFilteringBackend(BaseFilterBackend):
             return self._filter_following(request, queryset, view)
         elif feed_view == "personalized":
             return self._filter_personalized(request, queryset, view)
+        elif feed_view == "latest":
+            return self._filter_latest(request, queryset, view)
         else:
             return self._filter_popular(request, queryset, view)
+
+    def _filter_latest(self, request, queryset, view):
+        hub_slug = request.query_params.get("hub_slug")
+        if hub_slug:
+            queryset = self._filter_by_hub(hub_slug, queryset)
+
+        queryset = queryset.filter(
+            content_type__in=[view._paper_content_type, view._post_content_type]
+        )
+
+        return queryset
 
     def _filter_following(self, request, queryset, view):
         if not request.user.is_authenticated:
@@ -113,13 +127,17 @@ class FeedFilteringBackend(BaseFilterBackend):
         """
         Fetch and order entries based on trending document IDs.
         Filters by the documents in the trending list and sorts in-memory.
+        Excludes PREREGISTRATION documents from results.
         """
         position_map = {pk: pos for pos, pk in enumerate(document_ids)}
 
         # Apply the document ID filter while preserving other queryset filters
+        # Exclude PREREGISTRATION documents from trending results
         entries = list(
             queryset.filter(
                 unified_document_id__in=document_ids,
+            ).exclude(
+                unified_document__document_type=PREREGISTRATION,
             )
         )
 

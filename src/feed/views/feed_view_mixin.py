@@ -152,7 +152,7 @@ class FeedViewMixin:
         return context
 
     def get_cache_key(self, request: Request, feed_type: str = "") -> str:
-        feed_view = request.query_params.get("feed_view", "latest")
+        feed_view = request.query_params.get("feed_view", "popular")
         hub_slug = request.query_params.get("hub_slug")
         fundraise_status = request.query_params.get("fundraise_status", None)
         ordering = request.query_params.get("ordering", "latest")
