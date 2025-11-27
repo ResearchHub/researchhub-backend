@@ -445,7 +445,7 @@ class DocumentQueryBuilder:
         """
         # Combine all fields for broad coverage
         all_fields = []
-        for field in self.AUTHOR_FIELDS + self.TITLE_FIELDS + self.CONTENT_FIELDS:
+        for field in self.AUTHOR_FIELDS + self.TITLE_FIELDS:
             all_fields.append(field.get_boosted_name())
 
         fallback_query = Q(
@@ -454,7 +454,7 @@ class DocumentQueryBuilder:
             type="cross_fields",
             operator="or",
             fields=all_fields,
-            boost=0.8,
+            boost=0.4,
         )
         self.should_clauses.append(fallback_query)
         return self
@@ -475,7 +475,7 @@ class PersonQueryBuilder:
             fields=[
                 "full_name^5",
                 "first_name^3",
-                "last_name^3",
+                "last_name^4",
                 "headline^2",
                 "description^1",
             ],
@@ -495,6 +495,18 @@ class UnifiedSearchQueryBuilder:
         title_fields = DocumentQueryBuilder.TITLE_FIELDS
         author_fields = DocumentQueryBuilder.AUTHOR_FIELDS
         content_fields = DocumentQueryBuilder.CONTENT_FIELDS
+
+        # Extra: very strong title AND match
+        builder.should_clauses.append(
+            Q(
+                "multi_match",
+                query=query,
+                fields=["paper_title^7", "title^7"],
+                type="best_fields",
+                operator="and",
+                boost=8.0,
+            )
+        )
 
         builder = (
             builder.add_simple_match_strategy(title_fields)
