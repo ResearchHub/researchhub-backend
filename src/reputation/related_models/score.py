@@ -594,6 +594,9 @@ class ScoreChange(DefaultModel):
         )
         score_change.save()
         
+        score.score = current_rep
+        score.save()
+        
         return score_change
     
     @classmethod
