@@ -23,9 +23,8 @@ class FieldConfig:
 class DocumentQueryBuilder:
 
     MAX_QUERY_WORDS_FOR_AUTHOR_TITLE_COMBO = 7
-    # Query complexity thresholds
-    MAX_TERMS_FOR_SHORT_QUERY = 3
-    MAX_TERMS_FOR_FUZZY_CONTENT_FIELDS = 4
+    # If its more than 3 terms disable fuzzy content fields
+    MAX_TERMS_FOR_FUZZY_CONTENT_FIELDS = 3
 
     # Maps (strategy_type, field_category) -> boost value
     STRATEGY_BOOSTS = {
