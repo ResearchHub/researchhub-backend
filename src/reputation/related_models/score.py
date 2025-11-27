@@ -17,7 +17,7 @@ class Score(DefaultModel):
     author = models.ForeignKey("user.Author", on_delete=models.CASCADE, db_index=True)
     hub = models.ForeignKey("hub.Hub", on_delete=models.CASCADE, db_index=True)
     score = models.IntegerField(default=0)
-    score_v2 = models.IntegerField(default=0)
+
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
 

@@ -11,7 +11,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        # Add funding-based reputation tracking fields
         migrations.AddField(
             model_name="scorechange",
             name="contribution_type",
@@ -22,35 +21,6 @@ class Migration(migrations.Migration):
                 max_length=50,
             ),
         ),
-        migrations.AddField(
-            model_name="scorechange",
-            name="rsc_amount",
-            field=models.DecimalField(
-                decimal_places=8,
-                default=0,
-                help_text="Amount of RSC involved in this reputation change (0 for non-RSC contributions)",
-                max_digits=19,
-            ),
-        ),
-        migrations.AddField(
-            model_name="scorechange",
-            name="is_deleted",
-            field=models.BooleanField(
-                db_index=True,
-                default=False,
-                help_text="Whether the content associated with this score change was deleted",
-            ),
-        ),
-        # Add parallel score_v2 field for funding-based reputation
-        migrations.AddField(
-            model_name="score",
-            name="score_v2",
-            field=models.IntegerField(
-                default=0,
-                help_text="Funding-based reputation score (parallel to v1 during transition)",
-            ),
-        ),
-        # Indexes for efficient querying
         migrations.AddIndex(
             model_name="scorechange",
             index=models.Index(
@@ -63,20 +33,6 @@ class Migration(migrations.Migration):
             index=models.Index(
                 fields=["contribution_type", "created_date"],
                 name="idx_contribution_type_date",
-            ),
-        ),
-        migrations.AddIndex(
-            model_name="scorechange",
-            index=models.Index(
-                fields=["score", "contribution_type", "is_deleted"],
-                name="scorechange_rsc_idx",
-            ),
-        ),
-        migrations.AddIndex(
-            model_name="score",
-            index=models.Index(
-                fields=["author", "hub", "score_v2"],
-                name="idx_score_v2",
             ),
         ),
     ]
