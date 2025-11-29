@@ -149,10 +149,7 @@ class FeedFilteringBackend(BaseFilterBackend):
 
     def _filter_personalized(self, request, queryset, view):
         """
-        Filter for Personalize recommendations.
-
-        Note: Cold-start handling (routing users with few interactions to following
-        feed) is done in the view layer before this filter is called.
+        Personalized recommendations or fallback to following feed.
         """
         if not request.user.is_authenticated:
             return queryset.none()

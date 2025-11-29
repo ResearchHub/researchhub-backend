@@ -186,14 +186,7 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
 
     def _resolve_personalized_feed_strategy(self, request) -> str:
         """
-        Determine feed strategy for personalized feed based on interaction count.
-
-        Cold-start handling: New users (< 5 interactions) get following feed
-        since Personalize needs interaction history for meaningful recommendations.
-
-        Returns:
-            "personalized" if user has enough interactions for Personalize
-            "following" if user needs cold-start fallback
+        "personalized" or "following" feed strategy based on interaction count.
         """
         if not request.user.is_authenticated:
             return "following"
