@@ -203,7 +203,7 @@ class PopularFeedTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         mock_get_trending.assert_called_once()
-        self.assertEqual(response.get("X-Feed-Source"), "aws")
+        self.assertEqual(response.get("RH-Feed-Source"), "aws-trending")
 
     def test_popular_rejects_latest_ordering(self):
         url = reverse("feed-list")
@@ -248,8 +248,8 @@ class PopularFeedTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        # Should have X-Feed-Source header as "researchhub"
-        self.assertEqual(response.get("X-Feed-Source"), "researchhub")
+        # Should have RH-Feed-Source header as "rh-popular"
+        self.assertEqual(response.get("RH-Feed-Source"), "rh-popular")
 
     def test_popular_with_hot_score_ordering_skips_aws(self):
         url = reverse("feed-list")
@@ -259,7 +259,7 @@ class PopularFeedTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.get("X-Feed-Source"), "researchhub")
+        self.assertEqual(response.get("RH-Feed-Source"), "rh-popular")
 
     @patch(
         "personalize.clients.recommendation_client"
@@ -272,7 +272,7 @@ class PopularFeedTests(APITestCase):
         response = self.client.get(url, {"feed_view": "popular"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.get("X-Feed-Source"), "researchhub")
+        self.assertEqual(response.get("RH-Feed-Source"), "rh-popular")
         # Results should still be returned, ordered by hot_score_v2
         self.assertGreaterEqual(len(response.data["results"]), 1)
 
@@ -287,7 +287,7 @@ class PopularFeedTests(APITestCase):
         response = self.client.get(url, {"feed_view": "popular"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.get("X-Feed-Source"), "researchhub")
+        self.assertEqual(response.get("RH-Feed-Source"), "rh-popular")
 
     @patch(
         "personalize.clients.recommendation_client"
@@ -308,7 +308,7 @@ class PopularFeedTests(APITestCase):
         response = self.client.get(url, {"feed_view": "popular"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.get("X-Feed-Source"), "aws")
+        self.assertEqual(response.get("RH-Feed-Source"), "aws-trending")
 
     @patch(
         "personalize.clients.recommendation_client"
