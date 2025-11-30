@@ -1,5 +1,6 @@
 import logging
 
+from django.db import transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
@@ -35,9 +36,14 @@ def sync_interaction_to_personalize(sender, instance, created, **kwargs):
         return
 
     try:
-        sync_interaction_event_to_personalize_task.delay(instance.id)
+        # Use transaction.on_commit to ensure the task is only
+        # queued after the transaction commits, preventing race conditions
+        # where the Celery worker can't find the UserInteraction record
+        transaction.on_commit(
+            lambda: sync_interaction_event_to_personalize_task.delay(instance.id)
+        )
         logger.debug(
-            f"Triggered Personalize sync task for UserInteraction {instance.id} "
+            f"Scheduled Personalize sync task for UserInteraction {instance.id} "
             f"(event={instance.event}, user_id={instance.user_id}, "
             f"external_user_id={instance.external_user_id})"
         )
@@ -45,7 +51,7 @@ def sync_interaction_to_personalize(sender, instance, created, **kwargs):
         log_error(
             e,
             message=(
-                f"Exception triggering Personalize sync task for UserInteraction "
+                f"Exception scheduling Personalize sync task for UserInteraction "
                 f"{instance.id}"
             ),
         )
