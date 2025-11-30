@@ -13,12 +13,12 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         self.paper = Paper.objects.create(
             title="Paper with DOI",
             doi="10.1038/news.2011.490",
-            created_date=timezone.now() - timedelta(days=3),
+            paper_publish_date=timezone.now() - timedelta(days=3),
         )
 
         self.paper_without_doi = Paper.objects.create(
             title="Paper without DOI",
-            created_date=timezone.now() - timedelta(days=2),
+            paper_publish_date=timezone.now() - timedelta(days=2),
         )
 
         # Sample response
@@ -102,11 +102,8 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         old_paper = Paper.objects.create(
             title="Old Paper",
             doi="10.1234/old",
+            paper_publish_date=timezone.now() - timedelta(days=30),
         )
-        # Update created_date to 30 days ago (bypasses auto_now_add)
-        old_date = timezone.now() - timedelta(days=30)
-        Paper.objects.filter(id=old_paper.id).update(created_date=old_date)
-        old_paper.refresh_from_db()
 
         # Act
         papers = self.service.get_recent_papers_with_dois(days=7)
@@ -115,7 +112,7 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         self.assertNotIn(
             old_paper.id,
             papers,
-            f"Old paper (created {old_paper.created_date}) "
+            f"Old paper (published {old_paper.paper_publish_date}) "
             f"should be excluded from papers from last 7 days",
         )
 
@@ -197,7 +194,6 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
             doi="10.48550/arXiv.2101.12345",
             external_source="arxiv",
             external_metadata={"external_id": "2101.12345"},
-            created_date=timezone.now() - timedelta(days=1),
         )
 
         self.mock_client.fetch_by_arxiv_id.return_value = self.sample_altmetric_response
@@ -235,7 +231,6 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
             doi="10.48550/arXiv.2101.12345",
             external_source="arxiv",
             external_metadata={},  # No external_id
-            created_date=timezone.now() - timedelta(days=1),
         )
 
         # Act
@@ -259,7 +254,6 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
             doi="10.48550/arXiv.2101.12345",
             external_source="arxiv",
             external_metadata=None,
-            created_date=timezone.now() - timedelta(days=1),
         )
 
         # Act
@@ -279,7 +273,6 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         paper2 = Paper.objects.create(
             title="Paper 2",
             doi="10.1234/paper2",
-            created_date=timezone.now() - timedelta(days=1),
         )
 
         self.mock_client.fetch_by_doi.side_effect = [

@@ -65,7 +65,7 @@ class PaperMetricsEnrichmentService:
 
     def get_recent_papers_with_dois(self, days: int) -> List[int]:
         """
-        Query papers created in the last N days that have DOIs.
+        Query papers published in the last N days that have DOIs.
 
         Args:
             days: Number of days to look back
@@ -75,7 +75,9 @@ class PaperMetricsEnrichmentService:
         """
         date_threshold = timezone.now() - timedelta(days=days)
         paper_ids = (
-            Paper.objects.filter(created_date__gte=date_threshold, doi__isnull=False)
+            Paper.objects.filter(
+                paper_publish_date__gte=date_threshold, doi__isnull=False
+            )
             .exclude(doi="")
             .values_list("id", flat=True)
         )
