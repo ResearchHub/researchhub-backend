@@ -4,7 +4,6 @@ from celery.exceptions import MaxRetriesExceededError
 from django.conf import settings
 
 from paper.ingestion.clients import (
-    BlueskyClient,
     BlueskyMetricsClient,
     GithubClient,
     GithubMetricsClient,
@@ -265,11 +264,6 @@ def _create_github_metrics_client() -> GithubMetricsClient:
     return GithubMetricsClient(github_client=client)
 
 
-def _create_bluesky_metrics_client() -> BlueskyMetricsClient:
-    client = BlueskyClient()
-    return BlueskyMetricsClient(bluesky_client=client)
-
-
 @app.task(queue=QUEUE_PAPER_MISC)
 def update_recent_papers_with_bluesky_metrics(days: int = 7):
     """
@@ -281,11 +275,10 @@ def update_recent_papers_with_bluesky_metrics(days: int = 7):
     """
     logger.info(f"Starting Bluesky metrics update for papers (last {days} days)")
 
-    bluesky_metrics_client = _create_bluesky_metrics_client()
     service = PaperMetricsEnrichmentService(
         altmetric_client=None,
         altmetric_mapper=None,
-        bluesky_metrics_client=bluesky_metrics_client,
+        bluesky_metrics_client=BlueskyMetricsClient(),
         github_metrics_client=None,
     )
 
@@ -346,11 +339,10 @@ def enrich_paper_with_bluesky_metrics(self, paper_id: int, retry: int = 0):
             "reason": "no_doi",
         }
 
-    bluesky_metrics_client = _create_bluesky_metrics_client()
     service = PaperMetricsEnrichmentService(
         altmetric_client=None,
         altmetric_mapper=None,
-        bluesky_metrics_client=bluesky_metrics_client,
+        bluesky_metrics_client=BlueskyMetricsClient(),
         github_metrics_client=None,
     )
 
