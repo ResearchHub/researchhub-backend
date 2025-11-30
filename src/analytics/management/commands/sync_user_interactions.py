@@ -38,6 +38,12 @@ class Command(BaseCommand):
             default=True,
             help="Mark exported records as synced (default: True)",
         )
+        parser.add_argument(
+            "--users-only",
+            action="store_true",
+            default=False,
+            help="Export only interactions from registered users (exclude anonymous)",
+        )
 
     def handle(self, *args, **options):
         mode = options["mode"]
@@ -51,7 +57,12 @@ class Command(BaseCommand):
         if mode == "import":
             self.handle_import(start_date, end_date, options["batch_size"], source)
         else:
-            self.handle_export(start_date, end_date, options["mark_synced"])
+            self.handle_export(
+                start_date,
+                end_date,
+                options["mark_synced"],
+                options["users_only"],
+            )
 
     def handle_import(
         self,
@@ -202,6 +213,7 @@ class Command(BaseCommand):
         start_date: Optional[datetime],
         end_date: Optional[datetime],
         mark_synced: bool,
+        users_only: bool = False,
     ):
         """Export Interactions from UserInteractions table"""
         self.stdout.write("Exporting interactions...")
@@ -214,6 +226,8 @@ class Command(BaseCommand):
             queryset = queryset.filter(event_timestamp__gte=start_date)
         if end_date:
             queryset = queryset.filter(event_timestamp__lte=end_date)
+        if users_only:
+            queryset = queryset.filter(user__isnull=False)
         queryset = queryset.order_by("event_timestamp")
 
         total = queryset.count()
