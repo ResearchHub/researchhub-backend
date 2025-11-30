@@ -19,6 +19,17 @@ class TestBlueskyClient(TestCase):
             client=self.mock_atproto_client,
         )
 
+    def tearDown(self):
+        """Clean up after each test."""
+        BlueskyClient._instance = None
+
+    def test_singleton_returns_same_instance(self):
+        """Test that BlueskyClient is a singleton."""
+        client1 = BlueskyClient()
+        client2 = BlueskyClient()
+
+        self.assertIs(client1, client2)
+
     def test_authenticate_success(self):
         """Test successful authentication."""
         self.assertTrue(self.client.authenticated)
@@ -36,6 +47,9 @@ class TestBlueskyClient(TestCase):
     @patch("paper.ingestion.clients.enrichment.bluesky.settings")
     def test_authenticate_no_credentials(self, mock_settings):
         """Test authentication without credentials."""
+        # Reset singleton to test fresh initialization
+        BlueskyClient._instance = None
+
         # Mock settings to return empty credentials
         mock_settings.BLUESKY_USERNAME = ""
         mock_settings.BLUESKY_PASSWORD = ""

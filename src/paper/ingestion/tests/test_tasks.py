@@ -722,15 +722,15 @@ class BlueskyMetricsTasksTests(TestCase):
         }
 
     @patch("paper.ingestion.tasks.enrich_paper_with_bluesky_metrics.delay")
-    @patch("paper.ingestion.tasks._create_bluesky_metrics_client")
+    @patch("paper.ingestion.tasks.BlueskyMetricsClient")
     def test_update_recent_papers_with_bluesky_metrics_dispatches_tasks(
-        self, mock_create_client, mock_delay
+        self, mock_metrics_client_class, mock_delay
     ):
         """
         Test that the dispatcher task creates individual tasks for each paper.
         """
         # Arrange
-        mock_create_client.return_value = Mock()
+        mock_metrics_client_class.return_value = Mock()
 
         # Act
         result = update_recent_papers_with_bluesky_metrics(days=7)
@@ -742,9 +742,9 @@ class BlueskyMetricsTasksTests(TestCase):
         self.assertIn(self.paper_recent.id, dispatched_ids)
 
     @patch("paper.ingestion.tasks.enrich_paper_with_bluesky_metrics.delay")
-    @patch("paper.ingestion.tasks._create_bluesky_metrics_client")
+    @patch("paper.ingestion.tasks.BlueskyMetricsClient")
     def test_update_recent_papers_with_bluesky_metrics_excludes_old_papers(
-        self, mock_create_client, mock_delay
+        self, mock_metrics_client_class, mock_delay
     ):
         """
         Test that old papers are excluded from Bluesky metrics updates.
@@ -753,7 +753,7 @@ class BlueskyMetricsTasksTests(TestCase):
         Paper.objects.filter(id=self.paper_old.id).update(
             created_date=timezone.now() - timedelta(days=10)
         )
-        mock_create_client.return_value = Mock()
+        mock_metrics_client_class.return_value = Mock()
 
         # Act
         result = update_recent_papers_with_bluesky_metrics(days=7)
@@ -763,15 +763,15 @@ class BlueskyMetricsTasksTests(TestCase):
         dispatched_ids = [call[0][0] for call in mock_delay.call_args_list]
         self.assertNotIn(self.paper_old.id, dispatched_ids)
 
-    @patch("paper.ingestion.tasks._create_bluesky_metrics_client")
-    def test_enrich_paper_with_bluesky_metrics(self, mock_create_client):
+    @patch("paper.ingestion.tasks.BlueskyMetricsClient")
+    def test_enrich_paper_with_bluesky_metrics(self, mock_metrics_client_class):
         """
         Test successful enrichment of a single paper with Bluesky metrics.
         """
         # Arrange
         mock_client = Mock()
         mock_client.get_metrics.return_value = self.sample_bluesky_response
-        mock_create_client.return_value = mock_client
+        mock_metrics_client_class.return_value = mock_client
 
         # Act
         result = enrich_paper_with_bluesky_metrics(self.paper_recent.id)
@@ -784,8 +784,10 @@ class BlueskyMetricsTasksTests(TestCase):
         self.paper_recent.refresh_from_db()
         self.assertIn("bluesky", self.paper_recent.external_metadata["metrics"])
 
-    @patch("paper.ingestion.tasks._create_bluesky_metrics_client")
-    def test_enrich_paper_with_bluesky_metrics_not_found(self, mock_create_client):
+    @patch("paper.ingestion.tasks.BlueskyMetricsClient")
+    def test_enrich_paper_with_bluesky_metrics_not_found(
+        self, mock_metrics_client_class
+    ):
         """
         Test enrichment when paper does not exist.
         """
@@ -800,13 +802,13 @@ class BlueskyMetricsTasksTests(TestCase):
         self.assertEqual(result["paper_id"], non_existent_id)
         self.assertEqual(result["reason"], "paper_not_found")
 
-    @patch("paper.ingestion.tasks._create_bluesky_metrics_client")
-    def test_enrich_paper_with_bluesky_metrics_no_doi(self, mock_create_client):
+    @patch("paper.ingestion.tasks.BlueskyMetricsClient")
+    def test_enrich_paper_with_bluesky_metrics_no_doi(self, mock_metrics_client_class):
         """
         Test enrichment of paper without DOI.
         """
         # Arrange
-        mock_create_client.return_value = Mock()
+        mock_metrics_client_class.return_value = Mock()
 
         # Act
         result = enrich_paper_with_bluesky_metrics(self.paper_no_doi.id)
@@ -816,9 +818,9 @@ class BlueskyMetricsTasksTests(TestCase):
         self.assertEqual(result["paper_id"], self.paper_no_doi.id)
         self.assertEqual(result["reason"], "no_doi")
 
-    @patch("paper.ingestion.tasks._create_bluesky_metrics_client")
+    @patch("paper.ingestion.tasks.BlueskyMetricsClient")
     def test_enrich_paper_with_bluesky_metrics_no_bluesky_mentions(
-        self, mock_create_client
+        self, mock_metrics_client_class
     ):
         """
         Test enrichment when no Bluesky mentions are found.
@@ -826,7 +828,7 @@ class BlueskyMetricsTasksTests(TestCase):
         # Arrange
         mock_client = Mock()
         mock_client.get_metrics.return_value = None
-        mock_create_client.return_value = mock_client
+        mock_metrics_client_class.return_value = mock_client
 
         # Act
         result = enrich_paper_with_bluesky_metrics(self.paper_recent.id)
@@ -836,9 +838,9 @@ class BlueskyMetricsTasksTests(TestCase):
         self.assertEqual(result["paper_id"], self.paper_recent.id)
         self.assertEqual(result["doi"], self.paper_recent.doi)
 
-    @patch("paper.ingestion.tasks._create_bluesky_metrics_client")
+    @patch("paper.ingestion.tasks.BlueskyMetricsClient")
     def test_enrich_paper_with_bluesky_metrics_preserves_existing_metadata(
-        self, mock_create_client
+        self, mock_metrics_client_class
     ):
         """
         Test that existing external_metadata is preserved during enrichment.
@@ -851,7 +853,7 @@ class BlueskyMetricsTasksTests(TestCase):
         self.paper_recent.save()
         mock_client = Mock()
         mock_client.get_metrics.return_value = self.sample_bluesky_response
-        mock_create_client.return_value = mock_client
+        mock_metrics_client_class.return_value = mock_client
 
         # Act
         result = enrich_paper_with_bluesky_metrics(self.paper_recent.id)
@@ -866,9 +868,9 @@ class BlueskyMetricsTasksTests(TestCase):
 
     @patch("paper.ingestion.tasks.sentry")
     @patch("paper.ingestion.tasks.PaperMetricsEnrichmentService")
-    @patch("paper.ingestion.tasks._create_bluesky_metrics_client")
+    @patch("paper.ingestion.tasks.BlueskyMetricsClient")
     def test_enrich_paper_handles_service_error_with_max_retries(
-        self, mock_create_client, mock_service_class, mock_sentry
+        self, mock_metrics_client_class, mock_service_class, mock_sentry
     ):
         """
         Test error handling when max retries are exceeded.
@@ -876,7 +878,7 @@ class BlueskyMetricsTasksTests(TestCase):
         # Arrange
         from celery.exceptions import MaxRetriesExceededError
 
-        mock_create_client.return_value = Mock()
+        mock_metrics_client_class.return_value = Mock()
         mock_service = Mock()
         mock_service.enrich_paper_with_bluesky.side_effect = Exception("Service error")
         mock_service_class.return_value = mock_service
