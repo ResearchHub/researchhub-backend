@@ -72,9 +72,13 @@ class EventSyncTests(TestCase):
         }
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("personalize.signals.interaction_signals.transaction")
     @patch("personalize.tasks.SyncService")
-    def test_only_specific_events_synced_from_amplitude(self, MockSyncService):
+    def test_only_specific_events_synced_from_amplitude(
+        self, MockSyncService, mock_transaction
+    ):
         # Arrange
+        mock_transaction.on_commit = lambda func: func()
         mock_service = Mock()
         mock_service.sync_event.return_value = self.mock_sync_result_success
         MockSyncService.return_value = mock_service
@@ -161,9 +165,13 @@ class EventSyncTests(TestCase):
         self.assertRegex(session_id, r"^sess_anon_.+$")
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("personalize.signals.interaction_signals.transaction")
     @patch("personalize.tasks.SyncService")
-    def test_sync_only_triggered_when_interaction_created(self, MockSyncService):
+    def test_sync_only_triggered_when_interaction_created(
+        self, MockSyncService, mock_transaction
+    ):
         # Arrange
+        mock_transaction.on_commit = lambda func: func()
         mock_service = Mock()
         mock_service.sync_event.return_value = self.mock_sync_result_success
         MockSyncService.return_value = mock_service
@@ -187,9 +195,13 @@ class EventSyncTests(TestCase):
         self.assertEqual(interactions.count(), 1)
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("personalize.signals.interaction_signals.transaction")
     @patch("personalize.tasks.SyncService")
-    def test_interaction_marked_as_synced_on_success(self, MockSyncService):
+    def test_interaction_marked_as_synced_on_success(
+        self, MockSyncService, mock_transaction
+    ):
         # Arrange
+        mock_transaction.on_commit = lambda func: func()
         mock_service = Mock()
         mock_service.sync_event.return_value = self.mock_sync_result_success
         MockSyncService.return_value = mock_service
@@ -211,9 +223,13 @@ class EventSyncTests(TestCase):
         self.assertTrue(interaction.is_synced_with_personalize)
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("personalize.signals.interaction_signals.transaction")
     @patch("personalize.tasks.SyncService")
-    def test_interaction_not_marked_synced_on_failure(self, MockSyncService):
+    def test_interaction_not_marked_synced_on_failure(
+        self, MockSyncService, mock_transaction
+    ):
         # Arrange
+        mock_transaction.on_commit = lambda func: func()
         mock_service = Mock()
         mock_service.sync_event.return_value = self.mock_sync_result_failure
         MockSyncService.return_value = mock_service

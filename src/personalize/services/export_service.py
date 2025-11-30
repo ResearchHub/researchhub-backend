@@ -24,6 +24,7 @@ class ExportService:
         self.mapper = ItemMapper()
         self.chunk_timings = []  # Store timing details for debugging
         self.failed_ids = []  # Track IDs of items that failed to map
+        self.failed_reasons = {}  # Track failure reasons for debugging
         self.filtered_by_date_ids = []  # Track IDs filtered by publish date
 
     def export_items(
@@ -212,8 +213,12 @@ class ExportService:
                     review_count_data=review_count_data,
                 )
                 items.append(item_row)
-            except Exception:
+            except Exception as e:
                 self.failed_ids.append(unified_doc.id)
+                if self.debug:
+                    self.failed_reasons[unified_doc.id] = (
+                        f"{unified_doc.document_type}: {str(e)}"
+                    )
                 continue
 
         if timing is not None:

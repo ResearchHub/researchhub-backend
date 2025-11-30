@@ -225,6 +225,11 @@ class Command(BaseCommand):
                     f"with IDs: {result['failed_ids']}"
                 )
             )
+            # Show failure reasons in debug mode
+            if self.debug_mode and service.failed_reasons:
+                self.stdout.write(self.style.WARNING("\nFailure reasons:"))
+                for doc_id, reason in service.failed_reasons.items():
+                    self.stdout.write(f"  ID {doc_id}: {reason}")
 
         # Display filtered IDs if any
         if result["filtered_by_date_ids"]:
