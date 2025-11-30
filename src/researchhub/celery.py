@@ -169,20 +169,28 @@ app.conf.beat_schedule = {
             "queue": QUEUE_PULL_PAPERS,
         },
     },
-    # FIXME: Disable metrics enrichment temporarily.
-    # "paper-metrics-update": {
-    #     "task": "paper.ingestion.tasks.update_recent_papers_with_metrics",
-    #     "kwargs": {"days": 30},
-    #     "schedule": crontab(hour=3, minute=0),
-    #     "options": {
-    #         "priority": 2,
-    #         "queue": QUEUE_PAPER_MISC,
-    #     },
-    # },
     "paper-openalex-enrichment": {
         "task": "paper.ingestion.tasks.enrich_papers_with_openalex",
         "kwargs": {"days": 30},
         "schedule": crontab(hour=4, minute=0),
+        "options": {
+            "priority": 2,
+            "queue": QUEUE_PAPER_MISC,
+        },
+    },
+    "paper-github-metrics-update": {
+        "task": "paper.ingestion.tasks.update_recent_papers_with_github_metrics",
+        "kwargs": {"days": 14},
+        "schedule": crontab(hour=7, minute=0),
+        "options": {
+            "priority": 2,
+            "queue": QUEUE_PAPER_MISC,
+        },
+    },
+    "paper-bluesky-metrics-update": {
+        "task": "paper.ingestion.tasks.update_recent_papers_with_bluesky_metrics",
+        "kwargs": {"days": 14},
+        "schedule": crontab(hour=10, minute=0),
         "options": {
             "priority": 2,
             "queue": QUEUE_PAPER_MISC,
