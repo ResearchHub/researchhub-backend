@@ -74,7 +74,7 @@ class FeedFilteringBackend(BaseFilterBackend):
             return self._filter_popular_with_aws_trending(request, queryset, view)
 
         # For hot_score or hot_score_v2, return queryset for ordering backend to handle
-        view._feed_source = "researchhub"
+        view._feed_source = "rh-popular"
         return queryset
 
     def _filter_popular_with_aws_trending(self, request, queryset, view):
@@ -85,7 +85,7 @@ class FeedFilteringBackend(BaseFilterBackend):
         personalize_feed_service = getattr(view, "personalize_feed_service", None)
         if not personalize_feed_service:
             logger.warning("personalize_feed_service not available, using fallback")
-            view._feed_source = "researchhub"
+            view._feed_source = "rh-popular"
             return queryset
 
         filter_param = request.query_params.get("filter", None)
@@ -102,10 +102,10 @@ class FeedFilteringBackend(BaseFilterBackend):
 
             if not trending_ids:
                 logger.warning("No trending IDs returned, using fallback")
-                view._feed_source = "researchhub"
+                view._feed_source = "rh-popular"
                 return queryset
 
-            view._feed_source = "aws"
+            view._feed_source = "aws-trending"
 
             return self._fetch_and_order_entries_for_trending(
                 trending_ids, queryset, view
@@ -118,7 +118,7 @@ class FeedFilteringBackend(BaseFilterBackend):
                 json_data={"feed_view": "popular", "ordering": "aws_trending"},
             )
             logger.error(f"Trending feed error: {e}")
-            view._feed_source = "researchhub"
+            view._feed_source = "rh-popular"
             return queryset
 
     def _fetch_and_order_entries_for_trending(
@@ -148,17 +148,19 @@ class FeedFilteringBackend(BaseFilterBackend):
         return entries
 
     def _filter_personalized(self, request, queryset, view):
-        user_id = request.query_params.get("user_id")
-        if user_id:
-            user_id = int(user_id)
-        elif request.user.is_authenticated:
-            user_id = request.user.id
-        else:
-            return queryset
+        """
+        Personalized recommendations or fallback to following feed.
+        """
+        if not request.user.is_authenticated:
+            return queryset.none()
+
+        user_id = request.user.id
 
         personalize_feed_service = getattr(view, "personalize_feed_service", None)
         if not personalize_feed_service:
-            return queryset
+            # Fallback to following if Personalize unavailable
+            view._feed_source = "rh-following"
+            return self._filter_following(request, queryset, view)
 
         filter_param = request.query_params.get("filter", None)
         force_refresh_header = request.META.get("HTTP_RH_FORCE_REFRESH", "false")
@@ -176,13 +178,18 @@ class FeedFilteringBackend(BaseFilterBackend):
             view._personalize_recommendation_id = result.get("recommendation_id")
 
             if not recommended_ids:
-                return queryset.none()
+                # Fallback to following if no recommendations
+                view._feed_source = "rh-following"
+                return self._filter_following(request, queryset, view)
 
+            view._feed_source = "aws-personalize"
             return self._fetch_and_order_entries(recommended_ids, view)
 
         except Exception as e:
             logger.error(f"Personalized feed error for user {user_id}: {e}")
-            return queryset.none()
+            # Fallback to following on error
+            view._feed_source = "rh-following"
+            return self._filter_following(request, queryset, view)
 
     def _fetch_and_order_entries(
         self, document_ids: List[int], view
