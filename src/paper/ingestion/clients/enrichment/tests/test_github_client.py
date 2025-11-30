@@ -238,3 +238,38 @@ class TestGithubMetricsClient(TestCase):
             GithubMetricsClient.VALID_SEARCH_AREAS,
             ["code", "issues", "commits", "repositories"],
         )
+
+    def test_search_area_issues_adds_is_issue_qualifier(self):
+        """
+        Test that searching issues area adds 'is:issue' qualifier to the query.
+        GitHub's issues search API requires this qualifier.
+        """
+        # Arrange
+        self.mock_github_client.search.return_value = {"total_count": 5, "items": []}
+
+        # Act
+        self.client._search_area("10.1234/test", "issues")
+
+        # Assert
+        self.mock_github_client.search.assert_called_once_with(
+            endpoint="issues",
+            query="10.1234/test is:issue",
+            per_page=1,
+        )
+
+    def test_search_area_non_issues_no_qualifier(self):
+        """
+        Test that non-issues search areas don't add the 'is:issue' qualifier.
+        """
+        # Arrange
+        self.mock_github_client.search.return_value = {"total_count": 5, "items": []}
+
+        # Act
+        self.client._search_area("10.1234/test", "commits")
+
+        # Assert
+        self.mock_github_client.search.assert_called_once_with(
+            endpoint="commits",
+            query="10.1234/test",
+            per_page=1,
+        )
