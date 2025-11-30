@@ -64,11 +64,23 @@ class FeedServiceTests(APITestCase):
 
     def _create_interactions_for_user(self, user, unified_doc, count=5):
         """Create interactions to pass cold-start threshold."""
+        post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
         for i in range(count):
+            # Create a post for each interaction
+            doc = ResearchhubUnifiedDocument.objects.create(document_type="POST")
+            post = ResearchhubPost.objects.create(
+                title=f"Interaction Post {user.id}_{i}",
+                document_type="POST",
+                created_by=user,
+                unified_document=doc,
+            )
             UserInteractions.objects.create(
                 user=user,
-                event_type=UPVOTE,
-                unified_document=unified_doc,
+                event=UPVOTE,
+                unified_document=doc,
+                content_type=post_content_type,
+                object_id=post.id,
+                event_timestamp=timezone.now(),
             )
 
     @patch(
