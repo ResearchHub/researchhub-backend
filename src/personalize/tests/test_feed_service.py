@@ -6,6 +6,8 @@ from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
+from analytics.constants.event_types import UPVOTE
+from analytics.models import UserInteractions
 from feed.models import FeedEntry
 from hub.models import Hub
 from personalize.services.feed_service import FeedService
@@ -60,6 +62,27 @@ class FeedServiceTests(APITestCase):
 
         return entries
 
+    def _create_interactions_for_user(self, user, unified_doc, count=5):
+        """Create interactions to pass cold-start threshold."""
+        post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
+        for i in range(count):
+            # Create a post for each interaction
+            doc = ResearchhubUnifiedDocument.objects.create(document_type="POST")
+            post = ResearchhubPost.objects.create(
+                title=f"Interaction Post {user.id}_{i}",
+                document_type="POST",
+                created_by=user,
+                unified_document=doc,
+            )
+            UserInteractions.objects.create(
+                user=user,
+                event=UPVOTE,
+                unified_document=doc,
+                content_type=post_content_type,
+                object_id=post.id,
+                event_timestamp=timezone.now(),
+            )
+
     @patch(
         "personalize.clients.recommendation_client"
         ".RecommendationClient.get_recommendations_for_user"
@@ -69,6 +92,12 @@ class FeedServiceTests(APITestCase):
     ):
         entries = self._create_sample_feed_entries(count=3)
         doc_ids = [entry.unified_document_id for entry in entries]
+
+        # Create interactions to pass cold-start threshold
+        self._create_interactions_for_user(
+            self.user, entries[0].unified_document, count=5
+        )
+
         mock_get_recommendations.return_value = {
             "item_ids": doc_ids,
             "recommendation_id": "test-rec-id",

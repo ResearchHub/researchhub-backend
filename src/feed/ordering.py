@@ -10,14 +10,14 @@ class FeedOrderingBackend(BaseFilterBackend):
         if feed_view == "personalized":
             return queryset
 
-        # If _feed_source is "aws", filtering already handled sorting in-memory
+        # If _feed_source is "aws-*", filtering already handled sorting in-memory
         feed_source = getattr(view, "_feed_source", None)
 
-        if feed_view == "popular" and feed_source == "aws":
+        if feed_view == "popular" and feed_source == "aws-trending":
             return queryset
 
-        # If researchhub (fallback), use hot_score_v2 ordering
-        if feed_view == "popular" and feed_source == "researchhub":
+        # If rh-popular (fallback), use hot_score_v2 ordering
+        if feed_view == "popular" and feed_source == "rh-popular":
             return queryset.order_by("-hot_score_v2")
 
         ordering_param = request.query_params.get("ordering")

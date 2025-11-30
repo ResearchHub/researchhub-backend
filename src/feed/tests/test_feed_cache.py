@@ -12,6 +12,8 @@ from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
+from analytics.constants.event_types import UPVOTE
+from analytics.models import UserInteractions
 from feed.models import FeedEntry
 from feed.views.feed_view_mixin import FeedViewMixin
 from hub.models import Hub
@@ -213,6 +215,28 @@ class FeedCachingTests(APITestCase):
     def tearDown(self):
         cache.clear()
 
+    def _create_interactions_for_user(self, user, count=5):
+        """Create interactions to pass cold-start threshold."""
+        for i in range(count):
+            # Create a paper for each interaction
+            unified_doc = ResearchhubUnifiedDocument.objects.create(
+                document_type="PAPER"
+            )
+            unified_doc.hubs.add(self.hub)
+            paper = Paper.objects.create(
+                title=f"Interaction Paper {user.id}_{i}",
+                paper_publish_date=timezone.now(),
+                unified_document=unified_doc,
+            )
+            UserInteractions.objects.create(
+                user=user,
+                event=UPVOTE,
+                unified_document=unified_doc,
+                content_type=self.paper_content_type,
+                object_id=paper.id,
+                event_timestamp=timezone.now(),
+            )
+
     def test_pages_1_through_4_are_cached(self):
         url = reverse("feed-list")
 
@@ -280,13 +304,20 @@ class FeedCachingTests(APITestCase):
         self.assertEqual(response["RH-Cache"], "miss")
 
     @patch(
-        "personalize.clients.recommendation_client.RecommendationClient.get_recommendations_for_user"
+        "personalize.clients.recommendation_client.RecommendationClient"
+        ".get_recommendations_for_user"
     )
     def test_cache_key_differs_by_feed_view(self, mock_get_recommendations):
-        feed_entries = FeedEntry.objects.all()[:10]
-        mock_get_recommendations.return_value = [
-            str(e.unified_document_id) for e in feed_entries
+        # Create interactions to pass cold-start threshold
+        self._create_interactions_for_user(self.user, 5)
+
+        feed_entries = FeedEntry.objects.filter(content_type=self.paper_content_type)[
+            :10
         ]
+        mock_get_recommendations.return_value = {
+            "item_ids": [e.unified_document_id for e in feed_entries],
+            "recommendation_id": "test-rec-id",
+        }
 
         url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
@@ -360,17 +391,38 @@ class FeedCachingTests(APITestCase):
         self.assertTrue(mock_cache.get.called)
         self.assertTrue(mock_cache.set.called)
 
-    @patch("feed.views.feed_view.cache")
-    def test_personalized_feed_respects_use_cache_config(self, mock_cache):
+    @patch(
+        "personalize.clients.recommendation_client.RecommendationClient"
+        ".get_recommendations_for_user"
+    )
+    def test_personalized_feed_respects_use_cache_config(
+        self, mock_get_recommendations
+    ):
+        """
+        Test that personalized feed doesn't use full-page caching.
+        Note: cache IS used for interaction counting, but not for response caching.
+        """
+        # Create interactions to pass cold-start threshold
+        self._create_interactions_for_user(self.user, 5)
+
+        feed_entries = FeedEntry.objects.filter(content_type=self.paper_content_type)[
+            :5
+        ]
+        mock_get_recommendations.return_value = {
+            "item_ids": [e.unified_document_id for e in feed_entries],
+            "recommendation_id": "test-rec-id",
+        }
+
         url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
 
-        mock_cache.get.return_value = None
+        # First request - should be cache miss (partial)
+        response1 = self.client.get(url, {"feed_view": "personalized"})
+        self.assertEqual(response1["RH-Cache"], "partial-cache-miss (auth)")
 
-        self.client.get(url, {"feed_view": "personalized"})
-
-        self.assertFalse(mock_cache.get.called)
-        self.assertFalse(mock_cache.set.called)
+        # Second request - should be cache hit (partial, IDs cached)
+        response2 = self.client.get(url, {"feed_view": "personalized"})
+        self.assertEqual(response2["RH-Cache"], "partial-cache-hit (auth)")
 
     @patch("feed.views.feed_view.cache")
     def test_popular_feed_respects_use_cache_config(self, mock_cache):
@@ -410,17 +462,24 @@ class FeedCachingTests(APITestCase):
         self.assertEqual(response4["RH-Cache"], "hit (auth)")
 
     @patch(
-        "personalize.clients.recommendation_client.RecommendationClient.get_recommendations_for_user"
+        "personalize.clients.recommendation_client.RecommendationClient"
+        ".get_recommendations_for_user"
     )
     def test_personalized_feed_service_layer_caching(self, mock_get_recommendations):
         """
         Test that personalized feed uses service layer caching.
         IDs are cached and reused across multiple page requests.
         """
-        feed_entries = FeedEntry.objects.all()[:80]
-        feed_entry_ids = [str(entry.id) for entry in feed_entries]
+        # Create interactions to pass cold-start threshold
+        self._create_interactions_for_user(self.user, 5)
 
-        mock_get_recommendations.return_value = feed_entry_ids
+        feed_entries = FeedEntry.objects.filter(content_type=self.paper_content_type)[
+            :80
+        ]
+        mock_get_recommendations.return_value = {
+            "item_ids": [entry.unified_document_id for entry in feed_entries],
+            "recommendation_id": "test-rec-id",
+        }
 
         url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
@@ -434,13 +493,20 @@ class FeedCachingTests(APITestCase):
         self.assertEqual(mock_get_recommendations.call_count, 1)
 
     @patch(
-        "personalize.clients.recommendation_client.RecommendationClient.get_recommendations_for_user"
+        "personalize.clients.recommendation_client.RecommendationClient"
+        ".get_recommendations_for_user"
     )
     def test_personalized_feed_cache_header(self, mock_get_recommendations):
-        feed_entries = FeedEntry.objects.all()[:5]
-        mock_get_recommendations.return_value = [
-            str(e.unified_document_id) for e in feed_entries
+        # Create interactions to pass cold-start threshold
+        self._create_interactions_for_user(self.user, 5)
+
+        feed_entries = FeedEntry.objects.filter(content_type=self.paper_content_type)[
+            :5
         ]
+        mock_get_recommendations.return_value = {
+            "item_ids": [e.unified_document_id for e in feed_entries],
+            "recommendation_id": "test-rec-id",
+        }
 
         url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
@@ -454,14 +520,20 @@ class FeedCachingTests(APITestCase):
         self.assertEqual(response2["RH-Cache"], "partial-cache-hit (auth)")
 
     @patch(
-        "personalize.clients.recommendation_client.RecommendationClient.get_recommendations_for_user"
+        "personalize.clients.recommendation_client.RecommendationClient"
+        ".get_recommendations_for_user"
     )
     def test_votes_are_added_to_personalized_feed_response(
         self, mock_get_recommendations
     ):
         from discussion.models import Vote
 
-        feed_entry = FeedEntry.objects.first()
+        # Create interactions to pass cold-start threshold
+        self._create_interactions_for_user(self.user, 5)
+
+        feed_entry = FeedEntry.objects.filter(
+            content_type=self.paper_content_type
+        ).first()
         mock_get_recommendations.return_value = {
             "item_ids": [feed_entry.unified_document_id],
             "recommendation_id": "test-rec-id",
@@ -485,12 +557,18 @@ class FeedCachingTests(APITestCase):
         self.assertIn("user_vote", first_result)
 
     @patch(
-        "personalize.clients.recommendation_client.RecommendationClient.get_recommendations_for_user"
+        "personalize.clients.recommendation_client.RecommendationClient"
+        ".get_recommendations_for_user"
     )
     def test_personalized_feed_pagination_across_multiple_pages(
         self, mock_get_recommendations
     ):
-        feed_entries = FeedEntry.objects.all()[:80]
+        # Create interactions to pass cold-start threshold
+        self._create_interactions_for_user(self.user, 5)
+
+        feed_entries = FeedEntry.objects.filter(content_type=self.paper_content_type)[
+            :80
+        ]
         unified_doc_ids = [entry.unified_document_id for entry in feed_entries]
 
         mock_get_recommendations.return_value = {
