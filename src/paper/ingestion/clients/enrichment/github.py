@@ -179,9 +179,15 @@ class GithubMetricsClient:
         if area not in self.VALID_SEARCH_AREAS:
             raise ValueError(f"Invalid search area: {area}. ")
 
+        query = term
+        # https://docs.github.com/en/rest/search/search?apiVersion=2022-11-28#search-issues-and-pull-requests
+        # We need to specify `is:issue` to search only issues, otherwise we get a 422.
+        if area == "issues":
+            query = f"{term} is:issue"
+
         response_data = self.github_client.search(
             endpoint=area,
-            query=term,
+            query=query,
             per_page=1,
         )
 
