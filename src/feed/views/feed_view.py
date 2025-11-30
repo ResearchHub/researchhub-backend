@@ -51,11 +51,14 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
 
             if resolved_strategy == "personalized":
                 return self._get_personalized_response(request)
+            elif resolved_strategy == "trending":
+                # Unauthenticated users get AWS trending
+                return self._get_trending_response(request)
             else:
                 # Cold-start: route to following feed
                 return self._get_following_response(request)
 
-        return self._get_feed_response(request, feed_view)
+        return self._get_non_personalized_feed_response(request, feed_view)
 
     def _get_personalized_response(self, request):
         """Handle personalized feed (Personalize recommendations)."""
@@ -88,7 +91,23 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
         response["RH-Cache"] = self._with_auth_suffix(request, "miss")
         return response
 
-    def _get_feed_response(self, request, feed_view):
+    def _get_trending_response(self, request):
+        """Handle trending feed (unauthenticated users viewing 'for you')."""
+        # Override query params to trigger aws_trending filter
+        request.query_params._mutable = True
+        request.query_params["feed_view"] = "popular"
+        request.query_params["ordering"] = "aws_trending"
+        request.query_params._mutable = False
+
+        response = super(FeedViewSet, self).list(request)
+
+        # Header set by filtering layer (aws-trending or rh-popular on fallback)
+        feed_source = getattr(self, "_feed_source", "aws-trending")
+        response["RH-Feed-Source"] = feed_source
+        response["RH-Cache"] = self._with_auth_suffix(request, "miss")
+        return response
+
+    def _get_non_personalized_feed_response(self, request, feed_view):
         feed_config = FEED_CONFIG.get(feed_view, {})
         use_cache = self._should_use_cache(request, feed_config)
         cache_key = self.get_cache_key(request, feed_type="researchhub")
@@ -186,10 +205,14 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
 
     def _resolve_personalized_feed_strategy(self, request) -> str:
         """
-        "personalized" or "following" feed strategy based on interaction count.
+        Determine feed strategy for personalized feed.
+
+        - Unauthenticated users: trending (AWS Personalize trending)
+        - Authenticated with < 5 interactions: following (cold-start)
+        - Authenticated with 5+ interactions: personalized (AWS Personalize)
         """
         if not request.user.is_authenticated:
-            return "following"
+            return "trending"
 
         user_id = request.user.id
         personalized_config = FEED_CONFIG["personalized"]

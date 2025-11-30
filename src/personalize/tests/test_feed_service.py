@@ -6,6 +6,8 @@ from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
+from analytics.constants.event_types import UPVOTE
+from analytics.models import UserInteractions
 from feed.models import FeedEntry
 from hub.models import Hub
 from personalize.services.feed_service import FeedService
@@ -60,6 +62,15 @@ class FeedServiceTests(APITestCase):
 
         return entries
 
+    def _create_interactions_for_user(self, user, unified_doc, count=5):
+        """Create interactions to pass cold-start threshold."""
+        for i in range(count):
+            UserInteractions.objects.create(
+                user=user,
+                event_type=UPVOTE,
+                unified_document=unified_doc,
+            )
+
     @patch(
         "personalize.clients.recommendation_client"
         ".RecommendationClient.get_recommendations_for_user"
@@ -69,6 +80,12 @@ class FeedServiceTests(APITestCase):
     ):
         entries = self._create_sample_feed_entries(count=3)
         doc_ids = [entry.unified_document_id for entry in entries]
+
+        # Create interactions to pass cold-start threshold
+        self._create_interactions_for_user(
+            self.user, entries[0].unified_document, count=5
+        )
+
         mock_get_recommendations.return_value = {
             "item_ids": doc_ids,
             "recommendation_id": "test-rec-id",

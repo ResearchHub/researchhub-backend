@@ -101,14 +101,24 @@ class TestPersonalizedFeed(APITestCase):
     def tearDown(self):
         cache.clear()
 
-    def test_unauthenticated_without_user_id_gets_empty_results(self):
-        """Unauthenticated users should get empty results for personalized feed."""
+    @patch(
+        "personalize.clients.recommendation_client.RecommendationClient"
+        ".get_trending_items"
+    )
+    def test_unauthenticated_user_gets_trending_results(self, mock_get_trending):
+        """Unauthenticated users should get trending results for personalized feed."""
+        mock_get_trending.return_value = {
+            "item_ids": [self.paper_doc.id],
+            "recommendation_id": "test-trending-id",
+        }
+
         url = reverse("feed-list")
 
         response = self.client.get(url, {"feed_view": "personalized"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data["results"]), 0)
+        self.assertEqual(response["RH-Feed-Source"], "aws-trending")
+        mock_get_trending.assert_called_once()
 
     @patch(
         "personalize.clients.recommendation_client.RecommendationClient"
@@ -522,14 +532,24 @@ class TestPersonalizedFeedColdStart(APITestCase):
                 event_timestamp=timezone.now(),
             )
 
-    def test_unauthenticated_user_gets_empty_results(self):
-        """Unauthenticated users should get empty results for personalized feed."""
+    @patch(
+        "personalize.clients.recommendation_client.RecommendationClient"
+        ".get_trending_items"
+    )
+    def test_unauthenticated_user_gets_trending_results(self, mock_get_trending):
+        """Unauthenticated users should get trending results for personalized feed."""
+        mock_get_trending.return_value = {
+            "item_ids": [self.paper_doc.id],
+            "recommendation_id": "test-trending-id",
+        }
+
         url = reverse("feed-list")
 
         response = self.client.get(url, {"feed_view": "personalized"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data["results"]), 0)
+        self.assertEqual(response["RH-Feed-Source"], "aws-trending")
+        mock_get_trending.assert_called_once()
 
     def test_user_with_zero_interactions_gets_following_feed(self):
         """Users with 0 interactions should get following feed."""
@@ -741,15 +761,25 @@ class TestPersonalizedFeedStrategyResolution(APITestCase):
                 event_timestamp=timezone.now(),
             )
 
-    def test_strategy_returns_following_for_unauthenticated(self):
-        """Unauthenticated requests should resolve to following strategy."""
+    @patch(
+        "personalize.clients.recommendation_client.RecommendationClient"
+        ".get_trending_items"
+    )
+    def test_strategy_returns_trending_for_unauthenticated(self, mock_get_trending):
+        """Unauthenticated requests should resolve to trending strategy."""
+        mock_get_trending.return_value = {
+            "item_ids": [self.paper_doc.id],
+            "recommendation_id": "test-trending-id",
+        }
+
         url = reverse("feed-list")
 
         response = self.client.get(url, {"feed_view": "personalized"})
 
-        # Unauthenticated users get empty results (following feed with no follows)
+        # Unauthenticated users get trending feed
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response["RH-Feed-Source"], "rh-following")
+        self.assertEqual(response["RH-Feed-Source"], "aws-trending")
+        mock_get_trending.assert_called_once()
 
     def test_strategy_returns_following_for_low_interactions(self):
         """Users with < 5 interactions should resolve to following strategy."""
@@ -846,3 +876,93 @@ class TestPersonalizedFeedStrategyResolution(APITestCase):
         # Should fallback to following feed
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response["RH-Feed-Source"], "rh-following")
+
+
+class TestUnauthenticatedPersonalizedFeed(APITestCase):
+    """Tests for unauthenticated users viewing personalized ('for you') feed."""
+
+    def setUp(self):
+        cache.clear()
+        self.hub = Hub.objects.create(name="Test Hub", slug="test-hub")
+
+        self.paper_content_type = ContentType.objects.get_for_model(Paper)
+        self.post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
+
+        # Create test documents
+        self.paper_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER"
+        )
+        self.paper_doc.hubs.add(self.hub)
+        self.paper = Paper.objects.create(
+            title="Test Paper",
+            paper_publish_date=timezone.now(),
+            unified_document=self.paper_doc,
+        )
+
+        self.paper_entry = FeedEntry.objects.create(
+            action="PUBLISH",
+            action_date=timezone.now(),
+            content_type=self.paper_content_type,
+            object_id=self.paper.id,
+            unified_document=self.paper_doc,
+            hot_score=100,
+            hot_score_v2=200,
+            content={},
+            metrics={},
+        )
+        self.paper_entry.hubs.add(self.hub)
+
+    def tearDown(self):
+        cache.clear()
+
+    def test_strategy_returns_trending_for_unauthenticated(self):
+        """Unauthenticated users should resolve to 'trending' strategy."""
+        from feed.views.feed_view import FeedViewSet
+
+        view = FeedViewSet()
+
+        class MockRequest:
+            class MockUser:
+                is_authenticated = False
+
+            user = MockUser()
+
+        strategy = view._resolve_personalized_feed_strategy(MockRequest())
+        self.assertEqual(strategy, "trending")
+
+    @patch(
+        "personalize.clients.recommendation_client"
+        ".RecommendationClient.get_trending_items"
+    )
+    def test_unauthenticated_gets_trending_feed(self, mock_get_trending):
+        """Unauthenticated users viewing personalized feed get AWS trending."""
+        mock_get_trending.return_value = {
+            "item_ids": [self.paper_doc.id],
+            "recommendation_id": "test-trending-id",
+        }
+
+        url = reverse("feed-list")
+        # No authentication - anonymous user
+
+        response = self.client.get(url, {"feed_view": "personalized"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response["RH-Feed-Source"], "aws-trending")
+        mock_get_trending.assert_called_once()
+
+    @patch(
+        "personalize.clients.recommendation_client"
+        ".RecommendationClient.get_trending_items"
+    )
+    def test_unauthenticated_falls_back_to_popular_on_error(self, mock_get_trending):
+        """When trending fails for unauthenticated users, fallback to rh-popular."""
+        mock_get_trending.side_effect = Exception("AWS Error")
+
+        url = reverse("feed-list")
+        # No authentication - anonymous user
+
+        response = self.client.get(url, {"feed_view": "personalized"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Falls back to rh-popular on error
+        self.assertEqual(response["RH-Feed-Source"], "rh-popular")

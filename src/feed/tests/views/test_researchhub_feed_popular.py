@@ -205,29 +205,51 @@ class PopularFeedTests(APITestCase):
         mock_get_trending.assert_called_once()
         self.assertEqual(response.get("RH-Feed-Source"), "aws-trending")
 
-    def test_popular_rejects_latest_ordering(self):
+    @patch(
+        "personalize.clients.recommendation_client"
+        ".RecommendationClient.get_trending_items"
+    )
+    def test_popular_rejects_latest_ordering(self, mock_get_trending):
+        """Test that invalid ordering falls back to default (aws_trending)."""
+        # Return entries in expected order (high to low score)
+        doc_ids = [
+            self.high_score_entry.unified_document_id,
+            self.medium_score_entry.unified_document_id,
+            self.low_score_entry.unified_document_id,
+        ]
+        mock_get_trending.return_value = {
+            "item_ids": doc_ids,
+            "recommendation_id": "test-trending-id",
+        }
+
         url = reverse("feed-list")
 
         response = self.client.get(url, {"feed_view": "popular", "ordering": "latest"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        results = response.data["results"]
-        self.assertGreaterEqual(len(results), 2)
+        # Should fallback to aws_trending (default)
+        mock_get_trending.assert_called_once()
+        self.assertEqual(response.get("RH-Feed-Source"), "aws-trending")
 
-        if len(results) >= 2:
-            first_score = results[0].get("hot_score_v2", 0)
-            second_score = results[1].get("hot_score_v2", 0)
-            self.assertGreaterEqual(first_score, second_score)
+    @patch(
+        "personalize.clients.recommendation_client"
+        ".RecommendationClient.get_trending_items"
+    )
+    def test_feed_content_type_filtering(self, mock_get_trending):
+        doc_ids = [
+            self.high_score_entry.unified_document_id,
+            self.medium_score_entry.unified_document_id,
+            self.low_score_entry.unified_document_id,
+        ]
+        mock_get_trending.return_value = {
+            "item_ids": doc_ids,
+            "recommendation_id": "test-trending-id",
+        }
 
-    def test_feed_content_type_filtering(self):
         url = reverse("feed-list")
 
-        # Arrange
-
-        # Act
         popular_response = self.client.get(url, {"feed_view": "popular"})
 
-        # Assert
         popular_result_ids = [
             r["content_object"]["id"] for r in popular_response.data["results"]
         ]
