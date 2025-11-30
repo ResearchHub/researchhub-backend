@@ -700,18 +700,18 @@ class BlueskyMetricsTasksTests(TestCase):
             title="Recent Paper",
             doi="10.1038/news.2011.490",
             uploaded_by=self.user,
-            created_date=timezone.now() - timedelta(days=3),
+            paper_publish_date=timezone.now() - timedelta(days=3),
         )
         self.paper_old = Paper.objects.create(
             title="Old Paper",
             doi="10.1234/old.paper",
             uploaded_by=self.user,
-            created_date=timezone.now() - timedelta(days=10),
+            paper_publish_date=timezone.now() - timedelta(days=10),
         )
         self.paper_no_doi = Paper.objects.create(
             title="No DOI Paper",
             uploaded_by=self.user,
-            created_date=timezone.now() - timedelta(days=2),
+            paper_publish_date=timezone.now() - timedelta(days=2),
         )
         self.sample_bluesky_response = {
             "post_count": 25,
@@ -751,7 +751,7 @@ class BlueskyMetricsTasksTests(TestCase):
         """
         # Arrange
         Paper.objects.filter(id=self.paper_old.id).update(
-            created_date=timezone.now() - timedelta(days=10)
+            paper_publish_date=timezone.now() - timedelta(days=10)
         )
         mock_metrics_client_class.return_value = Mock()
 
