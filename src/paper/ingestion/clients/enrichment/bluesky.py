@@ -14,10 +14,20 @@ class BlueskyClient:
     Client for interacting with the Bluesky API.
     Uses the AT Protocol to search for and retrieve posts mentioning papers.
     Handles authentication, rate limiting, and error handling.
+
+    This class is a singleton - all instantiations return the same instance.
     """
 
     DEFAULT_RATE_LIMIT = 10.0
     MAX_SEARCH_RESULTS = 100
+
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
 
     def __init__(
         self,
@@ -35,6 +45,10 @@ class BlueskyClient:
             client: AT Protocol client instance. If None, creates a new Client()
             rate_limit: Maximum requests per second (default: 10.0)
         """
+        if self._initialized:
+            return
+        self._initialized = True
+
         self.username = username or getattr(settings, "BLUESKY_USERNAME", "")
         self.password = password or getattr(settings, "BLUESKY_PASSWORD", "")
         self.rate_limiter = RateLimiter(rate_limit)
@@ -108,7 +122,7 @@ class BlueskyMetricsClient:
 
         Args:
             bluesky_client: Bluesky API client.
-                If None, a default client is created using settings credentials.
+                If None, creates a BlueskyClient (which is a singleton).
         """
         self.bluesky_client = bluesky_client or BlueskyClient()
 
