@@ -3,10 +3,12 @@ Service for enriching Elasticsearch search results with database data.
 """
 
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Callable
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import default_storage
+from django.db import connection
 
 from feed.serializers import (
     PaperSerializer,
@@ -44,13 +46,131 @@ class SearchResultEnricher:
             elif doc_type == "post":
                 post_ids.append(doc_id)
 
-        papers = self._fetch_papers(paper_ids) if paper_ids else []
-        posts = self._fetch_posts(post_ids) if post_ids else []
+        # Fetch papers and posts in parallel (always beneficial if both exist)
+        papers, posts = self._fetch_documents_parallel(paper_ids, post_ids)
 
         paper_lookup = {paper.id: paper for paper in papers}
         post_lookup = {post.id: post for post in posts}
 
+        # Use parallel enrichment for larger result sets (overhead not worth it for small sets)
+        if len(es_results) > 5:
+            enriched_results = self._enrich_results_parallel(
+                es_results, paper_lookup, post_lookup
+            )
+        else:
+            enriched_results = self._enrich_results_sequential(
+                es_results, paper_lookup, post_lookup
+            )
+
+        return enriched_results
+
+    def _fetch_documents_parallel(
+        self, paper_ids: list[int], post_ids: list[int]
+    ) -> tuple[list[Paper], list[ResearchhubPost]]:
+        """Fetch papers and posts from database in parallel."""
+        papers = []
+        posts = []
+
+        # Only use parallel fetching if we have both types, otherwise sequential is fine
+        if paper_ids and post_ids:
+            def fetch_papers_with_cleanup():
+                try:
+                    return self._fetch_papers(paper_ids)
+                finally:
+                    connection.close()
+
+            def fetch_posts_with_cleanup():
+                try:
+                    return self._fetch_posts(post_ids)
+                finally:
+                    connection.close()
+
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                paper_future = executor.submit(fetch_papers_with_cleanup)
+                post_future = executor.submit(fetch_posts_with_cleanup)
+
+                papers = paper_future.result()
+                posts = post_future.result()
+        else:
+            # Sequential fetching when only one type exists
+            if paper_ids:
+                papers = self._fetch_papers(paper_ids)
+            if post_ids:
+                posts = self._fetch_posts(post_ids)
+
+        return papers, posts
+
+    def _enrich_results_parallel(
+        self,
+        es_results: list[dict[str, Any]],
+        paper_lookup: dict[int, Paper],
+        post_lookup: dict[int, ResearchhubPost],
+    ) -> list[dict[str, Any]]:
+        """Enrich search results in parallel."""
+        enriched_results = [None] * len(es_results)
+
+        def enrich_single_result(index: int, result: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+            """Enrich a single result and return its index and enriched data."""
+            try:
+                doc_id = result.get("id")
+                doc_type = result.get("type")
+
+                if doc_type == "paper" and doc_id in paper_lookup:
+                    enriched_result = self._enrich_paper_result(
+                        result, paper_lookup[doc_id]
+                    )
+                    return index, enriched_result
+                elif doc_type == "post" and doc_id in post_lookup:
+                    enriched_result = self._enrich_post_result(
+                        result, post_lookup[doc_id]
+                    )
+                    return index, enriched_result
+                else:
+                    logger.warning(
+                        f"Document {doc_id} ({doc_type}) not found in database"
+                    )
+                    return index, result
+            except Exception as e:
+                logger.error(
+                    f"Error enriching result at index {index}: {str(e)}", exc_info=True
+                )
+                return index, result
+            finally:
+                # Close thread-local database connection (Django pattern)
+                connection.close()
+
+        # Use ThreadPoolExecutor for parallel enrichment
+        # Limit workers to balance performance and resource usage
+        max_workers = min(len(es_results), 10)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(enrich_single_result, i, result): i
+                for i, result in enumerate(es_results)
+            }
+
+            for future in as_completed(futures):
+                try:
+                    index, enriched_result = future.result()
+                    enriched_results[index] = enriched_result
+                except Exception as e:
+                    index = futures[future]
+                    logger.error(
+                        f"Unexpected error in future for index {index}: {str(e)}",
+                        exc_info=True,
+                    )
+                    enriched_results[index] = es_results[index]
+
+        return enriched_results
+
+    def _enrich_results_sequential(
+        self,
+        es_results: list[dict[str, Any]],
+        paper_lookup: dict[int, Paper],
+        post_lookup: dict[int, ResearchhubPost],
+    ) -> list[dict[str, Any]]:
+        """Enrich search results sequentially (for small result sets)."""
         enriched_results = []
+
         for result in es_results:
             doc_id = result.get("id")
             doc_type = result.get("type")
@@ -214,6 +334,12 @@ class SearchResultEnricher:
                 elif not isinstance(result[field], dict) and result[field] is not None:
                     # Ensure dict fields are dicts or None
                     result[field] = None
+                elif field == "grant" and isinstance(result[field], dict):
+                    # Validate nested grant structure
+                    result[field] = self._validate_grant_dict(result[field])
+                elif field == "fundraise" and isinstance(result[field], dict):
+                    # Validate nested fundraise structure
+                    result[field] = self._validate_fundraise_dict(result[field])
 
         if "metrics" in result:
             if result["metrics"] is None:
@@ -228,6 +354,133 @@ class SearchResultEnricher:
                 result["external_metadata"] = None
 
         return result
+
+    def _validate_grant_dict(self, grant: dict[str, Any]) -> dict[str, Any] | None:
+        """Validate and clean grant dict to ensure nested structures are valid."""
+        if not grant or not isinstance(grant, dict):
+            return None
+
+        # Validate amount field - should be dict with usd, rsc, formatted
+        if "amount" in grant:
+            amount = grant["amount"]
+            if amount is not None and not isinstance(amount, dict):
+                grant["amount"] = None
+
+        # Validate created_by - should be dict or None
+        if "created_by" in grant:
+            created_by = grant["created_by"]
+            if created_by is not None and not isinstance(created_by, dict):
+                grant["created_by"] = None
+            elif isinstance(created_by, dict) and "author_profile" in created_by:
+                # Ensure author_profile is dict or None
+                author_profile = created_by["author_profile"]
+                if author_profile is not None and not isinstance(author_profile, dict):
+                    created_by["author_profile"] = None
+
+        # Validate contacts - should be list of dicts
+        if "contacts" in grant:
+            contacts = grant["contacts"]
+            if contacts is None:
+                grant["contacts"] = []
+            elif isinstance(contacts, list):
+                cleaned_contacts = []
+                for contact in contacts:
+                    if isinstance(contact, dict):
+                        # Ensure author_profile is dict or None
+                        if "author_profile" in contact:
+                            author_profile = contact["author_profile"]
+                            if author_profile is not None and not isinstance(author_profile, dict):
+                                contact = {**contact, "author_profile": None}
+                        cleaned_contacts.append(contact)
+                grant["contacts"] = cleaned_contacts
+            else:
+                grant["contacts"] = []
+
+        # Validate applications - should be list of dicts
+        if "applications" in grant:
+            applications = grant["applications"]
+            if applications is None:
+                grant["applications"] = []
+            elif isinstance(applications, list):
+                cleaned_applications = []
+                for application in applications:
+                    if isinstance(application, dict):
+                        # Ensure applicant is dict or None
+                        if "applicant" in application:
+                            applicant = application["applicant"]
+                            if applicant is not None and not isinstance(applicant, dict):
+                                application = {**application, "applicant": None}
+                            elif isinstance(applicant, dict):
+                                # Ensure applicant has valid structure (id, first_name, etc.)
+                                if "id" not in applicant:
+                                    application = {**application, "applicant": None}
+                        cleaned_applications.append(application)
+                grant["applications"] = cleaned_applications
+            else:
+                grant["applications"] = []
+
+        return grant
+
+    def _validate_fundraise_dict(self, fundraise: dict[str, Any]) -> dict[str, Any] | None:
+        """Validate and clean fundraise dict to ensure nested structures are valid."""
+        if not fundraise or not isinstance(fundraise, dict):
+            return None
+
+        # Validate amount_raised - should be dict with usd, rsc
+        if "amount_raised" in fundraise:
+            amount_raised = fundraise["amount_raised"]
+            if amount_raised is not None and not isinstance(amount_raised, dict):
+                fundraise["amount_raised"] = None
+
+        # Validate goal_amount - should be dict with usd, rsc
+        if "goal_amount" in fundraise:
+            goal_amount = fundraise["goal_amount"]
+            if goal_amount is not None and not isinstance(goal_amount, dict):
+                fundraise["goal_amount"] = None
+
+        # Validate created_by - should be dict or None
+        if "created_by" in fundraise:
+            created_by = fundraise["created_by"]
+            if created_by is not None and not isinstance(created_by, dict):
+                fundraise["created_by"] = None
+            elif isinstance(created_by, dict) and "author_profile" in created_by:
+                # Ensure author_profile is dict or None
+                author_profile = created_by["author_profile"]
+                if author_profile is not None and not isinstance(author_profile, dict):
+                    created_by["author_profile"] = None
+
+        # Validate contributors - should be dict with total and top (array)
+        if "contributors" in fundraise:
+            contributors = fundraise["contributors"]
+            if contributors is None:
+                fundraise["contributors"] = {"total": 0, "top": []}
+            elif isinstance(contributors, dict):
+                # Ensure total is int
+                if "total" in contributors:
+                    try:
+                        contributors["total"] = int(contributors["total"])
+                    except (ValueError, TypeError):
+                        contributors["total"] = 0
+                # Ensure top is list
+                if "top" in contributors:
+                    if not isinstance(contributors["top"], list):
+                        contributors["top"] = []
+                    else:
+                        # Validate each contributor in top array
+                        cleaned_top = []
+                        for contributor in contributors["top"]:
+                            if isinstance(contributor, dict):
+                                # Ensure author_profile is dict or None
+                                if "author_profile" in contributor:
+                                    author_profile = contributor["author_profile"]
+                                    if author_profile is not None and not isinstance(author_profile, dict):
+                                        contributor = {**contributor, "author_profile": None}
+                                cleaned_top.append(contributor)
+                        contributors["top"] = cleaned_top
+            else:
+                fundraise["contributors"] = {"total": 0, "top": []}
+
+        return fundraise
 
     def _validate_hub_dict(self, hub: dict[str, Any] | None) -> dict[str, Any] | None:
         """Validate and clean hub dict to ensure required fields are present."""
