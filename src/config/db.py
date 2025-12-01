@@ -1,7 +1,7 @@
 import os
 
-NAME = 'researchhub'
-HOST = os.environ.get('DB_HOST', 'localhost')
-PORT = os.environ.get('DB_PORT', '5432')
-USER = os.environ.get('DB_USER', 'rh_developer')
-PASS = os.environ.get('DB_PASS', 'not_secure')
+NAME = os.environ.get('DB_NAME', '')
+HOST = os.environ.get('DB_HOST', '')
+PORT = os.environ.get('DB_PORT', '')
+USER = os.environ.get('DB_USER', '')
+PASS = os.environ.get('DB_PASS', '')
