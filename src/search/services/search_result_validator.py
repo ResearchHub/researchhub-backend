@@ -18,9 +18,7 @@ class SearchResultValidator:
         )
 
     @staticmethod
-    def validate_journal_dict(
-        journal: dict[str, Any] | None
-    ) -> dict[str, Any] | None:
+    def validate_journal_dict(journal: dict[str, Any] | None) -> dict[str, Any] | None:
         if not journal or not isinstance(journal, dict):
             return None
 
@@ -50,9 +48,7 @@ class SearchResultValidator:
         }
 
     @staticmethod
-    def validate_review_dict(
-        review: dict[str, Any] | None
-    ) -> dict[str, Any] | None:
+    def validate_review_dict(review: dict[str, Any] | None) -> dict[str, Any] | None:
         if not review or not isinstance(review, dict):
             return None
 
@@ -71,9 +67,7 @@ class SearchResultValidator:
         return {"id": review_id, "score": score, "author": review.get("author")}
 
     @staticmethod
-    def validate_bounty_dict(
-        bounty: dict[str, Any] | None
-    ) -> dict[str, Any] | None:
+    def validate_bounty_dict(bounty: dict[str, Any] | None) -> dict[str, Any] | None:
         if not bounty or not isinstance(bounty, dict):
             return None
 
@@ -103,7 +97,7 @@ class SearchResultValidator:
 
     @staticmethod
     def validate_purchase_dict(
-        purchase: dict[str, Any] | None
+        purchase: dict[str, Any] | None,
     ) -> dict[str, Any] | None:
         if not purchase or not isinstance(purchase, dict):
             return None
@@ -124,11 +118,15 @@ class SearchResultValidator:
         except (ValueError, TypeError):
             return None
 
-        return {"id": purchase_id, "amount": amount_str, "user": purchase.get("user")}
+        user = purchase.get("user")
+        if user is not None and isinstance(user, dict):
+            SearchResultValidator._validate_user_dict(user)
+
+        return {"id": purchase_id, "amount": amount_str, "user": user}
 
     @staticmethod
     def validate_author_detail_dict(
-        author: dict[str, Any] | None
+        author: dict[str, Any] | None,
     ) -> dict[str, Any] | None:
         if not author or not isinstance(author, dict):
             return None
@@ -142,19 +140,21 @@ class SearchResultValidator:
         except (ValueError, TypeError):
             return None
 
+        user = author.get("user")
+        if user is not None and isinstance(user, dict):
+            SearchResultValidator._validate_user_dict(user)
+
         return {
             "id": author_id,
             "first_name": author.get("first_name", ""),
             "last_name": author.get("last_name", ""),
             "profile_image": author.get("profile_image"),
             "headline": author.get("headline"),
-            "user": author.get("user"),
+            "user": user,
         }
 
     @staticmethod
-    def validate_author_dict(
-        author: dict[str, Any] | None
-    ) -> dict[str, Any] | None:
+    def validate_author_dict(author: dict[str, Any] | None) -> dict[str, Any] | None:
         if not author or not isinstance(author, dict):
             return None
 
@@ -240,6 +240,12 @@ class SearchResultValidator:
             grant["created_by"] = None
         elif isinstance(created_by, dict):
             SearchResultValidator.validate_author_profile_in_dict(created_by)
+            if "user" in created_by:
+                user = created_by["user"]
+                if user is not None and isinstance(user, dict):
+                    SearchResultValidator._validate_user_dict(user)
+                elif user is not None and not isinstance(user, (int, str)):
+                    created_by["user"] = None
 
     @staticmethod
     def _validate_grant_contacts(grant: dict[str, Any]) -> None:
@@ -268,9 +274,7 @@ class SearchResultValidator:
             grant["applications"] = []
 
     @staticmethod
-    def _clean_contacts_list(
-        contacts: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def _clean_contacts_list(contacts: list[dict[str, Any]]) -> list[dict[str, Any]]:
         cleaned_contacts = []
         for contact in contacts:
             if isinstance(contact, dict):
@@ -280,7 +284,7 @@ class SearchResultValidator:
 
     @staticmethod
     def _clean_applications_list(
-        applications: list[dict[str, Any]]
+        applications: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
         cleaned_applications = []
         for application in applications:
@@ -294,12 +298,12 @@ class SearchResultValidator:
         if "applicant" not in application:
             return
         applicant = application["applicant"]
-        if (
-            applicant is None
-            or not isinstance(applicant, dict)
-            or "id" not in applicant
-        ):
+        if applicant is None or not isinstance(applicant, dict):
             application["applicant"] = None
+        elif "id" not in applicant:
+            application["applicant"] = None
+        else:
+            SearchResultValidator._validate_author_profile_nested_fields(applicant)
 
     @staticmethod
     def validate_author_profile_in_dict(obj: dict[str, Any]) -> None:
@@ -307,11 +311,13 @@ class SearchResultValidator:
             author_profile = obj["author_profile"]
             if author_profile is not None and not isinstance(author_profile, dict):
                 obj["author_profile"] = None
+            elif isinstance(author_profile, dict):
+                SearchResultValidator._validate_author_profile_nested_fields(
+                    author_profile
+                )
 
     @staticmethod
-    def validate_fundraise_dict(
-        fundraise: dict[str, Any]
-    ) -> dict[str, Any] | None:
+    def validate_fundraise_dict(fundraise: dict[str, Any]) -> dict[str, Any] | None:
         if not fundraise or not isinstance(fundraise, dict):
             return None
 
@@ -337,6 +343,12 @@ class SearchResultValidator:
             fundraise["created_by"] = None
         elif isinstance(created_by, dict):
             SearchResultValidator.validate_author_profile_in_dict(created_by)
+            if "user" in created_by:
+                user = created_by["user"]
+                if user is not None and isinstance(user, dict):
+                    SearchResultValidator._validate_user_dict(user)
+                elif user is not None and not isinstance(user, (int, str)):
+                    created_by["user"] = None
 
     @staticmethod
     def _validate_fundraise_contributors(fundraise: dict[str, Any]) -> None:
@@ -376,9 +388,7 @@ class SearchResultValidator:
             )
 
     @staticmethod
-    def _clean_contributors_top_list(
-        top: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def _clean_contributors_top_list(top: list[dict[str, Any]]) -> list[dict[str, Any]]:
         cleaned_top = []
         for contributor in top:
             if isinstance(contributor, dict):
@@ -386,3 +396,73 @@ class SearchResultValidator:
                 cleaned_top.append(contributor)
         return cleaned_top
 
+    @staticmethod
+    def _validate_author_profile_nested_fields(author_profile: dict[str, Any]) -> None:
+        if "education" in author_profile:
+            education = author_profile["education"]
+            if education is not None and not isinstance(education, list):
+                author_profile["education"] = []
+            elif isinstance(education, list):
+                author_profile["education"] = (
+                    SearchResultValidator._clean_education_list(education)
+                )
+
+        if "openalex_ids" in author_profile:
+            openalex_ids = author_profile["openalex_ids"]
+            if openalex_ids is not None and not isinstance(openalex_ids, list):
+                author_profile["openalex_ids"] = []
+
+        if "user" in author_profile:
+            user = author_profile["user"]
+            if user is not None:
+                if isinstance(user, dict):
+                    SearchResultValidator._validate_user_dict(user)
+                elif not isinstance(user, (int, str)):
+                    author_profile["user"] = None
+
+    @staticmethod
+    def _clean_education_list(education: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        cleaned_education = []
+        for edu_item in education:
+            if isinstance(edu_item, dict):
+                cleaned_item = SearchResultValidator._validate_education_item(edu_item)
+                if cleaned_item:
+                    cleaned_education.append(cleaned_item)
+        return cleaned_education
+
+    @staticmethod
+    def _validate_education_item(edu_item: dict[str, Any]) -> dict[str, Any] | None:
+        if "university" in edu_item:
+            university = edu_item["university"]
+            if university is not None and not isinstance(university, dict):
+                edu_item["university"] = None
+            elif isinstance(university, dict):
+                SearchResultValidator._validate_university_dict(university)
+
+        if "year" in edu_item:
+            year = edu_item["year"]
+            if year is not None and not isinstance(year, dict):
+                edu_item["year"] = None
+
+        if "degree" in edu_item:
+            degree = edu_item["degree"]
+            if degree is not None and not isinstance(degree, dict):
+                edu_item["degree"] = None
+
+        return edu_item
+
+    @staticmethod
+    def _validate_university_dict(university: dict[str, Any]) -> None:
+        if "id" in university:
+            try:
+                university["id"] = int(university["id"])
+            except (ValueError, TypeError):
+                university["id"] = None
+
+    @staticmethod
+    def _validate_user_dict(user: dict[str, Any]) -> None:
+        if "id" in user:
+            try:
+                user["id"] = int(user["id"])
+            except (ValueError, TypeError):
+                user["id"] = None
