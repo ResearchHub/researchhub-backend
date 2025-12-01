@@ -355,35 +355,52 @@ class UnifiedSearchService:
 
         validated_hubs = []
         for hub in hubs:
-            if not hub or not isinstance(hub, dict):
-                continue
-
-            hub_id = hub.get("id")
-            name = hub.get("name")
-            slug = hub.get("slug")
-
-            if hub_id is None or name is None or slug is None:
-                continue
-
-            try:
-                hub_id = int(hub_id)
-            except (ValueError, TypeError):
-                continue
-
-            if not isinstance(name, str) or not name.strip():
-                continue
-            if not isinstance(slug, str) or not slug.strip():
-                continue
-
-            validated_hubs.append(
-                {
-                    "id": hub_id,
-                    "name": name.strip(),
-                    "slug": slug.strip(),
-                }
-            )
+            validated_hub = self._validate_and_format_hub(hub)
+            if validated_hub:
+                validated_hubs.append(validated_hub)
 
         return validated_hubs
+
+    def _validate_and_format_hub(self, hub: Any) -> dict[str, Any] | None:
+        """Validate and format a single hub dict."""
+        if not hub or not isinstance(hub, dict):
+            return None
+
+        hub_id = hub.get("id")
+        name = hub.get("name")
+        slug = hub.get("slug")
+
+        if not self._has_required_hub_fields(hub_id, name, slug):
+            return None
+
+        hub_id = self._parse_hub_id(hub_id)
+        if (
+            hub_id is None
+            or not self._is_valid_hub_string(name)
+            or not self._is_valid_hub_string(slug)
+        ):
+            return None
+
+        return {
+            "id": hub_id,
+            "name": name.strip(),
+            "slug": slug.strip(),
+        }
+
+    def _has_required_hub_fields(self, hub_id: Any, name: Any, slug: Any) -> bool:
+        """Check if hub has all required fields."""
+        return hub_id is not None and name is not None and slug is not None
+
+    def _parse_hub_id(self, hub_id: Any) -> int | None:
+        """Parse hub ID to integer, returning None if invalid."""
+        try:
+            return int(hub_id)
+        except (ValueError, TypeError):
+            return None
+
+    def _is_valid_hub_string(self, value: Any) -> bool:
+        """Check if value is a non-empty string."""
+        return isinstance(value, str) and bool(value.strip())
 
     def _process_document_results(self, response: Any) -> list[dict[str, Any]]:
         results = []
