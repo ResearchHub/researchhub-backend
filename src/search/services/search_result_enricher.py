@@ -359,6 +359,27 @@ class SearchResultEnricher:
             "user": author.get("user"),
         }
 
+    def _validate_author_dict(self, author: dict[str, Any] | None) -> dict[str, Any] | None:
+        """Validate and ensure author dict has required fields including full_name."""
+        if not author or not isinstance(author, dict):
+            return None
+
+        first_name = author.get("first_name", "") or ""
+        last_name = author.get("last_name", "") or ""
+        full_name = author.get("full_name", "") or ""
+
+        if not full_name and (first_name or last_name):
+            full_name = f"{first_name} {last_name}".strip()
+
+        if not full_name:
+            full_name = "Unknown Author"
+
+        return {
+            "first_name": first_name,
+            "last_name": last_name,
+            "full_name": full_name,
+        }
+
     def _validate_list_field(
         self,
         result: dict[str, Any],
@@ -389,6 +410,7 @@ class SearchResultEnricher:
         self._validate_list_field(result, "bounties", self._validate_bounty_dict)
         self._validate_list_field(result, "purchases", self._validate_purchase_dict)
         self._validate_list_field(result, "hubs", self._validate_hub_dict)
+        self._validate_list_field(result, "authors", self._validate_author_dict)
 
         return result
 
