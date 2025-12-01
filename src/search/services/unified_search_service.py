@@ -104,19 +104,20 @@ class UnifiedSearchService:
         }
 
     def _build_author_filter(self) -> Q:
-        # Use a script query to check if either raw_authors or authors exists
-        # and has at least one element
+        """
+        Build a filter query that requires documents to have at least one author.
+        Checks both raw_authors (for papers) and authors (for posts) fields.
+        Uses exists queries on nested fields to ensure arrays have at least one element.
+        """
+        # Use exists queries on nested author fields - these only match if the array
+        # has at least one element with that field
         return Q(
-            "script",
-            script={
-                "source": (
-                    "(doc.containsKey('raw_authors') && !doc['raw_authors'].empty && "
-                    "doc['raw_authors'].size() > 0) || "
-                    "(doc.containsKey('authors') && !doc['authors'].empty && "
-                    "doc['authors'].size() > 0)"
-                ),
-                "lang": "painless",
-            },
+            "bool",
+            should=[
+                Q("exists", field="raw_authors.full_name"),
+                Q("exists", field="authors.full_name"),
+            ],
+            minimum_should_match=1,
         )
 
     def _search_documents(
