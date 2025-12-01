@@ -1,9 +1,9 @@
 import os
 
-SECRET_KEY = os.environ.get("SECRET_KEY", "development")
+SECRET_KEY = os.environ.get("SECRET_KEY", "test")
 
-AWS_REGION_NAME = os.environ.get("AWS_REGION_NAME", "")
-AWS_STORAGE_BUCKET_NAME = os.environ.get("AWS_STORAGE_BUCKET_NAME", "")
+AWS_REGION_NAME = os.environ.get("AWS_REGION_NAME", "awsRegionName1")
+AWS_STORAGE_BUCKET_NAME = os.environ.get("AWS_STORAGE_BUCKET_NAME", "awsBucketName1")
 AWS_SES_REGION_ENDPOINT = os.environ.get("AWS_SES_REGION_ENDPOINT", "")
 AWS_S3_CUSTOM_DOMAIN = os.environ.get(
     "AWS_S3_CUSTOM_DOMAIN", "storage.dev.researchhub.com"
@@ -11,37 +11,33 @@ AWS_S3_CUSTOM_DOMAIN = os.environ.get(
 
 EMAIL_WHITELIST = os.environ.get("EMAIL_WHITELIST", "no-one@researchhub.com")
 
-GHOSTSCRIPT_LAMBDA_ARN = os.environ.get("GHOSTSCRIPT_LAMBDA_ARN", "")
+GHOSTSCRIPT_LAMBDA_ARN = os.environ.get("GHOSTSCRIPT_LAMBDA_ARN", "NOT_REAL")
 
 HEALTH_CHECK_TOKEN = os.environ.get("HEALTH_CHECK_TOKEN", "")
 
 PERSONA_WEBHOOK_SECRET = os.environ.get("PERSONA_WEBHOOK_SECRET", "")
 
-MAILCHIMP_KEY = os.environ.get("MAILCHIMP_KEY", "")
-MAILCHIMP_LIST_ID = os.environ.get("MAILCHIMP_LIST_ID", "")
+MAILCHIMP_KEY = os.environ.get("MAILCHIMP_KEY", "NOT_REAL")
+MAILCHIMP_LIST_ID = os.environ.get("MAILCHIMP_LIST_ID", "NOT_REAL")
 
-RECAPTCHA_SECRET_KEY = os.environ.get("RECAPTCHA_SECRET_KEY", "")
+RECAPTCHA_SECRET_KEY = os.environ.get("RECAPTCHA_SECRET_KEY", "NOT_REAL")
 
 
 STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET", "")
 STRIPE_WEBHOOK_SIGNING_SECRET = os.environ.get("STRIPE_WEBHOOK_SIGNING_SECRET", "")
 
-AMPLITUDE_API_KEY = os.environ.get("AMPLITUDE_API_KEY", "")
+AMPLITUDE_API_KEY = os.environ.get("AMPLITUDE_API_KEY", "NOT_REAL")
 
-SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
+SENTRY_DSN = os.environ.get("SENTRY_DSN", "NOT_REAL")
 
-APM_URL = os.environ.get("APM_URL", "")
+APM_URL = os.environ.get("APM_URL", "NOT_REAL")
 
-OPENSEARCH_HOST = os.environ.get("OPENSEARCH_HOST", "")
+OPENSEARCH_HOST = os.environ.get("OPENSEARCH_HOST", "localhost:9200")
 
-CKEDITOR_CLOUD_ACCESS_KEY = os.environ.get("CKEDITOR_CLOUD_ACCESS_KEY", "")
-CKEDITOR_CLOUD_ENVIRONMENT_ID = os.environ.get("CKEDITOR_CLOUD_ENVIRONMENT_ID", "")
-
-CROSSREF_LOGIN_ID = os.environ.get("CROSSREF_LOGIN_ID", "")
-CROSSREF_LOGIN_PASSWORD = os.environ.get("CROSSREF_LOGIN_PASSWORD", "")
-
-MJML_APP_ID = os.environ.get("MJML_APP_ID", "")
-MJML_SECRET_KEY = os.environ.get("MJML_SECRET_KEY", "")
+CKEDITOR_CLOUD_ACCESS_KEY = os.environ.get("CKEDITOR_CLOUD_ACCESS_KEY", "NOT_REAL")
+CKEDITOR_CLOUD_ENVIRONMENT_ID = os.environ.get(
+    "CKEDITOR_CLOUD_ENVIRONMENT_ID", "NOT_REAL"
+)
 
 MORALIS_API_KEY = os.environ.get("MORALIS_API_KEY", "")
 WEB3_NETWORK = os.environ.get("WEB3_NETWORK", "")
@@ -54,8 +50,14 @@ WEB3_KEYSTORE_PASSWORD_SECRET_ID = os.environ.get(
 WEB3_WALLET_ADDRESS = os.environ.get("WEB3_WALLET_ADDRESS", "")
 WEB3_PROVIDER_URL = os.environ.get("WEB3_PROVIDER_URL", "")
 WEB3_BASE_PROVIDER_URL = os.environ.get("WEB3_BASE_PROVIDER_URL", "")
+CROSSREF_LOGIN_ID = os.environ.get("CROSSREF_LOGIN_ID", "")
+CROSSREF_LOGIN_PASSWORD = os.environ.get("CROSSREF_LOGIN_PASSWORD", "")
+
+MJML_APP_ID = os.environ.get("MJML_APP_ID", "")
+MJML_SECRET_KEY = os.environ.get("MJML_SECRET_KEY", "")
 
 TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", "")
+
 OPENALEX_KEY = os.environ.get("OPENALEX_KEY", "")
 SEGMENT_WRITE_KEY = os.environ.get("SEGMENT_WRITE_KEY", "")
 

@@ -1,6 +1,7 @@
 import re
 from collections import Counter
 from json.decoder import JSONDecodeError
+from typing import Optional
 from unicodedata import normalize
 from urllib.parse import urlparse
 
@@ -695,6 +696,60 @@ def create_paper_related_tags(paper, openalex_concepts=[], openalex_topics=[]):
     if paper.external_source:
         journal = _get_or_create_journal_hub(paper.external_source)
         paper.unified_document.hubs.add(journal)
+
+    # Add preprint hub if the paper is from a preprint server
+    # Check both the DOI and external_source for preprint server identification
+    preprint_hub = _get_preprint_hub(paper.doi, paper.external_source)
+    if preprint_hub:
+        paper.unified_document.hubs.add(preprint_hub)
+
+
+# Mapping of preprint server identifiers to hub slugs
+# These patterns are checked against DOI and external_source
+PREPRINT_SERVER_PATTERNS = {
+    "medrxiv": "medrxiv",
+    "biorxiv": "biorxiv",
+    "chemrxiv": "chemrxiv",
+    "arxiv": "arxiv",
+}
+
+
+def _get_preprint_hub(doi: Optional[str], external_source: Optional[str]) -> Optional[Hub]:
+    """
+    Get the preprint hub based on the DOI or external source.
+
+    Checks if the DOI or external_source contains identifiers for known preprint servers
+    (medrxiv, biorxiv, chemrxiv, arxiv) and returns the corresponding hub.
+
+    This is similar to how preprint hubs are handled in paper/ingestion/mappers/preprints/.
+
+    Args:
+        doi: The DOI string to check
+        external_source: The external source string to check (e.g., from OpenAlex)
+
+    Returns:
+        Hub instance if the paper matches a preprint server, None otherwise
+    """
+    # Combine doi and external_source for pattern matching
+    search_strings = []
+    if doi:
+        search_strings.append(doi.lower())
+    if external_source:
+        search_strings.append(external_source.lower())
+
+    if not search_strings:
+        return None
+
+    combined_text = " ".join(search_strings)
+
+    for pattern, hub_slug in PREPRINT_SERVER_PATTERNS.items():
+        if pattern in combined_text:
+            return Hub.objects.filter(
+                slug=hub_slug,
+                namespace=Hub.Namespace.JOURNAL,
+            ).first()
+
+    return None
 
 
 def _get_or_create_journal_hub(external_source: str) -> Hub:

@@ -10,7 +10,11 @@ from paper.openalex_util import (
     clean_url,
     process_openalex_works,
 )
-from paper.paper_upload_tasks import _get_or_create_journal_hub
+from paper.paper_upload_tasks import (
+    PREPRINT_SERVER_PATTERNS,
+    _get_or_create_journal_hub,
+    _get_preprint_hub,
+)
 from paper.related_models.citation_model import Citation
 from user.related_models.author_model import Author
 from utils.openalex import OpenAlex
@@ -378,3 +382,101 @@ class ProcessOpenAlexWorksTests(APITestCase):
 
         # Assert
         self.assertEqual(journal_hub.name, managed_journal_hub.name)
+
+    def test_get_preprint_hub_biorxiv_from_doi(self):
+        # Arrange
+        biorxiv_hub = Hub.objects.create(
+            name="Biorxiv",
+            slug="biorxiv",
+            namespace=Hub.Namespace.JOURNAL,
+        )
+
+        # Act - DOI containing "biorxiv"
+        result = _get_preprint_hub("10.1101/2024.01.01.12345.biorxiv", None)
+
+        # Assert
+        self.assertEqual(result.id, biorxiv_hub.id)
+
+    def test_get_preprint_hub_biorxiv_from_external_source(self):
+        # Arrange
+        biorxiv_hub = Hub.objects.create(
+            name="Biorxiv",
+            slug="biorxiv",
+            namespace=Hub.Namespace.JOURNAL,
+        )
+
+        # Act - external_source containing "biorxiv"
+        result = _get_preprint_hub(None, "bioRxiv (Cold Spring Harbor Laboratory)")
+
+        # Assert
+        self.assertEqual(result.id, biorxiv_hub.id)
+
+    def test_get_preprint_hub_medrxiv(self):
+        # Arrange
+        medrxiv_hub = Hub.objects.create(
+            name="Medrxiv",
+            slug="medrxiv",
+            namespace=Hub.Namespace.JOURNAL,
+        )
+
+        # Act
+        result = _get_preprint_hub("10.1101/2024.01.01.12345", "medRxiv (Cold Spring Harbor Laboratory)")
+
+        # Assert
+        self.assertEqual(result.id, medrxiv_hub.id)
+
+    def test_get_preprint_hub_arxiv(self):
+        # Arrange
+        arxiv_hub = Hub.objects.create(
+            name="Arxiv",
+            slug="arxiv",
+            namespace=Hub.Namespace.JOURNAL,
+        )
+
+        # Act
+        result = _get_preprint_hub("10.48550/arXiv.2401.12345", None)
+
+        # Assert
+        self.assertEqual(result.id, arxiv_hub.id)
+
+    def test_get_preprint_hub_chemrxiv(self):
+        # Arrange
+        chemrxiv_hub = Hub.objects.create(
+            name="Chemrxiv",
+            slug="chemrxiv",
+            namespace=Hub.Namespace.JOURNAL,
+        )
+
+        # Act
+        result = _get_preprint_hub("10.26434/chemrxiv-2024-abc123", None)
+
+        # Assert
+        self.assertEqual(result.id, chemrxiv_hub.id)
+
+    def test_get_preprint_hub_non_preprint(self):
+        # Act - Non-preprint DOI should return None
+        result = _get_preprint_hub("10.1000/xyz123", "Nature")
+
+        # Assert
+        self.assertIsNone(result)
+
+    def test_get_preprint_hub_none_inputs(self):
+        # Act - None inputs should return None
+        result = _get_preprint_hub(None, None)
+
+        # Assert
+        self.assertIsNone(result)
+
+    def test_get_preprint_hub_empty_strings(self):
+        # Act - Empty string inputs should return None
+        result = _get_preprint_hub("", "")
+
+        # Assert
+        self.assertIsNone(result)
+
+    def test_preprint_server_patterns_constant(self):
+        # Assert that the constant contains expected preprint servers
+        self.assertIn("medrxiv", PREPRINT_SERVER_PATTERNS)
+        self.assertIn("biorxiv", PREPRINT_SERVER_PATTERNS)
+        self.assertIn("chemrxiv", PREPRINT_SERVER_PATTERNS)
+        self.assertIn("arxiv", PREPRINT_SERVER_PATTERNS)
