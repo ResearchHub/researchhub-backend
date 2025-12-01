@@ -321,166 +321,209 @@ class SearchResultEnricher:
 
     def _clean_nested_fields(self, result: dict[str, Any]) -> dict[str, Any]:
         """Clean nested fields to ensure they match serializer expectations."""
+        self._clean_list_fields(result)
+        self._clean_dict_fields(result)
+        self._clean_metrics_field(result)
+        self._clean_external_metadata_field(result)
+        return result
+
+    def _clean_list_fields(self, result: dict[str, Any]) -> None:
+        """Clean list fields to ensure they are lists, not None."""
         list_fields = ["reviews", "bounties", "purchases", "hubs", "authors"]
         for field in list_fields:
             if field in result and result[field] is None:
                 result[field] = []
 
+    def _clean_dict_fields(self, result: dict[str, Any]) -> None:
+        """Clean dict fields to ensure they are dicts or None."""
         dict_fields = ["hub", "category", "subcategory", "author", "journal", "fundraise", "grant"]
         for field in dict_fields:
-            if field in result:
-                if result[field] == "":
-                    result[field] = None
-                elif not isinstance(result[field], dict) and result[field] is not None:
-                    # Ensure dict fields are dicts or None
-                    result[field] = None
-                elif field == "grant" and isinstance(result[field], dict):
-                    # Validate nested grant structure
-                    result[field] = self._validate_grant_dict(result[field])
-                elif field == "fundraise" and isinstance(result[field], dict):
-                    # Validate nested fundraise structure
-                    result[field] = self._validate_fundraise_dict(result[field])
+            if field not in result:
+                continue
 
-        if "metrics" in result:
-            if result["metrics"] is None:
-                result["metrics"] = {}
-            elif not isinstance(result["metrics"], dict):
-                result["metrics"] = {}
+            value = result[field]
+            if value == "":
+                result[field] = None
+            elif not isinstance(value, dict):
+                result[field] = None
+            elif field == "grant":
+                result[field] = self._validate_grant_dict(value)
+            elif field == "fundraise":
+                result[field] = self._validate_fundraise_dict(value)
 
-        if "external_metadata" in result:
-            if result["external_metadata"] == "":
-                result["external_metadata"] = None
-            elif result["external_metadata"] is not None and not isinstance(result["external_metadata"], dict):
-                result["external_metadata"] = None
+    def _clean_metrics_field(self, result: dict[str, Any]) -> None:
+        """Clean metrics field to ensure it is a dict."""
+        if "metrics" not in result:
+            return
+        if result["metrics"] is None or not isinstance(result["metrics"], dict):
+            result["metrics"] = {}
 
-        return result
+    def _clean_external_metadata_field(self, result: dict[str, Any]) -> None:
+        """Clean external_metadata field to ensure it is a dict or None."""
+        if "external_metadata" not in result:
+            return
+        value = result["external_metadata"]
+        if value == "" or (value is not None and not isinstance(value, dict)):
+            result["external_metadata"] = None
 
     def _validate_grant_dict(self, grant: dict[str, Any]) -> dict[str, Any] | None:
         """Validate and clean grant dict to ensure nested structures are valid."""
         if not grant or not isinstance(grant, dict):
             return None
 
-        # Validate amount field - should be dict with usd, rsc, formatted
-        if "amount" in grant:
-            amount = grant["amount"]
-            if amount is not None and not isinstance(amount, dict):
-                grant["amount"] = None
-
-        # Validate created_by - should be dict or None
-        if "created_by" in grant:
-            created_by = grant["created_by"]
-            if created_by is not None and not isinstance(created_by, dict):
-                grant["created_by"] = None
-            elif isinstance(created_by, dict) and "author_profile" in created_by:
-                # Ensure author_profile is dict or None
-                author_profile = created_by["author_profile"]
-                if author_profile is not None and not isinstance(author_profile, dict):
-                    created_by["author_profile"] = None
-
-        # Validate contacts - should be list of dicts
-        if "contacts" in grant:
-            contacts = grant["contacts"]
-            if contacts is None:
-                grant["contacts"] = []
-            elif isinstance(contacts, list):
-                cleaned_contacts = []
-                for contact in contacts:
-                    if isinstance(contact, dict):
-                        # Ensure author_profile is dict or None
-                        if "author_profile" in contact:
-                            author_profile = contact["author_profile"]
-                            if author_profile is not None and not isinstance(author_profile, dict):
-                                contact = {**contact, "author_profile": None}
-                        cleaned_contacts.append(contact)
-                grant["contacts"] = cleaned_contacts
-            else:
-                grant["contacts"] = []
-
-        # Validate applications - should be list of dicts
-        if "applications" in grant:
-            applications = grant["applications"]
-            if applications is None:
-                grant["applications"] = []
-            elif isinstance(applications, list):
-                cleaned_applications = []
-                for application in applications:
-                    if isinstance(application, dict):
-                        # Ensure applicant is dict or None
-                        if "applicant" in application:
-                            applicant = application["applicant"]
-                            if applicant is not None and not isinstance(applicant, dict):
-                                application = {**application, "applicant": None}
-                            elif isinstance(applicant, dict):
-                                # Ensure applicant has valid structure (id, first_name, etc.)
-                                if "id" not in applicant:
-                                    application = {**application, "applicant": None}
-                        cleaned_applications.append(application)
-                grant["applications"] = cleaned_applications
-            else:
-                grant["applications"] = []
+        self._validate_grant_amount(grant)
+        self._validate_grant_created_by(grant)
+        self._validate_grant_contacts(grant)
+        self._validate_grant_applications(grant)
 
         return grant
+
+    def _validate_grant_amount(self, grant: dict[str, Any]) -> None:
+        """Validate grant amount field."""
+        if "amount" in grant and grant["amount"] is not None:
+            if not isinstance(grant["amount"], dict):
+                grant["amount"] = None
+
+    def _validate_grant_created_by(self, grant: dict[str, Any]) -> None:
+        """Validate grant created_by field and its author_profile."""
+        if "created_by" not in grant:
+            return
+        created_by = grant["created_by"]
+        if created_by is not None and not isinstance(created_by, dict):
+            grant["created_by"] = None
+        elif isinstance(created_by, dict):
+            self._validate_author_profile_in_dict(created_by)
+
+    def _validate_grant_contacts(self, grant: dict[str, Any]) -> None:
+        """Validate grant contacts list."""
+        if "contacts" not in grant:
+            return
+        contacts = grant["contacts"]
+        if contacts is None:
+            grant["contacts"] = []
+        elif isinstance(contacts, list):
+            grant["contacts"] = self._clean_contacts_list(contacts)
+        else:
+            grant["contacts"] = []
+
+    def _validate_grant_applications(self, grant: dict[str, Any]) -> None:
+        """Validate grant applications list."""
+        if "applications" not in grant:
+            return
+        applications = grant["applications"]
+        if applications is None:
+            grant["applications"] = []
+        elif isinstance(applications, list):
+            grant["applications"] = self._clean_applications_list(applications)
+        else:
+            grant["applications"] = []
+
+    def _clean_contacts_list(self, contacts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Clean contacts list by validating author_profile in each contact."""
+        cleaned_contacts = []
+        for contact in contacts:
+            if isinstance(contact, dict):
+                self._validate_author_profile_in_dict(contact)
+                cleaned_contacts.append(contact)
+        return cleaned_contacts
+
+    def _clean_applications_list(self, applications: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Clean applications list by validating applicant in each application."""
+        cleaned_applications = []
+        for application in applications:
+            if isinstance(application, dict):
+                self._validate_application_applicant(application)
+                cleaned_applications.append(application)
+        return cleaned_applications
+
+    def _validate_application_applicant(self, application: dict[str, Any]) -> None:
+        """Validate applicant field in application dict."""
+        if "applicant" not in application:
+            return
+        applicant = application["applicant"]
+        if applicant is not None and not isinstance(applicant, dict):
+            application["applicant"] = None
+        elif isinstance(applicant, dict) and "id" not in applicant:
+            application["applicant"] = None
+
+    def _validate_author_profile_in_dict(self, obj: dict[str, Any]) -> None:
+        """Validate author_profile field in a dict, setting to None if invalid."""
+        if "author_profile" in obj:
+            author_profile = obj["author_profile"]
+            if author_profile is not None and not isinstance(author_profile, dict):
+                obj["author_profile"] = None
 
     def _validate_fundraise_dict(self, fundraise: dict[str, Any]) -> dict[str, Any] | None:
         """Validate and clean fundraise dict to ensure nested structures are valid."""
         if not fundraise or not isinstance(fundraise, dict):
             return None
 
-        # Validate amount_raised - should be dict with usd, rsc
-        if "amount_raised" in fundraise:
-            amount_raised = fundraise["amount_raised"]
-            if amount_raised is not None and not isinstance(amount_raised, dict):
-                fundraise["amount_raised"] = None
-
-        # Validate goal_amount - should be dict with usd, rsc
-        if "goal_amount" in fundraise:
-            goal_amount = fundraise["goal_amount"]
-            if goal_amount is not None and not isinstance(goal_amount, dict):
-                fundraise["goal_amount"] = None
-
-        # Validate created_by - should be dict or None
-        if "created_by" in fundraise:
-            created_by = fundraise["created_by"]
-            if created_by is not None and not isinstance(created_by, dict):
-                fundraise["created_by"] = None
-            elif isinstance(created_by, dict) and "author_profile" in created_by:
-                # Ensure author_profile is dict or None
-                author_profile = created_by["author_profile"]
-                if author_profile is not None and not isinstance(author_profile, dict):
-                    created_by["author_profile"] = None
-
-        # Validate contributors - should be dict with total and top (array)
-        if "contributors" in fundraise:
-            contributors = fundraise["contributors"]
-            if contributors is None:
-                fundraise["contributors"] = {"total": 0, "top": []}
-            elif isinstance(contributors, dict):
-                # Ensure total is int
-                if "total" in contributors:
-                    try:
-                        contributors["total"] = int(contributors["total"])
-                    except (ValueError, TypeError):
-                        contributors["total"] = 0
-                # Ensure top is list
-                if "top" in contributors:
-                    if not isinstance(contributors["top"], list):
-                        contributors["top"] = []
-                    else:
-                        # Validate each contributor in top array
-                        cleaned_top = []
-                        for contributor in contributors["top"]:
-                            if isinstance(contributor, dict):
-                                # Ensure author_profile is dict or None
-                                if "author_profile" in contributor:
-                                    author_profile = contributor["author_profile"]
-                                    if author_profile is not None and not isinstance(author_profile, dict):
-                                        contributor = {**contributor, "author_profile": None}
-                                cleaned_top.append(contributor)
-                        contributors["top"] = cleaned_top
-            else:
-                fundraise["contributors"] = {"total": 0, "top": []}
+        self._validate_fundraise_amount_fields(fundraise)
+        self._validate_fundraise_created_by(fundraise)
+        self._validate_fundraise_contributors(fundraise)
 
         return fundraise
+
+    def _validate_fundraise_amount_fields(self, fundraise: dict[str, Any]) -> None:
+        """Validate amount_raised and goal_amount fields."""
+        for field in ["amount_raised", "goal_amount"]:
+            if field in fundraise and fundraise[field] is not None:
+                if not isinstance(fundraise[field], dict):
+                    fundraise[field] = None
+
+    def _validate_fundraise_created_by(self, fundraise: dict[str, Any]) -> None:
+        """Validate fundraise created_by field and its author_profile."""
+        if "created_by" not in fundraise:
+            return
+        created_by = fundraise["created_by"]
+        if created_by is not None and not isinstance(created_by, dict):
+            fundraise["created_by"] = None
+        elif isinstance(created_by, dict):
+            self._validate_author_profile_in_dict(created_by)
+
+    def _validate_fundraise_contributors(self, fundraise: dict[str, Any]) -> None:
+        """Validate fundraise contributors dict."""
+        if "contributors" not in fundraise:
+            return
+        contributors = fundraise["contributors"]
+        if contributors is None:
+            fundraise["contributors"] = {"total": 0, "top": []}
+        elif isinstance(contributors, dict):
+            self._validate_contributors_dict(contributors)
+        else:
+            fundraise["contributors"] = {"total": 0, "top": []}
+
+    def _validate_contributors_dict(self, contributors: dict[str, Any]) -> None:
+        """Validate contributors dict structure."""
+        self._validate_contributors_total(contributors)
+        self._validate_contributors_top(contributors)
+
+    def _validate_contributors_total(self, contributors: dict[str, Any]) -> None:
+        """Validate contributors total field."""
+        if "total" in contributors:
+            try:
+                contributors["total"] = int(contributors["total"])
+            except (ValueError, TypeError):
+                contributors["total"] = 0
+
+    def _validate_contributors_top(self, contributors: dict[str, Any]) -> None:
+        """Validate contributors top list."""
+        if "top" not in contributors:
+            return
+        top = contributors["top"]
+        if not isinstance(top, list):
+            contributors["top"] = []
+        else:
+            contributors["top"] = self._clean_contributors_top_list(top)
+
+    def _clean_contributors_top_list(self, top: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Clean contributors top list by validating author_profile in each contributor."""
+        cleaned_top = []
+        for contributor in top:
+            if isinstance(contributor, dict):
+                self._validate_author_profile_in_dict(contributor)
+                cleaned_top.append(contributor)
+        return cleaned_top
 
     def _validate_hub_dict(self, hub: dict[str, Any] | None) -> dict[str, Any] | None:
         """Validate and clean hub dict to ensure required fields are present."""
