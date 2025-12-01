@@ -24,7 +24,7 @@ class DocumentQueryBuilder:
 
     MAX_QUERY_WORDS_FOR_AUTHOR_TITLE_COMBO = 7
     # If its more than 3 terms disable fuzzy content fields
-    MAX_TERMS_FOR_FUZZY_CONTENT_FIELDS = 3
+    MAX_TERMS_FOR_FUZZY_CONTENT_FIELDS = 2
 
     # Maps (strategy_type, field_category) -> boost value
     STRATEGY_BOOSTS = {
@@ -33,8 +33,8 @@ class DocumentQueryBuilder:
         ("simple_match", "author"): 0.8,
         ("simple_match", "content"): 1.0,
         # Simple match sub-strategy multipliers
-        ("simple_match_and", "all"): 0.7,
-        ("simple_match_fuzzy", "all"): 0.3,
+        ("simple_match_and", "all"): 0.8,
+        ("simple_match_fuzzy", "all"): 0.2,
         # Phrase strategy boosts
         ("phrase", "title"): 0.6,
         ("phrase", "abstract"): 0.75,
@@ -42,7 +42,7 @@ class DocumentQueryBuilder:
         # Prefix strategy boosts
         ("prefix", "all"): 0.5,
         # Fuzzy strategy boosts (absolute values, not multipliers)
-        ("fuzzy", "title"): 4.0,
+        ("fuzzy", "title"): 2.0,
         ("fuzzy", "author"): 2.0,
         ("fuzzy", "content"): None,
     }
@@ -454,7 +454,7 @@ class DocumentQueryBuilder:
             type="cross_fields",
             operator="or",
             fields=all_fields,
-            boost=0.4,
+            boost=0.2,
         )
         self.should_clauses.append(fallback_query)
         return self
