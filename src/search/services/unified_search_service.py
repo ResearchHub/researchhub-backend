@@ -104,11 +104,6 @@ class UnifiedSearchService:
         }
 
     def _build_author_filter(self) -> Q:
-        """
-        Build a filter query that requires documents to have at least one author.
-        Checks both raw_authors (for papers) and authors (for posts) fields.
-        Uses exists queries on nested fields to ensure arrays have at least one element.
-        """
         # Use exists queries on nested author fields - these only match if the array
         # has at least one element with that field
         return Q(
