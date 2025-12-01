@@ -4,6 +4,7 @@ Unified search view for searching across documents (papers/posts).
 
 import logging
 
+from django.utils.functional import cached_property
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -36,7 +37,11 @@ class UnifiedSearchView(APIView):
     """
 
     permission_classes = [AllowAny]
-    search_service = UnifiedSearchService()
+
+    @cached_property
+    def search_service(self):
+        """Lazy initialization to avoid database access at import time."""
+        return UnifiedSearchService()
 
     def get(self, request):
         """
