@@ -103,6 +103,18 @@ class UnifiedSearchService:
             "execution_time_ms": seconds_to_milliseconds(execution_time),
         }
 
+    def _build_author_filter(self) -> Q:
+        # Use exists queries on nested author fields - these only match if the array
+        # has at least one element with that field
+        return Q(
+            "bool",
+            should=[
+                Q("exists", field="raw_authors.full_name"),
+                Q("exists", field="authors.full_name"),
+            ],
+            minimum_should_match=1,
+        )
+
     def _search_documents(
         self, query: str, offset: int, limit: int, sort: str
     ) -> dict[str, Any]:
@@ -112,7 +124,11 @@ class UnifiedSearchService:
 
         # Build query with field boosting
         query_obj = self.query_builder.build_document_query(query)
-        search = search.query(query_obj)
+
+        # Wrap query with author filter to exclude documents without authors
+        author_filter = self._build_author_filter()
+        filtered_query = Q("bool", must=[query_obj], filter=[author_filter])
+        search = search.query(filtered_query)
 
         search = self._apply_highlighting(search)
 
@@ -172,7 +188,12 @@ class UnifiedSearchService:
     def _search_documents_by_doi(self, normalized_doi: str) -> dict[str, Any]:
 
         search = Search(index=[self.paper_index, self.post_index])
-        search = search.query(Q("term", doi={"value": normalized_doi}))
+
+        # Build DOI query and wrap with author filter
+        doi_query = Q("term", doi={"value": normalized_doi})
+        author_filter = self._build_author_filter()
+        filtered_query = Q("bool", must=[doi_query], filter=[author_filter])
+        search = search.query(filtered_query)
 
         # Sort by date to get the latest version
         # Prefer updated_date if available (for posts), otherwise created_date
