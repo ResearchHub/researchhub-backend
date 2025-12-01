@@ -206,10 +206,15 @@ class SearchResultEnricher:
             if field in result and result[field] is None:
                 result[field] = []
 
-        dict_fields = ["hub", "category", "subcategory", "author", "journal"]
+        dict_fields = ["hub", "category", "subcategory", "author", "journal", "fundraise", "grant"]
         for field in dict_fields:
             if field in result and result[field] == "":
                 result[field] = None
+
+        if "metrics" in result and result["metrics"] is None:
+            result["metrics"] = {}
+        if "external_metadata" in result and result["external_metadata"] == "":
+            result["external_metadata"] = None
 
         return result
 
