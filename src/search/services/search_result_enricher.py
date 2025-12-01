@@ -3,7 +3,7 @@ Service for enriching Elasticsearch search results with database data.
 """
 
 import logging
-from typing import Any
+from typing import Any, Callable
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import default_storage
@@ -15,12 +15,13 @@ from feed.serializers import (
     serialize_feed_metrics,
 )
 from paper.models import Paper
+from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from user.models import User
 
 logger = logging.getLogger(__name__)
 
 
-# Enriches Elasticsearch search results with database data.
 class SearchResultEnricher:
 
     def __init__(self):
@@ -49,7 +50,6 @@ class SearchResultEnricher:
         paper_lookup = {paper.id: paper for paper in papers}
         post_lookup = {post.id: post for post in posts}
 
-        # Enrich each result
         enriched_results = []
         for result in es_results:
             doc_id = result.get("id")
@@ -129,23 +129,29 @@ class SearchResultEnricher:
             "score": es_result.get("score"),
         }
 
-    def _get_author(self, user) -> dict[str, Any] | None:
+    def _get_author(self, user: User | None) -> dict[str, Any] | None:
+        """Extract author data from user if available."""
         if not user or not hasattr(user, "author_profile"):
             return None
 
         try:
             return SimpleAuthorSerializer(user.author_profile).data
-        except Exception:
-            logger.debug(f"Failed to serialize author for user {user.id}")
+        except (ValueError, TypeError, AttributeError, KeyError) as e:
+            user_id = getattr(user, "id", "unknown")
+            logger.debug(f"Failed to serialize author for user {user_id}: {e}")
             return None
 
-    def _get_hot_score_v2(self, unified_document) -> int:
+    def _get_hot_score_v2(
+        self, unified_document: ResearchhubUnifiedDocument | None
+    ) -> int:
         if not unified_document:
             return 0
         return getattr(unified_document, "hot_score_v2", 0)
 
     def _build_minimal_enrichment(
-        self, es_result: dict[str, Any], unified_document
+        self,
+        es_result: dict[str, Any],
+        unified_document: ResearchhubUnifiedDocument | None,
     ) -> dict[str, Any]:
         """Build minimal enrichment dict when full serialization fails."""
         return {
@@ -159,7 +165,11 @@ class SearchResultEnricher:
         }
 
     def _serialize_with_fallback(
-        self, serializer_class, obj, obj_name: str, obj_id: int
+        self,
+        serializer_class: type[PaperSerializer | PostSerializer],
+        obj: Paper | ResearchhubPost,
+        obj_name: str,
+        obj_id: int,
     ) -> dict[str, Any] | None:
         try:
             return serializer_class(obj).data
@@ -174,35 +184,28 @@ class SearchResultEnricher:
         self, result: dict[str, Any], es_result: dict[str, Any], doc_type: str
     ) -> dict[str, Any]:
         """Ensure required fields (id, type, title) are present and correct type."""
-        # Ensure id is an integer (ES returns string, serializer expects int)
         result_id = result.get("id") or es_result.get("id")
         if result_id is not None:
             try:
                 result["id"] = int(result_id)
             except (ValueError, TypeError):
-                # Fallback: try to get from es_result or use 0
                 try:
                     result["id"] = int(es_result.get("id", 0))
                 except (ValueError, TypeError):
                     result["id"] = 0
 
-        # Ensure type is present
         result["type"] = result.get("type") or es_result.get("type") or doc_type
-
-        # Ensure title is present (non-empty string)
         result["title"] = result.get("title") or es_result.get("title") or ""
 
         return result
 
     def _clean_nested_fields(self, result: dict[str, Any]) -> dict[str, Any]:
         """Clean nested fields to ensure they match serializer expectations."""
-        # Ensure lists are lists (not None)
         list_fields = ["reviews", "bounties", "purchases", "hubs", "authors"]
         for field in list_fields:
             if field in result and result[field] is None:
                 result[field] = []
 
-        # Ensure dict fields are dicts or None (not empty strings)
         dict_fields = ["hub", "category", "subcategory", "author", "journal"]
         for field in dict_fields:
             if field in result and result[field] == "":
@@ -215,22 +218,18 @@ class SearchResultEnricher:
         if not hub or not isinstance(hub, dict):
             return None
 
-        # HubSerializer requires: id, name, slug (all required, no allow_null)
         hub_id = hub.get("id")
         name = hub.get("name")
         slug = hub.get("slug")
 
-        # If any required field is missing or None, return None
         if hub_id is None or name is None or slug is None:
             return None
 
-        # Ensure id is an integer
         try:
             hub_id = int(hub_id)
         except (ValueError, TypeError):
             return None
 
-        # Ensure name and slug are non-empty strings
         if not isinstance(name, str) or not name.strip():
             return None
         if not isinstance(slug, str) or not slug.strip():
@@ -243,7 +242,6 @@ class SearchResultEnricher:
         if not review or not isinstance(review, dict):
             return None
 
-        # ReviewSerializer requires: id, score (both required)
         review_id = review.get("id")
         score = review.get("score")
 
@@ -263,7 +261,6 @@ class SearchResultEnricher:
         if not bounty or not isinstance(bounty, dict):
             return None
 
-        # BountySerializer requires: id, status (both required)
         bounty_id = bounty.get("id")
         status = bounty.get("status")
 
@@ -293,7 +290,6 @@ class SearchResultEnricher:
         if not purchase or not isinstance(purchase, dict):
             return None
 
-        # PurchaseSerializer requires: id, amount (both required)
         purchase_id = purchase.get("id")
         amount = purchase.get("amount")
 
@@ -302,11 +298,7 @@ class SearchResultEnricher:
 
         try:
             purchase_id = int(purchase_id)
-            # Amount can be Decimal, float, int, or string
-            if isinstance(amount, str):
-                amount = float(amount)
-            else:
-                amount = float(amount)
+            amount = float(amount)
         except (ValueError, TypeError):
             return None
 
@@ -317,7 +309,6 @@ class SearchResultEnricher:
         if not journal or not isinstance(journal, dict):
             return None
 
-        # JournalSerializer requires: id, name, slug (all required)
         journal_id = journal.get("id")
         name = journal.get("name")
         slug = journal.get("slug")
@@ -350,7 +341,6 @@ class SearchResultEnricher:
         if not author or not isinstance(author, dict):
             return None
 
-        # AuthorDetailSerializer requires: id (required)
         author_id = author.get("id")
         if author_id is None:
             return None
@@ -369,55 +359,36 @@ class SearchResultEnricher:
             "user": author.get("user"),
         }
 
+    def _validate_list_field(
+        self,
+        result: dict[str, Any],
+        field_name: str,
+        validator_func: Callable[[dict[str, Any] | None], dict[str, Any] | None],
+    ) -> None:
+        """Validate a list field using the provided validator function."""
+        if field_name in result and isinstance(result[field_name], list):
+            result[field_name] = [
+                validated_item
+                for item in result[field_name]
+                if (validated_item := validator_func(item)) is not None
+            ]
+
     def _clean_nested_serializer_fields(self, result: dict[str, Any]) -> dict[str, Any]:
         """Clean and validate nested serializer fields to prevent KeyErrors."""
-        # Validate hub, category, subcategory (HubSerializer)
         for field in ["hub", "category", "subcategory"]:
             if field in result:
                 result[field] = self._validate_hub_dict(result[field])
 
-        # Validate journal (JournalSerializer)
         if "journal" in result:
             result["journal"] = self._validate_journal_dict(result["journal"])
 
-        # Validate author (AuthorDetailSerializer)
         if "author" in result:
             result["author"] = self._validate_author_detail_dict(result["author"])
 
-        # Validate lists of nested objects
-        if "reviews" in result and isinstance(result["reviews"], list):
-            result["reviews"] = [
-                review
-                for review in [
-                    self._validate_review_dict(r) for r in result["reviews"]
-                ]
-                if review is not None
-            ]
-
-        if "bounties" in result and isinstance(result["bounties"], list):
-            result["bounties"] = [
-                bounty
-                for bounty in [
-                    self._validate_bounty_dict(b) for b in result["bounties"]
-                ]
-                if bounty is not None
-            ]
-
-        if "purchases" in result and isinstance(result["purchases"], list):
-            result["purchases"] = [
-                purchase
-                for purchase in [
-                    self._validate_purchase_dict(p) for p in result["purchases"]
-                ]
-                if purchase is not None
-            ]
-
-        if "hubs" in result and isinstance(result["hubs"], list):
-            result["hubs"] = [
-                hub
-                for hub in [self._validate_hub_dict(h) for h in result["hubs"]]
-                if hub is not None
-            ]
+        self._validate_list_field(result, "reviews", self._validate_review_dict)
+        self._validate_list_field(result, "bounties", self._validate_bounty_dict)
+        self._validate_list_field(result, "purchases", self._validate_purchase_dict)
+        self._validate_list_field(result, "hubs", self._validate_hub_dict)
 
         return result
 
@@ -426,7 +397,6 @@ class SearchResultEnricher:
     ) -> dict[str, Any]:
         """Enrich a paper search result with database data."""
         try:
-            # Try to serialize paper data
             paper_data = self._serialize_with_fallback(
                 PaperSerializer, paper, "paper", paper.id
             )
@@ -436,14 +406,12 @@ class SearchResultEnricher:
                 )
                 return self._ensure_required_fields(minimal, es_result, "paper")
 
-            # Get common enrichment data
             metrics = serialize_feed_metrics(paper, self.paper_content_type)
             author = self._get_author(paper.uploaded_by)
             action_date = paper.paper_publish_date or paper.created_date
             hot_score_v2 = self._get_hot_score_v2(paper.unified_document)
             es_specific_fields = self._extract_es_specific_fields(es_result)
 
-            # Build enriched result
             enriched_result = {
                 **paper_data,
                 **es_specific_fields,
@@ -455,25 +423,18 @@ class SearchResultEnricher:
                 "external_metadata": getattr(paper, "external_metadata", None),
             }
 
-            # Ensure abstract is included
             if "abstract" not in enriched_result:
                 enriched_result["abstract"] = getattr(paper, "abstract", None)
 
-            # Ensure required fields are present and correct type
             enriched_result = self._ensure_required_fields(
                 enriched_result, es_result, "paper"
             )
-
-            # Clean nested fields to match serializer expectations
             enriched_result = self._clean_nested_fields(enriched_result)
-
-            # Validate nested serializer fields to prevent KeyErrors
             enriched_result = self._clean_nested_serializer_fields(enriched_result)
 
             return enriched_result
         except Exception as e:
             logger.error(f"Error enriching paper {paper.id}: {str(e)}", exc_info=True)
-            # Return ES result with required fields ensured
             return self._ensure_required_fields(es_result.copy(), es_result, "paper")
 
     def _enrich_post_result(
@@ -481,7 +442,6 @@ class SearchResultEnricher:
     ) -> dict[str, Any]:
         """Enrich a post search result with database data."""
         try:
-            # Try to serialize post data
             post_data = self._serialize_with_fallback(
                 PostSerializer, post, "post", post.id
             )
@@ -491,19 +451,16 @@ class SearchResultEnricher:
                 )
                 return self._ensure_required_fields(minimal, es_result, "post")
 
-            # Get common enrichment data
             metrics = serialize_feed_metrics(post, self.post_content_type)
             author = self._get_author(post.created_by)
             action_date = post.created_date
             hot_score_v2 = self._get_hot_score_v2(post.unified_document)
             es_specific_fields = self._extract_es_specific_fields(es_result)
 
-            # Get post-specific fields
             image_url = None
             if post.image:
                 image_url = default_storage.url(post.image)
 
-            # Build enriched result
             enriched_result = {
                 **post_data,
                 **es_specific_fields,
@@ -515,7 +472,6 @@ class SearchResultEnricher:
                 "image_url": image_url,
             }
 
-            # Ensure renderable_text is included
             if "renderable_text" not in enriched_result:
                 renderable_text = getattr(post, "renderable_text", None)
                 if renderable_text:
@@ -524,19 +480,13 @@ class SearchResultEnricher:
                         text += "..."
                     enriched_result["renderable_text"] = text
 
-            # Ensure required fields are present and correct type
             enriched_result = self._ensure_required_fields(
                 enriched_result, es_result, "post"
             )
-
-            # Clean nested fields to match serializer expectations
             enriched_result = self._clean_nested_fields(enriched_result)
-
-            # Validate nested serializer fields to prevent KeyErrors
             enriched_result = self._clean_nested_serializer_fields(enriched_result)
 
             return enriched_result
         except Exception as e:
             logger.error(f"Error enriching post {post.id}: {str(e)}", exc_info=True)
-            # Return ES result with required fields ensured
             return self._ensure_required_fields(es_result.copy(), es_result, "post")

@@ -309,11 +309,9 @@ class UnifiedSearchService:
 
         first_name = author.get("first_name", "") or ""
         last_name = author.get("last_name", "") or ""
-        # Construct full_name if not present
         full_name = author.get("full_name", "") or ""
         if not full_name and (first_name or last_name):
             full_name = f"{first_name} {last_name}".strip()
-        # Ensure full_name is never empty (required by serializer)
         if not full_name:
             full_name = "Unknown Author"
 
@@ -323,7 +321,7 @@ class UnifiedSearchService:
             "full_name": full_name,
         }
 
-    def _build_paper_fields(self, hit) -> dict[str, Any]:
+    def _build_paper_fields(self, hit: Any) -> dict[str, Any]:
         """Build paper-specific fields for a search result."""
         raw_doi = getattr(hit, "doi", None)
         return {
@@ -337,7 +335,7 @@ class UnifiedSearchService:
             "unified_document_id": getattr(hit, "unified_document_id", None),
         }
 
-    def _build_post_fields(self, hit) -> dict[str, Any]:
+    def _build_post_fields(self, hit: Any) -> dict[str, Any]:
         """Build post-specific fields for a search result."""
         return {
             "authors": [
@@ -349,7 +347,7 @@ class UnifiedSearchService:
             "unified_document_id": getattr(hit, "unified_document_id", None),
         }
 
-    def _process_hubs(self, hit) -> list[dict[str, Any]]:
+    def _process_hubs(self, hit: Any) -> list[dict[str, Any]]:
         """Process and format hubs from a search hit."""
         hubs = getattr(hit, "hubs", [])
         if not hubs:
@@ -364,18 +362,14 @@ class UnifiedSearchService:
             name = hub.get("name")
             slug = hub.get("slug")
 
-            # HubSerializer requires: id, name, slug (all required)
-            # Skip if any required field is missing or None
             if hub_id is None or name is None or slug is None:
                 continue
 
-            # Ensure id is an integer
             try:
                 hub_id = int(hub_id)
             except (ValueError, TypeError):
                 continue
 
-            # Ensure name and slug are non-empty strings
             if not isinstance(name, str) or not name.strip():
                 continue
             if not isinstance(slug, str) or not slug.strip():
@@ -391,20 +385,15 @@ class UnifiedSearchService:
 
         return validated_hubs
 
-    def _process_document_results(self, response) -> list[dict[str, Any]]:
-
+    def _process_document_results(self, response: Any) -> list[dict[str, Any]]:
         results = []
 
         for hit in response.hits:
-            # Determine document type from index
             doc_type = "paper" if "paper" in hit.meta.index else "post"
 
-            # Get highlights
             highlights = getattr(hit.meta, "highlight", None)
             snippet, matched_field = self._extract_document_highlights(highlights)
 
-            # Build result object
-            # Convert id to int (ES returns string, serializer expects int)
             try:
                 doc_id = int(hit.id)
             except (ValueError, TypeError):
@@ -421,13 +410,11 @@ class UnifiedSearchService:
                 "_search_score": hit.meta.score,
             }
 
-            # Add document-specific fields
             if doc_type == "paper":
                 result.update(self._build_paper_fields(hit))
             else:
                 result.update(self._build_post_fields(hit))
 
-            # Add hubs
             result["hubs"] = self._process_hubs(hit)
 
             results.append(result)
