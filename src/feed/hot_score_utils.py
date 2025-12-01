@@ -69,25 +69,6 @@ def parse_iso_datetime(date_string: str) -> Optional[datetime]:
 # ============================================================================
 
 
-def get_altmetric_from_metrics(metrics: dict) -> float:
-    """
-    Example metrics:
-        {
-            "votes": 0,
-            "altmetric_score": 1.75,
-            "twitter_count": 4
-        }
-    """
-    if not isinstance(metrics, dict):
-        return 0.0
-
-    score = safe_get_nested(metrics, "altmetric_score", default=0)
-    try:
-        return float(score) if score else 0.0
-    except (ValueError, TypeError):
-        return 0.0
-
-
 def get_votes_from_metrics(metrics: dict) -> int:
     """
     Example metrics:

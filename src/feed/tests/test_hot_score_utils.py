@@ -12,7 +12,6 @@ from django.test import TestCase
 
 from feed.hot_score_utils import (
     get_age_hours_from_content,
-    get_altmetric_from_metrics,
     get_bounties_from_content,
     get_comment_count_from_metrics,
     get_content_type_name,
@@ -83,15 +82,6 @@ class TestHotScoreUtils(TestCase):
     # ========================================================================
     # Metrics Extraction Functions
     # ========================================================================
-
-    def test_get_altmetric_from_metrics(self):
-        """Test extracting altmetric score from metrics JSON."""
-        metrics = {"votes": 0, "altmetric_score": 1.75, "twitter_count": 4}
-
-        result = get_altmetric_from_metrics(metrics)
-
-        self.assertEqual(result, 1.75)
-        self.assertIsInstance(result, float)
 
     def test_get_votes_from_metrics(self):
         """Test extracting vote count from metrics JSON."""

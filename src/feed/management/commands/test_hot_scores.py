@@ -21,9 +21,7 @@ from feed.hot_score import (
     HOT_SCORE_CONFIG,
     calculate_hot_score_for_item,
     get_age_hours,
-    get_altmetric_score,
     get_comment_count,
-    get_freshness_multiplier,
     get_fundraise_amount,
     get_peer_review_count,
     get_total_bounty_amount,
@@ -110,12 +108,6 @@ class Command(BaseCommand):
             help="Simulate peer review count (0 = use actual)",
         )
         parser.add_argument(
-            "--sim-altmetric",
-            type=float,
-            default=0,
-            help="Simulate altmetric score (0 = use actual)",
-        )
-        parser.add_argument(
             "--sim-age-hours",
             type=float,
             default=0,
@@ -138,7 +130,6 @@ class Command(BaseCommand):
             "bounty": options.get("sim_bounty", 0),
             "urgent_bounty": options.get("sim_urgent_bounty", False),
             "peer_reviews": options.get("sim_peer_reviews", 0),
-            "altmetric": options.get("sim_altmetric", 0),
             "age_hours": options.get("sim_age_hours", 0),
         }
 
@@ -230,41 +221,39 @@ class Command(BaseCommand):
         """Get detailed component breakdown for an item."""
         from feed.hot_score_breakdown import get_hot_score_breakdown
 
-        # Use stored breakdown if available, otherwise calculate
+        # Use stored breakdown if available AND in new format (has recency)
         if (
             hasattr(feed_entry, "hot_score_breakdown_v2")
             and feed_entry.hot_score_breakdown_v2
+            and "recency"
+            in feed_entry.hot_score_breakdown_v2.breakdown_data.get("signals", {})
         ):
             breakdown = feed_entry.hot_score_breakdown_v2.breakdown_data
 
             # Convert breakdown format to legacy format for compatibility
             return {
-                "altmetric": breakdown["signals"]["altmetric"],
                 "bounty": breakdown["signals"]["bounty"],
                 "tip": breakdown["signals"]["tip"],
                 "peer_review": breakdown["signals"]["peer_review"],
-                "upvote": breakdown["signals"]["upvote"],
                 "comment": breakdown["signals"]["comment"],
+                "recency": breakdown["signals"]["recency"],
+                "upvote": breakdown["signals"]["upvote"],
                 "age_hours": breakdown["time_factors"]["age_hours"],
-                "freshness_multiplier": breakdown["time_factors"][
-                    "freshness_multiplier"
-                ],
                 "engagement_score": breakdown["calculation"]["engagement_score"],
                 "time_denominator": breakdown["calculation"]["time_denominator"],
             }
 
-        # Fallback: calculate if not stored (for old entries)
+        # Fallback: calculate fresh if not stored or in old format
         breakdown = get_hot_score_breakdown(feed_entry)
 
         return {
-            "altmetric": breakdown["signals"]["altmetric"],
             "bounty": breakdown["signals"]["bounty"],
             "tip": breakdown["signals"]["tip"],
             "peer_review": breakdown["signals"]["peer_review"],
-            "upvote": breakdown["signals"]["upvote"],
             "comment": breakdown["signals"]["comment"],
+            "recency": breakdown["signals"]["recency"],
+            "upvote": breakdown["signals"]["upvote"],
             "age_hours": breakdown["time_factors"]["age_hours"],
-            "freshness_multiplier": breakdown["time_factors"]["freshness_multiplier"],
             "engagement_score": breakdown["calculation"]["engagement_score"],
             "time_denominator": breakdown["calculation"]["time_denominator"],
         }
@@ -288,7 +277,6 @@ class Command(BaseCommand):
         config = HOT_SCORE_CONFIG["signals"]
 
         # Gather actual signals using new feed_entry-based API
-        altmetric = get_altmetric_score(feed_entry)
         bounty_amount, has_urgent_bounty = get_total_bounty_amount(feed_entry)
         tip_amount = get_total_tip_amount(feed_entry)
         fundraise_amount = get_fundraise_amount(feed_entry)
@@ -302,8 +290,6 @@ class Command(BaseCommand):
 
         # Override with simulation parameters if provided
         if sim_params:
-            if sim_params.get("altmetric", 0) > 0:
-                altmetric = sim_params["altmetric"]
             if sim_params.get("bounty", 0) > 0:
                 bounty_amount = sim_params["bounty"]
             if sim_params.get("urgent_bounty", False):
@@ -319,15 +305,7 @@ class Command(BaseCommand):
             if sim_params.get("age_hours", 0) > 0:
                 age_hours = sim_params["age_hours"]
 
-        # Calculate freshness multiplier after overrides (depends on age_hours)
-        freshness_multiplier = get_freshness_multiplier(feed_entry, age_hours)
-
         # Calculate component scores (same logic as calculate_hot_score)
-        altmetric_component = (
-            math.log(altmetric + 1, config["altmetric"]["log_base"])
-            * config["altmetric"]["weight"]
-        )
-
         bounty_multiplier = (
             config["bounty"]["urgency_multiplier"] if has_urgent_bounty else 1.0
         )
@@ -347,24 +325,31 @@ class Command(BaseCommand):
             * config["peer_review"]["weight"]
         )
 
-        upvote_component = (
-            math.log(upvote_count + 1, config["upvote"]["log_base"])
-            * config["upvote"]["weight"]
-        )
-
         comment_component = (
             math.log(comment_count + 1, config["comment"]["log_base"])
             * config["comment"]["weight"]
         )
 
+        # Recency signal: 24 / (age_hours + 24) yields 1.0 at 0h, 0.5 at 24h
+        recency_value = 24.0 / (age_hours + 24.0)
+        recency_component = (
+            math.log(recency_value + 1, config["recency"]["log_base"])
+            * config["recency"]["weight"]
+        )
+
+        upvote_component = (
+            math.log(upvote_count + 1, config["upvote"]["log_base"])
+            * config["upvote"]["weight"]
+        )
+
         engagement_score = (
-            altmetric_component
-            + bounty_component
+            bounty_component
             + tip_component
             + peer_review_component
-            + upvote_component
             + comment_component
-        ) * freshness_multiplier
+            + recency_component
+            + upvote_component
+        )
 
         decay_config = HOT_SCORE_CONFIG["time_decay"]
         denominator = math.pow(
@@ -372,10 +357,6 @@ class Command(BaseCommand):
         )
 
         return {
-            "altmetric": {
-                "raw": altmetric,
-                "component": altmetric_component,
-            },
             "bounty": {
                 "raw": bounty_amount,
                 "urgent": has_urgent_bounty,
@@ -386,10 +367,10 @@ class Command(BaseCommand):
                 "raw": peer_review_count,
                 "component": peer_review_component,
             },
-            "upvote": {"raw": upvote_count, "component": upvote_component},
             "comment": {"raw": comment_count, "component": comment_component},
+            "recency": {"raw": recency_value, "component": recency_component},
+            "upvote": {"raw": upvote_count, "component": upvote_component},
             "age_hours": age_hours,
-            "freshness_multiplier": freshness_multiplier,
             "engagement_score": engagement_score,
             "time_denominator": denominator,
         }
@@ -436,10 +417,6 @@ class Command(BaseCommand):
     def _display_components(self, components):
         """Display component breakdown."""
         self.stdout.write("  Components:")
-        self.stdout.write(
-            f"    Altmetric:    {components['altmetric']['raw']:>8.1f} "
-            f"→ {components['altmetric']['component']:>8.2f}"
-        )
         bounty_marker = " (URGENT!)" if components["bounty"]["urgent"] else ""
         self.stdout.write(
             f"    Bounty:       {components['bounty']['raw']:>8.1f} "
@@ -461,9 +438,11 @@ class Command(BaseCommand):
             f"    Comments:     {components['comment']['raw']:>8.0f} "
             f"→ {components['comment']['component']:>8.2f}"
         )
+        self.stdout.write(
+            f"    Recency:      {components['recency']['raw']:>8.2f} "
+            f"→ {components['recency']['component']:>8.2f}"
+        )
         self.stdout.write(f"    Age (hours):  {components['age_hours']:>8.1f}")
-        freshness = components["freshness_multiplier"]
-        self.stdout.write(f"    Multiplier:   {freshness:>8.2f}")
         self.stdout.write(f"    Engagement:   {components['engagement_score']:>8.2f}")
         self.stdout.write(f"    Time Decay:   {components['time_denominator']:>8.2f}")
 
@@ -488,8 +467,6 @@ class Command(BaseCommand):
                     "Stored V2",
                     "Change (V2-V1)",
                     "Change %",
-                    "Altmetric Raw",
-                    "Altmetric Component",
                     "Bounty Raw",
                     "Bounty Urgent",
                     "Bounty Component",
@@ -497,12 +474,13 @@ class Command(BaseCommand):
                     "Tip Component",
                     "Peer Review Raw",
                     "Peer Review Component",
-                    "Upvote Raw",
-                    "Upvote Component",
                     "Comment Raw",
                     "Comment Component",
+                    "Recency Raw",
+                    "Recency Component",
+                    "Upvote Raw",
+                    "Upvote Component",
                     "Age Hours",
-                    "Freshness Multiplier",
                     "Engagement Score",
                     "Time Denominator",
                 ]
@@ -538,8 +516,6 @@ class Command(BaseCommand):
                         stored_v2,
                         change,
                         change_pct,
-                        comp["altmetric"]["raw"],
-                        comp["altmetric"]["component"],
                         comp["bounty"]["raw"],
                         comp["bounty"]["urgent"],
                         comp["bounty"]["component"],
@@ -547,12 +523,13 @@ class Command(BaseCommand):
                         comp["tip"]["component"],
                         comp["peer_review"]["raw"],
                         comp["peer_review"]["component"],
-                        comp["upvote"]["raw"],
-                        comp["upvote"]["component"],
                         comp["comment"]["raw"],
                         comp["comment"]["component"],
+                        comp["recency"]["raw"],
+                        comp["recency"]["component"],
+                        comp["upvote"]["raw"],
+                        comp["upvote"]["component"],
                         comp["age_hours"],
-                        comp["freshness_multiplier"],
                         comp["engagement_score"],
                         comp["time_denominator"],
                     ]
@@ -571,7 +548,6 @@ class Command(BaseCommand):
                 sim_params.get("bounty", 0) > 0,
                 sim_params.get("urgent_bounty", False),
                 sim_params.get("peer_reviews", 0) > 0,
-                sim_params.get("altmetric", 0) > 0,
                 sim_params.get("age_hours", 0) > 0,
             ]
         )
@@ -683,8 +659,6 @@ class Command(BaseCommand):
                 sim_active.append("  Urgent Bounty: ENABLED")
             if sim_params.get("peer_reviews", 0) > 0:
                 sim_active.append(f"  Peer Reviews: {sim_params['peer_reviews']}")
-            if sim_params.get("altmetric", 0) > 0:
-                sim_active.append(f"  Altmetric:    {sim_params['altmetric']}")
             if sim_params.get("age_hours", 0) > 0:
                 sim_active.append(f"  Age (hours):  {sim_params['age_hours']}")
 
@@ -755,7 +729,6 @@ class Command(BaseCommand):
                 sim_params.get("bounty", 0) > 0,
                 sim_params.get("urgent_bounty", False),
                 sim_params.get("peer_reviews", 0) > 0,
-                sim_params.get("altmetric", 0) > 0,
                 sim_params.get("age_hours", 0) > 0,
             ]
         )
@@ -885,8 +858,6 @@ class Command(BaseCommand):
                 sim_active.append("  Urgent Bounty: ENABLED")
             if sim_params.get("peer_reviews", 0) > 0:
                 sim_active.append(f"  Peer Reviews: {sim_params['peer_reviews']}")
-            if sim_params.get("altmetric", 0) > 0:
-                sim_active.append(f"  Altmetric:    {sim_params['altmetric']}")
             if sim_params.get("age_hours", 0) > 0:
                 sim_active.append(f"  Age (hours):  {sim_params['age_hours']}")
 
@@ -952,10 +923,6 @@ class Command(BaseCommand):
         """Display detailed component breakdown for debugging."""
         # Signal breakdown
         self.stdout.write("  Signal Components:")
-        self.stdout.write(
-            f"    Altmetric:        Raw={components['altmetric']['raw']:>8.1f}  "
-            f"→  Component={components['altmetric']['component']:>8.2f}"
-        )
 
         bounty_marker = " ⚠️  URGENT!" if components["bounty"]["urgent"] else ""
         self.stdout.write(
@@ -983,14 +950,16 @@ class Command(BaseCommand):
             f"→  Component={components['comment']['component']:>8.2f}"
         )
 
+        self.stdout.write(
+            f"    Recency:          Raw={components['recency']['raw']:>8.2f}  "
+            f"→  Component={components['recency']['component']:>8.2f}"
+        )
+
         self.stdout.write("")
 
         # Time decay breakdown
         self.stdout.write("  Time Decay:")
         self.stdout.write(f"    Age (hours):      {components['age_hours']:>8.1f}")
-        self.stdout.write(
-            f"    Freshness Mult:   {components['freshness_multiplier']:>8.2f}"
-        )
         self.stdout.write("")
 
         # Final calculation

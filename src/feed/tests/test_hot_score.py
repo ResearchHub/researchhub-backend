@@ -314,6 +314,7 @@ class TestHotScore(TestCase):
         # Calculate paper score first and save it
         paper_score = calculate_hot_score_for_item(self.feed_entry_paper)
         self.feed_entry_paper.hot_score = paper_score
+        self.feed_entry_paper.hot_score_v2 = paper_score
         self.feed_entry_paper.save()
 
         # Calculate the peer review score

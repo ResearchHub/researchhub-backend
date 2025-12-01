@@ -715,18 +715,6 @@ def serialize_feed_metrics(item, item_content_type):
         if hasattr(item, "citations"):
             metrics["citations"] = item.citations
 
-        # Add altmetric data from external_metadata for Papers
-        if item_content_type == ContentType.objects.get_for_model(Paper):
-            if hasattr(item, "external_metadata") and item.external_metadata:
-                altmetric_metrics = item.external_metadata.get("metrics", {})
-                if altmetric_metrics:
-                    metrics["altmetric_score"] = altmetric_metrics.get("score", 0.0)
-                    metrics["facebook_count"] = altmetric_metrics.get(
-                        "facebook_count", 0
-                    )
-                    metrics["twitter_count"] = altmetric_metrics.get("twitter_count", 0)
-                    metrics["bluesky_count"] = altmetric_metrics.get("bluesky_count", 0)
-
     return metrics
 
 
