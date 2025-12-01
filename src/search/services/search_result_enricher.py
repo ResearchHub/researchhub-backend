@@ -20,8 +20,8 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 logger = logging.getLogger(__name__)
 
 
+# Enriches Elasticsearch search results with database data.
 class SearchResultEnricher:
-    """Enriches Elasticsearch search results with database data."""
 
     def __init__(self):
         self.paper_content_type = ContentType.objects.get_for_model(Paper)
@@ -130,7 +130,6 @@ class SearchResultEnricher:
         }
 
     def _get_author(self, user) -> dict[str, Any] | None:
-        """Extract author data from user if available."""
         if not user or not hasattr(user, "author_profile"):
             return None
 
@@ -141,7 +140,6 @@ class SearchResultEnricher:
             return None
 
     def _get_hot_score_v2(self, unified_document) -> int:
-        """Get hot_score_v2 from unified document."""
         if not unified_document:
             return 0
         return getattr(unified_document, "hot_score_v2", 0)
@@ -160,7 +158,6 @@ class SearchResultEnricher:
     def _serialize_with_fallback(
         self, serializer_class, obj, obj_name: str, obj_id: int
     ) -> dict[str, Any] | None:
-        """Serialize object with fallback handling for errors."""
         try:
             return serializer_class(obj).data
         except (ValueError, TypeError) as ser_error:
@@ -213,7 +210,6 @@ class SearchResultEnricher:
     def _enrich_post_result(
         self, es_result: dict[str, Any], post: ResearchhubPost
     ) -> dict[str, Any]:
-        """Enrich a post search result with database data."""
         try:
             # Try to serialize post data
             post_data = self._serialize_with_fallback(

@@ -11,12 +11,17 @@ from search.services.unified_search_query_builder import (
 from search.services.unified_search_service import UnifiedSearchService
 
 
-@patch("search.services.unified_search_service.SearchResultEnricher")
 class UnifiedSearchServiceTests(TestCase):
     def setUp(self):
         # Mock the enricher to avoid database access during initialization
-        # The patch decorator on the class handles the mocking
+        patcher_path = "search.services.unified_search_service.SearchResultEnricher"
+        self.enricher_patcher = patch(patcher_path)
+        self.enricher_patcher.start()
         self.service = UnifiedSearchService()
+
+    def tearDown(self):
+        # Stop the patcher after each test
+        self.enricher_patcher.stop()
 
     def test_init(self):
         self.assertIsNotNone(self.service.paper_index)

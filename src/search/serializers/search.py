@@ -6,7 +6,6 @@ from rest_framework import serializers
 
 
 class UnifiedSearchRequestSerializer(serializers.Serializer):
-    """Serializer for validating unified search request parameters."""
 
     q = serializers.CharField(
         required=True,
@@ -36,7 +35,6 @@ class UnifiedSearchRequestSerializer(serializers.Serializer):
 
 
 class AuthorSerializer(serializers.Serializer):
-    """Serializer for author information in search results."""
 
     first_name = serializers.CharField(allow_blank=True)
     last_name = serializers.CharField(allow_blank=True)
@@ -44,7 +42,6 @@ class AuthorSerializer(serializers.Serializer):
 
 
 class HubSerializer(serializers.Serializer):
-    """Serializer for hub information in search results."""
 
     id = serializers.IntegerField()
     name = serializers.CharField()
@@ -52,7 +49,6 @@ class HubSerializer(serializers.Serializer):
 
 
 class ReviewSerializer(serializers.Serializer):
-    """Serializer for review information in search results."""
 
     id = serializers.IntegerField()
     score = serializers.IntegerField()
@@ -60,7 +56,6 @@ class ReviewSerializer(serializers.Serializer):
 
 
 class BountySerializer(serializers.Serializer):
-    """Serializer for bounty information in search results."""
 
     id = serializers.IntegerField()
     amount = serializers.SerializerMethodField()
@@ -71,14 +66,13 @@ class BountySerializer(serializers.Serializer):
     contributions = serializers.ListField(required=False)
 
     def get_amount(self, obj):
-        """Return the total amount from contributions if available."""
+
         if isinstance(obj, dict):
             return obj.get("amount", 0)
         return getattr(obj, "amount", 0)
 
 
 class PurchaseSerializer(serializers.Serializer):
-    """Serializer for purchase information in search results."""
 
     id = serializers.IntegerField()
     amount = serializers.DecimalField(max_digits=19, decimal_places=10)
@@ -86,7 +80,6 @@ class PurchaseSerializer(serializers.Serializer):
 
 
 class JournalSerializer(serializers.Serializer):
-    """Serializer for journal information in search results."""
 
     id = serializers.IntegerField()
     name = serializers.CharField()
@@ -96,7 +89,6 @@ class JournalSerializer(serializers.Serializer):
 
 
 class AuthorDetailSerializer(serializers.Serializer):
-    """Serializer for detailed author information (single author) in search results."""
 
     id = serializers.IntegerField()
     first_name = serializers.CharField(allow_blank=True)
@@ -107,14 +99,12 @@ class AuthorDetailSerializer(serializers.Serializer):
 
 
 class InstitutionSerializer(serializers.Serializer):
-    """Serializer for institution information in search results."""
 
     id = serializers.IntegerField()
     name = serializers.CharField()
 
 
 class DocumentResultSerializer(serializers.Serializer):
-    """Serializer for document (paper/post) search results."""
 
     id = serializers.IntegerField()
     type = serializers.CharField()
@@ -159,7 +149,6 @@ class DocumentResultSerializer(serializers.Serializer):
 
 
 class PersonResultSerializer(serializers.Serializer):
-    """Serializer for person (author/user) search results."""
 
     id = serializers.IntegerField()
     full_name = serializers.CharField()
@@ -174,14 +163,12 @@ class PersonResultSerializer(serializers.Serializer):
 
 
 class AggregationBucketSerializer(serializers.Serializer):
-    """Serializer for aggregation buckets."""
 
     key = serializers.CharField()
     doc_count = serializers.IntegerField()
 
 
 class SearchAggregationsSerializer(serializers.Serializer):
-    """Serializer for search aggregations."""
 
     years = AggregationBucketSerializer(many=True, required=False)
     hubs = AggregationBucketSerializer(many=True, required=False)
@@ -189,7 +176,6 @@ class SearchAggregationsSerializer(serializers.Serializer):
 
 
 class UnifiedSearchResultSerializer(serializers.Serializer):
-    """Serializer for unified search results."""
 
     count = serializers.IntegerField()
     next = serializers.CharField(allow_null=True, required=False)
