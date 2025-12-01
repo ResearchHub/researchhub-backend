@@ -68,8 +68,22 @@ class UnifiedSearchView(APIView):
             )
 
             # Serialize and return results
-            result_serializer = UnifiedSearchResultSerializer(results)
-            return Response(result_serializer.data, status=status.HTTP_200_OK)
+            try:
+                result_serializer = UnifiedSearchResultSerializer(results)
+                return Response(result_serializer.data, status=status.HTTP_200_OK)
+            except Exception as ser_error:
+                # Log serialization errors separately for debugging
+                logger.error(
+                    f"Serialization error in search results: {str(ser_error)}",
+                    exc_info=True,
+                )
+                log_search_error(
+                    ser_error, query=query, page=page, page_size=page_size, sort=sort
+                )
+                return Response(
+                    {"error": "An error occurred while processing your search"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
 
         except Exception as e:
             log_search_error(e, query=query, page=page, page_size=page_size, sort=sort)

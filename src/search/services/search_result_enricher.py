@@ -148,8 +148,12 @@ class SearchResultEnricher:
         self, es_result: dict[str, Any], unified_document
     ) -> dict[str, Any]:
         """Build minimal enrichment dict when full serialization fails."""
+        # Ensure required fields are present
         return {
             **es_result,
+            "id": es_result.get("id"),
+            "type": es_result.get("type"),
+            "title": es_result.get("title", ""),
             "metrics": {},
             "action": "PUBLISH",
             "hot_score_v2": self._get_hot_score_v2(unified_document),
@@ -167,6 +171,46 @@ class SearchResultEnricher:
             )
             return None
 
+    def _ensure_required_fields(
+        self, result: dict[str, Any], es_result: dict[str, Any], doc_type: str
+    ) -> dict[str, Any]:
+        """Ensure required fields (id, type, title) are present and correct type."""
+        # Ensure id is an integer (ES returns string, serializer expects int)
+        result_id = result.get("id") or es_result.get("id")
+        if result_id is not None:
+            try:
+                result["id"] = int(result_id)
+            except (ValueError, TypeError):
+                # Fallback: try to get from es_result or use 0
+                try:
+                    result["id"] = int(es_result.get("id", 0))
+                except (ValueError, TypeError):
+                    result["id"] = 0
+
+        # Ensure type is present
+        result["type"] = result.get("type") or es_result.get("type") or doc_type
+
+        # Ensure title is present (non-empty string)
+        result["title"] = result.get("title") or es_result.get("title") or ""
+
+        return result
+
+    def _clean_nested_fields(self, result: dict[str, Any]) -> dict[str, Any]:
+        """Clean nested fields to ensure they match serializer expectations."""
+        # Ensure lists are lists (not None)
+        list_fields = ["reviews", "bounties", "purchases", "hubs", "authors"]
+        for field in list_fields:
+            if field in result and result[field] is None:
+                result[field] = []
+
+        # Ensure dict fields are dicts or None (not empty strings)
+        dict_fields = ["hub", "category", "subcategory", "author", "journal"]
+        for field in dict_fields:
+            if field in result and result[field] == "":
+                result[field] = None
+
+        return result
+
     def _enrich_paper_result(
         self, es_result: dict[str, Any], paper: Paper
     ) -> dict[str, Any]:
@@ -177,7 +221,10 @@ class SearchResultEnricher:
                 PaperSerializer, paper, "paper", paper.id
             )
             if paper_data is None:
-                return self._build_minimal_enrichment(es_result, paper.unified_document)
+                minimal = self._build_minimal_enrichment(
+                    es_result, paper.unified_document
+                )
+                return self._ensure_required_fields(minimal, es_result, "paper")
 
             # Get common enrichment data
             metrics = serialize_feed_metrics(paper, self.paper_content_type)
@@ -202,21 +249,34 @@ class SearchResultEnricher:
             if "abstract" not in enriched_result:
                 enriched_result["abstract"] = getattr(paper, "abstract", None)
 
+            # Ensure required fields are present and correct type
+            enriched_result = self._ensure_required_fields(
+                enriched_result, es_result, "paper"
+            )
+
+            # Clean nested fields to match serializer expectations
+            enriched_result = self._clean_nested_fields(enriched_result)
+
             return enriched_result
         except Exception as e:
             logger.error(f"Error enriching paper {paper.id}: {str(e)}", exc_info=True)
-            return es_result
+            # Return ES result with required fields ensured
+            return self._ensure_required_fields(es_result.copy(), es_result, "paper")
 
     def _enrich_post_result(
         self, es_result: dict[str, Any], post: ResearchhubPost
     ) -> dict[str, Any]:
+        """Enrich a post search result with database data."""
         try:
             # Try to serialize post data
             post_data = self._serialize_with_fallback(
                 PostSerializer, post, "post", post.id
             )
             if post_data is None:
-                return self._build_minimal_enrichment(es_result, post.unified_document)
+                minimal = self._build_minimal_enrichment(
+                    es_result, post.unified_document
+                )
+                return self._ensure_required_fields(minimal, es_result, "post")
 
             # Get common enrichment data
             metrics = serialize_feed_metrics(post, self.post_content_type)
@@ -251,7 +311,16 @@ class SearchResultEnricher:
                         text += "..."
                     enriched_result["renderable_text"] = text
 
+            # Ensure required fields are present and correct type
+            enriched_result = self._ensure_required_fields(
+                enriched_result, es_result, "post"
+            )
+
+            # Clean nested fields to match serializer expectations
+            enriched_result = self._clean_nested_fields(enriched_result)
+
             return enriched_result
         except Exception as e:
             logger.error(f"Error enriching post {post.id}: {str(e)}", exc_info=True)
-            return es_result
+            # Return ES result with required fields ensured
+            return self._ensure_required_fields(es_result.copy(), es_result, "post")

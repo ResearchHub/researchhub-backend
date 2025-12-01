@@ -360,8 +360,14 @@ class UnifiedSearchService:
             snippet, matched_field = self._extract_document_highlights(highlights)
 
             # Build result object
+            # Convert id to int (ES returns string, serializer expects int)
+            try:
+                doc_id = int(hit.id)
+            except (ValueError, TypeError):
+                doc_id = 0
+
             result = {
-                "id": hit.id,
+                "id": doc_id,
                 "type": doc_type,
                 "title": getattr(hit, "paper_title", None) or getattr(hit, "title", ""),
                 "snippet": snippet,
