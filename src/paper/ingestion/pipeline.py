@@ -183,6 +183,8 @@ class PaperIngestionPipeline:
     def _get_last_fetch_time(self, source: str) -> datetime:
         """
         Get the last successful fetch time for the given source.
+
+        Returns the completed date minus 1 day as a buffer to avoid missing papers.
         """
         last_fetch = (
             PaperFetchLog.objects.filter(
@@ -194,7 +196,8 @@ class PaperIngestionPipeline:
         )
 
         if last_fetch and last_fetch.completed_date:
-            return last_fetch.completed_date
+            # Subtract 1 day as a buffer to avoid missing papers
+            return last_fetch.completed_date - timedelta(days=1)
 
         # Default to 1 day ago if no previous fetch
         return timezone.now() - timedelta(days=1)
