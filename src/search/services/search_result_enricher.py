@@ -208,13 +208,24 @@ class SearchResultEnricher:
 
         dict_fields = ["hub", "category", "subcategory", "author", "journal", "fundraise", "grant"]
         for field in dict_fields:
-            if field in result and result[field] == "":
-                result[field] = None
+            if field in result:
+                if result[field] == "":
+                    result[field] = None
+                elif not isinstance(result[field], dict) and result[field] is not None:
+                    # Ensure dict fields are dicts or None
+                    result[field] = None
 
-        if "metrics" in result and result["metrics"] is None:
-            result["metrics"] = {}
-        if "external_metadata" in result and result["external_metadata"] == "":
-            result["external_metadata"] = None
+        if "metrics" in result:
+            if result["metrics"] is None:
+                result["metrics"] = {}
+            elif not isinstance(result["metrics"], dict):
+                result["metrics"] = {}
+
+        if "external_metadata" in result:
+            if result["external_metadata"] == "":
+                result["external_metadata"] = None
+            elif result["external_metadata"] is not None and not isinstance(result["external_metadata"], dict):
+                result["external_metadata"] = None
 
         return result
 
@@ -303,11 +314,19 @@ class SearchResultEnricher:
 
         try:
             purchase_id = int(purchase_id)
-            amount = float(amount)
+            # DecimalField accepts string, int, float, or Decimal
+            # Convert to string to ensure proper DecimalField handling
+            if isinstance(amount, str):
+                # Validate it's a valid number string
+                float(amount)  # Will raise ValueError if invalid
+                amount_str = amount
+            else:
+                # Convert numeric types to string for DecimalField
+                amount_str = str(amount)
         except (ValueError, TypeError):
             return None
 
-        return {"id": purchase_id, "amount": amount, "user": purchase.get("user")}
+        return {"id": purchase_id, "amount": amount_str, "user": purchase.get("user")}
 
     def _validate_journal_dict(self, journal: dict[str, Any] | None) -> dict[str, Any] | None:
         """Validate and clean journal dict to ensure required fields are present."""

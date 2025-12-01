@@ -251,8 +251,8 @@ class UnifiedSearchService:
         highlight_fields = {
             "paper_title": {"number_of_fragments": 0},
             "title": {"number_of_fragments": 0},
-            "abstract": {"fragment_size": 200, "number_of_fragments": 1},
-            "renderable_text": {"fragment_size": 200, "number_of_fragments": 1},
+            "abstract": {"fragment_size": 500, "number_of_fragments": 1},
+            "renderable_text": {"fragment_size": 500, "number_of_fragments": 1},
             "raw_authors.full_name": {"number_of_fragments": 0},
             "authors.full_name": {"number_of_fragments": 0},
         }
