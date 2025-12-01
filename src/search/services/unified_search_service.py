@@ -12,6 +12,7 @@ from search.base.utils import seconds_to_milliseconds
 from search.documents.paper import PaperDocument
 from search.documents.post import PostDocument
 from search.services.search_error_utils import handle_search_error
+from search.services.search_result_enricher import SearchResultEnricher
 from search.services.unified_search_query_builder import UnifiedSearchQueryBuilder
 from utils.doi import DOI
 
@@ -29,6 +30,7 @@ class UnifiedSearchService:
         self.paper_index = PaperDocument._index._name
         self.post_index = PostDocument._index._name
         self.query_builder = UnifiedSearchQueryBuilder()
+        self.result_enricher = SearchResultEnricher()
 
     def search(
         self,
@@ -158,8 +160,11 @@ class UnifiedSearchService:
 
         results = self._process_document_results(response)
 
+        # Enrich results with database data
+        enriched_results = self.result_enricher.enrich_results(results)
+
         return {
-            "results": results,
+            "results": enriched_results,
             "count": response.hits.total.value,
         }
 
@@ -233,7 +238,11 @@ class UnifiedSearchService:
             return {"results": [], "count": 0}
 
         results = self._process_document_results(response)
-        return {"results": results, "count": response.hits.total.value}
+
+        # Enrich results with database data
+        enriched_results = self.result_enricher.enrich_results(results)
+
+        return {"results": enriched_results, "count": response.hits.total.value}
 
     def _apply_highlighting(self, search: Search) -> Search:
         """

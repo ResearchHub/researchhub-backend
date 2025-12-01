@@ -51,6 +51,61 @@ class HubSerializer(serializers.Serializer):
     slug = serializers.CharField()
 
 
+class ReviewSerializer(serializers.Serializer):
+    """Serializer for review information in search results."""
+
+    id = serializers.IntegerField()
+    score = serializers.IntegerField()
+    author = serializers.DictField(allow_null=True, required=False)
+
+
+class BountySerializer(serializers.Serializer):
+    """Serializer for bounty information in search results."""
+
+    id = serializers.IntegerField()
+    amount = serializers.SerializerMethodField()
+    bounty_type = serializers.CharField(allow_null=True, required=False)
+    status = serializers.CharField()
+    expiration_date = serializers.DateTimeField(allow_null=True, required=False)
+    contributors = serializers.ListField(required=False)
+    contributions = serializers.ListField(required=False)
+
+    def get_amount(self, obj):
+        """Return the total amount from contributions if available."""
+        if isinstance(obj, dict):
+            return obj.get("amount", 0)
+        return getattr(obj, "amount", 0)
+
+
+class PurchaseSerializer(serializers.Serializer):
+    """Serializer for purchase information in search results."""
+
+    id = serializers.IntegerField()
+    amount = serializers.DecimalField(max_digits=19, decimal_places=10)
+    user = serializers.DictField(allow_null=True, required=False)
+
+
+class JournalSerializer(serializers.Serializer):
+    """Serializer for journal information in search results."""
+
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    slug = serializers.CharField()
+    image = serializers.CharField(allow_null=True, required=False)
+    description = serializers.CharField(allow_null=True, required=False)
+
+
+class AuthorDetailSerializer(serializers.Serializer):
+    """Serializer for detailed author information (single author) in search results."""
+
+    id = serializers.IntegerField()
+    first_name = serializers.CharField(allow_blank=True)
+    last_name = serializers.CharField(allow_blank=True)
+    profile_image = serializers.CharField(allow_null=True, required=False)
+    headline = serializers.CharField(allow_null=True, required=False)
+    user = serializers.DictField(allow_null=True, required=False)
+
+
 class InstitutionSerializer(serializers.Serializer):
     """Serializer for institution information in search results."""
 
@@ -74,13 +129,33 @@ class DocumentResultSerializer(serializers.Serializer):
     hubs = HubSerializer(many=True, required=False)
     unified_document_id = serializers.IntegerField(required=False)
 
+    # FeedEntry-like fields
+    hub = HubSerializer(allow_null=True, required=False)
+    category = HubSerializer(allow_null=True, required=False)
+    subcategory = HubSerializer(allow_null=True, required=False)
+    reviews = ReviewSerializer(many=True, required=False)
+    bounties = BountySerializer(many=True, required=False)
+    purchases = PurchaseSerializer(many=True, required=False)
+    metrics = serializers.DictField(required=False)
+    author = AuthorDetailSerializer(allow_null=True, required=False)
+    action_date = serializers.DateTimeField(allow_null=True, required=False)
+    action = serializers.CharField(allow_null=True, required=False)
+    hot_score_v2 = serializers.IntegerField(required=False)
+
     # Paper-specific fields
     doi = serializers.CharField(allow_null=True, required=False)
     citations = serializers.IntegerField(required=False)
+    abstract = serializers.CharField(allow_null=True, required=False)
+    journal = JournalSerializer(allow_null=True, required=False)
+    external_metadata = serializers.DictField(allow_null=True, required=False)
 
     # Post-specific fields
     slug = serializers.CharField(allow_null=True, required=False)
     document_type = serializers.CharField(allow_null=True, required=False)
+    renderable_text = serializers.CharField(allow_null=True, required=False)
+    image_url = serializers.CharField(allow_null=True, required=False)
+    fundraise = serializers.DictField(allow_null=True, required=False)
+    grant = serializers.DictField(allow_null=True, required=False)
 
 
 class PersonResultSerializer(serializers.Serializer):

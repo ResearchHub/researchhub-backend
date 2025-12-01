@@ -4,11 +4,15 @@ from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from paper.tests.helpers import create_paper
+from researchhub_document.helpers import create_post
+from search.services.search_result_enricher import SearchResultEnricher
 from search.services.unified_search_query_builder import (
     DocumentQueryBuilder,
     FieldConfig,
 )
 from search.services.unified_search_service import UnifiedSearchService
+from user.tests.helpers import create_random_default_user
 
 
 class UnifiedSearchServiceTests(TestCase):
@@ -195,3 +199,173 @@ class UnifiedSearchViewTests(TestCase):
         self.assertIn("page=2", url)
         self.assertIn("page_size=10", url)
         self.assertIn("sort=relevance", url)
+
+
+class SearchResultEnricherTests(TestCase):
+    """Tests for SearchResultEnricher service."""
+
+    def setUp(self):
+        self.enricher = SearchResultEnricher()
+        self.user = create_random_default_user("enricher_test_user")
+
+    def test_enrich_results_empty_list(self):
+        """Test that enriching empty results returns empty list."""
+        results = self.enricher.enrich_results([])
+        self.assertEqual(results, [])
+
+    def test_enrich_results_paper(self):
+        """Test enriching a paper result."""
+        # Create a paper
+        paper = create_paper(
+            uploaded_by=self.user,
+            title="Test Paper",
+            raw_authors=[{"first_name": "John", "last_name": "Doe"}],
+        )
+        paper.abstract = "Test abstract"
+        paper.save()
+
+        # Create ES result format
+        es_result = {
+            "id": paper.id,
+            "type": "paper",
+            "title": "Test Paper",
+            "snippet": "Test <mark>abstract</mark>",
+            "matched_field": "abstract",
+            "_search_score": 10.5,
+            "score": 50,
+        }
+
+        # Enrich result
+        enriched_results = self.enricher.enrich_results([es_result])
+
+        # Verify enrichment
+        self.assertEqual(len(enriched_results), 1)
+        result = enriched_results[0]
+
+        # Check ES-specific fields are preserved
+        self.assertEqual(result["snippet"], "Test <mark>abstract</mark>")
+        self.assertEqual(result["matched_field"], "abstract")
+        self.assertEqual(result["_search_score"], 10.5)
+
+        # Check feed fields are added
+        self.assertIn("metrics", result)
+        self.assertIn("author", result)
+        self.assertIn("action_date", result)
+        self.assertEqual(result["action"], "PUBLISH")
+        self.assertIn("hot_score_v2", result)
+        self.assertIn("hub", result)
+        self.assertIn("reviews", result)
+        self.assertIn("bounties", result)
+        self.assertIn("purchases", result)
+
+        # Check paper-specific fields
+        self.assertEqual(result["abstract"], "Test abstract")
+        self.assertIn("unified_document_id", result)
+
+    def test_enrich_results_post(self):
+        """Test enriching a post result."""
+        # Create a post
+        post = create_post(
+            title="Test Post",
+            created_by=self.user,
+            renderable_text="Test content" * 10,  # Long content
+        )
+        post.slug = "test-post"
+        post.save()
+
+        # Create ES result format
+        es_result = {
+            "id": post.id,
+            "type": "post",
+            "title": "Test Post",
+            "snippet": "Test <mark>content</mark>",
+            "matched_field": "content",
+            "_search_score": 8.5,
+            "score": 30,
+        }
+
+        # Enrich result
+        enriched_results = self.enricher.enrich_results([es_result])
+
+        # Verify enrichment
+        self.assertEqual(len(enriched_results), 1)
+        result = enriched_results[0]
+
+        # Check ES-specific fields are preserved
+        self.assertEqual(result["snippet"], "Test <mark>content</mark>")
+        self.assertEqual(result["matched_field"], "content")
+        self.assertEqual(result["_search_score"], 8.5)
+
+        # Check feed fields are added
+        self.assertIn("metrics", result)
+        self.assertIn("author", result)
+        self.assertIn("action_date", result)
+        self.assertEqual(result["action"], "PUBLISH")
+        self.assertIn("hot_score_v2", result)
+        self.assertIn("hub", result)
+        self.assertIn("reviews", result)
+        self.assertIn("bounties", result)
+        self.assertIn("purchases", result)
+
+        # Check post-specific fields
+        self.assertIn("renderable_text", result)
+        self.assertIn("slug", result)
+        self.assertEqual(result["slug"], "test-post")
+
+    def test_enrich_results_missing_document(self):
+        """Test that missing documents are handled gracefully."""
+        # Create ES result for non-existent document
+        es_result = {
+            "id": 99999,
+            "type": "paper",
+            "title": "Missing Paper",
+            "snippet": None,
+            "matched_field": None,
+            "_search_score": 5.0,
+        }
+
+        # Enrich result (should return original ES result)
+        enriched_results = self.enricher.enrich_results([es_result])
+
+        # Should return original result unchanged
+        self.assertEqual(len(enriched_results), 1)
+        self.assertEqual(enriched_results[0]["id"], 99999)
+        self.assertEqual(enriched_results[0]["title"], "Missing Paper")
+
+    def test_enrich_results_mixed_types(self):
+        """Test enriching mixed paper and post results."""
+        # Create paper and post
+        paper = create_paper(uploaded_by=self.user, title="Test Paper")
+        post = create_post(title="Test Post", created_by=self.user)
+        post.slug = "test-post"
+        post.save()
+
+        # Create ES results
+        es_results = [
+            {
+                "id": paper.id,
+                "type": "paper",
+                "title": "Test Paper",
+                "snippet": None,
+                "matched_field": None,
+                "_search_score": 10.0,
+            },
+            {
+                "id": post.id,
+                "type": "post",
+                "title": "Test Post",
+                "snippet": None,
+                "matched_field": None,
+                "_search_score": 8.0,
+            },
+        ]
+
+        # Enrich results
+        enriched_results = self.enricher.enrich_results(es_results)
+
+        # Verify both are enriched
+        self.assertEqual(len(enriched_results), 2)
+        self.assertEqual(enriched_results[0]["type"], "paper")
+        self.assertEqual(enriched_results[1]["type"], "post")
+        self.assertIn("metrics", enriched_results[0])
+        self.assertIn("metrics", enriched_results[1])
