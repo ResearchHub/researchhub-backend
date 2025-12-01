@@ -135,7 +135,7 @@ class UnifiedSearchServiceTests(TestCase):
         builder.add_fuzzy_strategy(fields)
         query_dict = builder.build().to_dict()
         fields_in_query = query_dict["bool"]["should"][0]["multi_match"]["fields"]
-        self.assertIn("paper_title^4", fields_in_query)
+        self.assertIn("paper_title^2", fields_in_query)
         self.assertNotIn("abstract", fields_in_query)
 
     def test_add_fuzzy_strategy_short_query_includes_all_fields(self):
@@ -149,7 +149,7 @@ class UnifiedSearchServiceTests(TestCase):
         builder.add_fuzzy_strategy(fields)
         query_dict = builder.build().to_dict()
         fields_in_query = query_dict["bool"]["should"][0]["multi_match"]["fields"]
-        self.assertIn("paper_title^4", fields_in_query)
+        self.assertIn("paper_title^2", fields_in_query)
         self.assertIn("abstract^2", fields_in_query)
         self.assertIn("raw_authors.full_name^2", fields_in_query)
         self.assertIn("renderable_text", fields_in_query)
