@@ -148,7 +148,6 @@ class SearchResultEnricher:
         self, es_result: dict[str, Any], unified_document
     ) -> dict[str, Any]:
         """Build minimal enrichment dict when full serialization fails."""
-        # Ensure required fields are present
         return {
             **es_result,
             "id": es_result.get("id"),
@@ -211,6 +210,217 @@ class SearchResultEnricher:
 
         return result
 
+    def _validate_hub_dict(self, hub: dict[str, Any] | None) -> dict[str, Any] | None:
+        """Validate and clean hub dict to ensure required fields are present."""
+        if not hub or not isinstance(hub, dict):
+            return None
+
+        # HubSerializer requires: id, name, slug (all required, no allow_null)
+        hub_id = hub.get("id")
+        name = hub.get("name")
+        slug = hub.get("slug")
+
+        # If any required field is missing or None, return None
+        if hub_id is None or name is None or slug is None:
+            return None
+
+        # Ensure id is an integer
+        try:
+            hub_id = int(hub_id)
+        except (ValueError, TypeError):
+            return None
+
+        # Ensure name and slug are non-empty strings
+        if not isinstance(name, str) or not name.strip():
+            return None
+        if not isinstance(slug, str) or not slug.strip():
+            return None
+
+        return {"id": hub_id, "name": name.strip(), "slug": slug.strip()}
+
+    def _validate_review_dict(self, review: dict[str, Any] | None) -> dict[str, Any] | None:
+        """Validate and clean review dict to ensure required fields are present."""
+        if not review or not isinstance(review, dict):
+            return None
+
+        # ReviewSerializer requires: id, score (both required)
+        review_id = review.get("id")
+        score = review.get("score")
+
+        if review_id is None or score is None:
+            return None
+
+        try:
+            review_id = int(review_id)
+            score = int(score)
+        except (ValueError, TypeError):
+            return None
+
+        return {"id": review_id, "score": score, "author": review.get("author")}
+
+    def _validate_bounty_dict(self, bounty: dict[str, Any] | None) -> dict[str, Any] | None:
+        """Validate and clean bounty dict to ensure required fields are present."""
+        if not bounty or not isinstance(bounty, dict):
+            return None
+
+        # BountySerializer requires: id, status (both required)
+        bounty_id = bounty.get("id")
+        status = bounty.get("status")
+
+        if bounty_id is None or status is None:
+            return None
+
+        try:
+            bounty_id = int(bounty_id)
+        except (ValueError, TypeError):
+            return None
+
+        if not isinstance(status, str) or not status.strip():
+            return None
+
+        return {
+            "id": bounty_id,
+            "status": status.strip(),
+            "amount": bounty.get("amount", 0),
+            "bounty_type": bounty.get("bounty_type"),
+            "expiration_date": bounty.get("expiration_date"),
+            "contributors": bounty.get("contributors", []),
+            "contributions": bounty.get("contributions", []),
+        }
+
+    def _validate_purchase_dict(self, purchase: dict[str, Any] | None) -> dict[str, Any] | None:
+        """Validate and clean purchase dict to ensure required fields are present."""
+        if not purchase or not isinstance(purchase, dict):
+            return None
+
+        # PurchaseSerializer requires: id, amount (both required)
+        purchase_id = purchase.get("id")
+        amount = purchase.get("amount")
+
+        if purchase_id is None or amount is None:
+            return None
+
+        try:
+            purchase_id = int(purchase_id)
+            # Amount can be Decimal, float, int, or string
+            if isinstance(amount, str):
+                amount = float(amount)
+            else:
+                amount = float(amount)
+        except (ValueError, TypeError):
+            return None
+
+        return {"id": purchase_id, "amount": amount, "user": purchase.get("user")}
+
+    def _validate_journal_dict(self, journal: dict[str, Any] | None) -> dict[str, Any] | None:
+        """Validate and clean journal dict to ensure required fields are present."""
+        if not journal or not isinstance(journal, dict):
+            return None
+
+        # JournalSerializer requires: id, name, slug (all required)
+        journal_id = journal.get("id")
+        name = journal.get("name")
+        slug = journal.get("slug")
+
+        if journal_id is None or name is None or slug is None:
+            return None
+
+        try:
+            journal_id = int(journal_id)
+        except (ValueError, TypeError):
+            return None
+
+        if not isinstance(name, str) or not name.strip():
+            return None
+        if not isinstance(slug, str) or not slug.strip():
+            return None
+
+        return {
+            "id": journal_id,
+            "name": name.strip(),
+            "slug": slug.strip(),
+            "image": journal.get("image"),
+            "description": journal.get("description"),
+        }
+
+    def _validate_author_detail_dict(
+        self, author: dict[str, Any] | None
+    ) -> dict[str, Any] | None:
+        """Validate and clean author detail dict to ensure required fields are present."""
+        if not author or not isinstance(author, dict):
+            return None
+
+        # AuthorDetailSerializer requires: id (required)
+        author_id = author.get("id")
+        if author_id is None:
+            return None
+
+        try:
+            author_id = int(author_id)
+        except (ValueError, TypeError):
+            return None
+
+        return {
+            "id": author_id,
+            "first_name": author.get("first_name", ""),
+            "last_name": author.get("last_name", ""),
+            "profile_image": author.get("profile_image"),
+            "headline": author.get("headline"),
+            "user": author.get("user"),
+        }
+
+    def _clean_nested_serializer_fields(self, result: dict[str, Any]) -> dict[str, Any]:
+        """Clean and validate nested serializer fields to prevent KeyErrors."""
+        # Validate hub, category, subcategory (HubSerializer)
+        for field in ["hub", "category", "subcategory"]:
+            if field in result:
+                result[field] = self._validate_hub_dict(result[field])
+
+        # Validate journal (JournalSerializer)
+        if "journal" in result:
+            result["journal"] = self._validate_journal_dict(result["journal"])
+
+        # Validate author (AuthorDetailSerializer)
+        if "author" in result:
+            result["author"] = self._validate_author_detail_dict(result["author"])
+
+        # Validate lists of nested objects
+        if "reviews" in result and isinstance(result["reviews"], list):
+            result["reviews"] = [
+                review
+                for review in [
+                    self._validate_review_dict(r) for r in result["reviews"]
+                ]
+                if review is not None
+            ]
+
+        if "bounties" in result and isinstance(result["bounties"], list):
+            result["bounties"] = [
+                bounty
+                for bounty in [
+                    self._validate_bounty_dict(b) for b in result["bounties"]
+                ]
+                if bounty is not None
+            ]
+
+        if "purchases" in result and isinstance(result["purchases"], list):
+            result["purchases"] = [
+                purchase
+                for purchase in [
+                    self._validate_purchase_dict(p) for p in result["purchases"]
+                ]
+                if purchase is not None
+            ]
+
+        if "hubs" in result and isinstance(result["hubs"], list):
+            result["hubs"] = [
+                hub
+                for hub in [self._validate_hub_dict(h) for h in result["hubs"]]
+                if hub is not None
+            ]
+
+        return result
+
     def _enrich_paper_result(
         self, es_result: dict[str, Any], paper: Paper
     ) -> dict[str, Any]:
@@ -256,6 +466,9 @@ class SearchResultEnricher:
 
             # Clean nested fields to match serializer expectations
             enriched_result = self._clean_nested_fields(enriched_result)
+
+            # Validate nested serializer fields to prevent KeyErrors
+            enriched_result = self._clean_nested_serializer_fields(enriched_result)
 
             return enriched_result
         except Exception as e:
@@ -318,6 +531,9 @@ class SearchResultEnricher:
 
             # Clean nested fields to match serializer expectations
             enriched_result = self._clean_nested_fields(enriched_result)
+
+            # Validate nested serializer fields to prevent KeyErrors
+            enriched_result = self._clean_nested_serializer_fields(enriched_result)
 
             return enriched_result
         except Exception as e:

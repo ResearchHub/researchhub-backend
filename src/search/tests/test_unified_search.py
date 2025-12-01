@@ -95,7 +95,7 @@ class UnifiedSearchServiceTests(TestCase):
 
         self.assertEqual(len(results), 1)
         result = results[0]
-        self.assertEqual(result["id"], "123")
+        self.assertEqual(result["id"], 123)  # ID is converted to int
         self.assertEqual(result["type"], "paper")
         self.assertEqual(result["title"], "Test Paper")
         self.assertEqual(result["doi"], "https://doi.org/10.1234/test")

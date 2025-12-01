@@ -355,14 +355,41 @@ class UnifiedSearchService:
         if not hubs:
             return []
 
-        return [
-            {
-                "id": hub.get("id"),
-                "name": hub.get("name"),
-                "slug": hub.get("slug"),
-            }
-            for hub in hubs
-        ]
+        validated_hubs = []
+        for hub in hubs:
+            if not hub or not isinstance(hub, dict):
+                continue
+
+            hub_id = hub.get("id")
+            name = hub.get("name")
+            slug = hub.get("slug")
+
+            # HubSerializer requires: id, name, slug (all required)
+            # Skip if any required field is missing or None
+            if hub_id is None or name is None or slug is None:
+                continue
+
+            # Ensure id is an integer
+            try:
+                hub_id = int(hub_id)
+            except (ValueError, TypeError):
+                continue
+
+            # Ensure name and slug are non-empty strings
+            if not isinstance(name, str) or not name.strip():
+                continue
+            if not isinstance(slug, str) or not slug.strip():
+                continue
+
+            validated_hubs.append(
+                {
+                    "id": hub_id,
+                    "name": name.strip(),
+                    "slug": slug.strip(),
+                }
+            )
+
+        return validated_hubs
 
     def _process_document_results(self, response) -> list[dict[str, Any]]:
 
