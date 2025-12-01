@@ -11,8 +11,11 @@ from search.services.unified_search_query_builder import (
 from search.services.unified_search_service import UnifiedSearchService
 
 
+@patch("search.services.unified_search_service.SearchResultEnricher")
 class UnifiedSearchServiceTests(TestCase):
     def setUp(self):
+        # Mock the enricher to avoid database access during initialization
+        # The patch decorator on the class handles the mocking
         self.service = UnifiedSearchService()
 
     def test_init(self):
@@ -182,7 +185,11 @@ class UnifiedSearchViewTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("sort", response.data)
 
-    def test_pagination_urls(self):
+    @patch("search.services.unified_search_service.SearchResultEnricher")
+    def test_pagination_urls(self, mock_enricher):
+        # Mock the enricher to avoid database access during initialization
+        mock_enricher_instance = MagicMock()
+        mock_enricher.return_value = mock_enricher_instance
         service = UnifiedSearchService()
         request = Mock()
         request.path = "/api/search/"
