@@ -79,10 +79,16 @@ class ListItemViewSet(CreateModelMixin, ListModelMixin, DestroyModelMixin, views
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
-            serializer.save(created_by=request.user)
+            instance = serializer.save(created_by=request.user)
+            instance.parent_list.save(update_fields=['updated_date'])
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         except IntegrityError:
             return Response({"error": "Document already exists in list"}, status=status.HTTP_400_BAD_REQUEST)
+
+    def perform_destroy(self, instance):
+        parent_list = instance.parent_list
+        super().perform_destroy(instance)
+        parent_list.save(update_fields=['updated_date'])
 
     def get_object(self):
         queryset = self.filter_queryset(self.get_queryset())
