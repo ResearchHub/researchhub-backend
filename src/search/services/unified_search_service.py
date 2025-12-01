@@ -298,16 +298,37 @@ class UnifiedSearchService:
 
         return None, None
 
+    def _build_author_dict(self, author: dict[str, Any] | None) -> dict[str, Any]:
+        """Build author dictionary with required fields."""
+        if not author or not isinstance(author, dict):
+            return {
+                "first_name": "",
+                "last_name": "",
+                "full_name": "",
+            }
+
+        first_name = author.get("first_name", "") or ""
+        last_name = author.get("last_name", "") or ""
+        # Construct full_name if not present
+        full_name = author.get("full_name", "") or ""
+        if not full_name and (first_name or last_name):
+            full_name = f"{first_name} {last_name}".strip()
+        # Ensure full_name is never empty (required by serializer)
+        if not full_name:
+            full_name = "Unknown Author"
+
+        return {
+            "first_name": first_name,
+            "last_name": last_name,
+            "full_name": full_name,
+        }
+
     def _build_paper_fields(self, hit) -> dict[str, Any]:
         """Build paper-specific fields for a search result."""
         raw_doi = getattr(hit, "doi", None)
         return {
             "authors": [
-                {
-                    "first_name": author.get("first_name", ""),
-                    "last_name": author.get("last_name", ""),
-                    "full_name": author.get("full_name", ""),
-                }
+                self._build_author_dict(author)
                 for author in getattr(hit, "raw_authors", [])
             ],
             "doi": DOI.normalize_doi(raw_doi) if raw_doi else None,
@@ -320,11 +341,7 @@ class UnifiedSearchService:
         """Build post-specific fields for a search result."""
         return {
             "authors": [
-                {
-                    "first_name": author.get("first_name", ""),
-                    "last_name": author.get("last_name", ""),
-                    "full_name": author.get("full_name", ""),
-                }
+                self._build_author_dict(author)
                 for author in getattr(hit, "authors", [])
             ],
             "slug": getattr(hit, "slug", None),
