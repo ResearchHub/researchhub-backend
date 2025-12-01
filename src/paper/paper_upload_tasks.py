@@ -633,6 +633,18 @@ def celery_create_paper(self, celery_data):
     return paper.id
 
 
+# Mapping of external source names to preprint hub slugs.
+PREPRINT_SOURCES_TO_HUB_SLUGS = {
+    "arxiv": "arxiv",
+    "arxiv (cornell university)": "arxiv",
+    "biorxiv": "biorxiv",
+    "biorxiv (cold spring harbor laboratory)": "biorxiv",
+    "chemrxiv": "chemrxiv",
+    "medrxiv": "medrxiv",
+    "medrxiv (cold spring harbor laboratory)": "medrxiv",
+}
+
+
 @app.task(queue=QUEUE_PAPER_METADATA)
 def create_paper_related_tags(paper, openalex_concepts=[], openalex_topics=[]):
     # Process topics
@@ -696,6 +708,9 @@ def create_paper_related_tags(paper, openalex_concepts=[], openalex_topics=[]):
         journal = _get_or_create_journal_hub(paper.external_source)
         paper.unified_document.hubs.add(journal)
 
+    # Add preprint hub for papers from preprint servers
+    _add_preprint_hub_if_applicable(paper)
+
 
 def _get_or_create_journal_hub(external_source: str) -> Hub:
     """
@@ -726,6 +741,33 @@ def _get_journal_hub(journal: str) -> Hub:
         name__iexact=journal,
         namespace=Hub.Namespace.JOURNAL,
     ).first()
+
+
+def _add_preprint_hub_if_applicable(paper) -> None:
+    """
+    Add the preprint hub to a paper if it comes from a preprint server.
+
+    This function checks if the paper's external_source is a known preprint server
+    (arxiv, biorxiv, medrxiv, chemrxiv) and adds the corresponding preprint hub
+    to the paper's unified document.
+
+    Args:
+        paper: The Paper instance to add the preprint hub to
+    """
+    if not paper.external_source:
+        return
+
+    external_source_lower = paper.external_source.lower()
+    hub_slug = PREPRINT_SOURCES_TO_HUB_SLUGS.get(external_source_lower)
+
+    if hub_slug:
+        preprint_hub = Hub.objects.filter(
+            slug=hub_slug,
+            namespace=Hub.Namespace.JOURNAL,
+        ).first()
+
+        if preprint_hub:
+            paper.unified_document.hubs.add(preprint_hub)
 
 
 @app.task(queue=QUEUE_PAPER_METADATA)
