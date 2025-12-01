@@ -33,7 +33,7 @@ class DocumentQueryBuilder:
         ("simple_match", "author"): 0.8,
         ("simple_match", "content"): 1.0,
         # Simple match sub-strategy multipliers
-        ("simple_match_and", "all"): 0.8,
+        ("simple_match_and", "all"): 0.5,
         ("simple_match_fuzzy", "all"): 0.2,
         # Phrase strategy boosts
         ("phrase", "title"): 0.6,
@@ -50,9 +50,9 @@ class DocumentQueryBuilder:
     # Field configurations
     TITLE_FIELDS = [
         FieldConfig(
-            "paper_title", boost=5.0, query_types=["phrase", "prefix", "fuzzy"]
+            "paper_title", boost=3.0, query_types=["phrase", "prefix", "fuzzy"]
         ),
-        FieldConfig("title", boost=5.0, query_types=["phrase", "prefix", "fuzzy"]),
+        FieldConfig("title", boost=3.0, query_types=["phrase", "prefix", "fuzzy"]),
     ]
 
     AUTHOR_FIELDS = [
@@ -89,7 +89,7 @@ class DocumentQueryBuilder:
     ]
 
     CONTENT_FIELDS = [
-        FieldConfig("abstract", boost=2.0, query_types=["phrase", "fuzzy"]),
+        FieldConfig("abstract", boost=1.0, query_types=["phrase", "fuzzy"]),
         FieldConfig("renderable_text", boost=1.0, query_types=["fuzzy"]),
     ]
 
