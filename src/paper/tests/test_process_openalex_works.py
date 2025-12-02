@@ -10,8 +10,13 @@ from paper.openalex_util import (
     clean_url,
     process_openalex_works,
 )
-from paper.paper_upload_tasks import _get_or_create_journal_hub
+from paper.paper_upload_tasks import (
+    PREPRINT_SOURCES_TO_HUB_SLUGS,
+    _add_preprint_hub_if_applicable,
+    _get_or_create_journal_hub,
+)
 from paper.related_models.citation_model import Citation
+from paper.tests.helpers import create_paper
 from user.related_models.author_model import Author
 from utils.openalex import OpenAlex
 
@@ -378,3 +383,21 @@ class ProcessOpenAlexWorksTests(APITestCase):
 
         # Assert
         self.assertEqual(journal_hub.name, managed_journal_hub.name)
+
+    def test_add_preprint_hub_for_preprint_sources(self):
+        # Arrange
+        external_source = "arxiv"
+        hub_slug = "arxiv"
+        preprint_hub = Hub.objects.create(
+            slug=hub_slug,
+            namespace=Hub.Namespace.JOURNAL,
+        )
+        paper = create_paper()
+        paper.external_source = external_source
+        paper.save()
+
+        # Act
+        _add_preprint_hub_if_applicable(paper)
+
+        # Assert
+        self.assertIn(preprint_hub, paper.unified_document.hubs.all())
