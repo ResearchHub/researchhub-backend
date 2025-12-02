@@ -77,10 +77,12 @@ class DocumentResultSerializer(serializers.Serializer):
     # Paper-specific fields
     doi = serializers.CharField(allow_null=True, required=False)
     citations = serializers.IntegerField(required=False)
+    abstract = serializers.CharField(allow_null=True, required=False)
 
     # Post-specific fields
     slug = serializers.CharField(allow_null=True, required=False)
     document_type = serializers.CharField(allow_null=True, required=False)
+    renderable_text = serializers.CharField(allow_null=True, required=False)
 
 
 class PersonResultSerializer(serializers.Serializer):
