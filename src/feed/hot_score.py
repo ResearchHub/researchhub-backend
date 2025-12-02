@@ -91,29 +91,29 @@ HOT_SCORE_CONFIG = {
     # Weights are balanced so financial signals don't dominate engagement signals
     "signals": {
         "bounty": {
-            "weight": 25.0,  # Reduced from 80 - valuable but not dominant
+            "weight": 25.0,
             "log_base": math.e,
             "urgency_multiplier": 1.5,  # Boost for new/expiring
             "urgency_hours": 48,
         },
         "tip": {
-            "weight": 20.0,  # Reduced from 60 - nice but shouldn't dominate
+            "weight": 20.0,
             "log_base": math.e,
         },
         "peer_review": {
-            "weight": 50.0,  # High-quality expert signal
+            "weight": 50.0,
             "log_base": math.e,
         },
         "comment": {
-            "weight": 40.0,  # Good engagement signal
+            "weight": 40.0,
             "log_base": math.e,
         },
         "recency": {
-            "weight": 30.0,  # Ensures new content surfaces
+            "weight": 30.0,
             "log_base": math.e,
         },
         "upvote": {
-            "weight": 25.0,  # Increased from 20 - community voice matters
+            "weight": 25.0,
             "log_base": math.e,
         },
     },
