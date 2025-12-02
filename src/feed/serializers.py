@@ -689,7 +689,9 @@ class FeedEntrySerializer(serializers.ModelSerializer):
 
         content = obj.content
 
-        # Alert: Shim. temporary shim to ensure we have a journal set for as many papers as possible until we get to the bottom of why some papers don't have journal properly
+        # Alert: Shim. temporary shim to ensure we have a journal set for as many
+        # papers as possible until we get to the bottom of why some papers
+        # don't have journal properly
         # Backfill journal for papers if missing (shim for legacy data)
         if obj.content_type.model == "paper" and content.get("journal") is None:
             item = obj.item

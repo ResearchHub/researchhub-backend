@@ -102,13 +102,19 @@ class TestHotScoreUtils(TestCase):
         self.assertIsInstance(result, int)
 
     def test_get_comment_count_from_metrics(self):
-        """Test extracting comment count (excluding peer reviews)."""
+        """Test extracting comment count.
+
+        Note: The 'replies' field already excludes peer reviews since it comes from
+        get_discussion_count() which only counts GENERIC_COMMENT type comments.
+        So we just return the replies value directly.
+        """
         metrics = {"replies": 5, "review_metrics": {"count": 2}}
 
         result = get_comment_count_from_metrics(metrics)
 
-        # Should return 5 - 2 = 3
-        self.assertEqual(result, 3)
+        # Should return 5 (replies value directly, since it already excludes
+        # peer reviews)
+        self.assertEqual(result, 5)
         self.assertIsInstance(result, int)
 
     # ========================================================================
