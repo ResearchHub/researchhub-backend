@@ -47,6 +47,8 @@ class PaperDocument(BaseDocument):
         },
     )
     score = es_fields.IntegerField()
+    hot_score = es_fields.IntegerField()
+    discussion_count = es_fields.IntegerField()
     unified_document_id = es_fields.IntegerField()
     created_date = es_fields.DateField(attr="created_date")
     suggestion_phrases = es_fields.CompletionField()
@@ -221,6 +223,18 @@ class PaperDocument(BaseDocument):
     def prepare_score(self, instance) -> int:
         if instance.unified_document:
             return instance.unified_document.score
+        return 0
+
+    def prepare_hot_score(self, instance) -> int:
+        """Get hot_score from the unified document for popularity ranking."""
+        if instance.unified_document:
+            return instance.unified_document.hot_score
+        return 0
+
+    def prepare_discussion_count(self, instance) -> int:
+        """Get discussion_count from the unified document for engagement ranking."""
+        if instance.unified_document:
+            return instance.unified_document.discussion_count
         return 0
 
     def prepare_unified_document_id(self, instance) -> int | None:
