@@ -263,8 +263,8 @@ class UnifiedSearchService:
         highlight_fields = {
             "paper_title": {"number_of_fragments": 0},
             "title": {"number_of_fragments": 0},
-            "abstract": {"fragment_size": 200, "number_of_fragments": 1},
-            "renderable_text": {"fragment_size": 200, "number_of_fragments": 1},
+            "abstract": {"fragment_size": 700, "number_of_fragments": 1},
+            "renderable_text": {"fragment_size": 700, "number_of_fragments": 1},
             "raw_authors.full_name": {"number_of_fragments": 0},
             "authors.full_name": {"number_of_fragments": 0},
         }
@@ -326,6 +326,7 @@ class UnifiedSearchService:
             "citations": getattr(hit, "citations", 0),
             "paper_publish_date": getattr(hit, "paper_publish_date", None),
             "unified_document_id": getattr(hit, "unified_document_id", None),
+            "abstract": getattr(hit, "abstract", None),
         }
 
     def _build_post_fields(self, hit) -> dict[str, Any]:
@@ -342,6 +343,7 @@ class UnifiedSearchService:
             "slug": getattr(hit, "slug", None),
             "document_type": getattr(hit, "document_type", None),
             "unified_document_id": getattr(hit, "unified_document_id", None),
+            "renderable_text": getattr(hit, "renderable_text", None),
         }
 
     def _process_hubs(self, hit) -> list[dict[str, Any]]:
