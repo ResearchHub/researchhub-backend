@@ -44,6 +44,28 @@ class PopularityConfig:
     These signals are combined using OpenSearch's function_score query to
     influence ranking based on document engagement and authority metrics.
 
+    Weight Rationale:
+        The weights are calibrated to balance academic authority with community
+        engagement, using log1p normalization to prevent extreme values from
+        dominating results.
+
+        - citations_weight (1.5): Highest weight because citations are the
+          strongest signal of academic impact and quality. A paper with 100
+          citations represents significant peer validation. The log1p modifier
+          means: log(1+100) ≈ 4.6, so effective boost ≈ 1.5 * 4.6 ≈ 6.9x.
+
+        - discussion_weight (1.2): Second highest as active discussions indicate
+          current relevance and community interest. Weighted slightly lower than
+          citations since discussions can be noisy or controversial.
+
+        - hot_score_weight (1.0): Baseline weight since hot_score is already a
+          composite signal (includes recency decay, bounties, tips, reviews).
+          No additional amplification needed beyond the log1p normalization.
+
+        - score_weight (0.8): Lowest weight for vote-based scores. While useful,
+          votes are more susceptible to popularity bias and recency effects
+          than citations. Dampened to prevent "Reddit effect" on ranking.
+
     Attributes:
         enabled: Whether to apply popularity boosting at all.
         citations_weight: Weight for citation count (papers only). Higher values
@@ -60,10 +82,19 @@ class PopularityConfig:
     """
 
     enabled: bool = True
+
+    # Citations: strongest academic signal - peer validation through references
     citations_weight: float = 1.5
+
+    # Discussions: community engagement indicator - active interest/debate
     discussion_weight: float = 1.2
+
+    # Hot score: already composite (recency + bounties + tips) - use as baseline
     hot_score_weight: float = 1.0
+
+    # Votes: useful but susceptible to popularity/recency bias - dampened
     score_weight: float = 0.8
+
     boost_mode: str = "multiply"
     score_mode: str = "sum"
 

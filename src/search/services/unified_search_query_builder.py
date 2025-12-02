@@ -59,8 +59,7 @@ class DocumentQueryBuilder:
             return query
         return " ".join(words[:max_words])
 
-    @staticmethod
-    def _format_boosted_field_name(field_name: str, boost: float) -> str:
+    def _format_boosted_field_name(self, field_name: str, boost: float) -> str:
         """Format field name with boost suffix."""
         if math.isclose(boost, 1.0):
             return field_name

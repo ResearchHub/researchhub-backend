@@ -130,9 +130,6 @@ class UnifiedSearchService:
 
         # Build query with field boosting and popularity signals
         # Uses function_score to combine text relevance with engagement metrics
-        if popularity_config is None:
-            popularity_config = PopularityConfig()
-
         query_obj = self.query_builder.build_document_query_with_popularity(
             query, popularity_config
         )
