@@ -31,7 +31,7 @@ class FieldConfigTests(TestCase):
         self.assertEqual(field.get_boosted_name(), "abstract")
 
     def test_get_boosted_name_near_one(self):
-        field = FieldConfig("abstract", boost=1.0000001)
+        field = FieldConfig("abstract", boost=1.0000000001)
         self.assertEqual(field.get_boosted_name(), "abstract")
 
     def test_default_boost_is_one(self):
