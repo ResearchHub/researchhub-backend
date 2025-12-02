@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
@@ -37,15 +37,14 @@ class PaperSignalsTests(TestCase):
     def test_handle_paper_external_metadata_updated(self, mock_update_feed_metrics):
         """
         Test that feed metrics are updated when paper external_metadata is updated
-        with altmetric data.
+        with metrics data.
         """
         # Arrange
         mock_update_feed_metrics.apply_async = MagicMock()
 
-        # Add altmetric data to external_metadata
+        # Add metrics data to external_metadata
         self.paper.external_metadata = {
             "metrics": {
-                "altmetric_id": 12345,
                 "score": 42.5,
                 "facebook_count": 15,
                 "twitter_count": 230,

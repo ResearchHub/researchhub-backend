@@ -243,7 +243,6 @@ class PaperSerializer(ContentObjectSerializer):
                 "name": journal_hub.name,
                 "slug": journal_hub.slug,
                 "image": journal_hub.hub_image.url if journal_hub.hub_image else None,
-                "description": journal_hub.description,
             }
         return None
 
@@ -679,11 +678,37 @@ class FeedEntrySerializer(serializers.ModelSerializer):
                 return obj.item.external_metadata
         return None
 
+    # Known preprint sources for journal fallback
+    PREPRINT_SOURCES = {"medrxiv", "biorxiv", "chemrxiv", "arxiv"}
+
     def get_content_object(self, obj):
         if obj.content == {}:
             # Serialize if serialized content is not already present
             return serialize_feed_item(obj.item, obj.content_type)
-        return obj.content
+
+        content = obj.content
+
+        # Alert: Shim. temporary shim to ensure we have a journal set for as many
+        # papers as possible until we get to the bottom of why some papers
+        # don't have journal properly
+        # Backfill journal for papers if missing (shim for legacy data)
+        if obj.content_type.model == "paper" and content.get("journal") is None:
+            item = obj.item
+            if item:
+                external_source = getattr(item, "external_source", None)
+                if external_source and external_source.lower() in self.PREPRINT_SOURCES:
+                    source = external_source.lower()
+                    content = {
+                        **content,
+                        "journal": {
+                            "id": 0,
+                            "name": source,
+                            "slug": source,
+                            "image": None,
+                        },
+                    }
+
+        return content
 
     def get_content_type(self, obj):
         return obj.content_type.model.upper()
@@ -713,18 +738,6 @@ def serialize_feed_metrics(item, item_content_type):
             metrics["review_metrics"] = item.unified_document.get_review_details()
         if hasattr(item, "citations"):
             metrics["citations"] = item.citations
-
-        # Add altmetric data from external_metadata for Papers
-        if item_content_type == ContentType.objects.get_for_model(Paper):
-            if hasattr(item, "external_metadata") and item.external_metadata:
-                altmetric_metrics = item.external_metadata.get("metrics", {})
-                if altmetric_metrics:
-                    metrics["altmetric_score"] = altmetric_metrics.get("score", 0.0)
-                    metrics["facebook_count"] = altmetric_metrics.get(
-                        "facebook_count", 0
-                    )
-                    metrics["twitter_count"] = altmetric_metrics.get("twitter_count", 0)
-                    metrics["bluesky_count"] = altmetric_metrics.get("bluesky_count", 0)
 
     return metrics
 

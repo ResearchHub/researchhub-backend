@@ -12,7 +12,6 @@ from django.test import TestCase
 
 from feed.hot_score_utils import (
     get_age_hours_from_content,
-    get_altmetric_from_metrics,
     get_bounties_from_content,
     get_comment_count_from_metrics,
     get_content_type_name,
@@ -84,15 +83,6 @@ class TestHotScoreUtils(TestCase):
     # Metrics Extraction Functions
     # ========================================================================
 
-    def test_get_altmetric_from_metrics(self):
-        """Test extracting altmetric score from metrics JSON."""
-        metrics = {"votes": 0, "altmetric_score": 1.75, "twitter_count": 4}
-
-        result = get_altmetric_from_metrics(metrics)
-
-        self.assertEqual(result, 1.75)
-        self.assertIsInstance(result, float)
-
     def test_get_votes_from_metrics(self):
         """Test extracting vote count from metrics JSON."""
         metrics = {"votes": 5, "replies": 0}
@@ -112,13 +102,19 @@ class TestHotScoreUtils(TestCase):
         self.assertIsInstance(result, int)
 
     def test_get_comment_count_from_metrics(self):
-        """Test extracting comment count (excluding peer reviews)."""
+        """Test extracting comment count.
+
+        Note: The 'replies' field already excludes peer reviews since it comes from
+        get_discussion_count() which only counts GENERIC_COMMENT type comments.
+        So we just return the replies value directly.
+        """
         metrics = {"replies": 5, "review_metrics": {"count": 2}}
 
         result = get_comment_count_from_metrics(metrics)
 
-        # Should return 5 - 2 = 3
-        self.assertEqual(result, 3)
+        # Should return 5 (replies value directly, since it already excludes
+        # peer reviews)
+        self.assertEqual(result, 5)
         self.assertIsInstance(result, int)
 
     # ========================================================================

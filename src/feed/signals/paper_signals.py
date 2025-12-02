@@ -12,8 +12,8 @@ from paper.models import Paper
 Signal handlers for Paper model.
 
 The signal handlers are responsible for updating feed entry metrics
-when paper metadata changes, particularly when external metrics (altmetric)
-are added or updated.
+when paper metadata changes, particularly when external metrics are
+added or updated.
 """
 
 logger = logging.getLogger(__name__)
@@ -24,8 +24,8 @@ def handle_paper_external_metadata_updated(sender, instance, update_fields, **kw
     """
     Update feed entry metrics when a paper's external_metadata is updated.
 
-    This ensures that altmetric data and other external metrics are reflected
-    in the feed entries for the paper.
+    This ensures that external metrics are reflected in the feed entries
+    for the paper.
     """
     if not isinstance(instance, Paper):
         return

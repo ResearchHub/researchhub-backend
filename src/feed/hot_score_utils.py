@@ -69,25 +69,6 @@ def parse_iso_datetime(date_string: str) -> Optional[datetime]:
 # ============================================================================
 
 
-def get_altmetric_from_metrics(metrics: dict) -> float:
-    """
-    Example metrics:
-        {
-            "votes": 0,
-            "altmetric_score": 1.75,
-            "twitter_count": 4
-        }
-    """
-    if not isinstance(metrics, dict):
-        return 0.0
-
-    score = safe_get_nested(metrics, "altmetric_score", default=0)
-    try:
-        return float(score) if score else 0.0
-    except (ValueError, TypeError):
-        return 0.0
-
-
 def get_votes_from_metrics(metrics: dict) -> int:
     """
     Example metrics:
@@ -130,21 +111,25 @@ def get_peer_review_count_from_metrics(metrics: dict) -> int:
 
 def get_comment_count_from_metrics(metrics: dict) -> int:
     """
+    Get regular comment count from metrics.
+
+    Note: The 'replies' field already excludes peer reviews since it comes from
+    get_discussion_count() which only counts GENERIC_COMMENT type comments.
+
     Example metrics:
         {
-            "replies": 5,
-            "review_metrics": {"count": 2}
+            "replies": 3,
+            "review_metrics": {"count": 10}
         }
-        → returns 3 (5 - 2)
+        → returns 3 (the replies value directly)
     """
     if not isinstance(metrics, dict):
         return 0
 
     replies = safe_get_nested(metrics, "replies", default=0) or 0
-    review_count = safe_get_nested(metrics, "review_metrics", "count", default=0) or 0
 
     try:
-        return max(0, int(replies) - int(review_count))
+        return int(replies)
     except (ValueError, TypeError):
         return 0
 

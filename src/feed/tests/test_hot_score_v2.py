@@ -109,14 +109,19 @@ class TestHotScoreV2(TestCase):
 
         self.assertGreater(score, 0)
 
-    def test_freshness_boost_new_vs_old_posts(self):
-        """Test that new posts get 4.5x freshness boost vs old posts."""
+    def test_recency_signal_new_vs_old_posts(self):
+        """Test that recency signal gives new posts higher scores than old posts.
+
+        Recency signal: 24 / (age_hours + 24)
+        - At 0h: 1.0 → component ~21
+        - At 72h: 0.25 → component ~7
+        """
         # Create new post
         new_post = create_post(created_by=self.user)
 
-        # Create old post (50 hours ago, past the 48h cutoff)
+        # Create old post (72 hours ago)
         old_post = create_post(created_by=self.user)
-        old_created = self.now - timedelta(hours=50)
+        old_created = self.now - timedelta(hours=72)
 
         # Identical content and metrics
         content = {"id": 1, "title": "Test", "bounties": [], "purchases": []}
@@ -151,9 +156,10 @@ class TestHotScoreV2(TestCase):
         new_score = new_entry.calculate_hot_score_v2()
         old_score = old_entry.calculate_hot_score_v2()
 
-        # New post should have significantly higher score
-        # Even accounting for time decay, freshness boost should be evident
-        self.assertGreater(new_score, old_score * 2)
+        # New post should have higher score due to recency signal
+        # Recency contributes ~21 pts at 0h vs ~7 pts at 72h
+        # Combined with time decay, new content should clearly rank higher
+        self.assertGreater(new_score, old_score)
 
     def test_bounty_from_json_content(self):
         """Test that bounties in content JSON contribute to hot score."""
@@ -457,7 +463,6 @@ class TestHotScoreV2(TestCase):
             "votes": 10,
             "replies": 3,
             "review_metrics": {"count": 1},
-            "altmetric_score": 2.5,
         }
 
         feed_entry = FeedEntry.objects.create(
@@ -485,14 +490,13 @@ class TestHotScoreV2(TestCase):
         self.assertIn("config_snapshot", breakdown)
 
         # Verify signals match config
-        self.assertIn("altmetric", breakdown["signals"])
         self.assertIn("bounty", breakdown["signals"])
         self.assertIn("tip", breakdown["signals"])
 
         # Verify weights come from config
-        altmetric_weight = breakdown["signals"]["altmetric"]["weight"]
-        config_weight = HOT_SCORE_CONFIG["signals"]["altmetric"]["weight"]
-        self.assertEqual(altmetric_weight, config_weight)
+        bounty_weight = breakdown["signals"]["bounty"]["weight"]
+        config_weight = HOT_SCORE_CONFIG["signals"]["bounty"]["weight"]
+        self.assertEqual(bounty_weight, config_weight)
 
         # Verify equation is a non-empty string
         self.assertIsInstance(breakdown["equation"], str)

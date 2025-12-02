@@ -3,23 +3,31 @@ Hot Score Implementation for Feed Entry Ranking
 
 Calculates hot scores for feed entries using a declarative algorithm, similar
 to Hacker News. The algorithm prioritizes content based on:
-1. Bounties (especially new or expiring within 24h)
-2. Altmetric score (external engagement metrics)
-3. Tips/Boosts (financial support)
-4. Peer reviews (expert feedback)
-5. Upvotes (community engagement)
-6. Comments (discussion activity)
-7. Recency (time decay with polynomial function)
-8. Temporal urgency (boosts for new content and approaching deadlines)
+1. Bounties (especially new or expiring within 48h)
+2. Tips/Boosts (financial support)
+3. Peer reviews (expert feedback)
+4. Comments (discussion activity)
+5. Recency (time-based signal that never reaches zero)
+6. Upvotes (community engagement)
 
 Hot Score Formula:
-    hot_score = ((engagement_score * freshness_multiplier) /
-                 (age_in_hours + base_hours)^gravity) * 100
+    hot_score = (engagement_score / (age_in_hours + base_hours)^gravity) * 100
 
-Where engagement_score is a weighted sum of logarithmic-scaled signals.
+Where engagement_score is a weighted sum of logarithmic-scaled signals,
+including a recency signal that ensures new content always surfaces.
+
+Time Decay Philosophy:
+- Uses gentle decay (gravity=0.8, base_hours=24) so documents from the same
+  day are roughly equal, with engagement as the differentiator
+- Exceptional content from yesterday CAN beat mediocre content from today
+- ~37% score drop per day means 1.6x engagement overcomes 24h age difference
+
+Recency Signal (Cold Start Solution):
+- Recency is treated as a signal: recency_value = 24 / (age_hours + 24)
+- Yields ~21 points at 0h, ~12 at 24h, ~7 at 72h, ~4 at 1 week
+- Never reaches zero, ensuring all content has some base score
 
 Temporal urgency handling:
-- New content boost: 4.5x → 1.0x for ResearchHub posts over first 48 hours
 - Expiring content urgency: Surfaces grants/preregistrations with approaching
   deadlines
 
@@ -36,10 +44,8 @@ from django.contrib.contenttypes.models import ContentType
 from feed.hot_score_DEPRECATED import CONTENT_TYPE_WEIGHTS  # noqa: F401
 from feed.hot_score_utils import (
     get_age_hours_from_content,
-    get_altmetric_from_metrics,
     get_bounties_from_content,
     get_comment_count_from_metrics,
-    get_content_type_name,
     get_fundraise_amount_from_content,
     get_peer_review_count_from_metrics,
     get_tips_from_content,
@@ -56,14 +62,33 @@ from utils import sentry
 
 logger = logging.getLogger(__name__)
 
+# ContentType cache to avoid repeated database lookups
+_CONTENT_TYPE_CACHE = {}
+
+
+def get_content_type_for_model(model):
+    """
+    Get ContentType for a model with caching.
+
+    Avoids repeated database lookups when calculating hot scores
+    for multiple feed entries.
+
+    Args:
+        model: Django model class
+
+    Returns:
+        ContentType instance
+    """
+    cache_key = f"{model._meta.app_label}.{model._meta.model_name}"
+    if cache_key not in _CONTENT_TYPE_CACHE:
+        _CONTENT_TYPE_CACHE[cache_key] = ContentType.objects.get_for_model(model)
+    return _CONTENT_TYPE_CACHE[cache_key]
+
+
 # Hot Score Configuration
 HOT_SCORE_CONFIG = {
     # Higher weight = more influence on final score
     "signals": {
-        "altmetric": {
-            "weight": 100.0,  # external impact
-            "log_base": math.e,  # Natural log for smooth scaling
-        },
         "bounty": {
             "weight": 80.0,
             "log_base": math.e,
@@ -82,33 +107,32 @@ HOT_SCORE_CONFIG = {
             "weight": 40.0,
             "log_base": math.e,
         },
+        "recency": {
+            "weight": 30.0,  # Recency signal ensures new content surfaces
+            "log_base": math.e,
+        },
         "upvote": {
             "weight": 20.0,
             "log_base": math.e,
         },
     },
     # Time decay parameters control content prominence over time
+    # Gentle decay ensures documents from same day compete on engagement
+    # ~37% drop per day means 1.6x engagement can overcome 24h age difference
     "time_decay": {
-        "gravity": 1.5,  # higher = faster decay
-        "base_hours": 10,  # Softens decay for very new content
+        "gravity": 0.8,  # Gentler decay (was 1.5)
+        "base_hours": 24,  # Full day buffer (was 10)
     },
-    # Temporal urgency configuration
-    # Handles time-sensitive boosts for both new and expiring content
+    # Temporal urgency configuration for content with approaching deadlines
     "temporal_urgency": {
-        # Boost new content before it accumulates engagement signals
-        "new_content_boost": {
-            "enabled": True,
-            "cutoff_hours": 72,  # Boost decays to 1x at this point
-            "initial_multipliers": {
-                "researchhubpost": 4.5,  # 4.5x boost for new posts
-                "paper": 1.0,  # No boost for papers (they have altmetric advantage)
-            },
-        },
-        # Surface content with approaching deadlines
         "expiring_content_urgency": {
             "grant_urgency_days": 7,  # Grant deadline urgency window
             "preregistration_urgency_days": 7,  # Preregistration deadline urgency
         },
+    },
+    # Configurable thresholds
+    "thresholds": {
+        "peer_review_min_score": 3,  # Min item.score for peer review to inherit parent
     },
 }
 
@@ -116,19 +140,6 @@ HOT_SCORE_CONFIG = {
 # ============================================================================
 # Signal Aggregation Helper Functions
 # ============================================================================
-
-
-def get_altmetric_score(feed_entry):
-    """
-    Extract altmetric score from FeedEntry metrics JSON.
-
-    Args:
-        feed_entry: FeedEntry instance
-
-    Returns:
-        float: Altmetric score, or 0 if not available
-    """
-    return get_altmetric_from_metrics(feed_entry.metrics)
 
 
 def get_total_bounty_amount(feed_entry):
@@ -218,54 +229,6 @@ def get_age_hours(feed_entry):
     )
 
 
-def get_freshness_multiplier(feed_entry, age_hours):
-    """
-    Calculate time-decaying freshness boost for new content.
-
-    Provides a strong boost for brand new content that linearly decays
-    to 1x (no boost) over the configured cutoff period.
-
-    Formula:
-        multiplier = 1 + (initial_boost - 1) * (1 - age_hours / cutoff_hours)
-        clamped to [1.0, initial_boost]
-
-    Args:
-        feed_entry: FeedEntry instance
-        age_hours: Age of the content in hours
-
-    Returns:
-        float: Freshness multiplier (e.g., 3.0 for brand new post, 1.0 after 48h)
-    """
-    config = HOT_SCORE_CONFIG["temporal_urgency"]["new_content_boost"]
-
-    # Check if freshness boost is enabled
-    if not config.get("enabled", False):
-        return 1.0
-
-    # Get the appropriate initial multiplier based on content type
-    initial_multipliers = config.get("initial_multipliers", {})
-    content_type = get_content_type_name(feed_entry)
-    initial_boost = initial_multipliers.get(content_type, 1.0)
-
-    # If no boost configured, return 1.0
-    if initial_boost <= 1.0:
-        return 1.0
-
-    cutoff_hours = config.get("cutoff_hours", 48)
-
-    # If age exceeds cutoff, no boost
-    if age_hours >= cutoff_hours:
-        return 1.0
-
-    # Calculate linear decay from initial_boost to 1.0
-    # Formula: 1 + (initial_boost - 1) * (1 - age_hours / cutoff_hours)
-    decay_factor = 1.0 - (age_hours / cutoff_hours)
-    multiplier = 1.0 + (initial_boost - 1.0) * decay_factor
-
-    # Ensure multiplier is in valid range [1.0, initial_boost]
-    return max(1.0, min(initial_boost, multiplier))
-
-
 def get_fundraise_amount(feed_entry):
     """
     Get fundraise amount for PREREGISTRATION posts from FeedEntry content JSON.
@@ -299,14 +262,16 @@ def calculate_hot_score_for_item(feed_entry):
     item = feed_entry.item
     item_content_type = ContentType.objects.get_for_model(item)
 
-    if item_content_type == ContentType.objects.get_for_model(RhCommentModel) and (
+    comment_ct = get_content_type_for_model(RhCommentModel)
+    post_ct = get_content_type_for_model(ResearchhubPost)
+    paper_ct = get_content_type_for_model(Paper)
+
+    if item_content_type == comment_ct and (
         item.comment_type == COMMUNITY_REVIEW or item.comment_type == PEER_REVIEW
     ):
         # Only calculate hot score for peer review comments
         return calculate_hot_score_for_peer_review(feed_entry)
-    elif item_content_type == ContentType.objects.get_for_model(
-        ResearchhubPost
-    ) or item_content_type == ContentType.objects.get_for_model(Paper):
+    elif item_content_type == post_ct or item_content_type == paper_ct:
         return calculate_hot_score(feed_entry, item_content_type)
     else:
         return 0
@@ -327,19 +292,21 @@ def calculate_hot_score_for_peer_review(feed_entry):
 
     feed_entries = unified_document.feed_entries.filter(
         content_type__in=[
-            ContentType.objects.get_for_model(ResearchhubPost),
-            ContentType.objects.get_for_model(Paper),
+            get_content_type_for_model(ResearchhubPost),
+            get_content_type_for_model(Paper),
         ],
     )
 
     parent_score = 0
-    if feed_entries.count() > 0 and item.score >= 3:
-        # Only use the hot score if the parent item has a score of 3 or higher
-        parent_score = feed_entries.first().hot_score or 0
+    min_score = HOT_SCORE_CONFIG["thresholds"]["peer_review_min_score"]
+    if feed_entries.count() > 0 and item.score >= min_score:
+        # Only use the hot score if the parent item meets minimum score threshold
+        # Use hot_score_v2 (the new algorithm)
+        parent_score = feed_entries.first().hot_score_v2 or 0
 
     peer_review_score = calculate_hot_score(
         feed_entry,
-        ContentType.objects.get_for_model(RhCommentModel),
+        get_content_type_for_model(RhCommentModel),
     )
 
     # Add the peer review's own score to ensure it ranks higher than the original paper
@@ -354,21 +321,25 @@ def calculate_hot_score(feed_entry, content_type_name, return_components=False):
     Calculate hot score using HN-style algorithm with prioritized signals.
 
     Formula:
-        hot_score = ((engagement_score * freshness_multiplier) /
-                    (age_hours + base_hours)^gravity) * 100
+        hot_score = (engagement_score / (age_hours + base_hours)^gravity) * 100
 
     Where engagement_score is weighted sum of:
-        1. Altmetric score (highest priority)
-        2. Bounties (with urgency multiplier)
-        3. Tips/Boosts
-        4. Peer reviews
-        5. Upvotes
-        6. Comments
+        1. Bounties (with urgency multiplier)
+        2. Tips/Boosts
+        3. Peer reviews
+        4. Comments
+        5. Recency (time-based signal that never reaches zero)
+        6. Upvotes
 
-    The freshness_multiplier gives new content (especially ResearchHub posts) a
-    strong time-decaying boost (4.5x → 1.0x over 48 hours) that helps new posts
-    appear in trending feed before accumulating engagement signals. After 48 hours,
-    all content competes on equal footing based purely on engagement and time decay.
+    The recency signal ensures new content always has a base score, solving
+    the cold start problem. Formula: recency_value = 24 / (age_hours + 24)
+    This yields ~21 points at 0h, ~12 at 24h, ~7 at 72h, and never reaches 0.
+
+    Time Decay Philosophy:
+    Uses gentle decay (gravity=0.8, base_hours=24) optimized for scientific content
+    that publishes infrequently. Documents from the same day compete primarily on
+    engagement, but exceptional content from yesterday CAN beat today's mediocre
+    content (~1.6x engagement overcomes 24h age difference).
 
     The final score is scaled by 100 and converted to an integer to preserve
     precision while allowing meaningful differentiation between items.
@@ -386,9 +357,6 @@ def calculate_hot_score(feed_entry, content_type_name, return_components=False):
         # ====================================================================
         # 1. Gather all signals from FeedEntry JSON fields
         # ====================================================================
-
-        # Altmetric (external research impact)
-        altmetric = get_altmetric_score(feed_entry)
 
         # Bounties (with urgency detection)
         bounty_amount, has_urgent_bounty = get_total_bounty_amount(feed_entry)
@@ -414,9 +382,6 @@ def calculate_hot_score(feed_entry, content_type_name, return_components=False):
         # Age in hours
         age_hours = get_age_hours(feed_entry)
 
-        # Freshness multiplier (time-decaying boost for new content)
-        freshness_multiplier = get_freshness_multiplier(feed_entry, age_hours)
-
         # ====================================================================
         # 2. Calculate engagement score using logarithmic scaling
         # ====================================================================
@@ -424,11 +389,6 @@ def calculate_hot_score(feed_entry, content_type_name, return_components=False):
         config = HOT_SCORE_CONFIG["signals"]
 
         # Each signal is log-scaled to prevent large values from dominating
-        altmetric_component = (
-            math.log(altmetric + 1, config["altmetric"]["log_base"])
-            * config["altmetric"]["weight"]
-        )
-
         # Bounty gets urgency multiplier if new or expiring soon
         bounty_multiplier = (
             config["bounty"]["urgency_multiplier"] if has_urgent_bounty else 1.0
@@ -449,28 +409,34 @@ def calculate_hot_score(feed_entry, content_type_name, return_components=False):
             * config["peer_review"]["weight"]
         )
 
-        upvote_component = (
-            math.log(upvote_count + 1, config["upvote"]["log_base"])
-            * config["upvote"]["weight"]
-        )
-
         comment_component = (
             math.log(comment_count + 1, config["comment"]["log_base"])
             * config["comment"]["weight"]
         )
 
-        # Sum all components
-        engagement_score = (
-            altmetric_component
-            + bounty_component
-            + tip_component
-            + peer_review_component
-            + upvote_component
-            + comment_component
+        # Recency signal: ensures new content always has a base score
+        # Formula: 24 / (age_hours + 24) yields 1.0 at 0h, 0.5 at 24h, 0.25 at 72h
+        # This never reaches zero, solving the cold start problem
+        recency_value = 24.0 / (age_hours + 24.0)
+        recency_component = (
+            math.log(recency_value + 1, config["recency"]["log_base"])
+            * config["recency"]["weight"]
         )
 
-        # Apply freshness multiplier (boost new content)
-        engagement_score *= freshness_multiplier
+        upvote_component = (
+            math.log(upvote_count + 1, config["upvote"]["log_base"])
+            * config["upvote"]["weight"]
+        )
+
+        # Sum all components (recency ensures non-zero score for new content)
+        engagement_score = (
+            bounty_component
+            + tip_component
+            + peer_review_component
+            + comment_component
+            + recency_component
+            + upvote_component
+        )
 
         # ====================================================================
         # 3. Apply time decay
@@ -501,26 +467,25 @@ def calculate_hot_score(feed_entry, content_type_name, return_components=False):
             return {
                 "final_score": final_score,
                 "raw_signals": {
-                    "altmetric": altmetric,
                     "bounty": bounty_amount,
                     "tip": tip_amount,
                     "peer_review": peer_review_count,
-                    "upvote": upvote_count,
                     "comment": comment_count,
+                    "recency": recency_value,
+                    "upvote": upvote_count,
                 },
                 "components": {
-                    "altmetric": altmetric_component,
                     "bounty": bounty_component,
                     "tip": tip_component,
                     "peer_review": peer_review_component,
-                    "upvote": upvote_component,
                     "comment": comment_component,
+                    "recency": recency_component,
+                    "upvote": upvote_component,
                 },
                 "bounty_urgent": has_urgent_bounty,
                 "bounty_multiplier": bounty_multiplier,
                 "time_factors": {
                     "age_hours": age_hours,
-                    "freshness_multiplier": freshness_multiplier,
                     "base_hours": base_hours,
                     "gravity": gravity,
                 },

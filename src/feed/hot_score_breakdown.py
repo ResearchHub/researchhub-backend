@@ -13,8 +13,8 @@ def get_hot_score_breakdown(feed_entry):
     """
     Get detailed breakdown of hot score calculation with equation and steps.
 
-    Uses stored breakdown if available, otherwise calculates it using
-    calculate_hot_score() as single source of truth.
+    Uses stored breakdown if available AND in current format (has recency),
+    otherwise calculates it using calculate_hot_score() as single source of truth.
 
     Args:
         feed_entry: FeedEntry instance
@@ -22,10 +22,12 @@ def get_hot_score_breakdown(feed_entry):
     Returns:
         dict with formatted breakdown
     """
-    # Use stored breakdown if available
+    # Use stored breakdown if available AND in current format (has recency signal)
     if (
         hasattr(feed_entry, "hot_score_breakdown_v2")
         and feed_entry.hot_score_breakdown_v2
+        and "recency"
+        in feed_entry.hot_score_breakdown_v2.breakdown_data.get("signals", {})
     ):
         return feed_entry.hot_score_breakdown_v2.breakdown_data
 
@@ -115,11 +117,6 @@ def _format_signals_from_calc_data(calc_data, config):
     signal_config = config["signals"]
 
     return {
-        "altmetric": {
-            "raw": calc_data["raw_signals"]["altmetric"],
-            "component": calc_data["components"]["altmetric"],
-            "weight": signal_config["altmetric"]["weight"],
-        },
         "bounty": {
             "raw": calc_data["raw_signals"]["bounty"],
             "component": calc_data["components"]["bounty"],
@@ -137,15 +134,20 @@ def _format_signals_from_calc_data(calc_data, config):
             "component": calc_data["components"]["peer_review"],
             "weight": signal_config["peer_review"]["weight"],
         },
-        "upvote": {
-            "raw": calc_data["raw_signals"]["upvote"],
-            "component": calc_data["components"]["upvote"],
-            "weight": signal_config["upvote"]["weight"],
-        },
         "comment": {
             "raw": calc_data["raw_signals"]["comment"],
             "component": calc_data["components"]["comment"],
             "weight": signal_config["comment"]["weight"],
+        },
+        "recency": {
+            "raw": calc_data["raw_signals"]["recency"],
+            "component": calc_data["components"]["recency"],
+            "weight": signal_config["recency"]["weight"],
+        },
+        "upvote": {
+            "raw": calc_data["raw_signals"]["upvote"],
+            "component": calc_data["components"]["upvote"],
+            "weight": signal_config["upvote"]["weight"],
         },
     }
 
@@ -161,14 +163,13 @@ def _format_equation(signals, time_factors, calculation, config):
     components = [s["component"] for s in signals.values()]
     comp_str = " + ".join([f"{c:.1f}" for c in components])
 
-    freshness = time_factors["freshness_multiplier"]
     age_hours = time_factors["age_hours"]
     base_hours = time_factors["base_hours"]
     gravity = time_factors["gravity"]
     final_score = calculation["final_score"]
 
     return (
-        f"(({comp_str}) * {freshness:.2f}) / "
+        f"({comp_str}) / "
         f"({age_hours:.1f} + {base_hours})^{gravity} * 100 = {final_score}"
     )
 
@@ -183,7 +184,7 @@ def _format_steps(signals, time_factors, calculation, config):
     steps = ["Engagement Components:"]
 
     # Add each signal component with config values
-    signal_order = ["altmetric", "bounty", "tip", "peer_review", "upvote", "comment"]
+    signal_order = ["bounty", "tip", "peer_review", "comment", "recency", "upvote"]
 
     for signal_name in signal_order:
         signal_data = signals[signal_name]
@@ -198,6 +199,11 @@ def _format_steps(signals, time_factors, calculation, config):
                 f"  {signal_name:12s} ln({raw_val} + 1) * {weight} * {urgency} = "
                 f"{component:.1f} (URGENT)"
             )
+        elif signal_name == "recency":
+            steps.append(
+                f"  {signal_name:12s} ln({raw_val:.2f} + 1) * {weight} = "
+                f"{component:.1f} (time-based)"
+            )
         else:
             steps.append(
                 f"  {signal_name:12s} ln({raw_val} + 1) * {weight} = {component:.1f}"
@@ -205,8 +211,6 @@ def _format_steps(signals, time_factors, calculation, config):
 
     # Add calculation steps with config values
     eng_score = calculation["engagement_score"]
-    fresh = time_factors["freshness_multiplier"]
-    adj_eng = calculation["adjusted_engagement"]
     age = time_factors["age_hours"]
     base_hours = time_factors["base_hours"]
     gravity = time_factors["gravity"]
@@ -218,10 +222,8 @@ def _format_steps(signals, time_factors, calculation, config):
         [
             "",
             f"Engagement Score = {eng_score:.1f}",
-            f"Freshness Boost = {fresh:.2f}x",
-            f"Adjusted = {eng_score:.1f} * {fresh:.2f} = {adj_eng:.1f}",
             f"Time Decay = ({age:.1f} + {base_hours})^{gravity} = {denom:.1f}",
-            f"Raw = {adj_eng:.1f} / {denom:.1f} = {raw:.2f}",
+            f"Raw = {eng_score:.1f} / {denom:.1f} = {raw:.2f}",
             f"Final = int({raw:.2f} * 100) = {final}",
         ]
     )
