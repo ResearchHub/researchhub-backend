@@ -11,6 +11,7 @@ from opensearchpy import Q, Search
 from search.base.utils import seconds_to_milliseconds
 from search.documents.paper import PaperDocument
 from search.documents.post import PostDocument
+from search.services.search_config import PopularityConfig
 from search.services.search_error_utils import handle_search_error
 from search.services.unified_search_query_builder import UnifiedSearchQueryBuilder
 from utils.doi import DOI
@@ -116,14 +117,25 @@ class UnifiedSearchService:
         )
 
     def _search_documents(
-        self, query: str, offset: int, limit: int, sort: str
+        self,
+        query: str,
+        offset: int,
+        limit: int,
+        sort: str,
+        popularity_config: PopularityConfig | None = None,
     ) -> dict[str, Any]:
 
         # Create multi-index search for papers and posts
         search = Search(index=[self.paper_index, self.post_index])
 
-        # Build query with field boosting
-        query_obj = self.query_builder.build_document_query(query)
+        # Build query with field boosting and popularity signals
+        # Uses function_score to combine text relevance with engagement metrics
+        if popularity_config is None:
+            popularity_config = PopularityConfig()
+
+        query_obj = self.query_builder.build_document_query_with_popularity(
+            query, popularity_config
+        )
 
         # Wrap query with author filter to exclude documents without authors
         author_filter = self._build_author_filter()
@@ -159,6 +171,8 @@ class UnifiedSearchService:
                 "doi",
                 "slug",
                 "score",
+                "hot_score",
+                "discussion_count",
                 "unified_document_id",
                 "document_type",
             ]
@@ -238,6 +252,8 @@ class UnifiedSearchService:
                 "doi",
                 "slug",
                 "score",
+                "hot_score",
+                "discussion_count",
                 "unified_document_id",
                 "document_type",
             ]
@@ -382,6 +398,8 @@ class UnifiedSearchService:
                 "matched_field": matched_field,
                 "created_date": getattr(hit, "created_date", None),
                 "score": getattr(hit, "score", 0),
+                "hot_score": getattr(hit, "hot_score", 0),
+                "discussion_count": getattr(hit, "discussion_count", 0),
                 "_search_score": hit.meta.score,
             }
 
