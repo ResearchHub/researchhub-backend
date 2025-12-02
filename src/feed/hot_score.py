@@ -88,31 +88,32 @@ def get_content_type_for_model(model):
 # Hot Score Configuration
 HOT_SCORE_CONFIG = {
     # Higher weight = more influence on final score
+    # Weights are balanced so financial signals don't dominate engagement signals
     "signals": {
         "bounty": {
-            "weight": 80.0,
+            "weight": 25.0,  # Reduced from 80 - valuable but not dominant
             "log_base": math.e,
             "urgency_multiplier": 1.5,  # Boost for new/expiring
             "urgency_hours": 48,
         },
         "tip": {
-            "weight": 60.0,
+            "weight": 20.0,  # Reduced from 60 - nice but shouldn't dominate
             "log_base": math.e,
         },
         "peer_review": {
-            "weight": 50.0,
+            "weight": 50.0,  # High-quality expert signal
             "log_base": math.e,
         },
         "comment": {
-            "weight": 40.0,
+            "weight": 40.0,  # Good engagement signal
             "log_base": math.e,
         },
         "recency": {
-            "weight": 30.0,  # Recency signal ensures new content surfaces
+            "weight": 30.0,  # Ensures new content surfaces
             "log_base": math.e,
         },
         "upvote": {
-            "weight": 20.0,
+            "weight": 25.0,  # Increased from 20 - community voice matters
             "log_base": math.e,
         },
     },
