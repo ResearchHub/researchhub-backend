@@ -297,8 +297,8 @@ class TestPaperIngestionPipeline(TestCase):
         last_fetch = self.pipeline._get_last_fetch_time("arxiv")
 
         # Assert
-        # Should return the completed_date from the log
-        expected = completed_date
+        # Should return the completed_date minus 1 day as a buffer
+        expected = completed_date - timedelta(days=1)
         self.assertAlmostEqual(
             last_fetch,
             expected,
