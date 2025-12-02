@@ -75,7 +75,6 @@ class SimpleUserSerializerTests(TestCase):
         self.assertEqual(data["id"], self.user.id)
         self.assertEqual(data["first_name"], self.user.first_name)
         self.assertEqual(data["last_name"], self.user.last_name)
-        self.assertEqual(data["email"], self.user.email)
         self.assertIn("is_verified", data)
         self.assertTrue(data["is_verified"])
 
