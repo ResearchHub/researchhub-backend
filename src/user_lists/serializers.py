@@ -75,20 +75,16 @@ class ListSerializer(serializers.ModelSerializer):
 class ListOverviewSerializer(serializers.ModelSerializer):
     list_id = serializers.IntegerField(source="id", read_only=True)
     unified_documents = serializers.SerializerMethodField()
-    is_default_list = serializers.SerializerMethodField()
 
     class Meta:
         model = List
-        fields = ["list_id", "name", "unified_documents", "is_default_list"]
+        fields = ["list_id", "name", "unified_documents", "is_default"]
 
     def get_unified_documents(self, obj):
         return [
             {"list_item_id": item.id, "unified_document_id": item.unified_document_id}
             for item in obj.items.all()
         ]
-    
-    def get_is_default_list(self, obj):
-        return obj.name is None
         
 class ListItemSerializer(serializers.ModelSerializer):
     document = serializers.SerializerMethodField()

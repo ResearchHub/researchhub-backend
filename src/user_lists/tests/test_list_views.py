@@ -149,14 +149,14 @@ class ListViewSetTests(APITestCase):
         self.client.post("/api/list/default/item/", {"unified_document": paper1.unified_document.id})
         self.client.post("/api/list/default/item/", {"unified_document": paper2.unified_document.id})
         
-        default_list = List.objects.filter(created_by=self.user, name=None).first()
+        default_list = List.objects.filter(created_by=self.user, is_default=True).first()
         self.assertIsNotNone(default_list)
         self.assertEqual(default_list.items.filter(is_removed=False).count(), 2)
         
         response = self.client.get("/api/list/overview/")
-        default_list_data = next((item for item in response.data["lists"] if item.get("is_default_list")), None)
+        default_list_data = next((item for item in response.data["lists"] if item.get("is_default")), None)
         self.assertIsNotNone(default_list_data)
-        self.assertTrue(default_list_data["is_default_list"])
+        self.assertTrue(default_list_data["is_default"])
 
     def test_duplicate_document_in_list_fails(self):
         from paper.tests.helpers import create_paper
