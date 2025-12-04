@@ -76,7 +76,17 @@ class ListItemViewSet(CreateModelMixin, ListModelMixin, DestroyModelMixin, views
         return super().list(request, *args, **kwargs)
 
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+        data = request.data.copy()
+        
+        if not data.get('parent_list'):
+            default_list, _ = List.objects.get_or_create(
+                created_by=request.user,
+                name=None,
+                defaults={'is_removed': False}
+            )
+            data['parent_list'] = default_list.id
+        
+        serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         try:
             instance = serializer.save(created_by=request.user)

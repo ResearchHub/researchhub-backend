@@ -7,10 +7,10 @@ from utils.models import DefaultAuthenticatedModel, SoftDeletableModel
 
 
 class List(DefaultAuthenticatedModel, SoftDeletableModel):
-    name = models.CharField(max_length=120)
+    name = models.CharField(max_length=120, null=True, blank=True)
 
     def __str__(self):
-        return f"{self.created_by}:{self.name}"
+        return f"{self.created_by}:{self.name or 'Unnamed'}"
     class Meta:
         ordering = ["name"]
         indexes = [ 
