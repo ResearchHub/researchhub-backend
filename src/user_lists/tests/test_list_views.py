@@ -139,3 +139,32 @@ class ListViewSetTests(APITestCase):
         doc_ids = [item["unified_document_id"] for item in list_data["unified_documents"]]
         self.assertIn(doc2.id, doc_ids)
         self.assertNotIn(doc1.id, doc_ids)
+
+    def test_default_list_functionality(self):
+        from paper.tests.helpers import create_paper
+        
+        paper1 = create_paper(uploaded_by=self.user)
+        paper2 = create_paper(uploaded_by=self.user)
+        
+        self.client.post("/api/list/default/item/", {"unified_document": paper1.unified_document.id})
+        self.client.post("/api/list/default/item/", {"unified_document": paper2.unified_document.id})
+        
+        default_list = List.objects.filter(created_by=self.user, name=None).first()
+        self.assertIsNotNone(default_list)
+        self.assertEqual(default_list.items.filter(is_removed=False).count(), 2)
+        
+        response = self.client.get("/api/list/overview/")
+        default_list_data = next((item for item in response.data["lists"] if item.get("is_default_list")), None)
+        self.assertIsNotNone(default_list_data)
+        self.assertTrue(default_list_data["is_default_list"])
+
+    def test_duplicate_document_in_list_fails(self):
+        from paper.tests.helpers import create_paper
+        
+        list_obj = List.objects.create(name="My List", created_by=self.user)
+        paper = create_paper(uploaded_by=self.user)
+        
+        self.client.post(f"/api/list/{list_obj.id}/item/", {"parent_list": list_obj.id, "unified_document": paper.unified_document.id})
+        response = self.client.post(f"/api/list/{list_obj.id}/item/", {"parent_list": list_obj.id, "unified_document": paper.unified_document.id})
+        
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
