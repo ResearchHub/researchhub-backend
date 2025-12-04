@@ -32,9 +32,11 @@ class ListViewSetTests(APITestCase):
         response = self.client.post("/api/list/", {"name": "My List"})
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_creating_list_without_name_returns_error(self):
+    def test_creating_list_without_name_creates_default_list(self):
         response = self.client.post("/api/list/", {})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIsNone(response.data["name"])
+        self.assertTrue(List.objects.filter(name=None, created_by=self.user).exists())
 
     def test_user_can_update_their_list(self):
         list_obj = List.objects.create(name="My List", created_by=self.user)
