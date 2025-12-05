@@ -52,9 +52,10 @@ def handle_search_error(
     opensearch_suffix = (
         f", opensearch_details={opensearch_details}" if opensearch_details else ""
     )
+    query_hash = hash(query) % 10000 if query else None
     logger.error(
         "Document search failed - "
-        f"query='{query}', "
+        f"query_hash={query_hash}, "
         f"offset={offset}, "
         f"limit={limit}, "
         f"sort={sort}, "
@@ -92,9 +93,10 @@ def log_search_error(
         f", opensearch_details={opensearch_details}" if opensearch_details else ""
     )
 
+    query_hash = hash(query) % 10000 if query else None
     log_message = (
         "Unified search error - "
-        f"query='{query}', "
+        f"query_hash={query_hash}, "
         f"page={page}, "
         f"page_size={page_size}, "
         f"sort={sort}, "
@@ -104,7 +106,7 @@ def log_search_error(
     logger.error(log_message, exc_info=True)
 
     sentry_data = {
-        "query": query,
+        "query_hash": query_hash,
         "page": page,
         "page_size": page_size,
         "sort": sort,

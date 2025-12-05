@@ -158,19 +158,16 @@ def validate_request_headers(request) -> None:
     ip = get_client_ip(request)
 
     if is_blocked_user_agent(user_agent):
-        user_agent_hash = hash(user_agent) % 10000 if user_agent else "N/A"
         logger.warning(
-            f"Blocked request from blocked user agent hash: {user_agent_hash} "
-            f"from IP: {ip}"
+            f"Blocked request from blocked user agent from IP: {ip}"
         )
         raise PermissionDenied("Automated requests are not allowed")
 
     fingerprint = calculate_browser_fingerprint(request)
     if fingerprint["suspicious"] and fingerprint["confidence"] > 0.5:
-        user_agent_hash = hash(user_agent) % 10000 if user_agent else "N/A"
+        issue_count = len(fingerprint["issues"])
         logger.warning(
-            f"Suspicious headers detected: {fingerprint['issues']} "
-            f"from IP: {ip}, User-Agent hash: {user_agent_hash}"
+            f"Suspicious headers detected: {issue_count} issue(s) from IP: {ip}"
         )
         if fingerprint["confidence"] > 0.7:
             raise PermissionDenied("Suspicious request patterns detected")

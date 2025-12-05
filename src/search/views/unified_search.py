@@ -94,11 +94,8 @@ class UnifiedSearchView(APIView):
         try:
             validate_request_headers(request)
         except PermissionDenied as e:
-            user_agent = request.META.get("HTTP_USER_AGENT", "N/A")
-            user_agent_hash = hash(user_agent) % 10000 if user_agent != "N/A" else "N/A"
             logger.warning(
                 f"Bot detection blocked request from IP: {ip}, "
-                f"User-Agent hash: {user_agent_hash}, "
                 f"Error: {str(e)}"
             )
             return Response(
@@ -130,10 +127,8 @@ class UnifiedSearchView(APIView):
 
         is_valid, error_msg = validate_query(query)
         if not is_valid:
-            query_hash = hash(query) % 10000
             logger.warning(
-                f"Invalid query blocked: query_hash={query_hash} from IP: {ip}, "
-                f"Error: {error_msg}"
+                f"Invalid query blocked from IP: {ip}, Error: {error_msg}"
             )
             return Response(
                 {"error": error_msg},
@@ -144,9 +139,10 @@ class UnifiedSearchView(APIView):
         pattern_result = pattern_analyzer.record_request(query, page)
 
         if pattern_result["action"] == "block":
+            issue_types = [issue.get("type", "unknown") for issue in pattern_result["issues"]]
             logger.warning(
                 f"Pattern detection blocked request from IP: {ip}, "
-                f"Issues: {pattern_result['issues']}, "
+                f"Issue types: {issue_types}, "
                 f"Score: {pattern_result['score']:.2f}"
             )
             response = Response(
@@ -157,9 +153,10 @@ class UnifiedSearchView(APIView):
             return response
 
         if pattern_result["suspicious"] and pattern_result["action"] == "warn":
+            issue_types = [issue.get("type", "unknown") for issue in pattern_result["issues"]]
             logger.info(
                 f"Suspicious pattern detected (warn) from IP: {ip}, "
-                f"Issues: {pattern_result['issues']}, "
+                f"Issue types: {issue_types}, "
                 f"Score: {pattern_result['score']:.2f}"
             )
 
@@ -178,8 +175,7 @@ class UnifiedSearchView(APIView):
         except Exception as e:
             log_search_error(e, query=query, page=page, page_size=page_size, sort=sort)
             logger.error(
-                f"Search error from IP: {ip}, Query: {query[:50]}, "
-                f"Error: {str(e)}"
+                f"Search error from IP: {ip}, Error: {str(e)}"
             )
             return Response(
                 {"error": "An error occurred while processing your search"},
