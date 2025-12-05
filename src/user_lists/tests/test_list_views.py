@@ -1,6 +1,7 @@
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from paper.tests.helpers import create_paper
 from researchhub_document.related_models.constants.document_type import PAPER
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -140,27 +141,37 @@ class ListViewSetTests(APITestCase):
         self.assertIn(doc2.id, doc_ids)
         self.assertNotIn(doc1.id, doc_ids)
 
-    def test_default_list_functionality(self):
-        from paper.tests.helpers import create_paper
+    def test_automatically_create_default_list_if_does_not_exist(self):
+        paper = create_paper(uploaded_by=self.user)
         
+        response = self.client.post("/api/list/default/item/", {"unified_document": paper.unified_document.id})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        
+        default_list = List.objects.filter(created_by=self.user, is_default=True).first()
+        self.assertIsNotNone(default_list)
+
+    def test_multiple_items_are_added_to_default_list(self):
         paper1 = create_paper(uploaded_by=self.user)
         paper2 = create_paper(uploaded_by=self.user)
         
         self.client.post("/api/list/default/item/", {"unified_document": paper1.unified_document.id})
         self.client.post("/api/list/default/item/", {"unified_document": paper2.unified_document.id})
         
-        default_list = List.objects.filter(created_by=self.user, is_default=True).first()
-        self.assertIsNotNone(default_list)
-        self.assertEqual(default_list.items.filter(is_removed=False).count(), 2)
+        default_lists = List.objects.filter(created_by=self.user, is_default=True)
+        self.assertEqual(default_lists.count(), 1)
+        self.assertEqual(default_lists.first().items.filter(is_removed=False).count(), 2)
+
+    def test_overview_includes_default_list(self):
+        List.objects.create(name="My List", created_by=self.user)
+        List.objects.create(name=None, is_default=True, created_by=self.user)
         
         response = self.client.get("/api/list/overview/")
+        
         default_list_data = next((item for item in response.data["lists"] if item.get("is_default")), None)
         self.assertIsNotNone(default_list_data)
         self.assertTrue(default_list_data["is_default"])
 
-    def test_duplicate_document_in_list_fails(self):
-        from paper.tests.helpers import create_paper
-        
+    def test_adding_duplicate_document_fails(self):
         list_obj = List.objects.create(name="My List", created_by=self.user)
         paper = create_paper(uploaded_by=self.user)
         
