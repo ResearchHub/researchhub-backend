@@ -242,7 +242,6 @@ class PaperDocument(BaseDocument):
         return 0
 
     def prepare_discussion_count(self, instance) -> int:
-        """Get discussion_count from the unified document for engagement ranking."""
         if instance.unified_document:
             return instance.unified_document.discussion_count
         return 0
