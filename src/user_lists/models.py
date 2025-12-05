@@ -12,6 +12,7 @@ class List(DefaultAuthenticatedModel, SoftDeletableModel):
 
     def __str__(self):
         return f"{self.created_by}:{self.name or 'Unnamed'}"
+    
     class Meta:
         ordering = ["name"]
         indexes = [ 
@@ -19,6 +20,13 @@ class List(DefaultAuthenticatedModel, SoftDeletableModel):
                 fields=["created_by", "is_removed"],
                 name="idx_list_user_removed",
             ),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["created_by"],
+                condition=models.Q(is_default=True, is_removed=False),
+                name="unique_default_list_per_user",
+            )
         ]
 
 

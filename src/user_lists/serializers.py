@@ -70,7 +70,7 @@ class ListSerializer(serializers.ModelSerializer):
             "updated_by",
             "item_count",
         ]
-        read_only_fields = ["id", "created_date", "updated_date", "created_by", "updated_by"]
+        read_only_fields = ["id", "created_date", "updated_date", "created_by", "updated_by", "is_default"]
 
 class ListOverviewSerializer(serializers.ModelSerializer):
     list_id = serializers.IntegerField(source="id", read_only=True)
