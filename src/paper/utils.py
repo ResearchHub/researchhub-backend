@@ -281,10 +281,6 @@ def pdf_copyright_allows_display(paper):
     ).lower()  # Type from https://api.openalex.org/works?group_by=primary_location.license:include_unknown
     is_pdf_removed_by_moderator = paper.is_pdf_removed_by_moderator
 
-    # Temporary: Disable display of bioRxiv paper PDFs (except for CC0 licensed papers)
-    if paper.external_source == "biorxiv":
-        return license.startswith("cc0")
-
     # we're going to assume that if a moderator removed it,
     # it was because of copyright issues
     if is_pdf_removed_by_moderator:
