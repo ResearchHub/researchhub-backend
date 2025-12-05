@@ -158,9 +158,7 @@ def validate_request_headers(request) -> None:
     ip = get_client_ip(request)
 
     if is_blocked_user_agent(user_agent):
-        logger.warning(
-            f"Blocked request from blocked user agent from IP: {ip}"
-        )
+        logger.warning(f"Blocked request from blocked user agent from IP: {ip}")
         raise PermissionDenied("Automated requests are not allowed")
 
     fingerprint = calculate_browser_fingerprint(request)
@@ -171,4 +169,3 @@ def validate_request_headers(request) -> None:
         )
         if fingerprint["confidence"] > 0.7:
             raise PermissionDenied("Suspicious request patterns detected")
-

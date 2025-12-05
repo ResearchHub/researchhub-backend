@@ -96,6 +96,8 @@ class PatternDetectionTests(TestCase):
         pages = [1, 2, 1, 3, 1, 2, 1, 1, 2, 1, 1, 1]
         for idx, query in enumerate(queries * 3):
             self.analyzer.record_request(query, pages[idx])
+            # Add small varying delays to simulate normal user behavior
+            time.sleep(0.01 + (idx % 3) * 0.02)
         cached = cache.get(self.analyzer.cache_key)
         result = self.analyzer.analyze_pattern(cached)
         self.assertFalse(result["suspicious"])
@@ -118,4 +120,3 @@ class PatternDetectionTests(TestCase):
         cached = cache.get(self.analyzer.cache_key)
         self.assertEqual(len(cached), 1)
         self.assertEqual(cached[0]["query"], "new")
-
