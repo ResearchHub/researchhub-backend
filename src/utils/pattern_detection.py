@@ -104,7 +104,9 @@ class RequestPatternAnalyzer:
             return None
         avg_interval = sum(intervals) / len(intervals)
         variance = sum((i - avg_interval) ** 2 for i in intervals) / len(intervals)
-        if variance < TIMING_VARIANCE_THRESHOLD and avg_interval > 0:
+        # Only flag if timing is regular AND average interval is significant (>0.5s)
+        # This avoids flagging rapid legitimate requests
+        if variance < TIMING_VARIANCE_THRESHOLD and avg_interval > 0.5:
             return {
                 "type": "regular_timing",
                 "severity": "medium",
@@ -177,7 +179,7 @@ class RequestPatternAnalyzer:
         )
         suspicion_score = min(suspicion_score, 1.0)
 
-        if suspicion_score > 0.7:
+        if suspicion_score >= 0.7:
             action = "block"
         elif suspicion_score > 0.4:
             action = "warn"

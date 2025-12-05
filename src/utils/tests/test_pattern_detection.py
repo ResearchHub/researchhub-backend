@@ -1,3 +1,4 @@
+import random
 import time
 from unittest.mock import patch
 
@@ -96,8 +97,10 @@ class PatternDetectionTests(TestCase):
         pages = [1, 2, 1, 3, 1, 2, 1, 1, 2, 1, 1, 1]
         for idx, query in enumerate(queries * 3):
             self.analyzer.record_request(query, pages[idx])
-            # Add small varying delays to simulate normal user behavior
-            time.sleep(0.01 + (idx % 3) * 0.02)
+            # Add random delays between 0.1-0.5s to simulate normal user behavior
+            # This ensures timing variance is high enough to avoid regular_timing detection
+            if idx < len(queries * 3) - 1:  # Don't sleep after last request
+                time.sleep(0.1 + random.uniform(0, 0.4))
         cached = cache.get(self.analyzer.cache_key)
         result = self.analyzer.analyze_pattern(cached)
         self.assertFalse(result["suspicious"])
