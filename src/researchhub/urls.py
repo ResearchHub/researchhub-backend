@@ -204,6 +204,11 @@ urlpatterns = [
 
     # Nested routes for list items
     path(
+        "api/list/default/item/",
+        ListItemViewSet.as_view({"post": "create"}),
+        name="list-item-favorite-add",
+    ),
+    path(
         "api/list/<int:list_id>/item/",
         ListItemViewSet.as_view({"get": "list", "post": "create"}),
         name="list-items",
