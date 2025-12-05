@@ -2,6 +2,7 @@ import logging
 from typing import Dict, List, Optional
 
 from django.conf import settings
+from xdk import Client
 
 from ..base import RateLimiter
 
@@ -64,14 +65,7 @@ class XClient:
             )
 
         if self._client is None:
-            try:
-                from xdk import Client
-
-                self._client = Client(bearer_token=self.bearer_token)
-            except ImportError:
-                raise ImportError(
-                    "xdk package is not installed. " "Install it with: pip install xdk"
-                )
+            self._client = Client(bearer_token=self.bearer_token)
 
         logger.info("X client initialized successfully")
 
