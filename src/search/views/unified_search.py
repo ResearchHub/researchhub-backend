@@ -94,9 +94,11 @@ class UnifiedSearchView(APIView):
         try:
             validate_request_headers(request)
         except PermissionDenied as e:
+            user_agent = request.META.get("HTTP_USER_AGENT", "N/A")
+            user_agent_hash = hash(user_agent) % 10000 if user_agent != "N/A" else "N/A"
             logger.warning(
                 f"Bot detection blocked request from IP: {ip}, "
-                f"User-Agent: {request.META.get('HTTP_USER_AGENT', 'N/A')}, "
+                f"User-Agent hash: {user_agent_hash}, "
                 f"Error: {str(e)}"
             )
             return Response(
@@ -128,8 +130,9 @@ class UnifiedSearchView(APIView):
 
         is_valid, error_msg = validate_query(query)
         if not is_valid:
+            query_hash = hash(query) % 10000
             logger.warning(
-                f"Invalid query blocked: query='{query[:50]}...' from IP: {ip}, "
+                f"Invalid query blocked: query_hash={query_hash} from IP: {ip}, "
                 f"Error: {error_msg}"
             )
             return Response(

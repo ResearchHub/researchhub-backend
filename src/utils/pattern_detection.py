@@ -68,15 +68,83 @@ class RequestPatternAnalyzer:
         # Analyze pattern
         return self.analyze_pattern(requests)
 
+    def _check_sequential_pages(self, pages: List[int]) -> dict | None:
+        if len(pages) < MIN_REQUESTS_FOR_ANALYSIS:
+            return None
+        is_sequential = all(
+            pages[i] <= pages[i + 1] for i in range(len(pages) - 1)
+        )
+        if is_sequential:
+            page_range = max(pages) - min(pages)
+            if page_range >= SEQUENTIAL_PAGE_THRESHOLD:
+                return {
+                    "type": "sequential_pages",
+                    "severity": "high",
+                    "details": f"Pages {min(pages)}-{max(pages)} accessed sequentially",
+                }
+        return None
+
+    def _check_identical_queries(self, queries: List[str]) -> dict | None:
+        unique_queries = len(set(queries))
+        if len(queries) >= IDENTICAL_QUERY_THRESHOLD and unique_queries == 1:
+            return {
+                "type": "repeated_query",
+                "severity": "high",
+                "details": f"Same query repeated {len(queries)} times",
+            }
+        return None
+
+    def _check_regular_timing(self, timestamps: List[float]) -> dict | None:
+        if len(timestamps) < MIN_REQUESTS_FOR_ANALYSIS:
+            return None
+        intervals = [
+            timestamps[i + 1] - timestamps[i] for i in range(len(timestamps) - 1)
+        ]
+        if not intervals:
+            return None
+        avg_interval = sum(intervals) / len(intervals)
+        variance = sum((i - avg_interval) ** 2 for i in intervals) / len(intervals)
+        if variance < TIMING_VARIANCE_THRESHOLD and avg_interval > 0:
+            return {
+                "type": "regular_timing",
+                "severity": "medium",
+                "details": f"Requests every {avg_interval:.1f}s with low variance ({variance:.3f})",
+            }
+        return None
+
+    def _check_short_queries(self, queries: List[str]) -> dict | None:
+        if len(queries) < MIN_REQUESTS_FOR_ANALYSIS:
+            return None
+        short_queries = sum(1 for q in queries if len(q) <= 2)
+        if short_queries / len(queries) > SHORT_QUERY_RATIO_THRESHOLD:
+            return {
+                "type": "short_queries",
+                "severity": "medium",
+                "details": f"{short_queries}/{len(queries)} queries are 1-2 chars",
+            }
+        return None
+
+    def _check_alphabetical_scraping(self, queries: List[str]) -> dict | None:
+        if len(queries) < MIN_REQUESTS_FOR_ANALYSIS:
+            return None
+        single_char_queries = [q for q in queries if len(q) == 1]
+        if len(single_char_queries) >= 5:
+            is_alphabetical = all(
+                ord(single_char_queries[i]) <= ord(single_char_queries[i + 1])
+                for i in range(len(single_char_queries) - 1)
+            )
+            if is_alphabetical:
+                return {
+                    "type": "alphabetical_scraping",
+                    "severity": "critical",
+                    "details": "Queries follow alphabetical pattern",
+                }
+        return None
+
     def analyze_pattern(self, requests: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        Analyze requests for suspicious patterns.
-        Returns dict with analysis results.
-        """
         if len(requests) < MIN_REQUESTS_FOR_ANALYSIS:
             return {"suspicious": False, "reason": None, "score": 0.0, "action": "allow"}
 
-        # Extract sequences
         queries = [r["query"] for r in requests]
         pages = [r["page"] for r in requests]
         timestamps = [r["timestamp"] for r in requests]
@@ -84,92 +152,31 @@ class RequestPatternAnalyzer:
         issues = []
         severity_scores = {"critical": 1.0, "high": 0.7, "medium": 0.4, "low": 0.2}
 
-        # Check 1: Sequential page access
-        if len(pages) >= MIN_REQUESTS_FOR_ANALYSIS:
-            # Check if pages are sequential (monotonically increasing)
-            is_sequential = all(
-                pages[i] <= pages[i + 1] for i in range(len(pages) - 1)
-            )
-            if is_sequential:
-                page_range = max(pages) - min(pages)
-                if page_range >= SEQUENTIAL_PAGE_THRESHOLD:
-                    issues.append(
-                        {
-                            "type": "sequential_pages",
-                            "severity": "high",
-                            "details": f"Pages {min(pages)}-{max(pages)} accessed sequentially",
-                        }
-                    )
+        issue = self._check_sequential_pages(pages)
+        if issue:
+            issues.append(issue)
 
-        # Check 2: Identical queries
-        unique_queries = len(set(queries))
-        if len(queries) >= IDENTICAL_QUERY_THRESHOLD and unique_queries == 1:
-            issues.append(
-                {
-                    "type": "repeated_query",
-                    "severity": "high",
-                    "details": f"Same query repeated {len(queries)} times",
-                }
-            )
+        issue = self._check_identical_queries(queries)
+        if issue:
+            issues.append(issue)
 
-        # Check 3: Regular timing (low variance)
-        if len(timestamps) >= MIN_REQUESTS_FOR_ANALYSIS:
-            intervals = [
-                timestamps[i + 1] - timestamps[i] for i in range(len(timestamps) - 1)
-            ]
-            if intervals:
-                avg_interval = sum(intervals) / len(intervals)
-                variance = sum((i - avg_interval) ** 2 for i in intervals) / len(
-                    intervals
-                )
+        issue = self._check_regular_timing(timestamps)
+        if issue:
+            issues.append(issue)
 
-                # Low variance = robotic timing
-                if variance < TIMING_VARIANCE_THRESHOLD and avg_interval > 0:
-                    issues.append(
-                        {
-                            "type": "regular_timing",
-                            "severity": "medium",
-                            "details": f"Requests every {avg_interval:.1f}s with low variance ({variance:.3f})",
-                        }
-                    )
+        issue = self._check_short_queries(queries)
+        if issue:
+            issues.append(issue)
 
-        # Check 4: Single-character queries (alphabetical scraping)
-        if len(queries) >= MIN_REQUESTS_FOR_ANALYSIS:
-            short_queries = sum(1 for q in queries if len(q) <= 2)
-            if short_queries / len(queries) > SHORT_QUERY_RATIO_THRESHOLD:
-                issues.append(
-                    {
-                        "type": "short_queries",
-                        "severity": "medium",
-                        "details": f"{short_queries}/{len(queries)} queries are 1-2 chars",
-                    }
-                )
+        issue = self._check_alphabetical_scraping(queries)
+        if issue:
+            issues.append(issue)
 
-        # Check 5: Alphabetical progression
-        if len(queries) >= MIN_REQUESTS_FOR_ANALYSIS:
-            single_char_queries = [q for q in queries if len(q) == 1]
-            if len(single_char_queries) >= 5:
-                # Check if they follow alphabetical order
-                is_alphabetical = all(
-                    ord(single_char_queries[i]) <= ord(single_char_queries[i + 1])
-                    for i in range(len(single_char_queries) - 1)
-                )
-                if is_alphabetical:
-                    issues.append(
-                        {
-                            "type": "alphabetical_scraping",
-                            "severity": "critical",
-                            "details": "Queries follow alphabetical pattern",
-                        }
-                    )
-
-        # Calculate overall suspicion score
         suspicion_score = sum(
             severity_scores.get(i["severity"], 0.2) for i in issues
         )
-        suspicion_score = min(suspicion_score, 1.0)  # Cap at 1.0
+        suspicion_score = min(suspicion_score, 1.0)
 
-        # Determine action
         if suspicion_score > 0.7:
             action = "block"
         elif suspicion_score > 0.4:

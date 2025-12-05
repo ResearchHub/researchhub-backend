@@ -86,6 +86,9 @@ class BotDetectionTests(TestCase):
         self.request.META = {
             "HTTP_USER_AGENT": "Mozilla/5.0 (compatible; Googlebot/2.1)",
             "HTTP_X_FORWARDED_FOR": "66.249.64.1",
+            "HTTP_ACCEPT": "text/html,application/json",
+            "HTTP_ACCEPT_LANGUAGE": "en-US,en;q=0.9",
+            "HTTP_ACCEPT_ENCODING": "gzip, deflate, br",
         }
         try:
             validate_request_headers(self.request)

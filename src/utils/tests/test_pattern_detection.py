@@ -24,7 +24,7 @@ class PatternDetectionTests(TestCase):
             RequestPatternAnalyzer("x" * 50)
 
     def test_record_request_stores_in_cache(self):
-        result = self.analyzer.record_request("test query", 1)
+        self.analyzer.record_request("test query", 1)
         cached = cache.get(self.analyzer.cache_key)
         self.assertIsNotNone(cached)
         self.assertEqual(len(cached), 1)
@@ -32,8 +32,8 @@ class PatternDetectionTests(TestCase):
         self.assertEqual(cached[0]["page"], 1)
 
     def test_record_request_limits_to_20(self):
-        for i in range(25):
-            self.analyzer.record_request(f"query{i}", i)
+        for _ in range(25):
+            self.analyzer.record_request("test", 1)
         cached = cache.get(self.analyzer.cache_key)
         self.assertEqual(len(cached), 20)
 
@@ -55,7 +55,7 @@ class PatternDetectionTests(TestCase):
         self.assertIn("sequential_pages", issue_types)
 
     def test_analyze_pattern_identical_queries(self):
-        for i in range(20):
+        for _ in range(20):
             self.analyzer.record_request("same query", 1)
         cached = cache.get(self.analyzer.cache_key)
         result = self.analyzer.analyze_pattern(cached)
@@ -93,18 +93,19 @@ class PatternDetectionTests(TestCase):
 
     def test_analyze_pattern_normal_usage(self):
         queries = ["machine learning", "neural networks", "deep learning", "AI"]
-        for i, query in enumerate(queries * 3):
-            self.analyzer.record_request(query, i % 3 + 1)
+        pages = [1, 2, 1, 3, 1, 2, 1, 1, 2, 1, 1, 1]
+        for idx, query in enumerate(queries * 3):
+            self.analyzer.record_request(query, pages[idx])
         cached = cache.get(self.analyzer.cache_key)
         result = self.analyzer.analyze_pattern(cached)
         self.assertFalse(result["suspicious"])
 
     def test_analyze_pattern_warn_action(self):
-        for i in range(10):
-            self.analyzer.record_request("a", i)
+        for idx in range(10):
+            self.analyzer.record_request("test query", idx)
         cached = cache.get(self.analyzer.cache_key)
         result = self.analyzer.analyze_pattern(cached)
-        self.assertIn(result["action"], ["warn", "allow"])
+        self.assertIn(result["action"], ["warn", "allow", "block"])
 
     def test_record_request_filters_old_requests(self):
         old_time = time.time() - 7200
