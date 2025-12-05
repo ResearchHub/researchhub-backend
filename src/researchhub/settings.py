@@ -352,6 +352,11 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_THROTTLE_RATES": {
         "anon": "50/minute",
+        # Search-specific throttle rates
+        "search_anon": "20/minute",
+        "search_anon_burst": "5/second",
+        "search_anon_daily": "500/day",
+        "search_user": "100/minute",
     },
     "TEST_REQUEST_DEFAULT_FORMAT": "json",
 }
