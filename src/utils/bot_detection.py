@@ -88,6 +88,44 @@ def is_blocked_user_agent(user_agent: str) -> bool:
     return False
 
 
+def _check_missing_headers(accept_language: str, accept_encoding: str) -> list:
+    issues = []
+    if not accept_language:
+        issues.append("missing_accept_language")
+    if not accept_encoding:
+        issues.append("missing_accept_encoding")
+    return issues
+
+
+def _check_chrome_headers(request, user_agent: str) -> list:
+    issues = []
+    if "chrome" in user_agent.lower():
+        sec_ch_ua = request.META.get("HTTP_SEC_CH_UA", "")
+        if not sec_ch_ua and "mobile" not in user_agent.lower():
+            if not is_allowed_bot(user_agent):
+                issues.append("fake_chrome_ua")
+    return issues
+
+
+def _check_accept_header(user_agent: str, accept: str) -> list:
+    issues = []
+    if "mozilla" in user_agent.lower() and "text/html" not in accept.lower():
+        if "application/json" not in accept.lower():
+            if not is_allowed_bot(user_agent):
+                issues.append("ua_accept_mismatch")
+    return issues
+
+
+def _check_js_headers(request, user_agent: str) -> list:
+    issues = []
+    sec_fetch_dest = request.META.get("HTTP_SEC_FETCH_DEST", "")
+    if sec_fetch_dest and any(
+        bot in user_agent.lower() for bot in ["bot", "crawler", "spider"]
+    ):
+        issues.append("bot_with_js_headers")
+    return issues
+
+
 def calculate_browser_fingerprint(request) -> dict:
     """
     Analyze request headers for bot-like patterns.
@@ -99,36 +137,15 @@ def calculate_browser_fingerprint(request) -> dict:
     accept_encoding = request.META.get("HTTP_ACCEPT_ENCODING", "")
 
     issues = []
-
-    # Missing common browser headers
-    if not accept_language:
-        issues.append("missing_accept_language")
-
-    if not accept_encoding:
-        issues.append("missing_accept_encoding")
-
-    if "chrome" in user_agent.lower():
-        sec_ch_ua = request.META.get("HTTP_SEC_CH_UA", "")
-        if not sec_ch_ua and "mobile" not in user_agent.lower():
-            if not is_allowed_bot(user_agent):
-                issues.append("fake_chrome_ua")
-
-    if "mozilla" in user_agent.lower() and "text/html" not in accept.lower():
-        if "application/json" not in accept.lower():
-            if not is_allowed_bot(user_agent):
-                issues.append("ua_accept_mismatch")
-
-    # JavaScript-only headers present but UA says bot
-    sec_fetch_dest = request.META.get("HTTP_SEC_FETCH_DEST", "")
-    if sec_fetch_dest and any(
-        bot in user_agent.lower() for bot in ["bot", "crawler", "spider"]
-    ):
-        issues.append("bot_with_js_headers")
+    issues.extend(_check_missing_headers(accept_language, accept_encoding))
+    issues.extend(_check_chrome_headers(request, user_agent))
+    issues.extend(_check_accept_header(user_agent, accept))
+    issues.extend(_check_js_headers(request, user_agent))
 
     return {
         "suspicious": len(issues) > 0,
         "issues": issues,
-        "confidence": min(len(issues) * 0.25, 1.0),  # 0-1 scale
+        "confidence": min(len(issues) * 0.25, 1.0),
     }
 
 

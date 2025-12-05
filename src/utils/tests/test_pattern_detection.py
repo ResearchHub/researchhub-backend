@@ -74,7 +74,7 @@ class PatternDetectionTests(TestCase):
         self.assertIn("regular_timing", issue_types)
 
     def test_analyze_pattern_short_queries(self):
-        for i in range(10):
+        for _ in range(10):
             self.analyzer.record_request("a", 1)
         cached = cache.get(self.analyzer.cache_key)
         result = self.analyzer.analyze_pattern(cached)
