@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock, Mock, patch
 
+from django.core.cache import cache
 from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -9,6 +10,11 @@ from search.services.unified_search_query_builder import (
     FieldConfig,
 )
 from search.services.unified_search_service import UnifiedSearchService
+from search.views.unified_search import (
+    MAX_PAGE_NUMBER,
+    UnifiedSearchView,
+    validate_query,
+)
 
 
 class UnifiedSearchServiceTests(TestCase):
@@ -164,23 +170,36 @@ class UnifiedSearchServiceTests(TestCase):
 
 class UnifiedSearchViewTests(TestCase):
     def setUp(self):
+        cache.clear()
         self.client = APIClient()
         self.url = "/api/search/"
 
     def test_missing_query_parameter(self):
-        response = self.client.get(self.url)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("q", response.data)
+        cache.clear()
+        original_throttle_classes = UnifiedSearchView.throttle_classes
+        UnifiedSearchView.throttle_classes = []
+        try:
+            with (
+                patch("search.views.unified_search.validate_request_headers"),
+                patch("search.views.unified_search.RequestPatternAnalyzer"),
+            ):
+                response = self.client.get(self.url)
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn("q", response.data)
+        finally:
+            UnifiedSearchView.throttle_classes = original_throttle_classes
 
     def test_empty_query_parameter(self):
-        response = self.client.get(self.url, {"q": ""})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("q", response.data)
+        with patch("search.views.unified_search.validate_request_headers"):
+            response = self.client.get(self.url, {"q": ""})
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+            self.assertIn("q", response.data)
 
     def test_invalid_sort_parameter(self):
-        response = self.client.get(self.url, {"q": "test", "sort": "invalid"})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("sort", response.data)
+        with patch("search.views.unified_search.validate_request_headers"):
+            response = self.client.get(self.url, {"q": "test", "sort": "invalid"})
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+            self.assertIn("sort", response.data)
 
     def test_pagination_urls(self):
         service = UnifiedSearchService()
@@ -195,3 +214,159 @@ class UnifiedSearchViewTests(TestCase):
         self.assertIn("page=2", url)
         self.assertIn("page_size=10", url)
         self.assertIn("sort=relevance", url)
+
+    def test_query_validation_too_short(self):
+        is_valid, error_msg = validate_query("a")
+        self.assertFalse(is_valid)
+        self.assertIn("at least 2 characters", error_msg)
+
+    def test_query_validation_too_long(self):
+        long_query = "a" * 201
+        is_valid, error_msg = validate_query(long_query)
+        self.assertFalse(is_valid)
+        self.assertIn("exceed 200 characters", error_msg)
+
+    def test_query_validation_xss_attempt(self):
+        is_valid, error_msg = validate_query("test<script>alert('xss')</script>")
+        self.assertFalse(is_valid)
+        self.assertIn("Invalid query pattern", error_msg)
+
+    def test_query_validation_wildcard_abuse(self):
+        is_valid, error_msg = validate_query("test" + "*" * 15)
+        self.assertFalse(is_valid)
+        self.assertIn("Invalid query pattern", error_msg)
+
+    def test_query_validation_excessive_special_chars(self):
+        is_valid, error_msg = validate_query("!@#$%^&*()!@#$%^&*()")
+        self.assertFalse(is_valid)
+        self.assertIn("too many special characters", error_msg)
+
+    def test_query_validation_valid_query(self):
+        is_valid, error_msg = validate_query("machine learning")
+        self.assertTrue(is_valid)
+        self.assertEqual(error_msg, "")
+
+    def test_page_limit_exceeded(self):
+        cache.clear()
+        original_throttle_classes = UnifiedSearchView.throttle_classes
+        UnifiedSearchView.throttle_classes = []
+        try:
+            with (
+                patch("search.views.unified_search.validate_request_headers"),
+                patch("search.views.unified_search.RequestPatternAnalyzer"),
+            ):
+                response = self.client.get(
+                    self.url, {"q": "test", "page": MAX_PAGE_NUMBER + 1}
+                )
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn("error", response.data)
+                self.assertIn(str(MAX_PAGE_NUMBER), response.data["error"])
+        finally:
+            UnifiedSearchView.throttle_classes = original_throttle_classes
+
+    def test_page_limit_valid(self):
+        with (
+            patch("search.views.unified_search.validate_request_headers"),
+            patch("search.views.unified_search.RequestPatternAnalyzer"),
+            patch.object(
+                UnifiedSearchService,
+                "search",
+                return_value={"count": 0, "documents": []},
+            ),
+        ):
+            response = self.client.get(self.url, {"q": "test", "page": MAX_PAGE_NUMBER})
+            self.assertNotEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_bot_detection_blocks_python_requests(self):
+        response = self.client.get(
+            self.url,
+            {"q": "test"},
+            HTTP_USER_AGENT="python-requests/2.28.0",
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn("error", response.data)
+        self.assertIn("Automated requests", response.data["error"])
+
+    def test_bot_detection_allows_googlebot(self):
+        with (
+            patch("search.views.unified_search.RequestPatternAnalyzer"),
+            patch.object(
+                UnifiedSearchService,
+                "search",
+                return_value={"count": 0, "documents": []},
+            ),
+        ):
+            response = self.client.get(
+                self.url,
+                {"q": "test"},
+                HTTP_USER_AGENT="Mozilla/5.0 (compatible; Googlebot/2.1)",
+                HTTP_ACCEPT="text/html,application/json",
+                HTTP_ACCEPT_LANGUAGE="en-US,en;q=0.9",
+                HTTP_ACCEPT_ENCODING="gzip, deflate, br",
+            )
+            self.assertNotEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_bot_detection_allows_regular_browser(self):
+        with (
+            patch("search.views.unified_search.RequestPatternAnalyzer"),
+            patch.object(
+                UnifiedSearchService,
+                "search",
+                return_value={"count": 0, "documents": []},
+            ),
+        ):
+            response = self.client.get(
+                self.url,
+                {"q": "test"},
+                HTTP_USER_AGENT="Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                HTTP_ACCEPT="text/html,application/json",
+                HTTP_ACCEPT_LANGUAGE="en-US,en;q=0.9",
+                HTTP_ACCEPT_ENCODING="gzip, deflate, br",
+            )
+            self.assertNotEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_pattern_detection_blocks_sequential_pages(self):
+        cache.clear()
+        with (
+            patch("search.views.unified_search.validate_request_headers"),
+            patch.object(
+                UnifiedSearchService,
+                "search",
+                return_value={"count": 0, "documents": []},
+            ),
+        ):
+            blocked = False
+            for page in range(1, 11):
+                response = self.client.get(
+                    self.url,
+                    {"q": "test", "page": page},
+                    REMOTE_ADDR="192.168.1.1",
+                )
+                if response.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
+                    if "error" in response.data:
+                        self.assertIn("Suspicious activity", response.data["error"])
+                    self.assertIn("Retry-After", response.headers)
+                    blocked = True
+                    break
+            self.assertTrue(blocked, "Should have been blocked by pattern detection")
+
+    def test_pattern_detection_allows_normal_usage(self):
+        cache.clear()
+        with (
+            patch("search.views.unified_search.validate_request_headers"),
+            patch.object(
+                UnifiedSearchService,
+                "search",
+                return_value={"count": 0, "documents": []},
+            ),
+        ):
+            queries = ["machine learning", "neural networks", "deep learning"]
+            for query in queries:
+                response = self.client.get(
+                    self.url,
+                    {"q": query, "page": 1},
+                    REMOTE_ADDR="192.168.1.2",
+                )
+                self.assertNotEqual(
+                    response.status_code, status.HTTP_429_TOO_MANY_REQUESTS
+                )
