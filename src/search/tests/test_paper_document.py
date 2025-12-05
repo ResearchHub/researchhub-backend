@@ -12,6 +12,18 @@ from paper.tests.helpers import create_paper
 from search.documents.paper import PaperDocument
 
 
+def create_feed_entry_for_paper(paper, hot_score_v2=0):
+    paper_content_type = ContentType.objects.get_for_model(Paper)
+    return FeedEntry.objects.create(
+        content_type=paper_content_type,
+        object_id=paper.id,
+        action=FeedEntry.PUBLISH,
+        action_date=timezone.now(),
+        hot_score_v2=hot_score_v2,
+        unified_document=paper.unified_document,
+    )
+
+
 class MockPresentParticiple:
     """Mock object to simulate present_participle behavior"""
 
@@ -241,12 +253,7 @@ class PaperDocumentTests(TestCase):
 
     def test_prepare_hot_score_v2_with_feed_entry(self):
         paper = create_paper(title="Hot Paper")
-        paper_content_type = ContentType.objects.get_for_model(Paper)
-        FeedEntry.objects.create(
-            content_type=paper_content_type,
-            object_id=paper.id,
-            hot_score_v2=150,
-        )
+        create_feed_entry_for_paper(paper, hot_score_v2=150)
 
         result = self.document.prepare_hot_score_v2(paper)
 
