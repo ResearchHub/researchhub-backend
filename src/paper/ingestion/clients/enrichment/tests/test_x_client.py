@@ -41,10 +41,10 @@ class TestXClient(TestCase):
         self.assertIn("bearer token not provided", str(context.exception).lower())
 
     @patch("paper.ingestion.clients.enrichment.x.RateLimiter.wait_if_needed")
-    def test_search_recent_posts_success(self, mock_rate_limiter):
+    def test_search_posts_success(self, mock_rate_limiter):
         """Test successful post search."""
-        mock_response = Mock()
-        mock_response.data = [
+        mock_page = Mock()
+        mock_page.data = [
             {
                 "id": "1234567890",
                 "text": "Check out this paper! 10.1038/nature12373",
@@ -59,10 +59,10 @@ class TestXClient(TestCase):
                 },
             }
         ]
-        mock_response.meta = {"result_count": 1}
-        self.mock_xdk_client.posts.search_recent.return_value = mock_response
+        # Mock the generator to yield a single page
+        self.mock_xdk_client.posts.search_all.return_value = iter([mock_page])
 
-        result = self.client.search_recent_posts("10.1038/nature12373")
+        result = self.client.search_posts("10.1038/nature12373")
 
         self.assertIsNotNone(result)
         posts = result.get("posts", [])
@@ -73,36 +73,36 @@ class TestXClient(TestCase):
         mock_rate_limiter.assert_called_once()
 
     @patch("paper.ingestion.clients.enrichment.x.RateLimiter.wait_if_needed")
-    def test_search_recent_posts_no_results(self, mock_rate_limiter):
+    def test_search_posts_no_results(self, mock_rate_limiter):
         """Test post search when no posts found."""
-        mock_response = Mock()
-        mock_response.data = None
-        self.mock_xdk_client.posts.search_recent.return_value = mock_response
+        mock_page = Mock()
+        mock_page.data = None
+        self.mock_xdk_client.posts.search_all.return_value = iter([mock_page])
 
-        result = self.client.search_recent_posts("10.1038/nonexistent")
+        result = self.client.search_posts("10.1038/nonexistent")
 
         self.assertIsNotNone(result)
         self.assertEqual(result["posts"], [])
 
     @patch("paper.ingestion.clients.enrichment.x.RateLimiter.wait_if_needed")
-    def test_search_recent_posts_api_error(self, mock_rate_limiter):
+    def test_search_posts_api_error(self, mock_rate_limiter):
         """Test post search with API error."""
-        self.mock_xdk_client.posts.search_recent.side_effect = Exception(
+        self.mock_xdk_client.posts.search_all.side_effect = Exception(
             "401 Unauthorized"
         )
 
         with self.assertRaises(Exception):
-            self.client.search_recent_posts("test-query")
+            self.client.search_posts("test-query")
 
     @patch("paper.ingestion.clients.enrichment.x.RateLimiter.wait_if_needed")
-    def test_search_recent_posts_rate_limit_error(self, mock_rate_limiter):
+    def test_search_posts_rate_limit_error(self, mock_rate_limiter):
         """Test post search with rate limit error."""
-        self.mock_xdk_client.posts.search_recent.side_effect = Exception(
+        self.mock_xdk_client.posts.search_all.side_effect = Exception(
             "429 Too Many Requests"
         )
 
         with self.assertRaises(Exception):
-            self.client.search_recent_posts("test-query")
+            self.client.search_posts("test-query")
 
     @patch("paper.ingestion.clients.enrichment.x.RateLimiter.wait_if_needed")
     def test_parse_post_dict_format(self, mock_rate_limiter):
@@ -212,7 +212,7 @@ class TestXMetricsClient(TestCase):
 
     def test_get_metrics_success(self):
         """Test successful metrics retrieval."""
-        self.x_client.search_recent_posts.return_value = {
+        self.x_client.search_posts.return_value = {
             "posts": [
                 {
                     "id": "123",
@@ -234,13 +234,13 @@ class TestXMetricsClient(TestCase):
         self.assertEqual(result["post_count"], 1)
         self.assertEqual(result["total_likes"], 10)
         self.assertEqual(result["total_impressions"], 100)
-        self.x_client.search_recent_posts.assert_called_once_with(
+        self.x_client.search_posts.assert_called_once_with(
             query="10.1038/test", max_results=100
         )
 
     def test_get_metrics_no_posts(self):
         """Test metrics retrieval when no posts found."""
-        self.x_client.search_recent_posts.return_value = {"posts": []}
+        self.x_client.search_posts.return_value = {"posts": []}
 
         result = self.metrics_client.get_metrics("10.1038/nonexistent")
 
@@ -248,7 +248,7 @@ class TestXMetricsClient(TestCase):
 
     def test_get_metrics_no_response(self):
         """Test metrics retrieval when API returns None."""
-        self.x_client.search_recent_posts.return_value = None
+        self.x_client.search_posts.return_value = None
 
         result = self.metrics_client.get_metrics("10.1038/test")
 
@@ -256,7 +256,7 @@ class TestXMetricsClient(TestCase):
 
     def test_get_metrics_api_error(self):
         """Test metrics retrieval when API raises exception."""
-        self.x_client.search_recent_posts.side_effect = Exception("API Error")
+        self.x_client.search_posts.side_effect = Exception("API Error")
 
         result = self.metrics_client.get_metrics("10.1038/test")
 
@@ -264,10 +264,10 @@ class TestXMetricsClient(TestCase):
 
     def test_get_metrics_with_custom_limit(self):
         """Test metrics retrieval with custom result limit."""
-        self.x_client.search_recent_posts.return_value = {"posts": []}
+        self.x_client.search_posts.return_value = {"posts": []}
 
         self.metrics_client.get_metrics("10.1038/test", max_results=50)
 
-        self.x_client.search_recent_posts.assert_called_once_with(
+        self.x_client.search_posts.assert_called_once_with(
             query="10.1038/test", max_results=50
         )

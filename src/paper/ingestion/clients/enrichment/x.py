@@ -69,9 +69,9 @@ class XClient:
 
         logger.info("X client initialized successfully")
 
-    def search_recent_posts(self, query: str, max_results: int = 10) -> Optional[Dict]:
+    def search_posts(self, query: str, max_results: int = 10) -> Optional[Dict]:
         """
-        Search for recent posts on X matching a query.
+        Search for recent posts on X matching a query (last 7 days).
 
         Args:
             query: Search query string
@@ -87,16 +87,21 @@ class XClient:
             # Limit max_results to API maximum
             max_results = min(max_results, self.MAX_SEARCH_RESULTS)
 
-            response = self._client.posts.search_recent(
+            all_posts = []
+            for page in self._client.posts.search_all(
                 query=query,
                 max_results=max_results,
                 tweet_fields=["public_metrics", "created_at", "author_id"],
-            )
+            ):
+                if hasattr(page, "data") and page.data:
+                    all_posts.extend(page.data)
+                # Only fetch first page to respect max_results
+                break
 
-            if response.data:
+            if all_posts:
                 return {
-                    "posts": [self._parse_post(post) for post in response.data],
-                    "meta": response.meta if hasattr(response, "meta") else {},
+                    "posts": [self._parse_post(post) for post in all_posts],
+                    "meta": {},
                 }
             return {"posts": [], "meta": {}}
 
@@ -193,7 +198,7 @@ class XMetricsClient:
             None if error occurred
         """
         try:
-            response_data = self.x_client.search_recent_posts(
+            response_data = self.x_client.search_posts(
                 query=term, max_results=max_results
             )
         except Exception as e:
