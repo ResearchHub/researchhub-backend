@@ -196,6 +196,7 @@ class Paper(AbstractGenericReactionModel):
             HashIndex(fields=("url",), name="paper_paper_url_hix"),
             HashIndex(fields=("pdf_url",), name="paper_paper_pdf_url_hix"),
             Index(Func("doi", function="UPPER"), name="paper_paper_doi_upper_idx"),
+            Index(fields=["paper_publish_date"], name="paper_paper_publish_date_idx"),
         )
 
     def __str__(self):
