@@ -218,7 +218,7 @@ class TestBioRxivMapper(TestCase):
         paper = mapper.map_to_paper(self.sample_record)
 
         # Act
-        hubs = mapper.map_to_hubs(paper, self.sample_record)
+        hubs = mapper.map_to_hubs(self.sample_record)
 
         # Assert
         mock_hub_mapper.map.assert_called_once_with("neuroscience", "biorxiv")
@@ -236,7 +236,7 @@ class TestBioRxivMapper(TestCase):
         paper = mapper.map_to_paper(self.sample_record)
 
         # Act
-        hubs = mapper.map_to_hubs(paper, self.sample_record)
+        hubs = mapper.map_to_hubs(self.sample_record)
 
         # Assert
         self.assertEqual(len(hubs), 1)
@@ -259,7 +259,7 @@ class TestBioRxivMapper(TestCase):
         paper = mapper.map_to_paper(self.sample_record)
 
         # Act
-        hubs = mapper.map_to_hubs(paper, self.sample_record)
+        hubs = mapper.map_to_hubs(self.sample_record)
 
         # Assert
         # Should only have 2 hubs, not duplicate the biorxiv hub
