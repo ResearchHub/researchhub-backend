@@ -26,14 +26,10 @@ class TestXClient(TestCase):
 
         self.assertIs(client1, client2)
 
-    @patch("paper.ingestion.clients.enrichment.x.settings")
-    def test_init_no_bearer_token(self, mock_settings):
+    def test_init_no_bearer_token(self):
         """Test initialization without bearer token."""
         # Reset singleton to test fresh initialization
         XClient._instance = None
-
-        # Mock settings to return empty token
-        mock_settings.X_BEARER_TOKEN = ""
 
         with self.assertRaises(ValueError) as context:
             XClient()
