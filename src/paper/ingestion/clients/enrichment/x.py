@@ -71,7 +71,7 @@ class XClient:
 
     def search_posts(self, query: str, max_results: int = 10) -> Optional[Dict]:
         """
-        Search for recent posts on X matching a query (last 7 days).
+        Search for posts on X matching a query.
 
         Args:
             query: Search query string
