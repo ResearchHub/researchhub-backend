@@ -17,7 +17,7 @@ class GithubClient:
     BASE_URL = "https://api.github.com"
     DEFAULT_TIMEOUT = 10
     # See: https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api
-    DEFAULT_RATE_LIMIT = 10.0
+    DEFAULT_RATE_LIMIT = 1.0
 
     def __init__(
         self,
