@@ -196,28 +196,9 @@ class UnifiedSearchService:
         search = search.query(filtered_query)
 
         # Sort by date to get the latest version
-        # Prefer updated_date if available (for posts), otherwise created_date
-        # This handles both papers (created_date only) and posts (both fields)
         search = search.sort(
-            {
-                "_script": {
-                    "type": "number",
-                    "script": {
-                        "source": (
-                            "if (doc.containsKey('updated_date') && "
-                            "!doc['updated_date'].empty) {"
-                            "  return doc['updated_date'].value.toEpochMilli();"
-                            "} else if (doc.containsKey('created_date') && "
-                            "!doc['created_date'].empty) {"
-                            "  return doc['created_date'].value.toEpochMilli();"
-                            "}"
-                            "return 0;"
-                        ),
-                        "lang": "painless",
-                    },
-                    "order": "desc",
-                }
-            }
+            {"updated_date": {"order": "desc", "missing": "_last"}},
+            {"created_date": {"order": "desc"}},
         )
 
         # Source filtering for performance (match document search fields)
