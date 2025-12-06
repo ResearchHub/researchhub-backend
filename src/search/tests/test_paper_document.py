@@ -1,12 +1,27 @@
 from datetime import date, datetime
 from unittest.mock import patch
 
+from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.test import TestCase
 from django.utils import timezone
 
+from feed.models import FeedEntry
+from paper.models import Paper
 from paper.tests.helpers import create_paper
 from search.documents.paper import PaperDocument
+
+
+def create_feed_entry_for_paper(paper, hot_score_v2=0):
+    paper_content_type = ContentType.objects.get_for_model(Paper)
+    return FeedEntry.objects.create(
+        content_type=paper_content_type,
+        object_id=paper.id,
+        action=FeedEntry.PUBLISH,
+        action_date=timezone.now(),
+        hot_score_v2=hot_score_v2,
+        unified_document=paper.unified_document,
+    )
 
 
 class MockPresentParticiple:
@@ -222,20 +237,42 @@ class PaperDocumentTests(TestCase):
         self.assertEqual(small_pks, large_pks)
 
     def test_prepare_paper_publish_date_converts_datetime_to_date(self):
-        """Test that prepare_paper_publish_date converts datetime to date"""
-        # arrange
         paper = create_paper(title="Test Paper")
         paper.paper_publish_date = timezone.make_aware(
             datetime(2025, 10, 27, 14, 30, 0)
         )
         paper.save()
 
-        # act
         result = self.document.prepare_paper_publish_date(paper)
 
-        # assert
         self.assertIsNotNone(result)
         self.assertIsInstance(result, date)
         self.assertEqual(result.year, 2025)
         self.assertEqual(result.month, 10)
         self.assertEqual(result.day, 27)
+
+    def test_prepare_hot_score_v2_with_feed_entry(self):
+        paper = create_paper(title="Hot Paper")
+        create_feed_entry_for_paper(paper, hot_score_v2=150)
+
+        result = self.document.prepare_hot_score_v2(paper)
+
+        self.assertEqual(result, 150)
+
+    def test_prepare_hot_score_v2_without_feed_entry(self):
+        paper = create_paper(title="Cold Paper")
+
+        result = self.document.prepare_hot_score_v2(paper)
+
+        self.assertEqual(result, 0)
+
+    def test_prepare_hot_score_v2_returns_zero_on_exception(self):
+        paper = create_paper(title="Error Paper")
+
+        with patch(
+            "search.documents.paper.ContentType.objects.get_for_model",
+            side_effect=Exception("DB error"),
+        ):
+            result = self.document.prepare_hot_score_v2(paper)
+
+        self.assertEqual(result, 0)
