@@ -161,6 +161,68 @@ class UnifiedSearchServiceTests(TestCase):
         query_dict = builder.build().to_dict()
         self.assertNotIn("multi_match", str(query_dict))
 
+    def test_add_fuzzy_strategy_single_word_title_gets_title_boost(self):
+        builder = DocumentQueryBuilder("test")
+        fields = [
+            FieldConfig("paper_title", boost=3.0, query_types=["fuzzy"]),
+            FieldConfig("title", boost=3.0, query_types=["fuzzy"]),
+        ]
+        builder.add_fuzzy_strategy_single_word(fields)
+        query_dict = builder.build().to_dict()
+        multi_match = query_dict["bool"]["should"][0]["multi_match"]
+        fields_in_query = multi_match["fields"]
+        # Single-word title boost is 4.0 by default
+        self.assertIn("paper_title^4", fields_in_query)
+        self.assertIn("title^4", fields_in_query)
+
+    def test_add_fuzzy_strategy_single_word_author_gets_author_boost(self):
+        builder = DocumentQueryBuilder("smith")
+        fields = [
+            FieldConfig("raw_authors.full_name", boost=3.0, query_types=["fuzzy"]),
+            FieldConfig("authors.last_name", boost=2.5, query_types=["fuzzy"]),
+        ]
+        builder.add_fuzzy_strategy_single_word(fields)
+        query_dict = builder.build().to_dict()
+        multi_match = query_dict["bool"]["should"][0]["multi_match"]
+        fields_in_query = multi_match["fields"]
+        # Single-word author boost is 2.0 by default
+        self.assertIn("raw_authors.full_name^2", fields_in_query)
+        self.assertIn("authors.last_name^2", fields_in_query)
+
+    def test_add_fuzzy_strategy_single_word_other_fields_get_base_boost(self):
+        builder = DocumentQueryBuilder("test")
+        fields = [
+            FieldConfig("abstract", boost=1.5, query_types=["fuzzy"]),
+        ]
+        builder.add_fuzzy_strategy_single_word(fields)
+        query_dict = builder.build().to_dict()
+        multi_match = query_dict["bool"]["should"][0]["multi_match"]
+        fields_in_query = multi_match["fields"]
+        # Non-title/author fields use their base boost
+        self.assertIn("abstract^1.5", fields_in_query)
+
+    def test_add_fuzzy_strategy_single_word_skips_non_fuzzy_fields(self):
+        builder = DocumentQueryBuilder("test")
+        fields = [
+            FieldConfig("paper_title", boost=3.0, query_types=["fuzzy"]),
+            FieldConfig("abstract", boost=1.0, query_types=["phrase"]),
+        ]
+        builder.add_fuzzy_strategy_single_word(fields)
+        query_dict = builder.build().to_dict()
+        multi_match = query_dict["bool"]["should"][0]["multi_match"]
+        fields_in_query = multi_match["fields"]
+        self.assertIn("paper_title^4", fields_in_query)
+        self.assertNotIn("abstract", str(fields_in_query))
+
+    def test_add_fuzzy_strategy_single_word_uses_strict_fuzziness(self):
+        builder = DocumentQueryBuilder("test")
+        fields = [FieldConfig("title", boost=3.0, query_types=["fuzzy"])]
+        builder.add_fuzzy_strategy_single_word(fields)
+        query_dict = builder.build().to_dict()
+        multi_match = query_dict["bool"]["should"][0]["multi_match"]
+        # Default single-word fuzziness is 1 (stricter than AUTO)
+        self.assertEqual(multi_match["fuzziness"], 1)
+
 
 class UnifiedSearchViewTests(TestCase):
     def setUp(self):
