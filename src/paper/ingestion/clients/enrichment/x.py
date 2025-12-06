@@ -67,8 +67,6 @@ class XClient:
         if self._client is None:
             self._client = Client(bearer_token=self.bearer_token)
 
-        logger.info("X client initialized successfully")
-
     def search_posts(self, query: str, max_results: int = 10) -> Optional[Dict]:
         """
         Search for posts on X matching a query.
