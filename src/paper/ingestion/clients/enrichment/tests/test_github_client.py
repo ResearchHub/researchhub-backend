@@ -131,12 +131,12 @@ class TestGithubMetricsClient(TestCase):
         ]
 
         # Act
-        result = self.client.get_mentions("10.1234/test")
+        result = self.client.get_mentions(["10.1234/test"])
 
         # Assert
         self.assertIsNotNone(result)
         self.assertEqual(result["total_mentions"], 10)
-        self.assertEqual(result["term"], "10.1234/test")
+        self.assertEqual(result["terms"], ["10.1234/test"])
         self.assertEqual(result["breakdown"]["issues"], 5)
         self.assertEqual(result["breakdown"]["commits"], 3)
         self.assertEqual(result["breakdown"]["repositories"], 2)
@@ -149,12 +149,12 @@ class TestGithubMetricsClient(TestCase):
         self.mock_github_client.search.return_value = {"total_count": 0, "items": []}
 
         # Act
-        result = self.client.get_mentions("10.1234/notfound")
+        result = self.client.get_mentions(["10.1234/notfound"])
 
         # Assert - Should return valid response with 0 counts
         assert result is not None
         self.assertEqual(result["total_mentions"], 0)
-        self.assertEqual(result["term"], "10.1234/notfound")
+        self.assertEqual(result["terms"], ["10.1234/notfound"])
         self.assertEqual(result["breakdown"]["issues"], 0)
         self.assertEqual(result["breakdown"]["commits"], 0)
         self.assertEqual(result["breakdown"]["repositories"], 0)
@@ -171,7 +171,7 @@ class TestGithubMetricsClient(TestCase):
         ]
 
         # Act
-        result = self.client.get_mentions("10.1234/test")
+        result = self.client.get_mentions(["10.1234/test"])
 
         # Assert
         self.assertIsNotNone(result)
@@ -189,7 +189,7 @@ class TestGithubMetricsClient(TestCase):
         self.mock_github_client.search.return_value = None
 
         # Act
-        result = self.client.get_mentions("10.1234/test")
+        result = self.client.get_mentions(["10.1234/test"])
 
         # Assert
         self.assertIsNone(result)
@@ -271,5 +271,60 @@ class TestGithubMetricsClient(TestCase):
         self.mock_github_client.search.assert_called_once_with(
             endpoint="commits",
             query="10.1234/test",
+            per_page=1,
+        )
+
+    def test_build_query_single_term(self):
+        """
+        Test building a query with a single term.
+        """
+        # Act
+        query = self.client._build_query(["10.1234/test"])
+
+        # Assert
+        self.assertEqual(query, '"10.1234/test"')
+
+    def test_build_query_multiple_terms(self):
+        """
+        Test building a query with multiple terms uses OR logic.
+        """
+        # Act
+        query = self.client._build_query(["10.1234/test", "My Paper Title"])
+
+        # Assert
+        self.assertEqual(query, '"10.1234/test" OR "My Paper Title"')
+
+    def test_build_query_filters_empty_terms(self):
+        """
+        Test that empty/None terms are filtered out.
+        """
+        # Act
+        query = self.client._build_query(["10.1234/test", "", "My Paper Title"])
+
+        # Assert
+        self.assertEqual(query, '"10.1234/test" OR "My Paper Title"')
+
+    def test_get_mentions_multiple_terms(self):
+        """
+        Test getting mentions with multiple search terms (DOI and title).
+        """
+        # Arrange
+        self.mock_github_client.search.return_value = {"total_count": 10, "items": []}
+
+        # Act
+        result = self.client.get_mentions(
+            ["10.1234/test", "My Paper Title"],
+            search_areas=["issues"],
+        )
+
+        # Assert
+        self.assertIsNotNone(result)
+        self.assertEqual(result["total_mentions"], 10)
+        self.assertEqual(result["terms"], ["10.1234/test", "My Paper Title"])
+
+        # Verify the query was built with OR logic
+        self.mock_github_client.search.assert_called_once_with(
+            endpoint="issues",
+            query='"10.1234/test" OR "My Paper Title" is:issue',
             per_page=1,
         )
