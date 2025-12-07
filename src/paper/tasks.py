@@ -34,10 +34,6 @@ def censored_paper_cleanup(paper_id):
 
     if paper:
         paper.votes.update(is_removed=True)
-        for vote in paper.votes.all():
-            if vote.vote_type == 1:
-                user = vote.created_by
-
         uploaded_by = paper.uploaded_by
         uploaded_by.set_probable_spammer()
 
@@ -58,6 +54,10 @@ def download_pdf(paper_id, retry=0):
             pdf = download_pdf_from_url(url)
             paper.file.save(pdf.name, pdf, save=False)
             paper.save(update_fields=["file"])
+
+            # Trigger figure extraction after successful PDF download
+            extract_pdf_figures.apply_async((paper.id,), priority=6)
+
             return True
         except ValueError as e:
             logger.warning(f"No PDF at {url} - paper {paper_id}: {e}")
@@ -135,3 +135,174 @@ def celery_extract_pdf_preview(paper_id, retry=0):
         cache_key = get_cache_key("figure", paper_id)
         cache.delete(cache_key)
     return True
+
+
+@app.task(queue=QUEUE_PAPER_MISC)
+def extract_pdf_figures(paper_id, retry=0):
+    """
+    Extract embedded figures from a PDF and save them as Figure objects.
+
+    Args:
+        paper_id: ID of the paper
+        retry: Number of retry attempts
+    """
+    if retry > 2:
+        logger.warning(f"Max retries reached for figure extraction - paper {paper_id}")
+        return False
+
+    Paper = apps.get_model("paper.Paper")
+    Figure = apps.get_model("paper.Figure")
+
+    try:
+        paper = Paper.objects.get(id=paper_id)
+    except Paper.DoesNotExist:
+        logger.warning(f"Paper {paper_id} not found")
+        return False
+
+    file = paper.file
+    if not file:
+        logger.info(f"No PDF file exists for paper {paper_id}, retrying...")
+        extract_pdf_figures.apply_async(
+            (paper.id, retry + 1),
+            priority=6,
+            countdown=10 * (retry + 1),
+        )
+        return False
+
+    try:
+        # Get PDF content
+        file_url = file.url
+        res = requests.get(file_url, timeout=60)
+        res.raise_for_status()
+        pdf_content = res.content
+
+        # Extract figures using service
+        from paper.services.figure_extraction_service import FigureExtractionService
+
+        extraction_service = FigureExtractionService()
+        extracted_figures = extraction_service.extract_figures_from_pdf(
+            pdf_content, paper_id
+        )
+
+        # Save extracted figures to database
+        figures_created = 0
+        for content_file, metadata in extracted_figures:
+            # Check if figure already exists (avoid duplicates)
+            filename = content_file.name.split("/")[-1]
+            existing_figure = Figure.objects.filter(
+                paper=paper,
+                figure_type=Figure.FIGURE,
+                file__contains=filename,
+            ).first()
+
+            if not existing_figure:
+                Figure.objects.create(
+                    file=content_file,
+                    paper=paper,
+                    figure_type=Figure.FIGURE,
+                )
+                figures_created += 1
+
+        logger.info(
+            f"Extracted {figures_created} new figures for paper {paper_id} "
+            f"(total extracted: {len(extracted_figures)})"
+        )
+
+        # Clear cache
+        cache_key = get_cache_key("figure", paper_id)
+        cache.delete(cache_key)
+
+        # Trigger primary image selection if figures were extracted
+        if figures_created > 0:
+            select_primary_image.apply_async((paper.id,), priority=5)
+
+        return True
+
+    except Exception as e:
+        logger.error(f"Error extracting figures for paper {paper_id}: {e}")
+        sentry.log_error(e)
+
+        # Retry on failure
+        if retry < 2:
+            extract_pdf_figures.apply_async(
+                (paper.id, retry + 1),
+                priority=6,
+                countdown=30 * (retry + 1),
+            )
+
+        return False
+
+
+@app.task(queue=QUEUE_PAPER_MISC)
+def select_primary_image(paper_id, retry=0):
+    """
+    Use AWS Bedrock to select the primary image from extracted figures.
+
+    Args:
+        paper_id: ID of the paper
+        retry: Number of retry attempts
+    """
+    if retry > 2:
+        logger.warning(
+            f"Max retries reached for primary image selection - paper {paper_id}"
+        )
+        return False
+
+    Paper = apps.get_model("paper.Paper")
+    Figure = apps.get_model("paper.Figure")
+
+    try:
+        paper = Paper.objects.get(id=paper_id)
+    except Paper.DoesNotExist:
+        logger.warning(f"Paper {paper_id} not found")
+        return False
+
+    # Get all extracted figures (not previews)
+    figures = Figure.objects.filter(paper=paper, figure_type=Figure.FIGURE).order_by(
+        "created_date"
+    )
+
+    if not figures.exists():
+        logger.info(
+            f"No figures found for paper {paper_id}, skipping primary selection"
+        )
+        return False
+
+    try:
+        from paper.services.bedrock_primary_image_service import (
+            BedrockPrimaryImageService,
+        )
+
+        service = BedrockPrimaryImageService()
+        selected_figure_id = service.select_primary_image(
+            paper_title=paper.title or "",
+            paper_abstract=paper.abstract or "",
+            figures=list(figures),
+        )
+
+        if selected_figure_id:
+            # Update is_primary flags
+            Figure.objects.filter(paper=paper).update(is_primary=False)
+            Figure.objects.filter(id=selected_figure_id).update(is_primary=True)
+
+            logger.info(
+                f"Selected primary image {selected_figure_id} for paper {paper_id}"
+            )
+            return True
+        else:
+            logger.warning(f"No figure selected for paper {paper_id}")
+            return False
+
+    except Exception as e:
+        logger.error(f"Error selecting primary image for paper {paper_id}: {e}")
+        sentry.log_error(e)
+
+        # Retry on failure
+        if retry < 2:
+            select_primary_image.apply_async(
+                (paper.id, retry + 1),
+                priority=5,
+                countdown=60 * (retry + 1),
+            )
+
+        return False

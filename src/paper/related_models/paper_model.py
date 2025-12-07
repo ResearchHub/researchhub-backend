@@ -548,6 +548,11 @@ class Figure(models.Model):
     )
     paper = models.ForeignKey(Paper, on_delete=models.CASCADE, related_name="figures")
     figure_type = models.CharField(choices=FIGURE_TYPE_CHOICES, max_length=16)
+    is_primary = models.BooleanField(
+        default=False,
+        help_text="Whether this figure is the primary image for the paper",
+        db_index=True,
+    )
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
     created_by = models.ForeignKey(
@@ -557,4 +562,5 @@ class Figure(models.Model):
     class Meta:
         indexes = [
             models.Index(fields=["paper", "figure_type"], name="figure_paper_type_idx"),
+            models.Index(fields=["paper", "is_primary"], name="figure_paper_primary_idx"),
         ]
