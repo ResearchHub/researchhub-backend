@@ -1,8 +1,10 @@
+from django.conf import settings
 from django.db.models import DecimalField, Sum
 from django.db.models.functions import Coalesce
 from rest_framework import serializers
 
 from discussion.serializers import VoteSerializer
+from hub.models import Hub
 from reputation.models import Bounty, BountySolution
 from reputation.serializers.escrow_serializer import DynamicEscrowSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -10,6 +12,14 @@ from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
 from user.serializers import DynamicUserSerializer
 from utils import sentry
 from utils.http import get_user_from_request
+
+
+class SimpleHubSerializer(serializers.ModelSerializer):
+    """Minimal hub serializer with just essential fields"""
+
+    class Meta:
+        model = Hub
+        fields = ["id", "name", "slug"]
 
 
 class BountySerializer(serializers.ModelSerializer):
@@ -42,6 +52,9 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
     total_amount = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
     hubs = serializers.SerializerMethodField()
+    category = serializers.SerializerMethodField()
+    subcategory = serializers.SerializerMethodField()
+    journal = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
     metrics = serializers.SerializerMethodField()
     # Kobe: This is not great. This alias is used to disambiguate "parent" used in
@@ -74,6 +87,58 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
             return list(bounty.unified_document.hubs.values(*include_fields))
 
         return []
+
+    def get_category(self, bounty):
+        """Return category hub if it exists"""
+        if bounty.unified_document:
+            category = bounty.unified_document.hubs.filter(
+                namespace=Hub.Namespace.CATEGORY
+            ).first()
+            if category:
+                return SimpleHubSerializer(category).data
+        return None
+
+    def get_subcategory(self, bounty):
+        """Return subcategory hub if it exists"""
+        if bounty.unified_document:
+            subcategory = bounty.unified_document.hubs.filter(
+                namespace=Hub.Namespace.SUBCATEGORY
+            ).first()
+            if subcategory:
+                return SimpleHubSerializer(subcategory).data
+        return None
+
+    def get_journal(self, bounty):
+        """Return journal hub if it exists"""
+        if not bounty.unified_document:
+            return None
+
+        journal_hubs = [
+            hub
+            for hub in bounty.unified_document.hubs.all()
+            if hub.namespace == Hub.Namespace.JOURNAL
+        ]
+
+        if not journal_hubs:
+            return None
+
+        researchhub_journal = None
+        for hub in journal_hubs:
+            if int(hub.id) == int(settings.RESEARCHHUB_JOURNAL_ID):
+                researchhub_journal = hub
+                break
+
+        # Use ResearchHub Journal if found, otherwise use the first journal
+        journal_hub = researchhub_journal or journal_hubs[0]
+
+        if journal_hub:
+            return {
+                "id": journal_hub.id,
+                "name": journal_hub.name,
+                "slug": journal_hub.slug,
+                "image": journal_hub.hub_image.url if journal_hub.hub_image else None,
+            }
+        return None
 
     def get_item(self, bounty):
         serializer = None
