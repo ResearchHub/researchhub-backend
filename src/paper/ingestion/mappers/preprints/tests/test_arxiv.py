@@ -386,7 +386,6 @@ class TestArXivMapper(TestCase):
         mock_hub_mapper.map.return_value = [cs_hub]
 
         mapper = ArXivMapper(mock_hub_mapper)
-        paper = mapper.map_to_paper(self.sample_record)
 
         # Act
         hubs = mapper.map_to_hubs(self.sample_record)
@@ -405,7 +404,6 @@ class TestArXivMapper(TestCase):
         """
         # Arrange
         mapper = ArXivMapper(None)
-        paper = mapper.map_to_paper(self.sample_record)
 
         # Act
         hubs = mapper.map_to_hubs(self.sample_record)
@@ -428,7 +426,6 @@ class TestArXivMapper(TestCase):
         mock_hub_mapper.map.return_value = [cs_hub, self.arxiv_hub]
 
         mapper = ArXivMapper(mock_hub_mapper)
-        paper = mapper.map_to_paper(self.sample_record)
 
         # Act
         hubs = mapper.map_to_hubs(self.sample_record)
@@ -478,7 +475,6 @@ class TestArXivMapper(TestCase):
         mock_hub_mapper.map.return_value = []
 
         mapper = ArXivMapper(mock_hub_mapper)
-        paper = mapper.map_to_paper(self.sample_record)
 
         # Act
         hubs = mapper.map_to_hubs(self.sample_record)

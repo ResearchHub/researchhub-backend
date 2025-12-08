@@ -744,7 +744,6 @@ class TestChemRxivMapper(TestCase):
         mock_hub_mapper.map.return_value = [chemistry_hub]
 
         mapper = ChemRxivMapper(mock_hub_mapper)
-        paper = mapper.map_to_paper(self.sample_record)
 
         # Act
         hubs = mapper.map_to_hubs(self.sample_record)
@@ -773,7 +772,6 @@ class TestChemRxivMapper(TestCase):
         """
         # Arrange
         mapper = ChemRxivMapper(None)
-        paper = mapper.map_to_paper(self.sample_record)
 
         # Act
         hubs = mapper.map_to_hubs(self.sample_record)
@@ -796,7 +794,6 @@ class TestChemRxivMapper(TestCase):
         mock_hub_mapper.map.return_value = [chemistry_hub, self.chemrxiv_hub]
 
         mapper = ChemRxivMapper(mock_hub_mapper)
-        paper = mapper.map_to_paper(self.sample_record)
 
         # Act
         hubs = mapper.map_to_hubs(self.sample_record)
