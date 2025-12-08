@@ -314,7 +314,7 @@ class TestGithubMetricsClient(TestCase):
         # Act
         result = self.client.get_mentions(
             ["10.1234/test", "My Paper Title"],
-            search_areas=["issues"],
+            search_areas=["code"],
         )
 
         # Assert
@@ -324,7 +324,7 @@ class TestGithubMetricsClient(TestCase):
 
         # Verify the query was built with OR logic
         self.mock_github_client.search.assert_called_once_with(
-            endpoint="issues",
-            query='"10.1234/test" OR "My Paper Title" is:issue',
+            endpoint="code",
+            query='"10.1234/test" OR "My Paper Title"',
             per_page=1,
         )

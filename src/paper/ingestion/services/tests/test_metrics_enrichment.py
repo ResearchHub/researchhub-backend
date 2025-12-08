@@ -325,7 +325,7 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
 
         # Verify client was called with the correct terms (DOI and title)
         self.mock_github_client.get_mentions.assert_called_once_with(
-            [self.paper.doi, self.paper.title], search_areas=["issues"]
+            [self.paper.doi, self.paper.title], search_areas=["code"]
         )
 
         # Verify paper was updated
@@ -354,7 +354,7 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
 
         # Verify client was called
         self.mock_github_client.get_mentions.assert_called_once_with(
-            [self.paper.doi, self.paper.title], search_areas=["issues"]
+            [self.paper.doi, self.paper.title], search_areas=["code"]
         )
 
     def test_enrich_paper_with_github_mentions_preserves_existing_metadata(self):
@@ -415,7 +415,7 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
 
         # Verify client was called
         self.mock_github_client.get_mentions.assert_called_once_with(
-            [self.paper.doi, self.paper.title], search_areas=["issues"]
+            [self.paper.doi, self.paper.title], search_areas=["code"]
         )
 
     def test_enrich_paper_with_bluesky_success(self):
