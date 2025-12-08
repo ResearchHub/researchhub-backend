@@ -228,14 +228,26 @@ class PaperSerializer(ContentObjectSerializer):
         if not journal_hubs:
             return None
 
+        # Priority 1: ResearchHub Journal
         researchhub_journal = None
         for hub in journal_hubs:
             if int(hub.id) == int(settings.RESEARCHHUB_JOURNAL_ID):
                 researchhub_journal = hub
                 break
 
-        # Use ResearchHub Journal if found, otherwise use the first journal
-        journal_hub = researchhub_journal or journal_hubs[0]
+        if researchhub_journal:
+            journal_hub = researchhub_journal
+        else:
+            # Priority 2: Preprint servers (biorxiv, medrxiv, chemrxiv, arxiv)
+            preprint_journal = None
+            prioritized_preprints = {"biorxiv", "medrxiv", "chemrxiv", "arxiv"}
+            for hub in journal_hubs:
+                if hub.name.lower() in prioritized_preprints:
+                    preprint_journal = hub
+                    break
+
+            # Use preprint journal if found, otherwise use the first journal
+            journal_hub = preprint_journal or journal_hubs[0]
 
         if journal_hub:
             return {

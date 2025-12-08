@@ -359,6 +359,120 @@ class PaperSerializerTests(TestCase):
             self.assertEqual(data["journal"]["name"], "ResearchHub Journal")
             self.assertEqual(data["journal"]["id"], researchhub_journal.id)
 
+    def test_prioritizes_preprint_journals(self):
+        """
+        Test that preprint journals (biorxiv, medrxiv, chemrxiv, arxiv) are
+        prioritized over regular journals but after ResearchHub Journal.
+        """
+        # Create regular journal
+        regular_journal = create_hub("Nature", namespace=Hub.Namespace.JOURNAL)
+
+        # Create biorxiv journal
+        biorxiv_journal = create_hub("biorxiv", namespace=Hub.Namespace.JOURNAL)
+
+        # Create a paper with both journals
+        paper = create_paper(
+            uploaded_by=self.user,
+            title="Preprint Paper",
+        )
+        paper.hubs.add(regular_journal)
+        paper.hubs.add(biorxiv_journal)
+        paper.save()
+
+        # When ResearchHub Journal ID doesn't match, preprint should be prioritized
+        with patch.object(settings, "RESEARCHHUB_JOURNAL_ID", 999999):
+            serializer = PaperSerializer(paper)
+            data = serializer.data
+
+            self.assertIn("journal", data)
+            self.assertEqual(data["journal"]["name"], "biorxiv")
+            self.assertEqual(data["journal"]["id"], biorxiv_journal.id)
+
+    def test_prioritizes_arxiv_journal(self):
+        """
+        Test that arxiv journal is prioritized over regular journals.
+        """
+        # Create regular journal
+        regular_journal = create_hub("Science", namespace=Hub.Namespace.JOURNAL)
+
+        # Create arxiv journal
+        arxiv_journal = create_hub("arxiv", namespace=Hub.Namespace.JOURNAL)
+
+        # Create a paper with both journals
+        paper = create_paper(
+            uploaded_by=self.user,
+            title="ArXiv Paper",
+        )
+        paper.hubs.add(regular_journal)
+        paper.hubs.add(arxiv_journal)
+        paper.save()
+
+        with patch.object(settings, "RESEARCHHUB_JOURNAL_ID", 999999):
+            serializer = PaperSerializer(paper)
+            data = serializer.data
+
+            self.assertIn("journal", data)
+            self.assertEqual(data["journal"]["name"], "arxiv")
+            self.assertEqual(data["journal"]["id"], arxiv_journal.id)
+
+    def test_researchhub_journal_prioritized_over_preprints(self):
+        """
+        Test that ResearchHub Journal is prioritized over preprint journals.
+        """
+        # Create biorxiv journal
+        biorxiv_journal = create_hub("biorxiv", namespace=Hub.Namespace.JOURNAL)
+
+        # Create ResearchHub journal
+        researchhub_journal = create_hub(
+            "ResearchHub Journal", namespace=Hub.Namespace.JOURNAL
+        )
+
+        # Create a paper with both journals
+        paper = create_paper(
+            uploaded_by=self.user,
+            title="Both Preprint and RH",
+        )
+        paper.hubs.add(biorxiv_journal)
+        paper.hubs.add(researchhub_journal)
+        paper.save()
+
+        with patch.object(settings, "RESEARCHHUB_JOURNAL_ID", researchhub_journal.id):
+            serializer = PaperSerializer(paper)
+            data = serializer.data
+
+            # ResearchHub Journal should be prioritized over biorxiv
+            self.assertIn("journal", data)
+            self.assertEqual(data["journal"]["name"], "ResearchHub Journal")
+            self.assertEqual(data["journal"]["id"], researchhub_journal.id)
+
+    def test_preprint_journal_case_insensitive(self):
+        """
+        Test that preprint journal matching is case-insensitive.
+        """
+        # Create regular journal
+        regular_journal = create_hub("Cell", namespace=Hub.Namespace.JOURNAL)
+
+        # Create BioRxiv journal with mixed case
+        biorxiv_journal = create_hub("BioRxiv", namespace=Hub.Namespace.JOURNAL)
+
+        # Create a paper with both journals
+        paper = create_paper(
+            uploaded_by=self.user,
+            title="Mixed Case Preprint",
+        )
+        paper.hubs.add(regular_journal)
+        paper.hubs.add(biorxiv_journal)
+        paper.save()
+
+        with patch.object(settings, "RESEARCHHUB_JOURNAL_ID", 999999):
+            serializer = PaperSerializer(paper)
+            data = serializer.data
+
+            # BioRxiv should still be prioritized despite different case
+            self.assertIn("journal", data)
+            self.assertEqual(data["journal"]["name"], "BioRxiv")
+            self.assertEqual(data["journal"]["id"], biorxiv_journal.id)
+
 
 class PostSerializerTests(TestCase):
     def setUp(self):
