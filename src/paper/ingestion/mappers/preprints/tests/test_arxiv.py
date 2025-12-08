@@ -53,14 +53,14 @@ class TestArXivMapper(TestCase):
 
         # Missing title
         record = {
-            "id": "http://arxiv.org/abs/2509.10432v1",
+            "id": "http://arxiv.org/abs/2509.10432v1",  # NOSONAR - Ignore http
             "authors": [{"name": "Test Author"}],
         }
         self.assertFalse(self.mapper.validate(record))
 
         # Missing authors
         record = {
-            "id": "http://arxiv.org/abs/2509.10432v1",
+            "id": "http://arxiv.org/abs/2509.10432v1",  # NOSONAR - Ignore http
             "title": "Test Paper",
         }
         self.assertFalse(self.mapper.validate(record))
@@ -68,7 +68,7 @@ class TestArXivMapper(TestCase):
     def test_validate_missing_dates(self):
         """Test validation fails when no dates are present."""
         record = {
-            "id": "http://arxiv.org/abs/2509.10432v1",
+            "id": "http://arxiv.org/abs/2509.10432v1",  # NOSONAR - Ignore http
             "title": "Test Paper",
             "authors": [{"name": "Test Author"}],
         }
@@ -272,7 +272,7 @@ class TestArXivMapper(TestCase):
         """Test URL construction when links are not provided."""
         # Parsed record without link elements
         record = {
-            "id": "http://arxiv.org/abs/2509.10432v1",
+            "id": "http://arxiv.org/abs/2509.10432v1",  # NOSONAR - Ignore http
             "title": "Test Paper",
             "summary": "Test summary",
             "published": "2025-09-12T17:38:46Z",
@@ -363,7 +363,7 @@ class TestArXivMapper(TestCase):
 
         # Parsed record without primary_category
         record_no_primary = {
-            "id": "http://arxiv.org/abs/2509.10432v1",
+            "id": "http://arxiv.org/abs/2509.10432v1",  # NOSONAR - Ignore http
             "title": "Test Paper",
             "summary": "Test summary",
             "published": "2025-09-12T17:38:46Z",
