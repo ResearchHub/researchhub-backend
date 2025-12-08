@@ -2,13 +2,13 @@
 Tests for ArXiv OAI mapper.
 """
 
+import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
 
 from hub.models import Hub
-from paper.ingestion.clients.preprints.arxiv_oai import parse_xml_metadata
 from paper.ingestion.mappers import ArXivOAIMapper
 from paper.models import Paper
 
@@ -29,12 +29,9 @@ class TestArXivOAIMapper(TestCase):
         # Load fixture files
         fixtures_dir = Path(__file__).parent / "fixtures"
 
-        # Read the sample metadata XML
-        with open(fixtures_dir / "arxiv_oai_metadata_sample.xml", "r") as f:
-            self.sample_metadata_xml = f.read()
-
-        # Create parsed records for testing (simulating what the client now does)
-        self.sample_record = parse_xml_metadata(self.sample_metadata_xml)
+        # Load pre-parsed record from JSON fixture
+        with open(fixtures_dir / "arxiv_oai_parsed_record.json", "r") as f:
+            self.sample_record = json.load(f)
 
     def test_validate_valid_record(self):
         """
@@ -129,46 +126,6 @@ class TestArXivOAIMapper(TestCase):
 
         # Check flags
         self.assertTrue(paper.retrieved_from_external_source)
-
-    def test_parse_xml_metadata(self):
-        """
-        Test XML metadata parsing (now in client module).
-        """
-        # Act
-        parsed = parse_xml_metadata(self.sample_metadata_xml)
-
-        # Assert
-        # Check basic fields
-        self.assertEqual(parsed["id"], "2507.00004")
-        self.assertEqual(
-            parsed["title"],
-            "A Theory of Inference Compute Scaling: Reasoning through "
-            "Directed Stochastic Skill Search",
-        )
-        self.assertIn("Large language models", parsed["abstract"])
-        self.assertEqual(parsed["created"], "2025-07-10")
-        self.assertEqual(parsed["updated"], "2025-07-11")
-
-        # Check authors
-        self.assertEqual(len(parsed["authors"]), 3)
-        self.assertEqual(parsed["authors"][0]["name"], "Austin R. Ellis-Mohr")
-        self.assertEqual(parsed["authors"][0]["keyname"], "Ellis-Mohr")
-        self.assertEqual(parsed["authors"][0]["forenames"], "Austin R.")
-        self.assertEqual(parsed["authors"][2]["name"], "Lav R. Varshney")
-
-        # Check categories
-        self.assertEqual(parsed["categories"], ["cs.LG", "cs.AI", "cs.CY", "cs.PF"])
-        self.assertEqual(parsed["primary_category"], "cs.LG")
-
-        # Check links
-        self.assertEqual(
-            parsed["links"]["alternate"],
-            "https://arxiv.org/abs/2507.00004",
-        )
-        self.assertEqual(
-            parsed["links"]["pdf"],
-            "https://arxiv.org/pdf/2507.00004.pdf",
-        )
 
     def test_format_arxiv_doi(self):
         """
