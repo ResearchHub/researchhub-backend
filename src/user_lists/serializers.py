@@ -69,6 +69,7 @@ class ListSerializer(serializers.ModelSerializer):
             "created_by",
             "updated_by",
             "item_count",
+            "is_default",
         ]
         read_only_fields = ["id", "created_date", "updated_date", "created_by", "updated_by", "is_default"]
 
