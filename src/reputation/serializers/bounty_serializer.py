@@ -228,16 +228,9 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
             return None
 
     def get_metrics(self, bounty):
-        """Return metrics for the bounty's comment"""
-        metrics = {}
-        if bounty.item_content_type.model == "rhcommentmodel":
-            comment = bounty.item
-            if comment:
-                metrics["votes"] = getattr(comment, "score", 0)
-                if hasattr(comment, "children_count"):
-                    metrics["replies"] = getattr(comment, "children_count", 0)
-                return metrics
-
+        """Return metrics for the bounty's unified document"""
+        if bounty.unified_document:
+            return {"votes": bounty.unified_document.score}
         return None
 
 
