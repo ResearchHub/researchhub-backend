@@ -922,3 +922,6 @@ BLUESKY_USERNAME = os.environ.get(
 BLUESKY_PASSWORD = os.environ.get(
     "BLUESKY_PASSWORD", getattr(keys, "BLUESKY_PASSWORD", "")
 )
+
+# X (Twitter)
+X_BEARER_TOKEN = os.environ.get("X_BEARER_TOKEN", getattr(keys, "X_BEARER_TOKEN", ""))
