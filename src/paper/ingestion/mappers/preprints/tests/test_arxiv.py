@@ -456,7 +456,6 @@ class TestArXivMapper(TestCase):
   </entry>"""
 
         record_no_primary = {"raw_xml": xml_no_primary}
-        paper = mapper.map_to_paper(record_no_primary)
 
         # Act
         hubs = mapper.map_to_hubs(record_no_primary)

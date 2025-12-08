@@ -349,7 +349,6 @@ class TestArXivOAIMapper(TestCase):
         mock_hub_mapper.map.return_value = [cs_hub]
 
         mapper = ArXivOAIMapper(mock_hub_mapper)
-        paper = mapper.map_to_paper(self.sample_record)
 
         # Parse record to get primary category
         parsed = mapper._parse_xml_metadata(self.sample_metadata_xml)
@@ -372,7 +371,6 @@ class TestArXivOAIMapper(TestCase):
         """
         # Arrange
         mapper = ArXivOAIMapper(None)
-        paper = mapper.map_to_paper(self.sample_record)
 
         # Parse record to get categories
         parsed = mapper._parse_xml_metadata(self.sample_metadata_xml)
@@ -400,7 +398,6 @@ class TestArXivOAIMapper(TestCase):
         mock_hub_mapper.map.return_value = [cs_hub, self.arxiv_hub]
 
         mapper = ArXivOAIMapper(mock_hub_mapper)
-        paper = mapper.map_to_paper(self.sample_record)
 
         # Parse record to get categories
         parsed = mapper._parse_xml_metadata(self.sample_metadata_xml)
@@ -506,7 +503,6 @@ class TestArXivOAIMapper(TestCase):
   </metadata>"""
 
         record_no_primary = {"raw_xml": xml_no_category}
-        paper = mapper.map_to_paper(record_no_primary)
 
         # Act
         hubs = mapper.map_to_hubs(record_no_primary)

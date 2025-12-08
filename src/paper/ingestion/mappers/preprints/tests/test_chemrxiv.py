@@ -815,7 +815,6 @@ class TestChemRxivMapper(TestCase):
 
         record_no_categories = {**self.sample_record}
         del record_no_categories["categories"]
-        paper = mapper.map_to_paper(record_no_categories)
 
         # Act
         hubs = mapper.map_to_hubs(record_no_categories)
