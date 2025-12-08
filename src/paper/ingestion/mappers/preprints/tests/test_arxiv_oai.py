@@ -357,7 +357,7 @@ class TestArXivOAIMapper(TestCase):
         parsed_record.update(parsed)
 
         # Act
-        hubs = mapper.map_to_hubs(paper, parsed_record)
+        hubs = mapper.map_to_hubs(parsed_record)
 
         # Assert
         # Should be called once for primary category
@@ -380,7 +380,7 @@ class TestArXivOAIMapper(TestCase):
         parsed_record.update(parsed)
 
         # Act
-        hubs = mapper.map_to_hubs(paper, parsed_record)
+        hubs = mapper.map_to_hubs(parsed_record)
 
         # Assert
         self.assertEqual(len(hubs), 1)
@@ -408,7 +408,7 @@ class TestArXivOAIMapper(TestCase):
         parsed_record.update(parsed)
 
         # Act
-        hubs = mapper.map_to_hubs(paper, parsed_record)
+        hubs = mapper.map_to_hubs(parsed_record)
 
         # Assert
         # Should only have 2 hubs, not duplicate the arxiv hub
@@ -509,7 +509,7 @@ class TestArXivOAIMapper(TestCase):
         paper = mapper.map_to_paper(record_no_primary)
 
         # Act
-        hubs = mapper.map_to_hubs(paper, record_no_primary)
+        hubs = mapper.map_to_hubs(record_no_primary)
 
         # Assert
         mock_hub_mapper.map.assert_not_called()

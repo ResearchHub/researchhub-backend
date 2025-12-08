@@ -430,7 +430,7 @@ class ChemRxivMapper(BaseMapper):
             return asset_obj["original"].get("url")
         return None
 
-    def map_to_hubs(self, paper: Paper, record: Dict[str, Any]) -> List[Hub]:
+    def map_to_hubs(self, record: Dict[str, Any]) -> List[Hub]:
         """
         Map ChemRxiv record to Hub (tag) model instances.
         """

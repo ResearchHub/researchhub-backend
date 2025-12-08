@@ -86,7 +86,7 @@ class BaseMapper(ABC):
         pass
 
     @abstractmethod
-    def map_to_hubs(self, paper: Paper, record: Dict[str, Any]) -> List[Hub]:
+    def map_to_hubs(self, record: Dict[str, Any]) -> List[Hub]:
         """
         Map source record to Hub (tag) model instances for a given paper.
 

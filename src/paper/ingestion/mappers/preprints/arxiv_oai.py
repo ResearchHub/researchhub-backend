@@ -541,7 +541,7 @@ class ArXivOAIMapper(BaseMapper):
         # Return empty list - we don't create authorships without proper IDs
         return []
 
-    def map_to_hubs(self, paper: Paper, record: Dict[str, Any]) -> List[Hub]:
+    def map_to_hubs(self, record: Dict[str, Any]) -> List[Hub]:
         """
         Map arXiv OAI record to Hub (tag) model instances.
         """

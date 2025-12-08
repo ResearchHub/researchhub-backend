@@ -146,7 +146,7 @@ class TestMedRxivMapper(TestCase):
         paper = mapper.map_to_paper(self.sample_record)
 
         # Act
-        hubs = mapper.map_to_hubs(paper, self.sample_record)
+        hubs = mapper.map_to_hubs(self.sample_record)
 
         # Assert
         self.assertEqual(len(hubs), 1)
@@ -165,7 +165,7 @@ class TestMedRxivMapper(TestCase):
         paper = mapper.map_to_paper(self.sample_record)
 
         # Act
-        hubs = mapper.map_to_hubs(paper, self.sample_record)
+        hubs = mapper.map_to_hubs(self.sample_record)
 
         # Assert
         self.assertEqual(len(hubs), 0)
