@@ -2,6 +2,7 @@
 Tests for ArXiv mapper.
 """
 
+import json
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -9,7 +10,6 @@ from unittest.mock import MagicMock, patch
 from django.test import TestCase
 
 from hub.models import Hub
-from paper.ingestion.clients.preprints.arxiv import parse_xml_entry
 from paper.ingestion.mappers import ArXivMapper
 from paper.models import Paper
 
@@ -32,27 +32,15 @@ class TestArXivMapper(TestCase):
         # Load fixture files
         fixtures_dir = Path(__file__).parent / "fixtures"
 
-        # Read the sample response XML
-        with open(fixtures_dir / "arxiv_sample_response.xml", "r") as f:
-            self.sample_response_xml = f.read()
+        # Load pre-parsed records from JSON fixture
+        with open(fixtures_dir / "arxiv_parsed_records.json", "r") as f:
+            parsed_records = json.load(f)
 
-        # Read the empty response XML
-        with open(fixtures_dir / "arxiv_empty_response.xml", "r") as f:
-            self.empty_response_xml = f.read()
-
-        # Extract individual entries from the sample response
-        root = ET.fromstring(self.sample_response_xml)
-        entries = root.findall("{http://www.w3.org/2005/Atom}entry")
-
-        # First entry (without extras)
-        self.sample_xml = ET.tostring(entries[0], encoding="unicode")
+        # First entry (without extras like comment)
+        self.sample_record = parsed_records[0]
 
         # Second entry (with comment)
-        self.sample_xml_with_extras = ET.tostring(entries[1], encoding="unicode")
-
-        # Create parsed records for testing (simulating what the client now does)
-        self.sample_record = parse_xml_entry(self.sample_xml)
-        self.sample_with_extras = parse_xml_entry(self.sample_xml_with_extras)
+        self.sample_with_extras = parsed_records[1]
 
     def test_validate_valid_record(self):
         """Test validation of a valid ArXiv record."""
@@ -140,41 +128,6 @@ class TestArXivMapper(TestCase):
         # Verify only arxiv_id is in metadata
         self.assertEqual(paper.external_metadata["external_id"], "2509.08817v1")
         self.assertEqual(len(paper.external_metadata), 1)
-
-    def test_parse_xml_entry(self):
-        """Test XML entry parsing (now in client module)."""
-        parsed = parse_xml_entry(self.sample_xml)
-
-        # Check basic fields (first entry from fixture)
-        self.assertEqual(
-            parsed["id"], "http://arxiv.org/abs/2509.08827v1"  # NOSONAR - Ignore http
-        )
-        self.assertEqual(
-            parsed["title"],
-            "A Survey of Reinforcement Learning for Large Reasoning Models",
-        )
-        self.assertIn("we survey recent advances", parsed["summary"])
-        self.assertEqual(parsed["published"], "2025-09-10T17:59:43Z")
-        self.assertEqual(parsed["updated"], "2025-09-10T17:59:43Z")
-
-        # Check authors
-        self.assertEqual(len(parsed["authors"]), 3)
-        self.assertEqual(parsed["authors"][0]["name"], "Kaiyan Zhang")
-        self.assertEqual(parsed["authors"][2]["name"], "Bingxiang He")
-
-        # Check categories
-        self.assertEqual(parsed["categories"], ["cs.CL", "cs.AI", "cs.LG"])
-        self.assertEqual(parsed["primary_category"], "cs.CL")
-
-        # Check links
-        self.assertEqual(
-            parsed["links"]["alternate"],
-            "http://arxiv.org/abs/2509.08827v1",  # NOSONAR - Ignore http
-        )
-        self.assertEqual(
-            parsed["links"]["pdf"],
-            "http://arxiv.org/pdf/2509.08827v1",  # NOSONAR - Ignore http
-        )
 
     def test_extract_arxiv_id(self):
         """Test ArXiv ID extraction from URLs."""
@@ -315,35 +268,6 @@ class TestArXivMapper(TestCase):
             # Should only map the valid record
             self.assertEqual(len(results), 1)
             mock_map.assert_called_once()
-
-    def test_parse_xml_entry_with_comment(self):
-        """Test XML entry parsing with comment field (now in client module)."""
-        parsed = parse_xml_entry(self.sample_xml_with_extras)
-
-        # Check basic fields (second entry from fixture)
-        self.assertEqual(
-            parsed["id"], "http://arxiv.org/abs/2509.08817v1"  # NOSONAR - Ignore http
-        )
-        self.assertEqual(
-            parsed["title"],
-            "QCardEst/QCardCorr: Quantum Cardinality Estimation and Correction",
-        )
-
-        # Check comment field
-        self.assertEqual(parsed["comment"], "7 pages")
-
-        # Check authors
-        self.assertEqual(len(parsed["authors"]), 3)
-        self.assertEqual(parsed["authors"][0]["name"], "Tobias Winker")
-
-    def test_empty_response_handling(self):
-        """Test handling of empty ArXiv response."""
-        # Parse the empty response to see there are no entries
-        root = ET.fromstring(self.empty_response_xml)
-        entries = root.findall("{http://www.w3.org/2005/Atom}entry")
-
-        # Should have no entries
-        self.assertEqual(len(entries), 0)
 
     def test_urls_without_links(self):
         """Test URL construction when links are not provided."""

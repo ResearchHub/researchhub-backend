@@ -3,11 +3,16 @@ Tests for ArXiv client.
 """
 
 import os
+import xml.etree.ElementTree as ET
 from datetime import datetime
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
-from paper.ingestion.clients.preprints.arxiv import ArXivClient, ArXivConfig
+from paper.ingestion.clients.preprints.arxiv import (
+    ArXivClient,
+    ArXivConfig,
+    parse_xml_entry,
+)
 
 
 class TestArXivClient(TestCase):
@@ -73,6 +78,71 @@ class TestArXivClient(TestCase):
         """Test parsing invalid XML returns empty list."""
         papers = self.client.parse("Invalid XML content")
         self.assertEqual(papers, [])
+
+    def test_parse_xml_entry(self):
+        """Test XML entry parsing function."""
+        # Extract a single entry from the sample response
+        root = ET.fromstring(self.sample_xml_response)
+        entries = root.findall("{http://www.w3.org/2005/Atom}entry")
+        sample_xml = ET.tostring(entries[0], encoding="unicode")
+
+        parsed = parse_xml_entry(sample_xml)
+
+        # Check basic fields (first entry from fixture)
+        self.assertEqual(
+            parsed["id"], "http://arxiv.org/abs/2509.08827v1"  # NOSONAR - Ignore http
+        )
+        self.assertEqual(
+            parsed["title"],
+            "A Survey of Reinforcement Learning for Large Reasoning Models",
+        )
+        self.assertIn("we survey recent advances", parsed["summary"])
+        self.assertEqual(parsed["published"], "2025-09-10T17:59:43Z")
+        self.assertEqual(parsed["updated"], "2025-09-10T17:59:43Z")
+
+        # Check authors
+        self.assertEqual(len(parsed["authors"]), 3)
+        self.assertEqual(parsed["authors"][0]["name"], "Kaiyan Zhang")
+        self.assertEqual(parsed["authors"][2]["name"], "Bingxiang He")
+
+        # Check categories
+        self.assertEqual(parsed["categories"], ["cs.CL", "cs.AI", "cs.LG"])
+        self.assertEqual(parsed["primary_category"], "cs.CL")
+
+        # Check links
+        self.assertEqual(
+            parsed["links"]["alternate"],
+            "http://arxiv.org/abs/2509.08827v1",  # NOSONAR - Ignore http
+        )
+        self.assertEqual(
+            parsed["links"]["pdf"],
+            "http://arxiv.org/pdf/2509.08827v1",  # NOSONAR - Ignore http
+        )
+
+    def test_parse_xml_entry_with_comment(self):
+        """Test XML entry parsing with comment field."""
+        # Extract second entry from the sample response (has comment)
+        root = ET.fromstring(self.sample_xml_response)
+        entries = root.findall("{http://www.w3.org/2005/Atom}entry")
+        sample_xml_with_extras = ET.tostring(entries[1], encoding="unicode")
+
+        parsed = parse_xml_entry(sample_xml_with_extras)
+
+        # Check basic fields (second entry from fixture)
+        self.assertEqual(
+            parsed["id"], "http://arxiv.org/abs/2509.08817v1"  # NOSONAR - Ignore http
+        )
+        self.assertEqual(
+            parsed["title"],
+            "QCardEst/QCardCorr: Quantum Cardinality Estimation and Correction",
+        )
+
+        # Check comment field
+        self.assertEqual(parsed["comment"], "7 pages")
+
+        # Check authors
+        self.assertEqual(len(parsed["authors"]), 3)
+        self.assertEqual(parsed["authors"][0]["name"], "Tobias Winker")
 
     @patch("requests.Session.get")
     def test_fetch_with_retry(self, mock_get):
