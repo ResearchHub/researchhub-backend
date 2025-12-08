@@ -75,7 +75,7 @@ class ListItemViewSet(CreateModelMixin, ListModelMixin, DestroyModelMixin, views
         
         return super().list(request, *args, **kwargs)
 
-    def _get_or_create_default_list_if_no_parent_list(self, user):
+    def _get_or_create_default_list(self, user):
         default_list, _ = List.objects.get_or_create(
             created_by=user,
             is_default=True,
@@ -87,7 +87,7 @@ class ListItemViewSet(CreateModelMixin, ListModelMixin, DestroyModelMixin, views
         data = request.data
         # when creating a new item, if no parent list is provided in the POST request (one click add to list instead of selecting a list), get or create the default list
         if not data.get('parent_list'):
-            default_list = self._get_or_create_default_list_if_no_parent_list(request.user)
+            default_list = self._get_or_create_default_list(request.user)
             data = {'unified_document': data.get('unified_document'), 'parent_list': default_list.id}
         
         serializer = self.get_serializer(data=data)
