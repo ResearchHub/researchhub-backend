@@ -9,7 +9,6 @@ AWS_S3_CUSTOM_DOMAIN = os.environ.get(
     "AWS_S3_CUSTOM_DOMAIN", "storage.dev.researchhub.com"
 )
 
-# AWS Bedrock Configuration
 AWS_BEDROCK_MODEL_ID = os.environ.get(
     "AWS_BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0"
 )

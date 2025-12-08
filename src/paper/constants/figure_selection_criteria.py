@@ -11,40 +11,40 @@ to adjust the selection algorithm.
 # Key Metrics: Distance from ideal ratio
 ASPECT_RATIO_MATCH_WEIGHT = 10
 
-# Scientific Impact (25%)
+# Scientific Impact (22%)
 # Presents primary findings & conclusions of the paper
 # Key Metrics: Central vs supporting result
-SCIENTIFIC_IMPACT_WEIGHT = 25
+SCIENTIFIC_IMPACT_WEIGHT = 22
 
-# Visual Quality (15%)
+# Visual Quality (13%)
 # Clarity, resolution, color fidelity, professional appearance
 # Key Metrics: DPI, color depth, artifacts
-VISUAL_QUALITY_WEIGHT = 15
+VISUAL_QUALITY_WEIGHT = 13
 
-# Data Density (12%)
+# Data Density (10%)
 # Information richness vs white space ratio
 # Key Metrics: Dimensions, number of curves/plots
-DATA_DENSITY_WEIGHT = 12
+DATA_DENSITY_WEIGHT = 10
 
-# Narrative Context (18%)
+# Narrative Context (15%)
 # Ability to serve as paper introduction or overview
 # Key Metrics: Structural overview vs detail
-NARRATIVE_CONTEXT_WEIGHT = 18
+NARRATIVE_CONTEXT_WEIGHT = 15
 
 # Interpretability (10%)
 # Self-explanatory legends, labels, intuitive presentation
 # Key Metrics: Axis labels, color coding clarity
 INTERPRETABILITY_WEIGHT = 10
 
-# Uniqueness (8%)
+# Uniqueness (5%)
 # Data or analysis specific to this paper
 # Key Metrics: Appears in other papers
-UNIQUENESS_WEIGHT = 8
+UNIQUENESS_WEIGHT = 5
 
-# Social Media Potential (2%)
+# Social Media Potential (15%)
 # Visual appeal for Twitter/Instagram/LinkedIn sharing
 # Key Metrics: Visual interest, discovery-worthy
-SOCIAL_MEDIA_POTENTIAL_WEIGHT = 2
+SOCIAL_MEDIA_POTENTIAL_WEIGHT = 15
 
 # Total weight should equal 100
 TOTAL_WEIGHT = (
@@ -57,6 +57,10 @@ TOTAL_WEIGHT = (
     + UNIQUENESS_WEIGHT
     + SOCIAL_MEDIA_POTENTIAL_WEIGHT
 )
+
+# Minimum score threshold for primary image selection
+# If the best figure scores below this, we'll use a preview instead
+MIN_PRIMARY_SCORE_THRESHOLD = 70  # Percentage (0-100)
 
 # Criteria descriptions for prompt construction
 CRITERIA_DESCRIPTIONS = {
@@ -101,4 +105,3 @@ CRITERIA_DESCRIPTIONS = {
         "key_metrics": "Visual interest, discovery-worthy",
     },
 }
-

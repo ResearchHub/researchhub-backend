@@ -213,8 +213,13 @@ def extract_pdf_figures(paper_id, retry=0):
         cache.delete(cache_key)
 
         # Trigger primary image selection if figures were extracted
+        # OR create preview if no figures were found
         if figures_created > 0:
             select_primary_image.apply_async((paper.id,), priority=5)
+        else:
+            # No figures extracted, create preview of first page
+            logger.info(f"No figures extracted for paper {paper_id}, creating preview")
+            _create_pdf_screenshot(paper)
 
         return True
 
@@ -230,6 +235,88 @@ def extract_pdf_figures(paper_id, retry=0):
                 countdown=30 * (retry + 1),
             )
 
+        return False
+
+
+def _create_pdf_screenshot(paper) -> bool:
+    """
+    Create a preview (screenshot) of the first page of the PDF and mark it as primary.
+
+    Args:
+        paper: Paper model instance
+
+    Returns:
+        True if preview was created successfully, False otherwise
+    """
+    Figure = apps.get_model("paper.Figure")
+
+    try:
+        file = paper.file
+        if not file:
+            logger.warning(f"No PDF file for paper {paper.id}, cannot create preview")
+            return False
+
+        # Check if preview already exists (first page preview)
+        existing_preview = Figure.objects.filter(
+            paper=paper, figure_type=Figure.PREVIEW
+        ).first()
+
+        if existing_preview:
+            # Mark existing preview as primary
+            Figure.objects.filter(paper=paper).update(is_primary=False)
+            existing_preview.is_primary = True
+            existing_preview.save(update_fields=["is_primary"])
+            logger.info(f"Using existing preview for paper {paper.id}")
+            return True
+
+        # Get PDF content
+        file_url = file.url
+        res = requests.get(file_url, timeout=60)
+        res.raise_for_status()
+        pdf_content = res.content
+
+        # Open PDF and get first page
+        doc = fitz.open(stream=pdf_content, filetype="pdf")
+        if len(doc) == 0:
+            logger.warning(f"PDF has no pages for paper {paper.id}")
+            doc.close()
+            return False
+
+        # Get first page as image (2x zoom for better quality)
+        first_page = doc[0]
+        pix = first_page.get_pixmap(alpha=False, matrix=fitz.Matrix(2, 2))
+
+        # Convert to PNG
+        img_buffer = BytesIO()
+        img_buffer.write(pix.pil_tobytes(format="PNG"))
+        image = Image.open(img_buffer)
+        image.save(img_buffer, "PNG")
+
+        # Create filename
+        output_filename = f"{paper.id}-preview-page0.png"
+        content_file = ContentFile(img_buffer.getvalue(), name=output_filename)
+
+        # Create figure as PREVIEW type
+        preview_figure = Figure.objects.create(
+            file=content_file,
+            paper=paper,
+            figure_type=Figure.PREVIEW,
+            is_primary=True,
+        )
+
+        # Clear any other primary flags
+        Figure.objects.filter(paper=paper).exclude(id=preview_figure.id).update(
+            is_primary=False
+        )
+
+        doc.close()
+
+        logger.info(f"Created preview for paper {paper.id}: {output_filename}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Error creating preview for paper {paper.id}: {e}")
+        sentry.log_error(e)
         return False
 
 
@@ -263,30 +350,57 @@ def select_primary_image(paper_id, retry=0):
     )
 
     if not figures.exists():
-        logger.info(
-            f"No figures found for paper {paper_id}, skipping primary selection"
-        )
-        return False
+        logger.info(f"No figures found for paper {paper_id}, creating preview")
+        # No figures extracted, create preview of first page
+        return _create_pdf_screenshot(paper)
 
     try:
+        from paper.constants.figure_selection_criteria import (
+            MIN_PRIMARY_SCORE_THRESHOLD,
+        )
         from paper.services.bedrock_primary_image_service import (
             BedrockPrimaryImageService,
         )
 
         service = BedrockPrimaryImageService()
-        selected_figure_id = service.select_primary_image(
+        selected_figure_id, best_score = service.select_primary_image(
             paper_title=paper.title or "",
             paper_abstract=paper.abstract or "",
             figures=list(figures),
         )
 
-        if selected_figure_id:
+        # Check if we should use preview instead
+        should_use_preview = False
+        if not selected_figure_id:
+            # No figure selected
+            should_use_preview = True
+            logger.info(f"No figure selected for paper {paper_id}, will use preview")
+        elif best_score is not None and best_score < MIN_PRIMARY_SCORE_THRESHOLD:
+            # Score too low
+            should_use_preview = True
+            logger.info(
+                f"Best figure score {best_score}% below threshold "
+                f"{MIN_PRIMARY_SCORE_THRESHOLD}% for paper {paper_id}, "
+                f"will use preview"
+            )
+
+        if should_use_preview:
+            # Create preview of first page
+            preview_created = _create_pdf_screenshot(paper)
+            if preview_created:
+                logger.info(f"Created preview as primary image for paper {paper_id}")
+                return True
+            else:
+                logger.warning(f"Failed to create preview for paper {paper_id}")
+                return False
+        elif selected_figure_id:
             # Update is_primary flags
             Figure.objects.filter(paper=paper).update(is_primary=False)
             Figure.objects.filter(id=selected_figure_id).update(is_primary=True)
 
             logger.info(
-                f"Selected primary image {selected_figure_id} for paper {paper_id}"
+                f"Selected primary image {selected_figure_id} "
+                f"(score: {best_score}%) for paper {paper_id}"
             )
             return True
         else:

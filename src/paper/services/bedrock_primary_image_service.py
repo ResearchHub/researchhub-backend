@@ -5,7 +5,8 @@ Service for using AWS Bedrock to select the primary image from extracted figures
 import base64
 import json
 import logging
-from typing import List, Optional
+import re
+from typing import List, Optional, Tuple
 
 from django.conf import settings
 
@@ -14,17 +15,24 @@ from utils import aws as aws_utils
 
 logger = logging.getLogger(__name__)
 
+MAX_IMAGES_PER_BEDROCK_REQUEST = 20
+
 
 class BedrockPrimaryImageService:
     """Service for selecting primary image using AWS Bedrock."""
 
     def __init__(self):
         self.bedrock_client = aws_utils.create_bedrock_client()
-        self.model_id = getattr(settings, "AWS_BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0")
+        self.model_id = getattr(
+            settings, "AWS_BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0"
+        )
 
     def _encode_image_to_base64(self, figure) -> Optional[tuple]:
         """
         Encode figure image to base64 string.
+
+        Also ensures image doesn't exceed Bedrock's 8000px limit by resizing
+        if needed (though we already resize during extraction to 2000x2000).
 
         Args:
             figure: Figure model instance
@@ -41,17 +49,13 @@ class BedrockPrimaryImageService:
             image_bytes = figure.file.read()
             figure.file.close()
 
+            # Resize and compress image for Bedrock
+            image_bytes = self._resize_and_compress_for_bedrock(image_bytes, figure.id)
+
             # Encode to base64
             base64_image = base64.b64encode(image_bytes).decode("utf-8")
 
-            # Determine media type from file extension
-            file_name = figure.file.name.lower()
-            if file_name.endswith(".png"):
-                media_type = "image/png"
-            elif file_name.endswith(".jpg") or file_name.endswith(".jpeg"):
-                media_type = "image/jpeg"
-            else:
-                media_type = "image/png"  # Default
+            media_type = "image/jpeg"
 
             return base64_image, media_type
 
@@ -59,28 +63,134 @@ class BedrockPrimaryImageService:
             logger.error(f"Error encoding figure {figure.id} to base64: {e}")
             return None
 
-    def _build_prompt(self, paper_title: str, paper_abstract: str, num_figures: int) -> str:
+    def _resize_and_compress_for_bedrock(
+        self,
+        image_data: bytes,
+        figure_id: int,
+        max_dimension: int = 8000,
+        max_file_size_mb: float = 4.5,
+    ) -> bytes:
+        """
+        Resize and compress image to fit within Bedrock's limits.
+
+        Args:
+            image_data: Image data as bytes
+            figure_id: Figure ID for logging
+            max_dimension: Maximum dimension in pixels (default: 8000)
+            max_file_size_mb: Maximum file size in MB (default: 4.5 for safety)
+
+        Returns:
+            Compressed image data as bytes
+        """
+        from io import BytesIO
+
+        from PIL import Image
+
+        max_file_size_bytes = int(max_file_size_mb * 1024 * 1024)
+
+        image = Image.open(BytesIO(image_data))
+
+        if image.mode in ("RGBA", "LA", "P"):
+            background = Image.new("RGB", image.size, (255, 255, 255))
+            if image.mode == "P":
+                image = image.convert("RGBA")
+            mask = image.split()[-1] if image.mode in ("RGBA", "LA") else None
+            background.paste(image, mask=mask)
+            image = background
+
+        # Step 1: Resize dimensions if needed
+        width, height = image.size
+        if width > max_dimension or height > max_dimension:
+            logger.warning(
+                f"Figure {figure_id} exceeds dimension limit "
+                f"({width}x{height}), resizing to {max_dimension}px"
+            )
+            if width > height:
+                new_width = max_dimension
+                new_height = int((height * max_dimension) / width)
+            else:
+                new_height = max_dimension
+                new_width = int((width * max_dimension) / height)
+
+            image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+
+        # Step 2: Compress until file size is acceptable
+        quality = 95
+        while quality > 10:
+            output_buffer = BytesIO()
+            image.save(output_buffer, format="JPEG", quality=quality, optimize=True)
+
+            file_size = output_buffer.tell()
+
+            if file_size <= max_file_size_bytes:
+                return output_buffer.getvalue()
+
+            # Reduce quality for next iteration
+            quality -= 10
+
+        # If still too large, resize further
+        scale_factor = 0.9
+        while quality <= 10:
+            # Reduce image dimensions
+            new_width = int(image.width * scale_factor)
+            new_height = int(image.height * scale_factor)
+
+            if new_width < 100 or new_height < 100:
+                break  # Don't make it too small
+
+            resized_image = image.resize(
+                (new_width, new_height), Image.Resampling.LANCZOS
+            )
+
+            output_buffer = BytesIO()
+            resized_image.save(output_buffer, format="JPEG", quality=50, optimize=True)
+
+            file_size = output_buffer.tell()
+
+            if file_size <= max_file_size_bytes:
+                return output_buffer.getvalue()
+
+            scale_factor -= 0.1
+
+        # Last resort: very aggressive compression
+        logger.warning(
+            f"Figure {figure_id} still too large after all attempts, "
+            f"using last resort compression"
+        )
+        output_buffer = BytesIO()
+        final_image = image.resize((800, 600), Image.Resampling.LANCZOS)
+        final_image.save(output_buffer, format="JPEG", quality=30, optimize=True)
+
+        return output_buffer.getvalue()
+
+    def _build_prompt(
+        self, paper_title: str, paper_abstract: str, num_figures: int
+    ) -> str:
         """
         Build the prompt for Bedrock with scoring criteria.
-        
         Args:
             paper_title: Title of the paper
             paper_abstract: Abstract of the paper
             num_figures: Number of figures to evaluate
-            
+
         Returns:
             Formatted prompt string
         """
         # Build criteria section
         criteria_section = "\n\n## Scoring Criteria (Total Weight: 100%)\n\n"
         for criterion_name, criterion_data in CRITERIA_DESCRIPTIONS.items():
+            title = criterion_name.replace("_", " ").title()
+            weight = criterion_data["weight"]
+            desc = criterion_data["description"]
+            metrics = criterion_data["key_metrics"]
             criteria_section += (
-                f"- **{criterion_name.replace('_', ' ').title()} ({criterion_data['weight']}%)**: "
-                f"{criterion_data['description']}\n"
-                f"  - Key Metrics: {criterion_data['key_metrics']}\n\n"
+                f"- **{title} ({weight}%)**: {desc}\n" f"  - Key Metrics: {metrics}\n\n"
             )
-        
-        prompt = f"""You are an expert at analyzing scientific paper figures and selecting the most appropriate primary image for display in a research feed.
+
+        prompt = (
+            f"""You are an expert at analyzing scientific paper figures """
+            f"""and selecting the most appropriate primary image for """
+            f"""display in a research feed.
 
 ## Paper Information
 
@@ -90,14 +200,62 @@ class BedrockPrimaryImageService:
 
 ## Task
 
-You will be shown {num_figures} figures extracted from this paper. Your task is to evaluate each figure based on the scoring criteria below and select the best primary image.
+You will be shown {num_figures} images extracted from this paper.
+These may include scientific figures, charts, diagrams, illustrations, logos,
+avatars, or other visual content from the paper.
+
+**IMPORTANT: You must evaluate ALL images provided, regardless of their type.**
+You must always return a JSON response with scores for all images. Never refuse
+to evaluate an image or return an error message.
+
+If an image is not related to science or the article content (e.g., a logo,
+avatar, or unrelated illustration), you should still evaluate it, but assign
+low scores (0-30) on criteria like "Scientific Impact" and "Narrative Context"
+since it doesn't relate to the paper's content. Other criteria like "Visual
+Quality" and "Social Media Potential" should still be evaluated based on the
+image's visual appeal.
+
+The goal is to choose the most visually appealing and representative image for
+display in a research feed. Images that are not science-related will naturally
+score lower overall and won't be selected unless they are exceptionally visually
+appealing and relevant.
+
+Your task is to evaluate each image based on the scoring criteria below and select
+the best primary image. Always return valid JSON with scores for all images.
 
 {criteria_section}
 ## Instructions
 
-1. Evaluate each figure on all 8 criteria above, assigning scores based on how well each figure meets the criteria.
-2. Consider the weights when calculating overall scores.
+1. Evaluate each image on all 8 criteria above, assigning scores from 0-100
+   for each criterion based on how well the image meets that criterion.
+
+   **CRITICAL: You must always return JSON with scores for ALL images.**
+   Never refuse to evaluate an image or return an error message. If an image
+   is not science-related or not relevant to the article:
+   - Assign low scores (0-30) to "Scientific Impact" and "Narrative Context"
+   - Still evaluate other criteria (Visual Quality, Social Media Potential,
+     etc.) based on the image's actual visual appeal
+   - The low scores will naturally prevent non-relevant images from being
+     selected unless they are exceptionally visually appealing
+
+   **Scoring Guidelines:**
+   - 0-30: Poor - figure does not meet the criterion well
+   - 31-50: Below average - figure partially meets the criterion
+   - 51-70: Good - figure meets the criterion adequately
+   - 71-85: Very good - figure meets the criterion well
+   - 86-100: Excellent - figure exceeds the criterion
+
+   **Be conservative in your scoring.** Most figures should score in the
+   40-70 range. Only exceptional figures should score above 80. Reserve
+   scores above 90 for truly outstanding figures that are ideal for feed
+   display.
+
+2. Calculate the weighted total score by multiplying each criterion score by
+   its weight percentage and summing them. The total_score should be a value
+   from 0-100.
+
 3. Select the figure that has the highest overall weighted score.
+
 4. Return your response as JSON with the following format:
    {{
      "selected_figure_index": <0-based index of selected figure>,
@@ -118,28 +276,57 @@ You will be shown {num_figures} figures extracted from this paper. Your task is 
      "reasoning": "<brief explanation of why this figure was selected>"
    }}
 
-Each figure will be labeled as "Figure 0", "Figure 1", etc. in the order they appear."""
-        
+Each image will be labeled as "Figure 0", "Figure 1", etc. in the order they
+appear.
+
+**Remember: Always return JSON with scores for ALL images. Never refuse to
+evaluate or return an error. Non-relevant images should receive low scores
+(0-30) on Scientific Impact and Narrative Context, but still be evaluated
+on other criteria."""
+        )
+
         return prompt
 
-    def select_primary_image(
-        self, paper_title: str, paper_abstract: str, figures: List
-    ) -> Optional[int]:
+    def _select_best_from_batch(
+        self,
+        batch_figures: List,
+        paper_title: str,
+        paper_abstract: str,
+        batch_number: Optional[int] = None,
+    ) -> Tuple[Optional[int], Optional[float]]:
         """
-        Select primary image from figures using AWS Bedrock.
-        
+        Select the best figure from a batch of figures using AWS Bedrock.
+
+        This is the core Bedrock API call logic that processes a single batch
+        of figures (max MAX_IMAGES_PER_BEDROCK_REQUEST).
+
         Args:
+            batch_figures: List of Figure model instances (max 20)
             paper_title: Title of the paper
             paper_abstract: Abstract of the paper
-            figures: List of Figure model instances
-            
+            batch_number: Optional batch number for logging
+
         Returns:
-            ID of the selected figure, or None if selection fails
+            Tuple of (selected_figure_id, score) or (None, None) if selection fails
+            score is the total_score from Bedrock response (0-100)
         """
-        if not figures:
-            logger.warning("No figures provided for primary image selection")
-            return None
-        
+        if not batch_figures:
+            logger.warning("No figures provided for batch selection")
+            return None, None
+
+        if len(batch_figures) > MAX_IMAGES_PER_BEDROCK_REQUEST:
+            logger.error(
+                f"Batch contains {len(batch_figures)} figures, "
+                f"exceeds limit of {MAX_IMAGES_PER_BEDROCK_REQUEST}"
+            )
+            return None, None
+
+        batch_label = f"batch {batch_number}" if batch_number is not None else "batch"
+        logger.info(
+            f"Processing {batch_label} with {len(batch_figures)} figures "
+            f"(figure IDs: {[f.id for f in batch_figures]})"
+        )
+
         try:
             # Build system prompt
             system_prompt = (
@@ -148,41 +335,47 @@ Each figure will be labeled as "Figure 0", "Figure 1", etc. in the order they ap
                 "You understand scientific visualization, data presentation, and "
                 "what makes a figure suitable for public display in research feeds."
             )
-            
+
             # Build user message content
             user_content = []
-            
+
             # Add text prompt
-            prompt_text = self._build_prompt(paper_title, paper_abstract, len(figures))
+            prompt_text = self._build_prompt(
+                paper_title, paper_abstract, len(batch_figures)
+            )
             user_content.append({"type": "text", "text": prompt_text})
-            
+
             # Add each figure as image content block
-            for idx, figure in enumerate(figures):
+            for idx, figure in enumerate(batch_figures):
                 encoded_result = self._encode_image_to_base64(figure)
                 if encoded_result is None:
                     logger.warning(f"Skipping figure {figure.id} - encoding failed")
                     continue
-                
+
                 base64_image, media_type = encoded_result
-                
-                user_content.append({
-                    "type": "image",
-                    "source": {
-                        "type": "base64",
-                        "media_type": media_type,
-                        "data": base64_image,
-                    },
-                })
-                
-                user_content.append({
-                    "type": "text",
-                    "text": f"Figure {idx}",
-                })
-            
+
+                user_content.append(
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": media_type,
+                            "data": base64_image,
+                        },
+                    }
+                )
+
+                user_content.append(
+                    {
+                        "type": "text",
+                        "text": f"Figure {idx}",
+                    }
+                )
+
             if not any(item.get("type") == "image" for item in user_content):
-                logger.error("No figures could be encoded for Bedrock")
-                return None
-            
+                logger.error(f"No figures could be encoded for {batch_label}")
+                return None, None
+
             # Prepare request body
             request_body = {
                 "anthropic_version": "bedrock-2023-05-31",
@@ -195,31 +388,33 @@ Each figure will be labeled as "Figure 0", "Figure 1", etc. in the order they ap
                     }
                 ],
             }
-            
+
             # Invoke Bedrock model
             logger.info(
-                f"Invoking Bedrock model {self.model_id} to select primary image "
-                f"from {len(figures)} figures"
+                f"Invoking Bedrock model {self.model_id} for {batch_label} "
+                f"({len(batch_figures)} figures)"
             )
-            
+
             response = self.bedrock_client.invoke_model(
                 modelId=self.model_id,
                 body=json.dumps(request_body),
             )
-            
+
             # Parse response
             response_body = json.loads(response["body"].read())
-            
+
             if "content" not in response_body:
-                logger.error("Invalid response from Bedrock: missing content")
-                return None
-            
+                logger.error(
+                    f"Invalid response from Bedrock for {batch_label}: missing content"
+                )
+                return None, None
+
             # Extract text from response
             text_content = ""
             for content_block in response_body["content"]:
                 if content_block.get("type") == "text":
                     text_content += content_block.get("text", "")
-            
+
             # Parse JSON from response
             try:
                 # Try to extract JSON from the response text
@@ -237,39 +432,191 @@ Each figure will be labeled as "Figure 0", "Figure 1", etc. in the order they ap
                     json_start = text_content.find("{")
                     json_end = text_content.rfind("}") + 1
                     json_text = text_content[json_start:json_end]
-                
+
+                # Clean up control characters that might break JSON parsing
+                # Remove control characters except newlines, tabs, and carriage returns
+                json_text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", json_text)
+
+                # Also try to fix common JSON issues
+                # Remove any text before the first {
+                if "{" in json_text:
+                    json_text = json_text[json_text.find("{") :]
+
                 result = json.loads(json_text)
                 selected_index = result.get("selected_figure_index")
-                
+
                 if selected_index is None:
-                    logger.error("Bedrock response missing selected_figure_index")
-                    return None
-                
-                if selected_index < 0 or selected_index >= len(figures):
                     logger.error(
-                        f"Invalid figure index {selected_index} "
-                        f"(must be 0-{len(figures)-1})"
+                        f"Bedrock response for {batch_label} missing "
+                        f"selected_figure_index"
                     )
-                    return None
-                
-                selected_figure = figures[selected_index]
+                    return None, None
+
+                if selected_index < 0 or selected_index >= len(batch_figures):
+                    logger.error(
+                        f"Invalid figure index {selected_index} for {batch_label} "
+                        f"(must be 0-{len(batch_figures)-1})"
+                    )
+                    return None, None
+
+                selected_figure = batch_figures[selected_index]
+
+                # Get score
+                best_score = None
+                scores = result.get("scores", {})
+                figure_key = f"figure_{selected_index}"
+                if figure_key in scores and "total_score" in scores[figure_key]:
+                    best_score = scores[figure_key]["total_score"]
+
                 logger.info(
-                    f"Bedrock selected figure index {selected_index} "
-                    f"(figure ID: {selected_figure.id})"
+                    f"Bedrock selected figure index {selected_index} from "
+                    f"{batch_label} (figure ID: {selected_figure.id}, "
+                    f"score: {best_score})"
                 )
-                
+
                 # Log reasoning if provided
                 if "reasoning" in result:
-                    logger.info(f"Selection reasoning: {result['reasoning']}")
-                
-                return selected_figure.id
-                
-            except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse JSON from Bedrock response: {e}")
-                logger.error(f"Response text: {text_content[:500]}")
-                return None
-                
-        except Exception as e:
-            logger.error(f"Error calling Bedrock API: {e}")
-            raise
+                    logger.debug(
+                        f"{batch_label} selection reasoning: {result['reasoning']}"
+                    )
 
+                return selected_figure.id, best_score
+
+            except json.JSONDecodeError as e:
+                logger.error(
+                    f"Failed to parse JSON from Bedrock response for {batch_label}: {e}"
+                )
+                logger.error(f"Response text: {text_content[:1000]}")
+                return None, None
+
+        except Exception as e:
+            logger.error(f"Error calling Bedrock API for {batch_label}: {e}")
+            return None, None
+
+    def select_primary_image(
+        self, paper_title: str, paper_abstract: str, figures: List
+    ) -> Tuple[Optional[int], Optional[float]]:
+        """
+        Select primary image from figures using AWS Bedrock with batching support.
+
+        If there are more than MAX_IMAGES_PER_BEDROCK_REQUEST figures, this method
+        will process them in batches, select winners from each batch, and then
+        select the overall best from the batch winners.
+
+        Args:
+            paper_title: Title of the paper
+            paper_abstract: Abstract of the paper
+            figures: List of Figure model instances
+
+        Returns:
+            Tuple of (selected_figure_id, best_score) or (None, None) if selection fails
+            best_score is the total_score from Bedrock response (0-100)
+        """
+        if not figures:
+            logger.warning("No figures provided for primary image selection")
+            return None, None
+
+        num_figures = len(figures)
+        logger.info(f"Selecting primary image from {num_figures} figures")
+
+        # If we have ≤ 20 figures, process directly
+        if num_figures <= MAX_IMAGES_PER_BEDROCK_REQUEST:
+            logger.info(
+                f"Processing {num_figures} figures directly "
+                f"(within limit of {MAX_IMAGES_PER_BEDROCK_REQUEST})"
+            )
+            return self._select_best_from_batch(figures, paper_title, paper_abstract)
+
+        # Otherwise, we need to batch
+        logger.info(
+            f"Processing {num_figures} figures in batches "
+            f"(limit: {MAX_IMAGES_PER_BEDROCK_REQUEST} per batch)"
+        )
+
+        # Split figures into batches
+        batches = []
+        for i in range(0, num_figures, MAX_IMAGES_PER_BEDROCK_REQUEST):
+            batch = figures[i : i + MAX_IMAGES_PER_BEDROCK_REQUEST]
+            batches.append(batch)
+
+        batch_sizes = [len(batch) for batch in batches]
+        logger.info(f"Created {len(batches)} batches with sizes: {batch_sizes}")
+
+        # Process each batch and collect winners
+        batch_winners = []  # List of (figure, score) tuples
+        failed_batches = 0
+
+        for batch_idx, batch in enumerate(batches, start=1):
+            selected_id, score = self._select_best_from_batch(
+                batch, paper_title, paper_abstract, batch_number=batch_idx
+            )
+
+            if selected_id is None or score is None:
+                logger.warning(f"Batch {batch_idx} failed to select a winner, skipping")
+                failed_batches += 1
+                continue
+
+            # Find the figure object from the selected ID
+            selected_figure = next((f for f in batch if f.id == selected_id), None)
+            if selected_figure is None:
+                logger.warning(
+                    f"Could not find figure {selected_id} from batch {batch_idx}"
+                )
+                failed_batches += 1
+                continue
+
+            batch_winners.append((selected_figure, score))
+            logger.info(
+                f"Batch {batch_idx} winner: figure {selected_id} (score: {score})"
+            )
+
+        # Check if we have any winners
+        if not batch_winners:
+            logger.error(f"All {len(batches)} batches failed to select winners")
+            return None, None
+
+        if failed_batches > 0:
+            logger.warning(
+                f"{failed_batches} out of {len(batches)} batches failed, "
+                f"proceeding with {len(batch_winners)} winners"
+            )
+
+        # If we have only one winner, return it
+        if len(batch_winners) == 1:
+            winner_figure, winner_score = batch_winners[0]
+            logger.info(
+                f"Single batch winner selected as primary: "
+                f"figure {winner_figure.id} (score: {winner_score})"
+            )
+            return winner_figure.id, winner_score
+
+        # If we have multiple winners (≤20), select best from them
+        if len(batch_winners) <= MAX_IMAGES_PER_BEDROCK_REQUEST:
+            logger.info(f"Selecting best from {len(batch_winners)} batch winners")
+            winner_figures = [figure for figure, _ in batch_winners]
+            selected_id, final_score = self._select_best_from_batch(
+                winner_figures,
+                paper_title,
+                paper_abstract,
+                batch_number="final",
+            )
+
+            if selected_id is None or final_score is None:
+                # Fallback: return the highest scoring winner
+                logger.warning(
+                    "Final selection failed, using highest scoring batch winner"
+                )
+                best_winner = max(batch_winners, key=lambda x: x[1] if x[1] else 0)
+                winner_figure, winner_score = best_winner
+                return winner_figure.id, winner_score
+
+            logger.info(f"Final selection: figure {selected_id} (score: {final_score})")
+            return selected_id, final_score
+
+        # If we have >20 winners, recursively batch them
+        logger.info(
+            f"Recursively batching {len(batch_winners)} winners "
+            f"(exceeds limit of {MAX_IMAGES_PER_BEDROCK_REQUEST})"
+        )
+        winner_figures = [figure for figure, _ in batch_winners]
+        return self.select_primary_image(paper_title, paper_abstract, winner_figures)

@@ -562,5 +562,7 @@ class Figure(models.Model):
     class Meta:
         indexes = [
             models.Index(fields=["paper", "figure_type"], name="figure_paper_type_idx"),
-            models.Index(fields=["paper", "is_primary"], name="figure_paper_primary_idx"),
+            models.Index(
+                fields=["paper", "is_primary"], name="figure_paper_primary_idx"
+            ),
         ]
