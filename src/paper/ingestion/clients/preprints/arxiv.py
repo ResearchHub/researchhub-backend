@@ -17,6 +17,97 @@ from ..base import BaseClient, ClientConfig
 logger = logging.getLogger(__name__)
 
 
+def parse_xml_entry(raw_xml: str) -> Dict[str, Any]:
+    """
+    Parse raw ArXiv XML entry into a dictionary.
+
+    Args:
+        raw_xml: Raw XML string for a single entry
+
+    Returns:
+        Dictionary with parsed fields
+    """
+    ATOM_NS = "{http://www.w3.org/2005/Atom}"
+    ARXIV_NS = "{http://arxiv.org/schemas/atom}"
+
+    try:
+        root = ET.fromstring(raw_xml)
+
+        # Extract basic fields
+        entry_data = {
+            "id": _get_text(root, f"{ATOM_NS}id"),
+            "title": _get_text(root, f"{ATOM_NS}title"),
+            "summary": _get_text(root, f"{ATOM_NS}summary"),
+            "published": _get_text(root, f"{ATOM_NS}published"),
+            "updated": _get_text(root, f"{ATOM_NS}updated"),
+        }
+
+        # Extract authors
+        authors = []
+        for author_elem in root.findall(f"{ATOM_NS}author"):
+            author_data = {"name": _get_text(author_elem, f"{ATOM_NS}name")}
+            # Check for affiliation
+            affiliation = _get_text(author_elem, f"{ARXIV_NS}affiliation")
+            if affiliation:
+                author_data["affiliation"] = affiliation
+            authors.append(author_data)
+        entry_data["authors"] = authors
+
+        # Extract categories
+        categories = []
+        for cat_elem in root.findall(f"{ATOM_NS}category"):
+            term = cat_elem.get("term")
+            if term:
+                categories.append(term)
+        entry_data["categories"] = categories
+
+        # Extract primary category
+        primary_cat = root.find(f"{ARXIV_NS}primary_category")
+        if primary_cat is not None:
+            entry_data["primary_category"] = primary_cat.get("term", "")
+
+        # Extract links
+        links = {}
+        for link_elem in root.findall(f"{ATOM_NS}link"):
+            rel = link_elem.get("rel")
+            href = link_elem.get("href")
+            title = link_elem.get("title")
+
+            if rel == "alternate":
+                links["alternate"] = href
+            elif title == "pdf":
+                links["pdf"] = href
+        entry_data["links"] = links
+
+        # Extract optional fields
+        entry_data["comment"] = _get_text(root, f"{ARXIV_NS}comment")
+        entry_data["journal_ref"] = _get_text(root, f"{ARXIV_NS}journal_ref")
+        entry_data["doi"] = _get_text(root, f"{ARXIV_NS}doi")
+
+        return entry_data
+
+    except ET.ParseError as e:
+        logger.error(f"Failed to parse XML entry: {e}")
+        return {}
+
+
+def _get_text(element: ET.Element, tag: str) -> Optional[str]:
+    """
+    Get text content from an XML element.
+
+    Args:
+        element: Parent element
+        tag: Tag to find
+
+    Returns:
+        Text content or None
+    """
+    child = element.find(tag)
+    if child is not None and child.text:
+        return child.text.strip()
+    return None
+
+
 class ArXivConfig(ClientConfig):
     """ArXiv-specific configuration."""
 
@@ -104,16 +195,13 @@ class ArXivClient(BaseClient):
         self, raw_data: Union[str, bytes, Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """
-        Parse ArXiv Atom XML feed and return raw entry data.
-
-        This minimal parsing just extracts the XML text for each entry,
-        leaving detailed mapping to a separate mapper component.
+        Parse ArXiv Atom XML feed and return parsed entry data.
 
         Args:
             raw_data: XML response from API
 
         Returns:
-            List of raw entry XML strings
+            List of parsed entry dictionaries
         """
         if isinstance(raw_data, dict):
             # If already parsed somehow, return as is
@@ -126,13 +214,15 @@ class ArXivClient(BaseClient):
         try:
             root = ET.fromstring(raw_data)
 
-            # Find all entry elements and return their raw XML
+            # Find all entry elements and parse them
             entries = root.findall(f"{self.ATOM_NS}entry")
 
             for entry in entries:
-                # Convert each entry back to XML string
                 entry_xml = ET.tostring(entry, encoding="unicode")
-                papers.append({"raw_xml": entry_xml, "source": "arxiv"})
+                parsed = parse_xml_entry(entry_xml)
+                if parsed:
+                    parsed["source"] = "arxiv"
+                    papers.append(parsed)
 
         except ET.ParseError as e:
             logger.error(f"Failed to parse XML response: {e}")

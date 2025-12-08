@@ -56,26 +56,22 @@ class TestArXivOAIClient(TestCase):
         # Assert
         self.assertEqual(len(papers), 2)
 
-        # Check that papers contain raw XML
+        # Check that papers contain parsed data
         paper1 = papers[0]
-        self.assertIn("raw_xml", paper1)
         self.assertEqual(paper1["source"], "arxiv_oai")
-
-        # Verify the raw XML contains expected content
-        self.assertIn("2501.08827", paper1["raw_xml"])
-        self.assertIn(
+        self.assertEqual(paper1["id"], "2501.08827")
+        self.assertEqual(
+            paper1["title"],
             "A Survey of Reinforcement Learning for Large Reasoning Models",
-            paper1["raw_xml"],
         )
-        self.assertIn("Kaiyan", paper1["raw_xml"])
-        self.assertIn("Zhang", paper1["raw_xml"])
+        self.assertEqual(paper1["authors"][0]["keyname"], "Zhang")
+        self.assertEqual(paper1["authors"][0]["forenames"], "Kaiyan")
 
         # Check second paper
         paper2 = papers[1]
-        self.assertIn("raw_xml", paper2)
         self.assertEqual(paper2["source"], "arxiv_oai")
-        self.assertIn("2501.08817", paper2["raw_xml"])
-        self.assertIn("Quantum Cardinality", paper2["raw_xml"])
+        self.assertEqual(paper2["id"], "2501.08817")
+        self.assertIn("Quantum Cardinality", paper2["title"])
 
     def test_parse_empty_response(self):
         """
@@ -155,8 +151,7 @@ class TestArXivOAIClient(TestCase):
 
         # Assert - Check results
         self.assertEqual(len(papers), 2)
-        self.assertIn("raw_xml", papers[0])
-        self.assertIn("2501.08827", papers[0]["raw_xml"])
+        self.assertEqual(papers[0]["id"], "2501.08827")
 
         # Verify query was constructed correctly
         first_call_args = mock_fetch.call_args_list[0]

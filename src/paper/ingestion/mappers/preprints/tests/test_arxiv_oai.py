@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 from django.test import TestCase
 
 from hub.models import Hub
+from paper.ingestion.clients.preprints.arxiv_oai import parse_xml_metadata
 from paper.ingestion.mappers import ArXivOAIMapper
 from paper.models import Paper
 
@@ -32,8 +33,8 @@ class TestArXivOAIMapper(TestCase):
         with open(fixtures_dir / "arxiv_oai_metadata_sample.xml", "r") as f:
             self.sample_metadata_xml = f.read()
 
-        # Create parsed records for testing
-        self.sample_record = {"raw_xml": self.sample_metadata_xml}
+        # Create parsed records for testing (simulating what the client now does)
+        self.sample_record = parse_xml_metadata(self.sample_metadata_xml)
 
     def test_validate_valid_record(self):
         """
@@ -49,14 +50,11 @@ class TestArXivOAIMapper(TestCase):
         """
         Test validation fails for missing required fields.
         """
-        # Arrange
-        missing_id_xml = """<metadata xmlns="http://www.openarchives.org/OAI/2.0/">
-    <arXiv xmlns="http://arxiv.org/OAI/arXiv/">
-      <title>Test Paper</title>
-      <authors><author><keyname>Doe</keyname><forenames>John</forenames></author></authors>
-    </arXiv>
-  </metadata>"""
-        record = {"raw_xml": missing_id_xml}
+        # Arrange - missing ID
+        record = {
+            "title": "Test Paper",
+            "authors": [{"name": "John Doe", "keyname": "Doe", "forenames": "John"}],
+        }
 
         # Act
         result = self.mapper.validate(record)
@@ -69,14 +67,11 @@ class TestArXivOAIMapper(TestCase):
         Test validation fails when no dates are present.
         """
         # Arrange
-        missing_dates_xml = """<metadata xmlns="http://www.openarchives.org/OAI/2.0/">
-    <arXiv xmlns="http://arxiv.org/OAI/arXiv/">
-      <id>2507.00004</id>
-      <title>Test Paper</title>
-      <authors><author><keyname>Doe</keyname><forenames>John</forenames></author></authors>
-    </arXiv>
-  </metadata>"""
-        record = {"raw_xml": missing_dates_xml}
+        record = {
+            "id": "2507.00004",
+            "title": "Test Paper",
+            "authors": [{"name": "John Doe", "keyname": "Doe", "forenames": "John"}],
+        }
 
         # Act
         result = self.mapper.validate(record)
@@ -137,10 +132,10 @@ class TestArXivOAIMapper(TestCase):
 
     def test_parse_xml_metadata(self):
         """
-        Test XML metadata parsing.
+        Test XML metadata parsing (now in client module).
         """
         # Act
-        parsed = self.mapper._parse_xml_metadata(self.sample_metadata_xml)
+        parsed = parse_xml_metadata(self.sample_metadata_xml)
 
         # Assert
         # Check basic fields
@@ -350,13 +345,8 @@ class TestArXivOAIMapper(TestCase):
 
         mapper = ArXivOAIMapper(mock_hub_mapper)
 
-        # Parse record to get primary category
-        parsed = mapper._parse_xml_metadata(self.sample_metadata_xml)
-        parsed_record = dict(self.sample_record)
-        parsed_record.update(parsed)
-
-        # Act
-        hubs = mapper.map_to_hubs(parsed_record)
+        # Act - sample_record is already parsed
+        hubs = mapper.map_to_hubs(self.sample_record)
 
         # Assert
         # Should be called once for primary category
@@ -372,13 +362,8 @@ class TestArXivOAIMapper(TestCase):
         # Arrange
         mapper = ArXivOAIMapper(None)
 
-        # Parse record to get categories
-        parsed = mapper._parse_xml_metadata(self.sample_metadata_xml)
-        parsed_record = dict(self.sample_record)
-        parsed_record.update(parsed)
-
-        # Act
-        hubs = mapper.map_to_hubs(parsed_record)
+        # Act - sample_record is already parsed
+        hubs = mapper.map_to_hubs(self.sample_record)
 
         # Assert
         self.assertEqual(len(hubs), 1)
@@ -399,13 +384,8 @@ class TestArXivOAIMapper(TestCase):
 
         mapper = ArXivOAIMapper(mock_hub_mapper)
 
-        # Parse record to get categories
-        parsed = mapper._parse_xml_metadata(self.sample_metadata_xml)
-        parsed_record = dict(self.sample_record)
-        parsed_record.update(parsed)
-
-        # Act
-        hubs = mapper.map_to_hubs(parsed_record)
+        # Act - sample_record is already parsed
+        hubs = mapper.map_to_hubs(self.sample_record)
 
         # Assert
         # Should only have 2 hubs, not duplicate the arxiv hub
@@ -491,18 +471,14 @@ class TestArXivOAIMapper(TestCase):
         mock_hub_mapper = MagicMock()
         mapper = ArXivOAIMapper(mock_hub_mapper)
 
-        # XML without categories
-        xml_no_category = """<metadata xmlns="http://www.openarchives.org/OAI/2.0/">
-    <arXiv xmlns="http://arxiv.org/OAI/arXiv/">
-      <id>2507.00004</id>
-      <created>2025-07-10</created>
-      <title>Test Paper</title>
-      <abstract>Test abstract</abstract>
-      <authors><author><keyname>Doe</keyname><forenames>John</forenames></author></authors>
-    </arXiv>
-  </metadata>"""
-
-        record_no_primary = {"raw_xml": xml_no_category}
+        # Parsed record without categories
+        record_no_primary = {
+            "id": "2507.00004",
+            "created": "2025-07-10",
+            "title": "Test Paper",
+            "abstract": "Test abstract",
+            "authors": [{"name": "John Doe", "keyname": "Doe", "forenames": "John"}],
+        }
 
         # Act
         hubs = mapper.map_to_hubs(record_no_primary)

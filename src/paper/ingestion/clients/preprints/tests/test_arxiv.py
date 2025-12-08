@@ -46,27 +46,23 @@ class TestArXivClient(TestCase):
 
         self.assertEqual(len(papers), 2)
 
-        # Check that papers contain raw XML
+        # Check that papers contain parsed data
         paper1 = papers[0]
-        self.assertIn("raw_xml", paper1)
         self.assertEqual(paper1["source"], "arxiv")
-
-        # Verify the raw XML contains expected content
-        self.assertIn("2509.08827v1", paper1["raw_xml"])
-        self.assertIn(
+        self.assertIn("2509.08827v1", paper1["id"])
+        self.assertEqual(
+            paper1["title"],
             "A Survey of Reinforcement Learning for Large Reasoning Models",
-            paper1["raw_xml"],
         )
-        self.assertIn("Kaiyan Zhang", paper1["raw_xml"])
-        self.assertIn("cs.CL", paper1["raw_xml"])
+        self.assertEqual(paper1["authors"][0]["name"], "Kaiyan Zhang")
+        self.assertEqual(paper1["primary_category"], "cs.CL")
 
         # Check second paper
         paper2 = papers[1]
-        self.assertIn("raw_xml", paper2)
         self.assertEqual(paper2["source"], "arxiv")
-        self.assertIn("2509.08817v1", paper2["raw_xml"])
-        self.assertIn("Quantum Cardinality", paper2["raw_xml"])
-        self.assertIn("7 pages", paper2["raw_xml"])  # Comment field
+        self.assertIn("2509.08817v1", paper2["id"])
+        self.assertIn("Quantum Cardinality", paper2["title"])
+        self.assertEqual(paper2["comment"], "7 pages")
 
     def test_parse_empty_response(self):
         """Test parsing empty XML response."""
@@ -111,8 +107,7 @@ class TestArXivClient(TestCase):
 
         # Check results
         self.assertEqual(len(papers), 2)
-        self.assertIn("raw_xml", papers[0])
-        self.assertIn("2509.08827v1", papers[0]["raw_xml"])
+        self.assertIn("2509.08827v1", papers[0]["id"])
 
         # Verify query was constructed correctly
         first_call_args = mock_fetch.call_args_list[0]
