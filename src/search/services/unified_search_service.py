@@ -1,7 +1,3 @@
-"""
-Unified search service for searching across documents (papers/posts).
-"""
-
 import logging
 import time
 from typing import Any
@@ -44,14 +40,11 @@ class UnifiedSearchService:
 
         start_time = time.time()
 
-        # Validate sort option
         if sort not in self.VALID_SORT_OPTIONS:
             sort = self.SORT_RELEVANCE
 
-        # Calculate offset
         offset = (page - 1) * page_size
 
-        # If query is a DOI and there is an exact match, return only that result
         try:
             if DOI.is_doi(query):
                 normalized_doi = DOI.normalize_doi(query)
@@ -68,27 +61,19 @@ class UnifiedSearchService:
                         "execution_time_ms": seconds_to_milliseconds(execution_time),
                     }
         except Exception:
-            # Fallback to regular flow if DOI parsing/search fails
             pass
 
-        # Search documents (papers and posts)
         document_results = self._search_documents(query, offset, page_size, sort)
-
-        # Total count is just document count
         total_count = document_results["count"]
 
-        # Calculate pagination URLs
         next_url = None
         previous_url = None
 
         if request:
-            # Check if there are more results
             if page * page_size < total_count:
                 next_url = self._build_page_url(
                     request, query, page + 1, page_size, sort
                 )
-
-            # Check if there are previous results
             if page > 1:
                 previous_url = self._build_page_url(
                     request, query, page - 1, page_size, sort
@@ -107,8 +92,6 @@ class UnifiedSearchService:
         }
 
     def _build_author_filter(self) -> Q:
-        # Use exists queries on nested author fields - these only match if the array
-        # has at least one element with that field
         return Q(
             "bool",
             should=[
@@ -126,17 +109,12 @@ class UnifiedSearchService:
         sort: str,
         popularity_config: PopularityConfig | None = None,
     ) -> dict[str, Any]:
-
         # Create multi-index search for papers and posts
         search = Search(index=[self.paper_index, self.post_index])
-
-        # Build query with field boosting and popularity signals
         # Uses function_score to combine text relevance with hot_score_v2
         query_obj = self.query_builder.build_document_query_with_popularity(
             query, popularity_config
         )
-
-        # Wrap query with author filter to exclude documents without authors
         author_filter = self._build_author_filter()
         filtered_query = Q("bool", must=[query_obj], filter=[author_filter])
         search = search.query(filtered_query)
@@ -146,14 +124,7 @@ class UnifiedSearchService:
         search = self._apply_sort(search, sort)
 
         search = search[offset : offset + limit]
-
-        # Optimize query performance
-        search = search.extra(
-            track_total_hits=True,
-            timeout="5s",
-        )
-
-        # Source filtering for performance
+        search = search.extra(track_total_hits=True, timeout="5s")
         search = search.source(
             [
                 "id",
@@ -176,7 +147,6 @@ class UnifiedSearchService:
             ]
         )
 
-        # Execute search
         try:
             response = search.execute()
             self._log_first_hit_index(response)
@@ -192,24 +162,16 @@ class UnifiedSearchService:
         }
 
     def _log_first_hit_index(self, response) -> None:
-        """Log the index of the first hit if results are available."""
         if response.hits.total.value > 0:
             first_hit_index = response.hits[0].meta.index if response.hits else "N/A"
             logger.info(f"First hit index: {first_hit_index}")
 
     def _search_documents_by_doi(self, normalized_doi: str) -> dict[str, Any]:
-
         search = Search(index=[self.paper_index, self.post_index])
-
-        # Build DOI query and wrap with author filter
         doi_query = Q("term", doi={"value": normalized_doi})
         author_filter = self._build_author_filter()
         filtered_query = Q("bool", must=[doi_query], filter=[author_filter])
         search = search.query(filtered_query)
-
-        # Sort by date to get the latest version
-        # Prefer updated_date if available (for posts), otherwise created_date
-        # This handles both papers (created_date only) and posts (both fields)
         search = search.sort(
             {
                 "_script": {
@@ -231,8 +193,6 @@ class UnifiedSearchService:
                 }
             }
         )
-
-        # Source filtering for performance (match document search fields)
         search = search.source(
             [
                 "id",
@@ -255,8 +215,6 @@ class UnifiedSearchService:
                 "document_type",
             ]
         )
-
-        # Limit to one exact match (latest version)
         search = search[0:1]
         search = search.extra(track_total_hits=True, timeout="5s")
 
@@ -270,9 +228,6 @@ class UnifiedSearchService:
         return {"results": results, "count": response.hits.total.value}
 
     def _apply_highlighting(self, search: Search) -> Search:
-        """
-        Apply highlighting configuration to search.
-        """
         highlight_fields = {
             "paper_title": {"number_of_fragments": 0},
             "title": {"number_of_fragments": 0},
@@ -293,9 +248,6 @@ class UnifiedSearchService:
         return search
 
     def _apply_sort(self, search: Search, sort: str) -> Search:
-        """
-        Apply sorting based on sort option.
-        """
         if sort == self.SORT_NEWEST:
             search = search.sort(
                 "-created_date",
@@ -307,11 +259,8 @@ class UnifiedSearchService:
         return search
 
     def _extract_document_highlights(self, highlights) -> tuple[str | None, str | None]:
-        """Extract snippet and matched field from document highlights."""
         if not highlights:
             return None, None
-
-        # Priority: title > abstract/content
         if hasattr(highlights, "paper_title"):
             return highlights.paper_title[0], "title"
         if hasattr(highlights, "title"):
@@ -324,7 +273,6 @@ class UnifiedSearchService:
         return None, None
 
     def _build_paper_fields(self, hit) -> dict[str, Any]:
-        """Build paper-specific fields for a search result."""
         raw_doi = getattr(hit, "doi", None)
         return {
             "authors": [
@@ -343,7 +291,6 @@ class UnifiedSearchService:
         }
 
     def _build_post_fields(self, hit) -> dict[str, Any]:
-        """Build post-specific fields for a search result."""
         return {
             "authors": [
                 {
@@ -360,7 +307,6 @@ class UnifiedSearchService:
         }
 
     def _process_hubs(self, hit) -> list[dict[str, Any]]:
-        """Process and format hubs from a search hit."""
         hubs = getattr(hit, "hubs", [])
         if not hubs:
             return []
@@ -375,18 +321,11 @@ class UnifiedSearchService:
         ]
 
     def _process_document_results(self, response) -> list[dict[str, Any]]:
-
         results = []
-
         for hit in response.hits:
-            # Determine document type from index
             doc_type = "paper" if "paper" in hit.meta.index else "post"
-
-            # Get highlights
             highlights = getattr(hit.meta, "highlight", None)
             snippet, matched_field = self._extract_document_highlights(highlights)
-
-            # Build result object
             result = {
                 "id": hit.id,
                 "type": doc_type,
@@ -398,16 +337,11 @@ class UnifiedSearchService:
                 "hot_score_v2": getattr(hit, "hot_score_v2", 0),
                 "_search_score": hit.meta.score,
             }
-
-            # Add document-specific fields
             if doc_type == "paper":
                 result.update(self._build_paper_fields(hit))
             else:
                 result.update(self._build_post_fields(hit))
-
-            # Add hubs
             result["hubs"] = self._process_hubs(hit)
-
             results.append(result)
 
         return results
@@ -415,17 +349,8 @@ class UnifiedSearchService:
     def _build_page_url(
         self, request, query: str, page: int, page_size: int, sort: str
     ) -> str:
-
         from urllib.parse import urlencode
 
-        # Build query parameters
-        params = {
-            "q": query,
-            "page": page,
-            "page_size": page_size,
-            "sort": sort,
-        }
-
-        # Build full URL
+        params = {"q": query, "page": page, "page_size": page_size, "sort": sort}
         base_url = request.build_absolute_uri(request.path)
         return f"{base_url}?{urlencode(params)}"
