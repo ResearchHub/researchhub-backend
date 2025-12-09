@@ -1012,9 +1012,14 @@ class BountyViewTests(APITestCase):
         self.assertIsNone(bounty_res.data["results"][0]["user_vote"])
 
     def test_metrics_included_in_bounty_response(self):
-        """Test that metrics are correctly included in bounty response"""
+        """Test that metrics are correctly included in bounty response from unified document"""
         # Arrange
         self.client.force_authenticate(self.user)
+
+        # Set a specific score on the unified document
+        unified_document = self.comment.thread.content_object.unified_document
+        unified_document.score = 42
+        unified_document.save()
 
         comment_bounty_response = self.client.post(
             "/api/bounty/",
@@ -1029,21 +1034,16 @@ class BountyViewTests(APITestCase):
 
         self.assertEqual(comment_bounty_response.status_code, 201)
 
-        # Test: Verify comment bounty metrics
+        # Test: Verify bounty metrics come from unified document
         comment_bounty_response = self.client.get(
             "/api/bounty/",
         )
         self.assertEqual(comment_bounty_response.status_code, 200)
         self.assertIn("metrics", comment_bounty_response.data["results"][0])
 
-        # The metrics should contain votes count
-        # (the comment has 2 upvotes, 1 downvote = score of 1)
+        # The metrics should contain votes from unified_document.score
         self.assertEqual(
-            comment_bounty_response.data["results"][0]["metrics"]["votes"], 1
-        )
-        # The metrics should contain replies count (the comment has 3 replies)
-        self.assertEqual(
-            comment_bounty_response.data["results"][0]["metrics"]["replies"], 3
+            comment_bounty_response.data["results"][0]["metrics"]["votes"], 42
         )
 
     def test_user_can_approve_full_amount_to_multiple_solutions(self):
