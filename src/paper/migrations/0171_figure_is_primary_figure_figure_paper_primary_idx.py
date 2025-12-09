@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("paper", "0169_remove_paper_abstract_src_and_more"),
+        ("paper", "0170_add_paper_publish_date_index"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

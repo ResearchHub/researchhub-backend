@@ -1,10 +1,6 @@
-"""
-Management command to extract figures for a paper.
-"""
-
 from django.core.management.base import BaseCommand, CommandError
 
-from paper.models import Paper
+from paper.models import Figure, Paper
 from paper.tasks import extract_pdf_figures
 
 
@@ -42,9 +38,7 @@ class Command(BaseCommand):
                     self.stdout.write(f"Paper {paper.id}...", ending=" ")
 
                     if not paper.file:
-                        self.stdout.write(
-                            self.style.WARNING("✗ skipped (no PDF)")
-                        )
+                        self.stdout.write(self.style.WARNING("✗ skipped (no PDF)"))
                         failed += 1
                         continue
 
@@ -54,8 +48,6 @@ class Command(BaseCommand):
                     else:
                         result = extract_pdf_figures(paper.id)
                         if result:
-                            from paper.models import Figure
-
                             figures_count = Figure.objects.filter(
                                 paper=paper, figure_type=Figure.FIGURE
                             ).count()
@@ -68,9 +60,7 @@ class Command(BaseCommand):
 
                     processed += 1
                 except Paper.DoesNotExist:
-                    self.stdout.write(
-                        self.style.ERROR(f"✗ not found")
-                    )
+                    self.stdout.write(self.style.ERROR("✗ not found"))
                     failed += 1
                 except Exception as e:
                     self.stdout.write(self.style.ERROR(f"✗ error: {e}"))
@@ -90,7 +80,7 @@ class Command(BaseCommand):
         except Paper.DoesNotExist:
             raise CommandError(f"Paper {paper_id} does not exist")
 
-        self.stdout.write(f"\nExtracting figures for paper:")
+        self.stdout.write("\nExtracting figures for paper:")
         self.stdout.write(f"  ID: {paper.id}")
         self.stdout.write(f"  Title: {paper.title[:80]}...")
         self.stdout.write(f"  PDF File: {paper.file.name if paper.file else 'None'}\n")
@@ -111,11 +101,7 @@ class Command(BaseCommand):
             result = extract_pdf_figures(paper.id)
 
             if result:
-                from paper.models import Figure
-
-                figures = Figure.objects.filter(
-                    paper=paper, figure_type=Figure.FIGURE
-                )
+                figures = Figure.objects.filter(paper=paper, figure_type=Figure.FIGURE)
                 self.stdout.write(
                     self.style.SUCCESS(
                         f"\n✓ Successfully extracted {figures.count()} figures"
@@ -125,4 +111,3 @@ class Command(BaseCommand):
                     self.stdout.write(f"  - {fig.file.name}")
             else:
                 raise CommandError("Extraction failed. Check logs for details.")
-
