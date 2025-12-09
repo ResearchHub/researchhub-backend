@@ -897,11 +897,18 @@ class DynamicPaperSerializer(
 
         _context_fields = context.get("pap_dps_get_first_preview", {})
 
-        # Priority: is_primary > preview figures
+        # Priority: is_primary > preview figures > first figure
         primary_figure = paper.figures.filter(is_primary=True).first()
         if primary_figure:
             serializer = DynamicFigureSerializer(
                 primary_figure, context=context, **_context_fields
+            )
+            return serializer.data
+
+        preview_figure = paper.figures.filter(figure_type=Figure.PREVIEW).first()
+        if preview_figure:
+            serializer = DynamicFigureSerializer(
+                preview_figure, context=context, **_context_fields
             )
             return serializer.data
 
