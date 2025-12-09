@@ -2,48 +2,16 @@
 Constants for figure selection criteria weights.
 
 These weights are used when constructing prompts for AWS Bedrock to select
-the primary image from extracted figures. Weights can be easily modified here
-to adjust the selection algorithm.
+the primary image from extracted figures.
 """
 
-# Aspect Ratio Match (10%)
-# Compatibility with standard feed dimensions (16:9, 4:3, 1:1)
-# Key Metrics: Distance from ideal ratio
 ASPECT_RATIO_MATCH_WEIGHT = 10
-
-# Scientific Impact (22%)
-# Presents primary findings & conclusions of the paper
-# Key Metrics: Central vs supporting result
 SCIENTIFIC_IMPACT_WEIGHT = 22
-
-# Visual Quality (13%)
-# Clarity, resolution, color fidelity, professional appearance
-# Key Metrics: DPI, color depth, artifacts
 VISUAL_QUALITY_WEIGHT = 13
-
-# Data Density (10%)
-# Information richness vs white space ratio
-# Key Metrics: Dimensions, number of curves/plots
 DATA_DENSITY_WEIGHT = 10
-
-# Narrative Context (15%)
-# Ability to serve as paper introduction or overview
-# Key Metrics: Structural overview vs detail
 NARRATIVE_CONTEXT_WEIGHT = 15
-
-# Interpretability (10%)
-# Self-explanatory legends, labels, intuitive presentation
-# Key Metrics: Axis labels, color coding clarity
 INTERPRETABILITY_WEIGHT = 10
-
-# Uniqueness (5%)
-# Data or analysis specific to this paper
-# Key Metrics: Appears in other papers
 UNIQUENESS_WEIGHT = 5
-
-# Social Media Potential (15%)
-# Visual appeal for Twitter/Instagram/LinkedIn sharing
-# Key Metrics: Visual interest, discovery-worthy
 SOCIAL_MEDIA_POTENTIAL_WEIGHT = 15
 
 # Total weight should equal 100
@@ -58,11 +26,9 @@ TOTAL_WEIGHT = (
     + SOCIAL_MEDIA_POTENTIAL_WEIGHT
 )
 
-# Minimum score threshold for primary image selection
 # If the best figure scores below this, we'll use a preview instead
-MIN_PRIMARY_SCORE_THRESHOLD = 70  # Percentage (0-100)
+MIN_PRIMARY_SCORE_THRESHOLD = 50
 
-# Criteria descriptions for prompt construction
 CRITERIA_DESCRIPTIONS = {
     "aspect_ratio_match": {
         "weight": ASPECT_RATIO_MATCH_WEIGHT,
