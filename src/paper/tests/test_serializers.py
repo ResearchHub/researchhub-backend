@@ -249,9 +249,11 @@ class PaperSerializersTests(TestCase):
         paper = helpers.create_paper(title="Test Paper")
 
         # Create figures in different order
-        figure1 = self._create_test_figure(paper, figure_type=Figure.FIGURE, is_primary=False)
-        primary_figure = self._create_test_figure(paper, figure_type=Figure.FIGURE, is_primary=True)
-        figure2 = self._create_test_figure(paper, figure_type=Figure.FIGURE, is_primary=False)
+        _ = self._create_test_figure(paper, figure_type=Figure.FIGURE, is_primary=False)
+        primary_figure = self._create_test_figure(
+            paper, figure_type=Figure.FIGURE, is_primary=True
+        )
+        _ = self._create_test_figure(paper, figure_type=Figure.FIGURE, is_primary=False)
 
         serializer = PaperSerializer(paper)
         first_figure_data = serializer.data.get("first_figure")
@@ -265,8 +267,10 @@ class PaperSerializersTests(TestCase):
         """Test that first_figure falls back to PREVIEW if no primary figure."""
         paper = helpers.create_paper(title="Test Paper")
 
-        preview_figure = self._create_test_figure(paper, figure_type=Figure.PREVIEW, is_primary=False)
-        figure = self._create_test_figure(paper, figure_type=Figure.FIGURE, is_primary=False)
+        preview_figure = self._create_test_figure(
+            paper, figure_type=Figure.PREVIEW, is_primary=False
+        )
+        _ = self._create_test_figure(paper, figure_type=Figure.FIGURE, is_primary=False)
 
         serializer = PaperSerializer(paper)
         first_figure_data = serializer.data.get("first_figure")
@@ -280,7 +284,9 @@ class PaperSerializersTests(TestCase):
         """Test that first_figure falls back to any figure if no primary or preview."""
         paper = helpers.create_paper(title="Test Paper")
 
-        figure = self._create_test_figure(paper, figure_type=Figure.FIGURE, is_primary=False)
+        figure = self._create_test_figure(
+            paper, figure_type=Figure.FIGURE, is_primary=False
+        )
 
         serializer = PaperSerializer(paper)
         first_figure_data = serializer.data.get("first_figure")
@@ -302,9 +308,15 @@ class PaperSerializersTests(TestCase):
         """Test that first_preview prioritizes is_primary=True figures."""
         paper = helpers.create_paper(title="Test Paper")
 
-        preview1 = self._create_test_figure(paper, figure_type=Figure.PREVIEW, is_primary=False)
-        primary_preview = self._create_test_figure(paper, figure_type=Figure.PREVIEW, is_primary=True)
-        preview2 = self._create_test_figure(paper, figure_type=Figure.PREVIEW, is_primary=False)
+        _ = self._create_test_figure(
+            paper, figure_type=Figure.PREVIEW, is_primary=False
+        )
+        primary_preview = self._create_test_figure(
+            paper, figure_type=Figure.PREVIEW, is_primary=True
+        )
+        _ = self._create_test_figure(
+            paper, figure_type=Figure.PREVIEW, is_primary=False
+        )
 
         serializer = DynamicPaperSerializer(paper)
         first_preview_data = serializer.data.get("first_preview")
@@ -318,8 +330,10 @@ class PaperSerializersTests(TestCase):
         """Test that first_preview falls back to PREVIEW figures if no primary."""
         paper = helpers.create_paper(title="Test Paper")
 
-        preview_figure = self._create_test_figure(paper, figure_type=Figure.PREVIEW, is_primary=False)
-        figure = self._create_test_figure(paper, figure_type=Figure.FIGURE, is_primary=False)
+        preview_figure = self._create_test_figure(
+            paper, figure_type=Figure.PREVIEW, is_primary=False
+        )
+        _ = self._create_test_figure(paper, figure_type=Figure.FIGURE, is_primary=False)
 
         serializer = DynamicPaperSerializer(paper)
         first_preview_data = serializer.data.get("first_preview")
@@ -333,7 +347,9 @@ class PaperSerializersTests(TestCase):
         """Test that first_preview falls back to any figure if no preview."""
         paper = helpers.create_paper(title="Test Paper")
 
-        figure = self._create_test_figure(paper, figure_type=Figure.FIGURE, is_primary=False)
+        figure = self._create_test_figure(
+            paper, figure_type=Figure.FIGURE, is_primary=False
+        )
 
         serializer = DynamicPaperSerializer(paper)
         first_preview_data = serializer.data.get("first_preview")
