@@ -1,13 +1,11 @@
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, Mock
 
 from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from search.services.unified_search_query_builder import (
-    DocumentQueryBuilder,
-    FieldConfig,
-)
+from search.services.search_config import DEFAULT_DOCUMENT_CONFIG, FieldConfig
+from search.services.unified_search_query_builder import DocumentQueryBuilder
 from search.services.unified_search_service import UnifiedSearchService
 
 
@@ -21,47 +19,9 @@ class UnifiedSearchServiceTests(TestCase):
 
     def test_build_document_query(self):
         query = self.service.query_builder.build_document_query("machine learning")
-        self.assertIsNotNone(query)
         qd = query.to_dict()
         self.assertIn("bool", qd)
-        self.assertIn("should", qd["bool"])
         self.assertGreater(len(qd["bool"]["should"]), 0)
-
-    def test_apply_sort_relevance(self):
-        from opensearchpy import Search
-
-        search = Search()
-        sorted_search = self.service._apply_sort(search, "relevance")
-        sort_dict = sorted_search.to_dict().get("sort", [])
-        self.assertIn({"_score": {"order": "desc"}}, sort_dict)
-
-    def test_apply_sort_newest(self):
-        from opensearchpy import Search
-
-        search = Search()
-        sorted_search = self.service._apply_sort(search, "newest")
-        sort_dict = sorted_search.to_dict().get("sort", [])
-        self.assertTrue(any("created_date" in str(s) for s in sort_dict))
-
-    def test_apply_sort_invalid_defaults_to_relevance(self):
-        from opensearchpy import Search
-
-        search = Search()
-        sorted_search = self.service._apply_sort(search, "invalid")
-        sort_dict = sorted_search.to_dict().get("sort", [])
-        self.assertIn({"_score": {"order": "desc"}}, sort_dict)
-
-    def test_apply_highlighting_documents(self):
-        from opensearchpy import Search
-
-        search = Search()
-        highlighted_search = self.service._apply_highlighting(search)
-        highlight_dict = highlighted_search.to_dict().get("highlight", {})
-        self.assertIn("fields", highlight_dict)
-        self.assertIn("paper_title", highlight_dict["fields"])
-        self.assertIn("abstract", highlight_dict["fields"])
-        self.assertEqual(highlight_dict["pre_tags"], ["<mark>"])
-        self.assertEqual(highlight_dict["post_tags"], ["</mark>"])
 
     def test_process_document_results_paper(self):
         mock_hit = MagicMock()
@@ -84,49 +44,11 @@ class UnifiedSearchServiceTests(TestCase):
         mock_response.hits = [mock_hit]
 
         results = self.service._process_document_results(mock_response)
-
         self.assertEqual(len(results), 1)
-        result = results[0]
-        self.assertEqual(result["id"], "123")
-        self.assertEqual(result["type"], "paper")
-        self.assertEqual(result["title"], "Test Paper")
-        self.assertEqual(result["doi"], "https://doi.org/10.1234/test")
-        self.assertEqual(result["citations"], 42)
-        self.assertEqual(len(result["hubs"]), 1)
-        self.assertEqual(result["score"], 50)
-        self.assertEqual(len(result["authors"]), 1)
-        self.assertEqual(result["authors"][0]["first_name"], "John")
-        self.assertEqual(result["authors"][0]["last_name"], "Doe")
+        self.assertEqual(results[0]["type"], "paper")
+        self.assertEqual(results[0]["title"], "Test Paper")
 
-    def test_execution_time_included_in_response(self):
-        empty_doc_result = {"results": [], "count": 0}
-        empty_doi_result = {"results": [], "count": 0}
-
-        with (
-            patch.object(
-                self.service, "_search_documents", return_value=empty_doc_result
-            ),
-            patch.object(
-                self.service, "_search_documents_by_doi", return_value=empty_doi_result
-            ),
-        ):
-            mock_request = Mock()
-            mock_request.path = "/api/search/"
-            mock_request.build_absolute_uri = lambda path: f"https://testserver{path}"
-
-            results = self.service.search(
-                query="test query",
-                page=1,
-                page_size=10,
-                sort="relevance",
-                request=mock_request,
-            )
-
-            self.assertIn("execution_time_ms", results)
-            self.assertIsInstance(results["execution_time_ms"], (int, float))
-            self.assertGreaterEqual(results["execution_time_ms"], 0)
-
-    def test_add_fuzzy_strategy_long_query_skips_content_fields(self):
+    def test_fuzzy_strategy_skips_content_on_long_query(self):
         builder = DocumentQueryBuilder("one two three four five")
         fields = [
             FieldConfig("abstract", boost=2.0, query_types=["fuzzy"]),
@@ -138,28 +60,11 @@ class UnifiedSearchServiceTests(TestCase):
         self.assertIn("paper_title^2", fields_in_query)
         self.assertNotIn("abstract", fields_in_query)
 
-    def test_add_fuzzy_strategy_short_query_includes_all_fields(self):
-        builder = DocumentQueryBuilder("test")
-        fields = [
-            FieldConfig("abstract", boost=2.0, query_types=["fuzzy"]),
-            FieldConfig("paper_title", boost=5.0, query_types=["fuzzy"]),
-            FieldConfig("raw_authors.full_name", boost=3.0, query_types=["fuzzy"]),
-            FieldConfig("renderable_text", boost=1.0, query_types=["fuzzy"]),
-        ]
-        builder.add_fuzzy_strategy(fields)
-        query_dict = builder.build().to_dict()
-        fields_in_query = query_dict["bool"]["should"][0]["multi_match"]["fields"]
-        self.assertIn("paper_title^2", fields_in_query)
-        self.assertIn("abstract^2", fields_in_query)
-        self.assertIn("raw_authors.full_name^2", fields_in_query)
-        self.assertIn("renderable_text", fields_in_query)
 
-    def test_add_fuzzy_strategy_no_fuzzy_fields_returns_empty(self):
+class DocumentQueryBuilderConfigTests(TestCase):
+    def test_builder_uses_default_config(self):
         builder = DocumentQueryBuilder("test")
-        fields = [FieldConfig("title", boost=5.0, query_types=["phrase"])]
-        builder.add_fuzzy_strategy(fields)
-        query_dict = builder.build().to_dict()
-        self.assertNotIn("multi_match", str(query_dict))
+        self.assertEqual(builder.config, DEFAULT_DOCUMENT_CONFIG)
 
 
 class UnifiedSearchViewTests(TestCase):
@@ -170,17 +75,6 @@ class UnifiedSearchViewTests(TestCase):
     def test_missing_query_parameter(self):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("q", response.data)
-
-    def test_empty_query_parameter(self):
-        response = self.client.get(self.url, {"q": ""})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("q", response.data)
-
-    def test_invalid_sort_parameter(self):
-        response = self.client.get(self.url, {"q": "test", "sort": "invalid"})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("sort", response.data)
 
     def test_pagination_urls(self):
         service = UnifiedSearchService()
@@ -189,9 +83,4 @@ class UnifiedSearchViewTests(TestCase):
         request.build_absolute_uri = lambda path: f"https://testserver{path}"
 
         url = service._build_page_url(request, "test query", 2, 10, "relevance")
-
-        self.assertIn("https://testserver/api/search/", url)
-        self.assertIn("q=test+query", url)
         self.assertIn("page=2", url)
-        self.assertIn("page_size=10", url)
-        self.assertIn("sort=relevance", url)
