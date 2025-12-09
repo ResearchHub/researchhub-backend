@@ -46,7 +46,7 @@ from user.related_models.coauthor_model import CoAuthor
 from user.related_models.follow_model import Follow
 from user.related_models.gatekeeper_model import Gatekeeper
 from utils import sentry
-
+from allauth.socialaccount.models import SocialAccount
 
 class ModeratorUserSerializer(ModelSerializer):
     verification = SerializerMethodField()
@@ -90,6 +90,7 @@ class AuthorSerializer(ModelSerializer):
     is_hub_editor = SerializerMethodField()
     num_posts = SerializerMethodField()
     orcid_id = SerializerMethodField()
+    orcid_connected = SerializerMethodField()
     reputation = SerializerMethodField()
     reputation_v2 = SerializerMethodField()
     reputation_list = SerializerMethodField()
@@ -109,6 +110,7 @@ class AuthorSerializer(ModelSerializer):
             "is_hub_editor",
             "num_posts",
             "orcid_id",
+            "orcid_connected",
             "reputation",
             "reputation_v2",
             "reputation_list",
@@ -165,6 +167,9 @@ class AuthorSerializer(ModelSerializer):
 
     def get_orcid_id(self, author):
         return author.orcid_id
+
+    def get_orcid_connected(self, author): 
+        return author.user and SocialAccount.objects.filter(user=author.user, provider="orcid").exists()
 
     def get_total_score(self, author):
         if author.author_score > 0:
