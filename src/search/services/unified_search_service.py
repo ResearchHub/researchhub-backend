@@ -109,11 +109,10 @@ class UnifiedSearchService:
         sort: str,
         popularity_config: PopularityConfig | None = None,
     ) -> dict[str, Any]:
-        # Create multi-index search for papers and posts
         search = Search(index=[self.paper_index, self.post_index])
-        # Uses function_score to combine text relevance with hot_score_v2
+        config = popularity_config or self.query_builder.popularity_config
         query_obj = self.query_builder.build_document_query_with_popularity(
-            query, popularity_config
+            query, config
         )
         author_filter = self._build_author_filter()
         filtered_query = Q("bool", must=[query_obj], filter=[author_filter])

@@ -429,7 +429,7 @@ class DocumentQueryBuilder:
                 {
                     "field_value_factor": {
                         "field": "hot_score_v2",
-                        "factor": popularity_config.weight,  # 1.0 = full 0-1000, 0.5 = half effect
+                        "factor": popularity_config.weight,
                         "missing": 1,
                     }
                 }
@@ -516,11 +516,10 @@ class UnifiedSearchQueryBuilder:
         return self._configure_document_builder(query).build()
 
     def build_document_query_with_popularity(
-        self, query: str, popularity_config: PopularityConfig | None = None
+        self, query: str, popularity_config: PopularityConfig
     ) -> Q:
         builder = self._configure_document_builder(query)
-        config = popularity_config or self.popularity_config
-        return builder.build_with_popularity_boost(config)
+        return builder.build_with_popularity_boost(popularity_config)
 
     def build_person_query(self, query: str) -> Q:
         return PersonQueryBuilder(query).build()
