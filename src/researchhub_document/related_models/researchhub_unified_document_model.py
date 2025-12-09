@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
@@ -188,6 +189,37 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
             return self.hubs.first()
 
         return None
+
+    def get_journal(self):
+        """
+        Get the journal hub for this document.
+
+        Returns the journal Hub, prioritizing:
+        1. ResearchHub Journal
+        2. Preprint servers (biorxiv, medrxiv, chemrxiv, arxiv)
+        3. First available journal hub
+
+        Returns:
+            Hub instance or None if no journal found
+        """
+        journal_hubs = [
+            hub for hub in self.hubs.all() if hub.namespace == Hub.Namespace.JOURNAL
+        ]
+
+        if not journal_hubs:
+            return None
+
+        preprint_slugs = {"biorxiv", "medrxiv", "chemrxiv", "arxiv"}
+        journal_hub = None
+
+        for hub in journal_hubs:
+            journal_hub = hub
+            if int(hub.id) == int(settings.RESEARCHHUB_JOURNAL_ID):
+                break
+            elif hub.slug in preprint_slugs:
+                break
+
+        return journal_hub
 
     def get_document(self):
         if self.document_type == PAPER:
