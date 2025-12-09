@@ -359,6 +359,33 @@ class PaperSerializerTests(TestCase):
             self.assertEqual(data["journal"]["name"], "ResearchHub Journal")
             self.assertEqual(data["journal"]["id"], researchhub_journal.id)
 
+    @patch.object(settings, "RESEARCHHUB_JOURNAL_ID", 999999)
+    @patch.object(ResearchhubUnifiedDocument, "get_journal")
+    def test_get_journal(self, mock_get_journal):
+        """
+        Test that the first journal is used when no prioritized journal exists.
+        """
+        # Create two regular journals
+        journal1 = create_hub("Journal One", namespace=Hub.Namespace.JOURNAL)
+        journal2 = create_hub("Journal Two", namespace=Hub.Namespace.JOURNAL)
+        mock_get_journal.return_value = journal1
+
+        # Create a paper with both journals
+        paper = create_paper(
+            uploaded_by=self.user,
+            title="Paper without priority journals",
+        )
+        paper.hubs.add(journal1)
+        paper.hubs.add(journal2)
+        paper.save()
+
+        serializer = PaperSerializer(paper)
+        data = serializer.data
+
+        self.assertIn("journal", data)
+        # Should return one of the journals (first one found)
+        self.assertEqual(data["journal"]["id"], journal1.id)
+
 
 class PostSerializerTests(TestCase):
     def setUp(self):
