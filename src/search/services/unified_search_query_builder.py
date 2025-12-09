@@ -24,7 +24,7 @@ class PopularityConfig:
 
     enabled: bool = True
     weight: float = 1.0
-    boost_mode: str = "multiply"
+    boost_mode: str = "sum"
 
 
 DEFAULT_POPULARITY_CONFIG = PopularityConfig()
@@ -479,7 +479,7 @@ class UnifiedSearchQueryBuilder:
     def __init__(self, popularity_config: PopularityConfig | None = None):
         self.popularity_config = popularity_config or DEFAULT_POPULARITY_CONFIG
 
-    def build_document_query(self, query: str) -> Q:
+    def _configure_document_builder(self, query: str) -> DocumentQueryBuilder:
         builder = DocumentQueryBuilder(query)
         is_single_word = DocumentQueryBuilder._is_single_word_query(query)
 
@@ -508,22 +508,6 @@ class UnifiedSearchQueryBuilder:
         if not is_single_word:
             builder = builder.add_author_title_combination_strategy()
 
-        # max_expansions limits unique terms OpenSearch collects from the index
-        # that match the prefix of the LAST word. Prevents query explosion.
-        #
-        # Examples:
-        # - Query: "systematic"
-        #   - Matches: "systematic review", "systematic analysis", etc.
-        #   - max_expansions=10: collects up to 10 unique terms following
-        #     "systematic" (e.g., "review", "analysis", "design"...)
-        #
-        # - Query: "systematic design"
-        #   - Matches: "systematic design patterns", etc.
-        #   - max_expansions=20: collects up to 20 unique terms following
-        #     "design" (e.g., "patterns", "methodology"...)
-        #
-        # Lower (10) for single-word reduces overhead.
-        # Higher (20) for multi-word improves recall.
         prefix_expansions = 10 if is_single_word else 20
         builder = builder.add_prefix_strategy(
             title_fields + author_fields,
@@ -540,63 +524,17 @@ class UnifiedSearchQueryBuilder:
                 operator="or",
             )
 
-        builder = builder.add_cross_field_fallback_strategy()
+        return builder.add_cross_field_fallback_strategy()
 
-        return builder.build()
+    def build_document_query(self, query: str) -> Q:
+        return self._configure_document_builder(query).build()
 
     def build_document_query_with_popularity(
         self, query: str, popularity_config: PopularityConfig | None = None
     ) -> Q:
-        builder = DocumentQueryBuilder(query)
-        is_single_word = DocumentQueryBuilder._is_single_word_query(query)
-
-        title_fields = DocumentQueryBuilder.TITLE_FIELDS
-        author_fields = DocumentQueryBuilder.AUTHOR_FIELDS
-        content_fields = DocumentQueryBuilder.CONTENT_FIELDS
-
-        builder.should_clauses.append(
-            Q(
-                "multi_match",
-                query=query,
-                fields=["paper_title^7", "title^7"],
-                type="best_fields",
-                operator="and",
-                boost=8.0,
-            )
-        )
-
-        builder = (
-            builder.add_simple_match_strategy(title_fields)
-            .add_simple_match_strategy(author_fields)
-            .add_author_name_strategy()
-            .add_phrase_strategy(title_fields + content_fields, slop=1)
-        )
-
-        if not is_single_word:
-            builder = builder.add_author_title_combination_strategy()
-
-        prefix_expansions = 10 if is_single_word else 20
-        builder = builder.add_prefix_strategy(
-            title_fields + author_fields,
-            max_expansions=prefix_expansions,
-        )
-
-        if is_single_word:
-            builder = builder.add_fuzzy_strategy_single_word(
-                title_fields + author_fields
-            )
-        else:
-            builder = builder.add_fuzzy_strategy(
-                title_fields + author_fields + content_fields,
-                operator="or",
-            )
-
-        builder = builder.add_cross_field_fallback_strategy()
-
+        builder = self._configure_document_builder(query)
         config = popularity_config or self.popularity_config
         return builder.build_with_popularity_boost(config)
 
     def build_person_query(self, query: str) -> Q:
-
-        builder = PersonQueryBuilder(query)
-        return builder.build()
+        return PersonQueryBuilder(query).build()
