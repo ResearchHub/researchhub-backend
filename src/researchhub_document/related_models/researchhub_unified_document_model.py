@@ -195,9 +195,8 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
         Get the journal hub for this document.
 
         Returns the journal Hub, prioritizing:
-        1. ResearchHub Journal
-        2. Preprint servers (biorxiv, medrxiv, chemrxiv, arxiv)
-        3. First available journal hub
+        1. ResearchHub Journal or Preprint servers (biorxiv, medrxiv, chemrxiv, arxiv)
+        2. First available journal hub
 
         Returns:
             Hub instance or None if no journal found
