@@ -206,14 +206,7 @@ def extract_pdf_figures(paper_id, retry=0):
         cache_key = get_cache_key("figure", paper_id)
         cache.delete(cache_key)
 
-        # Trigger primary image selection if figures were extracted
-        # OR create preview if no figures were found
-        if figures_created > 0:
-            select_primary_image.apply_async((paper.id,), priority=5)
-        else:
-            # No figures extracted, create preview of first page
-            logger.info(f"No figures extracted for paper {paper_id}, creating preview")
-            _create_pdf_screenshot(paper)
+        select_primary_image.apply_async((paper.id,), priority=5)
 
         return True
 
@@ -318,10 +311,10 @@ def _create_pdf_screenshot(paper) -> bool:
 def select_primary_image(paper_id, retry=0):
     """
     Use AWS Bedrock to select the primary image from extracted figures.
-
-    Args:
-        paper_id: ID of the paper
-        retry: Number of retry attempts
+    This task will:
+    - Recalculate and select best figure if figures exist
+    - Keep existing primary if already set and no figures
+    - Create preview as fallback if needed
     """
     if retry > 2:
         logger.warning(
@@ -343,8 +336,19 @@ def select_primary_image(paper_id, retry=0):
     )
 
     if not figures.exists():
+        # Check if there's already a primary figure (could be a preview)
+        existing_primary = Figure.objects.filter(paper=paper, is_primary=True).first()
+
+        if existing_primary:
+            logger.info(
+                f"No figures found for paper {paper_id}, "
+                f"but primary figure already exists: {existing_primary.id} "
+                f"(type: {existing_primary.figure_type})"
+            )
+            return True
+
         logger.info(f"No figures found for paper {paper_id}, creating preview")
-        # No figures extracted, create preview of first page
+        # No figures extracted and no primary, create preview of first page
         return _create_pdf_screenshot(paper)
 
     try:
