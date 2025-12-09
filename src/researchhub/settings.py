@@ -64,7 +64,7 @@ LOGGING = {
             "style": "{",
         },
         "verbose": {
-            "format": "{asctime} {levelname} {name} [{filename}:{lineno}] {message}",
+            "format": "{asctime} {levelname} {name} [{filename}:{lineno}] [{threadName}] {message}",
             "style": "{",
         },
     },
