@@ -416,21 +416,16 @@ class DocumentQueryBuilder:
     def build(self) -> Q:
         return Q("bool", should=self.should_clauses, minimum_should_match=1)
 
-    def build_with_popularity_boost(
-        self, popularity_config: PopularityConfig | None = None
-    ) -> Q:
+    def build_with_popularity_boost(self, popularity_config: PopularityConfig) -> Q:
         text_query = self.build()
-
-        if popularity_config is None:
-            popularity_config = DEFAULT_POPULARITY_CONFIG
 
         if not popularity_config.enabled:
             return text_query
 
-        functions = []
-
-        if popularity_config.weight > 0:
-            functions.append(
+        return Q(
+            "function_score",
+            query=text_query,
+            functions=[
                 {
                     "field_value_factor": {
                         "field": "hot_score_v2",
@@ -439,15 +434,7 @@ class DocumentQueryBuilder:
                         "missing": 1,
                     }
                 }
-            )
-
-        if not functions:
-            return text_query
-
-        return Q(
-            "function_score",
-            query=text_query,
-            functions=functions,
+            ],
             score_mode="sum",
             boost_mode=popularity_config.boost_mode,
         )
