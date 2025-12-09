@@ -228,23 +228,21 @@ class PaperSerializer(ContentObjectSerializer):
         if not journal_hubs:
             return None
 
-        researchhub_journal = None
+        preprint_slugs = {"biorxiv", "medrxiv", "chemrxiv", "arxiv"}
+        journal_hub = None
         for hub in journal_hubs:
+            journal_hub = hub
             if int(hub.id) == int(settings.RESEARCHHUB_JOURNAL_ID):
-                researchhub_journal = hub
+                break
+            elif hub.slug in preprint_slugs:
                 break
 
-        # Use ResearchHub Journal if found, otherwise use the first journal
-        journal_hub = researchhub_journal or journal_hubs[0]
-
-        if journal_hub:
-            return {
-                "id": journal_hub.id,
-                "name": journal_hub.name,
-                "slug": journal_hub.slug,
-                "image": journal_hub.hub_image.url if journal_hub.hub_image else None,
-            }
-        return None
+        return {
+            "id": journal_hub.id,
+            "name": journal_hub.name,
+            "slug": journal_hub.slug,
+            "image": journal_hub.hub_image.url if journal_hub.hub_image else None,
+        }
 
     class Meta(ContentObjectSerializer.Meta):
         model = Paper
