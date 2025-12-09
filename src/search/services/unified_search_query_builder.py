@@ -41,9 +41,7 @@ class DocumentQueryBuilder:
         return f"{field_name}^{boost}"
 
     def _is_short_enough_for_fuzzy_content(self) -> bool:
-        return (
-            len(self._query_terms) <= self.config.max_terms_for_fuzzy_content_fields
-        )
+        return len(self._query_terms) <= self.config.max_terms_for_fuzzy_content_fields
 
     def _get_field_category(self, field: FieldConfig) -> str:
         if field.name in ["paper_title", "title"]:
@@ -138,9 +136,7 @@ class DocumentQueryBuilder:
             if "phrase" not in (field.query_types or []):
                 continue
             field_slop = (
-                self.config.phrase_abstract_slop
-                if field.name == "abstract"
-                else slop
+                self.config.phrase_abstract_slop if field.name == "abstract" else slop
             )
             queries.append(
                 Q(
@@ -309,10 +305,10 @@ class DocumentQueryBuilder:
                 )
             )
 
-            if (
-                self._is_short_enough_for_fuzzy_content()
-                and field.name not in ["abstract", "renderable_text"]
-            ):
+            if self._is_short_enough_for_fuzzy_content() and field.name not in [
+                "abstract",
+                "renderable_text",
+            ]:
                 self.should_clauses.append(
                     Q(
                         "match",

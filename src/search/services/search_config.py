@@ -112,23 +112,25 @@ class DocumentSearchConfig:
     def author_fields(self) -> list[FieldConfig]:
         fields = []
         for prefix in ["raw_authors", "authors"]:
-            fields.extend([
-                FieldConfig(
-                    f"{prefix}.full_name",
-                    boost=self.field_boosts.author_full_name,
-                    query_types=self.query_types.author_query_types,
-                ),
-                FieldConfig(
-                    f"{prefix}.last_name",
-                    boost=self.field_boosts.author_last_name,
-                    query_types=self.query_types.author_query_types,
-                ),
-                FieldConfig(
-                    f"{prefix}.first_name",
-                    boost=self.field_boosts.author_first_name,
-                    query_types=self.query_types.author_query_types,
-                ),
-            ])
+            fields.extend(
+                [
+                    FieldConfig(
+                        f"{prefix}.full_name",
+                        boost=self.field_boosts.author_full_name,
+                        query_types=self.query_types.author_query_types,
+                    ),
+                    FieldConfig(
+                        f"{prefix}.last_name",
+                        boost=self.field_boosts.author_last_name,
+                        query_types=self.query_types.author_query_types,
+                    ),
+                    FieldConfig(
+                        f"{prefix}.first_name",
+                        boost=self.field_boosts.author_first_name,
+                        query_types=self.query_types.author_query_types,
+                    ),
+                ]
+            )
         return fields
 
     @property
