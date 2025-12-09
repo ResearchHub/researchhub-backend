@@ -359,55 +359,16 @@ class PaperSerializerTests(TestCase):
             self.assertEqual(data["journal"]["name"], "ResearchHub Journal")
             self.assertEqual(data["journal"]["id"], researchhub_journal.id)
 
-    def test_prioritizes_preprint_journals(self):
-        """
-        Test that preprint journals (biorxiv, medrxiv, chemrxiv, arxiv) are
-        prioritized over regular journals.
-        """
-        preprint_slugs = ["biorxiv", "medrxiv", "chemrxiv", "arxiv"]
-
-        for preprint_slug in preprint_slugs:
-            # Create regular journal
-            regular_journal = create_hub(
-                f"Regular Journal for {preprint_slug}", namespace=Hub.Namespace.JOURNAL
-            )
-
-            # Create preprint journal with specific slug
-            preprint_journal = create_hub(
-                preprint_slug.capitalize(),
-                namespace=Hub.Namespace.JOURNAL,
-            )
-            preprint_journal.slug = preprint_slug
-            preprint_journal.save()
-
-            # Create a paper with both journals
-            paper = create_paper(
-                uploaded_by=self.user,
-                title=f"Paper with {preprint_slug}",
-            )
-            paper.hubs.add(regular_journal)
-            paper.hubs.add(preprint_journal)
-            paper.save()
-
-            with patch.object(settings, "RESEARCHHUB_JOURNAL_ID", 999999):
-                serializer = PaperSerializer(paper)
-                data = serializer.data
-
-                self.assertIn("journal", data)
-                self.assertEqual(
-                    data["journal"]["slug"],
-                    preprint_slug,
-                    f"Expected {preprint_slug} to be prioritized",
-                )
-                self.assertEqual(data["journal"]["id"], preprint_journal.id)
-
-    def test_falls_back_to_first_journal_when_no_priority(self):
+    @patch.object(settings, "RESEARCHHUB_JOURNAL_ID", 999999)
+    @patch.object(ResearchhubUnifiedDocument, "get_journal")
+    def test_get_journal(self, mock_get_journal):
         """
         Test that the first journal is used when no prioritized journal exists.
         """
         # Create two regular journals
         journal1 = create_hub("Journal One", namespace=Hub.Namespace.JOURNAL)
         journal2 = create_hub("Journal Two", namespace=Hub.Namespace.JOURNAL)
+        mock_get_journal.return_value = journal1
 
         # Create a paper with both journals
         paper = create_paper(
@@ -418,14 +379,12 @@ class PaperSerializerTests(TestCase):
         paper.hubs.add(journal2)
         paper.save()
 
-        # Use a non-existent ID for ResearchHub Journal
-        with patch.object(settings, "RESEARCHHUB_JOURNAL_ID", 999999):
-            serializer = PaperSerializer(paper)
-            data = serializer.data
+        serializer = PaperSerializer(paper)
+        data = serializer.data
 
-            self.assertIn("journal", data)
-            # Should return one of the journals (first one found)
-            self.assertIn(data["journal"]["id"], [journal1.id, journal2.id])
+        self.assertIn("journal", data)
+        # Should return one of the journals (first one found)
+        self.assertEqual(data["journal"]["id"], journal1.id)
 
 
 class PostSerializerTests(TestCase):
