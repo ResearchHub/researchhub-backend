@@ -10,12 +10,15 @@ from django.core.cache import cache
 from django.core.files.base import ContentFile
 from PIL import Image
 
+from paper.constants.figure_selection_criteria import MIN_PRIMARY_SCORE_THRESHOLD
 from paper.ingestion.pipeline import (  # noqa: F401
     fetch_all_papers,
     fetch_papers_from_source,
     process_batch_task,
 )
 from paper.ingestion.tasks import update_recent_papers_with_metrics  # noqa: F401
+from paper.services.bedrock_primary_image_service import BedrockPrimaryImageService
+from paper.services.figure_extraction_service import FigureExtractionService
 from paper.utils import download_pdf_from_url, get_cache_key
 from researchhub.celery import QUEUE_PAPER_MISC, app
 from utils import sentry
@@ -34,6 +37,7 @@ def censored_paper_cleanup(paper_id):
 
     if paper:
         paper.votes.update(is_removed=True)
+
         uploaded_by = paper.uploaded_by
         uploaded_by.set_probable_spammer()
 
@@ -55,7 +59,6 @@ def download_pdf(paper_id, retry=0):
             paper.file.save(pdf.name, pdf, save=False)
             paper.save(update_fields=["file"])
 
-            # Trigger figure extraction after successful PDF download
             extract_pdf_figures.apply_async((paper.id,), priority=6)
 
             return True
@@ -139,13 +142,6 @@ def celery_extract_pdf_preview(paper_id, retry=0):
 
 @app.task(queue=QUEUE_PAPER_MISC)
 def extract_pdf_figures(paper_id, retry=0):
-    """
-    Extract embedded figures from a PDF and save them as Figure objects.
-
-    Args:
-        paper_id: ID of the paper
-        retry: Number of retry attempts
-    """
     if retry > 2:
         logger.warning(f"Max retries reached for figure extraction - paper {paper_id}")
         return False
@@ -177,8 +173,6 @@ def extract_pdf_figures(paper_id, retry=0):
         pdf_content = res.content
 
         # Extract figures using service
-        from paper.services.figure_extraction_service import FigureExtractionService
-
         extraction_service = FigureExtractionService()
         extracted_figures = extraction_service.extract_figures_from_pdf(
             pdf_content, paper_id
@@ -344,7 +338,6 @@ def select_primary_image(paper_id, retry=0):
         logger.warning(f"Paper {paper_id} not found")
         return False
 
-    # Get all extracted figures (not previews)
     figures = Figure.objects.filter(paper=paper, figure_type=Figure.FIGURE).order_by(
         "created_date"
     )
@@ -355,13 +348,6 @@ def select_primary_image(paper_id, retry=0):
         return _create_pdf_screenshot(paper)
 
     try:
-        from paper.constants.figure_selection_criteria import (
-            MIN_PRIMARY_SCORE_THRESHOLD,
-        )
-        from paper.services.bedrock_primary_image_service import (
-            BedrockPrimaryImageService,
-        )
-
         service = BedrockPrimaryImageService()
         selected_figure_id, best_score = service.select_primary_image(
             paper_title=paper.title or "",

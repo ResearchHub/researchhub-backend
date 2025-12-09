@@ -1,17 +1,15 @@
-"""
-Service for using AWS Bedrock to select the primary image from extracted figures.
-"""
-
 import base64
 import json
 import logging
 import re
+from io import BytesIO
 from typing import List, Optional, Tuple
 
 from django.conf import settings
+from PIL import Image
 
 from paper.constants.figure_selection_criteria import CRITERIA_DESCRIPTIONS
-from utils import aws as aws_utils
+from utils.aws import create_client
 
 logger = logging.getLogger(__name__)
 
@@ -22,17 +20,20 @@ class BedrockPrimaryImageService:
     """Service for selecting primary image using AWS Bedrock."""
 
     def __init__(self):
-        self.bedrock_client = aws_utils.create_bedrock_client()
+        region_name = getattr(settings, "AWS_BEDROCK_REGION", settings.AWS_REGION_NAME)
+        self.bedrock_client = create_client("bedrock-runtime", region_name=region_name)
         self.model_id = getattr(
             settings, "AWS_BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0"
+        )
+        self.anthropic_version = getattr(
+            settings, "AWS_BEDROCK_ANTHROPIC_VERSION", "bedrock-2023-05-31"
         )
 
     def _encode_image_to_base64(self, figure) -> Optional[tuple]:
         """
         Encode figure image to base64 string.
 
-        Also ensures image doesn't exceed Bedrock's 8000px limit by resizing
-        if needed (though we already resize during extraction to 2000x2000).
+        Resizes and compresses image to fit within Bedrock's limits before encoding.
 
         Args:
             figure: Figure model instance
@@ -44,20 +45,14 @@ class BedrockPrimaryImageService:
             if not figure.file:
                 return None
 
-            # Read file content
             figure.file.open("rb")
             image_bytes = figure.file.read()
             figure.file.close()
 
-            # Resize and compress image for Bedrock
             image_bytes = self._resize_and_compress_for_bedrock(image_bytes, figure.id)
-
-            # Encode to base64
             base64_image = base64.b64encode(image_bytes).decode("utf-8")
 
-            media_type = "image/jpeg"
-
-            return base64_image, media_type
+            return base64_image, "image/jpeg"
 
         except Exception as e:
             logger.error(f"Error encoding figure {figure.id} to base64: {e}")
@@ -72,20 +67,7 @@ class BedrockPrimaryImageService:
     ) -> bytes:
         """
         Resize and compress image to fit within Bedrock's limits.
-
-        Args:
-            image_data: Image data as bytes
-            figure_id: Figure ID for logging
-            max_dimension: Maximum dimension in pixels (default: 8000)
-            max_file_size_mb: Maximum file size in MB (default: 4.5 for safety)
-
-        Returns:
-            Compressed image data as bytes
         """
-        from io import BytesIO
-
-        from PIL import Image
-
         max_file_size_bytes = int(max_file_size_mb * 1024 * 1024)
 
         image = Image.open(BytesIO(image_data))
@@ -168,15 +150,7 @@ class BedrockPrimaryImageService:
     ) -> str:
         """
         Build the prompt for Bedrock with scoring criteria.
-        Args:
-            paper_title: Title of the paper
-            paper_abstract: Abstract of the paper
-            num_figures: Number of figures to evaluate
-
-        Returns:
-            Formatted prompt string
         """
-        # Build criteria section
         criteria_section = "\n\n## Scoring Criteria (Total Weight: 100%)\n\n"
         for criterion_name, criterion_data in CRITERIA_DESCRIPTIONS.items():
             title = criterion_name.replace("_", " ").title()
@@ -299,16 +273,6 @@ on other criteria."""
 
         This is the core Bedrock API call logic that processes a single batch
         of figures (max MAX_IMAGES_PER_BEDROCK_REQUEST).
-
-        Args:
-            batch_figures: List of Figure model instances (max 20)
-            paper_title: Title of the paper
-            paper_abstract: Abstract of the paper
-            batch_number: Optional batch number for logging
-
-        Returns:
-            Tuple of (selected_figure_id, score) or (None, None) if selection fails
-            score is the total_score from Bedrock response (0-100)
         """
         if not batch_figures:
             logger.warning("No figures provided for batch selection")
@@ -328,7 +292,6 @@ on other criteria."""
         )
 
         try:
-            # Build system prompt
             system_prompt = (
                 "You are an expert scientific figure evaluator specializing in "
                 "selecting the most appropriate primary images for research papers. "
@@ -336,10 +299,7 @@ on other criteria."""
                 "what makes a figure suitable for public display in research feeds."
             )
 
-            # Build user message content
             user_content = []
-
-            # Add text prompt
             prompt_text = self._build_prompt(
                 paper_title, paper_abstract, len(batch_figures)
             )
@@ -376,9 +336,8 @@ on other criteria."""
                 logger.error(f"No figures could be encoded for {batch_label}")
                 return None, None
 
-            # Prepare request body
             request_body = {
-                "anthropic_version": "bedrock-2023-05-31",
+                "anthropic_version": self.anthropic_version,
                 "max_tokens": 4096,
                 "system": system_prompt,
                 "messages": [
@@ -389,7 +348,6 @@ on other criteria."""
                 ],
             }
 
-            # Invoke Bedrock model
             logger.info(
                 f"Invoking Bedrock model {self.model_id} for {batch_label} "
                 f"({len(batch_figures)} figures)"
@@ -400,7 +358,6 @@ on other criteria."""
                 body=json.dumps(request_body),
             )
 
-            # Parse response
             response_body = json.loads(response["body"].read())
 
             if "content" not in response_body:
@@ -409,7 +366,6 @@ on other criteria."""
                 )
                 return None, None
 
-            # Extract text from response
             text_content = ""
             for content_block in response_body["content"]:
                 if content_block.get("type") == "text":
@@ -417,8 +373,7 @@ on other criteria."""
 
             # Parse JSON from response
             try:
-                # Try to extract JSON from the response text
-                # The model might return JSON wrapped in markdown code blocks
+                # Extract JSON from response (may be wrapped in markdown code blocks)
                 if "```json" in text_content:
                     json_start = text_content.find("```json") + 7
                     json_end = text_content.find("```", json_start)
@@ -434,13 +389,11 @@ on other criteria."""
                     json_text = text_content[json_start:json_end]
 
                 # Clean up control characters that might break JSON parsing
-                # Remove control characters except newlines, tabs, and carriage returns
                 json_text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", json_text)
 
-                # Also try to fix common JSON issues
                 # Remove any text before the first {
                 if "{" in json_text:
-                    json_text = json_text[json_text.find("{") :]
+                    json_text = "{" + json_text.split("{", 1)[1]
 
                 result = json.loads(json_text)
                 selected_index = result.get("selected_figure_index")
@@ -461,10 +414,9 @@ on other criteria."""
 
                 selected_figure = batch_figures[selected_index]
 
-                # Get score
-                best_score = None
                 scores = result.get("scores", {})
                 figure_key = f"figure_{selected_index}"
+                best_score = None
                 if figure_key in scores and "total_score" in scores[figure_key]:
                     best_score = scores[figure_key]["total_score"]
 
@@ -474,7 +426,6 @@ on other criteria."""
                     f"score: {best_score})"
                 )
 
-                # Log reasoning if provided
                 if "reasoning" in result:
                     logger.debug(
                         f"{batch_label} selection reasoning: {result['reasoning']}"
@@ -527,13 +478,11 @@ on other criteria."""
             )
             return self._select_best_from_batch(figures, paper_title, paper_abstract)
 
-        # Otherwise, we need to batch
         logger.info(
             f"Processing {num_figures} figures in batches "
             f"(limit: {MAX_IMAGES_PER_BEDROCK_REQUEST} per batch)"
         )
 
-        # Split figures into batches
         batches = []
         for i in range(0, num_figures, MAX_IMAGES_PER_BEDROCK_REQUEST):
             batch = figures[i : i + MAX_IMAGES_PER_BEDROCK_REQUEST]
@@ -542,8 +491,7 @@ on other criteria."""
         batch_sizes = [len(batch) for batch in batches]
         logger.info(f"Created {len(batches)} batches with sizes: {batch_sizes}")
 
-        # Process each batch and collect winners
-        batch_winners = []  # List of (figure, score) tuples
+        batch_winners = []
         failed_batches = 0
 
         for batch_idx, batch in enumerate(batches, start=1):
@@ -570,7 +518,6 @@ on other criteria."""
                 f"Batch {batch_idx} winner: figure {selected_id} (score: {score})"
             )
 
-        # Check if we have any winners
         if not batch_winners:
             logger.error(f"All {len(batches)} batches failed to select winners")
             return None, None
@@ -581,7 +528,6 @@ on other criteria."""
                 f"proceeding with {len(batch_winners)} winners"
             )
 
-        # If we have only one winner, return it
         if len(batch_winners) == 1:
             winner_figure, winner_score = batch_winners[0]
             logger.info(
@@ -590,7 +536,6 @@ on other criteria."""
             )
             return winner_figure.id, winner_score
 
-        # If we have multiple winners (≤20), select best from them
         if len(batch_winners) <= MAX_IMAGES_PER_BEDROCK_REQUEST:
             logger.info(f"Selecting best from {len(batch_winners)} batch winners")
             winner_figures = [figure for figure, _ in batch_winners]
@@ -602,7 +547,6 @@ on other criteria."""
             )
 
             if selected_id is None or final_score is None:
-                # Fallback: return the highest scoring winner
                 logger.warning(
                     "Final selection failed, using highest scoring batch winner"
                 )
@@ -613,7 +557,6 @@ on other criteria."""
             logger.info(f"Final selection: figure {selected_id} (score: {final_score})")
             return selected_id, final_score
 
-        # If we have >20 winners, recursively batch them
         logger.info(
             f"Recursively batching {len(batch_winners)} winners "
             f"(exceeds limit of {MAX_IMAGES_PER_BEDROCK_REQUEST})"

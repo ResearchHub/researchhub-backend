@@ -33,19 +33,3 @@ def create_client(
     """
     session = Session(region_name=region_name)
     return session.client(service_name)
-
-
-def create_bedrock_client(region_name: str = None) -> boto3.client:
-    """
-    Create a boto3 client for AWS Bedrock Runtime.
-    
-    Args:
-        region_name: AWS region name. Defaults to AWS_BEDROCK_REGION or AWS_REGION_NAME.
-    
-    Returns:
-        boto3 client for bedrock-runtime service
-    """
-    if region_name is None:
-        region_name = getattr(settings, "AWS_BEDROCK_REGION", settings.AWS_REGION_NAME)
-    
-    return create_client("bedrock-runtime", region_name=region_name)
