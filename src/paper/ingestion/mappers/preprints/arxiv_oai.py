@@ -4,7 +4,6 @@ ArXiv OAI data mapper for transforming OAI responses to Paper model format.
 
 import logging
 import re
-import xml.etree.ElementTree as ET
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -24,12 +23,6 @@ class ArXivOAIMapper(BaseMapper):
     """
     Maps ArXiv OAI paper records to ResearchHub Paper model format.
     """
-
-    # XML namespaces
-    OAI_NS = "{http://www.openarchives.org/OAI/2.0/}"
-    ARXIV_NS = "{http://arxiv.org/OAI/arXiv/}"
-    ARXIV_RAW_NS = "{http://arxiv.org/OAI/arXivRaw/}"
-    DC_NS = "{http://purl.org/dc/elements/1.1/}"
 
     _preprint_hub = None
 
@@ -53,180 +46,16 @@ class ArXivOAIMapper(BaseMapper):
             ).first()
         return self._preprint_hub
 
-    def _parse_xml_metadata(self, raw_xml: str) -> Dict[str, Any]:
-        """
-        Parse raw OAI metadata XML into a dictionary.
-
-        Args:
-            raw_xml: Raw XML string for metadata section
-
-        Returns:
-            Dictionary with parsed fields
-        """
-        try:
-            root = ET.fromstring(raw_xml)
-
-            # The formats are possible: arXiv, arXivRaw, oai_dc (Dublin Core)
-            # The following tries to parse for these formats in order.
-
-            # Find `arXiv` metadata (standard format)
-            arxiv_elem = root.find(f".//{self.ARXIV_NS}arXiv")
-
-            if arxiv_elem is None:
-                # Try `arXivRaw` format
-                arxiv_elem = root.find(f".//{self.ARXIV_RAW_NS}arXivRaw")
-
-            if arxiv_elem is None:
-                # Try `oai_dc` format
-                return self._parse_dublin_core(root)
-
-            # Determine which namespace to use
-            ns = (
-                self.ARXIV_NS
-                if arxiv_elem.tag.startswith(self.ARXIV_NS)
-                else self.ARXIV_RAW_NS
-            )
-
-            # Extract basic fields
-            entry_data: Dict[str, Any] = {
-                "id": self._get_text(arxiv_elem, f"{ns}id"),
-                "title": self._get_text(arxiv_elem, f"{ns}title"),
-                "abstract": self._get_text(arxiv_elem, f"{ns}abstract"),
-                "created": self._get_text(arxiv_elem, f"{ns}created"),
-                "updated": self._get_text(arxiv_elem, f"{ns}updated"),
-            }
-
-            # Extract authors
-            authors: List[Dict[str, str]] = []
-            authors_elem = arxiv_elem.find(f"{ns}authors")
-            if authors_elem is not None:
-                for author_elem in authors_elem.findall(f"{ns}author"):
-                    keyname = self._get_text(author_elem, f"{ns}keyname")
-                    forenames = self._get_text(author_elem, f"{ns}forenames")
-                    suffix = self._get_text(author_elem, f"{ns}suffix")
-
-                    author_data = {}
-                    if forenames and keyname:
-                        full_name = f"{forenames} {keyname}"
-                        if suffix:
-                            full_name += f" {suffix}"
-                        author_data["name"] = full_name
-                        author_data["keyname"] = keyname
-                        author_data["forenames"] = forenames
-                        if suffix:
-                            author_data["suffix"] = suffix
-                    elif keyname:
-                        author_data["name"] = keyname
-                        author_data["keyname"] = keyname
-
-                    # Check for affiliation
-                    affiliation = self._get_text(author_elem, f"{ns}affiliation")
-                    if affiliation:
-                        author_data["affiliation"] = affiliation
-
-                    if author_data:
-                        authors.append(author_data)
-
-            entry_data["authors"] = authors
-
-            # Extract categories
-            categories_text = self._get_text(arxiv_elem, f"{ns}categories")
-            if categories_text:
-                # Categories are space-separated
-                entry_data["categories"] = categories_text.split()
-                # First category is primary
-                if entry_data["categories"]:
-                    entry_data["primary_category"] = entry_data["categories"][0]
-
-            # Extract optional fields
-            entry_data["comments"] = self._get_text(arxiv_elem, f"{ns}comments")
-            entry_data["journal_ref"] = self._get_text(arxiv_elem, f"{ns}journal-ref")
-            entry_data["doi"] = self._get_text(arxiv_elem, f"{ns}doi")
-            entry_data["license"] = self._get_text(arxiv_elem, f"{ns}license")
-
-            # Construct URLs from ArXiv ID
-            if entry_data.get("id"):
-                arxiv_id = entry_data["id"]
-                entry_data["links"] = {
-                    "alternate": f"https://arxiv.org/abs/{arxiv_id}",
-                    "pdf": f"https://arxiv.org/pdf/{arxiv_id}.pdf",
-                }
-
-            return entry_data
-
-        except ET.ParseError as e:
-            logger.error(f"Failed to parse OAI metadata XML: {e}")
-            return {}
-
-    def _parse_dublin_core(self, root: ET.Element) -> Dict[str, Any]:
-        """
-        Parse Dublin Core metadata format as fallback.
-
-        Args:
-            root: Root XML element
-
-        Returns:
-            Dictionary with parsed fields
-        """
-        dc_elem = root.find(f".//{self.DC_NS}dc")
-        if dc_elem is None:
-            return {}
-
-        entry_data = {
-            "title": self._get_text(dc_elem, f"{self.DC_NS}title"),
-            "abstract": self._get_text(dc_elem, f"{self.DC_NS}description"),
-            "created": self._get_text(dc_elem, f"{self.DC_NS}date"),
-        }
-
-        # Extract authors from creator fields
-        authors = []
-        for creator_elem in dc_elem.findall(f"{self.DC_NS}creator"):
-            if creator_elem.text:
-                authors.append({"name": creator_elem.text.strip()})
-        entry_data["authors"] = authors
-
-        # Extract identifier (may contain arXiv ID)
-        identifier = self._get_text(dc_elem, f"{self.DC_NS}identifier")
-        if identifier and "arxiv.org" in identifier.lower():
-            # Extract ID from URL
-            if "/abs/" in identifier:
-                entry_data["id"] = identifier.split("/abs/")[-1]
-            elif ":" in identifier:
-                entry_data["id"] = identifier.split(":")[-1]
-
-        return entry_data
-
-    def _get_text(self, element: ET.Element, tag: str) -> Optional[str]:
-        """
-        Get text content from an XML element.
-
-        Args:
-            element: Parent element
-            tag: Tag to find
-
-        Returns:
-            Text content or None
-        """
-        child = element.find(tag)
-        if child is not None and child.text:
-            return child.text.strip()
-        return None
-
     def validate(self, record: Dict[str, Any]) -> bool:
         """
         Validate an ArXiv OAI paper record has minimum required fields.
 
         Args:
-            record: Paper record to validate (may contain raw_xml)
+            record: Paper record to validate
 
         Returns:
             True if valid, False if should be skipped
         """
-        # If record contains raw_xml, parse it first
-        if "raw_xml" in record and not record.get("id"):
-            parsed = self._parse_xml_metadata(record["raw_xml"])
-            record.update(parsed)
-
         # Required fields from ArXiv OAI
         required_fields = ["id", "title", "authors"]
 
@@ -255,16 +84,11 @@ class ArXivOAIMapper(BaseMapper):
         Map ArXiv OAI record to Paper model instance.
 
         Args:
-            record: ArXiv OAI paper record (may contain raw_xml)
+            record: ArXiv OAI paper record
 
         Returns:
             Paper model instance (not saved to database)
         """
-        # If record contains raw_xml, parse it first
-        if "raw_xml" in record and not record.get("id"):
-            parsed = self._parse_xml_metadata(record["raw_xml"])
-            record.update(parsed)
-
         # Extract ArXiv ID (already in clean format from OAI)
         arxiv_id = record.get("id", "")
 
@@ -541,7 +365,7 @@ class ArXivOAIMapper(BaseMapper):
         # Return empty list - we don't create authorships without proper IDs
         return []
 
-    def map_to_hubs(self, paper: Paper, record: Dict[str, Any]) -> List[Hub]:
+    def map_to_hubs(self, record: Dict[str, Any]) -> List[Hub]:
         """
         Map arXiv OAI record to Hub (tag) model instances.
         """

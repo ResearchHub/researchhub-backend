@@ -7,6 +7,7 @@ See: https://info.arxiv.org/help/oa/index.html
 """
 
 import logging
+import re
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Union
@@ -17,6 +18,170 @@ from ...exceptions import FetchError, TimeoutError
 from ..base import BaseClient, ClientConfig
 
 logger = logging.getLogger(__name__)
+
+
+# XML namespaces for OAI parsing
+_ARXIV_NS = "{http://arxiv.org/OAI/arXiv/}"
+_ARXIV_RAW_NS = "{http://arxiv.org/OAI/arXivRaw/}"
+_DC_NS = "{http://purl.org/dc/elements/1.1/}"
+
+
+def _get_text(element: ET.Element, tag: str) -> Optional[str]:
+    """
+    Get text content from an XML element.
+
+    Args:
+        element: Parent element
+        tag: Tag to find
+
+    Returns:
+        Text content or None
+    """
+    child = element.find(tag)
+    if child is not None and child.text:
+        return child.text.strip()
+    return None
+
+
+def _parse_dublin_core(root: ET.Element) -> Dict[str, Any]:
+    """
+    Parse Dublin Core metadata format as fallback.
+
+    Args:
+        root: Root XML element
+
+    Returns:
+        Dictionary with parsed fields
+    """
+    dc_elem = root.find(f".//{_DC_NS}dc")
+    if dc_elem is None:
+        return {}
+
+    entry_data = {
+        "title": _get_text(dc_elem, f"{_DC_NS}title"),
+        "abstract": _get_text(dc_elem, f"{_DC_NS}description"),
+        "created": _get_text(dc_elem, f"{_DC_NS}date"),
+    }
+
+    # Extract authors from creator fields
+    authors = []
+    for creator_elem in dc_elem.findall(f"{_DC_NS}creator"):
+        if creator_elem.text:
+            authors.append({"name": creator_elem.text.strip()})
+    entry_data["authors"] = authors
+
+    # Extract identifier (may contain arXiv ID)
+    identifier = _get_text(dc_elem, f"{_DC_NS}identifier")
+    if identifier and "arxiv.org" in identifier.lower():
+        # Extract ID from URL
+        if "/abs/" in identifier:
+            entry_data["id"] = identifier.split("/abs/")[-1]
+        elif ":" in identifier:
+            entry_data["id"] = identifier.split(":")[-1]
+
+    return entry_data
+
+
+def parse_xml_metadata(raw_xml: str) -> Dict[str, Any]:
+    """
+    Parse raw OAI metadata XML into a dictionary.
+
+    Args:
+        raw_xml: Raw XML string for metadata section
+
+    Returns:
+        Dictionary with parsed fields
+    """
+    try:
+        root = ET.fromstring(raw_xml)
+
+        # The formats are possible: arXiv, arXivRaw, oai_dc (Dublin Core)
+        # The following tries to parse for these formats in order.
+
+        # Find `arXiv` metadata (standard format)
+        arxiv_elem = root.find(f".//{_ARXIV_NS}arXiv")
+
+        if arxiv_elem is None:
+            # Try `arXivRaw` format
+            arxiv_elem = root.find(f".//{_ARXIV_RAW_NS}arXivRaw")
+
+        if arxiv_elem is None:
+            # Try `oai_dc` format
+            return _parse_dublin_core(root)
+
+        # Determine which namespace to use
+        ns = _ARXIV_NS if arxiv_elem.tag.startswith(_ARXIV_NS) else _ARXIV_RAW_NS
+
+        # Extract basic fields
+        entry_data: Dict[str, Any] = {
+            "id": _get_text(arxiv_elem, f"{ns}id"),
+            "title": _get_text(arxiv_elem, f"{ns}title"),
+            "abstract": _get_text(arxiv_elem, f"{ns}abstract"),
+            "created": _get_text(arxiv_elem, f"{ns}created"),
+            "updated": _get_text(arxiv_elem, f"{ns}updated"),
+        }
+
+        # Extract authors
+        authors: List[Dict[str, str]] = []
+        authors_elem = arxiv_elem.find(f"{ns}authors")
+        if authors_elem is not None:
+            for author_elem in authors_elem.findall(f"{ns}author"):
+                keyname = _get_text(author_elem, f"{ns}keyname")
+                forenames = _get_text(author_elem, f"{ns}forenames")
+                suffix = _get_text(author_elem, f"{ns}suffix")
+
+                author_data = {}
+                if forenames and keyname:
+                    full_name = f"{forenames} {keyname}"
+                    if suffix:
+                        full_name += f" {suffix}"
+                    author_data["name"] = full_name
+                    author_data["keyname"] = keyname
+                    author_data["forenames"] = forenames
+                    if suffix:
+                        author_data["suffix"] = suffix
+                elif keyname:
+                    author_data["name"] = keyname
+                    author_data["keyname"] = keyname
+
+                # Check for affiliation
+                affiliation = _get_text(author_elem, f"{ns}affiliation")
+                if affiliation:
+                    author_data["affiliation"] = affiliation
+
+                if author_data:
+                    authors.append(author_data)
+
+        entry_data["authors"] = authors
+
+        # Extract categories
+        categories_text = _get_text(arxiv_elem, f"{ns}categories")
+        if categories_text:
+            # Categories are space-separated
+            entry_data["categories"] = categories_text.split()
+            # First category is primary
+            if entry_data["categories"]:
+                entry_data["primary_category"] = entry_data["categories"][0]
+
+        # Extract optional fields
+        entry_data["comments"] = _get_text(arxiv_elem, f"{ns}comments")
+        entry_data["journal_ref"] = _get_text(arxiv_elem, f"{ns}journal-ref")
+        entry_data["doi"] = _get_text(arxiv_elem, f"{ns}doi")
+        entry_data["license"] = _get_text(arxiv_elem, f"{ns}license")
+
+        # Construct URLs from ArXiv ID
+        if entry_data.get("id"):
+            arxiv_id = entry_data["id"]
+            entry_data["links"] = {
+                "alternate": f"https://arxiv.org/abs/{arxiv_id}",
+                "pdf": f"https://arxiv.org/pdf/{arxiv_id}.pdf",
+            }
+
+        return entry_data
+
+    except ET.ParseError as e:
+        logger.error(f"Failed to parse OAI metadata XML: {e}")
+        return {}
 
 
 class ArXivOAIConfig(ClientConfig):
@@ -113,16 +278,13 @@ class ArXivOAIClient(BaseClient):
         self, raw_data: Union[str, bytes, Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """
-        Parse ArXiv OAI XML response and return raw record data.
-
-        This minimal parsing extracts the XML text for each record,
-        leaving detailed mapping to a separate mapper component.
+        Parse ArXiv OAI XML response and return parsed record data.
 
         Args:
             raw_data: XML response from API.
 
         Returns:
-            List of raw record dictionaries with XML data.
+            List of parsed record dictionaries.
         """
         if isinstance(raw_data, dict):
             # If already parsed somehow, return as is
@@ -151,9 +313,11 @@ class ArXivOAIClient(BaseClient):
                 # Extract metadata
                 metadata = record.find(f"{self.OAI_NS}metadata")
                 if metadata is not None:
-                    # Convert the entire metadata element to XML string
                     metadata_xml = ET.tostring(metadata, encoding="unicode")
-                    papers.append({"raw_xml": metadata_xml, "source": "arxiv_oai"})
+                    parsed = parse_xml_metadata(metadata_xml)
+                    if parsed:
+                        parsed["source"] = "arxiv_oai"
+                        papers.append(parsed)
 
         except ET.ParseError as e:
             logger.error(f"Failed to parse OAI XML response: {e}")

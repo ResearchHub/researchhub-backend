@@ -744,10 +744,9 @@ class TestChemRxivMapper(TestCase):
         mock_hub_mapper.map.return_value = [chemistry_hub]
 
         mapper = ChemRxivMapper(mock_hub_mapper)
-        paper = mapper.map_to_paper(self.sample_record)
 
         # Act
-        hubs = mapper.map_to_hubs(paper, self.sample_record)
+        hubs = mapper.map_to_hubs(self.sample_record)
 
         # Assert
         # Should be called twice (once for each category)
@@ -773,10 +772,9 @@ class TestChemRxivMapper(TestCase):
         """
         # Arrange
         mapper = ChemRxivMapper(None)
-        paper = mapper.map_to_paper(self.sample_record)
 
         # Act
-        hubs = mapper.map_to_hubs(paper, self.sample_record)
+        hubs = mapper.map_to_hubs(self.sample_record)
 
         # Assert
         self.assertEqual(len(hubs), 1)
@@ -796,10 +794,9 @@ class TestChemRxivMapper(TestCase):
         mock_hub_mapper.map.return_value = [chemistry_hub, self.chemrxiv_hub]
 
         mapper = ChemRxivMapper(mock_hub_mapper)
-        paper = mapper.map_to_paper(self.sample_record)
 
         # Act
-        hubs = mapper.map_to_hubs(paper, self.sample_record)
+        hubs = mapper.map_to_hubs(self.sample_record)
 
         # Assert
         # Should only have 2 hubs, not duplicate the chemrxiv hub
@@ -818,10 +815,9 @@ class TestChemRxivMapper(TestCase):
 
         record_no_categories = {**self.sample_record}
         del record_no_categories["categories"]
-        paper = mapper.map_to_paper(record_no_categories)
 
         # Act
-        hubs = mapper.map_to_hubs(paper, record_no_categories)
+        hubs = mapper.map_to_hubs(record_no_categories)
 
         # Assert
         mock_hub_mapper.map.assert_not_called()

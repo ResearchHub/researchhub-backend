@@ -7,7 +7,11 @@ from datetime import datetime
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
-from paper.ingestion.clients.preprints.arxiv_oai import ArXivOAIClient, ArXivOAIConfig
+from paper.ingestion.clients.preprints.arxiv_oai import (
+    ArXivOAIClient,
+    ArXivOAIConfig,
+    parse_xml_metadata,
+)
 
 
 class TestArXivOAIClient(TestCase):
@@ -31,6 +35,11 @@ class TestArXivOAIClient(TestCase):
             os.path.join(fixtures_dir, "arxiv_oai_with_resumption.xml"), "r"
         ) as f:
             self.resumption_xml_response = f.read()
+
+        with open(
+            os.path.join(fixtures_dir, "arxiv_oai_metadata_sample.xml"), "r"
+        ) as f:
+            self.sample_metadata_xml = f.read()
 
     def test_config_defaults(self):
         """
@@ -56,26 +65,22 @@ class TestArXivOAIClient(TestCase):
         # Assert
         self.assertEqual(len(papers), 2)
 
-        # Check that papers contain raw XML
+        # Check that papers contain parsed data
         paper1 = papers[0]
-        self.assertIn("raw_xml", paper1)
         self.assertEqual(paper1["source"], "arxiv_oai")
-
-        # Verify the raw XML contains expected content
-        self.assertIn("2501.08827", paper1["raw_xml"])
-        self.assertIn(
+        self.assertEqual(paper1["id"], "2501.08827")
+        self.assertEqual(
+            paper1["title"],
             "A Survey of Reinforcement Learning for Large Reasoning Models",
-            paper1["raw_xml"],
         )
-        self.assertIn("Kaiyan", paper1["raw_xml"])
-        self.assertIn("Zhang", paper1["raw_xml"])
+        self.assertEqual(paper1["authors"][0]["keyname"], "Zhang")
+        self.assertEqual(paper1["authors"][0]["forenames"], "Kaiyan")
 
         # Check second paper
         paper2 = papers[1]
-        self.assertIn("raw_xml", paper2)
         self.assertEqual(paper2["source"], "arxiv_oai")
-        self.assertIn("2501.08817", paper2["raw_xml"])
-        self.assertIn("Quantum Cardinality", paper2["raw_xml"])
+        self.assertEqual(paper2["id"], "2501.08817")
+        self.assertIn("Quantum Cardinality", paper2["title"])
 
     def test_parse_empty_response(self):
         """
@@ -96,6 +101,46 @@ class TestArXivOAIClient(TestCase):
 
         # Assert
         self.assertEqual(papers, [])
+
+    def test_parse_xml_metadata(self):
+        """
+        Test XML metadata parsing function.
+        """
+        # Act
+        parsed = parse_xml_metadata(self.sample_metadata_xml)
+
+        # Assert
+        # Check basic fields
+        self.assertEqual(parsed["id"], "2507.00004")
+        self.assertEqual(
+            parsed["title"],
+            "A Theory of Inference Compute Scaling: Reasoning through "
+            "Directed Stochastic Skill Search",
+        )
+        self.assertIn("Large language models", parsed["abstract"])
+        self.assertEqual(parsed["created"], "2025-07-10")
+        self.assertEqual(parsed["updated"], "2025-07-11")
+
+        # Check authors
+        self.assertEqual(len(parsed["authors"]), 3)
+        self.assertEqual(parsed["authors"][0]["name"], "Austin R. Ellis-Mohr")
+        self.assertEqual(parsed["authors"][0]["keyname"], "Ellis-Mohr")
+        self.assertEqual(parsed["authors"][0]["forenames"], "Austin R.")
+        self.assertEqual(parsed["authors"][2]["name"], "Lav R. Varshney")
+
+        # Check categories
+        self.assertEqual(parsed["categories"], ["cs.LG", "cs.AI", "cs.CY", "cs.PF"])
+        self.assertEqual(parsed["primary_category"], "cs.LG")
+
+        # Check links
+        self.assertEqual(
+            parsed["links"]["alternate"],
+            "https://arxiv.org/abs/2507.00004",
+        )
+        self.assertEqual(
+            parsed["links"]["pdf"],
+            "https://arxiv.org/pdf/2507.00004.pdf",
+        )
 
     def test_extract_resumption_token(self):
         """
@@ -155,8 +200,7 @@ class TestArXivOAIClient(TestCase):
 
         # Assert - Check results
         self.assertEqual(len(papers), 2)
-        self.assertIn("raw_xml", papers[0])
-        self.assertIn("2501.08827", papers[0]["raw_xml"])
+        self.assertEqual(papers[0]["id"], "2501.08827")
 
         # Verify query was constructed correctly
         first_call_args = mock_fetch.call_args_list[0]

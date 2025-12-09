@@ -75,8 +75,22 @@ class ListItemViewSet(CreateModelMixin, ListModelMixin, DestroyModelMixin, views
         
         return super().list(request, *args, **kwargs)
 
+    def _get_or_create_default_list(self, user):
+        default_list, _ = List.objects.get_or_create(
+            created_by=user,
+            is_default=True,
+            defaults={'name': None, 'is_removed': False}
+        )
+        return default_list
+
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+        data = request.data
+        # when creating a new item, if no parent list is provided in the POST request (one click add to list instead of selecting a list), get or create the default list
+        if not data.get('parent_list'):
+            default_list = self._get_or_create_default_list(request.user)
+            data = {'unified_document': data.get('unified_document'), 'parent_list': default_list.id}
+        
+        serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         try:
             instance = serializer.save(created_by=request.user)

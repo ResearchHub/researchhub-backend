@@ -23,9 +23,7 @@ class TestOpenAlexMapper(TestCase):
         fixtures_dir = Path(__file__).parent / "fixtures"
 
         # Read the sample response JSON
-        with open(
-            fixtures_dir / "openalex_sample_get_by_doi_response.json", "r"
-        ) as f:
+        with open(fixtures_dir / "openalex_sample_get_by_doi_response.json", "r") as f:
             self.sample_record = json.load(f)
 
     def test_validate_valid_record(self):
@@ -305,15 +303,10 @@ class TestOpenAlexMapper(TestCase):
         Test mapping to Hub instances.
         """
         # Arrange
-        paper = Paper(
-            doi="10.7717/peerj.4375",
-            title="Test Paper",
-            external_source="openalex",
-        )
         mapper = OpenAlexMapper()
 
         # Act
-        hubs = mapper.map_to_hubs(paper, self.sample_record)
+        hubs = mapper.map_to_hubs(self.sample_record)
 
         # Assert
         self.assertEqual(len(hubs), 3)

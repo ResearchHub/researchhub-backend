@@ -5,7 +5,6 @@ Maps ArXiv paper records to ResearchHub Paper model fields.
 """
 
 import logging
-import xml.etree.ElementTree as ET
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -23,11 +22,6 @@ logger = logging.getLogger(__name__)
 
 class ArXivMapper(BaseMapper):
     """Maps ArXiv paper records to ResearchHub Paper model format."""
-
-    # XML namespaces used by ArXiv
-    ATOM_NS = "{http://www.w3.org/2005/Atom}"
-    ARXIV_NS = "{http://arxiv.org/schemas/atom}"
-    OPENSEARCH_NS = "{http://a9.com/-/spec/opensearch/1.1/}"
 
     _preprint_hub = None
 
@@ -51,111 +45,16 @@ class ArXivMapper(BaseMapper):
             ).first()
         return self._preprint_hub
 
-    def _parse_xml_entry(self, raw_xml: str) -> Dict[str, Any]:
-        """
-        Parse raw XML entry into a dictionary.
-
-        Args:
-            raw_xml: Raw XML string for a single entry
-
-        Returns:
-            Dictionary with parsed fields
-        """
-        try:
-            root = ET.fromstring(raw_xml)
-
-            # Extract basic fields
-            entry_data = {
-                "id": self._get_text(root, f"{self.ATOM_NS}id"),
-                "title": self._get_text(root, f"{self.ATOM_NS}title"),
-                "summary": self._get_text(root, f"{self.ATOM_NS}summary"),
-                "published": self._get_text(root, f"{self.ATOM_NS}published"),
-                "updated": self._get_text(root, f"{self.ATOM_NS}updated"),
-            }
-
-            # Extract authors
-            authors = []
-            for author_elem in root.findall(f"{self.ATOM_NS}author"):
-                author_data = {
-                    "name": self._get_text(author_elem, f"{self.ATOM_NS}name")
-                }
-                # Check for affiliation
-                affiliation = self._get_text(author_elem, f"{self.ARXIV_NS}affiliation")
-                if affiliation:
-                    author_data["affiliation"] = affiliation
-                authors.append(author_data)
-            entry_data["authors"] = authors
-
-            # Extract categories
-            categories = []
-            for cat_elem in root.findall(f"{self.ATOM_NS}category"):
-                term = cat_elem.get("term")
-                if term:
-                    categories.append(term)
-            entry_data["categories"] = categories
-
-            # Extract primary category
-            primary_cat = root.find(f"{self.ARXIV_NS}primary_category")
-            if primary_cat is not None:
-                entry_data["primary_category"] = primary_cat.get("term", "")
-
-            # Extract links
-            links = {}
-            for link_elem in root.findall(f"{self.ATOM_NS}link"):
-                rel = link_elem.get("rel")
-                href = link_elem.get("href")
-                title = link_elem.get("title")
-
-                if rel == "alternate":
-                    links["alternate"] = href
-                elif title == "pdf":
-                    links["pdf"] = href
-            entry_data["links"] = links
-
-            # Extract optional fields
-            entry_data["comment"] = self._get_text(root, f"{self.ARXIV_NS}comment")
-            entry_data["journal_ref"] = self._get_text(
-                root, f"{self.ARXIV_NS}journal_ref"
-            )
-            entry_data["doi"] = self._get_text(root, f"{self.ARXIV_NS}doi")
-
-            return entry_data
-
-        except ET.ParseError as e:
-            logger.error(f"Failed to parse XML entry: {e}")
-            return {}
-
-    def _get_text(self, element: ET.Element, tag: str) -> Optional[str]:
-        """
-        Get text content from an XML element.
-
-        Args:
-            element: Parent element
-            tag: Tag to find
-
-        Returns:
-            Text content or None
-        """
-        child = element.find(tag)
-        if child is not None and child.text:
-            return child.text.strip()
-        return None
-
     def validate(self, record: Dict[str, Any]) -> bool:
         """
         Validate an ArXiv paper record has minimum required fields.
 
         Args:
-            record: Paper record to validate (may contain raw_xml)
+            record: Paper record to validate
 
         Returns:
             True if valid, False if should be skipped
         """
-        # If record contains raw_xml, parse it first
-        if "raw_xml" in record and not record.get("id"):
-            parsed = self._parse_xml_entry(record["raw_xml"])
-            record.update(parsed)
-
         # Required fields from ArXiv API
         required_fields = ["id", "title", "authors"]
 
@@ -184,16 +83,11 @@ class ArXivMapper(BaseMapper):
         Map ArXiv record to Paper model instance.
 
         Args:
-            record: ArXiv paper record (may contain raw_xml)
+            record: ArXiv paper record
 
         Returns:
             Paper model instance (not saved to database)
         """
-        # If record contains raw_xml, parse it first
-        if "raw_xml" in record and not record.get("id"):
-            parsed = self._parse_xml_entry(record["raw_xml"])
-            record.update(parsed)
-
         # Extract ArXiv ID from the URL
         arxiv_id = self._extract_arxiv_id(record.get("id", ""))
 
@@ -457,7 +351,7 @@ class ArXivMapper(BaseMapper):
         # Return empty list - we don't create authorships without proper author IDs
         return []
 
-    def map_to_hubs(self, paper: Paper, record: Dict[str, Any]) -> List[Hub]:
+    def map_to_hubs(self, record: Dict[str, Any]) -> List[Hub]:
         """
         Map arXiv record to Hub (tag) model instances.
         """

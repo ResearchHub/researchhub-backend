@@ -64,7 +64,7 @@ LOGGING = {
             "style": "{",
         },
         "verbose": {
-            "format": "{asctime} {levelname} {name} [{filename}:{lineno}] {message}",
+            "format": "{asctime} {levelname} {name} [{filename}:{lineno}] [{threadName}] {message}",
             "style": "{",
         },
     },
@@ -743,6 +743,9 @@ CELERY_TASK_SERIALIZER = "json"
 CELERY_TASK_DEFAULT_QUEUE = "default"
 CELERY_TASK_IGNORE_RESULT = True
 
+CELERY_WORKER_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s [%(filename)s:%(lineno)d] [%(processName)s] %(message)s"
+CELERY_WORKER_TASK_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s [%(filename)s:%(lineno)d] [%(processName)s] %(message)s"
+
 REDBEAT_REDIS_URL = "redis://{}:{}/2".format(REDIS_HOST, REDIS_PORT)
 REDBEAT_KEY_PREFIX = f"{APP_ENV}_redbeat_"
 
@@ -934,3 +937,6 @@ BLUESKY_USERNAME = os.environ.get(
 BLUESKY_PASSWORD = os.environ.get(
     "BLUESKY_PASSWORD", getattr(keys, "BLUESKY_PASSWORD", "")
 )
+
+# X (Twitter)
+X_BEARER_TOKEN = os.environ.get("X_BEARER_TOKEN", getattr(keys, "X_BEARER_TOKEN", ""))

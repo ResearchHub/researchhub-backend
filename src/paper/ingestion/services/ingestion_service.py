@@ -243,7 +243,7 @@ class PaperIngestionService:
                     logger.info(f"Queued PDF download for paper {paper.id}")
 
                 # Create hubs
-                hubs = mapper.map_to_hubs(paper, record)
+                hubs = mapper.map_to_hubs(record)
                 if hubs:
                     paper.unified_document.hubs.add(*hubs)
 

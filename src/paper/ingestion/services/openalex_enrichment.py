@@ -394,7 +394,7 @@ class PaperOpenAlexEnrichmentService:
         hubs_created = 0
 
         raw_data = openalex_data.get("raw_data", {})
-        hubs = self.openalex_mapper.map_to_hubs(paper, raw_data)
+        hubs = self.openalex_mapper.map_to_hubs(raw_data)
 
         for hub in hubs:
             try:

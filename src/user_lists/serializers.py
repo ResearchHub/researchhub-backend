@@ -69,8 +69,9 @@ class ListSerializer(serializers.ModelSerializer):
             "created_by",
             "updated_by",
             "item_count",
+            "is_default",
         ]
-        read_only_fields = ["id", "created_date", "updated_date", "created_by", "updated_by"]
+        read_only_fields = ["id", "created_date", "updated_date", "created_by", "updated_by", "is_default"]
 
 class ListOverviewSerializer(serializers.ModelSerializer):
     list_id = serializers.IntegerField(source="id", read_only=True)
@@ -78,7 +79,7 @@ class ListOverviewSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = List
-        fields = ["list_id", "name", "unified_documents"]
+        fields = ["list_id", "name", "unified_documents", "is_default"]
 
     def get_unified_documents(self, obj):
         return [

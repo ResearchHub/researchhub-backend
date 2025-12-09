@@ -1,0 +1,65 @@
+[
+  {
+    "id": "http://arxiv.org/abs/2509.08827v1",
+    "title": "A Survey of Reinforcement Learning for Large Reasoning Models",
+    "summary": "In this paper, we survey recent advances in Reinforcement Learning (RL) for\nreasoning with Large Language Models (LLMs). RL has achieved remarkable success\nin advancing the frontier of LLM capabilities, particularly in addressing\ncomplex logical tasks such as mathematics and coding.",
+    "published": "2025-09-10T17:59:43Z",
+    "updated": "2025-09-10T17:59:43Z",
+    "authors": [
+      {
+        "name": "Kaiyan Zhang"
+      },
+      {
+        "name": "Yuxin Zuo"
+      },
+      {
+        "name": "Bingxiang He"
+      }
+    ],
+    "categories": [
+      "cs.CL",
+      "cs.AI",
+      "cs.LG"
+    ],
+    "primary_category": "cs.CL",
+    "links": {
+      "alternate": "http://arxiv.org/abs/2509.08827v1",
+      "pdf": "http://arxiv.org/pdf/2509.08827v1"
+    },
+    "comment": null,
+    "journal_ref": null,
+    "doi": null
+  },
+  {
+    "id": "http://arxiv.org/abs/2509.08817v1",
+    "title": "QCardEst/QCardCorr: Quantum Cardinality Estimation and Correction",
+    "summary": "Cardinality estimation is an important part of query optimization in DBMS. We\ndevelop a Quantum Cardinality Estimation (QCardEst) approach using Quantum\nMachine Learning with a Hybrid Quantum-Classical Network.",
+    "published": "2025-09-10T17:49:06Z",
+    "updated": "2025-09-10T17:49:06Z",
+    "authors": [
+      {
+        "name": "Tobias Winker"
+      },
+      {
+        "name": "Jinghua Groppe"
+      },
+      {
+        "name": "Sven Groppe"
+      }
+    ],
+    "categories": [
+      "quant-ph",
+      "cs.AI",
+      "cs.DB",
+      "cs.LG"
+    ],
+    "primary_category": "quant-ph",
+    "links": {
+      "alternate": "http://arxiv.org/abs/2509.08817v1",
+      "pdf": "http://arxiv.org/pdf/2509.08817v1"
+    },
+    "comment": "7 pages",
+    "journal_ref": null,
+    "doi": null
+  }
+]

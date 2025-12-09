@@ -472,7 +472,7 @@ class OpenAlexMapper(BaseMapper):
 
         return authorships
 
-    def map_to_hubs(self, paper: Paper, record: Dict[str, Any]) -> List[Hub]:
+    def map_to_hubs(self, record: Dict[str, Any]) -> List[Hub]:
         """
         Map OpenAlex work record to Hub instances.
         """
