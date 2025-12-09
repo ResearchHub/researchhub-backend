@@ -93,13 +93,17 @@ class PaperMetricsEnrichmentService:
         Returns:
             EnrichmentResult with status and details
         """
-        if not paper.doi:
-            logger.warning(f"Paper {paper.id} has no DOI, skipping GitHub enrichment")
-            return EnrichmentResult(status="skipped", reason="no_doi")
+        # Build search terms from DOI and title
+        terms = [t for t in [paper.doi, paper.title] if t]
+        if not terms:
+            logger.warning(
+                f"Paper {paper.id} has no DOI or title, skipping GitHub enrichment"
+            )
+            return EnrichmentResult(status="skipped", reason="no_doi_or_title")
 
         try:
             result = self.github_metrics_client.get_mentions(
-                paper.doi, search_areas=["issues"]
+                terms, search_areas=["code"]
             )
 
             if result is None:

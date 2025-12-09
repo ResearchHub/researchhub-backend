@@ -17,7 +17,7 @@ class GithubClient:
     BASE_URL = "https://api.github.com"
     DEFAULT_TIMEOUT = 10
     # See: https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api
-    DEFAULT_RATE_LIMIT = 10.0
+    DEFAULT_RATE_LIMIT = 1.0
 
     def __init__(
         self,
@@ -112,20 +112,21 @@ class GithubMetricsClient:
         self.github_client = github_client or GithubClient()
 
     def get_mentions(
-        self, term: str, search_areas: Optional[list] = None
+        self, terms: list[str], search_areas: Optional[list] = None
     ) -> Optional[Dict]:
         """
-        Get mentions of a term on GitHub.
+        Get mentions of terms on GitHub using OR logic.
 
         Args:
-            term: The term to search for (e.g., the DOI `10.1145/234286.1057812`).
+            terms: List of terms to search for (e.g., DOI and/or paper title).
+                   Multiple terms are combined with OR logic.
             search_areas: List of areas to search. If None, uses default areas.
 
         Returns:
             Dict containing detailed metrics if successful:
             {
                 "total_mentions": int,
-                "term": str,
+                "terms": list[str],
                 "breakdown": {
                     "code": int,
                     "issues": int,
@@ -138,36 +139,55 @@ class GithubMetricsClient:
         search_areas = search_areas or self.DEFAULT_SEARCH_AREAS
         breakdown = {}
 
+        # Build query with OR logic for multiple terms
+        query = self._build_query(terms)
+
         for area in search_areas:
-            count = self._search_area(term, area)
+            count = self._search_area(query, area)
             if count is not None:
                 breakdown[area] = count
-                logger.debug(f"Found {count} mentions in {area} for term {term}")
+                logger.debug(f"Found {count} mentions in {area} for query {query}")
             else:
-                logger.warning(f"Failed to search {area} for term {term}")
+                logger.warning(f"Failed to search {area} for query {query}")
 
         if not breakdown:
-            logger.warning(f"Failed to retrieve GitHub mention count for term {term}")
+            logger.warning(f"Failed to retrieve GitHub mention count for query {query}")
             return None
 
         total_mentions = sum(breakdown.values())
         logger.info(
-            f"Found {total_mentions} total mentions of term {term}. "
+            f"Found {total_mentions} total mentions for query {query}. "
             f"Breakdown: {breakdown}"
         )
 
         return {
             "total_mentions": total_mentions,
-            "term": term,
+            "terms": terms,
             "breakdown": breakdown,
         }
 
-    def _search_area(self, term: str, area: str) -> Optional[int]:
+    def _build_query(self, terms: list[str]) -> str:
         """
-        Search a specific GitHub area for term mentions.
+        Build a GitHub search query from a list of terms using OR logic.
+
+        Each term is quoted to ensure exact phrase matching.
 
         Args:
-            term: The term to search for.
+            terms: List of terms to combine with OR.
+
+        Returns:
+            GitHub search query string.
+        """
+        # Quote each term and join with OR
+        quoted_terms = [f'"{term}"' for term in terms if term]
+        return " OR ".join(quoted_terms)
+
+    def _search_area(self, query: str, area: str) -> Optional[int]:
+        """
+        Search a specific GitHub area for mentions.
+
+        Args:
+            query: The search query string.
             area: Area to search ("code", "issues", "commits", "repositories")
 
         Returns:
@@ -179,11 +199,10 @@ class GithubMetricsClient:
         if area not in self.VALID_SEARCH_AREAS:
             raise ValueError(f"Invalid search area: {area}. ")
 
-        query = term
         # https://docs.github.com/en/rest/search/search?apiVersion=2022-11-28#search-issues-and-pull-requests
         # We need to specify `is:issue` to search only issues, otherwise we get a 422.
         if area == "issues":
-            query = f"{term} is:issue"
+            query = f"{query} is:issue"
 
         response_data = self.github_client.search(
             endpoint=area,
