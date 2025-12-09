@@ -143,7 +143,6 @@ class TestMedRxivMapper(TestCase):
             },
         )
         mapper = MedRxivMapper(None)
-        paper = mapper.map_to_paper(self.sample_record)
 
         # Act
         hubs = mapper.map_to_hubs(self.sample_record)
@@ -162,7 +161,6 @@ class TestMedRxivMapper(TestCase):
         # Arrange
         mock_preprint_hub.return_value = None
         mapper = MedRxivMapper(None)
-        paper = mapper.map_to_paper(self.sample_record)
 
         # Act
         hubs = mapper.map_to_hubs(self.sample_record)

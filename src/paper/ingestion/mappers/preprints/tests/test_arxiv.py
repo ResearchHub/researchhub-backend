@@ -2,7 +2,7 @@
 Tests for ArXiv mapper.
 """
 
-import xml.etree.ElementTree as ET
+import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -31,27 +31,15 @@ class TestArXivMapper(TestCase):
         # Load fixture files
         fixtures_dir = Path(__file__).parent / "fixtures"
 
-        # Read the sample response XML
-        with open(fixtures_dir / "arxiv_sample_response.xml", "r") as f:
-            self.sample_response_xml = f.read()
+        # Load pre-parsed records from JSON fixture
+        with open(fixtures_dir / "arxiv_parsed_records.json", "r") as f:
+            parsed_records = json.load(f)
 
-        # Read the empty response XML
-        with open(fixtures_dir / "arxiv_empty_response.xml", "r") as f:
-            self.empty_response_xml = f.read()
-
-        # Extract individual entries from the sample response
-        root = ET.fromstring(self.sample_response_xml)
-        entries = root.findall("{http://www.w3.org/2005/Atom}entry")
-
-        # First entry (without extras)
-        self.sample_xml = ET.tostring(entries[0], encoding="unicode")
+        # First entry (without extras like comment)
+        self.sample_record = parsed_records[0]
 
         # Second entry (with comment)
-        self.sample_xml_with_extras = ET.tostring(entries[1], encoding="unicode")
-
-        # Create parsed records for testing
-        self.sample_record = {"raw_xml": self.sample_xml}
-        self.sample_with_extras = {"raw_xml": self.sample_xml_with_extras}
+        self.sample_with_extras = parsed_records[1]
 
     def test_validate_valid_record(self):
         """Test validation of a valid ArXiv record."""
@@ -60,37 +48,30 @@ class TestArXivMapper(TestCase):
     def test_validate_missing_required_fields(self):
         """Test validation fails for missing required fields."""
         # Missing ID
-        bad_xml = """<entry xmlns="http://www.w3.org/2005/Atom">
-    <title>Test Paper</title>
-    <author><name>Test Author</name></author>
-  </entry>"""
-        record = {"raw_xml": bad_xml}
+        record = {"title": "Test Paper", "authors": [{"name": "Test Author"}]}
         self.assertFalse(self.mapper.validate(record))
 
         # Missing title
-        bad_xml = """<entry xmlns="http://www.w3.org/2005/Atom">
-    <id>http://arxiv.org/abs/2509.10432v1</id>
-    <author><name>Test Author</name></author>
-  </entry>"""
-        record = {"raw_xml": bad_xml}
+        record = {
+            "id": "http://arxiv.org/abs/2509.10432v1",  # NOSONAR - Ignore http
+            "authors": [{"name": "Test Author"}],
+        }
         self.assertFalse(self.mapper.validate(record))
 
         # Missing authors
-        bad_xml = """<entry xmlns="http://www.w3.org/2005/Atom">
-    <id>http://arxiv.org/abs/2509.10432v1</id>
-    <title>Test Paper</title>
-  </entry>"""
-        record = {"raw_xml": bad_xml}
+        record = {
+            "id": "http://arxiv.org/abs/2509.10432v1",  # NOSONAR - Ignore http
+            "title": "Test Paper",
+        }
         self.assertFalse(self.mapper.validate(record))
 
     def test_validate_missing_dates(self):
         """Test validation fails when no dates are present."""
-        bad_xml = """<entry xmlns="http://www.w3.org/2005/Atom">
-    <id>http://arxiv.org/abs/2509.10432v1</id>
-    <title>Test Paper</title>
-    <author><name>Test Author</name></author>
-  </entry>"""
-        record = {"raw_xml": bad_xml}
+        record = {
+            "id": "http://arxiv.org/abs/2509.10432v1",  # NOSONAR - Ignore http
+            "title": "Test Paper",
+            "authors": [{"name": "Test Author"}],
+        }
         self.assertFalse(self.mapper.validate(record))
 
     @patch("paper.models.Paper.save")
@@ -146,41 +127,6 @@ class TestArXivMapper(TestCase):
         # Verify only arxiv_id is in metadata
         self.assertEqual(paper.external_metadata["external_id"], "2509.08817v1")
         self.assertEqual(len(paper.external_metadata), 1)
-
-    def test_parse_xml_entry(self):
-        """Test XML entry parsing."""
-        parsed = self.mapper._parse_xml_entry(self.sample_xml)
-
-        # Check basic fields (first entry from fixture)
-        self.assertEqual(
-            parsed["id"], "http://arxiv.org/abs/2509.08827v1"  # NOSONAR - Ignore http
-        )
-        self.assertEqual(
-            parsed["title"],
-            "A Survey of Reinforcement Learning for Large Reasoning Models",
-        )
-        self.assertIn("we survey recent advances", parsed["summary"])
-        self.assertEqual(parsed["published"], "2025-09-10T17:59:43Z")
-        self.assertEqual(parsed["updated"], "2025-09-10T17:59:43Z")
-
-        # Check authors
-        self.assertEqual(len(parsed["authors"]), 3)
-        self.assertEqual(parsed["authors"][0]["name"], "Kaiyan Zhang")
-        self.assertEqual(parsed["authors"][2]["name"], "Bingxiang He")
-
-        # Check categories
-        self.assertEqual(parsed["categories"], ["cs.CL", "cs.AI", "cs.LG"])
-        self.assertEqual(parsed["primary_category"], "cs.CL")
-
-        # Check links
-        self.assertEqual(
-            parsed["links"]["alternate"],
-            "http://arxiv.org/abs/2509.08827v1",  # NOSONAR - Ignore http
-        )
-        self.assertEqual(
-            parsed["links"]["pdf"],
-            "http://arxiv.org/pdf/2509.08827v1",  # NOSONAR - Ignore http
-        )
 
     def test_extract_arxiv_id(self):
         """Test ArXiv ID extraction from URLs."""
@@ -322,48 +268,18 @@ class TestArXivMapper(TestCase):
             self.assertEqual(len(results), 1)
             mock_map.assert_called_once()
 
-    def test_parse_xml_entry_with_comment(self):
-        """Test XML entry parsing with comment field."""
-        parsed = self.mapper._parse_xml_entry(self.sample_xml_with_extras)
-
-        # Check basic fields (second entry from fixture)
-        self.assertEqual(
-            parsed["id"], "http://arxiv.org/abs/2509.08817v1"  # NOSONAR - Ignore http
-        )
-        self.assertEqual(
-            parsed["title"],
-            "QCardEst/QCardCorr: Quantum Cardinality Estimation and Correction",
-        )
-
-        # Check comment field
-        self.assertEqual(parsed["comment"], "7 pages")
-
-        # Check authors
-        self.assertEqual(len(parsed["authors"]), 3)
-        self.assertEqual(parsed["authors"][0]["name"], "Tobias Winker")
-
-    def test_empty_response_handling(self):
-        """Test handling of empty ArXiv response."""
-        # Parse the empty response to see there are no entries
-        root = ET.fromstring(self.empty_response_xml)
-        entries = root.findall("{http://www.w3.org/2005/Atom}entry")
-
-        # Should have no entries
-        self.assertEqual(len(entries), 0)
-
     def test_urls_without_links(self):
         """Test URL construction when links are not provided."""
-        # XML without link elements
-        xml_no_links = """<entry xmlns="http://www.w3.org/2005/Atom">
-    <id>http://arxiv.org/abs/2509.10432v1</id>
-    <title>Test Paper</title>
-    <summary>Test summary</summary>
-    <published>2025-09-12T17:38:46Z</published>
-    <author><name>Test Author</name></author>
-    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
-  </entry>"""
-
-        record = {"raw_xml": xml_no_links}
+        # Parsed record without link elements
+        record = {
+            "id": "http://arxiv.org/abs/2509.10432v1",  # NOSONAR - Ignore http
+            "title": "Test Paper",
+            "summary": "Test summary",
+            "published": "2025-09-12T17:38:46Z",
+            "authors": [{"name": "Test Author"}],
+            "categories": ["cs.AI"],
+            "links": {},
+        }
         paper = self.mapper.map_to_paper(record)
 
         # Should construct URLs from ArXiv ID
@@ -386,7 +302,6 @@ class TestArXivMapper(TestCase):
         mock_hub_mapper.map.return_value = [cs_hub]
 
         mapper = ArXivMapper(mock_hub_mapper)
-        paper = mapper.map_to_paper(self.sample_record)
 
         # Act
         hubs = mapper.map_to_hubs(self.sample_record)
@@ -405,7 +320,6 @@ class TestArXivMapper(TestCase):
         """
         # Arrange
         mapper = ArXivMapper(None)
-        paper = mapper.map_to_paper(self.sample_record)
 
         # Act
         hubs = mapper.map_to_hubs(self.sample_record)
@@ -428,7 +342,6 @@ class TestArXivMapper(TestCase):
         mock_hub_mapper.map.return_value = [cs_hub, self.arxiv_hub]
 
         mapper = ArXivMapper(mock_hub_mapper)
-        paper = mapper.map_to_paper(self.sample_record)
 
         # Act
         hubs = mapper.map_to_hubs(self.sample_record)
@@ -448,18 +361,15 @@ class TestArXivMapper(TestCase):
         mock_hub_mapper = MagicMock()
         mapper = ArXivMapper(mock_hub_mapper)
 
-        # XML without primary_category
-        xml_no_primary = """<entry xmlns="http://www.w3.org/2005/Atom">
-    <id>http://arxiv.org/abs/2509.10432v1</id>
-    <title>Test Paper</title>
-    <summary>Test summary</summary>
-    <published>2025-09-12T17:38:46Z</published>
-    <author><name>Test Author</name></author>
-    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
-  </entry>"""
-
-        record_no_primary = {"raw_xml": xml_no_primary}
-        paper = mapper.map_to_paper(record_no_primary)
+        # Parsed record without primary_category
+        record_no_primary = {
+            "id": "http://arxiv.org/abs/2509.10432v1",  # NOSONAR - Ignore http
+            "title": "Test Paper",
+            "summary": "Test summary",
+            "published": "2025-09-12T17:38:46Z",
+            "authors": [{"name": "Test Author"}],
+            "categories": ["cs.AI"],
+        }
 
         # Act
         hubs = mapper.map_to_hubs(record_no_primary)
@@ -478,7 +388,6 @@ class TestArXivMapper(TestCase):
         mock_hub_mapper.map.return_value = []
 
         mapper = ArXivMapper(mock_hub_mapper)
-        paper = mapper.map_to_paper(self.sample_record)
 
         # Act
         hubs = mapper.map_to_hubs(self.sample_record)

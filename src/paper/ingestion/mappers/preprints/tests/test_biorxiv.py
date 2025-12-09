@@ -215,7 +215,6 @@ class TestBioRxivMapper(TestCase):
         mock_hub_mapper.map.return_value = [neuroscience_hub]
 
         mapper = BioRxivMapper(hub_mapper=mock_hub_mapper)
-        paper = mapper.map_to_paper(self.sample_record)
 
         # Act
         hubs = mapper.map_to_hubs(self.sample_record)
@@ -233,7 +232,6 @@ class TestBioRxivMapper(TestCase):
         """
         # Arrange
         mapper = BioRxivMapper(hub_mapper=None)
-        paper = mapper.map_to_paper(self.sample_record)
 
         # Act
         hubs = mapper.map_to_hubs(self.sample_record)
@@ -256,7 +254,6 @@ class TestBioRxivMapper(TestCase):
         mock_hub_mapper.map.return_value = [neuroscience_hub, self.biorxiv_hub]
 
         mapper = BioRxivMapper(hub_mapper=mock_hub_mapper)
-        paper = mapper.map_to_paper(self.sample_record)
 
         # Act
         hubs = mapper.map_to_hubs(self.sample_record)

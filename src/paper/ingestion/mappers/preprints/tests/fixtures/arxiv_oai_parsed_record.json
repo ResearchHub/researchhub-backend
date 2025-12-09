@@ -1,0 +1,39 @@
+{
+  "id": "2507.00004",
+  "title": "A Theory of Inference Compute Scaling: Reasoning through Directed Stochastic Skill Search",
+  "abstract": "Large language models (LLMs) demand considerable computational, energy, and financial resources during both training and deployment.",
+  "created": "2025-07-10",
+  "updated": "2025-07-11",
+  "authors": [
+    {
+      "name": "Austin R. Ellis-Mohr",
+      "keyname": "Ellis-Mohr",
+      "forenames": "Austin R."
+    },
+    {
+      "name": "Anuj K. Nayak",
+      "keyname": "Nayak",
+      "forenames": "Anuj K."
+    },
+    {
+      "name": "Lav R. Varshney",
+      "keyname": "Varshney",
+      "forenames": "Lav R."
+    }
+  ],
+  "categories": [
+    "cs.LG",
+    "cs.AI",
+    "cs.CY",
+    "cs.PF"
+  ],
+  "primary_category": "cs.LG",
+  "comments": null,
+  "journal_ref": null,
+  "doi": null,
+  "license": "http://creativecommons.org/licenses/by/4.0/",
+  "links": {
+    "alternate": "https://arxiv.org/abs/2507.00004",
+    "pdf": "https://arxiv.org/pdf/2507.00004.pdf"
+  }
+}

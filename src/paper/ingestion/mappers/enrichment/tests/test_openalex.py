@@ -303,11 +303,6 @@ class TestOpenAlexMapper(TestCase):
         Test mapping to Hub instances.
         """
         # Arrange
-        paper = Paper(
-            doi="10.7717/peerj.4375",
-            title="Test Paper",
-            external_source="openalex",
-        )
         mapper = OpenAlexMapper()
 
         # Act
