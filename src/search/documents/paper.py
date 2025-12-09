@@ -50,7 +50,6 @@ class PaperDocument(BaseDocument):
     )
     score = es_fields.IntegerField()
     hot_score_v2 = es_fields.IntegerField()
-    discussion_count = es_fields.IntegerField()
     unified_document_id = es_fields.IntegerField()
     created_date = es_fields.DateField(attr="created_date")
     suggestion_phrases = es_fields.CompletionField()
@@ -239,11 +238,6 @@ class PaperDocument(BaseDocument):
                 return feed_entry.hot_score_v2
         except Exception:
             pass
-        return 0
-
-    def prepare_discussion_count(self, instance) -> int:
-        if instance.unified_document:
-            return instance.unified_document.discussion_count
         return 0
 
     def prepare_unified_document_id(self, instance) -> int | None:

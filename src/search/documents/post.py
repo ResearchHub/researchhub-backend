@@ -24,7 +24,6 @@ class PostDocument(BaseDocument):
     hubs_flat = es_fields.TextField()
     hot_score_v2 = es_fields.IntegerField()
     score = es_fields.IntegerField(attr="score")
-    discussion_count = es_fields.IntegerField(attr="discussion_count")
     unified_document_id = es_fields.IntegerField(attr="unified_document_id")
     created_date = es_fields.DateField(attr="created_date")
     updated_date = es_fields.DateField(attr="updated_date")
