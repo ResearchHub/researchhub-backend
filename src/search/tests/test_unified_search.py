@@ -5,8 +5,11 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from search.services.unified_search_query_builder import (
+    DEFAULT_POPULARITY_CONFIG,
     DocumentQueryBuilder,
     FieldConfig,
+    PopularityConfig,
+    UnifiedSearchQueryBuilder,
 )
 from search.services.unified_search_service import UnifiedSearchService
 
@@ -160,6 +163,89 @@ class UnifiedSearchServiceTests(TestCase):
         builder.add_fuzzy_strategy(fields)
         query_dict = builder.build().to_dict()
         self.assertNotIn("multi_match", str(query_dict))
+
+
+class PopularityConfigTests(TestCase):
+    """Tests for PopularityConfig and popularity boosting."""
+
+    def test_default_popularity_config_values(self):
+        """Test default configuration values."""
+        config = DEFAULT_POPULARITY_CONFIG
+        self.assertTrue(config.enabled)
+        self.assertEqual(config.weight, 1.0)
+        self.assertEqual(config.boost_mode, "multiply")
+
+    def test_popularity_config_custom_values(self):
+        """Test custom configuration values."""
+        config = PopularityConfig(enabled=False, weight=2.0, boost_mode="sum")
+        self.assertFalse(config.enabled)
+        self.assertEqual(config.weight, 2.0)
+        self.assertEqual(config.boost_mode, "sum")
+
+    def test_build_with_popularity_boost_enabled(self):
+        """Test that popularity boost wraps query in function_score."""
+        builder = DocumentQueryBuilder("machine learning")
+        builder.add_simple_match_strategy(DocumentQueryBuilder.TITLE_FIELDS)
+
+        config = PopularityConfig(enabled=True, weight=1.5)
+        query = builder.build_with_popularity_boost(config)
+        query_dict = query.to_dict()
+
+        self.assertIn("function_score", query_dict)
+        self.assertIn("query", query_dict["function_score"])
+        self.assertIn("functions", query_dict["function_score"])
+        self.assertEqual(len(query_dict["function_score"]["functions"]), 1)
+
+        # Check the hot_score_v2 function
+        func = query_dict["function_score"]["functions"][0]
+        self.assertIn("field_value_factor", func)
+        self.assertEqual(func["field_value_factor"]["field"], "hot_score_v2")
+        self.assertEqual(func["field_value_factor"]["factor"], 1.5)
+        self.assertEqual(func["field_value_factor"]["modifier"], "log1p")
+
+    def test_build_with_popularity_boost_disabled(self):
+        """Test that disabled config returns plain query without function_score."""
+        builder = DocumentQueryBuilder("machine learning")
+        builder.add_simple_match_strategy(DocumentQueryBuilder.TITLE_FIELDS)
+
+        config = PopularityConfig(enabled=False)
+        query = builder.build_with_popularity_boost(config)
+        query_dict = query.to_dict()
+
+        self.assertNotIn("function_score", query_dict)
+        self.assertIn("bool", query_dict)
+
+    def test_build_with_popularity_boost_zero_weight(self):
+        """Test that zero weight returns plain query."""
+        builder = DocumentQueryBuilder("machine learning")
+        builder.add_simple_match_strategy(DocumentQueryBuilder.TITLE_FIELDS)
+
+        config = PopularityConfig(enabled=True, weight=0)
+        query = builder.build_with_popularity_boost(config)
+        query_dict = query.to_dict()
+
+        self.assertNotIn("function_score", query_dict)
+        self.assertIn("bool", query_dict)
+
+    def test_unified_query_builder_with_popularity(self):
+        """Test UnifiedSearchQueryBuilder builds queries with popularity."""
+        query_builder = UnifiedSearchQueryBuilder()
+        query = query_builder.build_document_query_with_popularity("neural networks")
+        query_dict = query.to_dict()
+
+        self.assertIn("function_score", query_dict)
+        self.assertIn("functions", query_dict["function_score"])
+
+    def test_unified_query_builder_custom_popularity_config(self):
+        """Test UnifiedSearchQueryBuilder respects custom popularity config."""
+        custom_config = PopularityConfig(enabled=True, weight=3.0, boost_mode="sum")
+        query_builder = UnifiedSearchQueryBuilder(popularity_config=custom_config)
+        query = query_builder.build_document_query_with_popularity("deep learning")
+        query_dict = query.to_dict()
+
+        self.assertEqual(query_dict["function_score"]["boost_mode"], "sum")
+        func = query_dict["function_score"]["functions"][0]
+        self.assertEqual(func["field_value_factor"]["factor"], 3.0)
 
 
 class UnifiedSearchViewTests(TestCase):

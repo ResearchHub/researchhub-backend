@@ -20,6 +20,32 @@ class FieldConfig:
         return f"{self.name}^{self.boost}"
 
 
+@dataclass
+class PopularityConfig:
+    """Configuration for popularity signal boosting using hot_score_v2.
+
+    Uses OpenSearch's function_score query to boost results based on
+    the pre-computed hot_score_v2 field, which incorporates:
+    - Recency decay
+    - Engagement signals (bounties, tips, reviews)
+    - Vote-based quality score
+
+    Attributes:
+        enabled: Whether to apply popularity boosting.
+        weight: Weight multiplier for hot_score_v2. Uses log1p normalization
+            to prevent extreme values from dominating results.
+        boost_mode: How to combine function score with query score.
+            Options: "multiply", "sum", "avg", "replace", "max", "min".
+    """
+
+    enabled: bool = True
+    weight: float = 1.0
+    boost_mode: str = "multiply"
+
+
+DEFAULT_POPULARITY_CONFIG = PopularityConfig()
+
+
 class DocumentQueryBuilder:
 
     MAX_QUERY_WORDS_FOR_AUTHOR_TITLE_COMBO = 7
@@ -462,6 +488,54 @@ class DocumentQueryBuilder:
     def build(self) -> Q:
         return Q("bool", should=self.should_clauses, minimum_should_match=1)
 
+    def build_with_popularity_boost(
+        self, popularity_config: PopularityConfig | None = None
+    ) -> Q:
+        """Build query with popularity signal boosting using function_score.
+
+        Wraps the text relevance query in a function_score query that combines
+        text matching with the hot_score_v2 popularity signal.
+
+        Args:
+            popularity_config: Configuration for popularity boosting.
+                Uses DEFAULT_POPULARITY_CONFIG if None.
+
+        Returns:
+            OpenSearch query with popularity boosting applied.
+        """
+        text_query = self.build()
+
+        if popularity_config is None:
+            popularity_config = DEFAULT_POPULARITY_CONFIG
+
+        if not popularity_config.enabled:
+            return text_query
+
+        functions = []
+
+        if popularity_config.weight > 0:
+            functions.append(
+                {
+                    "field_value_factor": {
+                        "field": "hot_score_v2",
+                        "factor": popularity_config.weight,
+                        "modifier": "log1p",
+                        "missing": 1,
+                    }
+                }
+            )
+
+        if not functions:
+            return text_query
+
+        return Q(
+            "function_score",
+            query=text_query,
+            functions=functions,
+            score_mode="sum",
+            boost_mode=popularity_config.boost_mode,
+        )
+
 
 class PersonQueryBuilder:
 
@@ -486,6 +560,15 @@ class PersonQueryBuilder:
 
 
 class UnifiedSearchQueryBuilder:
+
+    def __init__(self, popularity_config: PopularityConfig | None = None):
+        """Initialize the query builder.
+
+        Args:
+            popularity_config: Configuration for popularity boosting.
+                Uses DEFAULT_POPULARITY_CONFIG if None.
+        """
+        self.popularity_config = popularity_config or DEFAULT_POPULARITY_CONFIG
 
     def build_document_query(self, query: str) -> Q:
         """Build document query with complexity limits for single-word queries."""
@@ -553,6 +636,72 @@ class UnifiedSearchQueryBuilder:
         builder = builder.add_cross_field_fallback_strategy()
 
         return builder.build()
+
+    def build_document_query_with_popularity(
+        self, query: str, popularity_config: PopularityConfig | None = None
+    ) -> Q:
+        """Build document query with popularity signal boosting.
+
+        This method builds the same query as build_document_query but wraps it
+        in a function_score query that incorporates hot_score_v2 popularity signals.
+
+        Args:
+            query: The user's search query string.
+            popularity_config: Configuration for popularity boosting.
+                Uses instance config if None.
+
+        Returns:
+            OpenSearch query with popularity boosting applied.
+        """
+        builder = DocumentQueryBuilder(query)
+        is_single_word = DocumentQueryBuilder._is_single_word_query(query)
+
+        title_fields = DocumentQueryBuilder.TITLE_FIELDS
+        author_fields = DocumentQueryBuilder.AUTHOR_FIELDS
+        content_fields = DocumentQueryBuilder.CONTENT_FIELDS
+
+        # Extra: very strong title AND match
+        builder.should_clauses.append(
+            Q(
+                "multi_match",
+                query=query,
+                fields=["paper_title^7", "title^7"],
+                type="best_fields",
+                operator="and",
+                boost=8.0,
+            )
+        )
+
+        builder = (
+            builder.add_simple_match_strategy(title_fields)
+            .add_simple_match_strategy(author_fields)
+            .add_author_name_strategy()
+            .add_phrase_strategy(title_fields + content_fields, slop=1)
+        )
+
+        if not is_single_word:
+            builder = builder.add_author_title_combination_strategy()
+
+        prefix_expansions = 10 if is_single_word else 20
+        builder = builder.add_prefix_strategy(
+            title_fields + author_fields,
+            max_expansions=prefix_expansions,
+        )
+
+        if is_single_word:
+            builder = builder.add_fuzzy_strategy_single_word(
+                title_fields + author_fields
+            )
+        else:
+            builder = builder.add_fuzzy_strategy(
+                title_fields + author_fields + content_fields,
+                operator="or",
+            )
+
+        builder = builder.add_cross_field_fallback_strategy()
+
+        config = popularity_config or self.popularity_config
+        return builder.build_with_popularity_boost(config)
 
     def build_person_query(self, query: str) -> Q:
 
