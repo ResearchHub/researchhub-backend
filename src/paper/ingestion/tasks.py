@@ -7,6 +7,7 @@ from paper.ingestion.clients import (
     BlueskyMetricsClient,
     GithubClient,
     GithubMetricsClient,
+    XMetricsClient,
 )
 from paper.ingestion.clients.enrichment.altmetric import AltmetricClient
 from paper.ingestion.clients.enrichment.openalex import OpenAlexClient
@@ -31,6 +32,7 @@ def update_recent_papers_with_metrics(self, days: int = 7, retry: int = 0):
         altmetric_mapper=AltmetricMapper(),
         bluesky_metrics_client=None,
         github_metrics_client=None,
+        x_metrics_client=None,
     )
 
     papers = service.get_recent_papers_with_dois(days)
@@ -139,6 +141,7 @@ def update_recent_papers_with_github_metrics(days: int = 7):
         altmetric_mapper=None,
         bluesky_metrics_client=None,
         github_metrics_client=github_metrics_client,
+        x_metrics_client=None,
     )
 
     papers = service.get_recent_papers_with_dois(days)
@@ -204,6 +207,7 @@ def enrich_paper_with_github_metrics(self, paper_id: int, retry: int = 0):
         altmetric_mapper=None,
         bluesky_metrics_client=None,
         github_metrics_client=github_metrics_client,
+        x_metrics_client=None,
     )
 
     try:
@@ -280,6 +284,7 @@ def update_recent_papers_with_bluesky_metrics(days: int = 7):
         altmetric_mapper=None,
         bluesky_metrics_client=BlueskyMetricsClient(),
         github_metrics_client=None,
+        x_metrics_client=None,
     )
 
     papers = service.get_recent_papers_with_dois(days)
@@ -344,6 +349,7 @@ def enrich_paper_with_bluesky_metrics(self, paper_id: int, retry: int = 0):
         altmetric_mapper=None,
         bluesky_metrics_client=BlueskyMetricsClient(),
         github_metrics_client=None,
+        x_metrics_client=None,
     )
 
     try:

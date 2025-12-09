@@ -6,7 +6,11 @@ from typing import Any, Dict, List, Optional
 
 from django.utils import timezone
 
-from paper.ingestion.clients import BlueskyMetricsClient, GithubMetricsClient
+from paper.ingestion.clients import (
+    BlueskyMetricsClient,
+    GithubMetricsClient,
+    XMetricsClient,
+)
 from paper.ingestion.clients.enrichment.altmetric import AltmetricClient
 from paper.ingestion.mappers import AltmetricMapper
 from paper.models import Paper
@@ -48,6 +52,7 @@ class PaperMetricsEnrichmentService:
         altmetric_mapper: AltmetricMapper,
         bluesky_metrics_client: BlueskyMetricsClient,
         github_metrics_client: GithubMetricsClient,
+        x_metrics_client: XMetricsClient,
     ):
         """
         Constructor.
@@ -57,11 +62,13 @@ class PaperMetricsEnrichmentService:
             altmetric_mapper: Mapper for transforming Altmetric data
             github_metrics_client: Client for fetching GitHub metrics
             bluesky_metrics_client: Client for fetching Bluesky metrics
+            x_metrics_client: Client for fetching X (Twitter) metrics
         """
         self.altmetric_client = altmetric_client
         self.altmetric_mapper = altmetric_mapper
         self.github_metrics_client = github_metrics_client
         self.bluesky_metrics_client = bluesky_metrics_client
+        self.x_metrics_client = x_metrics_client
 
     def get_recent_papers_with_dois(self, days: int) -> List[int]:
         """
@@ -159,6 +166,42 @@ class PaperMetricsEnrichmentService:
 
         except Exception as e:
             logger.error(f"Error fetching Bluesky metrics for paper {paper.id}: {e}")
+            return EnrichmentResult(status="error", reason=str(e))
+
+    def enrich_paper_with_x(self, paper: Paper) -> EnrichmentResult:
+        """
+        Fetch X (Twitter) metrics for the given paper and update its external_metadata.
+
+        Args:
+            paper: Paper instance to enrich
+
+        Returns:
+            EnrichmentResult with status and details
+        """
+        if not paper.doi:
+            logger.warning(f"Paper {paper.id} has no DOI, skipping X enrichment")
+            return EnrichmentResult(status="skipped", reason="no_doi")
+
+        try:
+            result = self.x_metrics_client.get_metrics(paper.doi)
+
+            if result is None:
+                logger.info(f"No X posts found for paper {paper.id}")
+                return EnrichmentResult(status="not_found", reason="no_x_posts")
+
+            self._update_paper_metrics(paper, {"x": result})
+
+            logger.info(
+                f"Successfully saved {result['post_count']} X posts for paper {paper.id}."
+            )
+
+            return EnrichmentResult(
+                status="success",
+                metrics={"x": result},
+            )
+
+        except Exception as e:
+            logger.error(f"Error fetching X metrics for paper {paper.id}: {e}")
             return EnrichmentResult(status="error", reason=str(e))
 
     def enrich_paper_with_altmetric(self, paper: Paper) -> EnrichmentResult:
