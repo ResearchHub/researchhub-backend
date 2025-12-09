@@ -429,8 +429,7 @@ class DocumentQueryBuilder:
                 {
                     "field_value_factor": {
                         "field": "hot_score_v2",
-                        "factor": popularity_config.weight,
-                        "modifier": "log1p",
+                        "factor": popularity_config.weight,  # 1.0 = full 0-1000, 0.5 = half effect
                         "missing": 1,
                     }
                 }
