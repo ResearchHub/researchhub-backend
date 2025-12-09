@@ -1,7 +1,3 @@
-"""
-Tests for BedrockPrimaryImageService.
-"""
-
 import base64
 import json
 from io import BytesIO
@@ -310,17 +306,7 @@ class BedrockPrimaryImageServiceTests(TestCase):
 
         # Mock responses for batches
         def mock_invoke_model(modelId, body):
-            body_dict = json.loads(body)
-            # Determine which batch based on number of images
-            content = body_dict["messages"][0]["content"]
-            image_count = sum(1 for item in content if item.get("type") == "image")
-
-            if image_count > MAX_IMAGES_PER_BEDROCK_REQUEST:
-                # This shouldn't happen, but handle it
-                selected_index = 0
-            else:
-                # Select first figure in batch
-                selected_index = 0
+            selected_index = 0
 
             response_data = json.dumps(
                 {

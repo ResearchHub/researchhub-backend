@@ -1,7 +1,3 @@
-"""
-Tests for FigureExtractionService.
-"""
-
 from io import BytesIO
 from unittest.mock import MagicMock, patch
 
@@ -9,11 +5,11 @@ from django.test import TestCase
 from PIL import Image
 
 from paper.services.figure_extraction_service import (
-    FigureExtractionService,
     MAX_FIGURE_HEIGHT,
     MAX_FIGURE_WIDTH,
     MIN_FIGURE_HEIGHT,
     MIN_FIGURE_WIDTH,
+    FigureExtractionService,
 )
 from paper.tests import helpers
 
@@ -98,7 +94,7 @@ class FigureExtractionServiceTests(TestCase):
 
             # Should extract and resize the image
             self.assertEqual(len(figures), 1)
-            content_file, metadata = figures[0]
+            _, metadata = figures[0]
             self.assertLessEqual(metadata["width"], MAX_FIGURE_WIDTH)
             self.assertLessEqual(metadata["height"], MAX_FIGURE_HEIGHT)
             self.assertTrue(metadata["resized"])
@@ -121,7 +117,7 @@ class FigureExtractionServiceTests(TestCase):
 
             # Should extract and convert to JPEG
             self.assertEqual(len(figures), 1)
-            content_file, metadata = figures[0]
+            content_file, _ = figures[0]
             # Check that filename ends with .jpg
             self.assertTrue(content_file.name.endswith(".jpg"))
 
@@ -143,7 +139,7 @@ class FigureExtractionServiceTests(TestCase):
 
             # Should extract the valid image
             self.assertEqual(len(figures), 1)
-            content_file, metadata = figures[0]
+            _, metadata = figures[0]
             self.assertEqual(metadata["width"], 600)
             self.assertEqual(metadata["height"], 600)
             self.assertFalse(metadata["resized"])
@@ -207,4 +203,3 @@ class FigureExtractionServiceTests(TestCase):
             # Should not raise an exception
             figures = self.service.extract_figures_from_pdf(b"fake pdf", self.paper.id)
             self.assertEqual(len(figures), 0)
-

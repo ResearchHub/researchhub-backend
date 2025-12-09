@@ -54,7 +54,7 @@ def download_pdf(paper_id, retry=0):
 
     if pdf_url:
         try:
-            url = _create_download_url(pdf_url, paper.external_source)
+            url = create_download_url(pdf_url, paper.external_source)
             pdf = download_pdf_from_url(url)
             paper.file.save(pdf.name, pdf, save=False)
             paper.save(update_fields=["file"])
@@ -77,7 +77,7 @@ def download_pdf(paper_id, retry=0):
     return False
 
 
-def _create_download_url(url: str, external_source: str) -> str:
+def create_download_url(url: str, external_source: str) -> str:
     if external_source not in ["arxiv", "biorxiv"]:
         return url
 
@@ -225,7 +225,7 @@ def extract_pdf_figures(paper_id, retry=0):
         return False
 
 
-def _create_pdf_screenshot(paper) -> bool:
+def create_pdf_screenshot(paper) -> bool:
     """
     Create a preview (screenshot) of the first page of the PDF and mark it as primary.
 
@@ -349,7 +349,7 @@ def select_primary_image(paper_id, retry=0):
 
         logger.info(f"No figures found for paper {paper_id}, creating preview")
         # No figures extracted and no primary, create preview of first page
-        return _create_pdf_screenshot(paper)
+        return create_pdf_screenshot(paper)
 
     try:
         service = BedrockPrimaryImageService()
@@ -376,7 +376,7 @@ def select_primary_image(paper_id, retry=0):
 
         if should_use_preview:
             # Create preview of first page
-            preview_created = _create_pdf_screenshot(paper)
+            preview_created = create_pdf_screenshot(paper)
             if preview_created:
                 logger.info(f"Created preview as primary image for paper {paper_id}")
                 return True
