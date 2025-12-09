@@ -196,4 +196,13 @@ app.conf.beat_schedule = {
             "queue": QUEUE_PAPER_MISC,
         },
     },
+    "paper-x-metrics-update": {
+        "task": "paper.ingestion.tasks.update_recent_papers_with_x_metrics",
+        "kwargs": {"days": 14},
+        "schedule": crontab(hour=13, minute=0),
+        "options": {
+            "priority": 2,
+            "queue": QUEUE_PAPER_MISC,
+        },
+    },
 }
