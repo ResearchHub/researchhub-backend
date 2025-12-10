@@ -26,6 +26,7 @@ class TestXClient(TestCase):
 
         self.assertIs(client1, client2)
 
+    @patch("paper.ingestion.clients.enrichment.x.settings.X_BEARER_TOKEN", None)
     def test_init_no_bearer_token(self):
         """Test initialization without bearer token."""
         # Reset singleton to test fresh initialization
