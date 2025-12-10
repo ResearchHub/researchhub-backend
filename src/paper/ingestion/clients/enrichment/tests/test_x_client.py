@@ -1,12 +1,7 @@
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
-from paper.ingestion.clients.enrichment.x import (
-    XClient,
-    XMetricsClient,
-    build_query_with_exclusions,
-    get_bot_accounts_for_paper,
-)
+from paper.ingestion.clients.enrichment.x import XClient, XMetricsClient
 
 
 class TestXClient(TestCase):
