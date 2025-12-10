@@ -30,6 +30,7 @@ class PaperDocument(BaseDocument):
     openalex_id = es_fields.TextField()
     abstract = es_fields.TextField(analyzer=content_analyzer)
     is_open_access = es_fields.BooleanField()
+    external_source = es_fields.TextField()
     # TODO: Deprecate this field once we move over to new app.
     # It should not longer be necessary since authors property will replace it.
     raw_authors = es_fields.ObjectField(

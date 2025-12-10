@@ -161,6 +161,7 @@ class UnifiedSearchService:
                 "score",
                 "unified_document_id",
                 "document_type",
+                "external_source",
             ]
         )
 
@@ -240,6 +241,7 @@ class UnifiedSearchService:
                 "score",
                 "unified_document_id",
                 "document_type",
+                "external_source",
             ]
         )
 
@@ -327,6 +329,7 @@ class UnifiedSearchService:
             "paper_publish_date": getattr(hit, "paper_publish_date", None),
             "unified_document_id": getattr(hit, "unified_document_id", None),
             "abstract": getattr(hit, "abstract", None),
+            "journal": getattr(hit, "external_source", None),
         }
 
     def _build_post_fields(self, hit) -> dict[str, Any]:

@@ -78,6 +78,7 @@ class DocumentResultSerializer(serializers.Serializer):
     doi = serializers.CharField(allow_null=True, required=False)
     citations = serializers.IntegerField(required=False)
     abstract = serializers.CharField(allow_null=True, required=False)
+    journal = serializers.CharField(allow_null=True, required=False)
 
     # Post-specific fields
     slug = serializers.CharField(allow_null=True, required=False)
