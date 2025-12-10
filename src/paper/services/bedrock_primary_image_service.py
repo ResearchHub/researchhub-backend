@@ -20,10 +20,10 @@ class BedrockPrimaryImageService:
     """Service for selecting primary image using AWS Bedrock."""
 
     def __init__(self):
-        region_name = getattr(settings, "AWS_BEDROCK_REGION", settings.AWS_REGION_NAME)
+        region_name = getattr(settings, "AWS_REGION_NAME", settings.AWS_REGION_NAME)
         self.bedrock_client = create_client("bedrock-runtime", region_name=region_name)
         self.model_id = getattr(
-            settings, "AWS_BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0"
+            settings, "AWS_BEDROCK_MODEL_ID", settings.AWS_BEDROCK_MODEL_ID
         )
         self.anthropic_version = getattr(
             settings, "AWS_BEDROCK_ANTHROPIC_VERSION", "bedrock-2023-05-31"

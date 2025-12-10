@@ -527,11 +527,9 @@ AWS_REGION_NAME = os.environ.get("AWS_REGION_NAME", keys.AWS_REGION_NAME)
 AWS_BEDROCK_MODEL_ID = os.environ.get(
     "AWS_BEDROCK_MODEL_ID", getattr(keys, "AWS_BEDROCK_MODEL_ID", None)
 )
-AWS_BEDROCK_REGION = os.environ.get(
-    "AWS_BEDROCK_REGION", getattr(keys, "AWS_BEDROCK_REGION", None)
-)
 AWS_BEDROCK_ANTHROPIC_VERSION = os.environ.get(
-    "AWS_BEDROCK_ANTHROPIC_VERSION", getattr(keys, "AWS_BEDROCK_ANTHROPIC_VERSION", "bedrock-2023-05-31")
+    "AWS_BEDROCK_ANTHROPIC_VERSION",
+    getattr(keys, "AWS_BEDROCK_ANTHROPIC_VERSION", "bedrock-2023-05-31"),
 )
 
 

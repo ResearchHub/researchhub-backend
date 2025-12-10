@@ -60,7 +60,10 @@ def download_pdf(paper_id, retry=0):
             paper.file.save(pdf.name, pdf, save=False)
             paper.save(update_fields=["file"])
 
-            extract_pdf_figures.apply_async((paper.id,), priority=6)
+            skip_primary = not PRODUCTION
+            extract_pdf_figures.apply_async(
+                (paper.id,), {"skip_primary_selection": skip_primary}, priority=6
+            )
 
             return True
         except ValueError as e:
@@ -142,7 +145,7 @@ def celery_extract_pdf_preview(paper_id, retry=0):
 
 
 @app.task(queue=QUEUE_PAPER_MISC)
-def extract_pdf_figures(paper_id, retry=0):
+def extract_pdf_figures(paper_id, retry=0, skip_primary_selection=False):
     if retry > 2:
         logger.warning(f"Max retries reached for figure extraction - paper {paper_id}")
         return False
@@ -161,6 +164,7 @@ def extract_pdf_figures(paper_id, retry=0):
         logger.info(f"No PDF file exists for paper {paper_id}, retrying...")
         extract_pdf_figures.apply_async(
             (paper.id, retry + 1),
+            {"skip_primary_selection": skip_primary_selection},
             priority=6,
             countdown=10 * (retry + 1),
         )
@@ -207,16 +211,16 @@ def extract_pdf_figures(paper_id, retry=0):
         cache_key = get_cache_key("figure", paper_id)
         cache.delete(cache_key)
 
-        # Only run primary image selection in production
-        # In dev/staging, create preview instead
-        if PRODUCTION:
-            select_primary_image.apply_async((paper.id,), priority=5)
-        else:
+        # Select primary image unless explicitly skipped
+        if skip_primary_selection:
+            # In dev/staging automatic flow, create preview instead
             create_pdf_screenshot(paper)
             logger.info(
-                f"Skipping primary image selection (not production). "
+                f"Skipping primary image selection (automatic flow, not production). "
                 f"Created preview for paper {paper_id}"
             )
+        else:
+            select_primary_image.apply_async((paper.id,), priority=5)
 
         return True
 
@@ -228,6 +232,7 @@ def extract_pdf_figures(paper_id, retry=0):
         if retry < 2:
             extract_pdf_figures.apply_async(
                 (paper.id, retry + 1),
+                {"skip_primary_selection": skip_primary_selection},
                 priority=6,
                 countdown=30 * (retry + 1),
             )
