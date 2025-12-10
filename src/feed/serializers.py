@@ -207,6 +207,7 @@ class PaperSerializer(ContentObjectSerializer):
     work_type = serializers.CharField()
     bounties = serializers.SerializerMethodField()
     purchases = serializers.SerializerMethodField()
+    primary_image = serializers.SerializerMethodField()  # Changed from image
 
     def get_bounties(self, obj):
         return self.get_bounty_data(obj)
@@ -229,6 +230,13 @@ class PaperSerializer(ContentObjectSerializer):
             "image": journal_hub.hub_image.url if journal_hub.hub_image else None,
         }
 
+    def get_primary_image(self, obj):
+        primary_figure = obj.figures.filter(is_primary=True).first()
+        if not primary_figure or not primary_figure.file:
+            return None
+
+        return default_storage.url(primary_figure.file)
+
     class Meta(ContentObjectSerializer.Meta):
         model = Paper
         fields = ContentObjectSerializer.Meta.fields + [
@@ -239,6 +247,7 @@ class PaperSerializer(ContentObjectSerializer):
             "authors",
             "bounties",
             "purchases",
+            "primary_image",
         ]
 
 
@@ -612,6 +621,7 @@ class FeedEntrySerializer(serializers.ModelSerializer):
     hot_score_breakdown = serializers.SerializerMethodField()
     external_metadata = serializers.SerializerMethodField()
     recommendation_id = serializers.SerializerMethodField()
+    primary_image = serializers.SerializerMethodField()
 
     class Meta:
         model = FeedEntry
@@ -628,6 +638,7 @@ class FeedEntrySerializer(serializers.ModelSerializer):
             "hot_score_breakdown",
             "external_metadata",
             "recommendation_id",
+            "primary_image",
         ]
 
     def get_author(self, obj):
@@ -698,6 +709,14 @@ class FeedEntrySerializer(serializers.ModelSerializer):
 
     def get_recommendation_id(self, obj):
         return self.context.get("recommendation_id")
+
+    def get_primary_image(self, obj):
+        """Return the primary image from the paper if it exists"""
+        if obj.item and obj.content_type.model == "paper":
+            primary_image = obj.item.figures.filter(is_primary=True).first()
+            if primary_image and primary_image.file:
+                return default_storage.url(primary_image.file)
+        return None
 
 
 def serialize_feed_metrics(item, item_content_type):
