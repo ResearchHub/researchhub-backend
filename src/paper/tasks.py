@@ -173,9 +173,17 @@ def extract_pdf_figures(paper_id, retry=0, skip_primary_selection=False):
     try:
         # Get PDF content
         file_url = file.url
+        logger.info(
+            f"Fetching PDF for paper {paper_id} from URL: {file_url} "
+            f"(file.name: {file.name})"
+        )
         res = requests.get(file_url, timeout=60)
         res.raise_for_status()
         pdf_content = res.content
+        logger.info(
+            f"Successfully fetched PDF for paper {paper_id}: "
+            f"{len(pdf_content)} bytes, content-type: {res.headers.get('content-type', 'unknown')}"
+        )
 
         # Extract figures using service
         extraction_service = FigureExtractionService()
