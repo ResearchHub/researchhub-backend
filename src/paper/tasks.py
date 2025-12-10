@@ -21,6 +21,7 @@ from paper.services.bedrock_primary_image_service import BedrockPrimaryImageServ
 from paper.services.figure_extraction_service import FigureExtractionService
 from paper.utils import download_pdf_from_url, get_cache_key
 from researchhub.celery import QUEUE_PAPER_MISC, app
+from researchhub.settings import PRODUCTION
 from utils import sentry
 
 logger = get_task_logger(__name__)
@@ -206,7 +207,16 @@ def extract_pdf_figures(paper_id, retry=0):
         cache_key = get_cache_key("figure", paper_id)
         cache.delete(cache_key)
 
-        select_primary_image.apply_async((paper.id,), priority=5)
+        # Only run primary image selection in production
+        # In dev/staging, create preview instead
+        if PRODUCTION:
+            select_primary_image.apply_async((paper.id,), priority=5)
+        else:
+            create_pdf_screenshot(paper)
+            logger.info(
+                f"Skipping primary image selection (not production). "
+                f"Created preview for paper {paper_id}"
+            )
 
         return True
 
