@@ -222,6 +222,7 @@ INSTALLED_APPS = [
     "allauth.account",
     "allauth.socialaccount",
     "allauth.socialaccount.providers.google",
+    "allauth.socialaccount.providers.orcid",
     "rest_framework.authtoken",
     "dj_rest_auth",
     "dj_rest_auth.registration",
@@ -252,6 +253,7 @@ INSTALLED_APPS = [
     "note",
     "notification",
     "oauth",
+    "orcid",
     "paper",
     "purchase",
     "referral",
@@ -421,7 +423,6 @@ SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
 SOCIALACCOUNT_EMAIL_REQUIRED = False
 SOCIALACCOUNT_QUERY_EMAIL = True
 
-
 GOOGLE_REDIRECT_URL = "http://localhost:8000/auth/google/login/callback/"
 GOOGLE_YOLO_REDIRECT_URL = "http://localhost:8000/auth/google/yolo/callback/"
 if PRODUCTION:
@@ -438,6 +439,15 @@ if STAGING:
     GOOGLE_YOLO_REDIRECT_URL = (
         "https://backend.staging.researchhub.com/auth/google/yolo/callback/"
     )
+
+
+ORCID_CLIENT_ID = os.environ.get("ORCID_CLIENT_ID", getattr(keys, "ORCID_CLIENT_ID", ""))
+ORCID_CLIENT_SECRET = os.environ.get("ORCID_CLIENT_SECRET", getattr(keys, "ORCID_CLIENT_SECRET", ""))
+ORCID_REDIRECT_URL = "http://127.0.0.1:3000/auth/orcid/callback"
+if PRODUCTION:
+    ORCID_REDIRECT_URL = "https://researchhub.com/auth/orcid/callback"
+elif STAGING:
+    ORCID_REDIRECT_URL = "https://staging.researchhub.com/auth/orcid/callback"
 
 
 # Database

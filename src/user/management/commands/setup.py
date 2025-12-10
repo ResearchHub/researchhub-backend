@@ -2,6 +2,7 @@ import os
 
 import pandas as pd
 from allauth.socialaccount.models import SocialApp
+from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from django.conf import settings
 from django.contrib.sites.models import Site
 from django.core.management.base import BaseCommand
@@ -29,6 +30,15 @@ class Command(BaseCommand):
         site.name = "google"
         site.save()
         social_app.sites.add(site)
+
+        orcid_app = SocialApp.objects.create(
+            provider=OrcidProvider.id,
+            name="ORCID",
+            client_id=getattr(settings, "ORCID_CLIENT_ID", ""),
+            secret=getattr(settings, "ORCID_CLIENT_SECRET", ""),
+            key="",
+        )
+        orcid_app.sites.add(site)
 
         manage_py_path = os.path.join(settings.BASE_DIR, "manage.py")
 
