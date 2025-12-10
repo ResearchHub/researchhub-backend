@@ -33,39 +33,15 @@ class FigureExtractionService:
     ) -> List[Tuple[ContentFile, dict]]:
         """
         Extract embedded images from PDF content.
-
-        Args:
-            pdf_content: PDF file content as bytes
-            paper_id: ID of the paper
         """
         extracted_figures = []
 
-        pdf_size = len(pdf_content)
-        logger.info(
-            f"Starting figure extraction for paper {paper_id}: "
-            f"PDF size: {pdf_size} bytes"
-        )
-
         try:
             doc = fitz.open(stream=pdf_content, filetype="pdf")
-            total_pages = len(doc)
-            logger.info(f"Opened PDF for paper {paper_id}: {total_pages} pages")
-
-            total_images_found = 0
-            total_images_skipped_size = 0
-            total_images_skipped_aspect = 0
-            total_images_extracted = 0
 
             for page_num, page in enumerate(doc):
                 try:
                     image_list = page.get_images(full=True)
-                    page_image_count = len(image_list)
-                    total_images_found += page_image_count
-
-                    if page_image_count > 0:
-                        logger.info(
-                            f"Page {page_num}: found {page_image_count} image(s)"
-                        )
 
                     for img_index, img in enumerate(image_list):
                         try:
@@ -80,11 +56,9 @@ class FigureExtractionService:
                             aspect_ratio = width / height if height > 0 else 0
 
                             if width < MIN_FIGURE_WIDTH or height < MIN_FIGURE_HEIGHT:
-                                total_images_skipped_size += 1
-                                logger.info(
+                                logger.debug(
                                     f"Skipping image {img_index} on page {page_num}: "
-                                    f"too small ({width}x{height}, "
-                                    f"min: {MIN_FIGURE_WIDTH}x{MIN_FIGURE_HEIGHT})"
+                                    f"too small ({width}x{height})"
                                 )
                                 continue
 
@@ -92,13 +66,9 @@ class FigureExtractionService:
                                 aspect_ratio > MAX_ASPECT_RATIO
                                 or aspect_ratio < MIN_ASPECT_RATIO
                             ):
-                                total_images_skipped_aspect += 1
-                                min_ratio = MIN_ASPECT_RATIO
-                                max_ratio = MAX_ASPECT_RATIO
-                                logger.info(
+                                logger.debug(
                                     f"Skipping image {img_index} on page {page_num}: "
-                                    f"extreme aspect ratio ({aspect_ratio:.2f}, "
-                                    f"valid range: {min_ratio:.2f}-{max_ratio:.2f})"
+                                    f"extreme aspect ratio ({aspect_ratio:.2f})"
                                 )
                                 continue
 
@@ -109,9 +79,9 @@ class FigureExtractionService:
                                 )
                                 width, height = pil_image.size
                                 logger.info(
-                                    f"Resized image {img_index} on page {page_num} "
-                                    f"from {original_width}x{original_height} "
-                                    f"to {width}x{height}"
+                                    f"Resized image {img_index} on page "
+                                    f"{page_num} from {original_width}x"
+                                    f"{original_height} to {width}x{height}"
                                 )
 
                             output_buffer = BytesIO()
@@ -159,7 +129,6 @@ class FigureExtractionService:
                             }
 
                             extracted_figures.append((content_file, metadata))
-                            total_images_extracted += 1
 
                             logger.info(
                                 f"Extracted figure from page {page_num}, "
@@ -170,32 +139,18 @@ class FigureExtractionService:
                         except Exception as e:
                             logger.warning(
                                 f"Error extracting image {img_index} "
-                                f"from page {page_num}: {e}",
-                                exc_info=True,
+                                f"from page {page_num}: {e}"
                             )
                             continue
 
                 except Exception as e:
-                    logger.warning(
-                        f"Error processing page {page_num}: {e}", exc_info=True
-                    )
+                    logger.warning(f"Error processing page {page_num}: {e}")
                     continue
 
             doc.close()
 
-            logger.info(
-                f"Figure extraction summary for paper {paper_id}: "
-                f"pages={total_pages}, images_found={total_images_found}, "
-                f"skipped_size={total_images_skipped_size}, "
-                f"skipped_aspect={total_images_skipped_aspect}, "
-                f"extracted={total_images_extracted}"
-            )
-
         except Exception as e:
-            logger.error(
-                f"Error extracting figures from PDF for paper {paper_id}: {e}",
-                exc_info=True,
-            )
+            logger.error(f"Error extracting figures from PDF: {e}")
             raise
 
         logger.info(f"Extracted {len(extracted_figures)} figures from PDF")
