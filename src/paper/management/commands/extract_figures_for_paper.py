@@ -46,7 +46,9 @@ class Command(BaseCommand):
                         extract_pdf_figures.apply_async((paper.id,), priority=6)
                         self.stdout.write(self.style.SUCCESS("queued"))
                     else:
-                        result = extract_pdf_figures(paper.id)
+                        result = extract_pdf_figures(
+                            paper.id, sync_primary_selection=True
+                        )
                         if result:
                             figures_count = Figure.objects.filter(
                                 paper=paper, figure_type=Figure.FIGURE
@@ -98,7 +100,7 @@ class Command(BaseCommand):
             )
         else:
             self.stdout.write("Running extraction synchronously...")
-            result = extract_pdf_figures(paper.id)
+            result = extract_pdf_figures(paper.id, sync_primary_selection=True)
 
             if result:
                 figures = Figure.objects.filter(paper=paper, figure_type=Figure.FIGURE)

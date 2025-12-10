@@ -145,7 +145,9 @@ def celery_extract_pdf_preview(paper_id, retry=0):
 
 
 @app.task(queue=QUEUE_PAPER_MISC)
-def extract_pdf_figures(paper_id, retry=0, skip_primary_selection=False):
+def extract_pdf_figures(
+    paper_id, retry=0, skip_primary_selection=False, sync_primary_selection=False
+):
     if retry > 2:
         logger.warning(f"Max retries reached for figure extraction - paper {paper_id}")
         return False
@@ -164,7 +166,10 @@ def extract_pdf_figures(paper_id, retry=0, skip_primary_selection=False):
         logger.info(f"No PDF file exists for paper {paper_id}, retrying...")
         extract_pdf_figures.apply_async(
             (paper.id, retry + 1),
-            {"skip_primary_selection": skip_primary_selection},
+            {
+                "skip_primary_selection": skip_primary_selection,
+                "sync_primary_selection": sync_primary_selection,
+            },
             priority=6,
             countdown=10 * (retry + 1),
         )
@@ -220,7 +225,10 @@ def extract_pdf_figures(paper_id, retry=0, skip_primary_selection=False):
                 f"Created preview for paper {paper_id}"
             )
         else:
-            select_primary_image.apply_async((paper.id,), priority=5)
+            if sync_primary_selection:
+                select_primary_image(paper.id)
+            else:
+                select_primary_image.apply_async((paper.id,), priority=5)
 
         return True
 
@@ -232,7 +240,10 @@ def extract_pdf_figures(paper_id, retry=0, skip_primary_selection=False):
         if retry < 2:
             extract_pdf_figures.apply_async(
                 (paper.id, retry + 1),
-                {"skip_primary_selection": skip_primary_selection},
+                {
+                    "skip_primary_selection": skip_primary_selection,
+                    "sync_primary_selection": sync_primary_selection,
+                },
                 priority=6,
                 countdown=30 * (retry + 1),
             )
