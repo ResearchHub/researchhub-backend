@@ -77,12 +77,14 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         self.mock_mapper = Mock()
         self.mock_github_client = Mock()
         self.mock_bluesky_client = Mock()
+        self.mock_x_client = Mock()
 
         self.service = PaperMetricsEnrichmentService(
             altmetric_client=self.mock_client,
             altmetric_mapper=self.mock_mapper,
             github_metrics_client=self.mock_github_client,
             bluesky_metrics_client=self.mock_bluesky_client,
+            x_metrics_client=self.mock_x_client,
         )
 
     def test_get_recent_papers_with_dois(self):
@@ -541,3 +543,111 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
 
         # Verify client was called
         self.mock_bluesky_client.get_metrics.assert_called_once_with(self.paper.doi)
+
+    def test_enrich_paper_with_x_success(self):
+        """
+        Test successful enrichment of a paper with X metrics.
+        """
+        # Arrange
+        sample_x_response = {
+            "post_count": 10,
+            "total_likes": 200,
+            "total_reposts": 50,
+            "total_replies": 25,
+            "total_quotes": 12,
+            "total_impressions": 5000,
+            "posts": [
+                {
+                    "id": "1234567890",
+                    "text": "Great paper on DOI 10.1038/news.2011.490",
+                    "author_id": "123456",
+                    "created_at": "2024-01-15T10:30:00Z",
+                    "like_count": 50,
+                    "repost_count": 10,
+                    "reply_count": 5,
+                    "quote_count": 3,
+                    "impression_count": 1000,
+                },
+            ],
+        }
+        self.mock_x_client.get_metrics.return_value = sample_x_response
+
+        # Act
+        result = self.service.enrich_paper_with_x(self.paper)
+
+        # Assert
+        self.assertEqual(result.status, "success")
+        self.assertEqual(result.metrics, {"x": sample_x_response})
+
+        # Verify client was called with the correct DOI and filtering params
+        self.mock_x_client.get_metrics.assert_called_once_with(
+            self.paper.doi,
+            external_source=self.paper.external_source,
+            hub_slugs=list(self.paper.hubs.values_list("slug", flat=True)),
+        )
+
+        # Verify paper was updated
+        self.paper.refresh_from_db()
+        self.assertIsNotNone(self.paper.external_metadata)
+        self.assertIn("metrics", self.paper.external_metadata)
+        self.assertIn("x", self.paper.external_metadata["metrics"])
+        self.assertEqual(
+            self.paper.external_metadata["metrics"]["x"],
+            sample_x_response,
+        )
+
+    def test_enrich_paper_with_x_not_found(self):
+        """
+        Test X enrichment when no posts are found.
+        """
+        # Arrange
+        self.mock_x_client.get_metrics.return_value = None
+
+        # Act
+        result = self.service.enrich_paper_with_x(self.paper)
+
+        # Assert
+        self.assertEqual(result.status, "not_found")
+        self.assertEqual(result.reason, "no_x_posts")
+
+        # Verify client was called with filtering params
+        self.mock_x_client.get_metrics.assert_called_once_with(
+            self.paper.doi,
+            external_source=self.paper.external_source,
+            hub_slugs=list(self.paper.hubs.values_list("slug", flat=True)),
+        )
+
+    def test_enrich_paper_with_x_no_doi(self):
+        """
+        Test X enrichment is skipped for papers without DOI.
+        """
+        # Act
+        result = self.service.enrich_paper_with_x(self.paper_without_doi)
+
+        # Assert
+        self.assertEqual(result.status, "skipped")
+        self.assertEqual(result.reason, "no_doi")
+
+        # Verify client was not called
+        self.mock_x_client.get_metrics.assert_not_called()
+
+    def test_enrich_paper_with_x_handles_api_error(self):
+        """
+        Test X enrichment handles API errors gracefully.
+        """
+        # Arrange
+        self.mock_x_client.get_metrics.side_effect = Exception("X API error")
+
+        # Act
+        result = self.service.enrich_paper_with_x(self.paper)
+
+        # Assert
+        self.assertEqual(result.status, "error")
+        self.assertEqual(result.reason, "X API error")
+
+        # Verify client was called with filtering params
+        self.mock_x_client.get_metrics.assert_called_once_with(
+            self.paper.doi,
+            external_source=self.paper.external_source,
+            hub_slugs=list(self.paper.hubs.values_list("slug", flat=True)),
+        )
