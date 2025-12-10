@@ -20,10 +20,23 @@ class BedrockPrimaryImageServiceTests(TestCase):
 
     def setUp(self):
         """Set up test environment."""
+        self.mock_create_client_patcher = patch(
+            "paper.services.bedrock_primary_image_service.create_client"
+        )
+        self.mock_create_client = self.mock_create_client_patcher.start()
+
+        mock_client = MagicMock()
+        self.mock_create_client.return_value = mock_client
+
         self.service = BedrockPrimaryImageService()
         self.paper = helpers.create_paper(
             title="Test Paper", raw_authors=["Test Author"]
         )
+        self.mock_client = mock_client
+
+    def tearDown(self):
+        """Clean up patches."""
+        self.mock_create_client_patcher.stop()
 
     def _create_test_figure(
         self, paper=None, is_primary=False, figure_type=Figure.FIGURE
@@ -253,11 +266,9 @@ class BedrockPrimaryImageServiceTests(TestCase):
         self.assertIsNone(selected_id)
         self.assertIsNone(score)
 
-    @patch("paper.services.bedrock_primary_image_service.create_client")
-    def test_select_primary_image_single_batch(self, mock_create_client):
+    def test_select_primary_image_single_batch(self):
         """Test selection when figures fit in single batch."""
-        mock_client = MagicMock()
-        mock_create_client.return_value = mock_client
+        self.mock_client.reset_mock()
 
         figure1 = self._create_test_figure()
         figure2 = self._create_test_figure()
@@ -280,8 +291,8 @@ class BedrockPrimaryImageServiceTests(TestCase):
                 ]
             }
         ).encode()
-        mock_response = {"body": BytesIO(response_data)}
-        mock_client.invoke_model.return_value = mock_response
+
+        self.mock_client.invoke_model.return_value = {"body": BytesIO(response_data)}
 
         service = BedrockPrimaryImageService()
 
