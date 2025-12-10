@@ -329,7 +329,7 @@ class UnifiedSearchService:
             "paper_publish_date": getattr(hit, "paper_publish_date", None),
             "unified_document_id": getattr(hit, "unified_document_id", None),
             "abstract": getattr(hit, "abstract", None),
-            "journal": getattr(hit, "external_source", None),
+            "journal": self._extract_journal_from_hubs(hit),
         }
 
     def _build_post_fields(self, hit) -> dict[str, Any]:
@@ -349,20 +349,69 @@ class UnifiedSearchService:
             "renderable_text": getattr(hit, "renderable_text", None),
         }
 
-    def _process_hubs(self, hit) -> list[dict[str, Any]]:
-        """Process and format hubs from a search hit."""
-        hubs = getattr(hit, "hubs", [])
-        if not hubs:
-            return []
+    def _extract_journal_from_hubs(self, hit) -> str | None:
+        """Extract journal name from hubs where namespace='journal'."""
+        try:
+            hubs = getattr(hit, "hubs", None)
+            if not hubs:
+                return None
 
-        return [
-            {
-                "id": hub.get("id"),
-                "name": hub.get("name"),
-                "slug": hub.get("slug"),
-            }
-            for hub in hubs
-        ]
+            if not isinstance(hubs, (list, tuple)):
+                return None
+
+            for hub in hubs:
+                if not isinstance(hub, dict):
+                    continue
+
+                namespace = hub.get("namespace")
+                if namespace == "journal":
+                    name = hub.get("name")
+                    if isinstance(name, str) and name.strip():
+                        return name.strip()
+
+            return None
+        except Exception as e:
+            logger.warning(f"Failed to extract journal from hubs: {e}")
+            return None
+
+    def _process_hubs(self, hit) -> list[dict[str, Any]]:
+        """Process and format hubs from a search hit with defensive handling."""
+        try:
+            hubs = getattr(hit, "hubs", None)
+            if not hubs:
+                return []
+
+            if not isinstance(hubs, (list, tuple)):
+                return []
+
+            result = []
+            for hub in hubs:
+                if not isinstance(hub, dict):
+                    continue
+
+                hub_id = hub.get("id")
+                hub_name = hub.get("name")
+                hub_slug = hub.get("slug")
+                hub_namespace = hub.get("namespace")
+
+                if hub_id is not None or (hub_name and isinstance(hub_name, str)):
+                    result.append(
+                        {
+                            "id": hub_id,
+                            "name": hub_name if isinstance(hub_name, str) else "",
+                            "slug": hub_slug if isinstance(hub_slug, str) else "",
+                            "namespace": (
+                                hub_namespace
+                                if isinstance(hub_namespace, str)
+                                else None
+                            ),
+                        }
+                    )
+
+            return result
+        except Exception as e:
+            logger.warning(f"Failed to process hubs: {e}")
+            return []
 
     def _process_document_results(self, response) -> list[dict[str, Any]]:
 

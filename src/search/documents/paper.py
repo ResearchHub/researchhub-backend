@@ -45,6 +45,7 @@ class PaperDocument(BaseDocument):
             "id": es_fields.IntegerField(),
             "name": es_fields.KeywordField(),
             "slug": es_fields.TextField(),
+            "namespace": es_fields.KeywordField(),
         },
     )
     score = es_fields.IntegerField()
@@ -105,10 +106,16 @@ class PaperDocument(BaseDocument):
             phrases.append(instance.url)
 
         # Variation of journal name which may be searched by users
-        if instance.external_source:
-            journal_words = instance.external_source.split(" ")
-            phrases.append(instance.external_source)
-            phrases.extend(journal_words)
+        try:
+            journal_name = self._get_journal_name_from_hubs(instance)
+            if journal_name:
+                journal_words = journal_name.split(" ")
+                phrases.append(journal_name)
+                phrases.extend(journal_words)
+        except Exception as e:
+            logger.warning(
+                f"Failed to prepare journal phrases for paper {instance.id}: {e}"
+            )
 
         # Variation of OpenAlex keywords which may be searched by users
         try:
@@ -208,16 +215,32 @@ class PaperDocument(BaseDocument):
         return [hub.name for hub in instance.hubs.all()]
 
     def prepare_hubs(self, instance) -> list[dict[str, Any]]:
-        if instance.unified_document and instance.unified_document.hubs.exists():
-            return [
-                {
-                    "id": hub.id,
-                    "name": hub.name,
-                    "slug": hub.slug,
-                }
-                for hub in instance.unified_document.hubs.all()
-            ]
-        return []
+        """Prepare hubs data for indexing with namespace."""
+        if not instance.unified_document:
+            return []
+
+        try:
+            hubs_queryset = instance.unified_document.hubs.all()
+            if not hubs_queryset.exists():
+                return []
+
+            result = []
+            for hub in hubs_queryset:
+                if not hub or not hasattr(hub, "id"):
+                    continue
+
+                result.append(
+                    {
+                        "id": hub.id,
+                        "name": hub.name if hub.name else "",
+                        "slug": hub.slug if hub.slug else "",
+                        "namespace": hub.namespace if hub.namespace else None,
+                    }
+                )
+            return result
+        except Exception as e:
+            logger.warning(f"Failed to prepare hubs for paper {instance.id}: {e}")
+            return []
 
     def prepare_score(self, instance) -> int:
         if instance.unified_document:
@@ -227,6 +250,23 @@ class PaperDocument(BaseDocument):
     def prepare_unified_document_id(self, instance) -> int | None:
         if instance.unified_document:
             return instance.unified_document.id
+        return None
+
+    def _get_journal_name_from_hubs(self, instance) -> str | None:
+        """Extract journal name from hubs where namespace='journal'."""
+        if not instance.unified_document:
+            return None
+
+        try:
+            hubs = instance.unified_document.hubs.filter(namespace="journal")
+            journal_hub = hubs.first()
+            if journal_hub and journal_hub.name:
+                return journal_hub.name
+        except Exception as e:
+            logger.warning(
+                f"Failed to get journal name from hubs for paper {instance.id}: {e}"
+            )
+
         return None
 
     def get_indexing_queryset(
