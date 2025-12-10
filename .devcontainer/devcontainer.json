@@ -14,7 +14,7 @@
 	"forwardPorts": [
 		"app:8000",
 		"opensearch:9200",
-		"kibana:5601",
+		"opensearch-dashboards:5601",
 		"postgres:5432",
 		"redis:6379"
 	],
