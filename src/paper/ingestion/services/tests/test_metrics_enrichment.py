@@ -579,8 +579,12 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         self.assertEqual(result.status, "success")
         self.assertEqual(result.metrics, {"x": sample_x_response})
 
-        # Verify client was called with the correct DOI
-        self.mock_x_client.get_metrics.assert_called_once_with(self.paper.doi)
+        # Verify client was called with the correct DOI and filtering params
+        self.mock_x_client.get_metrics.assert_called_once_with(
+            self.paper.doi,
+            external_source=self.paper.external_source,
+            hub_slugs=list(self.paper.hubs.values_list("slug", flat=True)),
+        )
 
         # Verify paper was updated
         self.paper.refresh_from_db()
@@ -606,8 +610,12 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         self.assertEqual(result.status, "not_found")
         self.assertEqual(result.reason, "no_x_posts")
 
-        # Verify client was called
-        self.mock_x_client.get_metrics.assert_called_once_with(self.paper.doi)
+        # Verify client was called with filtering params
+        self.mock_x_client.get_metrics.assert_called_once_with(
+            self.paper.doi,
+            external_source=self.paper.external_source,
+            hub_slugs=list(self.paper.hubs.values_list("slug", flat=True)),
+        )
 
     def test_enrich_paper_with_x_no_doi(self):
         """
@@ -637,5 +645,9 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         self.assertEqual(result.status, "error")
         self.assertEqual(result.reason, "X API error")
 
-        # Verify client was called
-        self.mock_x_client.get_metrics.assert_called_once_with(self.paper.doi)
+        # Verify client was called with filtering params
+        self.mock_x_client.get_metrics.assert_called_once_with(
+            self.paper.doi,
+            external_source=self.paper.external_source,
+            hub_slugs=list(self.paper.hubs.values_list("slug", flat=True)),
+        )

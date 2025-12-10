@@ -182,8 +182,15 @@ class PaperMetricsEnrichmentService:
             logger.warning(f"Paper {paper.id} has no DOI, skipping X enrichment")
             return EnrichmentResult(status="skipped", reason="no_doi")
 
+        # Get hub slugs for bot filtering
+        hub_slugs = list(paper.hubs.values_list("slug", flat=True))
+
         try:
-            result = self.x_metrics_client.get_metrics(paper.doi)
+            result = self.x_metrics_client.get_metrics(
+                paper.doi,
+                external_source=paper.external_source,
+                hub_slugs=hub_slugs,
+            )
 
             if result is None:
                 logger.info(f"No X posts found for paper {paper.id}")
