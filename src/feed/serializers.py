@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 from django.contrib.contenttypes.models import ContentType
@@ -19,6 +20,8 @@ from review.serializers.review_serializer import ReviewSerializer
 from user.models import Author, User
 
 from .models import FeedEntry
+
+logger = logging.getLogger(__name__)
 
 
 class SimpleUserSerializer(serializers.ModelSerializer):
@@ -235,8 +238,7 @@ class PaperSerializer(ContentObjectSerializer):
             primary_figure = obj.figures.filter(is_primary=True).first()
             if not primary_figure or not primary_figure.file:
                 return None
-
-            return default_storage.url(primary_figure.file)
+            return default_storage.url(primary_figure.file.name)
         except Exception:
             return None
 
@@ -624,7 +626,6 @@ class FeedEntrySerializer(serializers.ModelSerializer):
     hot_score_breakdown = serializers.SerializerMethodField()
     external_metadata = serializers.SerializerMethodField()
     recommendation_id = serializers.SerializerMethodField()
-    primary_image = serializers.SerializerMethodField()
 
     class Meta:
         model = FeedEntry
@@ -641,7 +642,6 @@ class FeedEntrySerializer(serializers.ModelSerializer):
             "hot_score_breakdown",
             "external_metadata",
             "recommendation_id",
-            "primary_image",
         ]
 
     def get_author(self, obj):
@@ -705,6 +705,10 @@ class FeedEntrySerializer(serializers.ModelSerializer):
                         },
                     }
 
+        if obj.content_type.model == "paper" and obj.item:
+            primary_image = PaperSerializer(obj.item).get_primary_image(obj.item)
+            content["primary_image"] = primary_image
+
         return content
 
     def get_content_type(self, obj):
@@ -712,20 +716,6 @@ class FeedEntrySerializer(serializers.ModelSerializer):
 
     def get_recommendation_id(self, obj):
         return self.context.get("recommendation_id")
-
-    def get_primary_image(self, obj):
-        """Return the primary image from the paper if it exists"""
-        try:
-            if obj.item and obj.content_type.model == "paper":
-                try:
-                    primary_image = obj.item.figures.filter(is_primary=True).first()
-                    if primary_image and primary_image.file:
-                        return default_storage.url(primary_image.file)
-                except (AttributeError, TypeError):
-                    return None
-        except Exception:
-            return None
-        return None
 
 
 def serialize_feed_metrics(item, item_content_type):
