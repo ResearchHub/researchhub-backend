@@ -227,8 +227,10 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         self.assertEqual(result.status, "success")
         self.assertEqual(result.metrics, {"bluesky": self.sample_bluesky_response})
 
-        # Verify client was called with the correct DOI
-        self.mock_bluesky_client.get_metrics.assert_called_once_with(self.paper.doi)
+        # Verify client was called with the correct terms (DOI and title)
+        self.mock_bluesky_client.get_metrics.assert_called_once_with(
+            [self.paper.doi, self.paper.title]
+        )
 
         # Verify paper was updated
         self.paper.refresh_from_db()
@@ -254,22 +256,29 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         self.assertEqual(result.status, "not_found")
         self.assertEqual(result.reason, "no_bluesky_posts")
 
-        # Verify client was called
-        self.mock_bluesky_client.get_metrics.assert_called_once_with(self.paper.doi)
+        # Verify client was called with DOI and title terms
+        self.mock_bluesky_client.get_metrics.assert_called_once_with(
+            [self.paper.doi, self.paper.title]
+        )
 
-    def test_enrich_paper_with_bluesky_no_doi(self):
+    def test_enrich_paper_with_bluesky_no_doi_uses_title(self):
         """
-        Test Bluesky enrichment is skipped for papers without DOI.
+        Test Bluesky enrichment uses title when paper has no DOI.
         """
+        # Arrange - paper_without_doi still has a title
+        self.mock_bluesky_client.get_metrics.return_value = None
+
         # Act
         result = self.service.enrich_paper_with_bluesky(self.paper_without_doi)
 
-        # Assert
-        self.assertEqual(result.status, "skipped")
-        self.assertEqual(result.reason, "no_doi")
+        # Assert - should still try to search with title
+        self.assertEqual(result.status, "not_found")
+        self.assertEqual(result.reason, "no_bluesky_posts")
 
-        # Verify client was not called
-        self.mock_bluesky_client.get_metrics.assert_not_called()
+        # Verify client was called with just the title
+        self.mock_bluesky_client.get_metrics.assert_called_once_with(
+            [self.paper_without_doi.title]
+        )
 
     def test_enrich_paper_with_bluesky_preserves_existing_metadata(self):
         """
@@ -330,8 +339,10 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         self.assertEqual(result.status, "error")
         self.assertEqual(result.reason, "Bluesky API error")
 
-        # Verify client was called
-        self.mock_bluesky_client.get_metrics.assert_called_once_with(self.paper.doi)
+        # Verify client was called with DOI and title terms
+        self.mock_bluesky_client.get_metrics.assert_called_once_with(
+            [self.paper.doi, self.paper.title]
+        )
 
     def test_enrich_paper_with_x_success(self):
         """
