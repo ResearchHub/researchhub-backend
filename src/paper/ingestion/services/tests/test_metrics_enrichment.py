@@ -345,6 +345,7 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
             "total_replies": 25,
             "total_quotes": 12,
             "total_impressions": 5000,
+            "terms": [self.paper.doi, self.paper.title],
             "posts": [
                 {
                     "id": "1234567890",
@@ -368,9 +369,9 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         self.assertEqual(result.status, "success")
         self.assertEqual(result.metrics, {"x": sample_x_response})
 
-        # Verify client was called with the correct DOI and filtering params
+        # Verify client was called with DOI and title terms (like GitHub)
         self.mock_x_client.get_metrics.assert_called_once_with(
-            self.paper.doi,
+            [self.paper.doi, self.paper.title],
             external_source=self.paper.external_source,
             hub_slugs=list(self.paper.hubs.values_list("slug", flat=True)),
         )
@@ -399,26 +400,33 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         self.assertEqual(result.status, "not_found")
         self.assertEqual(result.reason, "no_x_posts")
 
-        # Verify client was called with filtering params
+        # Verify client was called with DOI and title terms
         self.mock_x_client.get_metrics.assert_called_once_with(
-            self.paper.doi,
+            [self.paper.doi, self.paper.title],
             external_source=self.paper.external_source,
             hub_slugs=list(self.paper.hubs.values_list("slug", flat=True)),
         )
 
-    def test_enrich_paper_with_x_no_doi(self):
+    def test_enrich_paper_with_x_no_doi_uses_title(self):
         """
-        Test X enrichment is skipped for papers without DOI.
+        Test X enrichment uses title when paper has no DOI.
         """
+        # Arrange - paper_without_doi still has a title
+        self.mock_x_client.get_metrics.return_value = None
+
         # Act
         result = self.service.enrich_paper_with_x(self.paper_without_doi)
 
-        # Assert
-        self.assertEqual(result.status, "skipped")
-        self.assertEqual(result.reason, "no_doi")
+        # Assert - should still try to search with title
+        self.assertEqual(result.status, "not_found")
+        self.assertEqual(result.reason, "no_x_posts")
 
-        # Verify client was not called
-        self.mock_x_client.get_metrics.assert_not_called()
+        # Verify client was called with just the title
+        self.mock_x_client.get_metrics.assert_called_once_with(
+            [self.paper_without_doi.title],
+            external_source=self.paper_without_doi.external_source,
+            hub_slugs=list(self.paper_without_doi.hubs.values_list("slug", flat=True)),
+        )
 
     def test_enrich_paper_with_x_handles_api_error(self):
         """
@@ -434,9 +442,9 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         self.assertEqual(result.status, "error")
         self.assertEqual(result.reason, "X API error")
 
-        # Verify client was called with filtering params
+        # Verify client was called with DOI and title terms
         self.mock_x_client.get_metrics.assert_called_once_with(
-            self.paper.doi,
+            [self.paper.doi, self.paper.title],
             external_source=self.paper.external_source,
             hub_slugs=list(self.paper.hubs.values_list("slug", flat=True)),
         )
