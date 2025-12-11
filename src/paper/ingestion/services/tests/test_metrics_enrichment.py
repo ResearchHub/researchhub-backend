@@ -21,17 +21,7 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
             paper_publish_date=timezone.now() - timedelta(days=2),
         )
 
-        # Sample response
-        self.sample_altmetric_response = {
-            "altmetric_id": 241939,
-            "cited_by_fbwalls_count": 5,
-            "cited_by_tweeters_count": 138,
-            "score": 140.5,
-            "last_updated": 1334237127,
-        }
-
         self.mapped_metrics = {
-            "altmetric_id": 241939,
             "facebook_count": 5,
             "twitter_count": 138,
             "score": 140.5,
@@ -80,8 +70,6 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         self.mock_x_client = Mock()
 
         self.service = PaperMetricsEnrichmentService(
-            altmetric_client=self.mock_client,
-            altmetric_mapper=self.mock_mapper,
             github_metrics_client=self.mock_github_client,
             bluesky_metrics_client=self.mock_bluesky_client,
             x_metrics_client=self.mock_x_client,
@@ -117,197 +105,6 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
             f"Old paper (published {old_paper.paper_publish_date}) "
             f"should be excluded from papers from last 7 days",
         )
-
-    def test_enrich_paper_with_altmetric_success(self):
-        """Test successful enrichment of a paper with Altmetric data."""
-        # Arrange
-        self.mock_client.fetch_by_doi.return_value = self.sample_altmetric_response
-        self.mock_mapper.map_metrics.return_value = self.mapped_metrics
-
-        # Act
-        result = self.service.enrich_paper_with_altmetric(self.paper)
-
-        # Assert
-        self.assertEqual(result.status, "success")
-        self.assertEqual(result.altmetric_score, 140.5)
-        self.assertEqual(result.metrics, self.mapped_metrics)
-
-        # Verify client and mapper were called
-        self.mock_client.fetch_by_doi.assert_called_once_with(self.paper.doi)
-        self.mock_mapper.map_metrics.assert_called_once_with(
-            self.sample_altmetric_response
-        )
-
-        # Verify paper was updated
-        self.paper.refresh_from_db()
-        self.assertIsNotNone(self.paper.external_metadata)
-        self.assertIn("metrics", self.paper.external_metadata)
-        self.assertEqual(self.paper.external_metadata["metrics"], self.mapped_metrics)
-
-    def test_enrich_paper_preserves_existing_metadata(self):
-        """Test that existing metadata is preserved."""
-        # Arrange
-        self.paper.external_metadata = {
-            "existing_key": "existing_value",
-            "nested": {"data": "preserved"},
-        }
-        self.paper.save()
-
-        self.mock_client.fetch_by_doi.return_value = self.sample_altmetric_response
-        self.mock_mapper.map_metrics.return_value = self.mapped_metrics
-
-        # Act
-        self.service.enrich_paper_with_altmetric(self.paper)
-
-        # Assert
-        self.paper.refresh_from_db()
-        self.assertEqual(self.paper.external_metadata["existing_key"], "existing_value")
-        self.assertEqual(self.paper.external_metadata["nested"]["data"], "preserved")
-        self.assertIn("metrics", self.paper.external_metadata)
-
-    def test_enrich_paper_no_doi(self):
-        """Test enrichment of paper without DOI."""
-        # Act
-        result = self.service.enrich_paper_with_altmetric(self.paper_without_doi)
-
-        # Assert
-        self.assertEqual(result.status, "skipped")
-        self.assertEqual(result.reason, "no_doi")
-
-    def test_enrich_paper_altmetric_not_found(self):
-        """Test enrichment when Altmetric data is not found."""
-        # Arrange
-        self.mock_client.fetch_by_doi.return_value = None
-
-        # Act
-        result = self.service.enrich_paper_with_altmetric(self.paper)
-
-        # Assert
-        self.assertEqual(result.status, "not_found")
-        self.assertEqual(result.reason, "no_altmetric_data")
-
-    def test_enrich_paper_with_arxiv_id_success(self):
-        """
-        Test successful enrichment using arXiv ID.
-        """
-        # Arrange
-        arxiv_paper = Paper.objects.create(
-            title="arXiv Paper",
-            doi="10.48550/arXiv.2101.12345",
-            external_source="arxiv",
-            external_metadata={"external_id": "2101.12345"},
-        )
-
-        self.mock_client.fetch_by_arxiv_id.return_value = self.sample_altmetric_response
-        self.mock_mapper.map_metrics.return_value = self.mapped_metrics
-
-        # Act
-        result = self.service.enrich_paper_with_altmetric(arxiv_paper)
-
-        # Assert
-        self.assertEqual(result.status, "success")
-        self.assertEqual(result.altmetric_score, 140.5)
-        self.assertEqual(result.metrics, self.mapped_metrics)
-
-        # Verify client was called with arXiv ID, not DOI
-        self.mock_client.fetch_by_arxiv_id.assert_called_once_with("2101.12345")
-        self.mock_client.fetch_by_doi.assert_not_called()
-        self.mock_mapper.map_metrics.assert_called_once_with(
-            self.sample_altmetric_response
-        )
-
-        # Verify paper was updated
-        arxiv_paper.refresh_from_db()
-        self.assertIsNotNone(arxiv_paper.external_metadata)
-        self.assertIsInstance(arxiv_paper.external_metadata, dict)
-        self.assertIn("metrics", arxiv_paper.external_metadata)
-        self.assertEqual(arxiv_paper.external_metadata["metrics"], self.mapped_metrics)
-
-    def test_enrich_paper_arxiv_missing_arxiv_id(self):
-        """
-        Test enrichment of arXiv paper without arXiv ID is skipped.
-        """
-        # Arrange
-        arxiv_paper = Paper.objects.create(
-            title="arXiv paper without ID",
-            doi="10.48550/arXiv.2101.12345",
-            external_source="arxiv",
-            external_metadata={},  # No external_id
-        )
-
-        # Act
-        result = self.service.enrich_paper_with_altmetric(arxiv_paper)
-
-        # Assert
-        self.assertEqual(result.status, "skipped")
-        self.assertEqual(result.reason, "no_arxiv_id")
-
-        # Verify no API calls were made
-        self.mock_client.fetch_by_arxiv_id.assert_not_called()
-        self.mock_client.fetch_by_doi.assert_not_called()
-
-    def test_enrich_paper_arxiv_null_metadata(self):
-        """
-        Test enrichment of arXiv paper with null external_metadata is skipped.
-        """
-        # Arrange
-        arxiv_paper = Paper.objects.create(
-            title="arXiv Paper with null metadata",
-            doi="10.48550/arXiv.2101.12345",
-            external_source="arxiv",
-            external_metadata=None,
-        )
-
-        # Act
-        result = self.service.enrich_paper_with_altmetric(arxiv_paper)
-
-        # Assert
-        self.assertEqual(result.status, "skipped")
-        self.assertEqual(result.reason, "no_arxiv_id")
-
-        # Verify no API calls were made
-        self.mock_client.fetch_by_arxiv_id.assert_not_called()
-        self.mock_client.fetch_by_doi.assert_not_called()
-
-    def test_enrich_papers_batch(self):
-        """Test batch enrichment of multiple papers."""
-        # Arrange
-        paper2 = Paper.objects.create(
-            title="Paper 2",
-            doi="10.1234/paper2",
-        )
-
-        self.mock_client.fetch_by_doi.side_effect = [
-            self.sample_altmetric_response,  # First paper succeeds
-            None,  # Second paper not found
-        ]
-        self.mock_mapper.map_metrics.return_value = self.mapped_metrics
-
-        paper_ids = [self.paper.id, paper2.id]
-
-        # Act
-        results = self.service.enrich_papers_batch(paper_ids)
-
-        # Assert
-        self.assertEqual(results.total, 2)
-        self.assertEqual(results.success_count, 1)
-        self.assertEqual(results.not_found_count, 1)
-        self.assertEqual(results.error_count, 0)
-
-    def test_enrich_papers_batch_handles_errors(self):
-        """Test batch enrichment handles errors gracefully."""
-        # Arrange
-        self.mock_client.fetch_by_doi.side_effect = Exception("D'oh!")
-
-        paper_ids = [self.paper.id]
-
-        # Act
-        results = self.service.enrich_papers_batch(paper_ids)
-
-        # Assert
-        self.assertEqual(results.error_count, 1)
-        self.assertEqual(results.success_count, 0)
-        self.assertEqual(results.success_count, 0)
 
     def test_enrich_paper_with_github_mentions(self):
         """
@@ -367,7 +164,6 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         self.paper.external_metadata = {
             "existing_key": "existing_value",
             "metrics": {
-                "altmetric_score": 50.0,
                 "twitter_count": 100,
             },
         }
@@ -389,9 +185,6 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         self.assertIn("metrics", self.paper.external_metadata)
 
         # Verify existing metrics are preserved (not overwritten)
-        self.assertEqual(
-            self.paper.external_metadata["metrics"]["altmetric_score"], 50.0
-        )
         self.assertEqual(self.paper.external_metadata["metrics"]["twitter_count"], 100)
 
         # Verify new GitHub metrics were added
@@ -486,7 +279,6 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         self.paper.external_metadata = {
             "existing_key": "existing_value",
             "metrics": {
-                "altmetric_score": 50.0,
                 "github_mentions": {"total_mentions": 10},
             },
         }
@@ -508,9 +300,6 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         self.assertIn("metrics", self.paper.external_metadata)
 
         # Verify existing metrics are preserved (not overwritten)
-        self.assertEqual(
-            self.paper.external_metadata["metrics"]["altmetric_score"], 50.0
-        )
         self.assertEqual(
             self.paper.external_metadata["metrics"]["github_mentions"][
                 "total_mentions"
