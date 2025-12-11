@@ -213,16 +213,17 @@ class XMetricsClient:
 
     def get_metrics(
         self,
-        term: str,
+        terms: List[str],
         max_results: int = XClient.MAX_SEARCH_RESULTS,
         external_source: Optional[str] = None,
         hub_slugs: Optional[List[str]] = None,
     ) -> Optional[Dict]:
         """
-        Get X metrics for a term (DOI, URL, arXiv ID, etc.).
+        Get X metrics for a list of terms using OR logic.
 
         Args:
-            term: The term to search for (e.g., DOI, URL, or arXiv ID)
+            terms: List of terms to search for (e.g., DOI, title).
+                   Multiple terms are combined with OR logic.
             max_results: Maximum number of posts to retrieve
             external_source: The preprint server source (e.g., "arxiv", "biorxiv")
                 for filtering out known bot accounts
@@ -238,6 +239,7 @@ class XMetricsClient:
                 "total_replies": int,
                 "total_quotes": int,
                 "total_impressions": int,
+                "terms": list[str],
                 "posts": [
                     {
                         "id": str,
@@ -255,28 +257,52 @@ class XMetricsClient:
             }
             None if error occurred
         """
+        # Build query with OR logic for multiple terms
+        base_query = self._build_query(terms)
+        if not base_query:
+            logger.warning("No valid terms provided for X search")
+            return None
+
         # Build query with bot account exclusions
         excluded_accounts = get_bot_accounts_for_paper(external_source, hub_slugs)
-        query = build_query_with_exclusions(term, excluded_accounts)
+        query = build_query_with_exclusions(base_query, excluded_accounts)
 
         try:
             response_data = self.x_client.search_posts(
                 query=query, max_results=max_results
             )
         except Exception as e:
-            logger.error(f"Error retrieving X metrics for term {term}: {str(e)}")
+            logger.error(f"Error retrieving X metrics for terms {terms}: {str(e)}")
             return None
 
         if not response_data:
-            logger.warning(f"Failed to retrieve X metrics for term {term}")
+            logger.warning(f"Failed to retrieve X metrics for terms {terms}")
             return None
 
         posts = response_data.get("posts", [])
         if not posts:
-            logger.debug(f"No X posts found for term: {term}")
+            logger.debug(f"No X posts found for terms: {terms}")
             return None
 
-        return self._extract_metrics(posts)
+        metrics = self._extract_metrics(posts)
+        metrics["terms"] = terms
+        return metrics
+
+    def _build_query(self, terms: List[str]) -> str:
+        """
+        Build an X search query from a list of terms using OR logic.
+
+        Each term is quoted to ensure exact phrase matching.
+
+        Args:
+            terms: List of terms to combine with OR.
+
+        Returns:
+            X search query string.
+        """
+        # Quote each term and join with OR
+        quoted_terms = [f'"{term}"' for term in terms if term]
+        return " OR ".join(quoted_terms)
 
     @staticmethod
     def _extract_metrics(posts: List[Dict]) -> Dict:

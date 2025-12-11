@@ -17,7 +17,6 @@ from paper.ingestion.pipeline import (  # noqa: F401
     fetch_papers_from_source,
     process_batch_task,
 )
-from paper.ingestion.tasks import update_recent_papers_with_metrics  # noqa: F401
 from paper.services.bedrock_primary_image_service import BedrockPrimaryImageService
 from paper.services.figure_extraction_service import FigureExtractionService
 from paper.utils import download_pdf_from_url, get_cache_key

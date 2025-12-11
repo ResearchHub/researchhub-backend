@@ -9,71 +9,14 @@ from paper.ingestion.clients import (
     GithubMetricsClient,
     XMetricsClient,
 )
-from paper.ingestion.clients.enrichment.altmetric import AltmetricClient
 from paper.ingestion.clients.enrichment.openalex import OpenAlexClient
-from paper.ingestion.mappers import AltmetricMapper, OpenAlexMapper
+from paper.ingestion.mappers import OpenAlexMapper
 from paper.ingestion.services.metrics_enrichment import PaperMetricsEnrichmentService
 from paper.ingestion.services.openalex_enrichment import PaperOpenAlexEnrichmentService
 from researchhub.celery import QUEUE_PAPER_MISC, app
 from utils import sentry
 
 logger = logging.getLogger(__name__)
-
-
-@app.task(queue=QUEUE_PAPER_MISC, bind=True, max_retries=3)
-def update_recent_papers_with_metrics(self, days: int = 7, retry: int = 0):
-    """
-    Fetch and update metrics for papers created in the last N days.
-    """
-    logger.info(f"Starting metrics update for papers (last {days} days)")
-
-    service = PaperMetricsEnrichmentService(
-        altmetric_client=AltmetricClient(),
-        altmetric_mapper=AltmetricMapper(),
-        bluesky_metrics_client=None,
-        github_metrics_client=None,
-        x_metrics_client=None,
-    )
-
-    papers = service.get_recent_papers_with_dois(days)
-
-    total_papers = len(papers)
-    logger.info(f"Found {total_papers} papers to update with Altmetric metrics")
-
-    if total_papers == 0:
-        return {
-            "status": "success",
-            "papers_processed": 0,
-            "message": f"No papers with DOIs found in last {days} days",
-        }
-
-    try:
-        results = service.enrich_papers_batch(papers)
-
-        logger.info(
-            f"Altmetric metrics update completed. "
-            f"Success: {results.success_count}, Not found: {results.not_found_count}, "
-            f"Errors: {results.error_count}"
-        )
-
-        return {
-            "status": "success",
-            "papers_processed": results.total,
-            "success_count": results.success_count,
-            "not_found_count": results.not_found_count,
-            "error_count": results.error_count,
-        }
-
-    except Exception as e:
-        logger.error(f"Fatal error in paper metrics update task: {str(e)}")
-        sentry.log_error(e, message="Fatal error in paper metrics update task")
-
-        try:
-            # Retry in case of failure
-            self.retry(args=[days, retry + 1], exc=e, countdown=60 * (retry + 1))
-        except MaxRetriesExceededError:
-            logger.error("Max retries exceeded for Altmetric metrics update task")
-            raise
 
 
 @app.task(queue=QUEUE_PAPER_MISC, bind=True, max_retries=3)
@@ -137,8 +80,6 @@ def update_recent_papers_with_github_metrics(days: int = 7):
 
     github_metrics_client = _create_github_metrics_client()
     service = PaperMetricsEnrichmentService(
-        altmetric_client=None,
-        altmetric_mapper=None,
         bluesky_metrics_client=None,
         github_metrics_client=github_metrics_client,
         x_metrics_client=None,
@@ -203,8 +144,6 @@ def enrich_paper_with_github_metrics(self, paper_id: int, retry: int = 0):
 
     github_metrics_client = _create_github_metrics_client()
     service = PaperMetricsEnrichmentService(
-        altmetric_client=None,
-        altmetric_mapper=None,
         bluesky_metrics_client=None,
         github_metrics_client=github_metrics_client,
         x_metrics_client=None,
@@ -280,8 +219,6 @@ def update_recent_papers_with_bluesky_metrics(days: int = 7):
     logger.info(f"Starting Bluesky metrics update for papers (last {days} days)")
 
     service = PaperMetricsEnrichmentService(
-        altmetric_client=None,
-        altmetric_mapper=None,
         bluesky_metrics_client=BlueskyMetricsClient(),
         github_metrics_client=None,
         x_metrics_client=None,
@@ -345,8 +282,6 @@ def enrich_paper_with_bluesky_metrics(self, paper_id: int, retry: int = 0):
         }
 
     service = PaperMetricsEnrichmentService(
-        altmetric_client=None,
-        altmetric_mapper=None,
         bluesky_metrics_client=BlueskyMetricsClient(),
         github_metrics_client=None,
         x_metrics_client=None,
@@ -416,8 +351,6 @@ def update_recent_papers_with_x_metrics(days: int = 7):
     logger.info(f"Starting X metrics update for papers (last {days} days)")
 
     service = PaperMetricsEnrichmentService(
-        altmetric_client=None,
-        altmetric_mapper=None,
         bluesky_metrics_client=None,
         github_metrics_client=None,
         x_metrics_client=XMetricsClient(),
@@ -472,17 +405,16 @@ def enrich_paper_with_x_metrics(self, paper_id: int, retry: int = 0):
             "reason": "paper_not_found",
         }
 
-    if not paper.doi:
-        logger.warning(f"Paper {paper_id} has no DOI, skipping X enrichment")
+    # Check that paper has at least a DOI or title for searching
+    if not paper.doi and not paper.title:
+        logger.warning(f"Paper {paper_id} has no DOI or title, skipping X enrichment")
         return {
             "status": "skipped",
             "paper_id": paper_id,
-            "reason": "no_doi",
+            "reason": "no_doi_or_title",
         }
 
     service = PaperMetricsEnrichmentService(
-        altmetric_client=None,
-        altmetric_mapper=None,
         bluesky_metrics_client=None,
         github_metrics_client=None,
         x_metrics_client=XMetricsClient(),
