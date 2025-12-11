@@ -1873,7 +1873,7 @@ class FeedEntrySerializerTests(TestCase):
         self.assertIn("user", purchase_data)
 
     def test_serializes_paper_feed_entry_primary_image(self):
-        """Test that primary_image is correctly serialized for paper feed entries."""
+        """Test that primary_image is correctly serialized in content_object."""
         from django.core.files.uploadedfile import SimpleUploadedFile
 
         from paper.models import Figure
@@ -1894,8 +1894,10 @@ class FeedEntrySerializerTests(TestCase):
 
         serializer_no_image = FeedEntrySerializer(feed_entry)
         data_no_image = serializer_no_image.data
-        self.assertIn("primary_image", data_no_image)
-        self.assertIsNone(data_no_image["primary_image"])
+        self.assertIn("content_object", data_no_image)
+        content_object_no_image = data_no_image["content_object"]
+        self.assertIn("primary_image", content_object_no_image)
+        self.assertIsNone(content_object_no_image["primary_image"])
 
         # Create a primary figure
         dummy_image = SimpleUploadedFile(
@@ -1908,18 +1910,21 @@ class FeedEntrySerializerTests(TestCase):
             is_primary=True,
         )
 
-        # Re-serialize the same feed entry (don't create a new one to avoid unique constraint)
+        # Re-serialize the same feed entry
+        # (don't create a new one to avoid unique constraint)
         serializer_with_image = FeedEntrySerializer(feed_entry)
         data_with_image = serializer_with_image.data
-        self.assertIn("primary_image", data_with_image)
-        self.assertIsNotNone(data_with_image["primary_image"])
+        self.assertIn("content_object", data_with_image)
+        content_object_with_image = data_with_image["content_object"]
+        self.assertIn("primary_image", content_object_with_image)
+        self.assertIsNotNone(content_object_with_image["primary_image"])
         self.assertEqual(
-            data_with_image["primary_image"],
+            content_object_with_image["primary_image"],
             default_storage.url(primary_figure.file.name),
         )
 
     def test_serializes_post_feed_entry_primary_image_returns_none(self):
-        """Test that primary_image returns None for non-paper feed entries."""
+        """Test that primary_image is not in content_object for posts."""
         unified_document = ResearchhubUnifiedDocument.objects.create(
             document_type=document_type.DISCUSSION,
         )
@@ -1945,8 +1950,9 @@ class FeedEntrySerializerTests(TestCase):
 
         serializer = FeedEntrySerializer(feed_entry)
         data = serializer.data
-        self.assertIn("primary_image", data)
-        self.assertIsNone(data["primary_image"])
+        self.assertIn("content_object", data)
+        content_object = data["content_object"]
+        self.assertNotIn("primary_image", content_object)
 
 
 class FundingFeedEntrySerializerTests(TestCase):
