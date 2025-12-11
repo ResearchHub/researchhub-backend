@@ -67,12 +67,16 @@ LOGGING = {
             "format": "{asctime} {levelname} {name} [{filename}:{lineno}] [{threadName}] {message}",
             "style": "{",
         },
+        "json": {
+            "()": "pythonjsonlogger.jsonlogger.JsonFormatter",
+            "fmt": "%(asctime)s %(levelname)s %(name)s [%(filename)s:%(lineno)d] [%(threadName)s] %(message)s",
+        },
     },
     "handlers": {
         "console": {
             "level": "DEBUG",
             "class": "logging.StreamHandler",
-            "formatter": "verbose",
+            "formatter": "json" if ELASTIC_BEANSTALK else "verbose",
         },
     },
     "root": {
