@@ -8,7 +8,9 @@ from researchhub_document.models import ResearchhubUnifiedDocument
 @receiver(post_save, sender=ResearchhubUnifiedDocument)
 def sync_unified_document_to_personalize(sender, instance, created, **kwargs):
     """
-    Sync newly created unified documents to AWS Personalize.
+    Queue sync of newly created unified documents to AWS Personalize.
+
+    The task handles filtering logic (e.g., paper recency check).
     """
     if not created:
         return

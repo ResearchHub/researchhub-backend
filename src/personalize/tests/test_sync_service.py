@@ -1,3 +1,4 @@
+from datetime import timedelta
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
@@ -16,8 +17,8 @@ User = get_user_model()
 
 class SyncServiceTests(TestCase):
     @patch("personalize.services.sync_service.SyncClient")
-    def test_sync_item_by_id_fetches_and_syncs(self, MockSyncClient):
-        """sync_item_by_id fetches document with required relations and syncs."""
+    def test_sync_item_by_id_syncs_recent_paper(self, MockSyncClient):
+        """Recent papers (within 60 days) should be synced."""
         mock_client = Mock()
         mock_client.put_items.return_value = {
             "success": True,
@@ -26,22 +27,56 @@ class SyncServiceTests(TestCase):
             "errors": [],
         }
 
-        # Create a paper (create_prefetched_paper returns unified_doc)
-        unified_doc = create_prefetched_paper(title="Test Paper")
+        recent_date = timezone.now() - timedelta(days=30)
+        unified_doc = create_prefetched_paper(
+            title="Recent Paper", paper_publish_date=recent_date
+        )
 
         service = SyncService(sync_client=mock_client)
         result = service.sync_item_by_id(unified_doc.id)
 
         mock_client.put_items.assert_called_once()
-        call_args = mock_client.put_items.call_args[0][0]
+        self.assertEqual(result["success"], True)
+        self.assertEqual(result["synced"], 1)
 
-        self.assertEqual(len(call_args), 1)
-        api_item = call_args[0]
+    @patch("personalize.services.sync_service.SyncClient")
+    def test_sync_item_by_id_skips_old_paper(self, MockSyncClient):
+        """Papers older than 60 days should be skipped."""
+        mock_client = Mock()
 
-        self.assertIn("itemId", api_item)
-        self.assertIn("properties", api_item)
-        self.assertEqual(api_item["itemId"], str(unified_doc.id))
+        old_date = timezone.now() - timedelta(days=90)
+        unified_doc = create_prefetched_paper(
+            title="Old Paper", paper_publish_date=old_date
+        )
 
+        service = SyncService(sync_client=mock_client)
+        result = service.sync_item_by_id(unified_doc.id)
+
+        mock_client.put_items.assert_not_called()
+        self.assertEqual(result["success"], True)
+        self.assertEqual(result["synced"], 0)
+        self.assertEqual(result["skipped"], 1)
+
+    @patch("personalize.services.sync_service.SyncClient")
+    def test_sync_item_by_id_always_syncs_posts(self, MockSyncClient):
+        """Posts should always be synced regardless of date."""
+        mock_client = Mock()
+        mock_client.put_items.return_value = {
+            "success": True,
+            "synced": 1,
+            "failed": 0,
+            "errors": [],
+        }
+
+        user = User.objects.create_user(
+            username="post_test_user", email="post_test@researchhub.com"
+        )
+        post = create_post(created_by=user)
+
+        service = SyncService(sync_client=mock_client)
+        result = service.sync_item_by_id(post.unified_document.id)
+
+        mock_client.put_items.assert_called_once()
         self.assertEqual(result["success"], True)
         self.assertEqual(result["synced"], 1)
 
