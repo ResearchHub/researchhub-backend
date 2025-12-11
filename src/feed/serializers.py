@@ -231,11 +231,14 @@ class PaperSerializer(ContentObjectSerializer):
         }
 
     def get_primary_image(self, obj):
-        primary_figure = obj.figures.filter(is_primary=True).first()
-        if not primary_figure or not primary_figure.file:
-            return None
+        try:
+            primary_figure = obj.figures.filter(is_primary=True).first()
+            if not primary_figure or not primary_figure.file:
+                return None
 
-        return default_storage.url(primary_figure.file)
+            return default_storage.url(primary_figure.file)
+        except Exception:
+            return None
 
     class Meta(ContentObjectSerializer.Meta):
         model = Paper
@@ -712,10 +715,16 @@ class FeedEntrySerializer(serializers.ModelSerializer):
 
     def get_primary_image(self, obj):
         """Return the primary image from the paper if it exists"""
-        if obj.item and obj.content_type.model == "paper":
-            primary_image = obj.item.figures.filter(is_primary=True).first()
-            if primary_image and primary_image.file:
-                return default_storage.url(primary_image.file)
+        try:
+            if obj.item and obj.content_type.model == "paper":
+                try:
+                    primary_image = obj.item.figures.filter(is_primary=True).first()
+                    if primary_image and primary_image.file:
+                        return default_storage.url(primary_image.file)
+                except (AttributeError, TypeError):
+                    return None
+        except Exception:
+            return None
         return None
 
 
