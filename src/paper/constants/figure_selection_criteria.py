@@ -5,14 +5,14 @@ These weights are used when constructing prompts for AWS Bedrock to select
 the primary image from extracted figures.
 """
 
-ASPECT_RATIO_MATCH_WEIGHT = 10
-SCIENTIFIC_IMPACT_WEIGHT = 22
-VISUAL_QUALITY_WEIGHT = 13
-DATA_DENSITY_WEIGHT = 10
-NARRATIVE_CONTEXT_WEIGHT = 15
-INTERPRETABILITY_WEIGHT = 10
+ASPECT_RATIO_MATCH_WEIGHT = 8
+SCIENTIFIC_IMPACT_WEIGHT = 18
+VISUAL_QUALITY_WEIGHT = 18
+DATA_DENSITY_WEIGHT = 8
+NARRATIVE_CONTEXT_WEIGHT = 18
+INTERPRETABILITY_WEIGHT = 12
 UNIQUENESS_WEIGHT = 5
-SOCIAL_MEDIA_POTENTIAL_WEIGHT = 15
+SOCIAL_MEDIA_POTENTIAL_WEIGHT = 20
 
 # Total weight should equal 100
 TOTAL_WEIGHT = (
@@ -37,13 +37,13 @@ CRITERIA_DESCRIPTIONS = {
     },
     "scientific_impact": {
         "weight": SCIENTIFIC_IMPACT_WEIGHT,
-        "description": "Presents primary findings & conclusions of the paper",
-        "key_metrics": "Central vs supporting result",
+        "description": "Presents primary findings, conclusions, or key methods of the paper",
+        "key_metrics": "Central vs supporting result, methods figures (e.g., imaging, staining)",
     },
     "visual_quality": {
         "weight": VISUAL_QUALITY_WEIGHT,
-        "description": "Clarity, resolution, color fidelity, professional appearance",
-        "key_metrics": "DPI, color depth, artifacts",
+        "description": "Clarity, resolution, color fidelity, professional appearance, readability",
+        "key_metrics": "DPI, color depth, artifacts, text size and legibility, contrast",
     },
     "data_density": {
         "weight": DATA_DENSITY_WEIGHT,
@@ -52,13 +52,13 @@ CRITERIA_DESCRIPTIONS = {
     },
     "narrative_context": {
         "weight": NARRATIVE_CONTEXT_WEIGHT,
-        "description": "Ability to serve as paper introduction or overview",
-        "key_metrics": "Structural overview vs detail",
+        "description": "Ability to serve as paper introduction, overview, or summary figure",
+        "key_metrics": "Structural overview vs detail, provides context for the paper",
     },
     "interpretability": {
         "weight": INTERPRETABILITY_WEIGHT,
-        "description": "Self-explanatory legends, labels, intuitive presentation",
-        "key_metrics": "Axis labels, color coding clarity",
+        "description": "Self-explanatory legends, labels, intuitive presentation, readability",
+        "key_metrics": "Axis labels, color coding clarity, text size and legibility",
     },
     "uniqueness": {
         "weight": UNIQUENESS_WEIGHT,
@@ -67,7 +67,7 @@ CRITERIA_DESCRIPTIONS = {
     },
     "social_media_potential": {
         "weight": SOCIAL_MEDIA_POTENTIAL_WEIGHT,
-        "description": "Visual appeal for Twitter/Instagram/LinkedIn sharing",
-        "key_metrics": "Visual interest, discovery-worthy",
+        "description": "Visual appeal, eye-catching quality for Twitter/Instagram/LinkedIn sharing",
+        "key_metrics": "Visual interest, discovery-worthy, stands out, color appeal",
     },
 }

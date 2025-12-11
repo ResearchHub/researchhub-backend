@@ -165,8 +165,45 @@ def extract_pdf_figures(
         return False
 
     file = paper.file
-    if not file:
-        logger.info(f"No PDF file exists for paper {paper_id}, retrying...")
+    pdf_content = None
+
+    # Try to get PDF content from file first
+    if file:
+        try:
+            file_url = file.url
+            res = requests.get(file_url, timeout=60)
+            res.raise_for_status()
+            pdf_content = res.content
+            logger.info(f"Using PDF file for paper {paper_id}")
+        except Exception as e:
+            logger.warning(
+                f"Failed to get PDF from file for paper {paper_id}: {e}. "
+                f"Trying pdf_url..."
+            )
+            pdf_content = None
+
+    # If no file or file failed, try pdf_url
+    if not pdf_content and paper.pdf_url:
+        try:
+            logger.info(
+                f"No PDF file for paper {paper_id}, downloading from pdf_url: "
+                f"{paper.pdf_url}"
+            )
+            url = create_download_url(paper.pdf_url, paper.external_source)
+            pdf_file = download_pdf_from_url(url)
+            pdf_content = pdf_file.read()
+
+        except Exception as e:
+            logger.warning(
+                f"Failed to download PDF from pdf_url for paper {paper_id}: {e}"
+            )
+            pdf_content = None
+
+    if not pdf_content:
+        logger.info(
+            f"No PDF content available for paper {paper_id} "
+            f"(file={bool(file)}, pdf_url={bool(paper.pdf_url)}), retrying..."
+        )
         extract_pdf_figures.apply_async(
             (paper.id, retry + 1),
             {
@@ -179,11 +216,6 @@ def extract_pdf_figures(
         return False
 
     try:
-        # Get PDF content
-        file_url = file.url
-        res = requests.get(file_url, timeout=60)
-        res.raise_for_status()
-        pdf_content = res.content
 
         # Extract figures using service
         extraction_service = FigureExtractionService()

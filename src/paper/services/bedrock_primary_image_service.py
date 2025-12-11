@@ -185,10 +185,34 @@ since it doesn't relate to the paper's content. Other criteria like "Visual
 Quality" and "Social Media Potential" should still be evaluated based on the
 image's visual appeal.
 
-The goal is to choose the most visually appealing and representative image for
-display in a research feed. Images that are not science-related will naturally
-score lower overall and won't be selected unless they are exceptionally visually
-appealing and relevant.
+## Selection Priorities
+
+When selecting the best primary image, prioritize figures that are:
+
+1. **Readable and Clear**: Text should be large enough to read, labels should be
+   legible, and the figure should have good contrast. Small text or poor contrast
+   significantly reduces a figure's value as a cover image.
+
+2. **Overview Figures**: Figures that provide an overview, summary, or introduction
+   to the paper are highly valuable. These help readers understand the paper's
+   main contribution at a glance.
+
+3. **Eye-Catching and Visually Appealing**: The figure should stand out and be
+   visually interesting. Good use of color, clear visual hierarchy, and engaging
+   composition make figures more suitable for feed display.
+
+4. **Methods Figures**: Figures showing methods (e.g., imaging, staining,
+   experimental setups, animal models) can be excellent cover images if they are
+   visually appealing and clearly presented. These help readers understand the
+   research approach.
+
+5. **Representative**: The figure should represent the paper's main findings or
+   approach, but readability and visual appeal are equally important.
+
+The goal is to choose the most visually appealing, readable, and representative
+image for display in a research feed. Images that are not science-related will
+naturally score lower overall and won't be selected unless they are exceptionally
+visually appealing and relevant.
 
 Your task is to evaluate each image based on the scoring criteria below and select
 the best primary image. Always return valid JSON with scores for all images.
@@ -219,6 +243,17 @@ the best primary image. Always return valid JSON with scores for all images.
    40-70 range. Only exceptional figures should score above 80. Reserve
    scores above 90 for truly outstanding figures that are ideal for feed
    display.
+
+   **Special Considerations:**
+   - **Readability**: If text is too small to read or contrast is poor,
+     significantly reduce scores for Visual Quality and Interpretability (20-40).
+   - **Overview Figures**: If a figure provides a good overview or summary,
+     give higher scores for Narrative Context (70-90).
+   - **Eye-Catching**: If a figure is particularly visually striking or
+     eye-catching, give higher scores for Social Media Potential (75-95).
+   - **Methods Figures**: Methods figures (imaging, staining, experimental
+     setups) can score well on Scientific Impact (60-80) if they clearly
+     represent the research approach.
 
 2. Calculate the weighted total score by multiplying each criterion score by
    its weight percentage and summing them. The total_score should be a value
@@ -433,7 +468,10 @@ on other criteria."""
 
                 sentry.log_error(
                     e,
-                    message=f"Failed to parse JSON from Bedrock response for {batch_label}",
+                    message=(
+                        f"Failed to parse JSON from Bedrock response "
+                        f"for {batch_label}"
+                    ),
                 )
                 return None, None
 

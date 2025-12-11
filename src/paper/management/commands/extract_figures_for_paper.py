@@ -1,5 +1,6 @@
 from dateutil import parser
 from django.core.management.base import BaseCommand, CommandError
+from django.db.models import Q
 from django.utils import timezone
 
 from paper.models import Figure, Paper
@@ -40,12 +41,11 @@ class Command(BaseCommand):
             else:
                 end_date = timezone.now()
             self.stdout.write(f"Starting Date: {start_date}, End Date: {end_date}")
-            papers = (
-                Paper.objects.filter(
-                    created_date__gte=start_date, created_date__lte=end_date
-                )
-                .filter(file__isnull=False)
-                .exclude(file="")
+            papers = Paper.objects.filter(
+                created_date__gte=start_date, created_date__lte=end_date
+            ).filter(
+                (Q(file__isnull=False) & ~Q(file=""))
+                | (Q(pdf_url__isnull=False) & ~Q(pdf_url=""))
             )
             paper_ids = list(papers.values_list("id", flat=True))
 
@@ -63,8 +63,10 @@ class Command(BaseCommand):
                     paper = Paper.objects.get(id=paper_id)
                     self.stdout.write(f"Paper {paper.id}...", ending=" ")
 
-                    if not paper.file:
-                        self.stdout.write(self.style.WARNING("✗ skipped (no PDF)"))
+                    if not paper.file and not paper.pdf_url:
+                        self.stdout.write(
+                            self.style.WARNING("✗ skipped (no PDF file or pdf_url)")
+                        )
                         failed += 1
                         continue
 
@@ -111,10 +113,13 @@ class Command(BaseCommand):
         self.stdout.write("\nExtracting figures for paper:")
         self.stdout.write(f"  ID: {paper.id}")
         self.stdout.write(f"  Title: {paper.title[:80]}...")
-        self.stdout.write(f"  PDF File: {paper.file.name if paper.file else 'None'}\n")
+        self.stdout.write(f"  PDF File: {paper.file.name if paper.file else 'None'}")
+        self.stdout.write(f"  PDF URL: {paper.pdf_url if paper.pdf_url else 'None'}\n")
 
-        if not paper.file:
-            raise CommandError("Paper has no PDF file. Cannot extract figures.")
+        if not paper.file and not paper.pdf_url:
+            raise CommandError(
+                "Paper has no PDF file or pdf_url. Cannot extract figures."
+            )
 
         if options["async"]:
             self.stdout.write("Queuing extraction task...")

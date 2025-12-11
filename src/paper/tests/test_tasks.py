@@ -181,6 +181,176 @@ class ExtractPdfFiguresTaskTests(TestCase):
         self.assertFalse(result)
         mock_retry.assert_called_once()
 
+    @patch("paper.tasks.download_pdf_from_url")
+    @patch("paper.tasks.create_download_url")
+    @patch("paper.tasks.FigureExtractionService")
+    @patch("paper.tasks.select_primary_image.apply_async")
+    def test_extract_pdf_figures_uses_pdf_url_when_file_empty(
+        self,
+        mock_select_task,
+        mock_service_class,
+        mock_create_url,
+        mock_download_pdf,
+    ):
+        """Test that task uses pdf_url when paper.file is empty."""
+        paper = helpers.create_paper(title="Test Paper")
+        paper.file = None
+        paper.pdf_url = "https://arxiv.org/pdf/1234.56789.pdf"
+        paper.external_source = "arxiv"
+        paper.save()
+
+        # Mock PDF download
+        pdf_content = b"fake pdf content"
+        pdf_file = ContentFile(pdf_content, name="paper.pdf")
+        mock_download_pdf.return_value = pdf_file
+        mock_create_url.return_value = "https://scraper/?url=test"
+
+        # Mock extraction service
+        mock_service = MagicMock()
+        mock_service_class.return_value = mock_service
+
+        # Create mock extracted figures
+        img = Image.new("RGB", (500, 500), color="blue")
+        buffer = BytesIO()
+        img.save(buffer, format="JPEG")
+        content_file = ContentFile(buffer.getvalue(), name="test-figure.jpg")
+        mock_service.extract_figures_from_pdf.return_value = [content_file]
+
+        result = extract_pdf_figures(paper.id)
+
+        self.assertTrue(result)
+        mock_create_url.assert_called_once_with(paper.pdf_url, paper.external_source)
+        mock_download_pdf.assert_called_once()
+        mock_service.extract_figures_from_pdf.assert_called_once_with(
+            pdf_content, paper.id
+        )
+        mock_select_task.assert_called_once_with((paper.id,), priority=5)
+
+    @patch("paper.tasks.download_pdf_from_url")
+    @patch("paper.tasks.create_download_url")
+    @patch("paper.tasks.FigureExtractionService")
+    @patch("paper.tasks.select_primary_image.apply_async")
+    def test_extract_pdf_figures_saves_pdf_to_file_when_downloaded(
+        self,
+        mock_select_task,
+        mock_service_class,
+        mock_create_url,
+        mock_download_pdf,
+    ):
+        """Test that task saves downloaded PDF to paper.file for future use."""
+        paper = helpers.create_paper(title="Test Paper")
+        paper.file = None
+        paper.pdf_url = "https://arxiv.org/pdf/1234.56789.pdf"
+        paper.external_source = "arxiv"
+        paper.save()
+
+        # Mock PDF download
+        pdf_content = b"fake pdf content"
+        pdf_file = ContentFile(pdf_content, name="paper.pdf")
+        mock_download_pdf.return_value = pdf_file
+        mock_create_url.return_value = "https://scraper/?url=test"
+
+        # Mock extraction service
+        mock_service = MagicMock()
+        mock_service_class.return_value = mock_service
+
+        # Create mock extracted figures
+        img = Image.new("RGB", (500, 500), color="blue")
+        buffer = BytesIO()
+        img.save(buffer, format="JPEG")
+        content_file = ContentFile(buffer.getvalue(), name="test-figure.jpg")
+        mock_service.extract_figures_from_pdf.return_value = [content_file]
+
+        result = extract_pdf_figures(paper.id)
+
+        self.assertTrue(result)
+
+    @patch("paper.tasks.requests.get")
+    @patch("paper.tasks.download_pdf_from_url")
+    @patch("paper.tasks.create_download_url")
+    @patch("paper.tasks.FigureExtractionService")
+    @patch("paper.tasks.select_primary_image.apply_async")
+    def test_extract_pdf_figures_falls_back_to_pdf_url_when_file_fails(
+        self,
+        mock_select_task,
+        mock_service_class,
+        mock_create_url,
+        mock_download_pdf,
+        mock_get,
+    ):
+        """Test that task falls back to pdf_url when file download fails."""
+        paper = helpers.create_paper(title="Test Paper")
+        paper.file.name = "test.pdf"
+        paper.pdf_url = "https://arxiv.org/pdf/1234.56789.pdf"
+        paper.external_source = "arxiv"
+        paper.save()
+
+        # Mock file download failure
+        mock_get.side_effect = Exception("File download failed")
+
+        # Mock PDF download from pdf_url
+        pdf_content = b"fake pdf content from url"
+        pdf_file = ContentFile(pdf_content, name="paper.pdf")
+        mock_download_pdf.return_value = pdf_file
+        mock_create_url.return_value = "https://scraper/?url=test"
+
+        # Mock extraction service
+        mock_service = MagicMock()
+        mock_service_class.return_value = mock_service
+
+        # Create mock extracted figures
+        img = Image.new("RGB", (500, 500), color="blue")
+        buffer = BytesIO()
+        img.save(buffer, format="JPEG")
+        content_file = ContentFile(buffer.getvalue(), name="test-figure.jpg")
+        mock_service.extract_figures_from_pdf.return_value = [content_file]
+
+        result = extract_pdf_figures(paper.id)
+
+        self.assertTrue(result)
+        # Should have tried file first, then pdf_url
+        mock_get.assert_called_once()
+        mock_create_url.assert_called_once_with(paper.pdf_url, paper.external_source)
+        mock_download_pdf.assert_called_once()
+        mock_service.extract_figures_from_pdf.assert_called_once_with(
+            pdf_content, paper.id
+        )
+
+    @patch("paper.tasks.download_pdf_from_url")
+    @patch("paper.tasks.create_download_url")
+    @patch("paper.tasks.extract_pdf_figures.apply_async")
+    def test_extract_pdf_figures_retries_when_pdf_url_download_fails(
+        self, mock_retry, mock_create_url, mock_download_pdf
+    ):
+        """Test that task retries when pdf_url download fails."""
+        paper = helpers.create_paper(title="Test Paper")
+        paper.file = None
+        paper.pdf_url = "https://arxiv.org/pdf/1234.56789.pdf"
+        paper.external_source = "arxiv"
+        paper.save()
+
+        # Mock download failure
+        mock_download_pdf.side_effect = Exception("Download failed")
+        mock_create_url.return_value = "https://scraper/?url=test"
+
+        result = extract_pdf_figures(paper.id)
+
+        self.assertFalse(result)
+        mock_retry.assert_called_once()
+
+    @patch("paper.tasks.extract_pdf_figures.apply_async")
+    def test_extract_pdf_figures_retries_when_no_file_and_no_pdf_url(self, mock_retry):
+        """Test that task retries when both file and pdf_url are empty."""
+        paper = helpers.create_paper(title="Test Paper")
+        paper.file = None
+        paper.pdf_url = None
+        paper.save()
+
+        result = extract_pdf_figures(paper.id)
+
+        self.assertFalse(result)
+        mock_retry.assert_called_once()
+
 
 class SelectPrimaryImageTaskTests(TestCase):
     """Test suite for select_primary_image Celery task."""
