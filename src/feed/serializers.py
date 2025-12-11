@@ -207,7 +207,7 @@ class PaperSerializer(ContentObjectSerializer):
     work_type = serializers.CharField()
     bounties = serializers.SerializerMethodField()
     purchases = serializers.SerializerMethodField()
-    primary_image = serializers.SerializerMethodField()  # Changed from image
+    primary_image = serializers.SerializerMethodField()
 
     def get_bounties(self, obj):
         return self.get_bounty_data(obj)

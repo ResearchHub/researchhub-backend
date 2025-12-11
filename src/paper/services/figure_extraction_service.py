@@ -1,10 +1,13 @@
 import logging
 from io import BytesIO
-from typing import List, Tuple
+from typing import List
 
 import fitz
 from django.core.files.base import ContentFile
 from PIL import Image
+
+from paper.utils import convert_to_rgb
+from utils import sentry
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +33,7 @@ class FigureExtractionService:
 
     def extract_figures_from_pdf(
         self, pdf_content: bytes, paper_id: int
-    ) -> List[Tuple[ContentFile, dict]]:
+    ) -> List[ContentFile]:
         """
         Extract embedded images from PDF content.
         """
@@ -86,19 +89,7 @@ class FigureExtractionService:
 
                             output_buffer = BytesIO()
                             # Convert RGBA to RGB (JPEG doesn't support alpha channel)
-                            if pil_image.mode in ("RGBA", "LA", "P"):
-                                rgb_image = Image.new(
-                                    "RGB", pil_image.size, (255, 255, 255)
-                                )
-                                if pil_image.mode == "P":
-                                    pil_image = pil_image.convert("RGBA")
-                                mask = (
-                                    pil_image.split()[-1]
-                                    if pil_image.mode == "RGBA"
-                                    else None
-                                )
-                                rgb_image.paste(pil_image, mask=mask)
-                                pil_image = rgb_image
+                            pil_image = convert_to_rgb(pil_image)
 
                             pil_image.save(
                                 output_buffer,
@@ -114,21 +105,7 @@ class FigureExtractionService:
                             )
                             content_file = ContentFile(image_bytes, name=filename)
 
-                            was_resized = (
-                                width != original_width or height != original_height
-                            )
-                            metadata = {
-                                "width": width,
-                                "height": height,
-                                "original_width": original_width,
-                                "original_height": original_height,
-                                "page_number": page_num,
-                                "image_index": img_index,
-                                "aspect_ratio": aspect_ratio,
-                                "resized": was_resized,
-                            }
-
-                            extracted_figures.append((content_file, metadata))
+                            extracted_figures.append(content_file)
 
                             logger.info(
                                 f"Extracted figure from page {page_num}, "
@@ -150,7 +127,7 @@ class FigureExtractionService:
             doc.close()
 
         except Exception as e:
-            logger.error(f"Error extracting figures from PDF: {e}")
+            sentry.log_error(e, message="Error extracting figures from PDF")
             raise
 
         logger.info(f"Extracted {len(extracted_figures)} figures from PDF")
