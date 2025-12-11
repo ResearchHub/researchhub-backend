@@ -104,9 +104,7 @@ class ExtractPdfFiguresTaskTests(TestCase):
         buffer = BytesIO()
         img.save(buffer, format="JPEG")
         content_file = ContentFile(buffer.getvalue(), name="test-figure.jpg")
-        mock_service.extract_figures_from_pdf.return_value = [
-            (content_file, {"width": 500, "height": 500})
-        ]
+        mock_service.extract_figures_from_pdf.return_value = [content_file]
 
         result = extract_pdf_figures(paper.id)
 
@@ -150,10 +148,7 @@ class ExtractPdfFiguresTaskTests(TestCase):
         # Return figure with same filename (as extraction service would generate)
         # Use the stored filename to ensure exact match
         mock_service.extract_figures_from_pdf.return_value = [
-            (
-                ContentFile(buffer.getvalue(), name=stored_filename),
-                {"width": 500, "height": 500},
-            )
+            ContentFile(buffer.getvalue(), name=stored_filename)
         ]
 
         initial_count = Figure.objects.filter(

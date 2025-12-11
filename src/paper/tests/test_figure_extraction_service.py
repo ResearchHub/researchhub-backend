@@ -94,10 +94,12 @@ class FigureExtractionServiceTests(TestCase):
 
             # Should extract and resize the image
             self.assertEqual(len(figures), 1)
-            _, metadata = figures[0]
-            self.assertLessEqual(metadata["width"], MAX_FIGURE_WIDTH)
-            self.assertLessEqual(metadata["height"], MAX_FIGURE_HEIGHT)
-            self.assertTrue(metadata["resized"])
+            content_file = figures[0]
+            # Verify the image was resized by checking its dimensions
+            image = Image.open(content_file)
+            width, height = image.size
+            self.assertLessEqual(width, MAX_FIGURE_WIDTH)
+            self.assertLessEqual(height, MAX_FIGURE_HEIGHT)
 
     def test_extract_figures_converts_to_jpeg(self):
         """Test that images are converted to JPEG format."""
@@ -117,7 +119,7 @@ class FigureExtractionServiceTests(TestCase):
 
             # Should extract and convert to JPEG
             self.assertEqual(len(figures), 1)
-            content_file, _ = figures[0]
+            content_file = figures[0]
             # Check that filename ends with .jpg
             self.assertTrue(content_file.name.endswith(".jpg"))
 
@@ -139,10 +141,12 @@ class FigureExtractionServiceTests(TestCase):
 
             # Should extract the valid image
             self.assertEqual(len(figures), 1)
-            _, metadata = figures[0]
-            self.assertEqual(metadata["width"], 600)
-            self.assertEqual(metadata["height"], 600)
-            self.assertFalse(metadata["resized"])
+            content_file = figures[0]
+            # Verify the image dimensions
+            image = Image.open(content_file)
+            width, height = image.size
+            self.assertEqual(width, 600)
+            self.assertEqual(height, 600)
 
     def test_extract_figures_handles_multiple_pages(self):
         """Test that figures are extracted from multiple pages."""
