@@ -16,7 +16,8 @@ User = get_user_model()
 
 class SyncServiceTests(TestCase):
     @patch("personalize.services.sync_service.SyncClient")
-    def test_sync_item_calls_sync_client_with_api_format(self, MockSyncClient):
+    def test_sync_item_by_id_fetches_and_syncs(self, MockSyncClient):
+        """sync_item_by_id fetches document with required relations and syncs."""
         mock_client = Mock()
         mock_client.put_items.return_value = {
             "success": True,
@@ -25,10 +26,11 @@ class SyncServiceTests(TestCase):
             "errors": [],
         }
 
-        service = SyncService(sync_client=mock_client)
-        paper = create_prefetched_paper(title="Test Paper")
+        # Create a paper (create_prefetched_paper returns unified_doc)
+        unified_doc = create_prefetched_paper(title="Test Paper")
 
-        result = service.sync_item(paper)
+        service = SyncService(sync_client=mock_client)
+        result = service.sync_item_by_id(unified_doc.id)
 
         mock_client.put_items.assert_called_once()
         call_args = mock_client.put_items.call_args[0][0]
@@ -38,7 +40,7 @@ class SyncServiceTests(TestCase):
 
         self.assertIn("itemId", api_item)
         self.assertIn("properties", api_item)
-        self.assertNotIn("ITEM_ID", api_item)
+        self.assertEqual(api_item["itemId"], str(unified_doc.id))
 
         self.assertEqual(result["success"], True)
         self.assertEqual(result["synced"], 1)

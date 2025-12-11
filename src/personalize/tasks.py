@@ -132,21 +132,11 @@ def sync_interaction_event_to_personalize_task(interaction_id):
 def sync_unified_document_to_personalize_task(unified_document_id):
     """
     Sync a unified document to AWS Personalize.
-
-    Works for any document type (papers, posts, etc.).
     """
-    from researchhub_document.models import ResearchhubUnifiedDocument
-
-    unified_doc = (
-        ResearchhubUnifiedDocument.objects.select_related("paper")
-        .prefetch_related("hubs", "posts")
-        .get(id=unified_document_id)
-    )
-
     logger.info(f"Syncing unified_document {unified_document_id} to Personalize")
 
-    personalize_sync_service = SyncService()
-    result = personalize_sync_service.sync_item(unified_doc)
+    service = SyncService()
+    result = service.sync_item_by_id(unified_document_id)
 
     if result["success"]:
         logger.info(

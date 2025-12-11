@@ -75,9 +75,17 @@ class SyncService:
 
         return result
 
-    def sync_item(
-        self, unified_doc: ResearchhubUnifiedDocument
-    ) -> SyncResultWithSkipped:
+    def sync_item_by_id(self, unified_document_id: int) -> SyncResultWithSkipped:
+        """
+        Sync a unified document by ID.
+
+        Fetches the document with all required relations for ItemMapper.
+        """
+        unified_doc = (
+            ResearchhubUnifiedDocument.objects.select_related("paper")
+            .prefetch_related("hubs", "posts")
+            .get(id=unified_document_id)
+        )
         return self.sync_items([unified_doc])
 
     def _build_interaction_event(self, interaction: UserInteractions) -> dict:
