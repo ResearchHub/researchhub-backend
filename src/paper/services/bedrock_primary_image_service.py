@@ -9,6 +9,8 @@ from django.conf import settings
 from PIL import Image
 
 from paper.constants.figure_selection_criteria import CRITERIA_DESCRIPTIONS
+from paper.utils import convert_to_rgb
+from utils import sentry
 from utils.aws import create_client
 
 logger = logging.getLogger(__name__)
@@ -20,11 +22,10 @@ class BedrockPrimaryImageService:
     """Service for selecting primary image using AWS Bedrock."""
 
     def __init__(self):
-        region_name = getattr(settings, "AWS_REGION_NAME", settings.AWS_REGION_NAME)
-        self.bedrock_client = create_client("bedrock-runtime", region_name=region_name)
-        self.model_id = getattr(
-            settings, "AWS_BEDROCK_MODEL_ID", settings.AWS_BEDROCK_MODEL_ID
+        self.bedrock_client = create_client(
+            "bedrock-runtime", region_name=settings.AWS_REGION_NAME
         )
+        self.model_id = settings.AWS_BEDROCK_MODEL_ID
         self.anthropic_version = getattr(
             settings, "AWS_BEDROCK_ANTHROPIC_VERSION", "bedrock-2023-05-31"
         )
@@ -72,13 +73,8 @@ class BedrockPrimaryImageService:
 
         image = Image.open(BytesIO(image_data))
 
-        if image.mode in ("RGBA", "LA", "P"):
-            background = Image.new("RGB", image.size, (255, 255, 255))
-            if image.mode == "P":
-                image = image.convert("RGBA")
-            mask = image.split()[-1] if image.mode in ("RGBA", "LA") else None
-            background.paste(image, mask=mask)
-            image = background
+        # Convert RGBA/LA/P to RGB (JPEG doesn't support alpha channel)
+        image = convert_to_rgb(image)
 
         # Step 1: Resize dimensions if needed
         width, height = image.size
@@ -434,14 +430,15 @@ on other criteria."""
                 return selected_figure.id, best_score
 
             except json.JSONDecodeError as e:
-                logger.error(
-                    f"Failed to parse JSON from Bedrock response for {batch_label}: {e}"
+
+                sentry.log_error(
+                    e,
+                    message=f"Failed to parse JSON from Bedrock response for {batch_label}",
                 )
-                logger.error(f"Response text: {text_content[:1000]}")
                 return None, None
 
         except Exception as e:
-            logger.error(f"Error calling Bedrock API for {batch_label}: {e}")
+            sentry.log_error(e, message=f"Bedrock API call failed for {batch_label}")
             return None, None
 
     def select_primary_image(

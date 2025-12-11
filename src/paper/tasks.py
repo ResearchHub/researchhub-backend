@@ -8,6 +8,7 @@ from django.apps import apps
 from django.conf import settings
 from django.core.cache import cache
 from django.core.files.base import ContentFile
+from django.db import transaction
 from PIL import Image
 
 from paper.constants.figure_selection_criteria import MIN_PRIMARY_SCORE_THRESHOLD
@@ -146,8 +147,10 @@ def celery_extract_pdf_preview(paper_id, retry=0):
     return True
 
 
-@app.task(queue=QUEUE_PAPER_MISC)
-def extract_pdf_figures(paper_id, retry=0, skip_primary_selection=False):
+@app.task(queue=QUEUE_PAPER_MISC, bind=True)
+def extract_pdf_figures(
+    self, paper_id, retry=0, skip_primary_selection=False, sync_primary_selection=False
+):
     if retry > 2:
         logger.warning(f"Max retries reached for figure extraction - paper {paper_id}")
         return False
@@ -166,7 +169,10 @@ def extract_pdf_figures(paper_id, retry=0, skip_primary_selection=False):
         logger.info(f"No PDF file exists for paper {paper_id}, retrying...")
         extract_pdf_figures.apply_async(
             (paper.id, retry + 1),
-            {"skip_primary_selection": skip_primary_selection},
+            {
+                "skip_primary_selection": skip_primary_selection,
+                "sync_primary_selection": sync_primary_selection,
+            },
             priority=6,
             countdown=10 * (retry + 1),
         )
@@ -187,22 +193,23 @@ def extract_pdf_figures(paper_id, retry=0, skip_primary_selection=False):
 
         # Save extracted figures to database
         figures_created = 0
-        for content_file, metadata in extracted_figures:
-            # Check if figure already exists (avoid duplicates)
-            filename = content_file.name.split("/")[-1]
-            existing_figure = Figure.objects.filter(
-                paper=paper,
-                figure_type=Figure.FIGURE,
-                file__contains=filename,
-            ).first()
-
-            if not existing_figure:
-                Figure.objects.create(
-                    file=content_file,
+        with transaction.atomic():
+            for content_file in extracted_figures:
+                # Check if figure already exists (avoid duplicates)
+                filename = content_file.name.split("/")[-1]
+                existing_figure = Figure.objects.filter(
                     paper=paper,
                     figure_type=Figure.FIGURE,
-                )
-                figures_created += 1
+                    file__contains=filename,
+                ).first()
+
+                if not existing_figure:
+                    Figure.objects.create(
+                        file=content_file,
+                        paper=paper,
+                        figure_type=Figure.FIGURE,
+                    )
+                    figures_created += 1
 
         logger.info(
             f"Extracted {figures_created} new figures for paper {paper_id} "
@@ -222,7 +229,10 @@ def extract_pdf_figures(paper_id, retry=0, skip_primary_selection=False):
                 f"Created preview for paper {paper_id}"
             )
         else:
-            select_primary_image.apply_async((paper.id,), priority=5)
+            if sync_primary_selection:
+                select_primary_image(paper.id)
+            else:
+                select_primary_image.apply_async((paper.id,), priority=5)
 
         return True
 
@@ -234,7 +244,10 @@ def extract_pdf_figures(paper_id, retry=0, skip_primary_selection=False):
         if retry < 2:
             extract_pdf_figures.apply_async(
                 (paper.id, retry + 1),
-                {"skip_primary_selection": skip_primary_selection},
+                {
+                    "skip_primary_selection": skip_primary_selection,
+                    "sync_primary_selection": sync_primary_selection,
+                },
                 priority=6,
                 countdown=30 * (retry + 1),
             )
@@ -324,8 +337,8 @@ def create_pdf_screenshot(paper) -> bool:
         return False
 
 
-@app.task(queue=QUEUE_PAPER_MISC)
-def select_primary_image(paper_id, retry=0):
+@app.task(queue=QUEUE_PAPER_MISC, bind=True)
+def select_primary_image(self, paper_id, retry=0):
     """
     Use AWS Bedrock to select the primary image from extracted figures.
     This task will:

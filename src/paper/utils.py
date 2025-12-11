@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.core.validators import URLValidator
 from django.db.models import Count, Q
+from PIL import Image
 
 from discussion.models import Vote
 from paper.exceptions import ManubotProcessingError
@@ -212,6 +213,23 @@ def download_pdf_from_url(url: str) -> ContentFile:
 
 def get_cache_key(obj_type, pk):
     return f"{obj_type}_{pk}"
+
+
+def convert_to_rgb(pil_image: Image.Image) -> Image.Image:
+    """
+    Convert PIL image to RGB format, handling RGBA, LA, and P modes.
+
+    Returns:
+        PIL Image object in RGB mode
+    """
+    if pil_image.mode in ("RGBA", "LA", "P"):
+        background = Image.new("RGB", pil_image.size, (255, 255, 255))
+        if pil_image.mode == "P":
+            pil_image = pil_image.convert("RGBA")
+        mask = pil_image.split()[-1] if pil_image.mode in ("RGBA", "LA") else None
+        background.paste(pil_image, mask=mask)
+        pil_image = background
+    return pil_image
 
 
 def format_raw_authors(raw_authors):
