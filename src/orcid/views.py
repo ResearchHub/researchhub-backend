@@ -11,7 +11,9 @@ from orcid.services.orcid_service import (
     connect_orcid_account,
     exchange_code_for_token,
     get_orcid_app,
+    is_orcid_connected,
 )
+from orcid.tasks import fetch_orcid_works_task
 
 
 class OrcidConnectView(APIView):
@@ -44,9 +46,29 @@ class OrcidCallbackView(APIView):
             with transaction.atomic():
                 token_data = exchange_code_for_token(app, code)
                 connect_orcid_account(request.user, token_data)
-            author = getattr(request.user, "author_profile", None)
-            return Response({"success": True, "author_id": author.id if author else None})
+            try:
+                author_id = request.user.author_profile.id
+            except AttributeError:
+                author_id = None
+            return Response({"success": True, "author_id": author_id})
         except ValueError as e:
             return Response({"error": str(e)}, status=400)
         except (requests.RequestException, SocialApp.DoesNotExist):
             return Response({"error": "ORCID service error"}, status=500)
+
+
+class OrcidFetchView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if not is_orcid_connected(request.user):
+            return Response({"error": "ORCID not connected"}, status=400)
+
+        try:
+            author = request.user.author_profile
+        except AttributeError:
+            return Response({"error": "Author profile not found"}, status=400)
+
+        fetch_orcid_works_task.delay(author.id)
+        return Response({"success": True, "message": "Paper sync started"})
+
