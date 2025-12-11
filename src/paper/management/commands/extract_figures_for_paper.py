@@ -1,4 +1,6 @@
+from dateutil import parser
 from django.core.management.base import BaseCommand, CommandError
+from django.utils import timezone
 
 from paper.models import Figure, Paper
 from paper.tasks import extract_pdf_figures
@@ -14,6 +16,11 @@ class Command(BaseCommand):
             nargs="*",
             help="Paper ID(s) to extract figures from (can specify multiple)",
         )
+        parser.add_argument("--start_date", help="Perform for date starting")
+        parser.add_argument(
+            "--end_date",
+            help="End date (if omitted, defaults to today)",
+        )
         parser.add_argument(
             "--async",
             action="store_true",
@@ -22,6 +29,25 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         paper_ids = options["paper_id"]
+        start_date = options.get("start_date")
+        end_date = options.get("end_date")
+
+        # Get paper IDs from date range if provided, otherwise use provided IDs
+        if start_date:
+            start_date = parser.parse(start_date)
+            if end_date:
+                end_date = parser.parse(end_date)
+            else:
+                end_date = timezone.now()
+            self.stdout.write(f"Starting Date: {start_date}, End Date: {end_date}")
+            papers = (
+                Paper.objects.filter(
+                    created_date__gte=start_date, created_date__lte=end_date
+                )
+                .filter(file__isnull=False)
+                .exclude(file="")
+            )
+            paper_ids = list(papers.values_list("id", flat=True))
 
         if not paper_ids:
             raise CommandError("Please provide at least one paper ID")

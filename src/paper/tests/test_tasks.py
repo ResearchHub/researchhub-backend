@@ -76,7 +76,6 @@ class ExtractPdfFiguresTaskTests(TestCase):
             self.assertFalse(result)
             mock_retry.assert_called_once()
 
-    @patch("paper.tasks.PRODUCTION", True)
     @patch("paper.tasks.requests.get")
     @patch("paper.tasks.FigureExtractionService")
     @patch("paper.tasks.select_primary_image.apply_async")
