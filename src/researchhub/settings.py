@@ -34,7 +34,7 @@ CLOUD = PRODUCTION or STAGING or CI
 TESTING = ("test" in APP_ENV) or ("test" in sys.argv) or (APP_ENV == "test")
 PYTHONPATH = "/var/app/current:$PYTHONPATH"
 DJANGO_SETTINGS_MODULE = "researchhub.settings"
-ELASTIC_BEANSTALK = APP_ENV in ["production", "staging", "development"]
+ELASTIC_BEANSTALK = APP_ENV in ["production", "staging"]
 USE_SILK = os.environ.get("USE_SILK", False)
 CONFIG = os.environ.get("CONFIG")
 
