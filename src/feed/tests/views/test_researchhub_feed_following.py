@@ -325,3 +325,47 @@ class FollowingFeedTests(APITestCase):
         self.assertNotIn(self.followed_post.id, result_ids)
         self.assertIn("PAPER", content_types)
         self.assertNotIn("RESEARCHHUBPOST", content_types)
+
+    def _create_paper_with_feed_entry(self, title, hubs):
+        """Helper to create a paper with associated feed entry and hubs."""
+        doc = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
+        doc.hubs.add(*hubs)
+        paper = Paper.objects.create(
+            title=title,
+            paper_publish_date=timezone.now(),
+            unified_document=doc,
+        )
+        entry = FeedEntry.objects.create(
+            action="PUBLISH",
+            action_date=timezone.now(),
+            content_type=self.paper_content_type,
+            object_id=paper.id,
+            unified_document=doc,
+            content={},
+            metrics={},
+        )
+        entry.hubs.add(*hubs)
+        return paper
+
+    def test_following_returns_only_papers_in_preprint_hubs(self):
+        """Following feed only returns papers that are also in a preprint hub."""
+        self.client.force_authenticate(user=self.user)
+
+        biorxiv_hub = Hub.objects.create(name="bioRxiv", slug="biorxiv")
+        create_follow(self.user, biorxiv_hub)
+
+        # Create papers in different hub combinations
+        non_preprint = self._create_paper_with_feed_entry(
+            "Non-Preprint", [self.followed_hub]
+        )
+        preprint = self._create_paper_with_feed_entry("Preprint", [biorxiv_hub])
+        both = self._create_paper_with_feed_entry(
+            "Both", [self.followed_hub, biorxiv_hub]
+        )
+
+        response = self.client.get(reverse("feed-list"), {"feed_view": "following"})
+
+        result_ids = [r["content_object"]["id"] for r in response.data["results"]]
+        self.assertIn(preprint.id, result_ids)
+        self.assertIn(both.id, result_ids)
+        self.assertNotIn(non_preprint.id, result_ids)

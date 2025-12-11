@@ -111,3 +111,50 @@ class LatestFeedTests(APITestCase):
         # Verify cache was checked and set
         self.assertTrue(mock_cache.get.called)
         self.assertTrue(mock_cache.set.called)
+
+    def _create_paper_with_feed_entry(self, title, hubs):
+        """Helper to create a paper with associated feed entry and hubs."""
+        doc = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
+        doc.hubs.add(*hubs)
+        paper = Paper.objects.create(
+            title=title,
+            paper_publish_date=timezone.now(),
+            unified_document=doc,
+        )
+        entry = FeedEntry.objects.create(
+            action="PUBLISH",
+            action_date=timezone.now(),
+            content_type=self.paper_content_type,
+            object_id=paper.id,
+            unified_document=doc,
+            content={},
+            metrics={},
+        )
+        entry.hubs.add(*hubs)
+        return paper
+
+    def test_latest_without_hub_slug_returns_only_preprint_hub_papers(self):
+        """Latest feed without hub_slug only returns papers from preprint hubs."""
+        biorxiv_hub = Hub.objects.create(name="bioRxiv", slug="biorxiv")
+        other_hub = Hub.objects.create(name="Other", slug="other-hub")
+
+        preprint = self._create_paper_with_feed_entry("Preprint", [biorxiv_hub])
+        non_preprint = self._create_paper_with_feed_entry("Non-Preprint", [other_hub])
+
+        response = self.client.get(reverse("feed-list"), {"feed_view": "latest"})
+
+        result_ids = [r["content_object"]["id"] for r in response.data["results"]]
+        self.assertIn(preprint.id, result_ids)
+        self.assertNotIn(non_preprint.id, result_ids)
+
+    def test_latest_with_hub_slug_bypasses_preprint_restriction(self):
+        """Latest feed with hub_slug returns papers from that hub (no restriction)."""
+        other_hub = Hub.objects.create(name="Other", slug="other-hub")
+        paper = self._create_paper_with_feed_entry("Other Paper", [other_hub])
+
+        response = self.client.get(
+            reverse("feed-list"), {"feed_view": "latest", "hub_slug": "other-hub"}
+        )
+
+        result_ids = [r["content_object"]["id"] for r in response.data["results"]]
+        self.assertIn(paper.id, result_ids)

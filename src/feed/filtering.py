@@ -1,6 +1,7 @@
 import logging
-from typing import List
+from typing import List, Tuple
 
+from django.core.cache import cache
 from rest_framework.filters import BaseFilterBackend
 
 from feed.feed_config import FEED_CONFIG
@@ -12,6 +13,28 @@ from researchhub_document.related_models.constants.document_type import PREREGIS
 from utils.sentry import log_error
 
 logger = logging.getLogger(__name__)
+
+# Allowed preprint hub slugs for feed filtering
+ALLOWED_PREPRINT_HUB_SLUGS = frozenset({"biorxiv", "arxiv", "chemrxiv", "medrxiv"})
+PREPRINT_HUB_IDS_CACHE_KEY = "feed:allowed_preprint_hub_ids"
+PREPRINT_HUB_IDS_CACHE_TTL = 86400  # 24 hours
+
+
+def _get_allowed_preprint_hub_ids() -> Tuple[int, ...]:
+    """
+    Get cached hub IDs for allowed preprint sources.
+    """
+    hub_ids = cache.get(PREPRINT_HUB_IDS_CACHE_KEY)
+    if hub_ids is None:
+        hub_ids = tuple(
+            Hub.objects.filter(slug__in=ALLOWED_PREPRINT_HUB_SLUGS).values_list(
+                "id", flat=True
+            )
+        )
+        cache.set(
+            PREPRINT_HUB_IDS_CACHE_KEY, hub_ids, timeout=PREPRINT_HUB_IDS_CACHE_TTL
+        )
+    return hub_ids
 
 
 class FeedFilteringBackend(BaseFilterBackend):
@@ -30,11 +53,12 @@ class FeedFilteringBackend(BaseFilterBackend):
     def _filter_latest(self, request, queryset, view):
         hub_slug = request.query_params.get("hub_slug")
         if hub_slug:
+            # When hub_slug is specified, filter by that hub (papers only)
             queryset = self._filter_by_hub(hub_slug, queryset)
-
-        queryset = queryset.filter(
-            content_type__in=[view._paper_content_type, view._post_content_type]
-        )
+            queryset = queryset.filter(content_type=view._paper_content_type)
+        else:
+            # No hub specified - restrict to allowed preprint hubs
+            queryset = self._filter_by_allowed_preprint_hubs(queryset, view)
 
         return queryset
 
@@ -48,22 +72,24 @@ class FeedFilteringBackend(BaseFilterBackend):
         else:
             return queryset.none()
 
-        hub_slug = request.query_params.get("hub_slug")
-        if hub_slug:
-            queryset = self._filter_by_hub(hub_slug, queryset)
-
-        queryset = queryset.filter(content_type=view._paper_content_type)
+        # Require papers to be in an allowed preprint hub
+        preprint_hub_ids = _get_allowed_preprint_hub_ids()
+        queryset = queryset.filter(
+            content_type=view._paper_content_type,
+            hubs__id__in=preprint_hub_ids,
+        )
 
         return queryset
 
     def _filter_popular(self, request, queryset, view):
         hub_slug = request.query_params.get("hub_slug")
         if hub_slug:
+            # When hub_slug is specified, filter by that hub (papers only)
             queryset = self._filter_by_hub(hub_slug, queryset)
-
-        queryset = queryset.filter(
-            content_type__in=[view._paper_content_type, view._post_content_type]
-        )
+            queryset = queryset.filter(content_type=view._paper_content_type)
+        else:
+            # No hub specified - restrict to allowed preprint hubs
+            queryset = self._filter_by_allowed_preprint_hubs(queryset, view)
 
         ordering = request.query_params.get("ordering")
         allowed_sorts = FEED_CONFIG.get("popular", {}).get("allowed_sorts", [])
@@ -213,6 +239,16 @@ class FeedFilteringBackend(BaseFilterBackend):
         )
 
         return entries
+
+    def _filter_by_allowed_preprint_hubs(self, queryset, view):
+        """
+        Filter queryset to only include papers from allowed preprint hubs.
+        Papers must have at least one hub from: biorxiv, arxiv, chemrxiv, medrxiv.
+        """
+        preprint_hub_ids = _get_allowed_preprint_hub_ids()
+        return queryset.filter(
+            hubs__id__in=preprint_hub_ids,
+        )
 
     def _filter_by_hub(self, hub_slug, queryset):
         try:
