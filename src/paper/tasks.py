@@ -21,7 +21,8 @@ from paper.services.bedrock_primary_image_service import BedrockPrimaryImageServ
 from paper.services.figure_extraction_service import FigureExtractionService
 from paper.utils import download_pdf_from_url, get_cache_key
 from researchhub.celery import QUEUE_PAPER_MISC, app
-from researchhub.settings import PRODUCTION
+
+# from researchhub.settings import PRODUCTION
 from utils import sentry
 
 logger = get_task_logger(__name__)
@@ -60,10 +61,11 @@ def download_pdf(paper_id, retry=0):
             paper.file.save(pdf.name, pdf, save=False)
             paper.save(update_fields=["file"])
 
-            skip_primary = not PRODUCTION
-            extract_pdf_figures.apply_async(
-                (paper.id,), {"skip_primary_selection": skip_primary}, priority=6
-            )
+            # skip_primary = not PRODUCTION
+            # extract_pdf_figures.apply_async(
+            #     (paper.id,), {"skip_primary_selection": skip_primary}, priority=6
+            # )
+            extract_pdf_figures.apply_async((paper.id,), priority=6)
 
             return True
         except ValueError as e:
