@@ -738,6 +738,10 @@ CELERY_TASK_IGNORE_RESULT = True
 CELERY_WORKER_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s [%(filename)s:%(lineno)d] [%(processName)s] %(message)s"
 CELERY_WORKER_TASK_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s [%(filename)s:%(lineno)d] [%(processName)s] %(message)s"
 
+# Use Django's root logger (JSON) if running in Beanstalk
+if ELASTIC_BEANSTALK:
+    CELERY_WORKER_HIJACK_ROOT_LOGGER = False
+
 REDBEAT_REDIS_URL = "redis://{}:{}/2".format(REDIS_HOST, REDIS_PORT)
 REDBEAT_KEY_PREFIX = f"{APP_ENV}_redbeat_"
 
