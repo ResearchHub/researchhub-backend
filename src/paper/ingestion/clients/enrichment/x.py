@@ -1,12 +1,64 @@
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
 from django.conf import settings
 from xdk import Client
 
 from ..base import RateLimiter
+from .x_bot_accounts import X_BOT_ACCOUNTS
 
 logger = logging.getLogger(__name__)
+
+
+def get_bot_accounts_for_paper(
+    external_source: Optional[str], hub_slugs: Optional[List[str]]
+) -> Set[str]:
+    """
+    Get bot accounts to exclude based on paper's external source and hub slugs.
+
+    Args:
+        external_source: The preprint server source (e.g., "arxiv", "biorxiv")
+        hub_slugs: List of hub slugs associated with the paper
+
+    Returns:
+        Set of bot account usernames to exclude from search
+    """
+    if not external_source:
+        return set()
+
+    source_bots = X_BOT_ACCOUNTS.get(external_source.lower(), {})
+    if not source_bots:
+        return set()
+
+    bot_accounts: Set[str] = set()
+
+    # Add category-specific bots based on hub slugs
+    if hub_slugs:
+        for slug in hub_slugs:
+            if slug in source_bots:
+                bot_accounts.update(source_bots[slug])
+
+    return bot_accounts
+
+
+def build_query_with_exclusions(
+    base_query: str, excluded_accounts: Optional[Set[str]]
+) -> str:
+    """
+    Build an X search query with account exclusions.
+
+    Args:
+        base_query: The base search query (e.g., DOI)
+        excluded_accounts: Set of account usernames to exclude
+
+    Returns:
+        Search query with -from:account exclusions appended
+    """
+    if not excluded_accounts:
+        return base_query
+
+    exclusions = " ".join(f"-from:{account}" for account in sorted(excluded_accounts))
+    return f"{base_query} {exclusions}"
 
 
 class XClient:
@@ -160,7 +212,11 @@ class XMetricsClient:
         self.x_client = x_client or XClient()
 
     def get_metrics(
-        self, term: str, max_results: int = XClient.MAX_SEARCH_RESULTS
+        self,
+        term: str,
+        max_results: int = XClient.MAX_SEARCH_RESULTS,
+        external_source: Optional[str] = None,
+        hub_slugs: Optional[List[str]] = None,
     ) -> Optional[Dict]:
         """
         Get X metrics for a term (DOI, URL, arXiv ID, etc.).
@@ -168,6 +224,10 @@ class XMetricsClient:
         Args:
             term: The term to search for (e.g., DOI, URL, or arXiv ID)
             max_results: Maximum number of posts to retrieve
+            external_source: The preprint server source (e.g., "arxiv", "biorxiv")
+                for filtering out known bot accounts
+            hub_slugs: List of hub slugs associated with the paper
+                for filtering out category-specific bot accounts
 
         Returns:
             Dict containing detailed metrics if successful:
@@ -195,9 +255,13 @@ class XMetricsClient:
             }
             None if error occurred
         """
+        # Build query with bot account exclusions
+        excluded_accounts = get_bot_accounts_for_paper(external_source, hub_slugs)
+        query = build_query_with_exclusions(term, excluded_accounts)
+
         try:
             response_data = self.x_client.search_posts(
-                query=term, max_results=max_results
+                query=query, max_results=max_results
             )
         except Exception as e:
             logger.error(f"Error retrieving X metrics for term {term}: {str(e)}")

@@ -26,6 +26,7 @@ class TestXClient(TestCase):
 
         self.assertIs(client1, client2)
 
+    @patch("paper.ingestion.clients.enrichment.x.settings.X_BEARER_TOKEN", None)
     def test_init_no_bearer_token(self):
         """Test initialization without bearer token."""
         # Reset singleton to test fresh initialization
@@ -267,3 +268,20 @@ class TestXMetricsClient(TestCase):
         self.x_client.search_posts.assert_called_once_with(
             query="10.1038/test", max_results=50
         )
+
+    def test_get_metrics_with_bot_filtering(self):
+        """Test metrics retrieval with bot account filtering."""
+        self.x_client.search_posts.return_value = {"posts": []}
+
+        self.metrics_client.get_metrics(
+            "10.1038/test",
+            external_source="biorxiv",
+            hub_slugs=["neuroscience", "genetics"],
+        )
+
+        # Verify the query includes bot exclusions
+        call_args = self.x_client.search_posts.call_args
+        query = call_args.kwargs["query"]
+        # Should exclude general biorxiv bots and category-specific bots
+        self.assertIn("-from:", query)
+        self.assertIn("10.1038/test", query)

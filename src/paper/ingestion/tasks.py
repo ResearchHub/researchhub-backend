@@ -7,6 +7,7 @@ from paper.ingestion.clients import (
     BlueskyMetricsClient,
     GithubClient,
     GithubMetricsClient,
+    XMetricsClient,
 )
 from paper.ingestion.clients.enrichment.altmetric import AltmetricClient
 from paper.ingestion.clients.enrichment.openalex import OpenAlexClient
@@ -31,6 +32,7 @@ def update_recent_papers_with_metrics(self, days: int = 7, retry: int = 0):
         altmetric_mapper=AltmetricMapper(),
         bluesky_metrics_client=None,
         github_metrics_client=None,
+        x_metrics_client=None,
     )
 
     papers = service.get_recent_papers_with_dois(days)
@@ -139,6 +141,7 @@ def update_recent_papers_with_github_metrics(days: int = 7):
         altmetric_mapper=None,
         bluesky_metrics_client=None,
         github_metrics_client=github_metrics_client,
+        x_metrics_client=None,
     )
 
     papers = service.get_recent_papers_with_dois(days)
@@ -204,6 +207,7 @@ def enrich_paper_with_github_metrics(self, paper_id: int, retry: int = 0):
         altmetric_mapper=None,
         bluesky_metrics_client=None,
         github_metrics_client=github_metrics_client,
+        x_metrics_client=None,
     )
 
     try:
@@ -280,6 +284,7 @@ def update_recent_papers_with_bluesky_metrics(days: int = 7):
         altmetric_mapper=None,
         bluesky_metrics_client=BlueskyMetricsClient(),
         github_metrics_client=None,
+        x_metrics_client=None,
     )
 
     papers = service.get_recent_papers_with_dois(days)
@@ -344,6 +349,7 @@ def enrich_paper_with_bluesky_metrics(self, paper_id: int, retry: int = 0):
         altmetric_mapper=None,
         bluesky_metrics_client=BlueskyMetricsClient(),
         github_metrics_client=None,
+        x_metrics_client=None,
     )
 
     try:
@@ -391,6 +397,138 @@ def enrich_paper_with_bluesky_metrics(self, paper_id: int, retry: int = 0):
             logger.error(
                 f"Max retries exceeded for Bluesky enrichment of paper {paper_id}"
             )
+            return {
+                "status": "error",
+                "paper_id": paper_id,
+                "reason": str(e),
+            }
+
+
+@app.task(queue=QUEUE_PAPER_MISC)
+def update_recent_papers_with_x_metrics(days: int = 7):
+    """
+    Dispatch individual tasks to fetch and update X metrics
+    for papers created in the last N days.
+
+    Each paper is processed by a separate rate-limited task.
+    This dispatcher does not retry - individual tasks handle their own retries.
+    """
+    logger.info(f"Starting X metrics update for papers (last {days} days)")
+
+    service = PaperMetricsEnrichmentService(
+        altmetric_client=None,
+        altmetric_mapper=None,
+        bluesky_metrics_client=None,
+        github_metrics_client=None,
+        x_metrics_client=XMetricsClient(),
+    )
+
+    papers = service.get_recent_papers_with_dois(days)
+
+    total_papers = len(papers)
+    logger.info(f"Found {total_papers} papers to update with X metrics")
+
+    if total_papers == 0:
+        return {
+            "status": "success",
+            "papers_processed": 0,
+            "message": f"No papers with DOIs found in last {days} days",
+        }
+
+    # Dispatch individual tasks per paper
+    for paper_id in papers:
+        enrich_paper_with_x_metrics.delay(paper_id)
+
+    logger.info(f"Dispatched {total_papers} individual X enrichment tasks")
+
+    return {
+        "status": "success",
+        "papers_dispatched": total_papers,
+        "message": f"Dispatched {total_papers} enrichment tasks",
+    }
+
+
+@app.task(queue=QUEUE_PAPER_MISC, bind=True, max_retries=3, rate_limit="30/m")
+def enrich_paper_with_x_metrics(self, paper_id: int, retry: int = 0):
+    """
+    Fetch and update X metrics for a single paper.
+
+    Args:
+        paper_id: ID of the paper to enrich
+        retry: Current retry attempt number
+
+    Returns:
+        Dict with status and details
+    """
+    from paper.models import Paper
+
+    try:
+        paper = Paper.objects.get(id=paper_id)
+    except Paper.DoesNotExist:
+        logger.error(f"Paper {paper_id} not found")
+        return {
+            "status": "error",
+            "paper_id": paper_id,
+            "reason": "paper_not_found",
+        }
+
+    if not paper.doi:
+        logger.warning(f"Paper {paper_id} has no DOI, skipping X enrichment")
+        return {
+            "status": "skipped",
+            "paper_id": paper_id,
+            "reason": "no_doi",
+        }
+
+    service = PaperMetricsEnrichmentService(
+        altmetric_client=None,
+        altmetric_mapper=None,
+        bluesky_metrics_client=None,
+        github_metrics_client=None,
+        x_metrics_client=XMetricsClient(),
+    )
+
+    try:
+        enrichment_result = service.enrich_paper_with_x(paper)
+
+        if enrichment_result.status == "not_found":
+            return {
+                "status": "not_found",
+                "paper_id": paper_id,
+                "doi": paper.doi,
+            }
+
+        if enrichment_result.status == "success":
+            x_metrics = enrichment_result.metrics.get("x", {})
+            logger.info(
+                f"Successfully enriched paper {paper_id} with X metrics: "
+                f"{x_metrics.get('post_count', 0)} posts"
+            )
+
+            return {
+                "status": "success",
+                "paper_id": paper_id,
+                "doi": paper.doi,
+                "metrics": x_metrics,
+            }
+
+        # Handle other statuses (skipped, error)
+        return {
+            "status": enrichment_result.status,
+            "paper_id": paper_id,
+            "doi": paper.doi,
+            "reason": enrichment_result.reason,
+        }
+
+    except Exception as e:
+        logger.error(f"Error enriching paper {paper_id} with X metrics: {str(e)}")
+        sentry.log_error(e, message=f"Error enriching paper {paper_id} with X metrics")
+
+        try:
+            # Retry with exponential backoff
+            self.retry(args=[paper_id, retry + 1], exc=e, countdown=60 * (retry + 1))
+        except MaxRetriesExceededError:
+            logger.error(f"Max retries exceeded for X enrichment of paper {paper_id}")
             return {
                 "status": "error",
                 "paper_id": paper_id,
