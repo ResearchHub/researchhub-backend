@@ -472,12 +472,13 @@ def enrich_paper_with_x_metrics(self, paper_id: int, retry: int = 0):
             "reason": "paper_not_found",
         }
 
-    if not paper.doi:
-        logger.warning(f"Paper {paper_id} has no DOI, skipping X enrichment")
+    # Check that paper has at least a DOI or title for searching
+    if not paper.doi and not paper.title:
+        logger.warning(f"Paper {paper_id} has no DOI or title, skipping X enrichment")
         return {
             "status": "skipped",
             "paper_id": paper_id,
-            "reason": "no_doi",
+            "reason": "no_doi_or_title",
         }
 
     service = PaperMetricsEnrichmentService(

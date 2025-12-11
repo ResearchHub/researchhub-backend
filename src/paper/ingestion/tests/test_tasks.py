@@ -1017,20 +1017,23 @@ class XMetricsTasksTests(TestCase):
         self.assertEqual(result["reason"], "paper_not_found")
 
     @patch("paper.ingestion.tasks.XMetricsClient")
-    def test_enrich_paper_with_x_metrics_no_doi(self, mock_metrics_client_class):
+    def test_enrich_paper_with_x_metrics_no_doi_uses_title(
+        self, mock_metrics_client_class
+    ):
         """
-        Test enrichment of paper without DOI.
+        Test enrichment of paper without DOI but with title - should use title for search.
         """
         # Arrange
-        mock_metrics_client_class.return_value = Mock()
+        mock_client = Mock()
+        mock_client.get_metrics.return_value = None  # No posts found
+        mock_metrics_client_class.return_value = mock_client
 
         # Act
         result = enrich_paper_with_x_metrics(self.paper_no_doi.id)
 
         # Assert
-        self.assertEqual(result["status"], "skipped")
+        self.assertEqual(result["status"], "not_found")
         self.assertEqual(result["paper_id"], self.paper_no_doi.id)
-        self.assertEqual(result["reason"], "no_doi")
 
     @patch("paper.ingestion.tasks.XMetricsClient")
     def test_enrich_paper_with_x_metrics_no_x_posts(self, mock_metrics_client_class):
