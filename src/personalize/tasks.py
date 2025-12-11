@@ -3,7 +3,6 @@ from celery.utils.log import get_task_logger
 from analytics.interactions.interaction_mapper import map_from_comment, map_from_upvote
 from analytics.models import UserInteractions
 from discussion.models import Vote
-from paper.models import Paper
 from personalize.services.sync_service import SyncService
 from researchhub.celery import QUEUE_PAPER_MISC, app
 from utils.sentry import log_error
@@ -130,40 +129,29 @@ def sync_interaction_event_to_personalize_task(interaction_id):
 
 
 @app.task(queue=QUEUE_PAPER_MISC, max_retries=3, retry_backoff=True)
-def sync_paper_to_personalize_task(paper_id):
-    try:
-        paper = Paper.objects.get(id=paper_id)
-    except Paper.DoesNotExist:
-        logger.error(f"Paper {paper_id} not found for Personalize sync")
-        return
+def sync_unified_document_to_personalize_task(unified_document_id):
+    """
+    Sync a unified document to AWS Personalize.
 
-    unified_doc = paper.unified_document
+    Works for any document type (papers, posts, etc.).
+    """
+    from researchhub_document.models import ResearchhubUnifiedDocument
 
-    if not unified_doc:
-        logger.warning(
-            f"Paper {paper_id} has no unified_document, skipping Personalize sync"
-        )
-        return
-
-    logger.info(
-        f"Syncing paper {paper_id} to Personalize (unified_doc: {unified_doc.id})"
+    unified_doc = (
+        ResearchhubUnifiedDocument.objects.select_related("paper")
+        .prefetch_related("hubs", "posts")
+        .get(id=unified_document_id)
     )
 
-    try:
-        personalize_sync_service = SyncService()
-        result = personalize_sync_service.sync_item(unified_doc)
+    logger.info(f"Syncing unified_document {unified_document_id} to Personalize")
 
-        if result["success"]:
-            logger.info(
-                f"Successfully synced paper {paper_id} to Personalize: {result}"
-            )
-        else:
-            logger.error(f"Failed to sync paper {paper_id} to Personalize: {result}")
-            raise Exception(f"Sync failed: {result}")
+    personalize_sync_service = SyncService()
+    result = personalize_sync_service.sync_item(unified_doc)
 
-    except Exception as e:
-        logger.error(
-            f"Exception syncing paper {paper_id} to Personalize: {str(e)}",
-            exc_info=True,
+    if result["success"]:
+        logger.info(
+            f"Successfully synced unified_document {unified_document_id} "
+            f"to Personalize: {result}"
         )
-        raise
+    else:
+        raise Exception(f"Sync failed: {result}")
