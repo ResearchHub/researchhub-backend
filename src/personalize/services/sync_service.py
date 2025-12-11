@@ -2,6 +2,7 @@ import logging
 from datetime import timedelta
 from typing import List
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.utils import timezone
 
 from analytics.constants.event_types import EVENT_WEIGHTS
@@ -119,8 +120,13 @@ class SyncService:
         if unified_doc.document_type != PAPER:
             return True
 
-        paper = unified_doc.paper
-        if not paper or not paper.paper_publish_date:
+        # Check if paper exists - OneToOneField raises ObjectDoesNotExist if not linked
+        try:
+            paper = unified_doc.paper
+        except ObjectDoesNotExist:
+            return False
+
+        if not paper.paper_publish_date:
             return False
 
         cutoff_date = timezone.now() - timedelta(days=PAPER_RECENCY_DAYS)
