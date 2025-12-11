@@ -10,7 +10,7 @@ AWS_S3_CUSTOM_DOMAIN = os.environ.get(
 )
 
 AWS_BEDROCK_MODEL_ID = os.environ.get(
-    "AWS_BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0"
+    "AWS_BEDROCK_MODEL_ID", "anthropic.claude-3-5-sonnet-20241022-v2:0"
 )
 AWS_BEDROCK_ANTHROPIC_VERSION = os.environ.get(
     "AWS_BEDROCK_ANTHROPIC_VERSION", "bedrock-2023-05-31"
