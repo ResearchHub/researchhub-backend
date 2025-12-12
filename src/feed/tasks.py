@@ -62,7 +62,6 @@ def create_feed_entry(
     # Get authors for the item
     authors = _get_authors_for_item(item, item_content_type)
 
-    # Calculate pdf_copyright_allows_display (only applicable for papers)
     if item_content_type.model == "paper":
         allows_display = pdf_copyright_allows_display(item)
     else:
