@@ -7,6 +7,7 @@ import time
 from typing import Any
 
 from opensearchpy import Q, Search
+from opensearchpy.helpers.utils import AttrDict, AttrList
 
 from search.base.utils import seconds_to_milliseconds
 from search.documents.paper import PaperDocument
@@ -134,7 +135,7 @@ class UnifiedSearchService:
 
         search = self._apply_sort(search, sort)
 
-        search = search[offset : offset + limit]
+        search = search[offset:offset + limit]
 
         # Optimize query performance
         search = search.extra(
@@ -354,24 +355,78 @@ class UnifiedSearchService:
         try:
             hubs = getattr(hit, "hubs", None)
             if not hubs:
+                logger.debug(f"No hubs found for hit {getattr(hit, 'id', 'unknown')}")
                 return None
 
-            if not isinstance(hubs, (list, tuple)):
+            # Convert AttrList or other iterables to list
+            if isinstance(hubs, (list, tuple, AttrList)):
+                hubs = list(hubs)
+            else:
+                logger.debug(
+                    f"Expected hubs to be list/tuple/AttrList, "
+                    f"got {type(hubs).__name__} for hit {getattr(hit, 'id', 'unknown')}"
+                )
                 return None
+
+            logger.debug(
+                f"Hit {getattr(hit, 'id', 'unknown')}: Processing {len(hubs)} hubs "
+                f"for journal extraction"
+            )
 
             for hub in hubs:
-                if not isinstance(hub, dict):
+                try:
+                    # Handle dict, AttrDict, or object with attributes
+                    if isinstance(hub, dict):
+                        namespace = hub.get("namespace")
+                        name = hub.get("name")
+                    elif isinstance(hub, AttrDict):
+                        # AttrDict supports dictionary-style access with []
+                        try:
+                            namespace = hub.get("namespace", None)
+                            name = hub.get("name", None)
+                            # If .get() doesn't work, try direct access
+                            if namespace is None:
+                                try:
+                                    namespace = hub["namespace"]
+                                except (KeyError, TypeError):
+                                    pass
+                            if name is None:
+                                try:
+                                    name = hub["name"]
+                                except (KeyError, TypeError):
+                                    pass
+                        except (KeyError, TypeError, AttributeError):
+                            continue
+                    else:
+                        namespace = getattr(hub, "namespace", None)
+                        name = getattr(hub, "name", None)
+
+                    logger.debug(
+                        f"Hit {getattr(hit, 'id', 'unknown')}: "
+                        f"Hub namespace={repr(namespace)}, "
+                        f"name={repr(name)}, comparing to 'journal'"
+                    )
+
+                    if namespace == "journal":
+                        if isinstance(name, str) and name.strip():
+                            logger.debug(
+                                f"Found journal for hit "
+                                f"{getattr(hit, 'id', 'unknown')}: {name}"
+                            )
+                            return name.strip()
+                except Exception as hub_error:
+                    logger.debug(
+                        f"Error processing hub in journal extraction: "
+                        f"{hub_error}"
+                    )
                     continue
 
-                namespace = hub.get("namespace")
-                if namespace == "journal":
-                    name = hub.get("name")
-                    if isinstance(name, str) and name.strip():
-                        return name.strip()
-
+            logger.debug(
+                f"No journal hub found for hit {getattr(hit, 'id', 'unknown')}"
+            )
             return None
         except Exception as e:
-            logger.warning(f"Failed to extract journal from hubs: {e}")
+            logger.warning(f"Failed to extract journal from hubs: {e}", exc_info=True)
             return None
 
     def _process_hubs(self, hit) -> list[dict[str, Any]]:
@@ -381,36 +436,65 @@ class UnifiedSearchService:
             if not hubs:
                 return []
 
-            if not isinstance(hubs, (list, tuple)):
+            # Convert AttrList or other iterables to list
+            if isinstance(hubs, (list, tuple, AttrList)):
+                hubs = list(hubs)
+            else:
+                logger.warning(
+                    f"Expected hubs to be list/tuple/AttrList, "
+                    f"got {type(hubs).__name__} for hit {getattr(hit, 'id', 'unknown')}"
+                )
                 return []
 
             result = []
             for hub in hubs:
-                if not isinstance(hub, dict):
-                    continue
+                try:
+                    # Handle dict, AttrDict, or object with attributes
+                    if isinstance(hub, dict):
+                        hub_id = hub.get("id")
+                        hub_name = hub.get("name")
+                        hub_slug = hub.get("slug")
+                        hub_namespace = hub.get("namespace")
+                    elif isinstance(hub, AttrDict):
+                        # AttrDict supports dictionary-style access with []
+                        try:
+                            hub_id = hub["id"] if "id" in hub else None
+                            hub_name = hub["name"] if "name" in hub else None
+                            hub_slug = hub["slug"] if "slug" in hub else None
+                            hub_namespace = (
+                                hub["namespace"] if "namespace" in hub else None
+                            )
+                        except (KeyError, TypeError):
+                            continue
+                    else:
+                        hub_id = getattr(hub, "id", None)
+                        hub_name = getattr(hub, "name", None)
+                        hub_slug = getattr(hub, "slug", None)
+                        hub_namespace = getattr(hub, "namespace", None)
 
-                hub_id = hub.get("id")
-                hub_name = hub.get("name")
-                hub_slug = hub.get("slug")
-                hub_namespace = hub.get("namespace")
-
-                if hub_id is not None or (hub_name and isinstance(hub_name, str)):
-                    result.append(
-                        {
-                            "id": hub_id,
-                            "name": hub_name if isinstance(hub_name, str) else "",
-                            "slug": hub_slug if isinstance(hub_slug, str) else "",
-                            "namespace": (
-                                hub_namespace
-                                if isinstance(hub_namespace, str)
-                                else None
-                            ),
-                        }
+                    # Include hub if it has an id or a valid name
+                    if hub_id is not None or (hub_name and isinstance(hub_name, str)):
+                        result.append(
+                            {
+                                "id": hub_id,
+                                "name": hub_name if isinstance(hub_name, str) else None,
+                                "slug": hub_slug if isinstance(hub_slug, str) else None,
+                                "namespace": (
+                                    hub_namespace
+                                    if isinstance(hub_namespace, str)
+                                    else None
+                                ),
+                            }
+                        )
+                except Exception as hub_error:
+                    logger.warning(
+                        f"Failed to process individual hub: {hub_error}, hub: {hub}"
                     )
+                    continue
 
             return result
         except Exception as e:
-            logger.warning(f"Failed to process hubs: {e}")
+            logger.warning(f"Failed to process hubs: {e}", exc_info=True)
             return []
 
     def _process_document_results(self, response) -> list[dict[str, Any]]:
