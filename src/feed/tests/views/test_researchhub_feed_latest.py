@@ -51,6 +51,7 @@ class LatestFeedTests(APITestCase):
             hot_score_v2=10,
             content={},
             metrics={},
+            pdf_copyright_allows_display=True,
         )
         self.newest_entry.hubs.add(self.hub)
 
@@ -74,6 +75,7 @@ class LatestFeedTests(APITestCase):
             hot_score_v2=100,
             content={},
             metrics={},
+            pdf_copyright_allows_display=True,
         )
         self.older_entry.hubs.add(self.hub)
 
@@ -131,6 +133,7 @@ class LatestFeedTests(APITestCase):
             unified_document=doc,
             content={},
             metrics={},
+            pdf_copyright_allows_display=True,
         )
         entry.hubs.add(*hubs)
         return paper
