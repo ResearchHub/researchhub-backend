@@ -153,7 +153,9 @@ class FeedCachingTests(APITestCase):
     def setUp(self):
         cache.clear()
         self.user = create_random_default_user("cache_test_user")
-        self.hub = Hub.objects.create(name="Test Hub", slug="test-hub")
+        self.hub, _ = Hub.objects.get_or_create(
+            slug="biorxiv", defaults={"name": "bioRxiv"}
+        )
 
         self.unified_document = ResearchhubUnifiedDocument.objects.create(
             document_type="POST"

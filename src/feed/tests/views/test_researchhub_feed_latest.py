@@ -22,7 +22,9 @@ class LatestFeedTests(APITestCase):
         cache.clear()
         self.user = create_random_default_user("latest_test_user")
 
-        self.hub = Hub.objects.create(name="Test Hub", slug="test-hub")
+        self.hub, _ = Hub.objects.get_or_create(
+            slug="biorxiv", defaults={"name": "bioRxiv"}
+        )
 
         self.paper_content_type = ContentType.objects.get_for_model(Paper)
 
@@ -135,8 +137,12 @@ class LatestFeedTests(APITestCase):
 
     def test_latest_without_hub_slug_returns_only_preprint_hub_papers(self):
         """Latest feed without hub_slug only returns papers from preprint hubs."""
-        biorxiv_hub = Hub.objects.create(name="bioRxiv", slug="biorxiv")
-        other_hub = Hub.objects.create(name="Other", slug="other-hub")
+        biorxiv_hub, _ = Hub.objects.get_or_create(
+            slug="biorxiv", defaults={"name": "bioRxiv"}
+        )
+        other_hub, _ = Hub.objects.get_or_create(
+            slug="other-hub", defaults={"name": "Other"}
+        )
 
         preprint = self._create_paper_with_feed_entry("Preprint", [biorxiv_hub])
         non_preprint = self._create_paper_with_feed_entry("Non-Preprint", [other_hub])
@@ -149,7 +155,9 @@ class LatestFeedTests(APITestCase):
 
     def test_latest_with_hub_slug_bypasses_preprint_restriction(self):
         """Latest feed with hub_slug returns papers from that hub (no restriction)."""
-        other_hub = Hub.objects.create(name="Other", slug="other-hub")
+        other_hub, _ = Hub.objects.get_or_create(
+            slug="other-hub", defaults={"name": "Other"}
+        )
         paper = self._create_paper_with_feed_entry("Other Paper", [other_hub])
 
         response = self.client.get(

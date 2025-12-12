@@ -26,9 +26,11 @@ class FollowingFeedTests(APITestCase):
         cache.clear()
         self.user = create_random_default_user("following_test_user")
 
-        self.followed_hub = Hub.objects.create(name="Followed Hub", slug="followed-hub")
-        self.unfollowed_hub = Hub.objects.create(
-            name="Unfollowed Hub", slug="unfollowed-hub"
+        self.followed_hub, _ = Hub.objects.get_or_create(
+            slug="biorxiv", defaults={"name": "bioRxiv"}
+        )
+        self.unfollowed_hub, _ = Hub.objects.get_or_create(
+            slug="arxiv", defaults={"name": "arXiv"}
         )
 
         create_follow(self.user, self.followed_hub)
@@ -151,10 +153,19 @@ class FollowingFeedTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertGreater(len(response.data["results"]), 0)
 
-        result_ids = [r["content_object"]["id"] for r in response.data["results"]]
-        self.assertIn(self.followed_paper.id, result_ids)
-        self.assertNotIn(self.followed_post.id, result_ids)
-        self.assertNotIn(self.unfollowed_paper.id, result_ids)
+        # Verify only papers are returned (no posts)
+        content_types = [r["content_type"] for r in response.data["results"]]
+        self.assertIn("PAPER", content_types)
+        self.assertNotIn("RESEARCHHUBPOST", content_types)
+
+        # Verify followed paper is in results, unfollowed is not
+        paper_ids = [
+            r["content_object"]["id"]
+            for r in response.data["results"]
+            if r["content_type"] == "PAPER"
+        ]
+        self.assertIn(self.followed_paper.id, paper_ids)
+        self.assertNotIn(self.unfollowed_paper.id, paper_ids)
 
     def test_user_following_no_hubs_gets_empty_results(self):
         url = reverse("feed-list")
@@ -264,16 +275,19 @@ class FollowingFeedTests(APITestCase):
             second_date = results[1].get("action_date")
             self.assertGreaterEqual(first_date, second_date)
 
-    def test_user_following_hub_that_does_not_exist_ignores_it(self):
+    def test_following_ignores_hub_slug_parameter(self):
+        """Following feed ignores hub_slug parameter (not supported)."""
         url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
 
+        # hub_slug is ignored for following feed - still returns followed papers
         response = self.client.get(
             url, {"feed_view": "following", "hub_slug": "nonexistent-hub"}
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data["results"]), 0)
+        # Results are returned (hub_slug is ignored)
+        self.assertGreater(len(response.data["results"]), 0)
 
     def test_following_feed_rejects_invalid_ordering(self):
         url = reverse("feed-list")
@@ -351,16 +365,27 @@ class FollowingFeedTests(APITestCase):
         """Following feed only returns papers that are also in a preprint hub."""
         self.client.force_authenticate(user=self.user)
 
-        biorxiv_hub = Hub.objects.create(name="bioRxiv", slug="biorxiv")
-        create_follow(self.user, biorxiv_hub)
-
-        # Create papers in different hub combinations
-        non_preprint = self._create_paper_with_feed_entry(
-            "Non-Preprint", [self.followed_hub]
+        # Create a non-preprint hub and have user follow it
+        non_preprint_hub, _ = Hub.objects.get_or_create(
+            slug="other-hub", defaults={"name": "Other Hub"}
         )
-        preprint = self._create_paper_with_feed_entry("Preprint", [biorxiv_hub])
+
+        try:
+            create_follow(self.user, non_preprint_hub)
+        except Exception:
+            pass  # Already following
+
+        # Paper only in non-preprint hub (should be excluded)
+        non_preprint = self._create_paper_with_feed_entry(
+            "Non-Preprint", [non_preprint_hub]
+        )
+
+        # Paper only in preprint hub (should be included)
+        preprint = self._create_paper_with_feed_entry("Preprint", [self.followed_hub])
+
+        # Paper in both hubs (should be included - has preprint hub)
         both = self._create_paper_with_feed_entry(
-            "Both", [self.followed_hub, biorxiv_hub]
+            "Both", [non_preprint_hub, self.followed_hub]
         )
 
         response = self.client.get(reverse("feed-list"), {"feed_view": "following"})

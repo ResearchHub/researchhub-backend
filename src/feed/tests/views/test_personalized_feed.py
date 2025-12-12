@@ -27,7 +27,9 @@ class TestPersonalizedFeed(APITestCase):
         self.user = create_random_default_user("personalized_test_user")
         self.other_user = create_random_default_user("other_user")
 
-        self.hub = Hub.objects.create(name="Test Hub", slug="test-hub")
+        self.hub, _ = Hub.objects.get_or_create(
+            slug="biorxiv", defaults={"name": "bioRxiv"}
+        )
         create_follow(self.user, self.hub)
         create_follow(self.other_user, self.hub)
 
@@ -483,7 +485,9 @@ class TestPersonalizedFeedColdStart(APITestCase):
         cache.clear()
         self.user = create_random_default_user("cold_start_test_user")
 
-        self.hub = Hub.objects.create(name="Test Hub", slug="test-hub")
+        self.hub, _ = Hub.objects.get_or_create(
+            slug="biorxiv", defaults={"name": "bioRxiv"}
+        )
         create_follow(self.user, self.hub)
 
         self.paper_content_type = ContentType.objects.get_for_model(Paper)
@@ -712,7 +716,9 @@ class TestPersonalizedFeedStrategyResolution(APITestCase):
         cache.clear()
         self.user = create_random_default_user("strategy_test_user")
 
-        self.hub = Hub.objects.create(name="Test Hub", slug="test-hub")
+        self.hub, _ = Hub.objects.get_or_create(
+            slug="biorxiv", defaults={"name": "bioRxiv"}
+        )
         create_follow(self.user, self.hub)
 
         self.paper_content_type = ContentType.objects.get_for_model(Paper)
@@ -883,7 +889,9 @@ class TestUnauthenticatedPersonalizedFeed(APITestCase):
 
     def setUp(self):
         cache.clear()
-        self.hub = Hub.objects.create(name="Test Hub", slug="test-hub")
+        self.hub, _ = Hub.objects.get_or_create(
+            slug="biorxiv", defaults={"name": "bioRxiv"}
+        )
 
         self.paper_content_type = ContentType.objects.get_for_model(Paper)
         self.post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
