@@ -8,7 +8,7 @@ from decimal import Decimal
 import pytz
 from django.test import TestCase
 
-from analytics.tests.helpers import (
+from personalize.tests.helpers import (
     create_bounty_for_document,
     create_bounty_solution,
     create_fundraise_contribution,

@@ -8,14 +8,14 @@ from unittest.mock import patch
 
 from django.test import TestCase
 
-from analytics.tests.helpers import (
+from personalize.config.constants import CSV_HEADERS
+from personalize.services.export_service import ExportService
+from personalize.tests.helpers import (
     create_prefetched_grant,
     create_prefetched_paper,
     create_prefetched_post,
     create_prefetched_proposal,
 )
-from personalize.config.constants import CSV_HEADERS
-from personalize.services.export_service import ExportService
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,

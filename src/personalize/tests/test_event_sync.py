@@ -15,13 +15,13 @@ from analytics.constants.event_types import (
 from analytics.interactions.interaction_mapper import map_from_comment
 from analytics.models import UserInteractions
 from analytics.services.event_processor import EventProcessor
-from analytics.tests.helpers import create_prefetched_paper
 from discussion.models import Vote
 from personalize.clients.sync_client import SyncClient
 from personalize.tasks import (
     create_comment_interaction_task,
     create_upvote_interaction_task,
 )
+from personalize.tests.helpers import create_prefetched_paper
 from personalize.utils.personalize_utils import (
     build_session_id_for_anonymous,
     build_session_id_for_user,
