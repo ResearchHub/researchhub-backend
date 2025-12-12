@@ -70,6 +70,7 @@ class PopularFeedTests(APITestCase):
             hot_score_v2=200,
             content={},
             metrics={},
+            pdf_copyright_allows_display=True,
         )
         self.high_score_entry.hubs.add(self.hub1)
 
@@ -83,6 +84,7 @@ class PopularFeedTests(APITestCase):
             hot_score_v2=100,
             content={},
             metrics={},
+            pdf_copyright_allows_display=True,
         )
         self.medium_score_entry.hubs.add(self.hub1)
 
@@ -96,6 +98,7 @@ class PopularFeedTests(APITestCase):
             hot_score_v2=20,
             content={},
             metrics={},
+            pdf_copyright_allows_display=True,
         )
         self.low_score_entry.hubs.add(self.hub2)
 
@@ -394,6 +397,7 @@ class PopularFeedTests(APITestCase):
                 hot_score_v2=i,
                 content={},
                 metrics={},
+                pdf_copyright_allows_display=True,
             )
             entry.hubs.add(self.hub1)
             doc_ids.append(doc.id)

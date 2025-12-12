@@ -63,6 +63,7 @@ class TestPersonalizedFeed(APITestCase):
             unified_document=self.paper_doc,
             content={},
             metrics={},
+            pdf_copyright_allows_display=True,
         )
         self.paper_entry.hubs.add(self.hub)
 
@@ -74,6 +75,7 @@ class TestPersonalizedFeed(APITestCase):
             unified_document=self.post_doc,
             content={},
             metrics={},
+            pdf_copyright_allows_display=True,
         )
         self.post_entry.hubs.add(self.hub)
 
@@ -167,6 +169,7 @@ class TestPersonalizedFeed(APITestCase):
                 unified_document=doc,
                 content={},
                 metrics={},
+                pdf_copyright_allows_display=True,
             )
             entry.hubs.add(self.hub)
             extra_docs.append(doc)
@@ -511,6 +514,7 @@ class TestPersonalizedFeedColdStart(APITestCase):
             hot_score_v2=100,
             content={},
             metrics={},
+            pdf_copyright_allows_display=True,
         )
         self.paper_entry.hubs.add(self.hub)
 
@@ -742,6 +746,7 @@ class TestPersonalizedFeedStrategyResolution(APITestCase):
             hot_score_v2=100,
             content={},
             metrics={},
+            pdf_copyright_allows_display=True,
         )
         self.paper_entry.hubs.add(self.hub)
 
@@ -917,6 +922,7 @@ class TestUnauthenticatedPersonalizedFeed(APITestCase):
             hot_score_v2=200,
             content={},
             metrics={},
+            pdf_copyright_allows_display=True,
         )
         self.paper_entry.hubs.add(self.hub)
 

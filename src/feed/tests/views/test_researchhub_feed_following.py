@@ -80,6 +80,7 @@ class FollowingFeedTests(APITestCase):
             hot_score_v2=100,
             content={},
             metrics={},
+            pdf_copyright_allows_display=True,
         )
         self.paper_entry.hubs.add(self.followed_hub)
 
@@ -93,6 +94,7 @@ class FollowingFeedTests(APITestCase):
             hot_score_v2=60,
             content={},
             metrics={},
+            pdf_copyright_allows_display=True,
         )
         self.post_entry.hubs.add(self.followed_hub)
 
@@ -106,6 +108,7 @@ class FollowingFeedTests(APITestCase):
             hot_score_v2=200,
             content={},
             metrics={},
+            pdf_copyright_allows_display=True,
         )
         self.unfollowed_entry.hubs.add(self.unfollowed_hub)
 
@@ -131,6 +134,7 @@ class FollowingFeedTests(APITestCase):
             hot_score_v2=80,
             content={},
             metrics={},
+            pdf_copyright_allows_display=True,
         )
         self.comment_entry.hubs.add(self.followed_hub)
 
@@ -230,6 +234,7 @@ class FollowingFeedTests(APITestCase):
             unified_document=another_doc,
             content={},
             metrics={},
+            pdf_copyright_allows_display=True,
         )
         another_entry.hubs.add(another_hub)
 
@@ -357,6 +362,7 @@ class FollowingFeedTests(APITestCase):
             unified_document=doc,
             content={},
             metrics={},
+            pdf_copyright_allows_display=True,
         )
         entry.hubs.add(*hubs)
         return paper
