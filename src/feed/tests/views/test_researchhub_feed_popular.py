@@ -22,8 +22,12 @@ class PopularFeedTests(APITestCase):
         cache.clear()
         self.user = create_random_default_user("popular_test_user")
 
-        self.hub1 = Hub.objects.create(name="Hub 1", slug="hub-1")
-        self.hub2 = Hub.objects.create(name="Hub 2", slug="hub-2")
+        self.hub1, _ = Hub.objects.get_or_create(
+            slug="biorxiv", defaults={"name": "bioRxiv"}
+        )
+        self.hub2, _ = Hub.objects.get_or_create(
+            slug="arxiv", defaults={"name": "arXiv"}
+        )
 
         self.paper_content_type = ContentType.objects.get_for_model(Paper)
         self.post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
@@ -132,13 +136,13 @@ class PopularFeedTests(APITestCase):
     def test_popular_with_hub_slug_filters_correctly(self):
         url = reverse("feed-list")
 
-        response = self.client.get(url, {"feed_view": "popular", "hub_slug": "hub-1"})
+        response = self.client.get(url, {"feed_view": "popular", "hub_slug": "biorxiv"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         result_ids = [r["content_object"]["id"] for r in response.data["results"]]
+        # Only papers are returned (posts excluded), filtered by hub
         self.assertIn(self.high_score_paper.id, result_ids)
-        self.assertIn(self.medium_score_post.id, result_ids)
-        self.assertNotIn(self.low_score_paper.id, result_ids)
+        self.assertNotIn(self.low_score_paper.id, result_ids)  # Different hub
 
     def test_popular_with_invalid_hub_slug_returns_empty(self):
         url = reverse("feed-list")
