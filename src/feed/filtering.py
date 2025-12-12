@@ -39,6 +39,9 @@ def _get_allowed_preprint_hub_ids() -> Tuple[int, ...]:
 
 class FeedFilteringBackend(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
+        # Exclude entries that don't allow PDF display
+        queryset = queryset.exclude(pdf_copyright_allows_display=False)
+
         feed_view = request.query_params.get("feed_view", "popular")
 
         if feed_view == "following":
