@@ -30,6 +30,7 @@ from personalize.config.constants import (
     HUB_L2,
     ITEM_ID,
     ITEM_TYPE,
+    JOURNAL_HUB_ID,
     MAX_TEXT_LENGTH,
     PEER_REVIEW_COUNT_TOTAL,
     PROPOSAL_HAS_FUNDERS,
@@ -618,6 +619,78 @@ class HubTests(TestCase):
 
         # Assert
         self.assertIsNone(result[HUB_IDS])
+
+    def test_journal_hub_id_set_for_journal_hub(self):
+        """JOURNAL_HUB_ID should be set when document has JOURNAL namespace hub."""
+        # Arrange
+        mapper = ItemMapper()
+        journal_hub = create_hub_with_namespace("Nature", Hub.Namespace.JOURNAL)
+        unified_doc = create_prefetched_paper(hubs=[journal_hub])
+        batch_data = create_batch_data()
+
+        # Act
+        result = mapper.map_to_csv_item(
+            unified_doc,
+            bounty_data=batch_data["bounty"],
+            proposal_data=batch_data["proposal"],
+            rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
+        )
+
+        # Assert
+        self.assertEqual(result[JOURNAL_HUB_ID], str(journal_hub.id))
+
+    def test_journal_hub_id_none_when_no_journal_hub(self):
+        """JOURNAL_HUB_ID should be None when document has no JOURNAL namespace hub."""
+        # Arrange
+        mapper = ItemMapper()
+        category_hub = create_hub_with_namespace("Science", Hub.Namespace.CATEGORY)
+        unified_doc = create_prefetched_paper(hubs=[category_hub])
+        batch_data = create_batch_data()
+
+        # Act
+        result = mapper.map_to_csv_item(
+            unified_doc,
+            bounty_data=batch_data["bounty"],
+            proposal_data=batch_data["proposal"],
+            rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
+        )
+
+        # Assert
+        self.assertIsNone(result[JOURNAL_HUB_ID])
+
+    def test_all_hub_types_mapped_correctly(self):
+        """All hub namespace types should be mapped to their respective fields."""
+        # Arrange
+        mapper = ItemMapper()
+        category_hub = create_hub_with_namespace("Science", Hub.Namespace.CATEGORY)
+        subcategory_hub = create_hub_with_namespace(
+            "Physics", Hub.Namespace.SUBCATEGORY
+        )
+        journal_hub = create_hub_with_namespace("Nature", Hub.Namespace.JOURNAL)
+        unified_doc = create_prefetched_paper(
+            hubs=[category_hub, subcategory_hub, journal_hub]
+        )
+        batch_data = create_batch_data()
+
+        # Act
+        result = mapper.map_to_csv_item(
+            unified_doc,
+            bounty_data=batch_data["bounty"],
+            proposal_data=batch_data["proposal"],
+            rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
+        )
+
+        # Assert
+        self.assertEqual(result[HUB_L1], str(category_hub.id))
+        self.assertEqual(result[HUB_L2], str(subcategory_hub.id))
+        self.assertEqual(result[JOURNAL_HUB_ID], str(journal_hub.id))
+        # All hub IDs should be in HUB_IDS
+        self.assertIn(str(category_hub.id), result[HUB_IDS])
+        self.assertIn(str(subcategory_hub.id), result[HUB_IDS])
+        self.assertIn(str(journal_hub.id), result[HUB_IDS])
 
 
 class PaperSpecificFieldTests(TestCase):
