@@ -247,6 +247,7 @@ class FeedFilteringBackend(BaseFilterBackend):
         """
         preprint_hub_ids = _get_allowed_preprint_hub_ids()
         return queryset.filter(
+            content_type=view._paper_content_type,
             hubs__id__in=preprint_hub_ids,
         )
 
