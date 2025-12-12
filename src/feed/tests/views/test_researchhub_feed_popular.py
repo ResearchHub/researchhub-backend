@@ -10,7 +10,6 @@ from rest_framework.test import APITestCase
 from feed.models import FeedEntry
 from hub.models import Hub
 from paper.models import Paper
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -22,11 +21,14 @@ class PopularFeedTests(APITestCase):
         cache.clear()
         self.user = create_random_default_user("popular_test_user")
 
-        self.hub1 = Hub.objects.create(name="Hub 1", slug="hub-1")
-        self.hub2 = Hub.objects.create(name="Hub 2", slug="hub-2")
+        self.hub1, _ = Hub.objects.get_or_create(
+            slug="biorxiv", defaults={"name": "bioRxiv"}
+        )
+        self.hub2, _ = Hub.objects.get_or_create(
+            slug="arxiv", defaults={"name": "arXiv"}
+        )
 
         self.paper_content_type = ContentType.objects.get_for_model(Paper)
-        self.post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
 
         self.high_score_paper_doc = ResearchhubUnifiedDocument.objects.create(
             document_type="PAPER"
@@ -38,15 +40,14 @@ class PopularFeedTests(APITestCase):
             unified_document=self.high_score_paper_doc,
         )
 
-        self.medium_score_post_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type="POST"
+        self.medium_score_paper_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER"
         )
-        self.medium_score_post_doc.hubs.add(self.hub1)
-        self.medium_score_post = ResearchhubPost.objects.create(
-            title="Medium Score Post",
-            document_type="POST",
-            created_by=self.user,
-            unified_document=self.medium_score_post_doc,
+        self.medium_score_paper_doc.hubs.add(self.hub1)
+        self.medium_score_paper = Paper.objects.create(
+            title="Medium Score Paper",
+            paper_publish_date=timezone.now(),
+            unified_document=self.medium_score_paper_doc,
         )
 
         self.low_score_paper_doc = ResearchhubUnifiedDocument.objects.create(
@@ -75,9 +76,9 @@ class PopularFeedTests(APITestCase):
         self.medium_score_entry = FeedEntry.objects.create(
             action="PUBLISH",
             action_date=timezone.now(),
-            content_type=self.post_content_type,
-            object_id=self.medium_score_post.id,
-            unified_document=self.medium_score_post_doc,
+            content_type=self.paper_content_type,
+            object_id=self.medium_score_paper.id,
+            unified_document=self.medium_score_paper_doc,
             hot_score=50,
             hot_score_v2=100,
             content={},
@@ -126,19 +127,19 @@ class PopularFeedTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         result_ids = [r["content_object"]["id"] for r in response.data["results"]]
         self.assertIn(self.high_score_paper.id, result_ids)
-        self.assertIn(self.medium_score_post.id, result_ids)
+        self.assertIn(self.medium_score_paper.id, result_ids)
         self.assertIn(self.low_score_paper.id, result_ids)
 
     def test_popular_with_hub_slug_filters_correctly(self):
         url = reverse("feed-list")
 
-        response = self.client.get(url, {"feed_view": "popular", "hub_slug": "hub-1"})
+        response = self.client.get(url, {"feed_view": "popular", "hub_slug": "biorxiv"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         result_ids = [r["content_object"]["id"] for r in response.data["results"]]
+        # Only papers are returned (posts excluded), filtered by hub
         self.assertIn(self.high_score_paper.id, result_ids)
-        self.assertIn(self.medium_score_post.id, result_ids)
-        self.assertNotIn(self.low_score_paper.id, result_ids)
+        self.assertNotIn(self.low_score_paper.id, result_ids)  # Different hub
 
     def test_popular_with_invalid_hub_slug_returns_empty(self):
         url = reverse("feed-list")
@@ -236,6 +237,7 @@ class PopularFeedTests(APITestCase):
         ".RecommendationClient.get_trending_items"
     )
     def test_feed_content_type_filtering(self, mock_get_trending):
+        """Popular feed only returns papers from allowed preprint hubs."""
         doc_ids = [
             self.high_score_entry.unified_document_id,
             self.medium_score_entry.unified_document_id,
@@ -258,9 +260,8 @@ class PopularFeedTests(APITestCase):
         ]
 
         self.assertIn(self.high_score_paper.id, popular_result_ids)
-        self.assertIn(self.medium_score_post.id, popular_result_ids)
+        self.assertIn(self.medium_score_paper.id, popular_result_ids)
         self.assertIn("PAPER", popular_content_types)
-        self.assertIn("RESEARCHHUBPOST", popular_content_types)
 
     def test_popular_with_hot_score_v2_ordering_skips_aws(self):
         url = reverse("feed-list")

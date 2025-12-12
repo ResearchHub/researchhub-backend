@@ -1,9 +1,14 @@
 import logging
+from datetime import timedelta
 from typing import List
+
+from django.core.exceptions import ObjectDoesNotExist
+from django.utils import timezone
 
 from analytics.constants.event_types import EVENT_WEIGHTS
 from analytics.models import UserInteractions
 from personalize.clients.sync_client import SyncClient
+from personalize.config.settings import PAPER_RECENCY_DAYS
 from personalize.services.item_mapper import ItemMapper
 from personalize.types import SyncResult, SyncResultWithSkipped
 from personalize.utils.personalize_utils import (
@@ -12,6 +17,7 @@ from personalize.utils.personalize_utils import (
 )
 from personalize.utils.related_data_fetcher import RelatedDataFetcher
 from researchhub_document.models import ResearchhubUnifiedDocument
+from researchhub_document.related_models.constants.document_type import PAPER
 
 logger = logging.getLogger(__name__)
 
@@ -75,10 +81,56 @@ class SyncService:
 
         return result
 
-    def sync_item(
-        self, unified_doc: ResearchhubUnifiedDocument
-    ) -> SyncResultWithSkipped:
+    def sync_item_by_id(self, unified_document_id: int) -> SyncResultWithSkipped:
+        """
+        Sync a unified document by ID.
+
+        Fetches the document with required relations and checks eligibility:
+        - Posts: Always sync
+        - Papers: Only sync if published within last PAPER_RECENCY_DAYS days
+        """
+        unified_doc = (
+            ResearchhubUnifiedDocument.objects.select_related("paper")
+            .prefetch_related("hubs", "posts")
+            .get(id=unified_document_id)
+        )
+
+        if not self._is_eligible_for_sync(unified_doc):
+            logger.info(
+                f"Skipping sync for unified_document {unified_document_id}: "
+                f"does not meet eligibility criteria"
+            )
+            return {
+                "success": True,
+                "synced": 0,
+                "failed": 0,
+                "skipped": 1,
+                "errors": [],
+            }
+
         return self.sync_items([unified_doc])
+
+    def _is_eligible_for_sync(self, unified_doc: ResearchhubUnifiedDocument) -> bool:
+        """
+        Check if a unified document is eligible for Personalize sync.
+
+        - Posts (non-PAPER types): Always eligible
+        - Papers: Only eligible if published within last PAPER_RECENCY_DAYS days
+        """
+        if unified_doc.document_type != PAPER:
+            return True
+
+        # Check if paper exists - OneToOneField raises ObjectDoesNotExist if not linked
+        try:
+            paper = unified_doc.paper
+        except ObjectDoesNotExist:
+            return False
+
+        if not paper.paper_publish_date:
+            return False
+
+        cutoff_date = timezone.now() - timedelta(days=PAPER_RECENCY_DAYS)
+        return paper.paper_publish_date >= cutoff_date
 
     def _build_interaction_event(self, interaction: UserInteractions) -> dict:
         event_value = EVENT_WEIGHTS.get(interaction.event, 1.0)

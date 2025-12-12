@@ -2,9 +2,11 @@ import logging
 import math
 from typing import Any, override
 
+from django.contrib.contenttypes.models import ContentType
 from django_opensearch_dsl import fields as es_fields
 from django_opensearch_dsl.registries import registry
 
+from feed.models import FeedEntry
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -20,9 +22,8 @@ logger = logging.getLogger(__name__)
 class PostDocument(BaseDocument):
     auto_refresh = True
     hubs_flat = es_fields.TextField()
-    hot_score = es_fields.IntegerField(attr="hot_score")
+    hot_score_v2 = es_fields.IntegerField()
     score = es_fields.IntegerField(attr="score")
-    discussion_count = es_fields.IntegerField(attr="discussion_count")
     unified_document_id = es_fields.IntegerField(attr="unified_document_id")
     created_date = es_fields.DateField(attr="created_date")
     updated_date = es_fields.DateField(attr="updated_date")
@@ -76,6 +77,19 @@ class PostDocument(BaseDocument):
         """Prepare flat list of hub names for indexing."""
         return [hub.name for hub in instance.hubs.all()]
 
+    def prepare_hot_score_v2(self, instance) -> int:
+        try:
+            post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
+            feed_entry = FeedEntry.objects.filter(
+                content_type=post_content_type,
+                object_id=instance.id,
+            ).first()
+            if feed_entry:
+                return feed_entry.hot_score_v2
+        except Exception:
+            pass
+        return 0
+
     class Index:
         name = "post"
 
@@ -119,10 +133,11 @@ class PostDocument(BaseDocument):
 
         # Assign weight based on how "hot" the post is
         weight = 1
-        if instance.unified_document.hot_score > 0:
-            # Scale down the hot score from 1 - 100 to avoid a huge range
+        hot_score_v2 = self.prepare_hot_score_v2(instance)
+        if hot_score_v2 > 0:
+            # Scale down the hot score to avoid a huge range
             # of values that could result in bad suggestions
-            weight = int(math.log(instance.unified_document.hot_score, 10) * 10)
+            weight = int(math.log(hot_score_v2, 10) * 10)
 
         return {
             "input": list(set(phrases)),  # Dedupe using set

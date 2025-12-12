@@ -26,6 +26,7 @@ class TestXClient(TestCase):
 
         self.assertIs(client1, client2)
 
+    @patch("paper.ingestion.clients.enrichment.x.settings.X_BEARER_TOKEN", None)
     def test_init_no_bearer_token(self):
         """Test initialization without bearer token."""
         # Reset singleton to test fresh initialization
@@ -224,21 +225,22 @@ class TestXMetricsClient(TestCase):
             ]
         }
 
-        result = self.metrics_client.get_metrics("10.1038/test")
+        result = self.metrics_client.get_metrics(["10.1038/test"])
 
         self.assertIsNotNone(result)
         self.assertEqual(result["post_count"], 1)
         self.assertEqual(result["total_likes"], 10)
         self.assertEqual(result["total_impressions"], 100)
+        self.assertEqual(result["terms"], ["10.1038/test"])
         self.x_client.search_posts.assert_called_once_with(
-            query="10.1038/test", max_results=100
+            query='"10.1038/test"', max_results=100
         )
 
     def test_get_metrics_no_posts(self):
         """Test metrics retrieval when no posts found."""
         self.x_client.search_posts.return_value = {"posts": []}
 
-        result = self.metrics_client.get_metrics("10.1038/nonexistent")
+        result = self.metrics_client.get_metrics(["10.1038/nonexistent"])
 
         self.assertIsNone(result)
 
@@ -246,7 +248,7 @@ class TestXMetricsClient(TestCase):
         """Test metrics retrieval when API returns None."""
         self.x_client.search_posts.return_value = None
 
-        result = self.metrics_client.get_metrics("10.1038/test")
+        result = self.metrics_client.get_metrics(["10.1038/test"])
 
         self.assertIsNone(result)
 
@@ -254,7 +256,7 @@ class TestXMetricsClient(TestCase):
         """Test metrics retrieval when API raises exception."""
         self.x_client.search_posts.side_effect = Exception("API Error")
 
-        result = self.metrics_client.get_metrics("10.1038/test")
+        result = self.metrics_client.get_metrics(["10.1038/test"])
 
         self.assertIsNone(result)
 
@@ -262,8 +264,58 @@ class TestXMetricsClient(TestCase):
         """Test metrics retrieval with custom result limit."""
         self.x_client.search_posts.return_value = {"posts": []}
 
-        self.metrics_client.get_metrics("10.1038/test", max_results=50)
+        self.metrics_client.get_metrics(["10.1038/test"], max_results=50)
 
         self.x_client.search_posts.assert_called_once_with(
-            query="10.1038/test", max_results=50
+            query='"10.1038/test"', max_results=50
         )
+
+    def test_get_metrics_with_bot_filtering(self):
+        """Test metrics retrieval with bot account filtering."""
+        self.x_client.search_posts.return_value = {"posts": []}
+
+        self.metrics_client.get_metrics(
+            ["10.1038/test"],
+            external_source="biorxiv",
+            hub_slugs=["neuroscience", "genetics"],
+        )
+
+        # Verify the query includes bot exclusions
+        call_args = self.x_client.search_posts.call_args
+        query = call_args.kwargs["query"]
+        # Should exclude general biorxiv bots and category-specific bots
+        self.assertIn("-from:", query)
+        self.assertIn("10.1038/test", query)
+
+    def test_get_metrics_with_multiple_terms(self):
+        """Test metrics retrieval with multiple terms (DOI and title)."""
+        self.x_client.search_posts.return_value = {
+            "posts": [
+                {
+                    "id": "123",
+                    "text": "Paper link",
+                    "author_id": "user1",
+                    "created_at": "2024-01-15T10:30:00Z",
+                    "like_count": 10,
+                    "repost_count": 5,
+                    "reply_count": 2,
+                    "quote_count": 1,
+                    "impression_count": 100,
+                }
+            ]
+        }
+
+        result = self.metrics_client.get_metrics(
+            ["10.1038/test", "A Novel Machine Learning Approach"]
+        )
+
+        self.assertIsNotNone(result)
+        self.assertEqual(
+            result["terms"], ["10.1038/test", "A Novel Machine Learning Approach"]
+        )
+        # Verify OR logic is used in the query
+        call_args = self.x_client.search_posts.call_args
+        query = call_args.kwargs["query"]
+        self.assertIn('"10.1038/test"', query)
+        self.assertIn('"A Novel Machine Learning Approach"', query)
+        self.assertIn(" OR ", query)

@@ -4,58 +4,100 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
 from discussion.models import Vote
-from paper.models import Paper
+from hub.tests.helpers import create_hub
 from researchhub_document.helpers import create_post
 from researchhub_document.models import ResearchhubUnifiedDocument
 from user.tests.helpers import create_random_default_user
 
 
-class PaperSignalTests(TestCase):
-    @patch("personalize.signals.paper_signals.sync_paper_to_personalize_task")
-    def test_signal_queues_task_on_paper_creation(self, mock_task):
+class UnifiedDocumentSignalTests(TestCase):
+    """Tests for unified document hub changes triggering personalize sync."""
+
+    @patch(
+        "personalize.signals.unified_document_signals"
+        ".sync_unified_document_to_personalize_task"
+    )
+    def test_signal_queues_task_when_hubs_added(self, mock_sync_task):
+        """Adding hubs to a unified document should queue the sync task."""
         unified_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type="PAPER", is_removed=False
+            document_type="DISCUSSION", is_removed=False
+        )
+        hub = create_hub(name="Test Hub")
+
+        mock_sync_task.reset_mock()
+
+        # Adding hub should trigger the signal
+        unified_doc.hubs.add(hub)
+
+        mock_sync_task.delay.assert_called_once_with(unified_doc.id)
+
+    @patch(
+        "personalize.signals.unified_document_signals"
+        ".sync_unified_document_to_personalize_task"
+    )
+    def test_signal_does_not_queue_on_creation_without_hubs(self, mock_sync_task):
+        """Creating a unified document without hubs should not trigger sync."""
+        ResearchhubUnifiedDocument.objects.create(
+            document_type="DISCUSSION", is_removed=False
         )
 
-        paper = Paper.objects.create(
-            title="New Test Paper",
-            paper_title="New Test Paper",
-            unified_document=unified_doc,
-            external_source="test",
-        )
+        mock_sync_task.delay.assert_not_called()
 
-        mock_task.delay.assert_called_once_with(paper.id)
-
-    @patch("personalize.signals.paper_signals.sync_paper_to_personalize_task")
-    def test_signal_skips_on_paper_update(self, mock_task):
+    @patch(
+        "personalize.signals.unified_document_signals"
+        ".sync_unified_document_to_personalize_task"
+    )
+    def test_signal_queues_task_when_hubs_removed(self, mock_sync_task):
+        """Removing hubs should trigger sync to update Personalize."""
         unified_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type="PAPER", is_removed=False
+            document_type="DISCUSSION", is_removed=False
         )
+        hub = create_hub(name="Test Hub Remove")
+        unified_doc.hubs.add(hub)
 
-        paper = Paper.objects.create(
-            title="Test Paper",
-            paper_title="Test Paper",
-            unified_document=unified_doc,
-            external_source="test",
+        mock_sync_task.reset_mock()
+
+        # Removing hub should trigger the signal
+        unified_doc.hubs.remove(hub)
+
+        mock_sync_task.delay.assert_called_once_with(unified_doc.id)
+
+    @patch(
+        "personalize.signals.unified_document_signals"
+        ".sync_unified_document_to_personalize_task"
+    )
+    def test_signal_queues_task_when_hubs_cleared(self, mock_sync_task):
+        """Clearing all hubs should trigger sync to update Personalize."""
+        unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="DISCUSSION", is_removed=False
         )
+        hub1 = create_hub(name="Test Hub Clear 1")
+        hub2 = create_hub(name="Test Hub Clear 2")
+        unified_doc.hubs.add(hub1, hub2)
 
-        mock_task.reset_mock()
+        mock_sync_task.reset_mock()
 
-        paper.title = "Updated Title"
-        paper.save()
+        # Clearing hubs should trigger the signal
+        unified_doc.hubs.clear()
 
-        mock_task.delay.assert_not_called()
+        mock_sync_task.delay.assert_called_once_with(unified_doc.id)
 
-    @patch("personalize.signals.paper_signals.sync_paper_to_personalize_task")
-    def test_signal_skips_paper_without_unified_doc(self, mock_task):
-        Paper.objects.create(
-            title="Paper Without Unified Doc",
-            paper_title="Paper Without Unified Doc",
-            external_source="test",
-            unified_document=None,
-        )
+    @patch(
+        "personalize.signals.unified_document_signals"
+        ".sync_unified_document_to_personalize_task"
+    )
+    def test_signal_triggers_when_hubs_added_to_post(self, mock_sync_task):
+        """Adding hubs to a post's unified document queues the sync task."""
+        user = create_random_default_user("post_signal_user")
+        post = create_post(created_by=user)
+        hub = create_hub(name="Post Hub")
 
-        mock_task.delay.assert_not_called()
+        mock_sync_task.reset_mock()
+
+        # Adding hub should trigger the signal
+        post.unified_document.hubs.add(hub)
+
+        mock_sync_task.delay.assert_called_with(post.unified_document.id)
 
 
 class VoteSignalTests(TestCase):
