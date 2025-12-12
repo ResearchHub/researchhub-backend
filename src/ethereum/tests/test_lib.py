@@ -1,6 +1,5 @@
 from unittest.mock import Mock, call, patch
 
-from django.conf import settings
 from django.test import TestCase, override_settings
 
 from ethereum.lib import convert_reputation_amount_to_token_amount, get_private_key
