@@ -9,10 +9,10 @@ from django.utils import timezone
 
 from analytics.constants.event_types import PAGE_VIEW
 from analytics.models import UserInteractions
-from analytics.tests.helpers import create_prefetched_paper
 from hub.models import Hub
 from hub.tests.helpers import create_hub
 from personalize.services.sync_service import SyncService
+from personalize.tests.helpers import create_prefetched_paper
 from researchhub_document.helpers import create_post
 
 User = get_user_model()

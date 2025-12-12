@@ -7,15 +7,6 @@ from datetime import datetime
 import pytz
 from django.test import TestCase
 
-from analytics.tests.helpers import (
-    create_author,
-    create_batch_data,
-    create_hub_with_namespace,
-    create_prefetched_grant,
-    create_prefetched_paper,
-    create_prefetched_post,
-    create_prefetched_proposal,
-)
 from hub.models import Hub
 from personalize.config.constants import (
     BLUESKY_COUNT_TOTAL,
@@ -43,6 +34,15 @@ from personalize.config.constants import (
     UPVOTE_SCORE,
 )
 from personalize.services.item_mapper import ItemMapper
+from personalize.tests.helpers import (
+    create_author,
+    create_batch_data,
+    create_hub_with_namespace,
+    create_prefetched_grant,
+    create_prefetched_paper,
+    create_prefetched_post,
+    create_prefetched_proposal,
+)
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     QUESTION,

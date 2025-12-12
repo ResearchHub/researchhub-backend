@@ -1,8 +1,8 @@
 """
-Test helper functions for creating Personalize export test data.
+Test helper functions for creating Personalize test data.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
 
 import pytz
@@ -11,7 +11,6 @@ from django.contrib.contenttypes.models import ContentType
 from hub.models import Hub
 from paper.models import Paper
 from paper.related_models.authorship_model import Authorship
-from personalize.config.constants import DELIMITER
 from purchase.models import Fundraise, Grant, GrantApplication, Purchase
 from reputation.models import Bounty, BountySolution, Escrow
 from researchhub_document.helpers import create_post
@@ -23,10 +22,7 @@ from researchhub_document.related_models.constants.document_type import (
 from researchhub_document.related_models.constants.document_type import (
     PAPER as PAPER_DOC_TYPE,
 )
-from researchhub_document.related_models.constants.document_type import (
-    PREREGISTRATION,
-    QUESTION,
-)
+from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from user.models import Author, User
 
 
@@ -371,11 +367,6 @@ def create_bounty_solution(bounty, user=None):
 
 def create_grant_application(grant, user=None):
     """Create an application for a grant."""
-    from researchhub_document.helpers import create_post
-    from researchhub_document.related_models.constants.document_type import (
-        PREREGISTRATION,
-    )
-
     if user is None:
         user = User.objects.create_user(
             username=f"applicant_{datetime.now().timestamp()}",

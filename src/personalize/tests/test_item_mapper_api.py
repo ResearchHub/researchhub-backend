@@ -2,13 +2,13 @@ import json
 
 from django.test import TestCase
 
-from analytics.tests.helpers import (
+from hub.models import Hub
+from personalize.services.item_mapper import ItemMapper
+from personalize.tests.helpers import (
     create_batch_data,
     create_hub_with_namespace,
     create_prefetched_paper,
 )
-from hub.models import Hub
-from personalize.services.item_mapper import ItemMapper
 
 
 class ApiItemMappingTests(TestCase):
