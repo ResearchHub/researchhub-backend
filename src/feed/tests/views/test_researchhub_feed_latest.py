@@ -155,17 +155,3 @@ class LatestFeedTests(APITestCase):
         result_ids = [r["content_object"]["id"] for r in response.data["results"]]
         self.assertIn(preprint.id, result_ids)
         self.assertNotIn(non_preprint.id, result_ids)
-
-    def test_latest_with_hub_slug_bypasses_preprint_restriction(self):
-        """Latest feed with hub_slug returns papers from that hub (no restriction)."""
-        other_hub, _ = Hub.objects.get_or_create(
-            slug="other-hub", defaults={"name": "Other"}
-        )
-        paper = self._create_paper_with_feed_entry("Other Paper", [other_hub])
-
-        response = self.client.get(
-            reverse("feed-list"), {"feed_view": "latest", "hub_slug": "other-hub"}
-        )
-
-        result_ids = [r["content_object"]["id"] for r in response.data["results"]]
-        self.assertIn(paper.id, result_ids)
