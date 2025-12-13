@@ -24,6 +24,7 @@ QUEUE_HOT_SCORE = "hot_score"
 QUEUE_ELASTIC_SEARCH = "elastic_search"
 QUEUE_EXTERNAL_REPORTING = "external_reporting"
 QUEUE_NOTIFICATION = "notifications"
+QUEUE_PAPER_METRICS = "paper_metrics"
 QUEUE_PAPER_MISC = "paper_misc"
 QUEUE_PULL_PAPERS = "pull_papers"
 QUEUE_LOGS = "logs"
@@ -184,7 +185,7 @@ app.conf.beat_schedule = {
         "schedule": crontab(hour=7, minute=0),
         "options": {
             "priority": 2,
-            "queue": QUEUE_PAPER_MISC,
+            "queue": QUEUE_PAPER_METRICS,
         },
     },
     "paper-bluesky-metrics-update": {
@@ -193,7 +194,7 @@ app.conf.beat_schedule = {
         "schedule": crontab(hour=10, minute=0),
         "options": {
             "priority": 2,
-            "queue": QUEUE_PAPER_MISC,
+            "queue": QUEUE_PAPER_METRICS,
         },
     },
     "paper-x-metrics-update": {
@@ -202,7 +203,7 @@ app.conf.beat_schedule = {
         "schedule": crontab(hour=13, minute=0),
         "options": {
             "priority": 2,
-            "queue": QUEUE_PAPER_MISC,
+            "queue": QUEUE_PAPER_METRICS,
         },
     },
 }
