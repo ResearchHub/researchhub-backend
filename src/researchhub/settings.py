@@ -113,6 +113,7 @@ if not (PRODUCTION or STAGING):
     DEBUG = True
 
 ALLOWED_HOSTS = [
+    ".compute.amazonaws.com",
     ".elasticbeanstalk.com",
     ".researchhub.com",
     "127.0.0.1",  # localhost
