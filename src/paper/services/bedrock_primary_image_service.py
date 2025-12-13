@@ -17,14 +17,14 @@ BEDROCK_MODEL_ID = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
 BEDROCK_ANTHROPIC_VERSION = "bedrock-2023-05-31"
 
 # Figure selection criteria weights
-ASPECT_RATIO_MATCH_WEIGHT = 8
-SCIENTIFIC_IMPACT_WEIGHT = 18
-VISUAL_QUALITY_WEIGHT = 18
-DATA_DENSITY_WEIGHT = 8
-NARRATIVE_CONTEXT_WEIGHT = 18
-INTERPRETABILITY_WEIGHT = 12
-UNIQUENESS_WEIGHT = 5
-SOCIAL_MEDIA_POTENTIAL_WEIGHT = 20
+ASPECT_RATIO_MATCH_WEIGHT = 10
+SCIENTIFIC_IMPACT_WEIGHT = 12
+VISUAL_QUALITY_WEIGHT = 15
+NARRATIVE_CONTEXT_WEIGHT = 22
+INTERPRETABILITY_WEIGHT = 15
+COMPLETENESS_WEIGHT = 12
+VISUAL_WEIGHT_WEIGHT = 8
+SOCIAL_MEDIA_POTENTIAL_WEIGHT = 6
 
 # If the best figure scores below this, we'll use a preview instead
 MIN_PRIMARY_SCORE_THRESHOLD = 70
@@ -32,61 +32,83 @@ MIN_PRIMARY_SCORE_THRESHOLD = 70
 CRITERIA_DESCRIPTIONS = {
     "aspect_ratio_match": {
         "weight": ASPECT_RATIO_MATCH_WEIGHT,
-        "description": ("Compatibility with standard feed dimensions (16:9, 4:3, 1:1)"),
-        "key_metrics": "Distance from ideal ratio",
+        "description": (
+            "Compatibility with card display. Square (1:1) or near-square formats "
+            "are strongly preferred. Wide panoramic or very tall/narrow images "
+            "will be cropped and should score lower"
+        ),
+        "key_metrics": (
+            "1:1 (ideal), 4:3, 3:2 are good; very wide or very tall is poor"
+        ),
     },
     "scientific_impact": {
         "weight": SCIENTIFIC_IMPACT_WEIGHT,
         "description": (
-            "Presents primary findings, conclusions, or key methods of " "the paper"
+            "Presents primary findings, conclusions, or key methods of the paper"
         ),
         "key_metrics": (
-            "Central vs supporting result, methods figures " "(e.g., imaging, staining)"
+            "Central vs supporting result, methods figures (e.g., imaging, staining)"
         ),
     },
     "visual_quality": {
         "weight": VISUAL_QUALITY_WEIGHT,
         "description": (
             "Clarity, resolution, color fidelity, professional appearance, "
-            "readability"
+            "readability at small card size"
         ),
         "key_metrics": (
             "DPI, color depth, artifacts, text size and legibility, contrast"
         ),
     },
-    "data_density": {
-        "weight": DATA_DENSITY_WEIGHT,
-        "description": "Information richness vs white space ratio",
-        "key_metrics": "Dimensions, number of curves/plots",
-    },
     "narrative_context": {
         "weight": NARRATIVE_CONTEXT_WEIGHT,
         "description": (
-            "Ability to serve as paper introduction, overview, or summary " "figure"
+            "Ability to serve as a graphical abstract or high-level overview. "
+            "Figures that summarize the paper's main story, show comparative "
+            "results between groups, or provide a visual introduction are ideal"
         ),
         "key_metrics": (
-            "Structural overview vs detail, provides context for the paper"
+            "Graphical abstract style, overview diagram, comparative visual, "
+            "validates paper conclusions at a glance"
         ),
     },
     "interpretability": {
         "weight": INTERPRETABILITY_WEIGHT,
         "description": (
-            "Self-explanatory legends, labels, intuitive presentation, " "readability"
+            "Can be understood at a glance without reading detailed labels. "
+            "Self-explanatory legends, clear visual hierarchy, intuitive presentation"
         ),
-        "key_metrics": ("Axis labels, color coding clarity, text size and legibility"),
+        "key_metrics": (
+            "Glanceable meaning, visual clarity, color coding, clear groupings"
+        ),
     },
-    "uniqueness": {
-        "weight": UNIQUENESS_WEIGHT,
-        "description": "Data or analysis specific to this paper",
-        "key_metrics": "Appears in other papers",
+    "completeness": {
+        "weight": COMPLETENESS_WEIGHT,
+        "description": (
+            "Figure appears complete and not cropped. All edges should have "
+            "proper margins, tables should not be cut off, text should not be "
+            "truncated at borders. Penalize figures that look like partial crops"
+        ),
+        "key_metrics": (
+            "Clean edges, no cut-off text/tables, proper margins, not a fragment"
+        ),
+    },
+    "visual_weight": {
+        "weight": VISUAL_WEIGHT_WEIGHT,
+        "description": (
+            "Sufficient visual density and line weight to be readable at card size. "
+            "Avoid very thin-lined figures, sparse line charts, or diagrams with "
+            "hairline strokes that become invisible at small sizes"
+        ),
+        "key_metrics": (
+            "Line thickness, visual density, readable at thumbnail size, "
+            "not sparse/thin, has visual substance"
+        ),
     },
     "social_media_potential": {
         "weight": SOCIAL_MEDIA_POTENTIAL_WEIGHT,
-        "description": (
-            "Visual appeal, eye-catching quality for Twitter/Instagram/"
-            "LinkedIn sharing"
-        ),
-        "key_metrics": ("Visual interest, discovery-worthy, stands out, color appeal"),
+        "description": ("Visual appeal and eye-catching quality for feed display"),
+        "key_metrics": ("Visual interest, color appeal, stands out in a feed"),
     },
 }
 
@@ -228,7 +250,7 @@ class BedrockPrimaryImageService:
         prompt = (
             f"""You are an expert at analyzing scientific paper figures """
             f"""and selecting the most appropriate primary image for """
-            f"""display in a research feed.
+            f"""display on a paper card in a research feed.
 
 ## Paper Information
 
@@ -249,38 +271,47 @@ to evaluate an image or return an error message.
 If an image is not related to science or the article content (e.g., a logo,
 avatar, or unrelated illustration), you should still evaluate it, but assign
 low scores (0-30) on criteria like "Scientific Impact" and "Narrative Context"
-since it doesn't relate to the paper's content. Other criteria like "Visual
-Quality" and "Social Media Potential" should still be evaluated based on the
-image's visual appeal.
+since it doesn't relate to the paper's content.
 
-## Selection Priorities
+## Selection Priorities (CRITICAL)
 
-When selecting the best primary image, prioritize figures that are:
+The image will be displayed on a **paper card** at a relatively small size.
+Prioritize figures that work well at card size:
 
-1. **Readable and Clear**: Text should be large enough to read, labels should be
-   legible, and the figure should have good contrast. Small text or poor contrast
-   significantly reduces a figure's value as a cover image.
+### STRONGLY PREFER:
 
-2. **Overview Figures**: Figures that provide an overview, summary, or introduction
-   to the paper are highly valuable. These help readers understand the paper's
-   main contribution at a glance.
+1. **Graphical Abstracts**: High-level overview images that summarize the paper
+   visually. These are IDEAL because they give readers a quick visual summary
+   of the paper's main story at a glance.
 
-3. **Eye-Catching and Visually Appealing**: The figure should stand out and be
-   visually interesting. Good use of color, clear visual hierarchy, and engaging
-   composition make figures more suitable for feed display.
+2. **Comparative Figures**: Figures showing visual differences between treatment
+   groups, conditions, or experimental results. These resonate because viewers
+   can see differences at a glance.
 
-4. **Methods Figures**: Figures showing methods (e.g., imaging, staining,
-   experimental setups, animal models) can be excellent cover images if they are
-   visually appealing and clearly presented. These help readers understand the
-   research approach.
+3. **Square or Near-Square Format**: Figures already in 1:1 or near-square
+   aspect ratios look better on cards and won't be cropped awkwardly.
 
-5. **Representative**: The figure should represent the paper's main findings or
-   approach, but readability and visual appeal are equally important.
+4. **Complete, Uncropped Figures**: Figures that have clean edges and proper
+   margins, where nothing appears cut off.
 
-The goal is to choose the most visually appealing, readable, and representative
-image for display in a research feed. Images that are not science-related will
-naturally score lower overall and won't be selected unless they are exceptionally
-visually appealing and relevant.
+5. **Glanceable Meaning**: Figures that convey meaning without needing to read
+   tiny text. The viewer should understand something about the paper just by
+   looking at the image.
+
+### STRONGLY AVOID:
+
+1. **Cut-off/Cropped Figures**: Figures where tables, text, or content appears
+   to be cut off at edges. This looks unprofessional on a card.
+
+2. **Very Thin-Lined Figures**: Sparse line charts, diagrams with hairline
+   strokes, or figures with very thin lines. These become unreadable at small
+   card sizes and don't convey visual meaning.
+
+3. **Narrow/Wide Aspect Ratios**: Very tall/narrow or wide/short figures will
+   be cropped when displayed, losing important content.
+
+4. **Dense Text Tables**: Tables full of numbers without visual representation
+   don't work well as card images.
 
 Your task is to evaluate each image based on the scoring criteria below and select
 the best primary image. Always return valid JSON with scores for all images.
@@ -295,10 +326,9 @@ the best primary image. Always return valid JSON with scores for all images.
    Never refuse to evaluate an image or return an error message. If an image
    is not science-related or not relevant to the article:
    - Assign low scores (0-30) to "Scientific Impact" and "Narrative Context"
-   - Still evaluate other criteria (Visual Quality, Social Media Potential,
-     etc.) based on the image's actual visual appeal
+   - Still evaluate other criteria based on the image's actual visual appeal
    - The low scores will naturally prevent non-relevant images from being
-     selected unless they are exceptionally visually appealing
+     selected
 
    **Scoring Guidelines:**
    - 0-30: Poor - figure does not meet the criterion well
@@ -308,20 +338,29 @@ the best primary image. Always return valid JSON with scores for all images.
    - 86-100: Excellent - figure exceeds the criterion
 
    **Be conservative in your scoring.** Most figures should score in the
-   40-70 range. Only exceptional figures should score above 80. Reserve
-   scores above 90 for truly outstanding figures that are ideal for feed
-   display.
+   40-70 range. Only exceptional figures should score above 80.
 
-   **Special Considerations:**
-   - **Readability**: If text is too small to read or contrast is poor,
-     significantly reduce scores for Visual Quality and Interpretability (20-40).
-   - **Overview Figures**: If a figure provides a good overview or summary,
-     give higher scores for Narrative Context (70-90).
-   - **Eye-Catching**: If a figure is particularly visually striking or
-     eye-catching, give higher scores for Social Media Potential (75-95).
-   - **Methods Figures**: Methods figures (imaging, staining, experimental
-     setups) can score well on Scientific Impact (60-80) if they clearly
-     represent the research approach.
+   **Key Scoring Rules:**
+
+   - **Graphical Abstracts**: If a figure is a graphical abstract or high-level
+     overview diagram, give HIGH scores for Narrative Context (80-95).
+
+   - **Comparative Visuals**: Figures showing clear visual comparisons between
+     groups/conditions should score well on Narrative Context (70-85).
+
+   - **Cropped/Cut-off Figures**: If content appears cut off at edges (tables
+     truncated, text clipped, data missing at borders), give LOW Completeness
+     scores (10-30). This is a critical penalty.
+
+   - **Thin-Lined Figures**: Sparse line charts or diagrams with very thin
+     lines that won't be visible at card size should get LOW Visual Weight
+     scores (10-35).
+
+   - **Square Aspect Ratio**: Figures already in square or near-square format
+     should get higher Aspect Ratio Match scores (75-95).
+
+   - **Glanceability**: If you can understand the figure's message without
+     reading text, give higher Interpretability scores (70-90).
 
 2. Calculate the weighted total score by multiplying each criterion score by
    its weight percentage and summing them. The total_score should be a value
