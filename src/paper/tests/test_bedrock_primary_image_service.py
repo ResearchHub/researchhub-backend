@@ -1,5 +1,4 @@
 import base64
-import json
 from io import BytesIO
 from unittest.mock import MagicMock, patch
 
@@ -138,36 +137,28 @@ class BedrockPrimaryImageServiceTests(TestCase):
         figure1 = self._create_test_figure()
         figure2 = self._create_test_figure()
 
-        # Mock Bedrock response
-        response_data = json.dumps(
-            {
-                "content": [
-                    {
-                        "type": "text",
-                        "text": json.dumps(
-                            {
-                                "selected_figure_index": 0,
-                                "scores": {
-                                    "figure_0": {
-                                        "total_score": 75.5,
-                                        "scientific_impact": 80,
-                                        "visual_quality": 70,
-                                    },
-                                    "figure_1": {
-                                        "total_score": 65.0,
-                                        "scientific_impact": 70,
-                                        "visual_quality": 60,
+        # Mock Bedrock Converse API response with Tool Use
+        mock_response = {
+            "output": {
+                "message": {
+                    "content": [
+                        {
+                            "toolUse": {
+                                "name": "evaluate_figures",
+                                "input": {
+                                    "selected_figure_index": 0,
+                                    "scores": {
+                                        "figure_0": 75.5,
+                                        "figure_1": 65.0,
                                     },
                                 },
-                                "reasoning": "Figure 0 is better",
                             }
-                        ),
-                    }
-                ]
+                        }
+                    ]
+                }
             }
-        ).encode()
-        mock_response = {"body": BytesIO(response_data)}
-        mock_client.invoke_model.return_value = mock_response
+        }
+        mock_client.converse.return_value = mock_response
 
         # Create new service instance to use mocked client
         service = BedrockPrimaryImageService()
@@ -180,32 +171,36 @@ class BedrockPrimaryImageServiceTests(TestCase):
         self.assertEqual(score, 75.5)
 
     @patch("paper.services.bedrock_primary_image_service.create_client")
-    def test_select_best_from_batch_json_in_markdown(self, mock_create_client):
-        """Test parsing JSON from markdown code blocks."""
+    def test_select_best_from_batch_tool_use_response(self, mock_create_client):
+        """Test parsing Tool Use response from Converse API."""
         mock_client = MagicMock()
         mock_create_client.return_value = mock_client
 
         figure1 = self._create_test_figure()
         figure2 = self._create_test_figure()
 
-        # Mock response with JSON in markdown
-        response_text = (
-            "```json\n"
-            + json.dumps(
-                {
-                    "selected_figure_index": 1,
-                    "scores": {
-                        "figure_1": {"total_score": 80.0},
-                    },
+        # Mock Converse API response with Tool Use
+        mock_response = {
+            "output": {
+                "message": {
+                    "content": [
+                        {
+                            "toolUse": {
+                                "name": "evaluate_figures",
+                                "input": {
+                                    "selected_figure_index": 1,
+                                    "scores": {
+                                        "figure_0": 70.0,
+                                        "figure_1": 80.0,
+                                    },
+                                },
+                            }
+                        }
+                    ]
                 }
-            )
-            + "\n```"
-        )
-        response_data = json.dumps(
-            {"content": [{"type": "text", "text": response_text}]}
-        ).encode()
-        mock_response = {"body": BytesIO(response_data)}
-        mock_client.invoke_model.return_value = mock_response
+            }
+        }
+        mock_client.converse.return_value = mock_response
 
         service = BedrockPrimaryImageService()
 
@@ -259,26 +254,29 @@ class BedrockPrimaryImageServiceTests(TestCase):
         figure1 = self._create_test_figure()
         figure2 = self._create_test_figure()
 
-        # Mock Bedrock response
-        response_data = json.dumps(
-            {
-                "content": [
-                    {
-                        "type": "text",
-                        "text": json.dumps(
-                            {
-                                "selected_figure_index": 0,
-                                "scores": {
-                                    "figure_0": {"total_score": 75.0},
+        # Mock Bedrock Converse API response
+        mock_response = {
+            "output": {
+                "message": {
+                    "content": [
+                        {
+                            "toolUse": {
+                                "name": "evaluate_figures",
+                                "input": {
+                                    "selected_figure_index": 0,
+                                    "scores": {
+                                        "figure_0": 75.0,
+                                        "figure_1": 65.0,
+                                    },
                                 },
                             }
-                        ),
-                    }
-                ]
+                        }
+                    ]
+                }
             }
-        ).encode()
+        }
 
-        self.mock_client.invoke_model.return_value = {"body": BytesIO(response_data)}
+        self.mock_client.converse.return_value = mock_response
 
         service = BedrockPrimaryImageService()
 
@@ -301,32 +299,36 @@ class BedrockPrimaryImageServiceTests(TestCase):
             for _ in range(MAX_IMAGES_PER_BEDROCK_REQUEST + 5)
         ]
 
-        # Mock responses for batches
-        def mock_invoke_model(modelId, body):
+        # Mock responses for batches using Converse API format
+        def mock_converse(modelId, system, messages, toolConfig, inferenceConfig):
             selected_index = 0
+            # Create scores for all figures in the batch
+            # Each figure has image + text, so divide by 2
+            num_figures = len(messages[0]["content"]) // 2
+            scores = {
+                f"figure_{i}": 70.0 if i == selected_index else 60.0
+                for i in range(num_figures)
+            }
 
-            response_data = json.dumps(
-                {
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": json.dumps(
-                                {
-                                    "selected_figure_index": selected_index,
-                                    "scores": {
-                                        f"figure_{selected_index}": {
-                                            "total_score": 70.0
-                                        },
+            return {
+                "output": {
+                    "message": {
+                        "content": [
+                            {
+                                "toolUse": {
+                                    "name": "evaluate_figures",
+                                    "input": {
+                                        "selected_figure_index": selected_index,
+                                        "scores": scores,
                                     },
                                 }
-                            ),
-                        }
-                    ]
+                            }
+                        ]
+                    }
                 }
-            ).encode()
-            return {"body": BytesIO(response_data)}
+            }
 
-        mock_client.invoke_model.side_effect = mock_invoke_model
+        mock_client.converse.side_effect = mock_converse
 
         service = BedrockPrimaryImageService()
 
@@ -338,4 +340,51 @@ class BedrockPrimaryImageServiceTests(TestCase):
         self.assertIsNotNone(selected_id)
         self.assertIsNotNone(score)
         # Should have called Bedrock multiple times (for batches and final selection)
-        self.assertGreater(mock_client.invoke_model.call_count, 1)
+        self.assertGreater(mock_client.converse.call_count, 1)
+
+    @patch("paper.services.bedrock_primary_image_service.create_client")
+    def test_select_best_from_batch_missing_tool_use(self, mock_create_client):
+        """Test handling when Tool Use response is missing."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+
+        figure1 = self._create_test_figure()
+        figure2 = self._create_test_figure()
+
+        # Mock response without tool use
+        mock_response = {
+            "output": {
+                "message": {"content": [{"type": "text", "text": "Some text response"}]}
+            }
+        }
+        mock_client.converse.return_value = mock_response
+
+        service = BedrockPrimaryImageService()
+
+        selected_id, score = service._select_best_from_batch(
+            [figure1, figure2], "Test Title", "Test Abstract"
+        )
+
+        self.assertIsNone(selected_id)
+        self.assertIsNone(score)
+
+    @patch("paper.services.bedrock_primary_image_service.create_client")
+    def test_select_best_from_batch_missing_output(self, mock_create_client):
+        """Test handling when output is missing from response."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+
+        figure1 = self._create_test_figure()
+
+        # Mock response without output
+        mock_response = {}
+        mock_client.converse.return_value = mock_response
+
+        service = BedrockPrimaryImageService()
+
+        selected_id, score = service._select_best_from_batch(
+            [figure1], "Test Title", "Test Abstract"
+        )
+
+        self.assertIsNone(selected_id)
+        self.assertIsNone(score)

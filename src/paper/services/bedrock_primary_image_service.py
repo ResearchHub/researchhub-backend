@@ -1,7 +1,5 @@
 import base64
-import json
 import logging
-import re
 from io import BytesIO
 from typing import List, Optional, Tuple
 
@@ -334,21 +332,14 @@ the best primary image. Always return valid JSON with scores for all images.
    {{
      "selected_figure_index": <0-based index of selected figure>,
      "scores": {{
-       "figure_0": {{
-         "aspect_ratio_match": <score>,
-         "scientific_impact": <score>,
-         "visual_quality": <score>,
-         "data_density": <score>,
-         "narrative_context": <score>,
-         "interpretability": <score>,
-         "uniqueness": <score>,
-         "social_media_potential": <score>,
-         "total_score": <weighted total>
-       }},
+       "figure_0": <total weighted score (0-100)>,
+       "figure_1": <total weighted score (0-100)>,
        ...
-     }},
-     "reasoning": "<brief explanation of why this figure was selected>"
+     }}
    }}
+
+   Note: You must evaluate all 8 criteria internally, but only return the
+   total weighted score for each figure in the response.
 
 Each image will be labeled as "Figure 0", "Figure 1", etc. in the order they
 appear.
@@ -360,6 +351,44 @@ on other criteria."""
         )
 
         return prompt
+
+    def _get_response_schema(self, num_figures: int) -> dict:
+        """
+        Generate simplified JSON schema for the expected response structure.
+
+        Only returns figure index => total score mapping, minimizing output tokens.
+        """
+        # Build schema for scores: figure_X => total_score (number)
+        scores_properties = {}
+        scores_required = []
+        for i in range(num_figures):
+            figure_key = f"figure_{i}"
+            scores_properties[figure_key] = {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100,
+                "description": f"Total weighted score for figure {i}",
+            }
+            scores_required.append(figure_key)
+
+        return {
+            "type": "object",
+            "properties": {
+                "selected_figure_index": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": num_figures - 1,
+                    "description": "0-based index of the selected figure",
+                },
+                "scores": {
+                    "type": "object",
+                    "properties": scores_properties,
+                    "required": scores_required,
+                    "additionalProperties": False,
+                },
+            },
+            "required": ["selected_figure_index", "scores"],
+        }
 
     def _select_best_from_batch(
         self,
@@ -403,9 +432,10 @@ on other criteria."""
             prompt_text = self._build_prompt(
                 paper_title, paper_abstract, len(batch_figures)
             )
-            user_content.append({"type": "text", "text": prompt_text})
+            user_content.append({"text": prompt_text})
 
             # Add each figure as image content block
+            figures_added = 0
             for idx, figure in enumerate(batch_figures):
                 encoded_result = self._encode_image_to_base64(figure)
                 if encoded_result is None:
@@ -414,138 +444,138 @@ on other criteria."""
 
                 base64_image, media_type = encoded_result
 
+                image_format = "jpeg"
+                if media_type == "image/png":
+                    image_format = "png"
+                elif media_type == "image/gif":
+                    image_format = "gif"
+                elif media_type == "image/webp":
+                    image_format = "webp"
+
                 user_content.append(
                     {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": base64_image,
+                        "image": {
+                            "format": image_format,
+                            "source": {
+                                "bytes": base64.b64decode(base64_image),
+                            },
                         },
                     }
                 )
 
-                user_content.append(
-                    {
-                        "type": "text",
-                        "text": f"Figure {idx}",
-                    }
-                )
+                user_content.append({"text": f"Figure {idx}"})
+                figures_added += 1
 
-            if not any(item.get("type") == "image" for item in user_content):
+            if figures_added == 0:
                 logger.error(f"No figures could be encoded for {batch_label}")
                 return None, None
 
-            request_body = {
-                "anthropic_version": self.anthropic_version,
-                "max_tokens": 4096,
-                "system": system_prompt,
-                "messages": [
+            response_schema = self._get_response_schema(len(batch_figures))
+            tools = [
+                {
+                    "toolSpec": {
+                        "name": "evaluate_figures",
+                        "description": (
+                            "Evaluates scientific figures and returns structured "
+                            "scores and selection. Use this tool to provide your "
+                            "evaluation results."
+                        ),
+                        "inputSchema": {
+                            "json": response_schema,
+                        },
+                    }
+                }
+            ]
+
+            logger.info(
+                f"Invoking Bedrock Converse API with Tool Use for {batch_label} "
+                f"({len(batch_figures)} figures)"
+            )
+
+            # Use Converse API with Tool Use for structured responses
+            response = self.bedrock_client.converse(
+                modelId=self.model_id,
+                system=[{"text": system_prompt}],
+                messages=[
                     {
                         "role": "user",
                         "content": user_content,
                     }
                 ],
-            }
+                toolConfig={
+                    "tools": tools,
+                },
+                inferenceConfig={
+                    "maxTokens": 4096,
+                    "temperature": 0.0,
+                },
+            )
+
+            if "output" not in response or not response["output"].get("message"):
+                logger.error(
+                    f"Invalid response from Bedrock for {batch_label}: "
+                    f"missing output message"
+                )
+                return None, None
+
+            message = response["output"]["message"]
+            content = message.get("content", [])
+
+            tool_result = None
+            for content_block in content:
+                if content_block.get("toolUse"):
+                    tool_use = content_block["toolUse"]
+                    if tool_use.get("name") == "evaluate_figures":
+                        tool_result = tool_use.get("input")
+                        break
+
+            if tool_result is None:
+                logger.error(
+                    f"Bedrock response for {batch_label} missing tool use result. "
+                    f"Response content: {content}",
+                )
+                return None, None
+
+            result = tool_result
+            selected_index = result.get("selected_figure_index")
+
+            if selected_index is None:
+                logger.error(
+                    f"Bedrock response for {batch_label} missing "
+                    f"selected_figure_index"
+                )
+                return None, None
+
+            if selected_index < 0 or selected_index >= len(batch_figures):
+                logger.error(
+                    f"Invalid figure index {selected_index} for {batch_label} "
+                    f"(must be 0-{len(batch_figures)-1})"
+                )
+                return None, None
+
+            selected_figure = batch_figures[selected_index]
+
+            scores = result.get("scores", {})
+            figure_key = f"figure_{selected_index}"
+            best_score = scores.get(figure_key)
+
+            if best_score is None:
+                logger.warning(
+                    f"Bedrock response for {batch_label} missing score "
+                    f"for selected figure {selected_index}"
+                )
 
             logger.info(
-                f"Invoking Bedrock model {self.model_id} for {batch_label} "
-                f"({len(batch_figures)} figures)"
+                f"Bedrock selected figure index {selected_index} from "
+                f"{batch_label} (figure ID: {selected_figure.id}, "
+                f"score: {best_score})"
             )
 
-            response = self.bedrock_client.invoke_model(
-                modelId=self.model_id,
-                body=json.dumps(request_body),
-            )
-
-            response_body = json.loads(response["body"].read())
-
-            if "content" not in response_body:
-                logger.error(
-                    f"Invalid response from Bedrock for {batch_label}: missing content"
-                )
-                return None, None
-
-            text_content = ""
-            for content_block in response_body["content"]:
-                if content_block.get("type") == "text":
-                    text_content += content_block.get("text", "")
-
-            # Parse JSON from response
-            try:
-                # Extract JSON from response (may be wrapped in markdown code blocks)
-                if "```json" in text_content:
-                    json_start = text_content.find("```json") + 7
-                    json_end = text_content.find("```", json_start)
-                    json_text = text_content[json_start:json_end].strip()
-                elif "```" in text_content:
-                    json_start = text_content.find("```") + 3
-                    json_end = text_content.find("```", json_start)
-                    json_text = text_content[json_start:json_end].strip()
-                else:
-                    # Try to find JSON object in the text
-                    json_start = text_content.find("{")
-                    json_end = text_content.rfind("}") + 1
-                    json_text = text_content[json_start:json_end]
-
-                # Clean up control characters that might break JSON parsing
-                json_text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", json_text)
-
-                # Remove any text before the first {
-                if "{" in json_text:
-                    json_text = "{" + json_text.split("{", 1)[1]
-
-                result = json.loads(json_text)
-                selected_index = result.get("selected_figure_index")
-
-                if selected_index is None:
-                    logger.error(
-                        f"Bedrock response for {batch_label} missing "
-                        f"selected_figure_index"
-                    )
-                    return None, None
-
-                if selected_index < 0 or selected_index >= len(batch_figures):
-                    logger.error(
-                        f"Invalid figure index {selected_index} for {batch_label} "
-                        f"(must be 0-{len(batch_figures)-1})"
-                    )
-                    return None, None
-
-                selected_figure = batch_figures[selected_index]
-
-                scores = result.get("scores", {})
-                figure_key = f"figure_{selected_index}"
-                best_score = None
-                if figure_key in scores and "total_score" in scores[figure_key]:
-                    best_score = scores[figure_key]["total_score"]
-
-                logger.info(
-                    f"Bedrock selected figure index {selected_index} from "
-                    f"{batch_label} (figure ID: {selected_figure.id}, "
-                    f"score: {best_score})"
-                )
-
-                if "reasoning" in result:
-                    logger.debug(
-                        f"{batch_label} selection reasoning: {result['reasoning']}"
-                    )
-
-                return selected_figure.id, best_score
-
-            except json.JSONDecodeError as e:
-
-                sentry.log_error(
-                    e,
-                    message=(
-                        f"Failed to parse JSON from Bedrock response "
-                        f"for {batch_label}"
-                    ),
-                )
-                return None, None
+            return selected_figure.id, best_score
 
         except Exception as e:
             sentry.log_error(e, message=f"Bedrock API call failed for {batch_label}")
+            logger.exception(f"Exception details for {batch_label}")
             return None, None
 
     def select_primary_image(
@@ -589,7 +619,7 @@ on other criteria."""
 
         batches = []
         for i in range(0, num_figures, MAX_IMAGES_PER_BEDROCK_REQUEST):
-            batch = figures[i : i + MAX_IMAGES_PER_BEDROCK_REQUEST]
+            batch = figures[i : i + MAX_IMAGES_PER_BEDROCK_REQUEST]  # noqa: E203
             batches.append(batch)
 
         batch_sizes = [len(batch) for batch in batches]

@@ -64,7 +64,6 @@ def download_pdf(paper_id, retry=0):
             # extract_pdf_figures.apply_async(
             #     (paper.id,), {"skip_primary_selection": skip_primary}, priority=6
             # )
-            # Import locally to avoid circular import
             from paper.tasks.figure_tasks import extract_pdf_figures
 
             extract_pdf_figures.apply_async((paper.id,), priority=6)
