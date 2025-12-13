@@ -282,7 +282,6 @@ class XMetricsClient:
         posts = response_data.get("posts", [])
         if not posts:
             logger.debug(f"No X posts found for terms: {terms}")
-            return None
 
         metrics = self._extract_metrics(posts)
         metrics["terms"] = terms

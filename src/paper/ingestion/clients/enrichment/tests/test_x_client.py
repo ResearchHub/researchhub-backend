@@ -242,7 +242,19 @@ class TestXMetricsClient(TestCase):
 
         result = self.metrics_client.get_metrics(["10.1038/nonexistent"])
 
-        self.assertIsNone(result)
+        self.assertEqual(
+            result,
+            {
+                "post_count": 0,
+                "total_likes": 0,
+                "total_reposts": 0,
+                "total_replies": 0,
+                "total_quotes": 0,
+                "total_impressions": 0,
+                "posts": [],
+                "terms": ["10.1038/nonexistent"],
+            },
+        )
 
     def test_get_metrics_no_response(self):
         """Test metrics retrieval when API returns None."""
