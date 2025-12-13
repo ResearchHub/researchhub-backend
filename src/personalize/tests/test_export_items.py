@@ -4,8 +4,8 @@ Tests for export_items_to_personalize management command.
 
 from django.test import TestCase
 
-from analytics.tests.helpers import create_prefetched_paper
 from personalize.management.commands.export_items import Command
+from personalize.tests.helpers import create_prefetched_paper
 
 
 class ExportQuerysetFilterTests(TestCase):

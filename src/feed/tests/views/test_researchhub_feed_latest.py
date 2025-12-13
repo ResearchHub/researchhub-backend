@@ -22,7 +22,9 @@ class LatestFeedTests(APITestCase):
         cache.clear()
         self.user = create_random_default_user("latest_test_user")
 
-        self.hub = Hub.objects.create(name="Test Hub", slug="test-hub")
+        self.hub, _ = Hub.objects.get_or_create(
+            slug="biorxiv", defaults={"name": "bioRxiv"}
+        )
 
         self.paper_content_type = ContentType.objects.get_for_model(Paper)
 
@@ -49,6 +51,7 @@ class LatestFeedTests(APITestCase):
             hot_score_v2=10,
             content={},
             metrics={},
+            pdf_copyright_allows_display=True,
         )
         self.newest_entry.hubs.add(self.hub)
 
@@ -72,6 +75,7 @@ class LatestFeedTests(APITestCase):
             hot_score_v2=100,
             content={},
             metrics={},
+            pdf_copyright_allows_display=True,
         )
         self.older_entry.hubs.add(self.hub)
 
@@ -111,3 +115,43 @@ class LatestFeedTests(APITestCase):
         # Verify cache was checked and set
         self.assertTrue(mock_cache.get.called)
         self.assertTrue(mock_cache.set.called)
+
+    def _create_paper_with_feed_entry(self, title, hubs):
+        """Helper to create a paper with associated feed entry and hubs."""
+        doc = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
+        doc.hubs.add(*hubs)
+        paper = Paper.objects.create(
+            title=title,
+            paper_publish_date=timezone.now(),
+            unified_document=doc,
+        )
+        entry = FeedEntry.objects.create(
+            action="PUBLISH",
+            action_date=timezone.now(),
+            content_type=self.paper_content_type,
+            object_id=paper.id,
+            unified_document=doc,
+            content={},
+            metrics={},
+            pdf_copyright_allows_display=True,
+        )
+        entry.hubs.add(*hubs)
+        return paper
+
+    def test_latest_without_hub_slug_returns_only_preprint_hub_papers(self):
+        """Latest feed without hub_slug only returns papers from preprint hubs."""
+        biorxiv_hub, _ = Hub.objects.get_or_create(
+            slug="biorxiv", defaults={"name": "bioRxiv"}
+        )
+        other_hub, _ = Hub.objects.get_or_create(
+            slug="other-hub", defaults={"name": "Other"}
+        )
+
+        preprint = self._create_paper_with_feed_entry("Preprint", [biorxiv_hub])
+        non_preprint = self._create_paper_with_feed_entry("Non-Preprint", [other_hub])
+
+        response = self.client.get(reverse("feed-list"), {"feed_view": "latest"})
+
+        result_ids = [r["content_object"]["id"] for r in response.data["results"]]
+        self.assertIn(preprint.id, result_ids)
+        self.assertNotIn(non_preprint.id, result_ids)

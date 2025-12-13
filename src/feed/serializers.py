@@ -642,6 +642,7 @@ class FeedEntrySerializer(serializers.ModelSerializer):
             "hot_score_breakdown",
             "external_metadata",
             "recommendation_id",
+            "pdf_copyright_allows_display",
         ]
 
     def get_author(self, obj):

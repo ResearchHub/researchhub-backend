@@ -2,8 +2,13 @@ import json
 
 from django.test import TestCase
 
-from analytics.tests.helpers import create_batch_data, create_prefetched_paper
+from hub.models import Hub
 from personalize.services.item_mapper import ItemMapper
+from personalize.tests.helpers import (
+    create_batch_data,
+    create_hub_with_namespace,
+    create_prefetched_paper,
+)
 
 
 class ApiItemMappingTests(TestCase):
@@ -121,3 +126,22 @@ class ApiItemMappingTests(TestCase):
         properties = json.loads(result["properties"])
         self.assertNotIn("ITEM_ID", properties)
         self.assertNotIn("itemId", properties)
+
+    def test_api_includes_journal_hub_id(self):
+        """JOURNAL_HUB_ID should be included as journalHubId in API format."""
+        journal_hub = create_hub_with_namespace("Nature", Hub.Namespace.JOURNAL)
+        paper = create_prefetched_paper(title="Test Paper", hubs=[journal_hub])
+        mapper = ItemMapper()
+        batch_data = create_batch_data()
+
+        result = mapper.map_to_api_item(
+            paper,
+            bounty_data=batch_data["bounty"],
+            proposal_data=batch_data["proposal"],
+            rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
+        )
+
+        properties = json.loads(result["properties"])
+        self.assertIn("journalHubId", properties)
+        self.assertEqual(properties["journalHubId"], str(journal_hub.id))

@@ -110,7 +110,7 @@ def update_recent_papers_with_github_metrics(days: int = 7):
     }
 
 
-@app.task(queue=QUEUE_PAPER_MISC, bind=True, max_retries=3, rate_limit="30/m")
+@app.task(queue=QUEUE_PAPER_MISC, bind=True, max_retries=3, rate_limit="10/m")
 def enrich_paper_with_github_metrics(self, paper_id: int, retry: int = 0):
     """
     Fetch and update GitHub metrics for a single paper.
@@ -249,7 +249,7 @@ def update_recent_papers_with_bluesky_metrics(days: int = 7):
     }
 
 
-@app.task(queue=QUEUE_PAPER_MISC, bind=True, max_retries=3, rate_limit="30/m")
+@app.task(queue=QUEUE_PAPER_MISC, bind=True, max_retries=3, rate_limit="600/m")
 def enrich_paper_with_bluesky_metrics(self, paper_id: int, retry: int = 0):
     """
     Fetch and update Bluesky metrics for a single paper.
@@ -381,7 +381,7 @@ def update_recent_papers_with_x_metrics(days: int = 7):
     }
 
 
-@app.task(queue=QUEUE_PAPER_MISC, bind=True, max_retries=3, rate_limit="30/m")
+@app.task(queue=QUEUE_PAPER_MISC, bind=True, max_retries=3, rate_limit="1/s")
 def enrich_paper_with_x_metrics(self, paper_id: int, retry: int = 0):
     """
     Fetch and update X metrics for a single paper.
