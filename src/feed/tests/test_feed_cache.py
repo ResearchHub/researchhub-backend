@@ -188,6 +188,7 @@ class FeedCachingTests(APITestCase):
                     unified_document=unified_doc,
                     content={},
                     metrics={},
+                    pdf_copyright_allows_display=True,
                 )
                 feed_entry.hubs.add(self.hub)
             else:
