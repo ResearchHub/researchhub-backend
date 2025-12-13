@@ -202,7 +202,7 @@ class FeedFilteringBackend(BaseFilterBackend):
                 return self._filter_following(request, queryset, view)
 
             view._feed_source = "aws-personalize"
-            return self._fetch_and_order_entries(recommended_ids, view)
+            return self._fetch_and_order_entries(recommended_ids, queryset, view)
 
         except Exception as e:
             logger.error(f"Personalized feed error for user {user_id}: {e}")
@@ -211,19 +211,16 @@ class FeedFilteringBackend(BaseFilterBackend):
             return self._filter_following(request, queryset, view)
 
     def _fetch_and_order_entries(
-        self, document_ids: List[int], view
+        self, document_ids: List[int], queryset, view
     ) -> List[FeedEntry]:
+        """
+        Fetch and order entries based on recommended document IDs.
+        """
         position_map = {pk: pos for pos, pk in enumerate(document_ids)}
 
         entries = list(
-            FeedEntry.objects.filter(
+            queryset.filter(
                 unified_document_id__in=document_ids,
-                content_type=view._paper_content_type,
-            ).select_related(
-                "content_type",
-                "user",
-                "user__author_profile",
-                "user__userverification",
             )
         )
 
