@@ -12,7 +12,8 @@ from utils.aws import create_client
 logger = logging.getLogger(__name__)
 
 MAX_IMAGES_PER_BEDROCK_REQUEST = 20
-BEDROCK_MODEL_ID = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+
+BEDROCK_MODEL_ID = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
 BEDROCK_ANTHROPIC_VERSION = "bedrock-2023-05-31"
 
 # Figure selection criteria weights
