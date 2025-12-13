@@ -11,7 +11,7 @@ from django.core.files.base import ContentFile
 from django.db import transaction
 from PIL import Image
 
-from paper.constants.figure_selection_criteria import MIN_PRIMARY_SCORE_THRESHOLD
+from paper.services.bedrock_primary_image_service import MIN_PRIMARY_SCORE_THRESHOLD
 from paper.ingestion.pipeline import (  # noqa: F401
     fetch_all_papers,
     fetch_papers_from_source,

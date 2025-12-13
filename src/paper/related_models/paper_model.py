@@ -5,7 +5,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.indexes import HashIndex
 from django.core.validators import FileExtensionValidator
 from django.db import models
-from django.db.models import Func, Index, IntegerField, JSONField, Sum
+from django.db.models import Func, Index, IntegerField, JSONField, Q, Sum
 from django.db.models.functions import Cast
 from manubot.cite.doi import get_doi_csl_item
 from manubot.cite.unpaywall import Unpaywall
@@ -552,7 +552,6 @@ class Figure(models.Model):
     is_primary = models.BooleanField(
         default=False,
         help_text="Whether this figure is the primary image for the paper",
-        db_index=True,
     )
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
@@ -564,6 +563,8 @@ class Figure(models.Model):
         indexes = [
             models.Index(fields=["paper", "figure_type"], name="figure_paper_type_idx"),
             models.Index(
-                fields=["paper", "is_primary"], name="figure_paper_primary_idx"
+                fields=["paper"],
+                condition=Q(is_primary=True),
+                name="figure_paper_primary_idx",
             ),
         ]

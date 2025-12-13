@@ -9,13 +9,6 @@ AWS_S3_CUSTOM_DOMAIN = os.environ.get(
     "AWS_S3_CUSTOM_DOMAIN", "storage.dev.researchhub.com"
 )
 
-AWS_BEDROCK_MODEL_ID = os.environ.get(
-    "AWS_BEDROCK_MODEL_ID", "anthropic.claude-3-5-sonnet-20241022-v2:0"
-)
-AWS_BEDROCK_ANTHROPIC_VERSION = os.environ.get(
-    "AWS_BEDROCK_ANTHROPIC_VERSION", "bedrock-2023-05-31"
-)
-
 EMAIL_WHITELIST = os.environ.get("EMAIL_WHITELIST", "no-one@researchhub.com")
 
 GHOSTSCRIPT_LAMBDA_ARN = os.environ.get("GHOSTSCRIPT_LAMBDA_ARN", "")

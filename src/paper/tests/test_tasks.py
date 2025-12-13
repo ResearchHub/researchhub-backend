@@ -5,7 +5,7 @@ from django.core.files.base import ContentFile
 from django.test import TestCase, override_settings
 from PIL import Image
 
-from paper.constants.figure_selection_criteria import MIN_PRIMARY_SCORE_THRESHOLD
+from paper.services.bedrock_primary_image_service import MIN_PRIMARY_SCORE_THRESHOLD
 from paper.models import Figure
 from paper.tasks import (
     create_download_url,

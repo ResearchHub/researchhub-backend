@@ -207,3 +207,44 @@ class FigureExtractionServiceTests(TestCase):
             # Should not raise an exception
             figures = self.service.extract_figures_from_pdf(b"fake pdf", self.paper.id)
             self.assertEqual(len(figures), 0)
+
+    def test_convert_to_rgb_rgba_image(self):
+        """Test that RGBA images are converted to RGB with white background."""
+        # Create an RGBA image with transparency
+        rgba_image = Image.new("RGBA", (100, 100), color=(255, 0, 0, 128))
+        result = self.service._convert_to_rgb(rgba_image)
+
+        self.assertEqual(result.mode, "RGB")
+        self.assertEqual(result.size, (100, 100))
+
+    def test_convert_to_rgb_la_image(self):
+        """Test that LA (grayscale with alpha) images are converted to RGB."""
+        # Create an LA image
+        la_image = Image.new("LA", (100, 100), color=(128, 200))
+        result = self.service._convert_to_rgb(la_image)
+
+        self.assertEqual(result.mode, "RGB")
+        self.assertEqual(result.size, (100, 100))
+
+    def test_convert_to_rgb_palette_image(self):
+        """Test that P (palette) images are converted to RGB."""
+        # Create a palette image
+        palette = []
+        for i in range(256):
+            palette.extend([i, i, i])
+        palette_image = Image.new("P", (100, 100))
+        palette_image.putpalette(palette)
+        result = self.service._convert_to_rgb(palette_image)
+
+        self.assertEqual(result.mode, "RGB")
+        self.assertEqual(result.size, (100, 100))
+
+    def test_convert_to_rgb_already_rgb(self):
+        """Test that RGB images are returned unchanged."""
+        # Create an RGB image
+        rgb_image = Image.new("RGB", (100, 100), color=(255, 0, 0))
+        result = self.service._convert_to_rgb(rgb_image)
+
+        self.assertEqual(result.mode, "RGB")
+        self.assertEqual(result.size, (100, 100))
+        self.assertEqual(result.size, rgb_image.size)

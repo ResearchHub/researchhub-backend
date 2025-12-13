@@ -114,20 +114,6 @@ class BedrockPrimaryImageServiceTests(TestCase):
         # Should be compressed to under 4.5MB
         self.assertLess(len(result), 4.5 * 1024 * 1024)
 
-    def test_resize_and_compress_for_bedrock_rgba_conversion(self):
-        """Test that RGBA images are converted to RGB."""
-        rgba_image = Image.new("RGBA", (500, 500), color=(255, 0, 0, 128))
-        buffer = BytesIO()
-        rgba_image.save(buffer, format="PNG")
-        rgba_bytes = buffer.getvalue()
-
-        figure = self._create_test_figure()
-        result = self.service._resize_and_compress_for_bedrock(rgba_bytes, figure.id)
-
-        # Should be converted to RGB (JPEG)
-        result_image = Image.open(BytesIO(result))
-        self.assertEqual(result_image.mode, "RGB")
-
     def test_build_prompt_includes_criteria(self):
         """Test that the prompt includes all scoring criteria."""
         prompt = self.service._build_prompt(

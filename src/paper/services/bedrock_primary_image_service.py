@@ -8,14 +8,88 @@ from typing import List, Optional, Tuple
 from django.conf import settings
 from PIL import Image
 
-from paper.constants.figure_selection_criteria import CRITERIA_DESCRIPTIONS
-from paper.utils import convert_to_rgb
 from utils import sentry
 from utils.aws import create_client
 
 logger = logging.getLogger(__name__)
 
 MAX_IMAGES_PER_BEDROCK_REQUEST = 20
+BEDROCK_MODEL_ID = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+BEDROCK_ANTHROPIC_VERSION = "bedrock-2023-05-31"
+
+# Figure selection criteria weights
+ASPECT_RATIO_MATCH_WEIGHT = 8
+SCIENTIFIC_IMPACT_WEIGHT = 18
+VISUAL_QUALITY_WEIGHT = 18
+DATA_DENSITY_WEIGHT = 8
+NARRATIVE_CONTEXT_WEIGHT = 18
+INTERPRETABILITY_WEIGHT = 12
+UNIQUENESS_WEIGHT = 5
+SOCIAL_MEDIA_POTENTIAL_WEIGHT = 20
+
+# If the best figure scores below this, we'll use a preview instead
+MIN_PRIMARY_SCORE_THRESHOLD = 70
+
+CRITERIA_DESCRIPTIONS = {
+    "aspect_ratio_match": {
+        "weight": ASPECT_RATIO_MATCH_WEIGHT,
+        "description": ("Compatibility with standard feed dimensions (16:9, 4:3, 1:1)"),
+        "key_metrics": "Distance from ideal ratio",
+    },
+    "scientific_impact": {
+        "weight": SCIENTIFIC_IMPACT_WEIGHT,
+        "description": (
+            "Presents primary findings, conclusions, or key methods of " "the paper"
+        ),
+        "key_metrics": (
+            "Central vs supporting result, methods figures " "(e.g., imaging, staining)"
+        ),
+    },
+    "visual_quality": {
+        "weight": VISUAL_QUALITY_WEIGHT,
+        "description": (
+            "Clarity, resolution, color fidelity, professional appearance, "
+            "readability"
+        ),
+        "key_metrics": (
+            "DPI, color depth, artifacts, text size and legibility, contrast"
+        ),
+    },
+    "data_density": {
+        "weight": DATA_DENSITY_WEIGHT,
+        "description": "Information richness vs white space ratio",
+        "key_metrics": "Dimensions, number of curves/plots",
+    },
+    "narrative_context": {
+        "weight": NARRATIVE_CONTEXT_WEIGHT,
+        "description": (
+            "Ability to serve as paper introduction, overview, or summary " "figure"
+        ),
+        "key_metrics": (
+            "Structural overview vs detail, provides context for the paper"
+        ),
+    },
+    "interpretability": {
+        "weight": INTERPRETABILITY_WEIGHT,
+        "description": (
+            "Self-explanatory legends, labels, intuitive presentation, " "readability"
+        ),
+        "key_metrics": ("Axis labels, color coding clarity, text size and legibility"),
+    },
+    "uniqueness": {
+        "weight": UNIQUENESS_WEIGHT,
+        "description": "Data or analysis specific to this paper",
+        "key_metrics": "Appears in other papers",
+    },
+    "social_media_potential": {
+        "weight": SOCIAL_MEDIA_POTENTIAL_WEIGHT,
+        "description": (
+            "Visual appeal, eye-catching quality for Twitter/Instagram/"
+            "LinkedIn sharing"
+        ),
+        "key_metrics": ("Visual interest, discovery-worthy, stands out, color appeal"),
+    },
+}
 
 
 class BedrockPrimaryImageService:
@@ -25,10 +99,8 @@ class BedrockPrimaryImageService:
         self.bedrock_client = create_client(
             "bedrock-runtime", region_name=settings.AWS_REGION_NAME
         )
-        self.model_id = settings.AWS_BEDROCK_MODEL_ID
-        self.anthropic_version = getattr(
-            settings, "AWS_BEDROCK_ANTHROPIC_VERSION", "bedrock-2023-05-31"
-        )
+        self.model_id = BEDROCK_MODEL_ID
+        self.anthropic_version = BEDROCK_ANTHROPIC_VERSION
 
     def _encode_image_to_base64(self, figure) -> Optional[tuple]:
         """
@@ -72,9 +144,6 @@ class BedrockPrimaryImageService:
         max_file_size_bytes = int(max_file_size_mb * 1024 * 1024)
 
         image = Image.open(BytesIO(image_data))
-
-        # Convert RGBA/LA/P to RGB (JPEG doesn't support alpha channel)
-        image = convert_to_rgb(image)
 
         # Step 1: Resize dimensions if needed
         width, height = image.size

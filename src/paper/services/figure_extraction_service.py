@@ -6,7 +6,6 @@ import fitz
 from django.core.files.base import ContentFile
 from PIL import Image
 
-from paper.utils import convert_to_rgb
 from utils import sentry
 
 logger = logging.getLogger(__name__)
@@ -30,6 +29,25 @@ JPEG_QUALITY = 85
 
 class FigureExtractionService:
     """Service for extracting figures from PDF documents."""
+
+    def _convert_to_rgb(self, pil_image: Image.Image) -> Image.Image:
+        """
+        Convert PIL image to RGB format, handling RGBA, LA, and P modes.
+
+        Args:
+            pil_image: PIL Image object in any mode
+
+        Returns:
+            PIL Image object in RGB mode
+        """
+        if pil_image.mode in ("RGBA", "LA", "P"):
+            background = Image.new("RGB", pil_image.size, (255, 255, 255))
+            if pil_image.mode == "P":
+                pil_image = pil_image.convert("RGBA")
+            mask = pil_image.split()[-1] if pil_image.mode in ("RGBA", "LA") else None
+            background.paste(pil_image, mask=mask)
+            pil_image = background
+        return pil_image
 
     def extract_figures_from_pdf(
         self, pdf_content: bytes, paper_id: int
@@ -89,7 +107,7 @@ class FigureExtractionService:
 
                             output_buffer = BytesIO()
                             # Convert RGBA to RGB (JPEG doesn't support alpha channel)
-                            pil_image = convert_to_rgb(pil_image)
+                            pil_image = self._convert_to_rgb(pil_image)
 
                             pil_image.save(
                                 output_buffer,
@@ -127,6 +145,10 @@ class FigureExtractionService:
             doc.close()
 
         except Exception as e:
+            logger.error(
+                f"Error extracting figures from PDF for paper {paper_id}: {e}",
+                exc_info=True,
+            )
             sentry.log_error(e, message="Error extracting figures from PDF")
             raise
 

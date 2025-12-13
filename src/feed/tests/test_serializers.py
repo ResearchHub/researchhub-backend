@@ -1,8 +1,6 @@
-from datetime import datetime
 from decimal import Decimal
 from unittest.mock import patch
 
-import pytz
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import default_storage
@@ -25,7 +23,7 @@ from hub.models import Hub
 from hub.serializers import SimpleHubSerializer
 from hub.tests.helpers import create_hub
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
-from paper.models import Paper
+from paper.models import Figure, Paper
 from paper.tests.helpers import create_paper
 from purchase.models import Fundraise, Grant, GrantApplication, Purchase
 from purchase.related_models.constants.currency import USD
@@ -388,10 +386,6 @@ class PaperSerializerTests(TestCase):
 
     def test_serializes_paper_primary_image(self):
         """Test that primary_image is correctly serialized for papers."""
-        from django.core.files.uploadedfile import SimpleUploadedFile
-
-        from paper.models import Figure
-
         with patch.object(settings, "RESEARCHHUB_JOURNAL_ID", str(self.journal.id)):
             # Paper without primary image
             serializer_no_image = PaperSerializer(self.paper)
@@ -421,8 +415,6 @@ class PaperSerializerTests(TestCase):
 
     def test_serializes_paper_primary_image_without_file(self):
         """Test that primary_image returns None when figure has no file."""
-        from paper.models import Figure
-
         with patch.object(settings, "RESEARCHHUB_JOURNAL_ID", str(self.journal.id)):
             # Create a primary figure without a file
             Figure.objects.create(
@@ -1874,10 +1866,6 @@ class FeedEntrySerializerTests(TestCase):
 
     def test_serializes_paper_feed_entry_primary_image(self):
         """Test that primary_image is correctly serialized in content_object."""
-        from django.core.files.uploadedfile import SimpleUploadedFile
-
-        from paper.models import Figure
-
         paper = create_paper(uploaded_by=self.user)
 
         # Feed entry without primary image
