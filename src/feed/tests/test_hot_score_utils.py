@@ -11,16 +11,19 @@ from unittest.mock import Mock
 from django.test import TestCase
 
 from feed.hot_score_utils import (
+    calculate_bluesky_engagement,
+    calculate_github_engagement,
+    calculate_x_engagement,
     get_age_hours_from_content,
     get_bounties_from_content,
     get_comment_count_from_metrics,
     get_content_type_name,
     get_fundraise_amount_from_content,
     get_peer_review_count_from_metrics,
+    get_social_media_engagement_from_metrics,
     get_tips_from_content,
     get_upvotes_rolled_up,
     get_votes_from_metrics,
-    get_x_engagement_from_metrics,
     has_comments,
     parse_iso_datetime,
     safe_get_nested,
@@ -207,8 +210,93 @@ class TestHotScoreUtils(TestCase):
         self.assertLess(result, 24.1)
         self.assertIsInstance(result, float)
 
-    def test_get_x_engagement_from_metrics(self):
-        """Test extracting X/Twitter engagement score from metrics."""
+    def test_calculate_x_engagement(self):
+        """Test extracting X/Twitter engagement score."""
+        x_data = {
+            "post_count": 2,
+            "total_likes": 10,
+            "total_quotes": 2,
+            "total_replies": 1,
+            "total_reposts": 5,
+            "total_impressions": 500,
+        }
+
+        result = calculate_x_engagement(x_data)
+
+        # Raw: (500 * 0.1) + (10 * 1.0) + (5 * 3.0) + (2 * 5.0) + (1 * 2.0)
+        # = 50 + 10 + 15 + 10 + 2 = 87.0
+        # With platform multiplier (0.6): 87.0 * 0.6 = 52.2
+        self.assertAlmostEqual(result, 52.2, places=1)
+        self.assertIsInstance(result, float)
+
+    def test_calculate_bluesky_engagement(self):
+        """Test extracting Bluesky engagement score."""
+        bluesky_data = {
+            "post_count": 2,
+            "total_likes": 20,
+            "total_quotes": 2,
+            "total_replies": 3,
+            "total_reposts": 5,
+        }
+
+        result = calculate_bluesky_engagement(bluesky_data)
+
+        # Raw: (20 * 1.0) + (5 * 3.0) + (2 * 5.0) + (3 * 2.0)
+        # = 20 + 15 + 10 + 6 = 51.0
+        # With platform multiplier (0.1): 51.0 * 0.1 = 5.1
+        self.assertAlmostEqual(result, 5.1, places=1)
+        self.assertIsInstance(result, float)
+
+    def test_calculate_github_engagement(self):
+        """Test extracting GitHub mentions engagement score."""
+        github_data = {
+            "total_mentions": 3,
+            "breakdown": {"code": 2, "issues": 1},
+        }
+
+        result = calculate_github_engagement(github_data)
+
+        # Raw: 3 * 10.0 = 30.0
+        # With platform multiplier (0.3): 30.0 * 0.3 = 9.0
+        self.assertAlmostEqual(result, 9.0, places=1)
+        self.assertIsInstance(result, float)
+
+    def test_get_social_media_engagement_from_metrics_all_sources(self):
+        """Test combined social media engagement from all sources."""
+        metrics = {
+            "votes": 5,
+            "replies": 3,
+            "external": {
+                "x": {
+                    "post_count": 2,
+                    "total_likes": 10,
+                    "total_quotes": 2,
+                    "total_replies": 1,
+                    "total_reposts": 5,
+                    "total_impressions": 500,
+                },
+                "bluesky": {
+                    "post_count": 2,
+                    "total_likes": 20,
+                    "total_quotes": 2,
+                    "total_replies": 3,
+                    "total_reposts": 5,
+                },
+                "github_mentions": {
+                    "total_mentions": 3,
+                    "breakdown": {"code": 2, "issues": 1},
+                },
+            },
+        }
+
+        result = get_social_media_engagement_from_metrics(metrics)
+
+        # Expected: X (52.2) + Bluesky (5.1) + GitHub (9.0) = 66.3
+        self.assertAlmostEqual(result, 66.3, places=1)
+        self.assertIsInstance(result, float)
+
+    def test_get_social_media_engagement_from_metrics_x_only(self):
+        """Test social media engagement with only X data present."""
         metrics = {
             "votes": 5,
             "replies": 3,
@@ -224,47 +312,45 @@ class TestHotScoreUtils(TestCase):
             },
         }
 
-        result = get_x_engagement_from_metrics(metrics)
+        result = get_social_media_engagement_from_metrics(metrics)
 
-        # Expected: (500 * 0.01) + (10 * 2) + (5 * 3) + (2 * 3) + (1 * 1.5)
-        # = 5 + 20 + 15 + 6 + 1.5 = 47.5
-        self.assertAlmostEqual(result, 47.5, places=1)
-        self.assertIsInstance(result, float)
+        # Expected: X only = 52.2
+        self.assertAlmostEqual(result, 52.2, places=1)
 
-    def test_get_x_engagement_from_metrics_empty(self):
-        """Test X engagement returns 0 when no X data present."""
+    def test_get_social_media_engagement_from_metrics_empty(self):
+        """Test social media engagement returns 0 when no external data present."""
         metrics = {"votes": 5, "replies": 3}
 
-        result = get_x_engagement_from_metrics(metrics)
+        result = get_social_media_engagement_from_metrics(metrics)
 
         self.assertEqual(result, 0.0)
 
-    def test_get_x_engagement_from_metrics_no_external(self):
-        """Test X engagement returns 0 when external key is missing."""
+    def test_get_social_media_engagement_from_metrics_no_external(self):
+        """Test social media engagement returns 0 when external key is missing."""
         metrics = {"votes": 5, "replies": 3, "review_metrics": {"count": 1}}
 
-        result = get_x_engagement_from_metrics(metrics)
+        result = get_social_media_engagement_from_metrics(metrics)
 
         self.assertEqual(result, 0.0)
 
-    def test_get_x_engagement_from_metrics_empty_x_data(self):
-        """Test X engagement returns 0 when x data is empty dict."""
-        metrics = {"votes": 5, "external": {"x": {}}}
+    def test_get_social_media_engagement_from_metrics_empty_external(self):
+        """Test social media engagement returns 0 when external data is empty."""
+        metrics = {"votes": 5, "external": {}}
 
-        result = get_x_engagement_from_metrics(metrics)
+        result = get_social_media_engagement_from_metrics(metrics)
 
         self.assertEqual(result, 0.0)
 
-    def test_get_x_engagement_from_metrics_invalid_input(self):
-        """Test X engagement handles invalid input gracefully."""
+    def test_get_social_media_engagement_from_metrics_invalid_input(self):
+        """Test social media engagement handles invalid input gracefully."""
         # Test with None
-        result = get_x_engagement_from_metrics(None)
+        result = get_social_media_engagement_from_metrics(None)
         self.assertEqual(result, 0.0)
 
         # Test with non-dict
-        result = get_x_engagement_from_metrics("invalid")
+        result = get_social_media_engagement_from_metrics("invalid")
         self.assertEqual(result, 0.0)
 
         # Test with empty dict
-        result = get_x_engagement_from_metrics({})
+        result = get_social_media_engagement_from_metrics({})
         self.assertEqual(result, 0.0)

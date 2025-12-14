@@ -48,9 +48,9 @@ from feed.hot_score_utils import (
     get_comment_count_from_metrics,
     get_fundraise_amount_from_content,
     get_peer_review_count_from_metrics,
+    get_social_media_engagement_from_metrics,
     get_tips_from_content,
     get_upvotes_rolled_up,
-    get_x_engagement_from_metrics,
 )
 from paper.related_models.paper_model import Paper
 from researchhub_comment.constants.rh_comment_thread_types import (
@@ -91,8 +91,8 @@ HOT_SCORE_CONFIG = {
     # Higher weight = more influence on final score
     # Weights sum to 100 for easier reasoning about relative importance
     "signals": {
-        "x_engagement": {
-            "weight": 25.0,
+        "social_media_engagement": {
+            "weight": 30.0,
             "log_base": math.e,
         },
         "peer_review": {
@@ -102,11 +102,11 @@ HOT_SCORE_CONFIG = {
         "bounty": {
             "weight": 20.0,
             "log_base": math.e,
-            "urgency_multiplier": 1.5,  # Boost for new/expiring
+            "urgency_multiplier": 1.25,  # Boost for new/expiring
             "urgency_hours": 48,
         },
         "comment": {
-            "weight": 15.0,
+            "weight": 10.0,
             "log_base": math.e,
         },
         "upvote": {
@@ -248,9 +248,9 @@ def get_fundraise_amount(feed_entry):
     return get_fundraise_amount_from_content(feed_entry.content)
 
 
-def get_x_engagement(feed_entry) -> float:
-    """Get X engagement score from FeedEntry metrics JSON."""
-    return get_x_engagement_from_metrics(feed_entry.metrics)
+def get_social_media_engagement(feed_entry) -> float:
+    """Get social media engagement score from FeedEntry metrics JSON."""
+    return get_social_media_engagement_from_metrics(feed_entry.metrics)
 
 
 # ============================================================================
@@ -393,8 +393,8 @@ def calculate_hot_score(feed_entry, content_type_name, return_components=False):
         # Age in hours
         age_hours = get_age_hours(feed_entry)
 
-        # X/Twitter engagement
-        x_engagement = get_x_engagement(feed_entry)
+        # Social media engagement (X/Twitter, Bluesky, GitHub)
+        social_media_engagement = get_social_media_engagement(feed_entry)
 
         # ====================================================================
         # 2. Calculate engagement score using logarithmic scaling
@@ -440,9 +440,10 @@ def calculate_hot_score(feed_entry, content_type_name, return_components=False):
             * config["upvote"]["weight"]
         )
 
-        x_engagement_component = (
-            math.log(x_engagement + 1, config["x_engagement"]["log_base"])
-            * config["x_engagement"]["weight"]
+        social_cfg = config["social_media_engagement"]
+        social_media_engagement_component = (
+            math.log(social_media_engagement + 1, social_cfg["log_base"])
+            * social_cfg["weight"]
         )
 
         # Sum all components
@@ -453,7 +454,7 @@ def calculate_hot_score(feed_entry, content_type_name, return_components=False):
             + comment_component
             + recency_component
             + upvote_component
-            + x_engagement_component
+            + social_media_engagement_component
         )
 
         # ====================================================================
@@ -491,7 +492,7 @@ def calculate_hot_score(feed_entry, content_type_name, return_components=False):
                     "comment": comment_count,
                     "recency": recency_value,
                     "upvote": upvote_count,
-                    "x_engagement": x_engagement,
+                    "social_media_engagement": social_media_engagement,
                 },
                 "components": {
                     "bounty": bounty_component,
@@ -500,7 +501,7 @@ def calculate_hot_score(feed_entry, content_type_name, return_components=False):
                     "comment": comment_component,
                     "recency": recency_component,
                     "upvote": upvote_component,
-                    "x_engagement": x_engagement_component,
+                    "social_media_engagement": social_media_engagement_component,
                 },
                 "bounty_urgent": has_urgent_bounty,
                 "bounty_multiplier": bounty_multiplier,
