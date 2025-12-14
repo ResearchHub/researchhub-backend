@@ -3,7 +3,6 @@ import logging
 from io import BytesIO
 from typing import List, Optional, Tuple
 
-from django.conf import settings
 from PIL import Image
 
 from utils import sentry
@@ -13,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 MAX_IMAGES_PER_BEDROCK_REQUEST = 20
 
-BEDROCK_MODEL_ID = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+BEDROCK_MODEL_ID = "anthropic.claude-haiku-4-5-20251001-v1:0"
 BEDROCK_ANTHROPIC_VERSION = "bedrock-2023-05-31"
 
 # Figure selection criteria weights
@@ -117,9 +116,7 @@ class BedrockPrimaryImageService:
     """Service for selecting primary image using AWS Bedrock."""
 
     def __init__(self):
-        self.bedrock_client = create_client(
-            "bedrock-runtime", region_name=settings.AWS_REGION_NAME
-        )
+        self.bedrock_client = create_client("bedrock-runtime")
         self.model_id = BEDROCK_MODEL_ID
         self.anthropic_version = BEDROCK_ANTHROPIC_VERSION
 
