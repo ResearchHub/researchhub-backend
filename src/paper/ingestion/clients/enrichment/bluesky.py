@@ -198,7 +198,6 @@ class BlueskyMetricsClient:
 
         if not all_posts:
             logger.debug(f"No Bluesky posts found for terms: {terms}")
-            return None
 
         metrics = self._extract_metrics(list(all_posts.values()))
         metrics["terms"] = terms

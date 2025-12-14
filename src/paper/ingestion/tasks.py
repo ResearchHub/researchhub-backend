@@ -1,7 +1,9 @@
 import logging
 
+import requests
 from celery.exceptions import MaxRetriesExceededError
 from django.conf import settings
+from django.core.cache import cache
 
 from paper.ingestion.clients import (
     BlueskyMetricsClient,
@@ -13,10 +15,14 @@ from paper.ingestion.clients.enrichment.openalex import OpenAlexClient
 from paper.ingestion.mappers import OpenAlexMapper
 from paper.ingestion.services.metrics_enrichment import PaperMetricsEnrichmentService
 from paper.ingestion.services.openalex_enrichment import PaperOpenAlexEnrichmentService
-from researchhub.celery import QUEUE_PAPER_MISC, app
+from researchhub.celery import QUEUE_PAPER_METRICS, QUEUE_PAPER_MISC, app
 from utils import sentry
 
 logger = logging.getLogger(__name__)
+
+
+X_API_BACKOFF_KEY = "x_api_backoff"
+X_API_BACKOFF_SECONDS = 60
 
 
 @app.task(queue=QUEUE_PAPER_MISC, bind=True, max_retries=3)
@@ -67,7 +73,7 @@ def enrich_papers_with_openalex(self, days: int = 30, retry: int = 0):
             raise
 
 
-@app.task(queue=QUEUE_PAPER_MISC)
+@app.task(queue=QUEUE_PAPER_METRICS)
 def update_recent_papers_with_github_metrics(days: int = 7):
     """
     Dispatch individual tasks to fetch and update GitHub metrics
@@ -110,7 +116,7 @@ def update_recent_papers_with_github_metrics(days: int = 7):
     }
 
 
-@app.task(queue=QUEUE_PAPER_MISC, bind=True, max_retries=3, rate_limit="10/m")
+@app.task(queue=QUEUE_PAPER_METRICS, bind=True, max_retries=3, rate_limit="10/m")
 def enrich_paper_with_github_metrics(self, paper_id: int, retry: int = 0):
     """
     Fetch and update GitHub metrics for a single paper.
@@ -207,7 +213,7 @@ def _create_github_metrics_client() -> GithubMetricsClient:
     return GithubMetricsClient(github_client=client)
 
 
-@app.task(queue=QUEUE_PAPER_MISC)
+@app.task(queue=QUEUE_PAPER_METRICS)
 def update_recent_papers_with_bluesky_metrics(days: int = 7):
     """
     Dispatch individual tasks to fetch and update Bluesky metrics
@@ -249,7 +255,7 @@ def update_recent_papers_with_bluesky_metrics(days: int = 7):
     }
 
 
-@app.task(queue=QUEUE_PAPER_MISC, bind=True, max_retries=3, rate_limit="600/m")
+@app.task(queue=QUEUE_PAPER_METRICS, bind=True, max_retries=3, rate_limit="600/m")
 def enrich_paper_with_bluesky_metrics(self, paper_id: int, retry: int = 0):
     """
     Fetch and update Bluesky metrics for a single paper.
@@ -339,7 +345,7 @@ def enrich_paper_with_bluesky_metrics(self, paper_id: int, retry: int = 0):
             }
 
 
-@app.task(queue=QUEUE_PAPER_MISC)
+@app.task(queue=QUEUE_PAPER_METRICS)
 def update_recent_papers_with_x_metrics(days: int = 7):
     """
     Dispatch individual tasks to fetch and update X metrics
@@ -381,19 +387,30 @@ def update_recent_papers_with_x_metrics(days: int = 7):
     }
 
 
-@app.task(queue=QUEUE_PAPER_MISC, bind=True, max_retries=3, rate_limit="1/s")
-def enrich_paper_with_x_metrics(self, paper_id: int, retry: int = 0):
+@app.task(
+    queue=QUEUE_PAPER_METRICS,
+    bind=True,
+    max_retries=5,
+    rate_limit="0.5/s",
+)
+def enrich_paper_with_x_metrics(self, paper_id: int):
     """
     Fetch and update X metrics for a single paper.
 
+    Uses shared backoff via cache for rate limit errors (429, 503).
+    When one task hits a rate limit, all tasks back off for 60 seconds.
+
     Args:
         paper_id: ID of the paper to enrich
-        retry: Current retry attempt number
 
     Returns:
         Dict with status and details
     """
     from paper.models import Paper
+
+    # Check if we're in backoff mode due to a previous rate limit error
+    if cache.get(X_API_BACKOFF_KEY):
+        raise self.retry(countdown=X_API_BACKOFF_SECONDS)
 
     try:
         paper = Paper.objects.get(id=paper_id)
@@ -452,17 +469,22 @@ def enrich_paper_with_x_metrics(self, paper_id: int, retry: int = 0):
             "reason": enrichment_result.reason,
         }
 
+    except requests.exceptions.HTTPError as e:
+        status_code = e.response.status_code if e.response is not None else None
+        if status_code in (429, 503):
+            # Set backoff flag so other tasks wait
+            logger.warning(
+                f"X API rate limit hit ({status_code}), "
+                f"setting {X_API_BACKOFF_SECONDS}s backoff for all tasks"
+            )
+            cache.set(X_API_BACKOFF_KEY, True, timeout=X_API_BACKOFF_SECONDS)
+            raise self.retry(countdown=X_API_BACKOFF_SECONDS)
+        raise
     except Exception as e:
         logger.error(f"Error enriching paper {paper_id} with X metrics: {str(e)}")
         sentry.log_error(e, message=f"Error enriching paper {paper_id} with X metrics")
-
-        try:
-            # Retry with exponential backoff
-            self.retry(args=[paper_id, retry + 1], exc=e, countdown=60 * (retry + 1))
-        except MaxRetriesExceededError:
-            logger.error(f"Max retries exceeded for X enrichment of paper {paper_id}")
-            return {
-                "status": "error",
-                "paper_id": paper_id,
-                "reason": str(e),
-            }
+        return {
+            "status": "error",
+            "paper_id": paper_id,
+            "reason": str(e),
+        }

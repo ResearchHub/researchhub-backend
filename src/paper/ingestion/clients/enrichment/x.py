@@ -273,6 +273,16 @@ class XMetricsClient:
             )
         except Exception as e:
             logger.error(f"Error retrieving X metrics for terms {terms}: {str(e)}")
+
+            # Re-raise on retryable HTTP errors (429 rate limit, 503 unavailable)
+            # xdk uses requests which raises requests.exceptions.HTTPError
+            # with a response.status_code attribute
+            response = getattr(e, "response", None)
+            if response is not None:
+                status_code = getattr(response, "status_code", None)
+                if status_code in (429, 503):
+                    raise
+
             return None
 
         if not response_data:
@@ -282,7 +292,6 @@ class XMetricsClient:
         posts = response_data.get("posts", [])
         if not posts:
             logger.debug(f"No X posts found for terms: {terms}")
-            return None
 
         metrics = self._extract_metrics(posts)
         metrics["terms"] = terms

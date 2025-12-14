@@ -113,6 +113,7 @@ if not (PRODUCTION or STAGING):
     DEBUG = True
 
 ALLOWED_HOSTS = [
+    ".compute.amazonaws.com",
     ".elasticbeanstalk.com",
     ".researchhub.com",
     "127.0.0.1",  # localhost
@@ -703,7 +704,7 @@ WEB3_BASE_PROVIDER_URL = os.environ.get(
 # redis://:password@hostname:port/db_number
 
 REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
-REDIS_PORT = os.environ.get("REDIS_PORT", "6379")
+REDIS_PORT = int(os.environ.get("REDIS_PORT", "6379"))
 
 # Cache Settings
 if TESTING:

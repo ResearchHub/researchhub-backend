@@ -289,6 +289,10 @@ class PaperOpenAlexEnrichmentService:
                     "openalex_id": institution_instance.openalex_id,
                     "ror_id": institution_instance.ror_id,
                     "type": institution_instance.type,
+                    "associated_institutions": getattr(
+                        institution_instance, "associated_institutions", []
+                    )
+                    or [],
                 }
 
                 _, created = Institution.objects.update_or_create(

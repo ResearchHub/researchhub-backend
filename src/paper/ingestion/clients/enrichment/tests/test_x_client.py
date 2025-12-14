@@ -1,6 +1,8 @@
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
+from requests.exceptions import HTTPError
+
 from paper.ingestion.clients.enrichment.x import XClient, XMetricsClient
 
 
@@ -242,7 +244,19 @@ class TestXMetricsClient(TestCase):
 
         result = self.metrics_client.get_metrics(["10.1038/nonexistent"])
 
-        self.assertIsNone(result)
+        self.assertEqual(
+            result,
+            {
+                "post_count": 0,
+                "total_likes": 0,
+                "total_reposts": 0,
+                "total_replies": 0,
+                "total_quotes": 0,
+                "total_impressions": 0,
+                "posts": [],
+                "terms": ["10.1038/nonexistent"],
+            },
+        )
 
     def test_get_metrics_no_response(self):
         """Test metrics retrieval when API returns None."""
@@ -255,6 +269,40 @@ class TestXMetricsClient(TestCase):
     def test_get_metrics_api_error(self):
         """Test metrics retrieval when API raises exception."""
         self.x_client.search_posts.side_effect = Exception("API Error")
+
+        result = self.metrics_client.get_metrics(["10.1038/test"])
+
+        self.assertIsNone(result)
+
+    def test_get_metrics_rate_limit_error_reraises(self):
+        """Test that 429 rate limit errors are re-raised for retry."""
+        mock_response = Mock()
+        mock_response.status_code = 429
+        error = HTTPError("429 Too Many Requests")
+        error.response = mock_response
+        self.x_client.search_posts.side_effect = error
+
+        with self.assertRaises(HTTPError):
+            self.metrics_client.get_metrics(["10.1038/test"])
+
+    def test_get_metrics_service_unavailable_error_reraises(self):
+        """Test that 503 service unavailable errors are re-raised for retry."""
+        mock_response = Mock()
+        mock_response.status_code = 503
+        error = HTTPError("503 Service Unavailable")
+        error.response = mock_response
+        self.x_client.search_posts.side_effect = error
+
+        with self.assertRaises(HTTPError):
+            self.metrics_client.get_metrics(["10.1038/test"])
+
+    def test_get_metrics_other_http_error_returns_none(self):
+        """Test that other HTTP errors (e.g., 401, 500) return None."""
+        mock_response = Mock()
+        mock_response.status_code = 401
+        error = HTTPError("401 Unauthorized")
+        error.response = mock_response
+        self.x_client.search_posts.side_effect = error
 
         result = self.metrics_client.get_metrics(["10.1038/test"])
 
