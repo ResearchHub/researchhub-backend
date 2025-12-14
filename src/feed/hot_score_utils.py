@@ -134,6 +134,44 @@ def get_comment_count_from_metrics(metrics: dict) -> int:
         return 0
 
 
+# X engagement weights for calculating weighted engagement score
+X_ENGAGEMENT_WEIGHTS = {
+    "impressions": 0.1,
+    "likes": 1.0,
+    "replies": 2.0,
+    "reposts": 3.0,
+    "quotes": 5.0,
+}
+
+
+def get_x_engagement_from_metrics(metrics: dict) -> float:
+    """Extract X engagement score from FeedEntry metrics."""
+    if not isinstance(metrics, dict):
+        return 0.0
+
+    x_data = safe_get_nested(metrics, "external", "x", default={})
+    if not x_data or not isinstance(x_data, dict):
+        return 0.0
+
+    impressions = safe_get_nested(x_data, "total_impressions", default=0) or 0
+    likes = safe_get_nested(x_data, "total_likes", default=0) or 0
+    reposts = safe_get_nested(x_data, "total_reposts", default=0) or 0
+    quotes = safe_get_nested(x_data, "total_quotes", default=0) or 0
+    replies = safe_get_nested(x_data, "total_replies", default=0) or 0
+
+    try:
+        engagement = (
+            float(impressions) * X_ENGAGEMENT_WEIGHTS["impressions"]
+            + float(likes) * X_ENGAGEMENT_WEIGHTS["likes"]
+            + float(reposts) * X_ENGAGEMENT_WEIGHTS["reposts"]
+            + float(quotes) * X_ENGAGEMENT_WEIGHTS["quotes"]
+            + float(replies) * X_ENGAGEMENT_WEIGHTS["replies"]
+        )
+        return engagement
+    except (ValueError, TypeError):
+        return 0.0
+
+
 # ============================================================================
 # Complex Extraction Functions
 # ============================================================================

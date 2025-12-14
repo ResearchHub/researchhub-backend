@@ -20,6 +20,7 @@ from feed.hot_score_utils import (
     get_tips_from_content,
     get_upvotes_rolled_up,
     get_votes_from_metrics,
+    get_x_engagement_from_metrics,
     has_comments,
     parse_iso_datetime,
     safe_get_nested,
@@ -205,3 +206,65 @@ class TestHotScoreUtils(TestCase):
         self.assertGreater(result, 23.9)
         self.assertLess(result, 24.1)
         self.assertIsInstance(result, float)
+
+    def test_get_x_engagement_from_metrics(self):
+        """Test extracting X/Twitter engagement score from metrics."""
+        metrics = {
+            "votes": 5,
+            "replies": 3,
+            "external": {
+                "x": {
+                    "post_count": 2,
+                    "total_likes": 10,
+                    "total_quotes": 2,
+                    "total_replies": 1,
+                    "total_reposts": 5,
+                    "total_impressions": 500,
+                }
+            },
+        }
+
+        result = get_x_engagement_from_metrics(metrics)
+
+        # Expected: (500 * 0.01) + (10 * 2) + (5 * 3) + (2 * 3) + (1 * 1.5)
+        # = 5 + 20 + 15 + 6 + 1.5 = 47.5
+        self.assertAlmostEqual(result, 47.5, places=1)
+        self.assertIsInstance(result, float)
+
+    def test_get_x_engagement_from_metrics_empty(self):
+        """Test X engagement returns 0 when no X data present."""
+        metrics = {"votes": 5, "replies": 3}
+
+        result = get_x_engagement_from_metrics(metrics)
+
+        self.assertEqual(result, 0.0)
+
+    def test_get_x_engagement_from_metrics_no_external(self):
+        """Test X engagement returns 0 when external key is missing."""
+        metrics = {"votes": 5, "replies": 3, "review_metrics": {"count": 1}}
+
+        result = get_x_engagement_from_metrics(metrics)
+
+        self.assertEqual(result, 0.0)
+
+    def test_get_x_engagement_from_metrics_empty_x_data(self):
+        """Test X engagement returns 0 when x data is empty dict."""
+        metrics = {"votes": 5, "external": {"x": {}}}
+
+        result = get_x_engagement_from_metrics(metrics)
+
+        self.assertEqual(result, 0.0)
+
+    def test_get_x_engagement_from_metrics_invalid_input(self):
+        """Test X engagement handles invalid input gracefully."""
+        # Test with None
+        result = get_x_engagement_from_metrics(None)
+        self.assertEqual(result, 0.0)
+
+        # Test with non-dict
+        result = get_x_engagement_from_metrics("invalid")
+        self.assertEqual(result, 0.0)
+
+        # Test with empty dict
+        result = get_x_engagement_from_metrics({})
+        self.assertEqual(result, 0.0)

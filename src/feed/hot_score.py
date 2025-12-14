@@ -50,6 +50,7 @@ from feed.hot_score_utils import (
     get_peer_review_count_from_metrics,
     get_tips_from_content,
     get_upvotes_rolled_up,
+    get_x_engagement_from_metrics,
 )
 from paper.related_models.paper_model import Paper
 from researchhub_comment.constants.rh_comment_thread_types import (
@@ -88,41 +89,45 @@ def get_content_type_for_model(model):
 # Hot Score Configuration
 HOT_SCORE_CONFIG = {
     # Higher weight = more influence on final score
-    # Weights are balanced so financial signals don't dominate engagement signals
+    # Weights sum to 100 for easier reasoning about relative importance
     "signals": {
-        "bounty": {
+        "x_engagement": {
             "weight": 25.0,
+            "log_base": math.e,
+        },
+        "peer_review": {
+            "weight": 20.0,
+            "log_base": math.e,
+        },
+        "bounty": {
+            "weight": 20.0,
             "log_base": math.e,
             "urgency_multiplier": 1.5,  # Boost for new/expiring
             "urgency_hours": 48,
         },
-        "tip": {
-            "weight": 20.0,
-            "log_base": math.e,
-        },
-        "peer_review": {
-            "weight": 50.0,
-            "log_base": math.e,
-        },
         "comment": {
-            "weight": 40.0,
-            "log_base": math.e,
-        },
-        "recency": {
-            "weight": 30.0,
+            "weight": 15.0,
             "log_base": math.e,
         },
         "upvote": {
-            "weight": 25.0,
+            "weight": 10.0,
+            "log_base": math.e,
+        },
+        "tip": {
+            "weight": 5.0,
+            "log_base": math.e,
+        },
+        # Recency ensures new papers with no engagement don't get a zero score
+        "recency": {
+            "weight": 5.0,
             "log_base": math.e,
         },
     },
     # Time decay parameters control content prominence over time
     # Gentle decay ensures documents from same day compete on engagement
-    # ~37% drop per day means 1.6x engagement can overcome 24h age difference
     "time_decay": {
         "gravity": 0.8,  # Gentler decay (was 1.5)
-        "base_hours": 24,  # Full day buffer (was 10)
+        "base_hours": 24,
     },
     # Temporal urgency configuration for content with approaching deadlines
     "temporal_urgency": {
@@ -241,6 +246,11 @@ def get_fundraise_amount(feed_entry):
         float: Amount raised, or 0 if not applicable
     """
     return get_fundraise_amount_from_content(feed_entry.content)
+
+
+def get_x_engagement(feed_entry) -> float:
+    """Get X engagement score from FeedEntry metrics JSON."""
+    return get_x_engagement_from_metrics(feed_entry.metrics)
 
 
 # ============================================================================
@@ -383,6 +393,9 @@ def calculate_hot_score(feed_entry, content_type_name, return_components=False):
         # Age in hours
         age_hours = get_age_hours(feed_entry)
 
+        # X/Twitter engagement
+        x_engagement = get_x_engagement(feed_entry)
+
         # ====================================================================
         # 2. Calculate engagement score using logarithmic scaling
         # ====================================================================
@@ -415,9 +428,7 @@ def calculate_hot_score(feed_entry, content_type_name, return_components=False):
             * config["comment"]["weight"]
         )
 
-        # Recency signal: ensures new content always has a base score
-        # Formula: 24 / (age_hours + 24) yields 1.0 at 0h, 0.5 at 24h, 0.25 at 72h
-        # This never reaches zero, solving the cold start problem
+        # Recency: 24/(age+24) yields 1.0 at 0h, 0.5 at 24h, never reaches 0
         recency_value = 24.0 / (age_hours + 24.0)
         recency_component = (
             math.log(recency_value + 1, config["recency"]["log_base"])
@@ -429,7 +440,12 @@ def calculate_hot_score(feed_entry, content_type_name, return_components=False):
             * config["upvote"]["weight"]
         )
 
-        # Sum all components (recency ensures non-zero score for new content)
+        x_engagement_component = (
+            math.log(x_engagement + 1, config["x_engagement"]["log_base"])
+            * config["x_engagement"]["weight"]
+        )
+
+        # Sum all components
         engagement_score = (
             bounty_component
             + tip_component
@@ -437,6 +453,7 @@ def calculate_hot_score(feed_entry, content_type_name, return_components=False):
             + comment_component
             + recency_component
             + upvote_component
+            + x_engagement_component
         )
 
         # ====================================================================
@@ -474,6 +491,7 @@ def calculate_hot_score(feed_entry, content_type_name, return_components=False):
                     "comment": comment_count,
                     "recency": recency_value,
                     "upvote": upvote_count,
+                    "x_engagement": x_engagement,
                 },
                 "components": {
                     "bounty": bounty_component,
@@ -482,6 +500,7 @@ def calculate_hot_score(feed_entry, content_type_name, return_components=False):
                     "comment": comment_component,
                     "recency": recency_component,
                     "upvote": upvote_component,
+                    "x_engagement": x_engagement_component,
                 },
                 "bounty_urgent": has_urgent_bounty,
                 "bounty_multiplier": bounty_multiplier,

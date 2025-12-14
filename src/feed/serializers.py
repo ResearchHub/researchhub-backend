@@ -723,6 +723,13 @@ def serialize_feed_metrics(item, item_content_type):
         if hasattr(item, "citations"):
             metrics["citations"] = item.citations
 
+    # Include external metrics (X/Twitter data, etc.) for Papers
+    if item_content_type == ContentType.objects.get_for_model(Paper):
+        if hasattr(item, "external_metadata") and item.external_metadata:
+            external_metrics = item.external_metadata.get("metrics", {})
+            if external_metrics:
+                metrics["external"] = external_metrics
+
     return metrics
 
 
