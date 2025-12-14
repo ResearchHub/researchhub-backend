@@ -3,6 +3,7 @@ import logging
 import requests
 from celery.exceptions import MaxRetriesExceededError
 from django.conf import settings
+from django.core.cache import cache
 
 from paper.ingestion.clients import (
     BlueskyMetricsClient,
@@ -18,6 +19,10 @@ from researchhub.celery import QUEUE_PAPER_METRICS, QUEUE_PAPER_MISC, app
 from utils import sentry
 
 logger = logging.getLogger(__name__)
+
+
+X_API_BACKOFF_KEY = "x_api_backoff"
+X_API_BACKOFF_SECONDS = 60
 
 
 @app.task(queue=QUEUE_PAPER_MISC, bind=True, max_retries=3)
@@ -387,16 +392,13 @@ def update_recent_papers_with_x_metrics(days: int = 7):
     bind=True,
     max_retries=5,
     rate_limit="1/s",
-    autoretry_for=(requests.exceptions.HTTPError,),
-    retry_backoff=10,
-    retry_backoff_max=600,
 )
-def enrich_paper_with_x_metrics(paper_id: int):
+def enrich_paper_with_x_metrics(self, paper_id: int):
     """
     Fetch and update X metrics for a single paper.
 
-    Uses Celery's autoretry with exponential backoff for HTTP errors (429, 503).
-    Backoff starts at 10 seconds and maxes out at 10 minutes.
+    Uses shared backoff via cache for rate limit errors (429, 503).
+    When one task hits a rate limit, all tasks back off for 60 seconds.
 
     Args:
         paper_id: ID of the paper to enrich
@@ -405,6 +407,10 @@ def enrich_paper_with_x_metrics(paper_id: int):
         Dict with status and details
     """
     from paper.models import Paper
+
+    # Check if we're in backoff mode due to a previous rate limit error
+    if cache.get(X_API_BACKOFF_KEY):
+        raise self.retry(countdown=X_API_BACKOFF_SECONDS)
 
     try:
         paper = Paper.objects.get(id=paper_id)
@@ -463,9 +469,16 @@ def enrich_paper_with_x_metrics(paper_id: int):
             "reason": enrichment_result.reason,
         }
 
-    except requests.exceptions.HTTPError:
-        # Let Celery's autoretry handle HTTP errors (429, 503)
-        # with exponential backoff
+    except requests.exceptions.HTTPError as e:
+        status_code = e.response.status_code if e.response is not None else None
+        if status_code in (429, 503):
+            # Set backoff flag so other tasks wait
+            logger.warning(
+                f"X API rate limit hit ({status_code}), "
+                f"setting {X_API_BACKOFF_SECONDS}s backoff for all tasks"
+            )
+            cache.set(X_API_BACKOFF_KEY, True, timeout=X_API_BACKOFF_SECONDS)
+            raise self.retry(countdown=X_API_BACKOFF_SECONDS)
         raise
     except Exception as e:
         logger.error(f"Error enriching paper {paper_id} with X metrics: {str(e)}")
