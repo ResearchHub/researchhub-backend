@@ -60,14 +60,11 @@ def download_pdf(paper_id, retry=0):
             paper.file.save(pdf.name, pdf, save=False)
             paper.save(update_fields=["file"])
 
-            # skip_primary = not PRODUCTION
-            # extract_pdf_figures.apply_async(
-            #     (paper.id,), {"skip_primary_selection": skip_primary}, priority=6
-            # )
-            from paper.tasks.figure_tasks import extract_pdf_figures
-
-            extract_pdf_figures.apply_async((paper.id,), priority=6)
-
+            # NOTE: Automatic figure extraction is disabled.
+            # Do not forget to filter old papers.
+            # We need to extract figures for new papers: published date after 2025-10-01
+            # from paper.tasks.figure_tasks import extract_pdf_figures
+            # extract_pdf_figures.apply_async((paper.id,), priority=6)
             return True
         except ValueError as e:
             logger.warning(f"No PDF at {url} - paper {paper_id}: {e}")
