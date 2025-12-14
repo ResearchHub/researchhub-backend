@@ -391,7 +391,7 @@ def update_recent_papers_with_x_metrics(days: int = 7):
     queue=QUEUE_PAPER_METRICS,
     bind=True,
     max_retries=5,
-    rate_limit="1/s",
+    rate_limit="0.5/s",
 )
 def enrich_paper_with_x_metrics(self, paper_id: int):
     """
