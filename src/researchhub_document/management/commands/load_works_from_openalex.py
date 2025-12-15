@@ -16,10 +16,8 @@ def process_backfill_batch(queryset):
 
     oa_ids = []
     for paper in queryset.iterator():
-        if paper.open_alex_raw_json:
-            id_as_url = paper.open_alex_raw_json["id"]
-            just_id = id_as_url.split("/")[-1]
-
+        if paper.openalex_id:
+            just_id = paper.openalex_id.split("/")[-1]
             oa_ids.append(just_id)
 
     works, cursor = OA.get_works(openalex_ids=oa_ids)
