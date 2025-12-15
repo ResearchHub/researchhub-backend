@@ -127,14 +127,16 @@ class BlueskyMetricsClient:
         self.bluesky_client = bluesky_client or BlueskyClient()
 
     def get_metrics(
-        self, term: str, limit: int = BlueskyClient.MAX_SEARCH_RESULTS
+        self, terms: List[str], limit: int = BlueskyClient.MAX_SEARCH_RESULTS
     ) -> Optional[Dict]:
         """
-        Get Bluesky metrics for a term (DOI, URL, arXiv ID, etc.).
+        Get Bluesky metrics for a list of terms (DOI, title, etc.).
+
+        Searches for each term separately and deduplicates results by post URI.
 
         Args:
-            term: The term to search for (e.g., DOI, URL, or arXiv ID)
-            limit: Maximum number of posts to retrieve
+            terms: List of terms to search for (e.g., DOI and/or paper title).
+            limit: Maximum number of posts to retrieve per term
 
         Returns:
             Dict containing detailed metrics if successful:
@@ -144,6 +146,7 @@ class BlueskyMetricsClient:
                 "total_reposts": int,
                 "total_replies": int,
                 "total_quotes": int,
+                "terms": list[str],
                 "posts": [
                     {
                         "uri": str,
@@ -163,22 +166,42 @@ class BlueskyMetricsClient:
             }
             None if error occurred
         """
-        try:
-            response_data = self.bluesky_client.search_posts(query=term, limit=limit)
-        except Exception as e:
-            logger.error(f"Error retrieving Bluesky metrics for term {term}: {str(e)}")
+        # Filter out empty terms
+        terms = [t for t in terms if t]
+        if not terms:
+            logger.warning("No valid terms provided for Bluesky search")
             return None
 
-        if not response_data:
-            logger.warning(f"Failed to retrieve Bluesky metrics for term {term}")
-            return None
+        # Collect posts from all terms, deduplicated by URI
+        all_posts: Dict[str, Dict] = {}
 
-        posts = response_data.get("posts", [])
-        if not posts:
-            logger.debug(f"No Bluesky posts found for term: {term}")
-            return None
+        for term in terms:
+            try:
+                response_data = self.bluesky_client.search_posts(
+                    query=term, limit=limit
+                )
+            except Exception as e:
+                logger.error(
+                    f"Error retrieving Bluesky metrics for term {term}: {str(e)}"
+                )
+                continue
 
-        return self._extract_metrics(posts)
+            if not response_data:
+                logger.debug(f"No response for Bluesky term: {term}")
+                continue
+
+            posts = response_data.get("posts", [])
+            for post in posts:
+                uri = post.get("uri")
+                if uri and uri not in all_posts:
+                    all_posts[uri] = post
+
+        if not all_posts:
+            logger.debug(f"No Bluesky posts found for terms: {terms}")
+
+        metrics = self._extract_metrics(list(all_posts.values()))
+        metrics["terms"] = terms
+        return metrics
 
     @staticmethod
     def _extract_metrics(posts: List[Dict]) -> Dict:

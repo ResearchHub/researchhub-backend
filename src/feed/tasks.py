@@ -10,6 +10,7 @@ import utils.locking as lock
 from feed.models import FeedEntry
 from feed.serializers import serialize_feed_item, serialize_feed_metrics
 from paper.related_models.paper_model import Paper
+from paper.utils import pdf_copyright_allows_display
 from researchhub.celery import app
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
@@ -61,6 +62,11 @@ def create_feed_entry(
     # Get authors for the item
     authors = _get_authors_for_item(item, item_content_type)
 
+    if item_content_type.model == "paper":
+        allows_display = pdf_copyright_allows_display(item)
+    else:
+        allows_display = True  # Non-papers default to True
+
     # Create and return the feed entry
     try:
         feed_entry, _ = FeedEntry.objects.update_or_create(
@@ -73,6 +79,7 @@ def create_feed_entry(
                 "metrics": metrics,
                 "unified_document": unified_document,
                 "user": user,
+                "pdf_copyright_allows_display": allows_display,
             },
         )
         if hub_ids:

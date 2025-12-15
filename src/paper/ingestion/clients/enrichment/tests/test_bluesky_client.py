@@ -203,11 +203,12 @@ class TestBlueskyMetricsClient(TestCase):
             ]
         }
 
-        result = self.metrics_client.get_metrics("10.1038/test")
+        result = self.metrics_client.get_metrics(["10.1038/test"])
 
         self.assertIsNotNone(result)
         self.assertEqual(result["post_count"], 1)
         self.assertEqual(result["total_likes"], 10)
+        self.assertEqual(result["terms"], ["10.1038/test"])
         self.bluesky_client.search_posts.assert_called_once_with(
             query="10.1038/test", limit=100
         )
@@ -216,24 +217,100 @@ class TestBlueskyMetricsClient(TestCase):
         """Test metrics retrieval when no posts found."""
         self.bluesky_client.search_posts.return_value = {"posts": []}
 
-        result = self.metrics_client.get_metrics("10.1038/nonexistent")
+        result = self.metrics_client.get_metrics(["10.1038/nonexistent"])
 
-        self.assertIsNone(result)
+        self.assertEqual(
+            result,
+            {
+                "post_count": 0,
+                "total_likes": 0,
+                "total_reposts": 0,
+                "total_replies": 0,
+                "total_quotes": 0,
+                "posts": [],
+                "terms": ["10.1038/nonexistent"],
+            },
+        )
 
     def test_get_metrics_no_response(self):
         """Test metrics retrieval when API returns None."""
         self.bluesky_client.search_posts.return_value = None
 
-        result = self.metrics_client.get_metrics("10.1038/test")
+        result = self.metrics_client.get_metrics(["10.1038/test"])
 
-        self.assertIsNone(result)
+        self.assertEqual(
+            result,
+            {
+                "post_count": 0,
+                "total_likes": 0,
+                "total_reposts": 0,
+                "total_replies": 0,
+                "total_quotes": 0,
+                "posts": [],
+                "terms": ["10.1038/test"],
+            },
+        )
 
     def test_get_metrics_with_custom_limit(self):
         """Test metrics retrieval with custom result limit."""
         self.bluesky_client.search_posts.return_value = {"posts": []}
 
-        self.metrics_client.get_metrics("10.1038/test", limit=50)
+        self.metrics_client.get_metrics(["10.1038/test"], limit=50)
 
         self.bluesky_client.search_posts.assert_called_once_with(
             query="10.1038/test", limit=50
         )
+
+    def test_get_metrics_multiple_terms(self):
+        """Test metrics retrieval with multiple terms (DOI and title)."""
+        # First call returns posts for DOI, second for title
+        self.bluesky_client.search_posts.side_effect = [
+            {
+                "posts": [
+                    {
+                        "uri": "at://test/post/123",
+                        "cid": "bafyrei123",
+                        "author": {
+                            "did": "did:plc:user1",
+                            "handle": "user1.bsky.social",
+                        },
+                        "record": {
+                            "text": "DOI post",
+                            "created_at": "2024-01-15T10:30:00Z",
+                        },
+                        "like_count": 10,
+                        "repost_count": 5,
+                        "reply_count": 2,
+                        "quote_count": 1,
+                    }
+                ]
+            },
+            {
+                "posts": [
+                    {
+                        "uri": "at://test/post/456",
+                        "cid": "bafyrei456",
+                        "author": {
+                            "did": "did:plc:user2",
+                            "handle": "user2.bsky.social",
+                        },
+                        "record": {
+                            "text": "Title post",
+                            "created_at": "2024-01-16T10:30:00Z",
+                        },
+                        "like_count": 15,
+                        "repost_count": 8,
+                        "reply_count": 3,
+                        "quote_count": 2,
+                    }
+                ]
+            },
+        ]
+
+        result = self.metrics_client.get_metrics(["10.1038/test", "Test Paper Title"])
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result["post_count"], 2)
+        self.assertEqual(result["total_likes"], 25)
+        self.assertEqual(result["terms"], ["10.1038/test", "Test Paper Title"])
+        self.assertEqual(self.bluesky_client.search_posts.call_count, 2)

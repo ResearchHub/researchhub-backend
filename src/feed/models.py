@@ -118,6 +118,11 @@ class FeedEntry(DefaultModel):
         ),
     )
 
+    pdf_copyright_allows_display = models.BooleanField(
+        default=False,
+        help_text="Whether the PDF copyright allows display on our site.",
+    )
+
     class Meta:
         indexes = [
             models.Index(
@@ -135,6 +140,11 @@ class FeedEntry(DefaultModel):
             models.Index(
                 fields=["-hot_score"],
                 name="feed_hot_score_idx",
+            ),
+            models.Index(
+                fields=["pdf_copyright_allows_display"],
+                name="feed_pdf_no_display_idx",
+                condition=models.Q(pdf_copyright_allows_display=False),
             ),
         ]
         constraints = [

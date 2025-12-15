@@ -15,7 +15,15 @@ from paper.ingestion.pipeline import (  # noqa: F401
     fetch_papers_from_source,
     process_batch_task,
 )
-from paper.ingestion.tasks import update_recent_papers_with_metrics  # noqa: F401
+from paper.ingestion.tasks import (  # noqa: F401
+    enrich_paper_with_bluesky_metrics,
+    enrich_paper_with_github_metrics,
+    enrich_paper_with_x_metrics,
+    enrich_papers_with_openalex,
+    update_recent_papers_with_bluesky_metrics,
+    update_recent_papers_with_github_metrics,
+    update_recent_papers_with_x_metrics,
+)
 from paper.utils import download_pdf_from_url, get_cache_key
 from researchhub.celery import QUEUE_PAPER_MISC, app
 from utils import sentry

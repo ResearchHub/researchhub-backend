@@ -5,10 +5,12 @@ import sys
 import time
 from typing import Any, Iterable, Optional, override
 
+from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q, QuerySet
 from django_opensearch_dsl import fields as es_fields
 from django_opensearch_dsl.registries import registry
 
+from feed.models import FeedEntry
 from paper.models import Paper
 from paper.utils import format_raw_authors
 from search.analyzers import content_analyzer, title_analyzer
@@ -47,6 +49,7 @@ class PaperDocument(BaseDocument):
         },
     )
     score = es_fields.IntegerField()
+    hot_score_v2 = es_fields.IntegerField()
     unified_document_id = es_fields.IntegerField()
     created_date = es_fields.DateField(attr="created_date")
     suggestion_phrases = es_fields.CompletionField()
@@ -159,10 +162,11 @@ class PaperDocument(BaseDocument):
 
         # Assign weight based on how "hot" the paper is
         weight = 1
-        if instance.unified_document and instance.unified_document.hot_score > 0:
-            # Scale down the hot score from 1 - 100 to avoid a huge range
+        hot_score_v2 = self.prepare_hot_score_v2(instance)
+        if hot_score_v2 > 0:
+            # Scale down the hot score to avoid a huge range
             # of values that could result in bad suggestions
-            weight = int(math.log(instance.unified_document.hot_score, 10) * 10)
+            weight = int(math.log(hot_score_v2, 10) * 10)
 
         deduped = list(set(phrases))
         strings_only = [phrase for phrase in deduped if isinstance(phrase, str)]
@@ -221,6 +225,19 @@ class PaperDocument(BaseDocument):
     def prepare_score(self, instance) -> int:
         if instance.unified_document:
             return instance.unified_document.score
+        return 0
+
+    def prepare_hot_score_v2(self, instance) -> int:
+        try:
+            paper_content_type = ContentType.objects.get_for_model(Paper)
+            feed_entry = FeedEntry.objects.filter(
+                content_type=paper_content_type,
+                object_id=instance.id,
+            ).first()
+            if feed_entry:
+                return feed_entry.hot_score_v2
+        except Exception:
+            pass
         return 0
 
     def prepare_unified_document_id(self, instance) -> int | None:

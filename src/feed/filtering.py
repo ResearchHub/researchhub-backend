@@ -1,6 +1,7 @@
 import logging
-from typing import List
+from typing import List, Tuple
 
+from django.core.cache import cache
 from rest_framework.filters import BaseFilterBackend
 
 from feed.feed_config import FEED_CONFIG
@@ -13,9 +14,38 @@ from utils.sentry import log_error
 
 logger = logging.getLogger(__name__)
 
+# Allowed preprint hub slugs for feed filtering
+ALLOWED_PREPRINT_HUB_SLUGS = frozenset({"biorxiv", "arxiv", "chemrxiv", "medrxiv"})
+PREPRINT_HUB_IDS_CACHE_KEY = "feed:allowed_preprint_hub_ids"
+PREPRINT_HUB_IDS_CACHE_TTL = 86400  # 24 hours
+
+
+def _get_allowed_preprint_hub_ids() -> Tuple[int, ...]:
+    """
+    Get cached hub IDs for allowed preprint sources.
+    """
+    hub_ids = cache.get(PREPRINT_HUB_IDS_CACHE_KEY)
+    if hub_ids is None:
+        hub_ids = tuple(
+            Hub.objects.filter(slug__in=ALLOWED_PREPRINT_HUB_SLUGS).values_list(
+                "id", flat=True
+            )
+        )
+        cache.set(
+            PREPRINT_HUB_IDS_CACHE_KEY, hub_ids, timeout=PREPRINT_HUB_IDS_CACHE_TTL
+        )
+    return hub_ids
+
 
 class FeedFilteringBackend(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
+        # Exclude entries that don't allow PDF display
+        queryset = queryset.exclude(pdf_copyright_allows_display=False)
+
+        # Global filter: Only show papers from allowed preprint sources
+        # This applies to all feed views (papers must be from biorxiv, arxiv, etc.)
+        queryset = self._filter_by_allowed_preprint_hubs(queryset, view)
+
         feed_view = request.query_params.get("feed_view", "popular")
 
         if feed_view == "following":
@@ -30,29 +60,22 @@ class FeedFilteringBackend(BaseFilterBackend):
     def _filter_latest(self, request, queryset, view):
         hub_slug = request.query_params.get("hub_slug")
         if hub_slug:
+            # Additionally filter by user-specified hub
             queryset = self._filter_by_hub(hub_slug, queryset)
-
-        queryset = queryset.filter(
-            content_type__in=[view._paper_content_type, view._post_content_type]
-        )
 
         return queryset
 
     def _filter_following(self, request, queryset, view):
+        # Preprint hub filter already applied globally in filter_queryset
         if not request.user.is_authenticated:
             return queryset.none()
 
         followed_hub_ids = view.get_followed_hub_ids()
         if followed_hub_ids:
-            queryset = queryset.filter(hubs__id__in=followed_hub_ids)
+            # SHIM: Uses unified_document.hubs (FeedEntry.hubs may be out of sync)
+            queryset = queryset.filter(unified_document__hubs__id__in=followed_hub_ids)
         else:
             return queryset.none()
-
-        hub_slug = request.query_params.get("hub_slug")
-        if hub_slug:
-            queryset = self._filter_by_hub(hub_slug, queryset)
-
-        queryset = queryset.filter(content_type=view._paper_content_type)
 
         return queryset
 
@@ -60,10 +83,6 @@ class FeedFilteringBackend(BaseFilterBackend):
         hub_slug = request.query_params.get("hub_slug")
         if hub_slug:
             queryset = self._filter_by_hub(hub_slug, queryset)
-
-        queryset = queryset.filter(
-            content_type__in=[view._paper_content_type, view._post_content_type]
-        )
 
         ordering = request.query_params.get("ordering")
         allowed_sorts = FEED_CONFIG.get("popular", {}).get("allowed_sorts", [])
@@ -183,7 +202,7 @@ class FeedFilteringBackend(BaseFilterBackend):
                 return self._filter_following(request, queryset, view)
 
             view._feed_source = "aws-personalize"
-            return self._fetch_and_order_entries(recommended_ids, view)
+            return self._fetch_and_order_entries(recommended_ids, queryset, view)
 
         except Exception as e:
             logger.error(f"Personalized feed error for user {user_id}: {e}")
@@ -192,19 +211,16 @@ class FeedFilteringBackend(BaseFilterBackend):
             return self._filter_following(request, queryset, view)
 
     def _fetch_and_order_entries(
-        self, document_ids: List[int], view
+        self, document_ids: List[int], queryset, view
     ) -> List[FeedEntry]:
+        """
+        Fetch and order entries based on recommended document IDs.
+        """
         position_map = {pk: pos for pos, pk in enumerate(document_ids)}
 
         entries = list(
-            FeedEntry.objects.filter(
+            queryset.filter(
                 unified_document_id__in=document_ids,
-                content_type=view._paper_content_type,
-            ).select_related(
-                "content_type",
-                "user",
-                "user__author_profile",
-                "user__userverification",
             )
         )
 
@@ -214,10 +230,24 @@ class FeedFilteringBackend(BaseFilterBackend):
 
         return entries
 
+    def _filter_by_allowed_preprint_hubs(self, queryset, view):
+        """
+        Filter queryset to only include papers from allowed preprint hubs.
+        Papers must have at least one hub from: biorxiv, arxiv, chemrxiv, medrxiv.
+
+        Uses unified_document.hubs (FeedEntry.hubs may be out of sync).
+        """
+        preprint_hub_ids = _get_allowed_preprint_hub_ids()
+        return queryset.filter(
+            content_type=view._paper_content_type,
+            unified_document__hubs__id__in=preprint_hub_ids,
+        )
+
     def _filter_by_hub(self, hub_slug, queryset):
         try:
             hub = Hub.objects.get(slug=hub_slug)
         except Hub.DoesNotExist:
             return queryset.none()
 
-        return queryset.filter(hubs__in=[hub])
+        # SHIM: Uses unified_document.hubs (FeedEntry.hubs may be out of sync)
+        return queryset.filter(unified_document__hubs__in=[hub])

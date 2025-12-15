@@ -6,9 +6,11 @@ from typing import Any, Dict, List, Optional
 
 from django.utils import timezone
 
-from paper.ingestion.clients import BlueskyMetricsClient, GithubMetricsClient
-from paper.ingestion.clients.enrichment.altmetric import AltmetricClient
-from paper.ingestion.mappers import AltmetricMapper
+from paper.ingestion.clients import (
+    BlueskyMetricsClient,
+    GithubMetricsClient,
+    XMetricsClient,
+)
 from paper.models import Paper
 
 logger = logging.getLogger(__name__)
@@ -16,17 +18,16 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class EnrichmentResult:
-    """Result of enriching a single paper with Altmetric metrics."""
+    """Result of enriching a single paper with metrics."""
 
     status: str  # "success", "not_found", "skipped", or "error"
     metrics: Optional[Dict[str, Any]] = None
-    altmetric_score: Optional[float] = None
     reason: Optional[str] = None
 
 
 @dataclass
 class BatchEnrichmentResult:
-    """Result of enriching multiple papers with Altmetric metrics."""
+    """Result of enriching multiple papers with metrics."""
 
     total: int
     success_count: int
@@ -38,30 +39,27 @@ class PaperMetricsEnrichmentService:
     """
     Service for enriching papers with external metrics data.
 
-    This service handles fetching metrics from Altmetric and updating
+    This service handles fetching metrics and updating
     the corresponding papers in the database.
     """
 
     def __init__(
         self,
-        altmetric_client: AltmetricClient,
-        altmetric_mapper: AltmetricMapper,
         bluesky_metrics_client: BlueskyMetricsClient,
         github_metrics_client: GithubMetricsClient,
+        x_metrics_client: XMetricsClient,
     ):
         """
         Constructor.
 
         Args:
-            altmetric_client: Client for fetching Altmetric data
-            altmetric_mapper: Mapper for transforming Altmetric data
             github_metrics_client: Client for fetching GitHub metrics
             bluesky_metrics_client: Client for fetching Bluesky metrics
+            x_metrics_client: Client for fetching X (Twitter) metrics
         """
-        self.altmetric_client = altmetric_client
-        self.altmetric_mapper = altmetric_mapper
         self.github_metrics_client = github_metrics_client
         self.bluesky_metrics_client = bluesky_metrics_client
+        self.x_metrics_client = x_metrics_client
 
     def get_recent_papers_with_dois(self, days: int) -> List[int]:
         """
@@ -135,12 +133,16 @@ class PaperMetricsEnrichmentService:
         Returns:
             EnrichmentResult with status and details
         """
-        if not paper.doi:
-            logger.warning(f"Paper {paper.id} has no DOI, skipping Bluesky enrichment")
-            return EnrichmentResult(status="skipped", reason="no_doi")
+        # Build search terms from DOI and title (similar to GitHub)
+        terms = [t for t in [paper.doi, paper.title] if t]
+        if not terms:
+            logger.warning(
+                f"Paper {paper.id} has no DOI or title, skipping Bluesky enrichment"
+            )
+            return EnrichmentResult(status="skipped", reason="no_doi_or_title")
 
         try:
-            result = self.bluesky_metrics_client.get_metrics(paper.doi)
+            result = self.bluesky_metrics_client.get_metrics(terms)
 
             if result is None:
                 logger.info(f"No Bluesky posts found for paper {paper.id}")
@@ -161,9 +163,9 @@ class PaperMetricsEnrichmentService:
             logger.error(f"Error fetching Bluesky metrics for paper {paper.id}: {e}")
             return EnrichmentResult(status="error", reason=str(e))
 
-    def enrich_paper_with_altmetric(self, paper: Paper) -> EnrichmentResult:
+    def enrich_paper_with_x(self, paper: Paper) -> EnrichmentResult:
         """
-        Fetch Altmetric metrics for the given paper and update its external_metadata.
+        Fetch X (Twitter) metrics for the given paper and update its external_metadata.
 
         Args:
             paper: Paper instance to enrich
@@ -171,97 +173,49 @@ class PaperMetricsEnrichmentService:
         Returns:
             EnrichmentResult with status and details
         """
-        if not paper.doi:
-            logger.warning(f"Paper {paper.id} has no DOI, skipping enrichment")
-            return EnrichmentResult(status="skipped", reason="no_doi")
+        # Build search terms from DOI and title (similar to GitHub)
+        terms = [t for t in [paper.doi, paper.title] if t]
+        if not terms:
+            logger.warning(
+                f"Paper {paper.id} has no DOI or title, skipping X enrichment"
+            )
+            return EnrichmentResult(status="skipped", reason="no_doi_or_title")
+
+        # Get hub slugs for bot filtering
+        hub_slugs = list(paper.hubs.values_list("slug", flat=True))
 
         try:
-            # Fetch Altmetric data
-            if paper.external_source == "arxiv":
-                arxiv_id = (paper.external_metadata or {}).get("external_id")
-                if not arxiv_id:
-                    logger.warning(f"arXiv paper {paper.id} without arXiv ID, skipping")
-                    return EnrichmentResult(status="skipped", reason="no_arxiv_id")
-                altmetric_data = self.altmetric_client.fetch_by_arxiv_id(arxiv_id)
-            else:
-                altmetric_data = self.altmetric_client.fetch_by_doi(paper.doi)
+            result = self.x_metrics_client.get_metrics(
+                terms,
+                external_source=paper.external_source,
+                hub_slugs=hub_slugs,
+            )
 
-            if not altmetric_data:
-                logger.info(f"No Altmetric data found for paper {paper.id}")
-                return EnrichmentResult(status="not_found", reason="no_altmetric_data")
+            if result is None:
+                logger.info(f"No X posts found for paper {paper.id}")
+                return EnrichmentResult(status="not_found", reason="no_x_posts")
 
-            mapped_metrics = self.altmetric_mapper.map_metrics(altmetric_data)
-
-            # Update paper's external_metadata
-            self._update_paper_metrics(paper, mapped_metrics)
+            self._update_paper_metrics(paper, {"x": result})
 
             logger.info(
-                f"Successfully enriched paper {paper.id} with Altmetric metrics"
+                f"Successfully saved {result['post_count']} X posts for paper {paper.id}."
             )
 
             return EnrichmentResult(
                 status="success",
-                metrics=mapped_metrics,
-                altmetric_score=mapped_metrics.get("score"),
+                metrics={"x": result},
             )
 
         except Exception as e:
-            logger.error(
-                f"Error enriching paper {paper.id} (DOI: {paper.doi}): {str(e)}",
-                exc_info=True,
-            )
+            logger.error(f"Error fetching X metrics for paper {paper.id}: {e}")
             return EnrichmentResult(status="error", reason=str(e))
-
-    def enrich_papers_batch(self, paper_ids: List[int]) -> BatchEnrichmentResult:
-        """
-        Enrich multiple papers with Altmetric metrics.
-
-        Args:
-            paper_ids: List of paper IDs to enrich
-
-        Returns:
-            BatchEnrichmentResult with summary statistics
-        """
-        total = len(paper_ids)
-        success_count = 0
-        not_found_count = 0
-        error_count = 0
-
-        for paper_id in paper_ids:
-            try:
-                paper = Paper.objects.get(id=paper_id)
-                result = self.enrich_paper_with_altmetric(paper)
-
-                if result.status == "success":
-                    success_count += 1
-                elif result.status in ["not_found", "skipped"]:
-                    not_found_count += 1
-                else:
-                    error_count += 1
-
-            except Paper.DoesNotExist:
-                error_count += 1
-                logger.error(f"Paper {paper_id} not found during enrichment")
-            except Exception as e:
-                error_count += 1
-                logger.error(
-                    f"Unexpected error processing paper {paper_id}: {str(e)}",
-                    exc_info=True,
-                )
-
-        return BatchEnrichmentResult(
-            total=total,
-            success_count=success_count,
-            not_found_count=not_found_count,
-            error_count=error_count,
-        )
 
     def _update_paper_metrics(self, paper: Paper, metrics: Dict[str, Any]) -> None:
         """
         Update paper's external_metadata with metrics while preserving existing metrics.
 
         New metrics are merged with existing metrics, allowing multiple enrichment
-        sources (e.g., Altmetric and GitHub) to coexist without overwriting each other.
+        sources (e.g., Bluesky and GitHub) to coexist without overwriting each other.
         """
         if paper.external_metadata is None:
             paper.external_metadata = {}

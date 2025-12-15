@@ -19,6 +19,7 @@ from personalize.config.constants import (
     ITEM_ID,
     ITEM_TYPE,
     ITEM_TYPE_MAPPING,
+    JOURNAL_HUB_ID,
     PEER_REVIEW_COUNT_TOTAL,
     PROPOSAL_HAS_FUNDERS,
     PROPOSAL_IS_OPEN,
@@ -164,6 +165,7 @@ class ItemMapper:
         hub_ids = []
         hub_l1 = None
         hub_l2 = None
+        journal_hub_id = None
 
         for hub in list(prefetched_doc.hubs.all())[:MAX_HUB_IDS]:
             hub_ids.append(str(hub.id))
@@ -171,6 +173,8 @@ class ItemMapper:
                 hub_l1 = str(hub.id)
             elif hub.namespace == Hub.Namespace.SUBCATEGORY:
                 hub_l2 = str(hub.id)
+            elif hub.namespace == Hub.Namespace.JOURNAL:
+                journal_hub_id = str(hub.id)
 
         return {
             ITEM_ID: str(prefetched_doc.id),
@@ -184,6 +188,7 @@ class ItemMapper:
             HUB_L1: hub_l1,
             HUB_L2: hub_l2,
             HUB_IDS: DELIMITER.join(hub_ids) if hub_ids else None,
+            JOURNAL_HUB_ID: journal_hub_id,
         }
 
     def _map_paper_fields(

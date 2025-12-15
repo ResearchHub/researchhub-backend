@@ -7,208 +7,14 @@ from django.utils import timezone
 from paper.ingestion.tasks import (
     enrich_paper_with_bluesky_metrics,
     enrich_paper_with_github_metrics,
+    enrich_paper_with_x_metrics,
     enrich_papers_with_openalex,
     update_recent_papers_with_bluesky_metrics,
     update_recent_papers_with_github_metrics,
-    update_recent_papers_with_metrics,
+    update_recent_papers_with_x_metrics,
 )
 from paper.models import Paper
 from user.tests.helpers import create_random_default_user
-
-
-class AltmetricTasksTests(TestCase):
-    def setUp(self):
-        self.user = create_random_default_user("testUser1")
-
-        self.paper_recent = Paper.objects.create(
-            title="Recent Paper",
-            doi="10.1038/news.2011.490",
-            uploaded_by=self.user,
-            paper_publish_date=timezone.now() - timedelta(days=3),
-        )
-
-        self.paper_old = Paper.objects.create(
-            title="Old Paper",
-            doi="10.1234/old.paper",
-            uploaded_by=self.user,
-            paper_publish_date=timezone.now() - timedelta(days=40),
-        )
-
-        self.paper_no_doi = Paper.objects.create(
-            title="No DOI Paper",
-            uploaded_by=self.user,
-            paper_publish_date=timezone.now() - timedelta(days=2),
-        )
-
-        # Sample Altmetric API response
-        self.sample_altmetric_response = {
-            "altmetric_id": 241939,
-            "cited_by_fbwalls_count": 5,
-            "cited_by_tweeters_count": 138,
-            "cited_by_bluesky_count": 0,
-            "score": 140.5,
-            "last_updated": 1334237127,
-        }
-
-    @patch("paper.ingestion.tasks.AltmetricClient")
-    @patch("paper.ingestion.tasks.AltmetricMapper")
-    def test_update_recent_papers_with_metrics(
-        self, mock_mapper_class, mock_client_class
-    ):
-        """
-        Test updating recent papers with Altmetric metrics.
-        """
-        # Arrange
-        mock_client = Mock()
-        mock_client.fetch_by_doi.return_value = self.sample_altmetric_response
-        mock_client_class.return_value = mock_client
-
-        mock_mapper = Mock()
-        mock_mapper.map_metrics.return_value = {
-            "altmetric_id": 241939,
-            "facebook_count": 5,
-            "twitter_count": 138,
-            "score": 140.5,
-        }
-        mock_mapper_class.return_value = mock_mapper
-
-        # Act
-        result = update_recent_papers_with_metrics(days=7)
-
-        # Assert
-        self.assertEqual(result["status"], "success")
-        # Should process at least the recent paper with DOI
-        self.assertGreaterEqual(result["papers_processed"], 1)
-        self.assertGreaterEqual(result["success_count"], 1)
-        self.assertEqual(result["error_count"], 0)
-
-        # Verify client was called with the recent paper's DOI at least once
-        self.assertTrue(
-            any(
-                call[0][0] == self.paper_recent.doi
-                for call in mock_client.fetch_by_doi.call_args_list
-            ),
-            f"Expected fetch_by_doi to be called with {self.paper_recent.doi}",
-        )
-
-        # Verify paper was updated
-        self.paper_recent.refresh_from_db()
-        self.assertIsNotNone(self.paper_recent.external_metadata)
-        self.assertIn("metrics", self.paper_recent.external_metadata)
-        self.assertEqual(
-            self.paper_recent.external_metadata["metrics"]["altmetric_id"], 241939
-        )
-
-    @patch("paper.ingestion.tasks.AltmetricClient")
-    @patch("paper.ingestion.tasks.AltmetricMapper")
-    def test_preserves_existing_external_metadata(
-        self, mock_mapper_class, mock_client_class
-    ):
-        """
-        Test that existing external_metadata keys are preserved.
-        """
-        # Arrange
-        self.paper_recent.external_metadata = {
-            "some_other_key": "some_value",
-            "another_key": {"nested": "data"},
-        }
-        self.paper_recent.save()
-
-        mock_client = Mock()
-        mock_client.fetch_by_doi.return_value = self.sample_altmetric_response
-        mock_client_class.return_value = mock_client
-
-        mock_mapper = Mock()
-        mock_mapper.map_metrics.return_value = {
-            "altmetric_id": 241939,
-            "score": 140.5,
-        }
-        mock_mapper_class.return_value = mock_mapper
-
-        # Act
-        update_recent_papers_with_metrics(days=7)
-
-        # Assert
-        self.paper_recent.refresh_from_db()
-        self.assertEqual(
-            self.paper_recent.external_metadata["some_other_key"], "some_value"
-        )
-        self.assertEqual(
-            self.paper_recent.external_metadata["another_key"]["nested"], "data"
-        )
-        # And new metrics are added
-        self.assertIn("metrics", self.paper_recent.external_metadata)
-        self.assertEqual(
-            self.paper_recent.external_metadata["metrics"]["altmetric_id"], 241939
-        )
-
-    @patch("paper.ingestion.tasks.AltmetricClient")
-    @patch("paper.ingestion.tasks.AltmetricMapper")
-    def test_handles_null_external_metadata(self, mock_mapper_class, mock_client_class):
-        """
-        Test handling papers with null external_metadata.
-        """
-        # Arrange
-        self.paper_recent.external_metadata = None
-        self.paper_recent.save()
-
-        mock_client = Mock()
-        mock_client.fetch_by_doi.return_value = self.sample_altmetric_response
-        mock_client_class.return_value = mock_client
-
-        mock_mapper = Mock()
-        mock_mapper.map_metrics.return_value = {"altmetric_id": 241939}
-        mock_mapper_class.return_value = mock_mapper
-
-        # Act
-        update_recent_papers_with_metrics(days=7)
-
-        # Assert
-        self.paper_recent.refresh_from_db()
-        self.assertIsNotNone(self.paper_recent.external_metadata)
-        self.assertIn("metrics", self.paper_recent.external_metadata)
-
-    @patch("paper.ingestion.tasks.AltmetricClient")
-    @patch("paper.ingestion.tasks.AltmetricMapper")
-    def test_handles_altmetric_not_found(self, mock_mapper_class, mock_client_class):
-        """
-        Test handling when Altmetric data is not found.
-        """
-        # Arrange
-        mock_client = Mock()
-        mock_client.fetch_by_doi.return_value = None  # Not found
-        mock_client_class.return_value = mock_client
-
-        mock_mapper = Mock()
-        mock_mapper_class.return_value = mock_mapper
-
-        # Act
-        result = update_recent_papers_with_metrics(days=7)
-
-        # Assert
-        self.assertEqual(result["status"], "success")
-        self.assertEqual(result["success_count"], 0)
-        self.assertGreaterEqual(result["not_found_count"], 1)
-        self.assertEqual(result["error_count"], 0)
-
-        # Verify mapper was not called
-        mock_mapper.map_metrics.assert_not_called()
-
-    @patch("paper.ingestion.tasks.AltmetricClient")
-    @patch("paper.ingestion.tasks.AltmetricMapper")
-    def test_no_papers_in_date_range(self, mock_mapper_class, mock_client_class):
-        """
-        Test when no papers exist in the specified date range.
-        """
-        # Arrange
-        Paper.objects.all().delete()
-
-        # Act
-        result = update_recent_papers_with_metrics(days=1)
-
-        # Assert
-        self.assertEqual(result["status"], "success")
-        self.assertEqual(result["papers_processed"], 0)
 
 
 class OpenAlexTasksTests(TestCase):
@@ -641,7 +447,7 @@ class GithubMetricsTasksTests(TestCase):
         # Arrange
         self.paper_recent.external_metadata = {
             "existing_key": "existing_value",
-            "metrics": {"altmetric_score": 50.0},
+            "metrics": {"x_count": 50.0},
         }
         self.paper_recent.save()
         mock_client = Mock()
@@ -848,7 +654,7 @@ class BlueskyMetricsTasksTests(TestCase):
         # Arrange
         self.paper_recent.external_metadata = {
             "existing_key": "existing_value",
-            "metrics": {"altmetric_score": 50.0},
+            "metrics": {"x_count": 50.0},
         }
         self.paper_recent.save()
         mock_client = Mock()
@@ -890,6 +696,219 @@ class BlueskyMetricsTasksTests(TestCase):
             side_effect=MaxRetriesExceededError(),
         ):
             result = enrich_paper_with_bluesky_metrics(self.paper_recent.id)
+
+        # Assert
+        self.assertEqual(result["status"], "error")
+        self.assertEqual(result["paper_id"], self.paper_recent.id)
+        self.assertIn("reason", result)
+        self.assertTrue(mock_sentry.log_error.called)
+
+
+class XMetricsTasksTests(TestCase):
+    def setUp(self):
+        self.user = create_random_default_user("testUser1")
+        self.paper_recent = Paper.objects.create(
+            title="Recent Paper",
+            doi="10.1038/news.2011.490",
+            uploaded_by=self.user,
+            paper_publish_date=timezone.now() - timedelta(days=3),
+        )
+        self.paper_old = Paper.objects.create(
+            title="Old Paper",
+            doi="10.1234/old.paper",
+            uploaded_by=self.user,
+            paper_publish_date=timezone.now() - timedelta(days=10),
+        )
+        self.paper_no_doi = Paper.objects.create(
+            title="No DOI Paper",
+            uploaded_by=self.user,
+            paper_publish_date=timezone.now() - timedelta(days=2),
+        )
+        self.sample_x_response = {
+            "post_count": 25,
+            "total_likes": 500,
+            "total_reposts": 100,
+            "total_replies": 50,
+            "total_quotes": 25,
+            "total_impressions": 10000,
+            "posts": [
+                {
+                    "id": "1234567890",
+                    "text": "Great paper on DOI 10.1038/news.2011.490",
+                    "author_id": "123456",
+                    "like_count": 50,
+                }
+            ],
+        }
+
+    @patch("paper.ingestion.tasks.enrich_paper_with_x_metrics.delay")
+    @patch("paper.ingestion.tasks.XMetricsClient")
+    def test_update_recent_papers_with_x_metrics_dispatches_tasks(
+        self, mock_metrics_client_class, mock_delay
+    ):
+        """
+        Test that the dispatcher task creates individual tasks for each paper.
+        """
+        # Arrange
+        mock_metrics_client_class.return_value = Mock()
+
+        # Act
+        result = update_recent_papers_with_x_metrics(days=7)
+
+        # Assert
+        self.assertEqual(result["status"], "success")
+        self.assertGreaterEqual(result["papers_dispatched"], 1)
+        dispatched_ids = [call[0][0] for call in mock_delay.call_args_list]
+        self.assertIn(self.paper_recent.id, dispatched_ids)
+
+    @patch("paper.ingestion.tasks.enrich_paper_with_x_metrics.delay")
+    @patch("paper.ingestion.tasks.XMetricsClient")
+    def test_update_recent_papers_with_x_metrics_excludes_old_papers(
+        self, mock_metrics_client_class, mock_delay
+    ):
+        """
+        Test that old papers are excluded from X metrics updates.
+        """
+        # Arrange
+        Paper.objects.filter(id=self.paper_old.id).update(
+            paper_publish_date=timezone.now() - timedelta(days=10)
+        )
+        mock_metrics_client_class.return_value = Mock()
+
+        # Act
+        result = update_recent_papers_with_x_metrics(days=7)
+
+        # Assert
+        self.assertEqual(result["status"], "success")
+        dispatched_ids = [call[0][0] for call in mock_delay.call_args_list]
+        self.assertNotIn(self.paper_old.id, dispatched_ids)
+
+    @patch("paper.ingestion.tasks.XMetricsClient")
+    def test_enrich_paper_with_x_metrics(self, mock_metrics_client_class):
+        """
+        Test successful enrichment of a single paper with X metrics.
+        """
+        # Arrange
+        mock_client = Mock()
+        mock_client.get_metrics.return_value = self.sample_x_response
+        mock_metrics_client_class.return_value = mock_client
+
+        # Act
+        result = enrich_paper_with_x_metrics(self.paper_recent.id)
+
+        # Assert
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["paper_id"], self.paper_recent.id)
+        self.assertEqual(result["doi"], self.paper_recent.doi)
+        self.assertIn("metrics", result)
+        self.paper_recent.refresh_from_db()
+        self.assertIn("x", self.paper_recent.external_metadata["metrics"])
+
+    @patch("paper.ingestion.tasks.XMetricsClient")
+    def test_enrich_paper_with_x_metrics_not_found(self, mock_metrics_client_class):
+        """
+        Test enrichment when paper does not exist.
+        """
+        # Arrange
+        non_existent_id = -999
+
+        # Act
+        result = enrich_paper_with_x_metrics(non_existent_id)
+
+        # Assert
+        self.assertEqual(result["status"], "error")
+        self.assertEqual(result["paper_id"], non_existent_id)
+        self.assertEqual(result["reason"], "paper_not_found")
+
+    @patch("paper.ingestion.tasks.XMetricsClient")
+    def test_enrich_paper_with_x_metrics_no_doi_uses_title(
+        self, mock_metrics_client_class
+    ):
+        """
+        Test enrichment of paper without DOI but with title - should use title for search.
+        """
+        # Arrange
+        mock_client = Mock()
+        mock_client.get_metrics.return_value = None  # No posts found
+        mock_metrics_client_class.return_value = mock_client
+
+        # Act
+        result = enrich_paper_with_x_metrics(self.paper_no_doi.id)
+
+        # Assert
+        self.assertEqual(result["status"], "not_found")
+        self.assertEqual(result["paper_id"], self.paper_no_doi.id)
+
+    @patch("paper.ingestion.tasks.XMetricsClient")
+    def test_enrich_paper_with_x_metrics_no_x_posts(self, mock_metrics_client_class):
+        """
+        Test enrichment when no X posts are found.
+        """
+        # Arrange
+        mock_client = Mock()
+        mock_client.get_metrics.return_value = None
+        mock_metrics_client_class.return_value = mock_client
+
+        # Act
+        result = enrich_paper_with_x_metrics(self.paper_recent.id)
+
+        # Assert
+        self.assertEqual(result["status"], "not_found")
+        self.assertEqual(result["paper_id"], self.paper_recent.id)
+        self.assertEqual(result["doi"], self.paper_recent.doi)
+
+    @patch("paper.ingestion.tasks.XMetricsClient")
+    def test_enrich_paper_with_x_metrics_preserves_existing_metadata(
+        self, mock_metrics_client_class
+    ):
+        """
+        Test that existing external_metadata is preserved during enrichment.
+        """
+        # Arrange
+        self.paper_recent.external_metadata = {
+            "existing_key": "existing_value",
+            "metrics": {"github_mentions": 50.0},
+        }
+        self.paper_recent.save()
+        mock_client = Mock()
+        mock_client.get_metrics.return_value = self.sample_x_response
+        mock_metrics_client_class.return_value = mock_client
+
+        # Act
+        result = enrich_paper_with_x_metrics(self.paper_recent.id)
+
+        # Assert
+        self.assertEqual(result["status"], "success")
+        self.paper_recent.refresh_from_db()
+        self.assertEqual(
+            self.paper_recent.external_metadata["existing_key"], "existing_value"
+        )
+        self.assertIn("x", self.paper_recent.external_metadata["metrics"])
+
+    @patch("paper.ingestion.tasks.sentry")
+    @patch("paper.ingestion.tasks.PaperMetricsEnrichmentService")
+    @patch("paper.ingestion.tasks.XMetricsClient")
+    def test_enrich_paper_handles_service_error_with_max_retries(
+        self, mock_metrics_client_class, mock_service_class, mock_sentry
+    ):
+        """
+        Test error handling when max retries are exceeded.
+        """
+        # Arrange
+        from celery.exceptions import MaxRetriesExceededError
+
+        mock_metrics_client_class.return_value = Mock()
+        mock_service = Mock()
+        mock_service.enrich_paper_with_x.side_effect = Exception("Service error")
+        mock_service_class.return_value = mock_service
+
+        # Act
+        with patch.object(
+            enrich_paper_with_x_metrics,
+            "retry",
+            side_effect=MaxRetriesExceededError(),
+        ):
+            result = enrich_paper_with_x_metrics(self.paper_recent.id)
 
         # Assert
         self.assertEqual(result["status"], "error")
