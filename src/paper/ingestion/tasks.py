@@ -436,57 +436,48 @@ def enrich_paper_with_x_metrics(self, paper_id: int):
         x_metrics_client=XMetricsClient(),
     )
 
-    try:
-        enrichment_result = service.enrich_paper_with_x(paper)
+    enrichment_result = service.enrich_paper_with_x(paper)
 
-        if enrichment_result.status == "not_found":
-            return {
-                "status": "not_found",
-                "paper_id": paper_id,
-                "doi": paper.doi,
-            }
+    if enrichment_result.status == "retryable_error":
+        # Set backoff flag so other tasks wait
+        logger.warning(
+            f"X API rate limit hit, "
+            f"setting {X_API_BACKOFF_SECONDS}s backoff for all tasks"
+        )
+        cache.set(X_API_BACKOFF_KEY, True, timeout=X_API_BACKOFF_SECONDS)
+        raise self.retry(countdown=X_API_BACKOFF_SECONDS)
 
-        if enrichment_result.status == "success":
-            x_metrics = enrichment_result.metrics.get("x", {})
-            logger.info(
-                f"Successfully enriched paper {paper_id} with X metrics: "
-                f"{x_metrics.get('post_count', 0)} posts"
-            )
-
-            return {
-                "status": "success",
-                "paper_id": paper_id,
-                "doi": paper.doi,
-                "metrics": x_metrics,
-            }
-
-        # Handle other statuses (skipped, error)
+    if enrichment_result.status == "not_found":
         return {
-            "status": enrichment_result.status,
+            "status": "not_found",
             "paper_id": paper_id,
             "doi": paper.doi,
-            "reason": enrichment_result.reason,
         }
 
-    except Exception as e:
-        # Check for rate limit errors (429, 503) regardless of exception type
-        # The X SDK may wrap HTTP errors in its own exception type
-        response = getattr(e, "response", None)
-        if response is not None:
-            status_code = getattr(response, "status_code", None)
-            if status_code in (429, 503):
-                # Set backoff flag so other tasks wait
-                logger.warning(
-                    f"X API rate limit hit ({status_code}), "
-                    f"setting {X_API_BACKOFF_SECONDS}s backoff for all tasks"
-                )
-                cache.set(X_API_BACKOFF_KEY, True, timeout=X_API_BACKOFF_SECONDS)
-                raise self.retry(countdown=X_API_BACKOFF_SECONDS)
+    if enrichment_result.status == "success":
+        x_metrics = enrichment_result.metrics.get("x", {})
+        logger.info(
+            f"Successfully enriched paper {paper_id} with X metrics: "
+            f"{x_metrics.get('post_count', 0)} posts"
+        )
 
-        logger.error(f"Error enriching paper {paper_id} with X metrics: {str(e)}")
-        sentry.log_error(e, message=f"Error enriching paper {paper_id} with X metrics")
         return {
-            "status": "error",
+            "status": "success",
             "paper_id": paper_id,
-            "reason": str(e),
+            "doi": paper.doi,
+            "metrics": x_metrics,
         }
+
+    # Handle other statuses (skipped, error)
+    if enrichment_result.status == "error":
+        sentry.log_error(
+            Exception(enrichment_result.reason),
+            message=f"Error enriching paper {paper_id} with X metrics",
+        )
+
+    return {
+        "status": enrichment_result.status,
+        "paper_id": paper_id,
+        "doi": paper.doi,
+        "reason": enrichment_result.reason,
+    }
