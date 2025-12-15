@@ -75,6 +75,7 @@ class PaperDocument(BaseDocument):
         return (
             super()
             .get_queryset(filter_=filter_, exclude=exclude, count=count)
+            .filter(is_removed=False)
             .select_related(
                 "unified_document",
             )
