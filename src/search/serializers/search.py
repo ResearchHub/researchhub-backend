@@ -49,6 +49,7 @@ class HubSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     name = serializers.CharField()
     slug = serializers.CharField()
+    namespace = serializers.CharField(allow_null=True, required=False)
 
 
 class InstitutionSerializer(serializers.Serializer):
@@ -73,6 +74,8 @@ class DocumentResultSerializer(serializers.Serializer):
     _search_score = serializers.FloatField(required=False)
     hubs = HubSerializer(many=True, required=False)
     unified_document_id = serializers.IntegerField(required=False)
+    category = HubSerializer(allow_null=True, required=False)
+    subcategory = HubSerializer(allow_null=True, required=False)
 
     # Paper-specific fields
     doi = serializers.CharField(allow_null=True, required=False)

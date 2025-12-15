@@ -296,6 +296,8 @@ class UnifiedSearchService:
             "unified_document_id": getattr(hit, "unified_document_id", None),
             "abstract": getattr(hit, "abstract", None),
             "journal": self._extract_journal_from_hubs(hit),
+            "category": self._extract_category_from_hubs(hit),
+            "subcategory": self._extract_subcategory_from_hubs(hit),
         }
 
     def _build_post_fields(self, hit) -> dict[str, Any]:
@@ -312,6 +314,8 @@ class UnifiedSearchService:
             "document_type": getattr(hit, "document_type", None),
             "unified_document_id": getattr(hit, "unified_document_id", None),
             "renderable_text": getattr(hit, "renderable_text", None),
+            "category": self._extract_category_from_hubs(hit),
+            "subcategory": self._extract_subcategory_from_hubs(hit),
         }
 
     def _normalize_hubs_list(self, hubs, hit_id: str = "unknown") -> list | None:
@@ -352,6 +356,14 @@ class UnifiedSearchService:
     def _is_journal_hub(self, namespace: str | None) -> bool:
         """Check if a hub namespace indicates it's a journal hub."""
         return namespace == "journal"
+
+    def _is_category_hub(self, namespace: str | None) -> bool:
+        """Check if a hub namespace indicates it's a category hub."""
+        return namespace == "category"
+
+    def _is_subcategory_hub(self, namespace: str | None) -> bool:
+        """Check if a hub namespace indicates it's a subcategory hub."""
+        return namespace == "subcategory"
 
     def _format_hub_dict(
         self, hub_id: Any, hub_name: Any, hub_slug: Any, hub_namespace: Any
@@ -402,6 +414,62 @@ class UnifiedSearchService:
             return None
         except Exception as e:
             logger.warning(f"Failed to extract journal from hubs: {e}", exc_info=True)
+            return None
+
+    def _extract_category_from_hubs(self, hit) -> dict[str, Any] | None:
+        """Extract category hub from hubs where namespace='category'."""
+        try:
+            hubs = getattr(hit, "hubs", None)
+            hit_id = str(getattr(hit, "id", "unknown"))
+
+            normalized_hubs = self._normalize_hubs_list(hubs, hit_id)
+            if not normalized_hubs:
+                return None
+
+            for hub in normalized_hubs:
+                hub_fields = self._extract_hub_fields(hub)
+                if not hub_fields:
+                    continue
+
+                namespace = hub_fields.get("namespace")
+                if self._is_category_hub(namespace):
+                    hub_id = hub_fields.get("id")
+                    hub_name = hub_fields.get("name")
+                    hub_slug = hub_fields.get("slug")
+                    if hub_id is not None or (hub_name and isinstance(hub_name, str)):
+                        return self._format_hub_dict(hub_id, hub_name, hub_slug, namespace)
+
+            return None
+        except Exception as e:
+            logger.warning(f"Failed to extract category from hubs: {e}", exc_info=True)
+            return None
+
+    def _extract_subcategory_from_hubs(self, hit) -> dict[str, Any] | None:
+        """Extract subcategory hub from hubs where namespace='subcategory'."""
+        try:
+            hubs = getattr(hit, "hubs", None)
+            hit_id = str(getattr(hit, "id", "unknown"))
+
+            normalized_hubs = self._normalize_hubs_list(hubs, hit_id)
+            if not normalized_hubs:
+                return None
+
+            for hub in normalized_hubs:
+                hub_fields = self._extract_hub_fields(hub)
+                if not hub_fields:
+                    continue
+
+                namespace = hub_fields.get("namespace")
+                if self._is_subcategory_hub(namespace):
+                    hub_id = hub_fields.get("id")
+                    hub_name = hub_fields.get("name")
+                    hub_slug = hub_fields.get("slug")
+                    if hub_id is not None or (hub_name and isinstance(hub_name, str)):
+                        return self._format_hub_dict(hub_id, hub_name, hub_slug, namespace)
+
+            return None
+        except Exception as e:
+            logger.warning(f"Failed to extract subcategory from hubs: {e}", exc_info=True)
             return None
 
     def _process_hubs(self, hit) -> list[dict[str, Any]]:
