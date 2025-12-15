@@ -28,11 +28,6 @@ def handle_comment_created_or_removed(sender, instance, created, **kwargs):
     comment = instance
 
     try:
-        if created:
-            _create_comment_feed_entries(comment)
-        elif comment.is_removed:
-            _delete_comment_feed_entries(comment)
-
         _update_metrics(comment)
     except Exception as e:
         action = "create" if created else "delete"
@@ -70,45 +65,3 @@ def _update_metrics(comment):
             ),
             priority=1,
         )
-
-
-def _create_comment_feed_entries(comment):
-    # Validate that the comment is associated with a unified document with hubs
-    if not getattr(comment, "unified_document", None) or not hasattr(
-        comment.unified_document, "hubs"
-    ):
-        return
-
-    hub_ids = list(comment.unified_document.hubs.values_list("id", flat=True))
-    transaction.on_commit(
-        lambda: create_feed_entry.apply_async(
-            args=(
-                comment.id,
-                ContentType.objects.get_for_model(comment).id,
-                FeedEntry.PUBLISH,
-                hub_ids,
-                comment.created_by.id,
-            ),
-            priority=1,
-        )
-    )
-
-
-def _delete_comment_feed_entries(comment):
-    # Validate that the comment is associated with a unified document with hubs
-    if not getattr(comment, "unified_document", None) or not hasattr(
-        comment.unified_document, "hubs"
-    ):
-        return
-
-    hub_ids = list(comment.unified_document.hubs.values_list("id", flat=True))
-    transaction.on_commit(
-        lambda: delete_feed_entry.apply_async(
-            args=(
-                comment.id,
-                ContentType.objects.get_for_model(comment).id,
-                hub_ids,
-            ),
-            priority=1,
-        )
-    )

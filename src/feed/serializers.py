@@ -490,128 +490,6 @@ class BountySerializer(serializers.Serializer):
         ]
 
 
-class CommentSerializer(serializers.Serializer):
-    author = serializers.SerializerMethodField()
-    comment_content_json = serializers.JSONField()
-    comment_content_type = serializers.CharField()
-    comment_type = serializers.CharField()
-    document_type = serializers.SerializerMethodField()
-    hub = serializers.SerializerMethodField()
-    category = serializers.SerializerMethodField()
-    subcategory = serializers.SerializerMethodField()
-    id = serializers.IntegerField()
-    paper = serializers.SerializerMethodField()
-    parent_comment = serializers.SerializerMethodField()
-    parent_id = serializers.IntegerField()
-    post = serializers.SerializerMethodField()
-    review = serializers.SerializerMethodField()
-    thread_id = serializers.IntegerField()
-    bounties = serializers.SerializerMethodField()
-    purchases = serializers.SerializerMethodField()
-
-    def get_author(self, obj):
-        return SimpleAuthorSerializer(obj.created_by.author_profile).data
-
-    def get_bounties(self, obj):
-        return BountySerializer(obj.bounties, many=True).data
-
-    def get_document_type(self, obj):
-        if obj.unified_document:
-            return obj.unified_document.document_type
-        return None
-
-    def get_hub(self, obj):
-        return SimpleHubSerializer(
-            obj.unified_document.get_primary_hub(fallback=True)
-        ).data
-
-    def get_category(self, obj):
-        """Return category hub if it exists"""
-        hub = _get_first_namespace_hub(obj, Hub.Namespace.CATEGORY)
-        return SimpleHubSerializer(hub).data if hub else None
-
-    def get_subcategory(self, obj):
-        """Return subcategory hub if it exists"""
-        hub = _get_first_namespace_hub(obj, Hub.Namespace.SUBCATEGORY)
-        return SimpleHubSerializer(hub).data if hub else None
-
-    def get_paper(self, obj):
-        """Return the paper associated with this comment if it exists"""
-        if (
-            obj.unified_document
-            and obj.unified_document.document_type == document_type.PAPER
-        ):
-            paper = obj.unified_document.paper
-            paper_data = PaperSerializer(paper).data
-            paper_data["unified_document_id"] = obj.unified_document.id
-            return paper_data
-        return None
-
-    def get_parent_comment(self, obj):
-        """Return the parent comment associated with this comment if it exists"""
-        if obj.parent:
-            return CommentSerializer(obj.parent).data
-        return None
-
-    def get_post(self, obj):
-        """Return the post associated with this comment if it exists"""
-        if obj.unified_document and hasattr(obj.unified_document, "posts"):
-            post = obj.unified_document.posts.first()
-            post_data = PostSerializer(post).data
-            post_data["unified_document_id"] = obj.unified_document.id
-            return post_data
-        return None
-
-    def get_review(self, obj):
-        """Return the review associated with this comment if it exists"""
-        if hasattr(obj, "reviews") and obj.reviews.exists():
-            review = obj.reviews.first()
-            return ReviewSerializer(review).data
-        return None
-
-    def get_purchases(self, obj):
-        """Return purchases directly associated with this comment"""
-        if hasattr(obj, "purchases") and obj.purchases.exists():
-            context = getattr(self, "context", {})
-            context["pch_dps_get_user"] = {
-                "_include_fields": [
-                    "id",
-                    "first_name",
-                    "last_name",
-                    "created_date",
-                    "updated_date",
-                    "profile_image",
-                    "is_verified",
-                ]
-            }
-            serializer = DynamicPurchaseSerializer(
-                obj.purchases.all(),
-                many=True,
-                context=context,
-                _include_fields=["id", "amount", "user", "purchase_type"],
-            )
-            return serializer.data
-        return []
-
-    class Meta:
-        fields = [
-            "comment_content_type",
-            "comment_content_json",
-            "comment_type",
-            "document_type",
-            "hub",
-            "category",
-            "subcategory",
-            "id",
-            "paper",
-            "parent_id",
-            "post",
-            "thread_id",
-            "review",
-            "purchases",
-        ]
-
-
 class FeedEntrySerializer(serializers.ModelSerializer):
     """Serializer for feed entries that can reference different content types"""
 
@@ -774,8 +652,6 @@ def serialize_feed_item(feed_item, item_content_type):
             return PaperSerializer(feed_item).data
         case "researchhubpost":
             return PostSerializer(feed_item).data
-        case "rhcommentmodel":
-            return CommentSerializer(feed_item).data
         case _:
             return None
 
