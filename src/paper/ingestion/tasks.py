@@ -1,6 +1,5 @@
 import logging
 
-import requests
 from celery.exceptions import MaxRetriesExceededError
 from django.conf import settings
 from django.core.cache import cache
@@ -469,18 +468,21 @@ def enrich_paper_with_x_metrics(self, paper_id: int):
             "reason": enrichment_result.reason,
         }
 
-    except requests.exceptions.HTTPError as e:
-        status_code = e.response.status_code if e.response is not None else None
-        if status_code in (429, 503):
-            # Set backoff flag so other tasks wait
-            logger.warning(
-                f"X API rate limit hit ({status_code}), "
-                f"setting {X_API_BACKOFF_SECONDS}s backoff for all tasks"
-            )
-            cache.set(X_API_BACKOFF_KEY, True, timeout=X_API_BACKOFF_SECONDS)
-            raise self.retry(countdown=X_API_BACKOFF_SECONDS)
-        raise
     except Exception as e:
+        # Check for rate limit errors (429, 503) regardless of exception type
+        # The X SDK may wrap HTTP errors in its own exception type
+        response = getattr(e, "response", None)
+        if response is not None:
+            status_code = getattr(response, "status_code", None)
+            if status_code in (429, 503):
+                # Set backoff flag so other tasks wait
+                logger.warning(
+                    f"X API rate limit hit ({status_code}), "
+                    f"setting {X_API_BACKOFF_SECONDS}s backoff for all tasks"
+                )
+                cache.set(X_API_BACKOFF_KEY, True, timeout=X_API_BACKOFF_SECONDS)
+                raise self.retry(countdown=X_API_BACKOFF_SECONDS)
+
         logger.error(f"Error enriching paper {paper_id} with X metrics: {str(e)}")
         sentry.log_error(e, message=f"Error enriching paper {paper_id} with X metrics")
         return {
