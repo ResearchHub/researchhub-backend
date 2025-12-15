@@ -90,29 +90,3 @@ class CommentSignalsTests(TestCase):
                 ),
             ]
         )
-        # The parent comment should still show its direct children count
-        mock_update_feed_metrics.apply_async.assert_has_calls(
-            [
-                call(
-                    args=(
-                        self.comment.id,
-                        ContentType.objects.get_for_model(self.comment).id,
-                        {"votes": 0, "replies": 1},
-                    ),
-                    priority=1,
-                ),
-            ]
-        )
-        # Check that metrics were also called for the second reply
-        mock_update_feed_metrics.apply_async.assert_has_calls(
-            [
-                call(
-                    args=(
-                        self.comment.id,
-                        ContentType.objects.get_for_model(self.comment).id,
-                        {"votes": 0, "replies": 2},
-                    ),
-                    priority=1,
-                ),
-            ]
-        )

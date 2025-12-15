@@ -51,17 +51,3 @@ def _update_metrics(comment):
         ),
         priority=1,
     )
-
-    parent_comment = comment.parent
-    if parent_comment:
-        # Update the metrics for the parent comment feed entry
-        parent_comment_content_type = ContentType.objects.get_for_model(parent_comment)
-        metrics = serialize_feed_metrics(parent_comment, parent_comment_content_type)
-        update_feed_metrics.apply_async(
-            args=(
-                parent_comment.id,
-                ContentType.objects.get_for_model(parent_comment).id,
-                metrics,
-            ),
-            priority=1,
-        )
