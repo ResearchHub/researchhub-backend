@@ -35,7 +35,7 @@ class OrcidServiceTests(TestCase):
         self.assertEqual(get_orcid_app(), app)
 
     def test_state_encoding(self):
-        data = {"user_id": 123, "return_url": "http://example.com"}
+        data = {"user_id": 123, "return_url": "https://example.com"}
         self.assertEqual(decode_state(encode_signed_value(data)), data)
         self.assertIsNone(decode_state("invalid"))
         self.assertIsNone(decode_state(""))
