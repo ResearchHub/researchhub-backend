@@ -152,7 +152,7 @@ class PaperDocument(BaseDocument):
         # Variation of author names which may be searched by users
         try:
             if instance.raw_authors:
-                authors_list = format_raw_authors(instance.raw_authors)
+                authors_list = self.prepare_raw_authors(instance)
                 if authors_list:
                     author_names_only = [
                         f"{author['first_name']} {author['last_name']}"
