@@ -888,30 +888,77 @@ class XMetricsTasksTests(TestCase):
     @patch("paper.ingestion.tasks.sentry")
     @patch("paper.ingestion.tasks.PaperMetricsEnrichmentService")
     @patch("paper.ingestion.tasks.XMetricsClient")
-    def test_enrich_paper_handles_service_error_with_max_retries(
+    def test_enrich_paper_handles_service_error_logs_to_sentry(
         self, mock_metrics_client_class, mock_service_class, mock_sentry
     ):
         """
-        Test error handling when max retries are exceeded.
+        Test that error status logs to sentry.
         """
         # Arrange
-        from celery.exceptions import MaxRetriesExceededError
+        from paper.ingestion.services.metrics_enrichment import EnrichmentResult
 
         mock_metrics_client_class.return_value = Mock()
         mock_service = Mock()
-        mock_service.enrich_paper_with_x.side_effect = Exception("Service error")
+        mock_service.enrich_paper_with_x.return_value = EnrichmentResult(
+            status="error", reason="Service error"
+        )
         mock_service_class.return_value = mock_service
 
         # Act
-        with patch.object(
-            enrich_paper_with_x_metrics,
-            "retry",
-            side_effect=MaxRetriesExceededError(),
-        ):
-            result = enrich_paper_with_x_metrics(self.paper_recent.id)
+        result = enrich_paper_with_x_metrics(self.paper_recent.id)
 
         # Assert
         self.assertEqual(result["status"], "error")
         self.assertEqual(result["paper_id"], self.paper_recent.id)
         self.assertIn("reason", result)
         self.assertTrue(mock_sentry.log_error.called)
+
+    @patch("paper.ingestion.tasks.cache")
+    @patch("paper.ingestion.tasks.PaperMetricsEnrichmentService")
+    @patch("paper.ingestion.tasks.XMetricsClient")
+    def test_enrich_paper_with_x_metrics_sets_backoff_on_retryable_error(
+        self, mock_metrics_client_class, mock_service_class, mock_cache
+    ):
+        """
+        Test that retryable_error status sets backoff in cache and retries.
+        """
+        # Arrange
+        from celery.exceptions import Retry
+
+        from paper.ingestion.services.metrics_enrichment import EnrichmentResult
+
+        mock_metrics_client_class.return_value = Mock()
+        mock_service = Mock()
+        mock_service.enrich_paper_with_x.return_value = EnrichmentResult(
+            status="retryable_error", reason="Rate limit exceeded"
+        )
+        mock_service_class.return_value = mock_service
+        mock_cache.get.return_value = None  # No existing backoff
+
+        # Act & Assert
+        with self.assertRaises(Retry):
+            enrich_paper_with_x_metrics(self.paper_recent.id)
+
+        # Verify backoff was set in cache
+        mock_cache.set.assert_called_once()
+        call_args = mock_cache.set.call_args
+        self.assertEqual(call_args[0][0], "x_api_backoff")
+        self.assertEqual(call_args[0][1], True)
+
+    @patch("paper.ingestion.tasks.cache")
+    @patch("paper.ingestion.tasks.XMetricsClient")
+    def test_enrich_paper_with_x_metrics_skips_when_backoff_active(
+        self, mock_metrics_client_class, mock_cache
+    ):
+        """
+        Test that task retries immediately when backoff is active.
+        """
+        # Arrange
+        from celery.exceptions import Retry
+
+        mock_metrics_client_class.return_value = Mock()
+        mock_cache.get.return_value = True  # Backoff is active
+
+        # Act & Assert
+        with self.assertRaises(Retry):
+            enrich_paper_with_x_metrics(self.paper_recent.id)
