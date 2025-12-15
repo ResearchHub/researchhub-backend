@@ -1,8 +1,6 @@
-from unittest import TestCase
+from django.test import TestCase, override_settings
 
-from django.test import override_settings
-
-from paper.tasks import _create_download_url
+from paper.tasks import create_download_url
 
 
 class TestTasks(TestCase):
@@ -19,7 +17,10 @@ class TestTasks(TestCase):
             (
                 "https://www.biorxiv.org/content/10.1101/2023.10.01.123456v1.full.pdf",
                 "biorxiv",
-                "https://scraper/?url=https%3A//www.biorxiv.org/content/10.1101/2023.10.01.123456v1.full.pdf",
+                (
+                    "https://scraper/?url=https%3A//www.biorxiv.org/"
+                    "content/10.1101/2023.10.01.123456v1.full.pdf"
+                ),
             ),
             (
                 "https://www.example.com/paper.pdf",
@@ -31,9 +32,7 @@ class TestTasks(TestCase):
         for url, source, expected in test_cases:
             with self.subTest(msg=f"Testing URL: {url} with source: {source}"):
                 # Act
-                result = _create_download_url(url, source)
+                result = create_download_url(url, source)
 
                 # Assert
-                self.assertEqual(result, expected)
-                self.assertEqual(result, expected)
                 self.assertEqual(result, expected)

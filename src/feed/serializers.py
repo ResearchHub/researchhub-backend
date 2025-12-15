@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 from django.contrib.contenttypes.models import ContentType
@@ -19,6 +20,8 @@ from review.serializers.review_serializer import ReviewSerializer
 from user.models import Author, User
 
 from .models import FeedEntry
+
+logger = logging.getLogger(__name__)
 
 
 class SimpleUserSerializer(serializers.ModelSerializer):
@@ -207,6 +210,7 @@ class PaperSerializer(ContentObjectSerializer):
     work_type = serializers.CharField()
     bounties = serializers.SerializerMethodField()
     purchases = serializers.SerializerMethodField()
+    primary_image = serializers.SerializerMethodField()
 
     def get_bounties(self, obj):
         return self.get_bounty_data(obj)
@@ -229,6 +233,15 @@ class PaperSerializer(ContentObjectSerializer):
             "image": journal_hub.hub_image.url if journal_hub.hub_image else None,
         }
 
+    def get_primary_image(self, obj):
+        try:
+            primary_figure = obj.figures.filter(is_primary=True).first()
+            if not primary_figure or not primary_figure.file:
+                return None
+            return default_storage.url(primary_figure.file.name)
+        except Exception:
+            return None
+
     class Meta(ContentObjectSerializer.Meta):
         model = Paper
         fields = ContentObjectSerializer.Meta.fields + [
@@ -239,6 +252,7 @@ class PaperSerializer(ContentObjectSerializer):
             "authors",
             "bounties",
             "purchases",
+            "primary_image",
         ]
 
 
@@ -701,6 +715,10 @@ class FeedEntrySerializer(serializers.ModelSerializer):
                             ),
                         },
                     }
+
+        if obj.content_type.model == "paper" and obj.item:
+            primary_image = PaperSerializer(obj.item).get_primary_image(obj.item)
+            content["primary_image"] = primary_image
 
         return content
 

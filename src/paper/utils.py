@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.core.validators import URLValidator
 from django.db.models import Count, Q
+from PIL import Image
 
 from discussion.models import Vote
 from paper.exceptions import ManubotProcessingError

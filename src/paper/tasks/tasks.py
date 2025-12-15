@@ -1,14 +1,8 @@
 import urllib.parse
-from io import BytesIO
 
-import fitz
-import requests
 from celery.utils.log import get_task_logger
 from django.apps import apps
 from django.conf import settings
-from django.core.cache import cache
-from django.core.files.base import ContentFile
-from PIL import Image
 
 from paper.ingestion.pipeline import (  # noqa: F401
     fetch_all_papers,
@@ -24,8 +18,10 @@ from paper.ingestion.tasks import (  # noqa: F401
     update_recent_papers_with_github_metrics,
     update_recent_papers_with_x_metrics,
 )
-from paper.utils import download_pdf_from_url, get_cache_key
+from paper.utils import download_pdf_from_url
 from researchhub.celery import QUEUE_PAPER_MISC, app
+
+# from researchhub.settings import PRODUCTION
 from utils import sentry
 
 logger = get_task_logger(__name__)
@@ -42,9 +38,6 @@ def censored_paper_cleanup(paper_id):
 
     if paper:
         paper.votes.update(is_removed=True)
-        for vote in paper.votes.all():
-            if vote.vote_type == 1:
-                user = vote.created_by
 
         uploaded_by = paper.uploaded_by
         uploaded_by.set_probable_spammer()
@@ -62,10 +55,16 @@ def download_pdf(paper_id, retry=0):
 
     if pdf_url:
         try:
-            url = _create_download_url(pdf_url, paper.external_source)
+            url = create_download_url(pdf_url, paper.external_source)
             pdf = download_pdf_from_url(url)
             paper.file.save(pdf.name, pdf, save=False)
             paper.save(update_fields=["file"])
+
+            # NOTE: Automatic figure extraction is disabled.
+            # Do not forget to filter old papers.
+            # We need to extract figures for new papers: published date after 2025-10-01
+            # from paper.tasks.figure_tasks import extract_pdf_figures
+            # extract_pdf_figures.apply_async((paper.id,), priority=6)
             return True
         except ValueError as e:
             logger.warning(f"No PDF at {url} - paper {paper_id}: {e}")
@@ -82,7 +81,7 @@ def download_pdf(paper_id, retry=0):
     return False
 
 
-def _create_download_url(url: str, external_source: str) -> str:
+def create_download_url(url: str, external_source: str) -> str:
     if external_source not in ["arxiv", "biorxiv"]:
         return url
 
@@ -92,54 +91,3 @@ def _create_download_url(url: str, external_source: str) -> str:
 
     target_url = urllib.parse.quote(url)
     return f"{scraper_url.format(url=target_url)}"
-
-
-@app.task(queue=QUEUE_PAPER_MISC)
-def celery_extract_pdf_preview(paper_id, retry=0):
-    if paper_id is None or retry > 2:
-        print("No paper id for pdf preview")
-        return False
-
-    print(f"Extracting pdf figures for paper: {paper_id}")
-
-    Paper = apps.get_model("paper.Paper")
-    Figure = apps.get_model("paper.Figure")
-    paper = Paper.objects.get(id=paper_id)
-
-    file = paper.file
-    if not file:
-        print(f"No file exists for paper: {paper_id}")
-        celery_extract_pdf_preview.apply_async(
-            (paper.id, retry + 1),
-            priority=6,
-            countdown=10,
-        )
-        return False
-
-    file_url = file.url
-
-    try:
-        res = requests.get(file_url)
-        doc = fitz.open(stream=res.content, filetype="pdf")
-        extracted_figures = Figure.objects.filter(paper=paper)
-        for page in doc:
-            pix = page.get_pixmap(alpha=False)
-            output_filename = f"{paper_id}-{page.number}.png"
-
-            if not extracted_figures.filter(
-                file__contains=output_filename, figure_type=Figure.PREVIEW
-            ):
-                img_buffer = BytesIO()
-                img_buffer.write(pix.pil_tobytes(format="PNG"))
-                image = Image.open(img_buffer)
-                image.save(img_buffer, "png", quality=0)
-                file = ContentFile(img_buffer.getvalue(), name=output_filename)
-                Figure.objects.create(
-                    file=file, paper=paper, figure_type=Figure.PREVIEW
-                )
-    except Exception as e:
-        sentry.log_error(e)
-    finally:
-        cache_key = get_cache_key("figure", paper_id)
-        cache.delete(cache_key)
-    return True
