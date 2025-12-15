@@ -1,4 +1,5 @@
 import io
+import json
 import logging
 import math
 import sys
@@ -12,6 +13,7 @@ from django_opensearch_dsl.registries import registry
 
 from feed.models import FeedEntry
 from paper.models import Paper
+from paper.utils import format_raw_authors
 from search.analyzers import content_analyzer, title_analyzer
 from utils.doi import DOI
 
@@ -150,12 +152,15 @@ class PaperDocument(BaseDocument):
         # Variation of author names which may be searched by users
         try:
             if instance.raw_authors:
-                authors_list = self.prepare_raw_authors(instance)
+                authors_list = self._prepare_authors_for_suggestions(instance)
                 if authors_list:
                     author_names_only = [
-                        f"{author['first_name']} {author['last_name']}"
+                        (
+                            f"{author.get('first_name', '')} "
+                            f"{author.get('last_name', '')}"
+                        ).strip()
                         for author in authors_list
-                        if author.get("first_name") and author.get("last_name")
+                        if author.get("first_name") or author.get("last_name")
                     ]
                     if author_names_only:
                         all_authors_as_str = ", ".join(author_names_only)
@@ -206,6 +211,128 @@ class PaperDocument(BaseDocument):
                 )
 
         return authors
+
+    def _prepare_authors_for_suggestions(self, instance) -> list[dict[str, Any]]:
+        """
+        Prepare authors for suggestion phrases, handling various raw_authors formats.
+
+        Handles:
+        - JSON strings (parses them)
+        - Lists of JSON strings (parses each)
+        - Lists of dicts in raw format (transforms with format_raw_authors)
+        - Lists of dicts already formatted (uses directly)
+        """
+        if not instance.raw_authors:
+            return []
+
+        try:
+            raw_authors_data = instance.raw_authors
+
+            # Handle JSON string input
+            if isinstance(raw_authors_data, str):
+                try:
+                    raw_authors_data = json.loads(raw_authors_data)
+                except (json.JSONDecodeError, TypeError):
+                    logger.debug(
+                        f"Failed to parse raw_authors as JSON string "
+                        f"for paper {instance.id}"
+                    )
+                    return []
+
+            # Ensure it's a list
+            if not isinstance(raw_authors_data, list):
+                return []
+
+            # Handle list of JSON strings
+            parsed_authors = []
+            for item in raw_authors_data:
+                if isinstance(item, str):
+                    try:
+                        parsed_item = json.loads(item)
+                        if isinstance(parsed_item, dict):
+                            parsed_authors.append(parsed_item)
+                    except (json.JSONDecodeError, TypeError):
+                        continue
+                elif isinstance(item, dict):
+                    # Make a deep copy to avoid mutating the original
+                    parsed_authors.append(json.loads(json.dumps(item)))
+                else:
+                    continue
+
+            if not parsed_authors:
+                return []
+
+            # Check if data needs transformation (has raw format keys)
+            needs_transformation = any(
+                isinstance(author, dict)
+                and (
+                    "family" in author
+                    or "literal" in author
+                    or "author" in author
+                    or ("name" in author and "first_name" not in author)
+                )
+                for author in parsed_authors
+            )
+
+            # Transform if needed using format_raw_authors
+            if needs_transformation:
+                try:
+                    formatted_authors = format_raw_authors(parsed_authors)
+                except Exception as e:
+                    logger.debug(
+                        f"format_raw_authors failed for paper {instance.id}: {e}"
+                    )
+                    # Fall back to direct extraction
+                    formatted_authors = parsed_authors
+            else:
+                formatted_authors = parsed_authors
+
+            # Extract author names, handling both formatted and raw formats
+            result = []
+            for author in formatted_authors:
+                if not isinstance(author, dict):
+                    continue
+
+                # Try formatted format first
+                first_name = author.get("first_name")
+                last_name = author.get("last_name")
+                # Fall back to raw formats if needed
+                if not first_name:
+                    first_name = author.get("given", "")
+                if not last_name:
+                    last_name = author.get("family", "")
+
+                # Try literal format
+                if not first_name and not last_name and "literal" in author:
+                    name = author.get("literal", "")
+                    if name:
+                        names = name.split(" ")
+                        first_name = names[0] if names else ""
+                        last_name = names[-1] if len(names) > 1 else ""
+
+                # Try name field
+                if not first_name and not last_name and "name" in author:
+                    name = author.get("name", "")
+                    if name:
+                        names = name.split(" ")
+                        first_name = names[0] if names else ""
+                        last_name = names[-1] if len(names) > 1 else ""
+                if first_name or last_name:
+                    result.append(
+                        {
+                            "first_name": first_name or "",
+                            "last_name": last_name or "",
+                        }
+                    )
+
+            return result
+
+        except Exception as e:
+            logger.debug(
+                f"Failed to prepare authors for suggestions "
+                f"for paper {instance.id}: {e}"
+            )
+            return []
 
     def prepare_doi_indexing(self, instance) -> str:
         return instance.doi or ""
