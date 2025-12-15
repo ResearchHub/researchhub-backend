@@ -215,8 +215,11 @@ class PaperSerializer(ContentObjectSerializer):
         return self.get_purchase_data(obj)
 
     def get_journal(self, obj):
+        print("yooooooooooooooooo1111")
         if not hasattr(obj, "unified_document") or not obj.unified_document:
             return None
+
+        print("yooooooooooooooooo")
 
         journal_hub = obj.unified_document.get_journal()
         if not journal_hub:
@@ -672,23 +675,33 @@ class FeedEntrySerializer(serializers.ModelSerializer):
 
         content = obj.content
 
-        # Alert: Shim. temporary shim to ensure we have a journal set for as many
+        # Shim #1: temporary shim to ensure we have a journal set for as many
         # papers as possible until we get to the bottom of why some papers
-        # don't have journal properly
-        # Backfill journal for papers if missing (shim for legacy data)
-        if obj.content_type.model == "paper" and content.get("journal") is None:
-            item = obj.item
-            if item:
-                external_source = getattr(item, "external_source", None)
-                if external_source and external_source.lower() in self.PREPRINT_SOURCES:
-                    source = external_source.lower()
+        # don't have journal properly set.
+        # Shim #2: If journal is set but not a known preprint source, fetch journal from unified document.
+        if obj.content_type.model == "paper":
+            journal = content.get("journal")
+            journal_slug = (
+                journal.get("slug", "").lower() if isinstance(journal, dict) else None
+            )
+            needs_journal_shim = journal is None or (
+                journal_slug not in self.PREPRINT_SOURCES
+            )
+
+            if needs_journal_shim:
+                journal_hub = obj.unified_document.get_journal()
+                if journal_hub:
                     content = {
                         **content,
                         "journal": {
-                            "id": 0,
-                            "name": source,
-                            "slug": source,
-                            "image": None,
+                            "id": journal_hub.id,
+                            "name": journal_hub.name,
+                            "slug": journal_hub.slug,
+                            "image": (
+                                journal_hub.hub_image.url
+                                if journal_hub.hub_image
+                                else None
+                            ),
                         },
                     }
 
@@ -736,6 +749,7 @@ def serialize_feed_item(feed_item, item_content_type):
 
     match item_content_type.model:
         case "paper":
+            print("yooooooooooooooooo444454")
             return PaperSerializer(feed_item).data
         case "researchhubpost":
             return PostSerializer(feed_item).data
