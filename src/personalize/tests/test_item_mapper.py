@@ -9,12 +9,18 @@ from django.test import TestCase
 
 from hub.models import Hub
 from personalize.config.constants import (
-    BLUESKY_COUNT_TOTAL,
+    BLUESKY_POST_COUNT,
+    BLUESKY_TOTAL_LIKES,
+    BLUESKY_TOTAL_QUOTES,
+    BLUESKY_TOTAL_REPLIES,
+    BLUESKY_TOTAL_REPOSTS,
     BOUNTY_HAS_SOLUTIONS,
     CITATION_COUNT_TOTAL,
     CREATION_TIMESTAMP,
     DELIMITER,
     FIELD_DEFAULTS,
+    GITHUB_CODE_MENTIONS,
+    GITHUB_TOTAL_MENTIONS,
     HAS_ACTIVE_BOUNTY,
     HUB_IDS,
     HUB_L1,
@@ -30,8 +36,13 @@ from personalize.config.constants import (
     RFP_IS_OPEN,
     TEXT,
     TITLE,
-    TWEET_COUNT_TOTAL,
     UPVOTE_SCORE,
+    X_POST_COUNT,
+    X_TOTAL_IMPRESSIONS,
+    X_TOTAL_LIKES,
+    X_TOTAL_QUOTES,
+    X_TOTAL_REPLIES,
+    X_TOTAL_REPOSTS,
 )
 from personalize.services.item_mapper import ItemMapper
 from personalize.tests.helpers import (
@@ -758,11 +769,21 @@ class PaperSpecificFieldTests(TestCase):
         # Assert
         self.assertEqual(result[CITATION_COUNT_TOTAL], 100)
 
-    def test_paper_bluesky_count_from_external_metadata(self):
-        """BLUESKY_COUNT_TOTAL should extract from paper.external_metadata.metrics."""
+    def test_paper_bluesky_metrics_from_external_metadata(self):
+        """Bluesky metrics should extract from paper.external_metadata.metrics.bluesky."""
         # Arrange
         mapper = ItemMapper()
-        external_metadata = {"metrics": {"bluesky_count": 50}}
+        external_metadata = {
+            "metrics": {
+                "bluesky": {
+                    "post_count": 2,
+                    "total_likes": 5,
+                    "total_quotes": 1,
+                    "total_replies": 3,
+                    "total_reposts": 4,
+                }
+            }
+        }
         unified_doc = create_prefetched_paper(external_metadata=external_metadata)
         batch_data = create_batch_data()
 
@@ -776,13 +797,28 @@ class PaperSpecificFieldTests(TestCase):
         )
 
         # Assert
-        self.assertEqual(result[BLUESKY_COUNT_TOTAL], 50)
+        self.assertEqual(result[BLUESKY_POST_COUNT], 2)
+        self.assertEqual(result[BLUESKY_TOTAL_LIKES], 5)
+        self.assertEqual(result[BLUESKY_TOTAL_QUOTES], 1)
+        self.assertEqual(result[BLUESKY_TOTAL_REPLIES], 3)
+        self.assertEqual(result[BLUESKY_TOTAL_REPOSTS], 4)
 
-    def test_paper_tweet_count_from_external_metadata(self):
-        """TWEET_COUNT_TOTAL should extract from paper.external_metadata.metrics."""
+    def test_paper_x_metrics_from_external_metadata(self):
+        """X metrics should extract from paper.external_metadata.metrics.x."""
         # Arrange
         mapper = ItemMapper()
-        external_metadata = {"metrics": {"twitter_count": 75}}
+        external_metadata = {
+            "metrics": {
+                "x": {
+                    "post_count": 4,
+                    "total_likes": 12,
+                    "total_quotes": 2,
+                    "total_replies": 6,
+                    "total_reposts": 8,
+                    "total_impressions": 516,
+                }
+            }
+        }
         unified_doc = create_prefetched_paper(external_metadata=external_metadata)
         batch_data = create_batch_data()
 
@@ -796,10 +832,43 @@ class PaperSpecificFieldTests(TestCase):
         )
 
         # Assert
-        self.assertEqual(result[TWEET_COUNT_TOTAL], 75)
+        self.assertEqual(result[X_POST_COUNT], 4)
+        self.assertEqual(result[X_TOTAL_LIKES], 12)
+        self.assertEqual(result[X_TOTAL_QUOTES], 2)
+        self.assertEqual(result[X_TOTAL_REPLIES], 6)
+        self.assertEqual(result[X_TOTAL_REPOSTS], 8)
+        self.assertEqual(result[X_TOTAL_IMPRESSIONS], 516)
+
+    def test_paper_github_metrics_from_external_metadata(self):
+        """GitHub metrics should extract from paper.external_metadata.metrics.github_mentions."""
+        # Arrange
+        mapper = ItemMapper()
+        external_metadata = {
+            "metrics": {
+                "github_mentions": {
+                    "total_mentions": 10,
+                    "breakdown": {"code": 3},
+                }
+            }
+        }
+        unified_doc = create_prefetched_paper(external_metadata=external_metadata)
+        batch_data = create_batch_data()
+
+        # Act
+        result = mapper.map_to_csv_item(
+            unified_doc,
+            bounty_data=batch_data["bounty"],
+            proposal_data=batch_data["proposal"],
+            rfp_data=batch_data["rfp"],
+            review_count_data=batch_data["review_count"],
+        )
+
+        # Assert
+        self.assertEqual(result[GITHUB_TOTAL_MENTIONS], 10)
+        self.assertEqual(result[GITHUB_CODE_MENTIONS], 3)
 
     def test_paper_social_counts_zero_when_no_external_metadata(self):
-        """Social counts should default to 0 when external_metadata is missing."""
+        """All social metrics should default to 0 when external_metadata is missing."""
         # Arrange
         mapper = ItemMapper()
         unified_doc = create_prefetched_paper(external_metadata=None)
@@ -814,9 +883,22 @@ class PaperSpecificFieldTests(TestCase):
             review_count_data=batch_data["review_count"],
         )
 
-        # Assert
-        self.assertEqual(result[BLUESKY_COUNT_TOTAL], 0)
-        self.assertEqual(result[TWEET_COUNT_TOTAL], 0)
+        # Assert - Bluesky metrics
+        self.assertEqual(result[BLUESKY_POST_COUNT], 0)
+        self.assertEqual(result[BLUESKY_TOTAL_LIKES], 0)
+        self.assertEqual(result[BLUESKY_TOTAL_QUOTES], 0)
+        self.assertEqual(result[BLUESKY_TOTAL_REPLIES], 0)
+        self.assertEqual(result[BLUESKY_TOTAL_REPOSTS], 0)
+        # Assert - X metrics
+        self.assertEqual(result[X_POST_COUNT], 0)
+        self.assertEqual(result[X_TOTAL_LIKES], 0)
+        self.assertEqual(result[X_TOTAL_QUOTES], 0)
+        self.assertEqual(result[X_TOTAL_REPLIES], 0)
+        self.assertEqual(result[X_TOTAL_REPOSTS], 0)
+        self.assertEqual(result[X_TOTAL_IMPRESSIONS], 0)
+        # Assert - GitHub metrics
+        self.assertEqual(result[GITHUB_TOTAL_MENTIONS], 0)
+        self.assertEqual(result[GITHUB_CODE_MENTIONS], 0)
 
 
 class PostSpecificFieldTests(TestCase):
@@ -1031,8 +1113,19 @@ class DefaultValuesTests(TestCase):
         # Assert - numeric fields should be 0, not None
         numeric_fields = [
             UPVOTE_SCORE,
-            BLUESKY_COUNT_TOTAL,
-            TWEET_COUNT_TOTAL,
+            BLUESKY_POST_COUNT,
+            BLUESKY_TOTAL_LIKES,
+            BLUESKY_TOTAL_QUOTES,
+            BLUESKY_TOTAL_REPLIES,
+            BLUESKY_TOTAL_REPOSTS,
+            X_POST_COUNT,
+            X_TOTAL_LIKES,
+            X_TOTAL_QUOTES,
+            X_TOTAL_REPLIES,
+            X_TOTAL_REPOSTS,
+            X_TOTAL_IMPRESSIONS,
+            GITHUB_TOTAL_MENTIONS,
+            GITHUB_CODE_MENTIONS,
             CITATION_COUNT_TOTAL,
         ]
         for field in numeric_fields:
@@ -1099,8 +1192,19 @@ class DefaultValuesTests(TestCase):
         # Assert - check fields that should retain their defaults
         # (fields that are not set by common/post/paper mappings)
         fields_that_use_defaults = [
-            BLUESKY_COUNT_TOTAL,
-            TWEET_COUNT_TOTAL,
+            BLUESKY_POST_COUNT,
+            BLUESKY_TOTAL_LIKES,
+            BLUESKY_TOTAL_QUOTES,
+            BLUESKY_TOTAL_REPLIES,
+            BLUESKY_TOTAL_REPOSTS,
+            X_POST_COUNT,
+            X_TOTAL_LIKES,
+            X_TOTAL_QUOTES,
+            X_TOTAL_REPLIES,
+            X_TOTAL_REPOSTS,
+            X_TOTAL_IMPRESSIONS,
+            GITHUB_TOTAL_MENTIONS,
+            GITHUB_CODE_MENTIONS,
             CITATION_COUNT_TOTAL,
             HAS_ACTIVE_BOUNTY,
             BOUNTY_HAS_SOLUTIONS,
