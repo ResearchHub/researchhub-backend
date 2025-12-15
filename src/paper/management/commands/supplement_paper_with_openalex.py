@@ -1,6 +1,5 @@
 from dateutil.parser import parse
 from django.core.management.base import BaseCommand
-from django.db.models import Q
 
 from paper.exceptions import DOINotFoundError
 from paper.models import Paper
