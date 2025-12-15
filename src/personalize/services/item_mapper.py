@@ -6,12 +6,18 @@ import json
 from typing import Dict, Optional, Protocol, runtime_checkable
 
 from personalize.config.constants import (
-    BLUESKY_COUNT_TOTAL,
+    BLUESKY_POST_COUNT,
+    BLUESKY_TOTAL_LIKES,
+    BLUESKY_TOTAL_QUOTES,
+    BLUESKY_TOTAL_REPLIES,
+    BLUESKY_TOTAL_REPOSTS,
     BOUNTY_HAS_SOLUTIONS,
     CITATION_COUNT_TOTAL,
     CREATION_TIMESTAMP,
     DELIMITER,
     FIELD_DEFAULTS,
+    GITHUB_CODE_MENTIONS,
+    GITHUB_TOTAL_MENTIONS,
     HAS_ACTIVE_BOUNTY,
     HUB_IDS,
     HUB_L1,
@@ -27,8 +33,13 @@ from personalize.config.constants import (
     RFP_IS_OPEN,
     TEXT,
     TITLE,
-    TWEET_COUNT_TOTAL,
     UPVOTE_SCORE,
+    X_POST_COUNT,
+    X_TOTAL_IMPRESSIONS,
+    X_TOTAL_LIKES,
+    X_TOTAL_QUOTES,
+    X_TOTAL_REPLIES,
+    X_TOTAL_REPOSTS,
 )
 from personalize.utils.item_utils import prepare_text_for_personalize
 from utils.time import datetime_to_epoch_seconds
@@ -210,8 +221,30 @@ class ItemMapper:
 
         if paper.external_metadata:
             metrics = paper.external_metadata.get("metrics", {})
-            fields[BLUESKY_COUNT_TOTAL] = metrics.get("bluesky_count", 0)
-            fields[TWEET_COUNT_TOTAL] = metrics.get("twitter_count", 0)
+
+            # Extract Bluesky metrics
+            bluesky_metrics = metrics.get("bluesky", {})
+            fields[BLUESKY_POST_COUNT] = bluesky_metrics.get("post_count", 0)
+            fields[BLUESKY_TOTAL_LIKES] = bluesky_metrics.get("total_likes", 0)
+            fields[BLUESKY_TOTAL_QUOTES] = bluesky_metrics.get("total_quotes", 0)
+            fields[BLUESKY_TOTAL_REPLIES] = bluesky_metrics.get("total_replies", 0)
+            fields[BLUESKY_TOTAL_REPOSTS] = bluesky_metrics.get("total_reposts", 0)
+
+            # Extract X (Twitter) metrics
+            x_metrics = metrics.get("x", {})
+            fields[X_POST_COUNT] = x_metrics.get("post_count", 0)
+            fields[X_TOTAL_LIKES] = x_metrics.get("total_likes", 0)
+            fields[X_TOTAL_QUOTES] = x_metrics.get("total_quotes", 0)
+            fields[X_TOTAL_REPLIES] = x_metrics.get("total_replies", 0)
+            fields[X_TOTAL_REPOSTS] = x_metrics.get("total_reposts", 0)
+            fields[X_TOTAL_IMPRESSIONS] = x_metrics.get("total_impressions", 0)
+
+            # Extract GitHub metrics
+            github_metrics = metrics.get("github_mentions", {})
+            fields[GITHUB_TOTAL_MENTIONS] = github_metrics.get("total_mentions", 0)
+            fields[GITHUB_CODE_MENTIONS] = github_metrics.get("breakdown", {}).get(
+                "code", 0
+            )
 
         return fields
 

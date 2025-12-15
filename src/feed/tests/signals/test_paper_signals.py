@@ -177,3 +177,41 @@ class PaperSignalsTests(TestCase):
         error_message = mock_logger.error.call_args[0][0]
         self.assertIn("Failed to update feed metrics", error_message)
         self.assertIn(str(self.paper.id), error_message)
+
+    @patch("feed.signals.paper_signals.update_feed_metrics")
+    def test_signal_includes_x_metrics_in_serialized_data(
+        self, mock_update_feed_metrics
+    ):
+        """
+        Test end-to-end: saving external_metadata with X data triggers
+        update_feed_metrics with X metrics included in the serialized data.
+        """
+        # Arrange
+        mock_update_feed_metrics.apply_async = MagicMock()
+
+        x_metrics = {
+            "post_count": 3,
+            "total_likes": 25,
+            "total_quotes": 2,
+            "total_replies": 1,
+            "total_reposts": 10,
+            "total_impressions": 1000,
+        }
+
+        self.paper.external_metadata = {"metrics": {"x": x_metrics}}
+
+        # Act - save with update_fields to trigger the signal
+        self.paper.save(update_fields=["external_metadata"])
+
+        # Assert - signal was called
+        mock_update_feed_metrics.apply_async.assert_called_once()
+
+        # Get the metrics that were passed to the signal
+        call_args = mock_update_feed_metrics.apply_async.call_args
+        passed_metrics = call_args[1]["args"][2]
+
+        # Verify X metrics are included
+        self.assertIn("external", passed_metrics)
+        self.assertIn("x", passed_metrics["external"])
+        self.assertEqual(passed_metrics["external"]["x"]["total_likes"], 25)
+        self.assertEqual(passed_metrics["external"]["x"]["total_impressions"], 1000)

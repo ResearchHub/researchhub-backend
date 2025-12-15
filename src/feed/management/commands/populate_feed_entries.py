@@ -1,98 +1,116 @@
-from django.contrib.contenttypes.models import ContentType
+from datetime import datetime
+
 from django.core.management.base import BaseCommand
 from django.db.models import Q
+from django.utils import timezone
 
 from feed.hot_score import calculate_hot_score_for_item
 from feed.models import FeedEntry
 from feed.serializers import serialize_feed_metrics
 from feed.tasks import serialize_feed_item
 
-CHUNK_SIZE = 1000
-
 
 class Command(BaseCommand):
-    help = "Populates metrics for feed entries"
+    help = "Populates metrics and content for feed entries"
 
     def add_arguments(self, parser):
         parser.add_argument(
             "--all",
             action="store_true",
-            dest="all",
             default=False,
-            help="Populate metrics for all feed entries, not just those with empty metrics.",
+            help="Process all feed entries, not just those with empty fields.",
         )
         parser.add_argument(
             "--metrics-only",
             action="store_true",
-            dest="metrics_only",
             default=False,
-            help="Whether to only populate metrics for feed entries.",
+            help="Only update metrics (not content).",
         )
         parser.add_argument(
             "--content-only",
             action="store_true",
-            dest="content_only",
             default=False,
-            help="Whether to only populate object content for feed entries.",
+            help="Only update content (not metrics).",
         )
         parser.add_argument(
-            "--use-old-hot-score-calculation",
-            action="store_true",
-            dest="use_old_hot_score_calculation",
-            default=False,
-            help="Whether to use the old hot score calculation.",
+            "--since",
+            type=str,
+            default=None,
+            help="Only process entries created after this date (YYYY-MM-DD).",
         )
 
     def handle(self, *args, **options):
-        process_all = options["all"]
+        queryset = FeedEntry.objects.all()
+
+        # Apply --since filter
+        if options["since"]:
+            try:
+                since_dt = datetime.strptime(options["since"], "%Y-%m-%d")
+                since_dt = timezone.make_aware(since_dt)
+                queryset = queryset.filter(created_date__gte=since_dt)
+                self.stdout.write(f"Filtering entries since {options['since']}")
+            except ValueError:
+                self.stderr.write(
+                    self.style.ERROR("Invalid date format. Use YYYY-MM-DD.")
+                )
+                return
+
+        # Apply empty field filter unless --all
         metrics_only = options["metrics_only"]
         content_only = options["content_only"]
         update_both = not metrics_only and not content_only
 
-        queryset = FeedEntry.objects
-
-        if not process_all:
-            empty_fields_filter = Q()
-
+        if not options["all"]:
             if metrics_only:
-                print("Filtering entries with empty metrics")
-                empty_fields_filter = Q(metrics={})
+                queryset = queryset.filter(metrics={})
             elif content_only:
-                print("Filtering entries with empty content")
-                empty_fields_filter = Q(content={})
+                queryset = queryset.filter(content={})
             else:
-                print("Filtering entries with either empty metrics or empty content")
-                empty_fields_filter = Q(metrics={}) | Q(content={})
+                queryset = queryset.filter(Q(metrics={}) | Q(content={}))
 
-            queryset = queryset.filter(empty_fields_filter)
-
-        # Order by ID in descending order to process the most recent entries first
         queryset = queryset.order_by("-id")
+        total = queryset.count()
+        self.stdout.write(f"Processing {total} entries")
 
-        for feed_entry in queryset.iterator(chunk_size=CHUNK_SIZE):
-            feed_item = feed_entry.item
-            fields_to_update = []
+        if total == 0:
+            self.stdout.write(self.style.SUCCESS("No entries to process"))
+            return
 
-            if metrics_only or update_both:
-                metrics = serialize_feed_metrics(feed_item, feed_entry.content_type)
-                feed_entry.metrics = metrics
-                fields_to_update.append("metrics")
+        processed = 0
+        errors = 0
 
-            if content_only or update_both:
-                content = serialize_feed_item(feed_item, feed_entry.content_type)
-                feed_entry.content = content
-                fields_to_update.append("content")
+        qs = queryset.select_related("content_type", "unified_document")
+        for entry in qs.iterator(chunk_size=1000):
+            try:
+                if not entry.item:
+                    continue
 
-            # Update hot score for papers and posts
-            if feed_entry.unified_document:
-                if options["use_old_hot_score_calculation"]:
-                    feed_entry.hot_score = feed_item.unified_document.hot_score
-                else:
-                    feed_entry.hot_score = calculate_hot_score_for_item(feed_entry)
+                fields_to_update = []
 
-                fields_to_update.append("hot_score")
+                if metrics_only or update_both:
+                    entry.metrics = serialize_feed_metrics(
+                        entry.item, entry.content_type
+                    )
+                    fields_to_update.append("metrics")
 
-            print(
-                f"Populating feed entry: {feed_entry.id} ({', '.join(fields_to_update)})"
-            )
-            feed_entry.save(update_fields=fields_to_update)
+                if content_only or update_both:
+                    entry.content = serialize_feed_item(entry.item, entry.content_type)
+                    fields_to_update.append("content")
+
+                if entry.unified_document:
+                    entry.hot_score = calculate_hot_score_for_item(entry)
+                    fields_to_update.append("hot_score")
+
+                entry.save(update_fields=fields_to_update)
+                processed += 1
+
+                if processed % 100 == 0:
+                    self.stdout.write(f"Processed {processed}/{total}")
+
+            except Exception as e:
+                errors += 1
+                self.stderr.write(self.style.ERROR(f"Error on entry {entry.id}: {e}"))
+
+        self.stdout.write(
+            self.style.SUCCESS(f"Done: processed={processed}, errors={errors}")
+        )
