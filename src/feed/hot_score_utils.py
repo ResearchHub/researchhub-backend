@@ -134,6 +134,126 @@ def get_comment_count_from_metrics(metrics: dict) -> int:
         return 0
 
 
+# Social media engagement weights for calculating weighted engagement score
+# Platform multipliers control relative importance: X (60%), GitHub (30%), Bluesky (10%)
+SOCIAL_MEDIA_ENGAGEMENT_WEIGHTS = {
+    "x": {
+        "platform_multiplier": 0.6,
+        "impressions": 0.1,
+        "likes": 1.0,
+        "replies": 2.0,
+        "reposts": 3.0,
+        "quotes": 5.0,
+    },
+    "bluesky": {
+        "platform_multiplier": 0.1,
+        "likes": 1.0,
+        "replies": 2.0,
+        "reposts": 3.0,
+        "quotes": 5.0,
+    },
+    "github": {
+        "platform_multiplier": 0.3,
+        "mentions": 10.0,
+    },
+}
+
+
+def calculate_x_engagement(x_data: dict) -> float:
+    """Calculate engagement score from X/Twitter data."""
+    if not x_data or not isinstance(x_data, dict):
+        return 0.0
+
+    weights = SOCIAL_MEDIA_ENGAGEMENT_WEIGHTS["x"]
+    impressions = safe_get_nested(x_data, "total_impressions", default=0) or 0
+    likes = safe_get_nested(x_data, "total_likes", default=0) or 0
+    reposts = safe_get_nested(x_data, "total_reposts", default=0) or 0
+    quotes = safe_get_nested(x_data, "total_quotes", default=0) or 0
+    replies = safe_get_nested(x_data, "total_replies", default=0) or 0
+
+    try:
+        raw_score = (
+            float(impressions) * weights["impressions"]
+            + float(likes) * weights["likes"]
+            + float(reposts) * weights["reposts"]
+            + float(quotes) * weights["quotes"]
+            + float(replies) * weights["replies"]
+        )
+        return raw_score * weights["platform_multiplier"]
+    except (ValueError, TypeError):
+        return 0.0
+
+
+def calculate_bluesky_engagement(bluesky_data: dict) -> float:
+    """Calculate engagement score from Bluesky data."""
+    if not bluesky_data or not isinstance(bluesky_data, dict):
+        return 0.0
+
+    weights = SOCIAL_MEDIA_ENGAGEMENT_WEIGHTS["bluesky"]
+    likes = safe_get_nested(bluesky_data, "total_likes", default=0) or 0
+    reposts = safe_get_nested(bluesky_data, "total_reposts", default=0) or 0
+    quotes = safe_get_nested(bluesky_data, "total_quotes", default=0) or 0
+    replies = safe_get_nested(bluesky_data, "total_replies", default=0) or 0
+
+    try:
+        raw_score = (
+            float(likes) * weights["likes"]
+            + float(reposts) * weights["reposts"]
+            + float(quotes) * weights["quotes"]
+            + float(replies) * weights["replies"]
+        )
+        return raw_score * weights["platform_multiplier"]
+    except (ValueError, TypeError):
+        return 0.0
+
+
+def calculate_github_engagement(github_data: dict) -> float:
+    """Calculate engagement score from GitHub mentions data."""
+    if not github_data or not isinstance(github_data, dict):
+        return 0.0
+
+    weights = SOCIAL_MEDIA_ENGAGEMENT_WEIGHTS["github"]
+    mentions = safe_get_nested(github_data, "total_mentions", default=0) or 0
+
+    try:
+        raw_score = float(mentions) * weights["mentions"]
+        return raw_score * weights["platform_multiplier"]
+    except (ValueError, TypeError):
+        return 0.0
+
+
+def get_social_media_engagement_from_metrics(metrics: dict) -> float:
+    """Extract combined social media engagement from FeedEntry metrics.
+
+    Aggregates engagement from X/Twitter, Bluesky, and GitHub mentions.
+    """
+    if not isinstance(metrics, dict):
+        return 0.0
+
+    external = safe_get_nested(metrics, "external", default={})
+    if not external or not isinstance(external, dict):
+        return 0.0
+
+    total = 0.0
+
+    # X/Twitter engagement
+    x_data = external.get("x", {})
+    if x_data:
+        total += calculate_x_engagement(x_data)
+
+    # Bluesky engagement
+    bluesky_data = external.get("bluesky", {})
+    if bluesky_data:
+        total += calculate_bluesky_engagement(bluesky_data)
+
+    # GitHub mentions
+    github_data = external.get("github_mentions", {})
+    if github_data:
+        total += calculate_github_engagement(github_data)
+
+    return total
+
+
 # ============================================================================
 # Complex Extraction Functions
 # ============================================================================
