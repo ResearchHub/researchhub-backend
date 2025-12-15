@@ -12,7 +12,6 @@ from django_opensearch_dsl.registries import registry
 
 from feed.models import FeedEntry
 from paper.models import Paper
-from paper.utils import format_raw_authors
 from search.analyzers import content_analyzer, title_analyzer
 from utils.doi import DOI
 
@@ -75,7 +74,6 @@ class PaperDocument(BaseDocument):
         return (
             super()
             .get_queryset(filter_=filter_, exclude=exclude, count=count)
-            .filter(is_removed=False)
             .select_related(
                 "unified_document",
             )
