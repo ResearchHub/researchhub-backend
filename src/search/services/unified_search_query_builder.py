@@ -175,7 +175,7 @@ class DocumentQueryBuilder:
         if author_queries and title_queries:
             author_match = Q("bool", should=author_queries, minimum_should_match=1)
             title_match = Q("bool", should=title_queries, minimum_should_match=1)
-            author_title_combo = Q("bool", must=[author_match, title_match], boost=15.0)
+            author_title_combo = Q("bool", must=[author_match, title_match], boost=9.0)
             self.should_clauses.append(author_title_combo)
 
         all_fields = author_fields + title_fields
