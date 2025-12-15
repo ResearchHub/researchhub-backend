@@ -459,3 +459,39 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
             external_source=self.paper.external_source,
             hub_slugs=list(self.paper.hubs.values_list("slug", flat=True)),
         )
+
+    def test_enrich_paper_with_x_returns_retryable_error_on_rate_limit(self):
+        """
+        Test X enrichment returns retryable_error status on 429 rate limit.
+        """
+        # Arrange - create an exception with a response that has status_code 429
+        mock_response = Mock()
+        mock_response.status_code = 429
+        rate_limit_error = Exception("Rate limit exceeded")
+        rate_limit_error.response = mock_response
+        self.mock_x_client.get_metrics.side_effect = rate_limit_error
+
+        # Act
+        result = self.service.enrich_paper_with_x(self.paper)
+
+        # Assert
+        self.assertEqual(result.status, "retryable_error")
+        self.assertEqual(result.reason, "Rate limit exceeded")
+
+    def test_enrich_paper_with_x_returns_retryable_error_on_503(self):
+        """
+        Test X enrichment returns retryable_error status on 503 service unavailable.
+        """
+        # Arrange - create an exception with a response that has status_code 503
+        mock_response = Mock()
+        mock_response.status_code = 503
+        service_unavailable_error = Exception("Service unavailable")
+        service_unavailable_error.response = mock_response
+        self.mock_x_client.get_metrics.side_effect = service_unavailable_error
+
+        # Act
+        result = self.service.enrich_paper_with_x(self.paper)
+
+        # Assert
+        self.assertEqual(result.status, "retryable_error")
+        self.assertEqual(result.reason, "Service unavailable")

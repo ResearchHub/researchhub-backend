@@ -164,6 +164,15 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
                 figure = paper.figure_list[0]
                 return FigureSerializer(figure).data
         except AttributeError:
+            # Priority: is_primary > preview > first figure
+            primary_figure = paper.figures.filter(is_primary=True).first()
+            if primary_figure:
+                return FigureSerializer(primary_figure).data
+
+            preview = paper.figures.filter(figure_type=Figure.PREVIEW).first()
+            if preview:
+                return FigureSerializer(preview).data
+
             figure = paper.figures.filter(figure_type=Figure.FIGURE).first()
             if figure:
                 return FigureSerializer(figure).data
@@ -887,6 +896,22 @@ class DynamicPaperSerializer(
             return None
 
         _context_fields = context.get("pap_dps_get_first_preview", {})
+
+        # Priority: is_primary > preview figures > first figure
+        primary_figure = paper.figures.filter(is_primary=True).first()
+        if primary_figure:
+            serializer = DynamicFigureSerializer(
+                primary_figure, context=context, **_context_fields
+            )
+            return serializer.data
+
+        preview_figure = paper.figures.filter(figure_type=Figure.PREVIEW).first()
+        if preview_figure:
+            serializer = DynamicFigureSerializer(
+                preview_figure, context=context, **_context_fields
+            )
+            return serializer.data
+
         if paper.figures.exists():
             # Using prefetches to filter by figure preview
             # Slicing with [0] because .first() does not use prefetch cache

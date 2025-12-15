@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 from django.contrib.contenttypes.models import ContentType
@@ -19,6 +20,8 @@ from review.serializers.review_serializer import ReviewSerializer
 from user.models import Author, User
 
 from .models import FeedEntry
+
+logger = logging.getLogger(__name__)
 
 
 class SimpleUserSerializer(serializers.ModelSerializer):
@@ -207,6 +210,7 @@ class PaperSerializer(ContentObjectSerializer):
     work_type = serializers.CharField()
     bounties = serializers.SerializerMethodField()
     purchases = serializers.SerializerMethodField()
+    primary_image = serializers.SerializerMethodField()
 
     def get_bounties(self, obj):
         return self.get_bounty_data(obj)
@@ -229,6 +233,15 @@ class PaperSerializer(ContentObjectSerializer):
             "image": journal_hub.hub_image.url if journal_hub.hub_image else None,
         }
 
+    def get_primary_image(self, obj):
+        try:
+            primary_figure = obj.figures.filter(is_primary=True).first()
+            if not primary_figure or not primary_figure.file:
+                return None
+            return default_storage.url(primary_figure.file.name)
+        except Exception:
+            return None
+
     class Meta(ContentObjectSerializer.Meta):
         model = Paper
         fields = ContentObjectSerializer.Meta.fields + [
@@ -239,6 +252,7 @@ class PaperSerializer(ContentObjectSerializer):
             "authors",
             "bounties",
             "purchases",
+            "primary_image",
         ]
 
 
@@ -672,25 +686,39 @@ class FeedEntrySerializer(serializers.ModelSerializer):
 
         content = obj.content
 
-        # Alert: Shim. temporary shim to ensure we have a journal set for as many
+        # Shim #1: temporary shim to ensure we have a journal set for as many
         # papers as possible until we get to the bottom of why some papers
-        # don't have journal properly
-        # Backfill journal for papers if missing (shim for legacy data)
-        if obj.content_type.model == "paper" and content.get("journal") is None:
-            item = obj.item
-            if item:
-                external_source = getattr(item, "external_source", None)
-                if external_source and external_source.lower() in self.PREPRINT_SOURCES:
-                    source = external_source.lower()
+        # don't have journal properly set.
+        # Shim #2: If journal is set but not a known preprint source, fetch journal from unified document.
+        if obj.content_type.model == "paper":
+            journal = content.get("journal")
+            journal_slug = (
+                journal.get("slug", "").lower() if isinstance(journal, dict) else None
+            )
+            needs_journal_shim = journal is None or (
+                journal_slug not in self.PREPRINT_SOURCES
+            )
+
+            if needs_journal_shim:
+                journal_hub = obj.unified_document.get_journal()
+                if journal_hub:
                     content = {
                         **content,
                         "journal": {
-                            "id": 0,
-                            "name": source,
-                            "slug": source,
-                            "image": None,
+                            "id": journal_hub.id,
+                            "name": journal_hub.name,
+                            "slug": journal_hub.slug,
+                            "image": (
+                                journal_hub.hub_image.url
+                                if journal_hub.hub_image
+                                else None
+                            ),
                         },
                     }
+
+        if obj.content_type.model == "paper" and obj.item:
+            primary_image = PaperSerializer(obj.item).get_primary_image(obj.item)
+            content["primary_image"] = primary_image
 
         return content
 
