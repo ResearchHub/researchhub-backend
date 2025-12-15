@@ -3,7 +3,7 @@ import time
 from typing import Any
 
 from opensearchpy import Q, Search
-from opensearchpy.helpers.utils import AttrDict, AttrList
+from opensearchpy.helpers.utils import AttrList
 
 from search.base.utils import seconds_to_milliseconds
 from search.documents.paper import PaperDocument
@@ -123,7 +123,7 @@ class UnifiedSearchService:
 
         search = self._apply_sort(search, sort)
 
-        search = search[offset:offset + limit]
+        search = search[offset : offset + limit]
 
         # Optimize query performance
         search = search.extra(
@@ -151,7 +151,6 @@ class UnifiedSearchService:
                 "hot_score_v2",
                 "unified_document_id",
                 "document_type",
-                "external_source",
             ]
         )
 
@@ -221,7 +220,6 @@ class UnifiedSearchService:
                 "hot_score_v2",
                 "unified_document_id",
                 "document_type",
-                "external_source",
             ]
         )
         search = search[0:1]
@@ -333,39 +331,22 @@ class UnifiedSearchService:
     def _extract_hub_fields(self, hub) -> dict[str, Any] | None:
         """Extract id, name, slug, namespace from a hub (dict, AttrDict, or object)."""
         try:
-            if isinstance(hub, dict):
+            # Try dict-style access first (works for dict and AttrDict)
+            if hasattr(hub, "get"):
                 return {
                     "id": hub.get("id"),
                     "name": hub.get("name"),
                     "slug": hub.get("slug"),
                     "namespace": hub.get("namespace"),
                 }
-            elif isinstance(hub, AttrDict):
-                return self._extract_hub_fields_from_attrdict(hub)
-            else:
-                return {
-                    "id": getattr(hub, "id", None),
-                    "name": getattr(hub, "name", None),
-                    "slug": getattr(hub, "slug", None),
-                    "namespace": getattr(hub, "namespace", None),
-                }
-        except Exception:
-            return None
-
-    def _extract_hub_fields_from_attrdict(self, hub: AttrDict) -> dict[str, Any] | None:
-        """Extract fields from AttrDict using dictionary-style access."""
-        try:
-            hub_id = hub["id"] if "id" in hub else None
-            hub_name = hub["name"] if "name" in hub else None
-            hub_slug = hub["slug"] if "slug" in hub else None
-            hub_namespace = hub["namespace"] if "namespace" in hub else None
+            # Otherwise try object-style access
             return {
-                "id": hub_id,
-                "name": hub_name,
-                "slug": hub_slug,
-                "namespace": hub_namespace,
+                "id": getattr(hub, "id", None),
+                "name": getattr(hub, "name", None),
+                "slug": getattr(hub, "slug", None),
+                "namespace": getattr(hub, "namespace", None),
             }
-        except (KeyError, TypeError):
+        except Exception:
             return None
 
     def _is_journal_hub(self, namespace: str | None) -> bool:

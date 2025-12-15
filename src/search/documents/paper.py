@@ -32,7 +32,6 @@ class PaperDocument(BaseDocument):
     openalex_id = es_fields.TextField()
     abstract = es_fields.TextField(analyzer=content_analyzer)
     is_open_access = es_fields.BooleanField()
-    external_source = es_fields.TextField()
     # TODO: Deprecate this field once we move over to new app.
     # It should not longer be necessary since authors property will replace it.
     raw_authors = es_fields.ObjectField(
@@ -230,13 +229,10 @@ class PaperDocument(BaseDocument):
 
             result = []
             for hub in hubs_queryset:
-                if not hub or not hasattr(hub, "id"):
-                    continue
-
                 result.append(
                     {
                         "id": hub.id,
-                        "name": hub.name if hub.name else "",
+                        "name": hub.name if hub.name else None,
                         "slug": hub.slug if hub.slug else "",
                         "namespace": hub.namespace if hub.namespace else None,
                     }
