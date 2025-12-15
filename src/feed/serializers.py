@@ -215,11 +215,8 @@ class PaperSerializer(ContentObjectSerializer):
         return self.get_purchase_data(obj)
 
     def get_journal(self, obj):
-        print("yooooooooooooooooo1111")
         if not hasattr(obj, "unified_document") or not obj.unified_document:
             return None
-
-        print("yooooooooooooooooo")
 
         journal_hub = obj.unified_document.get_journal()
         if not journal_hub:
@@ -749,7 +746,6 @@ def serialize_feed_item(feed_item, item_content_type):
 
     match item_content_type.model:
         case "paper":
-            print("yooooooooooooooooo444454")
             return PaperSerializer(feed_item).data
         case "researchhubpost":
             return PostSerializer(feed_item).data
