@@ -547,6 +547,13 @@ class Figure(models.Model):
     file = models.FileField(
         upload_to="uploads/figures/%Y/%m/%d", default=None, null=True, blank=True
     )
+    thumbnail = models.FileField(
+        upload_to="uploads/figures/thumbnails/%Y/%m/%d",
+        default=None,
+        null=True,
+        blank=True,
+        help_text="WebP thumbnail for fast loading in feeds",
+    )
     paper = models.ForeignKey(Paper, on_delete=models.CASCADE, related_name="figures")
     figure_type = models.CharField(choices=FIGURE_TYPE_CHOICES, max_length=16)
     is_primary = models.BooleanField(

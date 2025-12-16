@@ -211,6 +211,7 @@ class PaperSerializer(ContentObjectSerializer):
     bounties = serializers.SerializerMethodField()
     purchases = serializers.SerializerMethodField()
     primary_image = serializers.SerializerMethodField()
+    primary_image_thumbnail = serializers.SerializerMethodField()
 
     def get_bounties(self, obj):
         return self.get_bounty_data(obj)
@@ -242,6 +243,15 @@ class PaperSerializer(ContentObjectSerializer):
         except Exception:
             return None
 
+    def get_primary_image_thumbnail(self, obj):
+        try:
+            primary_figure = obj.figures.filter(is_primary=True).first()
+            if not primary_figure or not primary_figure.thumbnail:
+                return None
+            return default_storage.url(primary_figure.thumbnail.name)
+        except Exception:
+            return None
+
     class Meta(ContentObjectSerializer.Meta):
         model = Paper
         fields = ContentObjectSerializer.Meta.fields + [
@@ -253,6 +263,7 @@ class PaperSerializer(ContentObjectSerializer):
             "bounties",
             "purchases",
             "primary_image",
+            "primary_image_thumbnail",
         ]
 
 
@@ -705,10 +716,6 @@ class FeedEntrySerializer(serializers.ModelSerializer):
                             "image": None,
                         },
                     }
-
-        if obj.content_type.model == "paper" and obj.item:
-            primary_image = PaperSerializer(obj.item).get_primary_image(obj.item)
-            content["primary_image"] = primary_image
 
         return content
 
