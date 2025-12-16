@@ -195,14 +195,18 @@ class TestHotScoreUtils(TestCase):
         self.assertEqual(result, 50.0)
 
     def test_get_age_hours_from_content(self):
-        """Test calculating age in hours from content JSON."""
-        # Create a date 24 hours ago
-        created_date = datetime.now(timezone.utc) - timedelta(hours=24)
-        content = {"created_date": created_date.isoformat()}
+        """Test calculating age in hours using feed_entry.action_date.
 
-        # Mock feed_entry
+        For papers: action_date = paper_publish_date
+        For posts: action_date = created_date
+        """
+        # Create a date 24 hours ago
+        action_date = datetime.now(timezone.utc) - timedelta(hours=24)
+        content = {}  # Content is only used for urgency checks (GRANT, PREREGISTRATION)
+
+        # Mock feed_entry with action_date
         feed_entry = Mock()
-        feed_entry.created_date = created_date
+        feed_entry.action_date = action_date
 
         result = get_age_hours_from_content(content, feed_entry)
 
@@ -210,6 +214,40 @@ class TestHotScoreUtils(TestCase):
         self.assertGreater(result, 23.9)
         self.assertLess(result, 24.1)
         self.assertIsInstance(result, float)
+
+    def test_get_age_hours_from_content_uses_action_date_not_content(self):
+        """Test that action_date is used, not created_date from content JSON."""
+        # action_date is 48 hours ago (this should be used)
+        action_date = datetime.now(timezone.utc) - timedelta(hours=48)
+        # content has a different created_date (24 hours ago) - should be ignored
+        content_created_date = datetime.now(timezone.utc) - timedelta(hours=24)
+        content = {"created_date": content_created_date.isoformat()}
+
+        feed_entry = Mock()
+        feed_entry.action_date = action_date
+
+        result = get_age_hours_from_content(content, feed_entry)
+
+        # Should be approximately 48 hours (from action_date), not 24 hours
+        self.assertGreater(result, 47.9)
+        self.assertLess(result, 48.1)
+
+    def test_old_paper_uses_action_date_for_age(self):
+        """Test that old papers use action_date (paper_publish_date), not created_date."""
+        # Setup: Paper published 180 days ago, but added to platform today
+        paper_publish_date = datetime.now(timezone.utc) - timedelta(days=180)
+        platform_created_date = datetime.now(timezone.utc)
+
+        feed_entry = Mock()
+        feed_entry.action_date = paper_publish_date
+
+        content = {"created_date": platform_created_date.isoformat()}
+
+        # Act
+        age_hours = get_age_hours_from_content(content, feed_entry)
+
+        # Assert: Age should be ~180 days (4320 hours), not 0
+        self.assertAlmostEqual(age_hours, 180 * 24, delta=1)
 
     def test_calculate_x_engagement(self):
         """Test extracting X/Twitter engagement score."""
@@ -411,7 +449,7 @@ class TestHotScoreUtils(TestCase):
         )
 
         # Verify logarithmic scaling: gains should diminish
-        # The difference between medium and high should be less than between low and medium
+        # Difference between medium/high should be less than low/medium
         # (in relative terms, not absolute)
         self.assertGreater(result_medium, result_low)
         self.assertGreater(result_high, result_medium)
