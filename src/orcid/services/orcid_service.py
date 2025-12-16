@@ -11,15 +11,17 @@ from django.core import signing
 from django.db import transaction
 from django.utils import timezone
 
+from orcid.clients.orcid_client import OrcidClient
+
 User = get_user_model()
 
 
 class OrcidService:
-    ORCID_BASE_URL = "https://orcid.org"
     STATE_MAX_AGE = 600
 
-    def __init__(self, base_url: str = ORCID_BASE_URL):
+    def __init__(self, base_url: str = OrcidClient.ORCID_BASE_URL):
         self.base_url = base_url
+        self.client = OrcidClient(base_url=base_url)
 
     def build_auth_url(self, user_id: int, return_url: Optional[str] = None) -> str:
         app = self._get_orcid_app()
@@ -58,23 +60,23 @@ class OrcidService:
 
     def exchange_code_for_token(self, code: str) -> Dict[str, Any]:
         app = self._get_orcid_app()
-        response = requests.post(
-            f"{self.base_url}/oauth/token",
-            headers={"Accept": "application/json"},
-            data={
-                "client_id": app.client_id,
-                "client_secret": app.secret,
-                "grant_type": "authorization_code",
-                "code": code,
-                "redirect_uri": settings.ORCID_REDIRECT_URL,
-            },
-            timeout=30,
+        return self.client.exchange_code_for_token(
+            code=code,
+            client_id=app.client_id,
+            client_secret=app.secret,
+            redirect_uri=settings.ORCID_REDIRECT_URL,
         )
-        response.raise_for_status()
-        return response.json()
 
     def connect_orcid_account(self, user: Any, token_data: Dict[str, Any]) -> None:
         orcid_id = token_data["orcid"]
+        self._verify_orcid_not_linked(orcid_id, user)
+
+        with transaction.atomic():
+            account = self._create_or_update_social_account(user, orcid_id, token_data)
+            self._store_oauth_token(account, token_data)
+            self._update_author_orcid(user, orcid_id)
+
+    def _verify_orcid_not_linked(self, orcid_id: str, user: Any) -> None:
         already_linked = (
             SocialAccount.objects
             .filter(provider=OrcidProvider.id, uid=orcid_id)
@@ -84,36 +86,38 @@ class OrcidService:
         if already_linked:
             raise ValueError("ORCID already linked to another account")
 
-        with transaction.atomic():
-            extra_data = {
-                "name": token_data.get("name", ""),
-                "scope": token_data.get("scope", ""),
-            }
+    def _create_or_update_social_account(self, user: Any, orcid_id: str, token_data: Dict[str, Any]) -> SocialAccount:
+        extra_data = {
+            "name": token_data.get("name", ""),
+            "scope": token_data.get("scope", ""),
+        }
+        account, _ = SocialAccount.objects.update_or_create(
+            user=user,
+            provider=OrcidProvider.id,
+            defaults={"uid": orcid_id, "extra_data": extra_data},
+        )
+        return account
 
-            account, _ = SocialAccount.objects.update_or_create(
-                user=user,
-                provider=OrcidProvider.id,
-                defaults={"uid": orcid_id, "extra_data": extra_data},
-            )
+    def _store_oauth_token(self, account: SocialAccount, token_data: Dict[str, Any]) -> None:
+        app = self._get_orcid_app()
+        expires_at = None
+        if expires_in := token_data.get("expires_in"):
+            expires_at = timezone.now() + timedelta(seconds=expires_in)
 
-            app = self._get_orcid_app()
-            expires_at = None
-            if expires_in := token_data.get("expires_in"):
-                expires_at = timezone.now() + timedelta(seconds=expires_in)
+        SocialToken.objects.update_or_create(
+            account=account,
+            app=app,
+            defaults={
+                "token": token_data.get("access_token", ""),
+                "token_secret": token_data.get("refresh_token", ""),
+                "expires_at": expires_at,
+            },
+        )
 
-            SocialToken.objects.update_or_create(
-                account=account,
-                app=app,
-                defaults={
-                    "token": token_data.get("access_token", ""),
-                    "token_secret": token_data.get("refresh_token", ""),
-                    "expires_at": expires_at,
-                },
-            )
-
-            if author := getattr(user, "author_profile", None):
-                author.orcid_id = f"{self.base_url}/{orcid_id}"
-                author.save(update_fields=["orcid_id"])
+    def _update_author_orcid(self, user: Any, orcid_id: str) -> None:
+        if author := getattr(user, "author_profile", None):
+            author.orcid_id = f"{self.base_url}/{orcid_id}"
+            author.save(update_fields=["orcid_id"])
 
     def decode_state(self, state: str) -> Optional[Dict[str, Any]]:
         try:
