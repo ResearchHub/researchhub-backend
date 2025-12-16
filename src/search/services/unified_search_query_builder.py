@@ -510,7 +510,7 @@ class UnifiedSearchQueryBuilder:
                 operator="or",
             )
 
-        return builder.add_cross_field_fallback_strategy()
+        return builder
 
     def build_document_query(self, query: str) -> Q:
         return self._configure_document_builder(query).build()

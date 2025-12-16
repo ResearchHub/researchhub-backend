@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 @registry.register_document
 class PaperDocument(BaseDocument):
-    auto_refresh = True
+    # auto_refresh = True
 
     citations = es_fields.IntegerField()
     paper_title = es_fields.TextField(analyzer=title_analyzer)
