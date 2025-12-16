@@ -71,6 +71,7 @@ class DocumentResultSerializer(serializers.Serializer):
     created_date = serializers.DateTimeField(allow_null=True, required=False)
     paper_publish_date = serializers.DateTimeField(allow_null=True, required=False)
     score = serializers.IntegerField(required=False)
+    hot_score_v2 = serializers.IntegerField(required=False)
     _search_score = serializers.FloatField(required=False)
     hubs = HubSerializer(many=True, required=False)
     unified_document_id = serializers.IntegerField(required=False)

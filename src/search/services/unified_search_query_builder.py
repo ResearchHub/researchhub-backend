@@ -23,7 +23,7 @@ class PopularityConfig:
     """Configuration for popularity boosting using hot_score_v2."""
 
     enabled: bool = True
-    weight: float = 1.0
+    weight: float = 2.0
     boost_mode: str = "sum"
 
 
@@ -175,7 +175,7 @@ class DocumentQueryBuilder:
         if author_queries and title_queries:
             author_match = Q("bool", should=author_queries, minimum_should_match=1)
             title_match = Q("bool", should=title_queries, minimum_should_match=1)
-            author_title_combo = Q("bool", must=[author_match, title_match], boost=8.0)
+            author_title_combo = Q("bool", must=[author_match, title_match], boost=7.0)
             self.should_clauses.append(author_title_combo)
 
         all_fields = author_fields + title_fields
@@ -422,18 +422,20 @@ class DocumentQueryBuilder:
         if not popularity_config.enabled:
             return text_query
 
+        field_value_factor = {
+            "field": "hot_score_v2",
+            "factor": popularity_config.weight,
+            "missing": 1,
+        }
+
+        # Add modifier if specified (normalizes large values for better balance)
+        if popularity_config.modifier:
+            field_value_factor["modifier"] = popularity_config.modifier
+
         return Q(
             "function_score",
             query=text_query,
-            functions=[
-                {
-                    "field_value_factor": {
-                        "field": "hot_score_v2",
-                        "factor": popularity_config.weight,
-                        "missing": 1,
-                    }
-                }
-            ],
+            functions=[{"field_value_factor": field_value_factor}],
             score_mode="sum",
             boost_mode=popularity_config.boost_mode,
         )
