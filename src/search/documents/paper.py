@@ -31,6 +31,7 @@ class PaperDocument(BaseDocument):
     doi = es_fields.TextField(analyzer="keyword")
     openalex_id = es_fields.TextField()
     abstract = es_fields.TextField(analyzer=content_analyzer)
+    abstract_fast_vector = es_fields.ObjectField(enabled=False)
     is_open_access = es_fields.BooleanField()
     # TODO: Deprecate this field once we move over to new app.
     # It should not longer be necessary since authors property will replace it.

@@ -46,6 +46,7 @@ from reputation.related_models.paper_reward import (
 )
 from researchhub.permissions import IsObjectOwnerOrModerator
 from researchhub_document.permissions import HasDocumentCensorPermission
+from search.documents.paper import PaperDocument
 from user.related_models.author_model import Author
 from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.doi import DOI
@@ -925,6 +926,214 @@ class PaperViewSet(
                 response[paper_id] = data
 
         return Response(response, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["get"])
+    def similar_papers(self, request, pk=None):
+        """
+        Get the 3 most semantically similar papers based on fast abstract vector.
+        """
+        try:
+            # Get the paper
+            paper = self.get_object()
+
+            # Get OpenSearch client
+            document = PaperDocument()
+            client = document._index._get_connection()
+
+            # Use paper_knn index if available (has KNN enabled), otherwise fall back to paper
+            index_name = "paper_knn"  # Use the new index with KNN enabled
+            paper_knn_exists = True
+            try:
+                # Check if paper_knn index exists
+                client.indices.get(index=index_name)
+            except Exception:
+                # Fall back to default index if paper_knn doesn't exist
+                paper_knn_exists = False
+                index_name = PaperDocument._index._name
+
+            # Get the paper's fast vector from OpenSearch
+            try:
+                response = client.get(index=index_name, id=str(paper.id))
+                source = response.get("_source", {})
+                query_vector = source.get("abstract_fast_vector")
+
+                if not query_vector:
+                    return Response(
+                        {
+                            "error": f"Paper {paper.id} does not have a fast abstract vector. "
+                            "Please run vectorization first."
+                        },
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
+            except Exception as e:
+                log_error(
+                    e, message=f"Failed to retrieve paper {paper.id} from OpenSearch"
+                )
+                return Response(
+                    {"error": "Failed to retrieve paper from OpenSearch"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+            # Perform similarity search using native OpenSearch KNN
+            # Verify the field is configured as knn_vector
+            try:
+                mapping = client.indices.get_mapping(index=index_name)
+                field_type = (
+                    mapping.get(index_name, {})
+                    .get("mappings", {})
+                    .get("properties", {})
+                    .get("abstract_fast_vector", {})
+                    .get("type")
+                )
+                if field_type != "knn_vector":
+                    error_message = (
+                        f"abstract_fast_vector field is not configured as knn_vector "
+                        f"(type: {field_type}). Native KNN search requires knn_vector field type.\n\n"
+                    )
+
+                    if not paper_knn_exists:
+                        error_message += (
+                            "The 'paper_knn' index does not exist. To enable native KNN search, "
+                            "you need to create a new OpenSearch index with KNN enabled:\n\n"
+                            "1. Create a new index named 'paper_knn' with KNN enabled in the index settings\n"
+                            "2. Configure abstract_fast_vector (and other vector fields) as knn_vector type\n"
+                            "3. Reindex data from the 'paper' index to 'paper_knn'\n"
+                            "4. Update aliases if needed\n\n"
+                            "Note: KNN must be enabled at index creation time (it's a 'final' setting "
+                            "that cannot be updated on existing indices)."
+                        )
+                    else:
+                        error_message += (
+                            f"The 'paper_knn' index exists but abstract_fast_vector is not configured "
+                            f"as knn_vector. Please recreate the index with proper KNN configuration."
+                        )
+
+                    return Response(
+                        {"error": error_message},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    )
+            except Exception as e:
+                log_error(
+                    e,
+                    message=f"Failed to check mapping for index {index_name}",
+                )
+                error_message = "Failed to verify index configuration for KNN search."
+
+                if not paper_knn_exists:
+                    error_message += (
+                        "\n\nThe 'paper_knn' index does not exist. To enable native KNN search, "
+                        "you need to create a new OpenSearch index with KNN enabled:\n\n"
+                        "1. Create a new index named 'paper_knn' with KNN enabled in the index settings\n"
+                        "2. Configure abstract_fast_vector (and other vector fields) as knn_vector type\n"
+                        "3. Reindex data from the 'paper' index to 'paper_knn'\n"
+                        "4. Update aliases if needed\n\n"
+                        "Note: KNN must be enabled at index creation time (it's a 'final' setting "
+                        "that cannot be updated on existing indices)."
+                    )
+
+                return Response(
+                    {"error": error_message},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+            # Use native OpenSearch KNN query
+            # Request k=4 to account for potential exclusion of the query paper itself
+            # post_filter is needed, filter inside KNN is not supported
+            # Request specificfields from OpenSearch to avoid database query
+            search_query = {
+                "size": 3,
+                "query": {
+                    "knn": {
+                        "abstract_fast_vector": {
+                            "vector": query_vector,
+                            "k": 4,  # Request 4 to ensure we get 3 after filtering
+                        }
+                    }
+                },
+                "post_filter": {
+                    "bool": {
+                        "must_not": [{"term": {"id": paper.id}}],
+                    }
+                },
+                "_source": [
+                    "id",
+                    "paper_title",
+                    "title",
+                    "abstract",
+                    "raw_authors",
+                    "hubs",
+                    "created_date",
+                    "paper_publish_date",
+                ],
+            }
+
+            try:
+                search_response = client.search(index=index_name, body=search_query)
+
+                hits = search_response.get("hits", {}).get("hits", [])
+
+                if not hits:
+                    return Response(
+                        {"count": 0, "results": []}, status=status.HTTP_200_OK
+                    )
+
+                # Build response directly from OpenSearch results
+                results = []
+                for hit in hits:
+                    source = hit.get("_source", {})
+                    paper_id = source.get("id")
+                    if not paper_id:
+                        continue
+
+                    # Format paper data from OpenSearch
+                    paper_data = {
+                        "id": paper_id,
+                        "paper_title": source.get("paper_title") or source.get("title"),
+                        "title": source.get("title") or source.get("paper_title"),
+                        "abstract": source.get("abstract"),
+                        "raw_authors": source.get("raw_authors", []),
+                        "hubs": source.get("hubs", []),
+                        "created_date": source.get("created_date"),
+                        "paper_publish_date": source.get("paper_publish_date"),
+                    }
+                    results.append(paper_data)
+
+                return Response(
+                    {
+                        "count": len(results),
+                        "results": results,
+                        "method": "native_knn",
+                        "field_type": "knn_vector",
+                    },
+                    status=status.HTTP_200_OK,
+                )
+
+            except Exception as e:
+
+                error_details = str(e)
+                log_error(
+                    e,
+                    message=f"Failed to perform similarity search for paper {paper.id}",
+                )
+                # Include error details in response for debugging (remove in production)
+                return Response(
+                    {
+                        "error": "Failed to perform similarity search",
+                        "details": error_details,
+                    },
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+        except Paper.DoesNotExist:
+            return Response(
+                {"error": "Paper not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            log_error(e, message="Error in similar_papers endpoint")
+            return Response(
+                {"error": "An error occurred while finding similar papers"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @action(detail=False, methods=[POST])
     def check_url(self, request):
