@@ -154,6 +154,9 @@ class ItemMapper:
 
         return row
 
+    # Preprint source slugs to prioritize when selecting journal hub
+    PREPRINT_SOURCE_SLUGS = {"biorxiv", "arxiv", "chemrxiv", "medrxiv"}
+
     def _map_common_fields(
         self, prefetched_doc: PrefetchedUnifiedDocument, document
     ) -> dict:
@@ -177,6 +180,7 @@ class ItemMapper:
         hub_l1 = None
         hub_l2 = None
         journal_hub_id = None
+        journal_hubs = []
 
         for hub in list(prefetched_doc.hubs.all())[:MAX_HUB_IDS]:
             hub_ids.append(str(hub.id))
@@ -185,7 +189,18 @@ class ItemMapper:
             elif hub.namespace == Hub.Namespace.SUBCATEGORY:
                 hub_l2 = str(hub.id)
             elif hub.namespace == Hub.Namespace.JOURNAL:
-                journal_hub_id = str(hub.id)
+                journal_hubs.append(hub)
+
+        # Select journal hub, prioritizing preprint sources
+        if journal_hubs:
+            # First, try to find a preprint source journal
+            for hub in journal_hubs:
+                if hub.slug in self.PREPRINT_SOURCE_SLUGS:
+                    journal_hub_id = str(hub.id)
+                    break
+            # Fall back to first journal hub if no preprint source found
+            if journal_hub_id is None:
+                journal_hub_id = str(journal_hubs[0].id)
 
         return {
             ITEM_ID: str(prefetched_doc.id),
