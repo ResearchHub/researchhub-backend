@@ -215,23 +215,6 @@ class TestHotScoreUtils(TestCase):
         self.assertLess(result, 24.1)
         self.assertIsInstance(result, float)
 
-    def test_get_age_hours_from_content_uses_action_date_not_content(self):
-        """Test that action_date is used, not created_date from content JSON."""
-        # action_date is 48 hours ago (this should be used)
-        action_date = datetime.now(timezone.utc) - timedelta(hours=48)
-        # content has a different created_date (24 hours ago) - should be ignored
-        content_created_date = datetime.now(timezone.utc) - timedelta(hours=24)
-        content = {"created_date": content_created_date.isoformat()}
-
-        feed_entry = Mock()
-        feed_entry.action_date = action_date
-
-        result = get_age_hours_from_content(content, feed_entry)
-
-        # Should be approximately 48 hours (from action_date), not 24 hours
-        self.assertGreater(result, 47.9)
-        self.assertLess(result, 48.1)
-
     def test_old_paper_uses_action_date_for_age(self):
         """Test that old papers use action_date (paper_publish_date), not created_date."""
         # Setup: Paper published 180 days ago, but added to platform today
