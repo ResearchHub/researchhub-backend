@@ -117,7 +117,10 @@ class OrcidService:
                 author.save(update_fields=["orcid_id"])
 
     def decode_state(self, state: str) -> Optional[Dict[str, Any]]:
-        return self._decode_signed_value(state, max_age=self.STATE_MAX_AGE)
+        try:
+            return signing.loads(state, max_age=self.STATE_MAX_AGE)
+        except signing.BadSignature:
+            return None
 
     def get_redirect_url(self, error: Optional[str] = None, return_url: Optional[str] = None) -> str:
         base = return_url if self._is_valid_redirect_url(return_url) else settings.BASE_FRONTEND_URL
@@ -138,9 +141,3 @@ class OrcidService:
 
     def _encode_signed_value(self, value: Dict[str, Any]) -> str:
         return signing.dumps(value)
-
-    def _decode_signed_value(self, signed_value: str, max_age: Optional[int] = None) -> Optional[Dict[str, Any]]:
-        try:
-            return signing.loads(signed_value, max_age=max_age)
-        except signing.BadSignature:
-            return None
