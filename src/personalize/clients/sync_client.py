@@ -18,6 +18,9 @@ class SyncClient:
         self.tracking_id = settings.AWS_PERSONALIZE_TRACKING_ID
 
     def put_items(self, items: List[dict]) -> SyncResult:
+        if settings.TESTING:
+            return {"success": True, "synced": 0, "failed": 0, "errors": []}
+
         if not items:
             return {"success": True, "synced": 0, "failed": 0, "errors": []}
 
@@ -46,6 +49,9 @@ class SyncClient:
     def put_events(
         self, user_id: str, session_id: str, events: List[dict]
     ) -> SyncResult:
+        if settings.TESTING:
+            return {"success": True, "synced": 0, "failed": 0, "errors": []}
+
         if not events:
             return {"success": True, "synced": 0, "failed": 0, "errors": []}
 
