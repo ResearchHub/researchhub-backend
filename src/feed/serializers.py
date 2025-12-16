@@ -657,7 +657,7 @@ class FeedEntrySerializer(serializers.ModelSerializer):
 
     def get_metrics(self, obj):
         """Return metrics with adjusted_score included."""
-        metrics = dict(obj.metrics or {})  # Copy to avoid mutating original
+        metrics = dict(obj.metrics or {})
         base_votes = metrics.get("votes", 0)
         external_metrics = metrics.get("external", {})
         metrics["adjusted_score"] = calculate_adjusted_score(
