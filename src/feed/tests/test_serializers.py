@@ -1546,6 +1546,7 @@ class FundingFeedEntrySerializerTests(TestCase):
     """Test cases for the FundingFeedEntrySerializer"""
 
     def setUp(self):
+        super().setUp()
         self.user = create_random_default_user("funding_feed_user")
 
     @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")

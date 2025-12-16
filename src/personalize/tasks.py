@@ -1,4 +1,5 @@
 from celery.utils.log import get_task_logger
+from django.conf import settings
 
 from analytics.interactions.interaction_mapper import map_from_comment, map_from_upvote
 from analytics.models import UserInteractions
@@ -93,6 +94,13 @@ def create_comment_interaction_task(comment_id):
 
 @app.task(queue=QUEUE_PAPER_MISC, max_retries=3, retry_backoff=True)
 def sync_interaction_event_to_personalize_task(interaction_id):
+    # Skip sync during tests
+    if not getattr(settings, "PERSONALIZE_SYNC_ENABLED", True):
+        logger.debug(
+            f"Personalize sync disabled, skipping interaction {interaction_id}"
+        )
+        return
+
     try:
         interaction = UserInteractions.objects.get(id=interaction_id)
     except UserInteractions.DoesNotExist:
@@ -133,6 +141,13 @@ def sync_unified_document_to_personalize_task(unified_document_id):
     """
     Sync a unified document to AWS Personalize.
     """
+    # Skip sync during tests
+    if not getattr(settings, "PERSONALIZE_SYNC_ENABLED", True):
+        logger.debug(
+            f"Personalize sync disabled, skipping document {unified_document_id}"
+        )
+        return
+
     logger.info(f"Syncing unified_document {unified_document_id} to Personalize")
 
     service = SyncService()
