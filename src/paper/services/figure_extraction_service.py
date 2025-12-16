@@ -11,15 +11,17 @@ from utils import sentry
 logger = logging.getLogger(__name__)
 
 # Minimum dimensions for extracted figures (pixels)
-MIN_FIGURE_WIDTH = 300
-MIN_FIGURE_HEIGHT = 300
+MIN_FIGURE_WIDTH = 400
+MIN_FIGURE_HEIGHT = 400
 
 # Maximum dimensions for extracted figures (pixels)
 MAX_FIGURE_WIDTH = 2000
 MAX_FIGURE_HEIGHT = 2000
 
-THUMBNAIL_MAX_WIDTH = 240
-THUMBNAIL_MAX_HEIGHT = 240
+MAX_FIGURES_TO_EXTRACT = 20
+
+THUMBNAIL_MAX_WIDTH = 600
+THUMBNAIL_MAX_HEIGHT = 600
 THUMBNAIL_WEBP_QUALITY = 80
 
 # Maximum aspect ratio (width:height)
@@ -168,6 +170,14 @@ class FigureExtractionService:
                                 f"(aspect: {aspect_ratio:.2f})"
                             )
 
+                            if len(extracted_figures) >= MAX_FIGURES_TO_EXTRACT:
+                                logger.info(
+                                    f"Reached maximum figure limit "
+                                    f"({MAX_FIGURES_TO_EXTRACT}), "
+                                    f"stopping extraction for paper {paper_id}"
+                                )
+                                break
+
                         except Exception as e:
                             logger.warning(
                                 f"Error extracting image {img_index} "
@@ -178,6 +188,9 @@ class FigureExtractionService:
                 except Exception as e:
                     logger.warning(f"Error processing page {page_num}: {e}")
                     continue
+
+                if len(extracted_figures) >= MAX_FIGURES_TO_EXTRACT:
+                    break
 
             doc.close()
 

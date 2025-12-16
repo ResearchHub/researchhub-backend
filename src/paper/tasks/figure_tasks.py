@@ -10,7 +10,6 @@ from django.core.files.base import ContentFile
 from django.db import transaction
 from PIL import Image
 
-from feed.tasks import refresh_feed_entries_for_objects
 from paper.services.bedrock_primary_image_service import (
     MIN_PRIMARY_SCORE_THRESHOLD,
     BedrockPrimaryImageService,
@@ -113,7 +112,10 @@ def celery_extract_pdf_preview(paper_id, retry=0):
                 image.save(img_buffer, "png", quality=0)
                 file = ContentFile(img_buffer.getvalue(), name=output_filename)
                 Figure.objects.create(
-                    file=file, paper=paper, figure_type=Figure.PREVIEW
+                    file=file,
+                    paper=paper,
+                    figure_type=Figure.PREVIEW,
+                    thumbnail=None,
                 )
     except Exception as e:
         sentry.log_error(e)
@@ -216,6 +218,7 @@ def extract_pdf_figures(
                         file=content_file,
                         paper=paper,
                         figure_type=Figure.FIGURE,
+                        thumbnail=None,
                     )
                     figures_created += 1
 
@@ -293,6 +296,8 @@ def create_pdf_screenshot(paper) -> bool:
             existing_preview.save(update_fields=["is_primary"])
 
             # Refresh feed entries to update cached primary_image and thumbnail
+            from feed.tasks import refresh_feed_entries_for_objects
+
             Paper = apps.get_model("paper.Paper")
             paper_content_type = ContentType.objects.get_for_model(Paper)
             refresh_feed_entries_for_objects.delay(paper.id, paper_content_type.id)
@@ -350,6 +355,8 @@ def create_pdf_screenshot(paper) -> bool:
         doc.close()
 
         # Refresh feed entries to update cached primary_image and thumbnail
+        from feed.tasks import refresh_feed_entries_for_objects
+
         Paper = apps.get_model("paper.Paper")
         paper_content_type = ContentType.objects.get_for_model(Paper)
         refresh_feed_entries_for_objects.delay(paper.id, paper_content_type.id)
@@ -449,6 +456,8 @@ def select_primary_image(self, paper_id, retry=0):
             # Generate thumbnail for the selected primary figure
             selected_figure = Figure.objects.get(id=selected_figure_id)
             generate_thumbnail_for_figure(selected_figure)
+
+            from feed.tasks import refresh_feed_entries_for_objects
 
             Paper = apps.get_model("paper.Paper")
             paper_content_type = ContentType.objects.get_for_model(Paper)

@@ -239,7 +239,7 @@ class PaperSerializer(ContentObjectSerializer):
             primary_figure = obj.figures.filter(is_primary=True).first()
             if not primary_figure or not primary_figure.file:
                 return None
-            return default_storage.url(primary_figure.file.name)
+            return primary_figure.file.url
         except Exception:
             return None
 
@@ -248,7 +248,7 @@ class PaperSerializer(ContentObjectSerializer):
             primary_figure = obj.figures.filter(is_primary=True).first()
             if not primary_figure or not primary_figure.thumbnail:
                 return None
-            return default_storage.url(primary_figure.thumbnail.name)
+            return primary_figure.thumbnail.url
         except Exception:
             return None
 
@@ -700,7 +700,8 @@ class FeedEntrySerializer(serializers.ModelSerializer):
         # Shim #1: temporary shim to ensure we have a journal set for as many
         # papers as possible until we get to the bottom of why some papers
         # don't have journal properly set.
-        # Shim #2: If journal is set but not a known preprint source, fetch journal from unified document.
+        # Shim #2: If journal is set but not a known preprint source,
+        # fetch journal from unified document.
         if obj.content_type.model == "paper":
             journal = content.get("journal")
             journal_slug = (
@@ -726,6 +727,11 @@ class FeedEntrySerializer(serializers.ModelSerializer):
                             ),
                         },
                     }
+
+            if "primary_image" not in content:
+                content["primary_image"] = None
+            if "primary_image_thumbnail" not in content:
+                content["primary_image_thumbnail"] = None
 
         return content
 
