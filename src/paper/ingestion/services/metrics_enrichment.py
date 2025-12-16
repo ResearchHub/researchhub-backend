@@ -207,15 +207,17 @@ class PaperMetricsEnrichmentService:
             )
 
         except Exception as e:
-            logger.error(f"Error fetching X metrics for paper {paper.id}: {e}")
+            error_message = f"Error fetching X metrics for paper {paper.id}: {e}"
 
             # Check for retryable HTTP errors (rate limit, service unavailable)
             response = getattr(e, "response", None)
             if response is not None:
                 status_code = getattr(response, "status_code", None)
                 if status_code in (429, 503):
+                    logger.warning(error_message)
                     return EnrichmentResult(status="retryable_error", reason=str(e))
 
+            logger.error(error_message)
             return EnrichmentResult(status="error", reason=str(e))
 
     def _update_paper_metrics(self, paper: Paper, metrics: Dict[str, Any]) -> None:
