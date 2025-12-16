@@ -45,6 +45,8 @@ class OrcidService:
         try:
             user = User.objects.get(id=state_data.get("user_id"))
             token_data = self.exchange_code_for_token(code)
+            if "orcid" not in token_data:
+                return self.get_redirect_url(error="service_error", return_url=return_url)
             self.connect_orcid_account(user, token_data)
             return self.get_redirect_url(return_url=return_url)
         except User.DoesNotExist:
@@ -72,9 +74,6 @@ class OrcidService:
         return response.json()
 
     def connect_orcid_account(self, user: Any, token_data: Dict[str, Any]) -> None:
-        if "orcid" not in token_data:
-            raise ValueError("Invalid ORCID response")
-
         orcid_id = token_data["orcid"]
         already_linked = (
             SocialAccount.objects

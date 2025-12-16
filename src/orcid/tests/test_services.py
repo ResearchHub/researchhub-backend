@@ -75,9 +75,13 @@ class OrcidServiceTests(TestCase):
     def test_process_callback_service_error(self, mock_post):
         user = create_random_default_user("user")
         create_orcid_app()
-        mock_post.side_effect = requests.RequestException()
         state = self.service._encode_signed_value({"user_id": user.id})
 
+        mock_post.side_effect = requests.RequestException()
+        self.assertIn("orcid_error=service_error", self.service.process_callback("code", state))
+
+        mock_post.side_effect = None
+        mock_post.return_value = Mock(json=lambda: {"access_token": "token"}, raise_for_status=Mock())
         self.assertIn("orcid_error=service_error", self.service.process_callback("code", state))
 
     def test_connect_creates_account_token_and_updates_author(self):
@@ -91,13 +95,6 @@ class OrcidServiceTests(TestCase):
         self.assertEqual(SocialToken.objects.get(account__user=user).token, "token")
         user.author_profile.refresh_from_db()
         self.assertIn("0000-0001-2345-6789", user.author_profile.orcid_id)
-
-    def test_connect_raises_on_invalid_data(self):
-        user = create_random_default_user("user1")
-        create_orcid_app()
-
-        with self.assertRaises(ValueError):
-            self.service.connect_orcid_account(user, {})
 
     def test_decode_state(self):
         encoded = self.service._encode_signed_value({"user_id": 123})
