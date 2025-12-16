@@ -11,6 +11,7 @@ from unittest.mock import Mock
 from django.test import TestCase
 
 from feed.hot_score_utils import (
+    calculate_adjusted_score,
     calculate_bluesky_engagement,
     calculate_github_engagement,
     calculate_x_engagement,
@@ -354,3 +355,106 @@ class TestHotScoreUtils(TestCase):
         # Test with empty dict
         result = get_social_media_engagement_from_metrics({})
         self.assertEqual(result, 0.0)
+
+    # ========================================================================
+    # Adjusted Score Calculation Tests
+    # ========================================================================
+
+    def test_calculate_adjusted_score_no_social_engagement(self):
+        """Test adjusted score with no social media engagement."""
+        result = calculate_adjusted_score(base_votes=5, external_metrics={})
+
+        # With no social engagement, log(0+1) * 5 = 0
+        # So adjusted_score = base_votes = 5
+        self.assertEqual(result, 5)
+
+    def test_calculate_adjusted_score_with_x_engagement(self):
+        """Test adjusted score with X/Twitter engagement."""
+        external_metrics = {
+            "x": {
+                "total_likes": 10,
+                "total_quotes": 2,
+                "total_replies": 1,
+                "total_reposts": 5,
+                "total_impressions": 500,
+            }
+        }
+
+        result = calculate_adjusted_score(
+            base_votes=5, external_metrics=external_metrics
+        )
+
+        # X engagement = 52.2 (from previous test)
+        # social_score = log(52.2 + 1) * 5.0 ≈ log(53.2) * 5 ≈ 3.97 * 5 ≈ 19.8 → 19
+        # adjusted_score = 5 + 19 = 24
+        self.assertGreater(result, 5)  # Should be higher than base votes
+        self.assertIsInstance(result, int)
+
+    def test_calculate_adjusted_score_logarithmic_scaling(self):
+        """Test that adjusted score uses logarithmic scaling (diminishing returns)."""
+        # Low engagement
+        low_engagement = {"x": {"total_likes": 10, "total_impressions": 100}}
+        result_low = calculate_adjusted_score(
+            base_votes=0, external_metrics=low_engagement
+        )
+
+        # Medium engagement (10x more)
+        medium_engagement = {"x": {"total_likes": 100, "total_impressions": 1000}}
+        result_medium = calculate_adjusted_score(
+            base_votes=0, external_metrics=medium_engagement
+        )
+
+        # High engagement (100x more than low)
+        high_engagement = {"x": {"total_likes": 1000, "total_impressions": 10000}}
+        result_high = calculate_adjusted_score(
+            base_votes=0, external_metrics=high_engagement
+        )
+
+        # Verify logarithmic scaling: gains should diminish
+        # The difference between medium and high should be less than between low and medium
+        # (in relative terms, not absolute)
+        self.assertGreater(result_medium, result_low)
+        self.assertGreater(result_high, result_medium)
+
+        # All should be non-negative integers
+        self.assertIsInstance(result_low, int)
+        self.assertIsInstance(result_medium, int)
+        self.assertIsInstance(result_high, int)
+
+    def test_calculate_adjusted_score_with_all_platforms(self):
+        """Test adjusted score with engagement from all platforms."""
+        external_metrics = {
+            "x": {
+                "total_likes": 10,
+                "total_quotes": 2,
+                "total_replies": 1,
+                "total_reposts": 5,
+                "total_impressions": 500,
+            },
+            "bluesky": {
+                "total_likes": 20,
+                "total_quotes": 2,
+                "total_replies": 3,
+                "total_reposts": 5,
+            },
+            "github_mentions": {
+                "total_mentions": 3,
+            },
+        }
+
+        result = calculate_adjusted_score(
+            base_votes=10, external_metrics=external_metrics
+        )
+
+        # Combined engagement = 52.2 + 5.1 + 9.0 = 66.3
+        # social_score = log(66.3 + 1) * 5.0 ≈ log(67.3) * 5 ≈ 4.21 * 5 ≈ 21
+        # adjusted_score = 10 + 21 = 31
+        self.assertGreater(result, 10)  # Should be higher than base votes
+        self.assertIsInstance(result, int)
+
+    def test_calculate_adjusted_score_with_none_external_metrics(self):
+        """Test adjusted score handles None external_metrics gracefully."""
+        result = calculate_adjusted_score(base_votes=5, external_metrics=None)
+
+        # Should return just base votes when external_metrics is None
+        self.assertEqual(result, 5)

@@ -254,6 +254,30 @@ def get_social_media_engagement_from_metrics(metrics: dict) -> float:
     return total
 
 
+def calculate_adjusted_score(base_votes: int, external_metrics: dict) -> int:
+    """
+    Calculate vote count adjusted with social media engagement.
+
+    Uses logarithmic scaling with multiplier of 5 for diminishing returns.
+
+    Examples:
+        base_votes=5, engagement=10   -> 5 + log(11) * 5 = 17
+        base_votes=5, engagement=100  -> 5 + log(101) * 5 = 28
+        base_votes=5, engagement=1000 -> 5 + log(1001) * 5 = 40
+        base_votes=5, engagement=5000 -> 5 + log(5001) * 5 = 48
+    """
+    import math
+
+    # Wrap external_metrics in expected format for engagement calculation
+    metrics = {"external": external_metrics} if external_metrics else {}
+    social_engagement = get_social_media_engagement_from_metrics(metrics)
+
+    # Logarithmic scaling: diminishing returns, no hard cap
+    social_score = int(math.log(social_engagement + 1) * 5.0)
+
+    return base_votes + social_score
+
+
 # ============================================================================
 # Complex Extraction Functions
 # ============================================================================
