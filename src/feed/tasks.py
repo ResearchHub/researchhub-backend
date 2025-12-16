@@ -140,6 +140,12 @@ def refresh_feed_entries_for_objects(item_id, item_content_type_id):
         if authors:
             feed_entry.authors.set(authors)
 
+        # Refresh hubs from unified document
+        unified_document = _get_unified_document(feed_entry.item, item_content_type)
+        if unified_document:
+            hub_ids = list(unified_document.hubs.values_list("id", flat=True))
+            feed_entry.hubs.set(hub_ids)
+
 
 @app.task
 def update_feed_metrics(item_id, item_content_type_id, metrics):
