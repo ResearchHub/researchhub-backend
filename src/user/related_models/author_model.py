@@ -1,3 +1,5 @@
+from allauth.socialaccount.models import SocialAccount
+from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import ArrayField
 from django.contrib.postgres.indexes import GinIndex
@@ -166,6 +168,12 @@ class Author(models.Model):
             return False
 
         return self.user.is_verified
+
+    @property
+    def is_orcid_connected(self):
+        if not self.user:
+            return False
+        return SocialAccount.objects.filter(user=self.user, provider=OrcidProvider.id).exists()
 
     @property
     def profile_image_indexing(self):

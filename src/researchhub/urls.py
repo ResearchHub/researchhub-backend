@@ -50,6 +50,7 @@ from user.views import author_views, editor_views, moderator_view, persona_webho
 from user.views.custom_verify_email_view import CustomVerifyEmailView
 from user_lists.views import ListItemViewSet, ListViewSet
 from user_saved.views import UserSavedView
+from orcid.views import OrcidConnectView
 
 router = routers.DefaultRouter()
 
@@ -218,6 +219,7 @@ urlpatterns = [
         ListItemViewSet.as_view({"delete": "destroy"}),
         name="list-item-detail",
     ),
+    path("api/orcid/connect/", OrcidConnectView.as_view(), name="orcid_connect"),
     # TODO: calvinhlee - consolidate all mod views into 1 set
     path("api/get_hub_active_contributors/", editor_views.get_hub_active_contributors),
     path(

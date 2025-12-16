@@ -998,6 +998,7 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
                     "education",
                     "headline",
                     "profile_image",
+                    "orcid_connected",
                 )
             }
         }
