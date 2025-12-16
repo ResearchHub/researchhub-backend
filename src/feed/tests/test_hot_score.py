@@ -2,14 +2,13 @@
 Tests for the hot score calculation module.
 """
 
-import math
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
-from feed.hot_score import CONTENT_TYPE_WEIGHTS, calculate_hot_score_for_item
+from feed.hot_score import calculate_hot_score_for_item
 from feed.models import FeedEntry
 from feed.serializers import serialize_feed_item, serialize_feed_metrics
 from paper.tests.helpers import create_paper
@@ -223,13 +222,6 @@ class TestHotScore(TestCase):
 
         # Score with bounties should be higher
         self.assertGreater(score_with_bounties, score_no_bounties)
-
-        # Verify sqrt of bounty amount is used in calculation
-        weights = CONTENT_TYPE_WEIGHTS["paper"]
-        # Calculate bounty component
-        bounty_weight = weights["bounty_weight"]
-        bounty_component = math.sqrt(30) * bounty_weight
-        self.assertGreater(bounty_component, 0)
 
     def test_hot_score_increases_with_social_media_engagement(self):
         """Test that social media engagement increases the hot score."""

@@ -40,8 +40,6 @@ import math
 
 from django.contrib.contenttypes.models import ContentType
 
-# Re-export from deprecated module for backward compatibility with tests
-from feed.hot_score_DEPRECATED import CONTENT_TYPE_WEIGHTS  # noqa: F401
 from feed.hot_score_utils import (
     get_age_hours_from_content,
     get_bounties_from_content,
@@ -53,11 +51,6 @@ from feed.hot_score_utils import (
     get_upvotes_rolled_up,
 )
 from paper.related_models.paper_model import Paper
-from researchhub_comment.constants.rh_comment_thread_types import (
-    COMMUNITY_REVIEW,
-    PEER_REVIEW,
-)
-from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from utils import sentry
 
@@ -135,10 +128,6 @@ HOT_SCORE_CONFIG = {
             "grant_urgency_days": 7,  # Grant deadline urgency window
             "preregistration_urgency_days": 7,  # Preregistration deadline urgency
         },
-    },
-    # Configurable thresholds
-    "thresholds": {
-        "peer_review_min_score": 3,  # Min item.score for peer review to inherit parent
     },
 }
 
@@ -273,58 +262,13 @@ def calculate_hot_score_for_item(feed_entry):
     item = feed_entry.item
     item_content_type = ContentType.objects.get_for_model(item)
 
-    comment_ct = get_content_type_for_model(RhCommentModel)
     post_ct = get_content_type_for_model(ResearchhubPost)
     paper_ct = get_content_type_for_model(Paper)
 
-    if item_content_type == comment_ct and (
-        item.comment_type == COMMUNITY_REVIEW or item.comment_type == PEER_REVIEW
-    ):
-        # Only calculate hot score for peer review comments
-        return calculate_hot_score_for_peer_review(feed_entry)
-    elif item_content_type == post_ct or item_content_type == paper_ct:
+    if item_content_type == post_ct or item_content_type == paper_ct:
         return calculate_hot_score(feed_entry, item_content_type)
     else:
         return 0
-
-
-def calculate_hot_score_for_peer_review(feed_entry):
-    """
-    Calculate hot score for a peer review differs from the hot score for a paper
-    and posts because we get the score of the paper or post and then add peer review.
-    This ensures that the peer review shows up in the feed instead of the paper or post
-    since we distinct on unified_document_id.
-    """
-    # Get the base score from the associated paper or post
-    item = feed_entry.item
-    unified_document = feed_entry.unified_document
-    if not unified_document:
-        return 0
-
-    feed_entries = unified_document.feed_entries.filter(
-        content_type__in=[
-            get_content_type_for_model(ResearchhubPost),
-            get_content_type_for_model(Paper),
-        ],
-    )
-
-    parent_score = 0
-    min_score = HOT_SCORE_CONFIG["thresholds"]["peer_review_min_score"]
-    if feed_entries.count() > 0 and item.score >= min_score:
-        # Only use the hot score if the parent item meets minimum score threshold
-        # Use hot_score_v2 (the new algorithm)
-        parent_score = feed_entries.first().hot_score_v2 or 0
-
-    peer_review_score = calculate_hot_score(
-        feed_entry,
-        get_content_type_for_model(RhCommentModel),
-    )
-
-    # Add the peer review's own score to ensure it ranks higher than the original paper
-    # Note: Both parent_score and peer_review_score are already scaled by 100
-    final_score = int(parent_score + peer_review_score)
-
-    return max(0, final_score)
 
 
 def calculate_hot_score(feed_entry, content_type_name, return_components=False):
