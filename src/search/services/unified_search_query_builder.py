@@ -422,20 +422,18 @@ class DocumentQueryBuilder:
         if not popularity_config.enabled:
             return text_query
 
-        field_value_factor = {
-            "field": "hot_score_v2",
-            "factor": popularity_config.weight,
-            "missing": 1,
-        }
-
-        # Add modifier if specified (normalizes large values for better balance)
-        if popularity_config.modifier:
-            field_value_factor["modifier"] = popularity_config.modifier
-
         return Q(
             "function_score",
             query=text_query,
-            functions=[{"field_value_factor": field_value_factor}],
+            functions=[
+                {
+                    "field_value_factor": {
+                        "field": "hot_score_v2",
+                        "factor": popularity_config.weight,
+                        "missing": 1,
+                    }
+                }
+            ],
             score_mode="sum",
             boost_mode=popularity_config.boost_mode,
         )
