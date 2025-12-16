@@ -15,11 +15,12 @@ class OrcidCallbackView(APIView):
         return super().dispatch(request, *args, **kwargs)
 
     def get(self, request: Request, *args, **kwargs) -> HttpResponseRedirect:
-        if request.query_params.get("error") or not request.query_params.get("code"):
+        error = request.query_params.get("error")
+        code = request.query_params.get("code")
+
+        if error or not code:
             return redirect(self.orcid_service.get_redirect_url(error="cancelled"))
 
-        return redirect(self.orcid_service.process_callback(
-            code=request.query_params.get("code"),
-            state=request.query_params.get("state", ""),
-        ))
+        state = request.query_params.get("state", "")
+        return redirect(self.orcid_service.process_callback(code=code, state=state))
 
