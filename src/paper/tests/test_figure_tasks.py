@@ -7,11 +7,7 @@ from PIL import Image
 
 from paper.models import Figure
 from paper.services.bedrock_primary_image_service import MIN_PRIMARY_SCORE_THRESHOLD
-from paper.tasks import (
-    create_pdf_screenshot,
-    extract_pdf_figures,
-    select_primary_image,
-)
+from paper.tasks import create_pdf_screenshot, extract_pdf_figures, select_primary_image
 from paper.tests import helpers
 
 
@@ -33,7 +29,9 @@ class ExtractPdfFiguresTaskTests(TestCase):
         paper.file = None
         paper.save()
 
-        with patch("paper.tasks.figure_tasks.extract_pdf_figures.apply_async") as mock_retry:
+        with patch(
+            "paper.tasks.figure_tasks.extract_pdf_figures.apply_async"
+        ) as mock_retry:
             result = extract_pdf_figures(paper.id)
             self.assertFalse(result)
             mock_retry.assert_called_once()
@@ -50,28 +48,36 @@ class ExtractPdfFiguresTaskTests(TestCase):
         paper.file.name = "test.pdf"
         paper.save()
 
-        # Mock PDF content
-        mock_response = MagicMock()
-        mock_response.content = b"fake pdf content"
-        mock_response.raise_for_status = MagicMock()
-        mock_get.return_value = mock_response
+        # Mock file.url to avoid S3 calls
+        url_patcher = patch.object(
+            paper.file.storage, "url", return_value="http://testserver/media/test.pdf"
+        )
+        url_patcher.start()
+        try:
+            # Mock PDF content
+            mock_response = MagicMock()
+            mock_response.content = b"fake pdf content"
+            mock_response.raise_for_status = MagicMock()
+            mock_get.return_value = mock_response
 
-        # Mock extraction service
-        mock_service = MagicMock()
-        mock_service_class.return_value = mock_service
+            # Mock extraction service
+            mock_service = MagicMock()
+            mock_service_class.return_value = mock_service
 
-        # Create mock extracted figures
-        img = Image.new("RGB", (500, 500), color="blue")
-        buffer = BytesIO()
-        img.save(buffer, format="JPEG")
-        content_file = ContentFile(buffer.getvalue(), name="test-figure.jpg")
-        mock_service.extract_figures_from_pdf.return_value = [content_file]
+            # Create mock extracted figures
+            img = Image.new("RGB", (500, 500), color="blue")
+            buffer = BytesIO()
+            img.save(buffer, format="JPEG")
+            content_file = ContentFile(buffer.getvalue(), name="test-figure.jpg")
+            mock_service.extract_figures_from_pdf.return_value = [content_file]
 
-        result = extract_pdf_figures(paper.id)
+            result = extract_pdf_figures(paper.id)
 
-        self.assertTrue(result)
-        mock_service.extract_figures_from_pdf.assert_called_once()
-        mock_select_task.assert_called_once_with((paper.id,), priority=5)
+            self.assertTrue(result)
+            mock_service.extract_figures_from_pdf.assert_called_once()
+            mock_select_task.assert_called_once_with((paper.id,), priority=5)
+        finally:
+            url_patcher.stop()
 
     @patch("paper.tasks.figure_tasks.requests.get")
     @patch("paper.tasks.figure_tasks.FigureExtractionService")
@@ -247,36 +253,46 @@ class ExtractPdfFiguresTaskTests(TestCase):
         paper.external_source = "arxiv"
         paper.save()
 
-        # Mock file download failure
-        mock_get.side_effect = Exception("File download failed")
-
-        # Mock PDF download from pdf_url
-        pdf_content = b"fake pdf content from url"
-        pdf_file = ContentFile(pdf_content, name="paper.pdf")
-        mock_download_pdf.return_value = pdf_file
-        mock_create_url.return_value = "https://scraper/?url=test"
-
-        # Mock extraction service
-        mock_service = MagicMock()
-        mock_service_class.return_value = mock_service
-
-        # Create mock extracted figures
-        img = Image.new("RGB", (500, 500), color="blue")
-        buffer = BytesIO()
-        img.save(buffer, format="JPEG")
-        content_file = ContentFile(buffer.getvalue(), name="test-figure.jpg")
-        mock_service.extract_figures_from_pdf.return_value = [content_file]
-
-        result = extract_pdf_figures(paper.id)
-
-        self.assertTrue(result)
-        # Should have tried file first, then pdf_url
-        mock_get.assert_called_once()
-        mock_create_url.assert_called_once_with(paper.pdf_url, paper.external_source)
-        mock_download_pdf.assert_called_once()
-        mock_service.extract_figures_from_pdf.assert_called_once_with(
-            pdf_content, paper.id
+        # Mock file.url to avoid S3 calls
+        url_patcher = patch.object(
+            paper.file.storage, "url", return_value="http://testserver/media/test.pdf"
         )
+        url_patcher.start()
+        try:
+            # Mock file download failure
+            mock_get.side_effect = Exception("File download failed")
+
+            # Mock PDF download from pdf_url
+            pdf_content = b"fake pdf content from url"
+            pdf_file = ContentFile(pdf_content, name="paper.pdf")
+            mock_download_pdf.return_value = pdf_file
+            mock_create_url.return_value = "https://scraper/?url=test"
+
+            # Mock extraction service
+            mock_service = MagicMock()
+            mock_service_class.return_value = mock_service
+
+            # Create mock extracted figures
+            img = Image.new("RGB", (500, 500), color="blue")
+            buffer = BytesIO()
+            img.save(buffer, format="JPEG")
+            content_file = ContentFile(buffer.getvalue(), name="test-figure.jpg")
+            mock_service.extract_figures_from_pdf.return_value = [content_file]
+
+            result = extract_pdf_figures(paper.id)
+
+            self.assertTrue(result)
+            # Should have tried file first, then pdf_url
+            mock_get.assert_called_once()
+            mock_create_url.assert_called_once_with(
+                paper.pdf_url, paper.external_source
+            )
+            mock_download_pdf.assert_called_once()
+            mock_service.extract_figures_from_pdf.assert_called_once_with(
+                pdf_content, paper.id
+            )
+        finally:
+            url_patcher.stop()
 
     @patch("paper.tasks.figure_tasks.download_pdf_from_url")
     @patch("paper.tasks.figure_tasks.create_download_url")
@@ -351,7 +367,9 @@ class SelectPrimaryImageTaskTests(TestCase):
         paper.file.name = "test.pdf"
         paper.save()
 
-        with patch("paper.tasks.figure_tasks.create_pdf_screenshot") as mock_create_preview:
+        with patch(
+            "paper.tasks.figure_tasks.create_pdf_screenshot"
+        ) as mock_create_preview:
             mock_create_preview.return_value = True
             result = select_primary_image(paper.id)
 
@@ -471,38 +489,48 @@ class CreatePdfScreenshotTests(TestCase):
     @patch("paper.tasks.figure_tasks.fitz")
     def test_create_pdf_screenshot_success(self, mock_fitz, mock_get):
         """Test successful preview creation."""
-        # Mock PDF content
-        mock_response = MagicMock()
-        mock_response.content = b"fake pdf content"
-        mock_response.raise_for_status = MagicMock()
-        mock_get.return_value = mock_response
+        # Mock file.url to avoid S3 calls
+        url_patcher = patch.object(
+            self.paper.file.storage,
+            "url",
+            return_value="http://testserver/media/test.pdf",
+        )
+        url_patcher.start()
+        try:
+            # Mock PDF content
+            mock_response = MagicMock()
+            mock_response.content = b"fake pdf content"
+            mock_response.raise_for_status = MagicMock()
+            mock_get.return_value = mock_response
 
-        # Create valid PNG image bytes for the mock
-        img = Image.new("RGB", (500, 500), color="blue")
-        png_buffer = BytesIO()
-        img.save(png_buffer, format="PNG")
-        valid_png_bytes = png_buffer.getvalue()
+            # Create valid PNG image bytes for the mock
+            img = Image.new("RGB", (500, 500), color="blue")
+            png_buffer = BytesIO()
+            img.save(png_buffer, format="PNG")
+            valid_png_bytes = png_buffer.getvalue()
 
-        # Mock PyMuPDF
-        mock_doc = MagicMock()
-        mock_fitz.open.return_value = mock_doc
-        mock_doc.__len__.return_value = 1
+            # Mock PyMuPDF
+            mock_doc = MagicMock()
+            mock_fitz.open.return_value = mock_doc
+            mock_doc.__len__.return_value = 1
 
-        mock_page = MagicMock()
-        mock_doc.__getitem__.return_value = mock_page
+            mock_page = MagicMock()
+            mock_doc.__getitem__.return_value = mock_page
 
-        mock_pixmap = MagicMock()
-        mock_pixmap.pil_tobytes.return_value = valid_png_bytes
-        mock_page.get_pixmap.return_value = mock_pixmap
+            mock_pixmap = MagicMock()
+            mock_pixmap.pil_tobytes.return_value = valid_png_bytes
+            mock_page.get_pixmap.return_value = mock_pixmap
 
-        result = create_pdf_screenshot(self.paper)
+            result = create_pdf_screenshot(self.paper)
 
-        self.assertTrue(result)
-        preview = Figure.objects.filter(
-            paper=self.paper, figure_type=Figure.PREVIEW
-        ).first()
-        self.assertIsNotNone(preview)
-        self.assertTrue(preview.is_primary)
+            self.assertTrue(result)
+            preview = Figure.objects.filter(
+                paper=self.paper, figure_type=Figure.PREVIEW
+            ).first()
+            self.assertIsNotNone(preview)
+            self.assertTrue(preview.is_primary)
+        finally:
+            url_patcher.stop()
 
     @patch("paper.tasks.figure_tasks.requests.get")
     @patch("paper.tasks.figure_tasks.fitz")
@@ -534,4 +562,3 @@ class CreatePdfScreenshotTests(TestCase):
         result = create_pdf_screenshot(paper)
 
         self.assertFalse(result)
-
