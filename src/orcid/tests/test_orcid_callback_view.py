@@ -45,3 +45,4 @@ class OrcidCallbackViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_302_FOUND)
         self.assertEqual(response.url, "https://researchhub.com?orcid_connected=true")
         mock_service.return_value.process_callback.assert_called_once_with(code="abc", state="xyz")
+

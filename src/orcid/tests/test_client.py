@@ -46,3 +46,4 @@ class OrcidClientTests(TestCase):
         call_args = mock_post.call_args
         self.assertIn("https://orcid.org/oauth/token", call_args[0][0])
         self.assertEqual(call_args[1]["timeout"], 30)
+

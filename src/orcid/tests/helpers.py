@@ -12,3 +12,4 @@ def create_orcid_app() -> SocialApp:
     )
     app.sites.add(Site.objects.get_current())
     return app
+

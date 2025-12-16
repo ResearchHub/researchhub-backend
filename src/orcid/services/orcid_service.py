@@ -144,3 +144,4 @@ class OrcidService:
 
     def _encode_signed_value(self, value: Dict[str, Any]) -> str:
         return signing.dumps(value)
+

@@ -182,3 +182,4 @@ class OrcidServiceCallbackTests(TestCase):
 
         # Assert
         self.assertIn("orcid_error=service_error", result)
+

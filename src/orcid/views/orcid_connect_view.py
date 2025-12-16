@@ -24,3 +24,4 @@ class OrcidConnectView(APIView):
             return Response({"error": "ORCID not configured"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         except Exception:
             return Response({"error": "Failed to initiate ORCID connection"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+

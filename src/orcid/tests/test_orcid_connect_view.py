@@ -69,3 +69,4 @@ class OrcidConnectViewTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
         self.assertEqual(response.data["error"], "Failed to initiate ORCID connection")
+

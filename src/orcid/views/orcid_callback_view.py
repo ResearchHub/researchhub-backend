@@ -22,3 +22,4 @@ class OrcidCallbackView(APIView):
             code=request.query_params.get("code"),
             state=request.query_params.get("state", ""),
         ))
+
