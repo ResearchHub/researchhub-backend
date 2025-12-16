@@ -69,13 +69,16 @@ class PersonDocument(BaseDocument):
 
     def prepare_institutions(self, instance) -> list[dict] | None:
         if instance.institutions is not None:
-            return [
-                {
-                    "id": author_institution.institution.id,
-                    "name": author_institution.institution.display_name,
-                }
-                for author_institution in instance.institutions.all()
-            ]
+            result = []
+            for author_institution in instance.institutions.all():
+                if author_institution.institution:
+                    result.append(
+                        {
+                            "id": author_institution.institution.id,
+                            "name": author_institution.institution.display_name or "",
+                        }
+                    )
+            return result if result else None
         return None
 
     def prepare_user_reputation(self, instance) -> int:
@@ -87,7 +90,12 @@ class PersonDocument(BaseDocument):
         reputation_hubs = []
         if instance.reputation_list:
             for rep in instance.reputation_list:
-                reputation_hubs.append(rep["hub"]["name"])
+                if isinstance(rep, dict):
+                    hub = rep.get("hub")
+                    if hub and isinstance(hub, dict):
+                        hub_name = hub.get("name")
+                        if hub_name:
+                            reputation_hubs.append(hub_name)
 
         return reputation_hubs
 
@@ -95,8 +103,10 @@ class PersonDocument(BaseDocument):
         education = []
         if instance.education:
             for edu in instance.education:
-                if edu and isinstance(edu, dict) and "name" in edu:
-                    education.append(edu["name"])
+                if edu and isinstance(edu, dict):
+                    edu_name = edu.get("name")
+                    if edu_name:
+                        education.append(edu_name)
 
         return education
 
@@ -116,21 +126,22 @@ class PersonDocument(BaseDocument):
 
         # Add institution names
         for author_institution in instance.institutions.all():
-            if author_institution.institution.display_name:
-                suggestions.append(
-                    {"input": author_institution.institution.display_name, "weight": 3}
-                )
+            if (
+                author_institution.institution
+                and author_institution.institution.display_name
+            ):
+                institution_name = author_institution.institution.display_name
+                suggestions.append({"input": institution_name, "weight": 3})
 
                 # Add full name + institution to account for people typing
                 # name + institution
-                suggestions.append(
-                    {
-                        "input": instance.first_name
-                        + " "
-                        + author_institution.institution.display_name,
-                        "weight": 3,
-                    }
-                )
+                if instance.first_name:
+                    suggestions.append(
+                        {
+                            "input": f"{instance.first_name} {institution_name}",
+                            "weight": 3,
+                        }
+                    )
 
         return suggestions
 

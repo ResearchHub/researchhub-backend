@@ -422,39 +422,71 @@ class PaperDocument(BaseDocument):
         because it uses offsets instead of filtering by greater than pk.
         """
         chunk_size = self.django.queryset_pagination
-        qs = self.get_queryset(filter_=filter_, exclude=exclude, count=count)
-        qs = qs.order_by("pk") if not qs.query.is_sliced else qs
-        count = qs.count()
+        # Don't pass count to get_queryset - it slices the queryset which
+        # prevents filtering. We'll handle the count limit ourselves.
+        qs = self.get_queryset(filter_=filter_, exclude=exclude, count=None)
+        qs = qs.order_by("pk")
+        total_count = qs.count()
+
+        # Apply count limit if provided
+        if count is not None and count > 0:
+            total_count = min(total_count, count)
+            logger.info(
+                f"Count limit applied: {count}, "
+                f"total papers in queryset: {total_count}"
+            )
+        else:
+            logger.info(f"Total papers in queryset: {total_count} (no count limit)")
+
         model = self.django.model.__name__
         action = action.present_participle.title()
 
         done = 0
+        yielded = 0
         start = time.time()
         last_pk = None
         if verbose:
-            eta = self._eta(start, done, count)
+            eta = self._eta(start, done, total_count)
             stdout.write(f"{action} {model}: 0% ({eta})\r")
 
-        while done < count:
+        while done < total_count:
             if verbose:
-                pct = round(done / count * 100)
-                eta = self._eta(start, done, count)
+                pct = round(done / total_count * 100)
+                eta = self._eta(start, done, total_count)
                 stdout.write(f"{action} {model}: {pct}% ({eta})\r")
 
+            # Calculate how many items we need in this chunk
+            remaining = total_count - done
+            current_chunk_size = min(chunk_size, remaining)
+
             if last_pk is not None:
-                current_qs = qs.filter(pk__gt=last_pk)[:chunk_size]
+                current_qs = qs.filter(pk__gt=last_pk)[:current_chunk_size]
             else:
-                current_qs = qs[:chunk_size]
+                current_qs = qs[:current_chunk_size]
 
             # Process current chunk
             chunk_items = list(current_qs)
+            logger.info(
+                f"Retrieved {len(chunk_items)} papers in chunk, "
+                f"done: {done}/{total_count}, last_pk: {last_pk}, "
+                f"chunk_size: {current_chunk_size}"
+            )
             if not chunk_items:
                 break
 
             for obj in chunk_items:
                 done += 1
                 last_pk = obj.pk
+                yielded += 1
+                logger.debug(
+                    f"Yielding paper {obj.id}, is_removed: {obj.is_removed}, "
+                    f"has_unified_doc: {obj.unified_document_id is not None}"
+                )
                 yield obj
 
+        logger.info(
+            f"Finished get_indexing_queryset: yielded {yielded} papers, "
+            f"processed {done} papers out of {total_count} total"
+        )
         if verbose:
-            stdout.write(f"{action} {count} {model}: OK          \n")
+            stdout.write(f"{action} {total_count} {model}: OK          \n")
