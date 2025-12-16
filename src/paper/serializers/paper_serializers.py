@@ -15,6 +15,7 @@ from discussion.serializers import (
     DynamicVoteSerializer,
     GenericReactionSerializerMixin,
 )
+from feed.hot_score_utils import calculate_adjusted_score
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from paper.exceptions import PaperSerializerError
 from paper.lib import journal_hosts
@@ -720,6 +721,7 @@ class DynamicPaperSerializer(
     first_preview = serializers.SerializerMethodField()
     hubs = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
+    adjusted_score = serializers.SerializerMethodField()
     purchases = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
     unified_document_id = serializers.SerializerMethodField()
@@ -940,6 +942,19 @@ class DynamicPaperSerializer(
 
     def get_score(self, paper):
         return paper.calculate_score()
+
+    def get_adjusted_score(self, paper):
+        """
+        Calculate adjusted score on-the-fly from paper data.
+        """
+        base_votes = paper.calculate_score()
+
+        # Get external metrics from paper.external_metadata
+        external_metrics = {}
+        if paper.external_metadata:
+            external_metrics = paper.external_metadata.get("metrics", {})
+
+        return calculate_adjusted_score(base_votes, external_metrics)
 
     def get_unified_document(self, paper):
         from researchhub_document.serializers import DynamicUnifiedDocumentSerializer

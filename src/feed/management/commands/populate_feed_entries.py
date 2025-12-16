@@ -4,7 +4,6 @@ from django.core.management.base import BaseCommand
 from django.db.models import Q
 from django.utils import timezone
 
-from feed.hot_score import calculate_hot_score_for_item
 from feed.models import FeedEntry
 from feed.serializers import serialize_feed_metrics
 from feed.tasks import serialize_feed_item
@@ -38,29 +37,46 @@ class Command(BaseCommand):
             default=None,
             help="Only process entries created after this date (YYYY-MM-DD).",
         )
+        parser.add_argument(
+            "--id",
+            type=int,
+            default=None,
+            help="Process a specific FeedEntry by ID (overrides existing data).",
+        )
 
     def handle(self, *args, **options):
         queryset = FeedEntry.objects.all()
+        entry_id = options.get("id")
 
-        # Apply --since filter
-        if options["since"]:
-            try:
-                since_dt = datetime.strptime(options["since"], "%Y-%m-%d")
-                since_dt = timezone.make_aware(since_dt)
-                queryset = queryset.filter(created_date__gte=since_dt)
-                self.stdout.write(f"Filtering entries since {options['since']}")
-            except ValueError:
+        # If specific ID provided, filter to just that entry (overrides other filters)
+        if entry_id:
+            queryset = queryset.filter(id=entry_id)
+            if not queryset.exists():
                 self.stderr.write(
-                    self.style.ERROR("Invalid date format. Use YYYY-MM-DD.")
+                    self.style.ERROR(f"FeedEntry with ID {entry_id} not found.")
                 )
                 return
+            self.stdout.write(f"Processing specific entry ID: {entry_id}")
+        else:
+            # Apply --since filter
+            if options["since"]:
+                try:
+                    since_dt = datetime.strptime(options["since"], "%Y-%m-%d")
+                    since_dt = timezone.make_aware(since_dt)
+                    queryset = queryset.filter(created_date__gte=since_dt)
+                    self.stdout.write(f"Filtering entries since {options['since']}")
+                except ValueError:
+                    self.stderr.write(
+                        self.style.ERROR("Invalid date format. Use YYYY-MM-DD.")
+                    )
+                    return
 
-        # Apply empty field filter unless --all
+        # Apply empty field filter unless --all or --id (specific ID always overrides)
         metrics_only = options["metrics_only"]
         content_only = options["content_only"]
         update_both = not metrics_only and not content_only
 
-        if not options["all"]:
+        if not options["all"] and not entry_id:
             if metrics_only:
                 queryset = queryset.filter(metrics={})
             elif content_only:
@@ -98,8 +114,8 @@ class Command(BaseCommand):
                     fields_to_update.append("content")
 
                 if entry.unified_document:
-                    entry.hot_score = calculate_hot_score_for_item(entry)
-                    fields_to_update.append("hot_score")
+                    entry.hot_score_v2 = entry.calculate_hot_score_v2()
+                    fields_to_update.append("hot_score_v2")
 
                 entry.save(update_fields=fields_to_update)
                 processed += 1

@@ -213,8 +213,6 @@ class Command(BaseCommand):
         stats = refresh_feed_hot_scores_batch(
             queryset=queryset,
             batch_size=batch_size,
-            update_v1=False,
-            update_v2=True,
             days_back=None,
             content_types=None,
             progress_callback=progress_callback,

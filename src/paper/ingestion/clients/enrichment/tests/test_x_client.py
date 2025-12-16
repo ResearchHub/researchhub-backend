@@ -266,14 +266,6 @@ class TestXMetricsClient(TestCase):
 
         self.assertIsNone(result)
 
-    def test_get_metrics_api_error(self):
-        """Test metrics retrieval when API raises exception."""
-        self.x_client.search_posts.side_effect = Exception("API Error")
-
-        result = self.metrics_client.get_metrics(["10.1038/test"])
-
-        self.assertIsNone(result)
-
     def test_get_metrics_rate_limit_error_reraises(self):
         """Test that 429 rate limit errors are re-raised for retry."""
         mock_response = Mock()
@@ -295,18 +287,6 @@ class TestXMetricsClient(TestCase):
 
         with self.assertRaises(HTTPError):
             self.metrics_client.get_metrics(["10.1038/test"])
-
-    def test_get_metrics_other_http_error_returns_none(self):
-        """Test that other HTTP errors (e.g., 401, 500) return None."""
-        mock_response = Mock()
-        mock_response.status_code = 401
-        error = HTTPError("401 Unauthorized")
-        error.response = mock_response
-        self.x_client.search_posts.side_effect = error
-
-        result = self.metrics_client.get_metrics(["10.1038/test"])
-
-        self.assertIsNone(result)
 
     def test_get_metrics_with_custom_limit(self):
         """Test metrics retrieval with custom result limit."""

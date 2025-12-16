@@ -53,15 +53,3 @@ def _update_feed_entries(review):
             args=(entry.id,),
             priority=1,
         )
-
-    # Update feed entries for the comment that was reviewed
-    if review.item and review.content_type:
-        comment_feed_entries = FeedEntry.objects.filter(
-            content_type=review.content_type, object_id=review.object_id
-        )
-
-        for entry in comment_feed_entries:
-            refresh_feed_entry.apply_async(
-                args=(entry.id,),
-                priority=1,
-            )
