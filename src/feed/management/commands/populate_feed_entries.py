@@ -4,7 +4,6 @@ from django.core.management.base import BaseCommand
 from django.db.models import Q
 from django.utils import timezone
 
-from feed.hot_score import calculate_hot_score_for_item
 from feed.models import FeedEntry
 from feed.serializers import serialize_feed_metrics
 from feed.tasks import serialize_feed_item
@@ -115,8 +114,8 @@ class Command(BaseCommand):
                     fields_to_update.append("content")
 
                 if entry.unified_document:
-                    entry.hot_score = calculate_hot_score_for_item(entry)
-                    fields_to_update.append("hot_score")
+                    entry.hot_score_v2 = entry.calculate_hot_score_v2()
+                    fields_to_update.append("hot_score_v2")
 
                 entry.save(update_fields=fields_to_update)
                 processed += 1
