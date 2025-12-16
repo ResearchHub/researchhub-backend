@@ -65,6 +65,8 @@ class CommentSignalsTests(TestCase):
             parent=self.comment,
         )
 
+        content_type = ContentType.objects.get_for_model(self.paper)
+
         # Assert
         # The paper metrics should show 0 replies because:
         # 1. The thread has a PEER_REVIEW root comment, not GENERIC_COMMENT
@@ -72,7 +74,7 @@ class CommentSignalsTests(TestCase):
         mock_refresh_feed_entries_for_objects.apply_async.assert_has_calls(
             [
                 call(
-                    args=(self.paper.id,),
+                    args=(self.paper.id, content_type.id),
                     priority=1,
                 ),
             ]
