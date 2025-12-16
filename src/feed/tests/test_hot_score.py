@@ -135,9 +135,10 @@ class TestHotScore(TestCase):
 
     def test_time_decay_effect(self):
         """Test that time decay significantly reduces scores for old content."""
-        # Create very old content with minimal activity
+        old_publish_date = self.now - timedelta(days=100)
+
+        # Create old paper (published 100 days ago)
         old_paper = create_paper(uploaded_by=self.user)
-        old_paper.created_date = self.now - timedelta(days=100)  # Very old
         old_paper.score = 1
         old_paper.save()
         old_paper_content_type = ContentType.objects.get_for_model(old_paper)
@@ -147,12 +148,12 @@ class TestHotScore(TestCase):
             content_type=old_paper_content_type,
             object_id=old_paper.id,
             action=FeedEntry.PUBLISH,
-            action_date=self.now,
+            action_date=old_publish_date,  # Published 100 days ago
             content=serialize_feed_item(old_paper, old_paper_content_type),
             metrics=serialize_feed_metrics(old_paper, old_paper_content_type),
         )
 
-        # Create new content with same score for comparison
+        # Create new paper (published now)
         new_paper = create_paper(uploaded_by=self.user)
         new_paper.score = 1
         new_paper.save()
@@ -163,7 +164,7 @@ class TestHotScore(TestCase):
             content_type=new_paper_content_type,
             object_id=new_paper.id,
             action=FeedEntry.PUBLISH,
-            action_date=self.now,
+            action_date=self.now,  # Published now
             content=serialize_feed_item(new_paper, new_paper_content_type),
             metrics=serialize_feed_metrics(new_paper, new_paper_content_type),
         )
