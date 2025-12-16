@@ -19,6 +19,7 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from review.serializers.review_serializer import ReviewSerializer
 from user.models import Author, User
 
+from .hot_score_utils import calculate_adjusted_score
 from .models import FeedEntry
 
 logger = logging.getLogger(__name__)
@@ -500,10 +501,12 @@ class FeedEntrySerializer(serializers.ModelSerializer):
     action_date = serializers.DateTimeField()
     action = serializers.CharField()
     author = serializers.SerializerMethodField()
+    metrics = serializers.SerializerMethodField()
     hot_score_v2 = serializers.IntegerField()
     hot_score_breakdown = serializers.SerializerMethodField()
     external_metadata = serializers.SerializerMethodField()
     recommendation_id = serializers.SerializerMethodField()
+    adjusted_score = serializers.SerializerMethodField()
 
     class Meta:
         model = FeedEntry
@@ -521,6 +524,7 @@ class FeedEntrySerializer(serializers.ModelSerializer):
             "external_metadata",
             "recommendation_id",
             "pdf_copyright_allows_display",
+            "adjusted_score",
         ]
 
     def get_author(self, obj):
@@ -528,6 +532,20 @@ class FeedEntrySerializer(serializers.ModelSerializer):
         if obj.user and hasattr(obj.user, "author_profile"):
             return SimpleAuthorSerializer(obj.user.author_profile).data
         return None
+
+    def get_metrics(self, obj):
+        """Return metrics with adjusted_score included."""
+        metrics = dict(obj.metrics or {})
+        base_votes = metrics.get("votes", 0)
+        external_metrics = metrics.get("external", {})
+        metrics["adjusted_score"] = calculate_adjusted_score(
+            base_votes, external_metrics
+        )
+        return metrics
+
+    def get_adjusted_score(self, obj):
+        """Return adjusted_score (also available inside metrics)."""
+        return self.get_metrics(obj).get("adjusted_score", 0)
 
     def get_hot_score_breakdown(self, obj):
         """Return hot score breakdown if explicitly requested via query param."""

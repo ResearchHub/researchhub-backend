@@ -799,6 +799,7 @@ class PaperViewSet(
                 "purchases",
                 "raw_authors",
                 "score",
+                "adjusted_score",
                 "slug",
                 "title",
                 "work_type",
