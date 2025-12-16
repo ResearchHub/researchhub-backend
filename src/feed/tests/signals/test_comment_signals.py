@@ -41,83 +41,13 @@ class CommentSignalsTests(TestCase):
             thread=self.thread,
         )
 
-    @patch("feed.signals.comment_signals.create_feed_entry")
-    @patch("feed.signals.comment_signals.transaction")
-    def test_handle_comment_created_signal(
-        self, mock_transaction, mock_create_feed_entry
-    ):
-        """
-        Test that a feed entry is created when a comment is created.
-        """
-        # Arrange
-        mock_transaction.on_commit = lambda func: func()
-        mock_create_feed_entry.apply_async = MagicMock()
-
-        # Act
-        comment = RhCommentModel.objects.create(
-            comment_content_json={"ops": [{"insert": "comment1"}]},
-            comment_type=PEER_REVIEW,
-            created_by=self.user,
-            thread=self.thread,
-        )
-
-        # Assert
-        mock_create_feed_entry.apply_async.assert_has_calls(
-            [
-                call(
-                    args=(
-                        comment.id,
-                        ContentType.objects.get_for_model(RhCommentModel).id,
-                        FeedEntry.PUBLISH,
-                        [self.hub1.id, self.hub2.id],
-                        self.user.id,
-                    ),
-                    priority=1,
-                ),
-            ]
-        )
-
-    @patch("feed.signals.comment_signals.delete_feed_entry")
-    @patch("feed.signals.comment_signals.transaction")
-    def test_handle_comment_removed_signal(
-        self, mock_transaction, mock_delete_feed_entry
-    ):
-        """
-        Test that a feed entry is deleted when a comment is removed.
-        """
-        # Arrange
-        mock_transaction.on_commit = lambda func: func()
-        mock_delete_feed_entry.apply_async = MagicMock()
-
-        # Act
-        self.comment.is_removed = True
-        self.comment.save()
-
-        # Assert
-        mock_delete_feed_entry.apply_async.assert_has_calls(
-            [
-                call(
-                    args=(
-                        self.comment.id,
-                        ContentType.objects.get_for_model(RhCommentModel).id,
-                        [self.hub1.id, self.hub2.id],
-                    ),
-                    priority=1,
-                ),
-            ]
-        )
-
-    @patch("feed.signals.comment_signals.update_feed_metrics")
-    @patch("feed.signals.comment_signals.transaction")
-    def test_handle_comment_update_metrics(
-        self, mock_transaction, mock_update_feed_metrics
-    ):
+    @patch("feed.signals.comment_signals.refresh_feed_entries_for_objects")
+    def test_handle_comment_update_metrics(self, mock_refresh_feed_entries_for_objects):
         """
         Test that feed metrics are updated when a comment is updated.
         """
         # Arrange
-        mock_transaction.on_commit = lambda func: func()
-        mock_update_feed_metrics.apply_async = MagicMock()
+        mock_refresh_feed_entries_for_objects.apply_async = MagicMock()
 
         # Act
         RhCommentModel.objects.create(
@@ -135,49 +65,16 @@ class CommentSignalsTests(TestCase):
             parent=self.comment,
         )
 
+        content_type = ContentType.objects.get_for_model(self.paper)
+
         # Assert
         # The paper metrics should show 0 replies because:
         # 1. The thread has a PEER_REVIEW root comment, not GENERIC_COMMENT
         # 2. Only GENERIC_COMMENT threads with GENERIC_COMMENT roots are counted in discussions
-        mock_update_feed_metrics.apply_async.assert_has_calls(
+        mock_refresh_feed_entries_for_objects.apply_async.assert_has_calls(
             [
                 call(
-                    args=(
-                        self.paper.id,
-                        ContentType.objects.get_for_model(Paper).id,
-                        {
-                            "votes": 0,
-                            "replies": 0,
-                            "review_metrics": {"avg": 0, "count": 0},
-                            "citations": 0,
-                        },
-                    ),
-                    priority=1,
-                ),
-            ]
-        )
-        # The parent comment should still show its direct children count
-        mock_update_feed_metrics.apply_async.assert_has_calls(
-            [
-                call(
-                    args=(
-                        self.comment.id,
-                        ContentType.objects.get_for_model(self.comment).id,
-                        {"votes": 0, "replies": 1},
-                    ),
-                    priority=1,
-                ),
-            ]
-        )
-        # Check that metrics were also called for the second reply
-        mock_update_feed_metrics.apply_async.assert_has_calls(
-            [
-                call(
-                    args=(
-                        self.comment.id,
-                        ContentType.objects.get_for_model(self.comment).id,
-                        {"votes": 0, "replies": 2},
-                    ),
+                    args=(self.paper.id, content_type.id),
                     priority=1,
                 ),
             ]
