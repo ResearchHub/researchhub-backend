@@ -333,3 +333,41 @@ class TestHotScore(TestCase):
 
         # The peer review should have a higher score than a regular comment
         self.assertGreaterEqual(peer_review_score, regular_comment_score)
+
+    def test_hot_score_increases_with_social_media_engagement(self):
+        """Test that social media engagement increases the hot score."""
+        # Get baseline score without social media data
+        baseline_score = calculate_hot_score_for_item(self.feed_entry_paper)
+
+        # Add X engagement to metrics
+        self.feed_entry_paper.metrics = {
+            **self.feed_entry_paper.metrics,
+            "external": {
+                "x": {
+                    "post_count": 5,
+                    "total_likes": 100,
+                    "total_quotes": 10,
+                    "total_replies": 5,
+                    "total_reposts": 50,
+                    "total_impressions": 10000,
+                },
+                "bluesky": {
+                    "post_count": 2,
+                    "total_likes": 20,
+                    "total_quotes": 2,
+                    "total_replies": 3,
+                    "total_reposts": 5,
+                },
+                "github_mentions": {
+                    "total_mentions": 3,
+                    "breakdown": {"code": 2, "issues": 1},
+                },
+            },
+        }
+        self.feed_entry_paper.save(update_fields=["metrics"])
+
+        # Calculate new score
+        new_score = calculate_hot_score_for_item(self.feed_entry_paper)
+
+        # Score should be higher with social media engagement
+        self.assertGreater(new_score, baseline_score)
