@@ -41,17 +41,13 @@ class CommentSignalsTests(TestCase):
             thread=self.thread,
         )
 
-    @patch("feed.signals.comment_signals.update_feed_metrics")
-    @patch("feed.signals.comment_signals.transaction")
-    def test_handle_comment_update_metrics(
-        self, mock_transaction, mock_update_feed_metrics
-    ):
+    @patch("feed.signals.comment_signals.refresh_feed_entries_for_objects")
+    def test_handle_comment_update_metrics(self, mock_refresh_feed_entries_for_objects):
         """
         Test that feed metrics are updated when a comment is updated.
         """
         # Arrange
-        mock_transaction.on_commit = lambda func: func()
-        mock_update_feed_metrics.apply_async = MagicMock()
+        mock_refresh_feed_entries_for_objects.apply_async = MagicMock()
 
         # Act
         RhCommentModel.objects.create(
@@ -73,19 +69,10 @@ class CommentSignalsTests(TestCase):
         # The paper metrics should show 0 replies because:
         # 1. The thread has a PEER_REVIEW root comment, not GENERIC_COMMENT
         # 2. Only GENERIC_COMMENT threads with GENERIC_COMMENT roots are counted in discussions
-        mock_update_feed_metrics.apply_async.assert_has_calls(
+        mock_refresh_feed_entries_for_objects.apply_async.assert_has_calls(
             [
                 call(
-                    args=(
-                        self.paper.id,
-                        ContentType.objects.get_for_model(Paper).id,
-                        {
-                            "votes": 0,
-                            "replies": 0,
-                            "review_metrics": {"avg": 0, "count": 0},
-                            "citations": 0,
-                        },
-                    ),
+                    args=(self.paper.id,),
                     priority=1,
                 ),
             ]
