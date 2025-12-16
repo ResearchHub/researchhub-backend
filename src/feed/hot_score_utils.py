@@ -502,7 +502,7 @@ def get_age_hours_from_content(
 
     Args:
         content: The FeedEntry.content JSON dict (for urgency checks)
-        feed_entry: FeedEntry instance (action_date is the primary date source)
+        feed_entry: FeedEntry instance
         grant_urgency_days: Days window for grant deadline urgency (default)
         prereg_urgency_days: Days window for preregistration urgency (default)
 
@@ -518,8 +518,6 @@ def get_age_hours_from_content(
         }
     """
     now = datetime.now(timezone.utc)
-
-    # Get document type for urgency checks
     doc_type = safe_get_nested(content, "type", default="")
 
     # Handle GRANT with approaching deadline
