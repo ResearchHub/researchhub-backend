@@ -6,9 +6,12 @@ import requests
 from allauth.socialaccount.models import SocialAccount, SocialApp, SocialToken
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.core import signing
 from django.db import transaction
 from django.utils import timezone
+
+User = get_user_model()
 
 
 class OrcidService:
@@ -31,6 +34,25 @@ class OrcidService:
             "state": self._encode_signed_value(state_data),
         }
         return f"{self.base_url}/oauth/authorize?{urlencode(params)}"
+
+    def process_callback(self, code: str, state: str) -> str:
+        state_data = self.decode_state(state)
+        if not state_data:
+            return self.get_redirect_url(error="invalid_state")
+
+        return_url = state_data.get("return_url")
+
+        try:
+            user = User.objects.get(id=state_data.get("user_id"))
+            token_data = self.exchange_code_for_token(code)
+            self.connect_orcid_account(user, token_data)
+            return self.get_redirect_url(return_url=return_url)
+        except User.DoesNotExist:
+            return self.get_redirect_url(error="invalid_state", return_url=return_url)
+        except ValueError:
+            return self.get_redirect_url(error="already_linked", return_url=return_url)
+        except (requests.RequestException, SocialApp.DoesNotExist):
+            return self.get_redirect_url(error="service_error", return_url=return_url)
 
     def exchange_code_for_token(self, code: str) -> Dict[str, Any]:
         app = self._get_orcid_app()
