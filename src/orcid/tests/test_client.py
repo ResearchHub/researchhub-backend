@@ -3,7 +3,7 @@ from unittest.mock import Mock
 from django.test import TestCase
 
 from orcid.clients.orcid_client import OrcidClient
-
+from requests.exceptions import HTTPError
 
 class OrcidClientTests(TestCase):
 
@@ -47,3 +47,17 @@ class OrcidClientTests(TestCase):
         self.assertIn("https://orcid.org/oauth/token", call_args[0][0])
         self.assertEqual(call_args[1]["timeout"], 30)
 
+    def test_exchange_code_for_token_raises_on_failure(self):
+        # Arrange
+        mock_response = Mock(ok=False, status_code=401, text="Unauthorized")
+        mock_response.raise_for_status.side_effect = HTTPError("401")
+        self.mock_session.post.return_value = mock_response
+
+        # Act & Assert
+        with self.assertRaises(HTTPError):
+            self.client.exchange_code_for_token(
+                code="bad_code",
+                client_id="id",
+                client_secret="secret",
+                redirect_uri="https://example.com"
+            )
