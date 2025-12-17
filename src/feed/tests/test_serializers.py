@@ -1660,94 +1660,100 @@ class FeedEntrySerializerTests(TestCase):
         paper.hubs.add(journal_hub)
         paper.save()
 
-        feed_entry = FeedEntry.objects.create(
-            content_type=ContentType.objects.get_for_model(Paper),
-            object_id=paper.id,
-            item=paper,
-            created_date=paper.created_date,
-            action="PUBLISH",
-            action_date=paper.created_date,
-            user=self.user,
-            unified_document=paper.unified_document,
-            content={
-                "id": paper.id,
-                "title": paper.title,
-                "journal": None,  # journal is None
-            },
-        )
+        # Patch RESEARCHHUB_JOURNAL_ID to avoid ValueError when it's empty string
+        with patch.object(settings, "RESEARCHHUB_JOURNAL_ID", 999999):
+            feed_entry = FeedEntry.objects.create(
+                content_type=ContentType.objects.get_for_model(Paper),
+                object_id=paper.id,
+                item=paper,
+                created_date=paper.created_date,
+                action="PUBLISH",
+                action_date=paper.created_date,
+                user=self.user,
+                unified_document=paper.unified_document,
+                content={
+                    "id": paper.id,
+                    "title": paper.title,
+                    "journal": None,  # journal is None
+                },
+            )
 
-        serializer = FeedEntrySerializer(feed_entry)
-        data = serializer.data
-        content_object = data["content_object"]
+            serializer = FeedEntrySerializer(feed_entry)
+            data = serializer.data
+            content_object = data["content_object"]
 
-        # Should apply journal shim when journal is None
-        self.assertIn("journal", content_object)
-        # Journal should be populated from unified_document
-        self.assertIsNotNone(content_object["journal"])
+            # Should apply journal shim when journal is None
+            self.assertIn("journal", content_object)
+            # Journal should be populated from unified_document
+            self.assertIsNotNone(content_object["journal"])
 
     def test_feed_entry_journal_handling_with_dict_slug(self):
         """Test journal handling when journal is a dict with slug."""
-        paper = create_paper(uploaded_by=self.user)
+        # Patch RESEARCHHUB_JOURNAL_ID to avoid ValueError when it's empty string
+        with patch.object(settings, "RESEARCHHUB_JOURNAL_ID", 999999):
+            paper = create_paper(uploaded_by=self.user)
 
-        # Test with preprint source (should not trigger shim)
-        feed_entry_preprint = FeedEntry.objects.create(
-            content_type=ContentType.objects.get_for_model(Paper),
-            object_id=paper.id,
-            item=paper,
-            created_date=paper.created_date,
-            action="PUBLISH",
-            action_date=paper.created_date,
-            user=self.user,
-            unified_document=paper.unified_document,
-            content={
-                "id": paper.id,
-                "title": paper.title,
-                "journal": {
-                    "id": 1,
-                    "name": "arXiv",
-                    "slug": "arxiv",  # lowercase preprint source
+            # Test with preprint source (should not trigger shim)
+            feed_entry_preprint = FeedEntry.objects.create(
+                content_type=ContentType.objects.get_for_model(Paper),
+                object_id=paper.id,
+                item=paper,
+                created_date=paper.created_date,
+                action="PUBLISH",
+                action_date=paper.created_date,
+                user=self.user,
+                unified_document=paper.unified_document,
+                content={
+                    "id": paper.id,
+                    "title": paper.title,
+                    "journal": {
+                        "id": 1,
+                        "name": "arXiv",
+                        "slug": "arxiv",  # lowercase preprint source
+                    },
                 },
-            },
-        )
+            )
 
-        serializer_preprint = FeedEntrySerializer(feed_entry_preprint)
-        data_preprint = serializer_preprint.data
-        content_preprint = data_preprint["content_object"]
+            serializer_preprint = FeedEntrySerializer(feed_entry_preprint)
+            data_preprint = serializer_preprint.data
+            content_preprint = data_preprint["content_object"]
 
-        # Should not trigger shim for preprint sources
-        self.assertEqual(content_preprint["journal"]["slug"], "arxiv")
+            # Should not trigger shim for preprint sources
+            self.assertEqual(content_preprint["journal"]["slug"], "arxiv")
 
-        # Test with non-preprint source (should trigger shim)
-        journal_hub = create_hub("Nature", namespace=Hub.Namespace.JOURNAL)
-        paper.hubs.add(journal_hub)
-        paper.save()
+            # Test with non-preprint source (should trigger shim)
+            # Create a new paper to avoid unique constraint violation
+            paper_non_preprint = create_paper(uploaded_by=self.user)
+            journal_hub = create_hub("Nature", namespace=Hub.Namespace.JOURNAL)
+            paper_non_preprint.hubs.add(journal_hub)
+            paper_non_preprint.save()
 
-        feed_entry_non_preprint = FeedEntry.objects.create(
-            content_type=ContentType.objects.get_for_model(Paper),
-            object_id=paper.id,
-            item=paper,
-            created_date=paper.created_date,
-            action="PUBLISH",
-            action_date=paper.created_date,
-            user=self.user,
-            unified_document=paper.unified_document,
-            content={
-                "id": paper.id,
-                "title": paper.title,
-                "journal": {
-                    "id": 2,
-                    "name": "Nature",
-                    "slug": "nature",  # non-preprint source
+            feed_entry_non_preprint = FeedEntry.objects.create(
+                content_type=ContentType.objects.get_for_model(Paper),
+                object_id=paper_non_preprint.id,
+                item=paper_non_preprint,
+                created_date=paper_non_preprint.created_date,
+                action="PUBLISH",
+                action_date=paper_non_preprint.created_date,
+                user=self.user,
+                unified_document=paper_non_preprint.unified_document,
+                content={
+                    "id": paper_non_preprint.id,
+                    "title": paper_non_preprint.title,
+                    "journal": {
+                        "id": 2,
+                        "name": "Nature",
+                        "slug": "nature",  # non-preprint source
+                    },
                 },
-            },
-        )
+            )
 
-        serializer_non_preprint = FeedEntrySerializer(feed_entry_non_preprint)
-        data_non_preprint = serializer_non_preprint.data
-        content_non_preprint = data_non_preprint["content_object"]
+            serializer_non_preprint = FeedEntrySerializer(feed_entry_non_preprint)
+            data_non_preprint = serializer_non_preprint.data
+            content_non_preprint = data_non_preprint["content_object"]
 
-        # Should apply shim for non-preprint sources
-        self.assertIn("journal", content_non_preprint)
+            # Should apply shim for non-preprint sources
+            self.assertIn("journal", content_non_preprint)
 
     def test_feed_entry_journal_handling_with_dict_no_slug(self):
         """Test journal handling when journal is a dict without slug."""
@@ -1756,33 +1762,35 @@ class FeedEntrySerializerTests(TestCase):
         paper.hubs.add(journal_hub)
         paper.save()
 
-        feed_entry = FeedEntry.objects.create(
-            content_type=ContentType.objects.get_for_model(Paper),
-            object_id=paper.id,
-            item=paper,
-            created_date=paper.created_date,
-            action="PUBLISH",
-            action_date=paper.created_date,
-            user=self.user,
-            unified_document=paper.unified_document,
-            content={
-                "id": paper.id,
-                "title": paper.title,
-                "journal": {
-                    "id": 1,
-                    "name": "Test Journal",
-                    # Missing slug key
+        # Patch RESEARCHHUB_JOURNAL_ID to avoid ValueError when it's empty string
+        with patch.object(settings, "RESEARCHHUB_JOURNAL_ID", 999999):
+            feed_entry = FeedEntry.objects.create(
+                content_type=ContentType.objects.get_for_model(Paper),
+                object_id=paper.id,
+                item=paper,
+                created_date=paper.created_date,
+                action="PUBLISH",
+                action_date=paper.created_date,
+                user=self.user,
+                unified_document=paper.unified_document,
+                content={
+                    "id": paper.id,
+                    "title": paper.title,
+                    "journal": {
+                        "id": 1,
+                        "name": "Test Journal",
+                        # Missing slug key
+                    },
                 },
-            },
-        )
+            )
 
-        serializer = FeedEntrySerializer(feed_entry)
-        data = serializer.data
-        content_object = data["content_object"]
+            serializer = FeedEntrySerializer(feed_entry)
+            data = serializer.data
+            content_object = data["content_object"]
 
-        # Should handle missing slug gracefully (defaults to empty string)
-        # and trigger shim since empty string is not in PREPRINT_SOURCES
-        self.assertIn("journal", content_object)
+            # Should handle missing slug gracefully (defaults to empty string)
+            # and trigger shim since empty string is not in PREPRINT_SOURCES
+            self.assertIn("journal", content_object)
 
     def test_feed_entry_journal_handling_with_non_dict(self):
         """Test journal handling when journal is not a dict (e.g., string)."""
@@ -1791,30 +1799,33 @@ class FeedEntrySerializerTests(TestCase):
         paper.hubs.add(journal_hub)
         paper.save()
 
-        feed_entry = FeedEntry.objects.create(
-            content_type=ContentType.objects.get_for_model(Paper),
-            object_id=paper.id,
-            item=paper,
-            created_date=paper.created_date,
-            action="PUBLISH",
-            action_date=paper.created_date,
-            user=self.user,
-            unified_document=paper.unified_document,
-            content={
-                "id": paper.id,
-                "title": paper.title,
-                "journal": "some_string",  # journal is not a dict
-            },
-        )
+        # Patch RESEARCHHUB_JOURNAL_ID to avoid ValueError when it's empty string
+        with patch.object(settings, "RESEARCHHUB_JOURNAL_ID", 999999):
+            feed_entry = FeedEntry.objects.create(
+                content_type=ContentType.objects.get_for_model(Paper),
+                object_id=paper.id,
+                item=paper,
+                created_date=paper.created_date,
+                action="PUBLISH",
+                action_date=paper.created_date,
+                user=self.user,
+                unified_document=paper.unified_document,
+                content={
+                    "id": paper.id,
+                    "title": paper.title,
+                    "journal": "some_string",  # journal is not a dict
+                },
+            )
 
-        serializer = FeedEntrySerializer(feed_entry)
-        data = serializer.data
-        content_object = data["content_object"]
+            serializer = FeedEntrySerializer(feed_entry)
+            data = serializer.data
+            content_object = data["content_object"]
 
-        # Should handle non-dict journal gracefully
-        # isinstance(journal, dict) will be False, so journal_slug will be None
-        # This should trigger shim since journal is not None but journal_slug is None
-        self.assertIn("journal", content_object)
+            # Should handle non-dict journal gracefully
+            # isinstance(journal, dict) will be False, so journal_slug will be None
+            # This should trigger shim since journal is not None but
+            # journal_slug is None
+            self.assertIn("journal", content_object)
 
     def test_feed_entry_journal_handling_with_uppercase_slug(self):
         """Test journal handling when journal slug is uppercase."""

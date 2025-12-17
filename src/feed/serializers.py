@@ -50,12 +50,15 @@ class SimpleAuthorSerializer(serializers.ModelSerializer):
     user = SimpleUserSerializer()
 
     def get_profile_image(self, obj):
-        if (
-            hasattr(obj, "profile_image")
-            and obj.profile_image.name
-            and obj.profile_image.url
-        ):
-            return obj.profile_image.url
+        try:
+            if (
+                hasattr(obj, "profile_image")
+                and obj.profile_image.name
+                and obj.profile_image.url
+            ):
+                return obj.profile_image.url
+        except Exception:
+            pass
 
         return None
 
