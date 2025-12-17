@@ -1,8 +1,8 @@
+import logging
 from datetime import timedelta
-from typing import Any, Dict, Optional
+from typing import Optional, Tuple
 from urllib.parse import urlencode, urlparse
 
-import requests
 from allauth.socialaccount.models import SocialAccount, SocialApp, SocialToken
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from django.conf import settings
@@ -14,12 +14,15 @@ from django.utils import timezone
 from orcid.clients.orcid_client import OrcidClient
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 class OrcidService:
-    ##  This service is used to build the auth URL for the ORCID OAuth flow.
-    ##  It creates the correct parameters and encodes the basic state data
-    ##  which will be used in the callback portion to validate and redirect the user back to the app. 
+    """
+    Handles ORCID OAuth flow: builds auth URLs, processes callbacks,
+    and stores connection data.
+    """
+
     ORCID_BASE_URL = "https://orcid.org"
     STATE_MAX_AGE = 600
 
@@ -41,45 +44,56 @@ class OrcidService:
         return f"{self.ORCID_BASE_URL}/oauth/authorize?{urlencode(params)}"
 
     def process_callback(self, code: str, state: str) -> str:
-        state_data = self.decode_state(state)
-        if not state_data:
-            return self.get_redirect_url(error="invalid_state")
-
-        return_url = state_data.get("return_url")
-
+        """Validates state, fetches token, saves ORCID connection, and returns redirect URL."""
+        return_url = None
         try:
-            user = User.objects.get(id=state_data.get("user_id"))
-            token_data = self.exchange_code_for_token(code)
-            if "orcid" not in token_data:
-                return self.get_redirect_url(error="service_error", return_url=return_url)
-            self.connect_orcid_account(user, token_data)
+            user, return_url = self._validate_state(state)
+            token_data = self._fetch_token(code)
+            self._save_orcid_connection(user, token_data)
+            logger.info(f"ORCID connected for user {user.id}: {token_data.get('orcid')}")
             return self.get_redirect_url(return_url=return_url)
-        except User.DoesNotExist:
-            return self.get_redirect_url(error="invalid_state", return_url=return_url)
-        except ValueError:
+        except ValueError as e:
+            logger.warning(f"ORCID already linked: {e}")
             return self.get_redirect_url(error="already_linked", return_url=return_url)
-        except (requests.RequestException, SocialApp.DoesNotExist):
-            return self.get_redirect_url(error="service_error", return_url=return_url)
+        except Exception as e:
+            logger.exception(f"ORCID callback failed: {e}")
+            return self.get_redirect_url(error="error", return_url=return_url)
 
-    def exchange_code_for_token(self, code: str) -> Dict[str, Any]:
+    def get_redirect_url(self, error: Optional[str] = None, return_url: Optional[str] = None) -> str:
+        base = return_url if self._is_valid_redirect_url(return_url) else settings.BASE_FRONTEND_URL
+        separator = "&" if "?" in base else "?"
+        if error:
+            return f"{base}{separator}orcid_error={error}"
+        return f"{base}{separator}orcid_connected=true"
+
+    def _validate_state(self, state: str) -> Tuple[User, Optional[str]]:
+        state_data = self._decode_state(state)
+        if not state_data:
+            raise signing.BadSignature("Invalid state")
+        user = User.objects.get(id=state_data.get("user_id"))
+        return user, state_data.get("return_url")
+
+    def _fetch_token(self, code: str) -> dict:
         app = self._get_orcid_app()
-        return self.client.exchange_code_for_token(
+        token_data = self.client.exchange_code_for_token(
             code=code,
             client_id=app.client_id,
             client_secret=app.secret,
             redirect_uri=settings.ORCID_REDIRECT_URL,
         )
+        if "orcid" not in token_data:
+            raise RuntimeError("Missing ORCID in response")
+        return token_data
 
-    def connect_orcid_account(self, user: Any, token_data: Dict[str, Any]) -> None:
+    def _save_orcid_connection(self, user: User, token_data: dict) -> None:
         orcid_id = token_data["orcid"]
-        self._verify_orcid_not_linked(orcid_id, user)
-
         with transaction.atomic():
+            self._verify_orcid_not_linked(orcid_id, user)
             account = self._create_or_update_social_account(user, orcid_id, token_data)
             self._store_oauth_token(account, token_data)
             self._update_author_orcid(user, orcid_id)
 
-    def _verify_orcid_not_linked(self, orcid_id: str, user: Any) -> None:
+    def _verify_orcid_not_linked(self, orcid_id: str, user: User) -> None:
         already_linked = (
             SocialAccount.objects
             .filter(provider=OrcidProvider.id, uid=orcid_id)
@@ -89,7 +103,7 @@ class OrcidService:
         if already_linked:
             raise ValueError("ORCID already linked to another account")
 
-    def _create_or_update_social_account(self, user: Any, orcid_id: str, token_data: Dict[str, Any]) -> SocialAccount:
+    def _create_or_update_social_account(self, user: User, orcid_id: str, token_data: dict) -> SocialAccount:
         extra_data = {
             "name": token_data.get("name", ""),
             "scope": token_data.get("scope", ""),
@@ -101,7 +115,7 @@ class OrcidService:
         )
         return account
 
-    def _store_oauth_token(self, account: SocialAccount, token_data: Dict[str, Any]) -> None:
+    def _store_oauth_token(self, account: SocialAccount, token_data: dict) -> None:
         app = self._get_orcid_app()
         expires_at = None
         if expires_in := token_data.get("expires_in"):
@@ -117,23 +131,16 @@ class OrcidService:
             },
         )
 
-    def _update_author_orcid(self, user: Any, orcid_id: str) -> None:
+    def _update_author_orcid(self, user: User, orcid_id: str) -> None:
         if author := getattr(user, "author_profile", None):
             author.orcid_id = f"{self.ORCID_BASE_URL}/{orcid_id}"
             author.save(update_fields=["orcid_id"])
 
-    def decode_state(self, state: str) -> Optional[Dict[str, Any]]:
+    def _decode_state(self, state: str) -> Optional[dict]:
         try:
             return signing.loads(state, max_age=self.STATE_MAX_AGE)
         except signing.BadSignature:
             return None
-
-    def get_redirect_url(self, error: Optional[str] = None, return_url: Optional[str] = None) -> str:
-        base = return_url if self._is_valid_redirect_url(return_url) else settings.BASE_FRONTEND_URL
-        separator = "&" if "?" in base else "?"
-        if error:
-            return f"{base}{separator}orcid_error={error}"
-        return f"{base}{separator}orcid_connected=true"
 
     def _get_orcid_app(self) -> SocialApp:
         return SocialApp.objects.get(provider=OrcidProvider.id)
@@ -145,6 +152,5 @@ class OrcidService:
         origin = f"{parsed.scheme}://{parsed.netloc}"
         return origin in settings.CORS_ORIGIN_WHITELIST
 
-    def _encode_signed_value(self, value: Dict[str, Any]) -> str:
+    def _encode_signed_value(self, value: dict) -> str:
         return signing.dumps(value)
-

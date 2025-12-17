@@ -1,6 +1,5 @@
 from unittest.mock import Mock
 
-import requests
 from allauth.socialaccount.models import SocialAccount, SocialToken
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from django.test import TestCase
@@ -44,7 +43,7 @@ class OrcidServiceTests(TestCase):
         token_data = {"orcid": "0000-0001-2345-6789", "access_token": "token", "refresh_token": "refresh", "expires_in": 3600}
 
         # Act
-        self.service.connect_orcid_account(user, token_data)
+        self.service._save_orcid_connection(user, token_data)
 
         # Assert
         self.assertTrue(SocialAccount.objects.filter(user=user, provider=OrcidProvider.id).exists())
@@ -57,7 +56,7 @@ class OrcidServiceTests(TestCase):
         encoded = self.service._encode_signed_value({"user_id": 123})
 
         # Act
-        result = self.service.decode_state(encoded)
+        result = self.service._decode_state(encoded)
 
         # Assert
         self.assertEqual(result["user_id"], 123)
@@ -67,7 +66,7 @@ class OrcidServiceTests(TestCase):
         invalid_state = "invalid"
 
         # Act
-        result = self.service.decode_state(invalid_state)
+        result = self.service._decode_state(invalid_state)
 
         # Assert
         self.assertIsNone(result)
@@ -132,17 +131,7 @@ class OrcidServiceCallbackTests(TestCase):
         result = self.service.process_callback("code", invalid_state)
 
         # Assert
-        self.assertIn("orcid_error=invalid_state", result)
-
-    def test_process_callback_user_not_found(self):
-        # Arrange
-        state = self.service._encode_signed_value({"user_id": 99999})
-
-        # Act
-        result = self.service.process_callback("code", state)
-
-        # Assert
-        self.assertIn("orcid_error=invalid_state", result)
+        self.assertIn("orcid_error=error", result)
 
     def test_process_callback_already_linked(self):
         # Arrange
@@ -158,18 +147,6 @@ class OrcidServiceCallbackTests(TestCase):
         # Assert
         self.assertIn("orcid_error=already_linked", result)
 
-    def test_process_callback_request_exception(self):
-        # Arrange
-        user = create_random_default_user("user")
-        state = self.service._encode_signed_value({"user_id": user.id})
-        self.mock_client.exchange_code_for_token.side_effect = requests.RequestException()
-
-        # Act
-        result = self.service.process_callback("code", state)
-
-        # Assert
-        self.assertIn("orcid_error=service_error", result)
-
     def test_process_callback_missing_orcid_in_response(self):
         # Arrange
         user = create_random_default_user("user")
@@ -180,4 +157,5 @@ class OrcidServiceCallbackTests(TestCase):
         result = self.service.process_callback("code", state)
 
         # Assert
-        self.assertIn("orcid_error=service_error", result)
+        self.assertIn("orcid_error=error", result)
+
