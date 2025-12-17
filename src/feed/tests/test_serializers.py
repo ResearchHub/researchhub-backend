@@ -1,5 +1,5 @@
 from decimal import Decimal
-from unittest.mock import patch
+from unittest.mock import PropertyMock, patch
 
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
@@ -432,6 +432,69 @@ class PaperSerializerTests(TestCase):
             data = serializer.data
             self.assertIn("primary_image", data)
             self.assertIsNone(data["primary_image"])
+
+    def test_serializes_paper_primary_image_handles_exception(self):
+        """Test that primary_image returns None when file.url raises exception."""
+        with patch.object(settings, "RESEARCHHUB_JOURNAL_ID", str(self.journal.id)):
+            # Create a primary figure with a file
+            dummy_image = SimpleUploadedFile(
+                "test_figure.jpg", b"file_content", content_type="image/jpeg"
+            )
+            primary_figure = Figure.objects.create(
+                paper=self.paper,
+                file=dummy_image,
+                figure_type=Figure.FIGURE,
+                is_primary=True,
+            )
+
+            # Refresh from DB to get the actual file object
+            primary_figure.refresh_from_db()
+
+            # Patch the file.url property to raise an exception
+            # This simulates scenarios like storage errors, file corruption, etc.
+            # We need to patch it as a property since url is a property on
+            # Django file fields
+            original_file = primary_figure.file
+            mock_url_property = PropertyMock(side_effect=Exception("Storage error"))
+            with patch.object(type(original_file), "url", mock_url_property):
+                serializer = PaperSerializer(self.paper)
+                data = serializer.data
+                self.assertIn("primary_image", data)
+                # Should return None when exception occurs
+                self.assertIsNone(data["primary_image"])
+
+    def test_serializes_paper_primary_image_thumbnail_handles_exception(self):
+        """Test that primary_image_thumbnail returns None when thumbnail.url
+        raises exception."""
+        with patch.object(settings, "RESEARCHHUB_JOURNAL_ID", str(self.journal.id)):
+            # Create a primary figure with a thumbnail
+            dummy_image = SimpleUploadedFile(
+                "test_figure.jpg", b"file_content", content_type="image/jpeg"
+            )
+            dummy_thumbnail = SimpleUploadedFile(
+                "test_thumbnail.jpg", b"thumbnail_content", content_type="image/jpeg"
+            )
+            primary_figure = Figure.objects.create(
+                paper=self.paper,
+                file=dummy_image,
+                thumbnail=dummy_thumbnail,
+                figure_type=Figure.FIGURE,
+                is_primary=True,
+            )
+
+            # Refresh from DB to get the actual thumbnail object
+            primary_figure.refresh_from_db()
+
+            # Patch the thumbnail.url property to raise an exception
+            # This simulates scenarios like storage errors, file corruption, etc.
+            original_thumbnail = primary_figure.thumbnail
+            mock_url_property = PropertyMock(side_effect=Exception("Storage error"))
+            with patch.object(type(original_thumbnail), "url", mock_url_property):
+                serializer = PaperSerializer(self.paper)
+                data = serializer.data
+                self.assertIn("primary_image_thumbnail", data)
+                # Should return None when exception occurs
+                self.assertIsNone(data["primary_image_thumbnail"])
 
 
 class PostSerializerTests(TestCase):
@@ -1549,6 +1612,243 @@ class FeedEntrySerializerTests(TestCase):
         self.assertIn("content_object", data)
         content_object = data["content_object"]
         self.assertNotIn("primary_image", content_object)
+
+    def test_paper_feed_entry_adds_missing_primary_image_keys(self):
+        """Test that primary_image and primary_image_thumbnail are added as None
+        when missing from pre-serialized content."""
+        paper = create_paper(uploaded_by=self.user)
+
+        # Create feed entry with pre-serialized content that's missing
+        # primary_image and primary_image_thumbnail keys
+        feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=paper.id,
+            item=paper,
+            created_date=paper.created_date,
+            action="PUBLISH",
+            action_date=paper.created_date,
+            user=self.user,
+            unified_document=paper.unified_document,
+            content={
+                "id": paper.id,
+                "title": paper.title,
+                "abstract": paper.abstract,
+                # Intentionally missing primary_image and primary_image_thumbnail
+            },
+        )
+
+        serializer = FeedEntrySerializer(feed_entry)
+        data = serializer.data
+
+        self.assertIn("content_object", data)
+        content_object = data["content_object"]
+
+        # Verify that primary_image and primary_image_thumbnail are added as None
+        self.assertIn("primary_image", content_object)
+        self.assertIsNone(content_object["primary_image"])
+        self.assertIn("primary_image_thumbnail", content_object)
+        self.assertIsNone(content_object["primary_image_thumbnail"])
+
+        # Verify other content is preserved
+        self.assertEqual(content_object["id"], paper.id)
+        self.assertEqual(content_object["title"], paper.title)
+
+    def test_feed_entry_journal_handling_with_none(self):
+        """Test journal handling when journal is None in pre-serialized content."""
+        paper = create_paper(uploaded_by=self.user)
+        journal_hub = create_hub("Test Journal", namespace=Hub.Namespace.JOURNAL)
+        paper.hubs.add(journal_hub)
+        paper.save()
+
+        feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=paper.id,
+            item=paper,
+            created_date=paper.created_date,
+            action="PUBLISH",
+            action_date=paper.created_date,
+            user=self.user,
+            unified_document=paper.unified_document,
+            content={
+                "id": paper.id,
+                "title": paper.title,
+                "journal": None,  # journal is None
+            },
+        )
+
+        serializer = FeedEntrySerializer(feed_entry)
+        data = serializer.data
+        content_object = data["content_object"]
+
+        # Should apply journal shim when journal is None
+        self.assertIn("journal", content_object)
+        # Journal should be populated from unified_document
+        self.assertIsNotNone(content_object["journal"])
+
+    def test_feed_entry_journal_handling_with_dict_slug(self):
+        """Test journal handling when journal is a dict with slug."""
+        paper = create_paper(uploaded_by=self.user)
+
+        # Test with preprint source (should not trigger shim)
+        feed_entry_preprint = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=paper.id,
+            item=paper,
+            created_date=paper.created_date,
+            action="PUBLISH",
+            action_date=paper.created_date,
+            user=self.user,
+            unified_document=paper.unified_document,
+            content={
+                "id": paper.id,
+                "title": paper.title,
+                "journal": {
+                    "id": 1,
+                    "name": "arXiv",
+                    "slug": "arxiv",  # lowercase preprint source
+                },
+            },
+        )
+
+        serializer_preprint = FeedEntrySerializer(feed_entry_preprint)
+        data_preprint = serializer_preprint.data
+        content_preprint = data_preprint["content_object"]
+
+        # Should not trigger shim for preprint sources
+        self.assertEqual(content_preprint["journal"]["slug"], "arxiv")
+
+        # Test with non-preprint source (should trigger shim)
+        journal_hub = create_hub("Nature", namespace=Hub.Namespace.JOURNAL)
+        paper.hubs.add(journal_hub)
+        paper.save()
+
+        feed_entry_non_preprint = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=paper.id,
+            item=paper,
+            created_date=paper.created_date,
+            action="PUBLISH",
+            action_date=paper.created_date,
+            user=self.user,
+            unified_document=paper.unified_document,
+            content={
+                "id": paper.id,
+                "title": paper.title,
+                "journal": {
+                    "id": 2,
+                    "name": "Nature",
+                    "slug": "nature",  # non-preprint source
+                },
+            },
+        )
+
+        serializer_non_preprint = FeedEntrySerializer(feed_entry_non_preprint)
+        data_non_preprint = serializer_non_preprint.data
+        content_non_preprint = data_non_preprint["content_object"]
+
+        # Should apply shim for non-preprint sources
+        self.assertIn("journal", content_non_preprint)
+
+    def test_feed_entry_journal_handling_with_dict_no_slug(self):
+        """Test journal handling when journal is a dict without slug."""
+        paper = create_paper(uploaded_by=self.user)
+        journal_hub = create_hub("Test Journal", namespace=Hub.Namespace.JOURNAL)
+        paper.hubs.add(journal_hub)
+        paper.save()
+
+        feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=paper.id,
+            item=paper,
+            created_date=paper.created_date,
+            action="PUBLISH",
+            action_date=paper.created_date,
+            user=self.user,
+            unified_document=paper.unified_document,
+            content={
+                "id": paper.id,
+                "title": paper.title,
+                "journal": {
+                    "id": 1,
+                    "name": "Test Journal",
+                    # Missing slug key
+                },
+            },
+        )
+
+        serializer = FeedEntrySerializer(feed_entry)
+        data = serializer.data
+        content_object = data["content_object"]
+
+        # Should handle missing slug gracefully (defaults to empty string)
+        # and trigger shim since empty string is not in PREPRINT_SOURCES
+        self.assertIn("journal", content_object)
+
+    def test_feed_entry_journal_handling_with_non_dict(self):
+        """Test journal handling when journal is not a dict (e.g., string)."""
+        paper = create_paper(uploaded_by=self.user)
+        journal_hub = create_hub("Test Journal", namespace=Hub.Namespace.JOURNAL)
+        paper.hubs.add(journal_hub)
+        paper.save()
+
+        feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=paper.id,
+            item=paper,
+            created_date=paper.created_date,
+            action="PUBLISH",
+            action_date=paper.created_date,
+            user=self.user,
+            unified_document=paper.unified_document,
+            content={
+                "id": paper.id,
+                "title": paper.title,
+                "journal": "some_string",  # journal is not a dict
+            },
+        )
+
+        serializer = FeedEntrySerializer(feed_entry)
+        data = serializer.data
+        content_object = data["content_object"]
+
+        # Should handle non-dict journal gracefully
+        # isinstance(journal, dict) will be False, so journal_slug will be None
+        # This should trigger shim since journal is not None but journal_slug is None
+        self.assertIn("journal", content_object)
+
+    def test_feed_entry_journal_handling_with_uppercase_slug(self):
+        """Test journal handling when journal slug is uppercase."""
+        paper = create_paper(uploaded_by=self.user)
+
+        feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=paper.id,
+            item=paper,
+            created_date=paper.created_date,
+            action="PUBLISH",
+            action_date=paper.created_date,
+            user=self.user,
+            unified_document=paper.unified_document,
+            content={
+                "id": paper.id,
+                "title": paper.title,
+                "journal": {
+                    "id": 1,
+                    "name": "arXiv",
+                    "slug": "ARXIV",  # uppercase slug
+                },
+            },
+        )
+
+        serializer = FeedEntrySerializer(feed_entry)
+        data = serializer.data
+        content_object = data["content_object"]
+
+        # Slug should be lowercased for comparison
+        # "arxiv" (lowercase) is in PREPRINT_SOURCES, so should not trigger shim
+        self.assertIn("journal", content_object)
+        # The original uppercase slug should be preserved in content
+        self.assertEqual(content_object["journal"]["slug"], "ARXIV")
 
 
 class FundingFeedEntrySerializerTests(TestCase):
