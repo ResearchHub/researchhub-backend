@@ -5,7 +5,7 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from feed.models import FeedEntry
-from feed.tasks import refresh_feed_entry
+from feed.tasks import refresh_feed_entry_by_id
 from review.models.review_model import Review
 
 logger = logging.getLogger(__name__)
@@ -49,7 +49,7 @@ def _update_feed_entries(review):
     )
 
     for entry in document_feed_entries:
-        refresh_feed_entry.apply_async(
+        refresh_feed_entry_by_id.apply_async(
             args=(entry.id,),
             priority=1,
         )

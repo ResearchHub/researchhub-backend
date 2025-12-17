@@ -95,10 +95,9 @@ def create_feed_entry(
         )
 
 
-@app.task
-def refresh_feed_entry(feed_entry_id):
-    feed_entry = FeedEntry.objects.get(id=feed_entry_id)
+def refresh_feed_entry(feed_entry):
     content = serialize_feed_item(feed_entry.item, feed_entry.content_type)
+
     metrics = serialize_feed_metrics(feed_entry.item, feed_entry.content_type)
 
     # Get authors for the item
@@ -113,6 +112,18 @@ def refresh_feed_entry(feed_entry_id):
     if authors:
         feed_entry.authors.set(authors)
 
+    # Refresh hubs from unified document
+    unified_document = _get_unified_document(feed_entry.item, feed_entry.content_type)
+    if unified_document:
+        hub_ids = list(unified_document.hubs.values_list("id", flat=True))
+        feed_entry.hubs.set(hub_ids)
+
+
+@app.task
+def refresh_feed_entry_by_id(feed_entry_id):
+    feed_entry = FeedEntry.objects.get(id=feed_entry_id)
+    refresh_feed_entry(feed_entry)
+
 
 @app.task
 def refresh_feed_entries_for_objects(item_id, item_content_type_id):
@@ -124,27 +135,7 @@ def refresh_feed_entries_for_objects(item_id, item_content_type_id):
     )
 
     for feed_entry in feed_entries:
-        content = serialize_feed_item(feed_entry.item, item_content_type)
-
-        metrics = serialize_feed_metrics(feed_entry.item, item_content_type)
-
-        # Get authors for the item
-        authors = _get_authors_for_item(feed_entry.item, item_content_type)
-
-        feed_entry.content = content
-        feed_entry.metrics = metrics
-        feed_entry.hot_score_v2 = feed_entry.calculate_hot_score_v2()
-        feed_entry.save(update_fields=["content", "metrics", "hot_score_v2"])
-
-        # Update authors separately (ManyToMany field)
-        if authors:
-            feed_entry.authors.set(authors)
-
-        # Refresh hubs from unified document
-        unified_document = _get_unified_document(feed_entry.item, item_content_type)
-        if unified_document:
-            hub_ids = list(unified_document.hubs.values_list("id", flat=True))
-            feed_entry.hubs.set(hub_ids)
+        refresh_feed_entry(feed_entry)
 
 
 @app.task
