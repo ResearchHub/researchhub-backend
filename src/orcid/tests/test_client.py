@@ -1,6 +1,7 @@
 from unittest.mock import Mock
 
 from django.test import TestCase
+from requests.exceptions import HTTPError
 
 from orcid.clients.orcid_client import OrcidClient
 
@@ -46,4 +47,41 @@ class OrcidClientTests(TestCase):
         call_args = self.mock_session.post.call_args
         self.assertIn("https://orcid.org/oauth/token", call_args[0][0])
         self.assertEqual(call_args[1]["timeout"], 30)
+
+    def test_get_emails_returns_email_list(self):
+        # Arrange
+        self.mock_session.get.return_value = Mock(
+            json=lambda: {"email": [{"email": "user@stanford.edu", "verified": True}]},
+            raise_for_status=Mock()
+        )
+
+        # Act
+        result = self.client.get_emails("0000-0001-2345-6789", "token")
+
+        # Assert
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["email"], "user@stanford.edu")
+
+    def test_get_emails_returns_empty_on_private(self):
+        # Arrange
+        self.mock_session.get.return_value = Mock(
+            json=lambda: {"email": []},
+            raise_for_status=Mock()
+        )
+
+        # Act
+        result = self.client.get_emails("0000-0001-2345-6789", "token")
+
+        # Assert
+        self.assertEqual(result, [])
+
+    def test_get_emails_returns_empty_on_error(self):
+        # Arrange
+        self.mock_session.get.side_effect = Exception("API error")
+
+        # Act
+        result = self.client.get_emails("0000-0001-2345-6789", "token")
+
+        # Assert
+        self.assertEqual(result, [])
 

@@ -12,7 +12,9 @@ from user.tests.helpers import create_random_default_user
 class OrcidServiceTests(TestCase):
 
     def setUp(self):
-        self.service = OrcidService()
+        self.mock_client = Mock()
+        self.mock_client.get_emails.return_value = []
+        self.service = OrcidService(client=self.mock_client)
 
     def test_build_auth_url(self):
         # Arrange
@@ -101,11 +103,38 @@ class OrcidServiceTests(TestCase):
         # Assert
         self.assertNotIn("evil.com", result)
 
+    def test_is_edu_email_matches_edu_domains(self):
+        # Assert
+        self.assertTrue(self.service._is_edu_email("user@stanford.edu"))
+        self.assertTrue(self.service._is_edu_email("user@oxford.ac.uk"))
+        self.assertTrue(self.service._is_edu_email("user@sydney.edu.au"))
+        self.assertFalse(self.service._is_edu_email("user@gmail.com"))
+        self.assertFalse(self.service._is_edu_email("user@company.com"))
+
+    def test_save_connection_stores_verified_edu_emails(self):
+        # Arrange
+        user = create_random_default_user("edu_user")
+        create_orcid_app()
+        self.mock_client.get_emails.return_value = [
+            {"email": "user@stanford.edu", "verified": True},
+            {"email": "user@gmail.com", "verified": True},
+            {"email": "user@mit.edu", "verified": False},
+        ]
+        token_data = {"orcid": "0000-0001-2345-6789", "access_token": "token"}
+
+        # Act
+        self.service._save_orcid_connection(user, token_data)
+
+        # Assert
+        account = SocialAccount.objects.get(user=user)
+        self.assertEqual(account.extra_data["verified_edu_emails"], ["user@stanford.edu"])
+
 
 class OrcidServiceCallbackTests(TestCase):
 
     def setUp(self):
         self.mock_client = Mock()
+        self.mock_client.get_emails.return_value = []
         self.service = OrcidService(client=self.mock_client)
         create_orcid_app()
 
