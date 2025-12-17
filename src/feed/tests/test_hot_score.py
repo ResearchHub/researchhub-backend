@@ -6,7 +6,6 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase
 
 from feed.hot_score import calculate_hot_score_for_item
 from feed.models import FeedEntry
@@ -17,12 +16,14 @@ from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_document.helpers import create_post
 from user.tests.helpers import create_random_default_user
+from utils.test_helpers import RHTestCase
 
 
-class TestHotScore(TestCase):
+class TestHotScore(RHTestCase):
     """Test suite for hot score calculations."""
 
     def setUp(self):
+        super().setUp()
         # Create a time reference for consistent testing
         self.now = datetime.now(timezone.utc)
         self.one_day_ago = self.now - timedelta(days=1)
