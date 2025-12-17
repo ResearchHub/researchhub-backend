@@ -1,71 +1,85 @@
-from unittest.mock import patch
+from unittest.mock import Mock
 
 from allauth.socialaccount.models import SocialApp
+from django.test import TestCase
 from rest_framework import status
-from rest_framework.test import APITestCase
+from rest_framework.test import APIRequestFactory, force_authenticate
 
-from orcid.tests.helpers import create_orcid_app
-from user.tests.helpers import create_random_authenticated_user
+from orcid.views.orcid_connect_view import OrcidConnectView
+from user.tests.helpers import create_random_default_user
 
 
-@patch("orcid.views.orcid_connect_view.OrcidService")
-class OrcidConnectViewTests(APITestCase):
+class OrcidConnectViewTests(TestCase):
     def setUp(self):
-        self.user = create_random_authenticated_user("orcid_user")
-        self.client.force_authenticate(user=self.user)
-        create_orcid_app()
+        self.factory = APIRequestFactory()
+        self.view = OrcidConnectView.as_view()
+        self.user = create_random_default_user("orcid_user")
+        self.mock_service = Mock()
 
-    def test_returns_auth_url(self, mock_service):
+    def test_returns_auth_url(self):
         # Arrange
-        mock_service.return_value.build_auth_url.return_value = "https://orcid.org/oauth?state=abc"
+        self.mock_service.build_auth_url.return_value = "https://orcid.org/oauth?state=abc"
+        request = self.factory.post("/api/orcid/connect/")
+        force_authenticate(request, user=self.user)
 
         # Act
-        response = self.client.post("/api/orcid/connect/")
+        response = self.view(request, orcid_service=self.mock_service)
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["auth_url"], "https://orcid.org/oauth?state=abc")
-        mock_service.return_value.build_auth_url.assert_called_once_with(self.user.id, None)
+        self.mock_service.build_auth_url.assert_called_once_with(self.user.id, None)
 
-    def test_returns_auth_url_with_return_url(self, mock_service):
+    def test_returns_auth_url_with_return_url(self):
         # Arrange
-        mock_service.return_value.build_auth_url.return_value = "https://orcid.org/oauth?state=abc"
+        self.mock_service.build_auth_url.return_value = "https://orcid.org/oauth?state=abc"
+        request = self.factory.post(
+            "/api/orcid/connect/",
+            {"return_url": "https://researchhub.com/funds"},
+            format="json",
+        )
+        force_authenticate(request, user=self.user)
 
         # Act
-        response = self.client.post("/api/orcid/connect/", {"return_url": "https://researchhub.com/funds"})
+        response = self.view(request, orcid_service=self.mock_service)
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        mock_service.return_value.build_auth_url.assert_called_once_with(self.user.id, "https://researchhub.com/funds")
+        self.mock_service.build_auth_url.assert_called_once_with(self.user.id, "https://researchhub.com/funds")
 
-    def test_unauthenticated_rejected(self, mock_service):
+    def test_unauthenticated_rejected(self):
         # Arrange
-        self.client.force_authenticate(user=None)
+        request = self.factory.post("/api/orcid/connect/")
 
         # Act
-        response = self.client.post("/api/orcid/connect/")
+        response = self.view(request, orcid_service=self.mock_service)
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_missing_orcid_app_returns_500(self, mock_service):
+    def test_missing_orcid_app_returns_500(self):
         # Arrange
-        mock_service.return_value.build_auth_url.side_effect = SocialApp.DoesNotExist()
+        self.mock_service.build_auth_url.side_effect = SocialApp.DoesNotExist()
+        request = self.factory.post("/api/orcid/connect/")
+        force_authenticate(request, user=self.user)
 
         # Act
-        response = self.client.post("/api/orcid/connect/")
+        response = self.view(request, orcid_service=self.mock_service)
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
         self.assertEqual(response.data["error"], "ORCID not configured")
 
-    def test_unexpected_error_returns_500(self, mock_service):
+    def test_unexpected_error_returns_500(self):
         # Arrange
-        mock_service.return_value.build_auth_url.side_effect = RuntimeError("error")
+        self.mock_service.build_auth_url.side_effect = RuntimeError("error")
+        request = self.factory.post("/api/orcid/connect/")
+        force_authenticate(request, user=self.user)
 
         # Act
-        response = self.client.post("/api/orcid/connect/")
+        response = self.view(request, orcid_service=self.mock_service)
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
         self.assertEqual(response.data["error"], "Failed to initiate ORCID connection")
+

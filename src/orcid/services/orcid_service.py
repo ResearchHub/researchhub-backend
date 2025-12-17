@@ -8,10 +8,11 @@ from django.core import signing
 
 
 class OrcidService:
+    ##  This service is used to build the auth URL for the ORCID OAuth flow.
+    ##  It creates the correct parameters and encodes the basic state data
+    ##  which will be used in the callback portion to validate and redirect the user back to the app.
+    
     ORCID_BASE_URL = "https://orcid.org"
-
-    def __init__(self, base_url: str = ORCID_BASE_URL):
-        self.base_url = base_url
 
     def build_auth_url(self, user_id: int, return_url: Optional[str] = None) -> str:
         app = self._get_orcid_app()
@@ -25,7 +26,7 @@ class OrcidService:
             "redirect_uri": settings.ORCID_REDIRECT_URL,
             "state": self._encode_signed_value(state_data),
         }
-        return f"{self.base_url}/oauth/authorize?{urlencode(params)}"
+        return f"{self.ORCID_BASE_URL}/oauth/authorize?{urlencode(params)}"
 
     def _get_orcid_app(self) -> SocialApp:
         return SocialApp.objects.get(provider=OrcidProvider.id)
@@ -39,3 +40,4 @@ class OrcidService:
 
     def _encode_signed_value(self, value: dict) -> str:
         return signing.dumps(value)
+
