@@ -344,7 +344,6 @@ class PaperIngestionService:
             "abstract",
             "paper_publish_date",
             "raw_authors",
-            "external_metadata",
             "external_source",
             "pdf_license",
             "pdf_license_url",
@@ -361,6 +360,9 @@ class PaperIngestionService:
                 # Only update if new value is not None/empty
                 if new_value:
                     setattr(existing_paper, field, new_value)
+
+        if hasattr(new_paper, "external_metadata"):
+            existing_paper.external_metadata.update(new_paper.external_metadata)
 
         existing_paper.save(update_fields=update_fields)
         return existing_paper
