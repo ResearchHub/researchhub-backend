@@ -1,31 +1,25 @@
 """
-Management command to backfill hot_score_v2 for existing feed entries.
+Management command to backfill hot_score_v2 for existing paper feed entries.
 
-This command efficiently calculates and updates hot_score_v2 for entries
-matching specified criteria (date range, content type).
+This command efficiently calculates and updates hot_score_v2 for paper entries
+matching specified criteria (date range based on paper_publish_date).
 
 Usage:
     # Backfill all papers
-    python manage.py backfill_hot_score_v2 --content-type paper
+    python manage.py backfill_hot_score_v2
 
-    # Backfill all posts
-    python manage.py backfill_hot_score_v2 --content-type post
+    # Backfill papers published in last 30 days
+    python manage.py backfill_hot_score_v2 --days 30
 
-    # Backfill papers created in last 30 days
-    python manage.py backfill_hot_score_v2 --content-type paper --days 30
-
-    # Backfill specific date range
+    # Backfill specific date range (uses paper_publish_date)
     python manage.py backfill_hot_score_v2 --start-date 2024-01-01 --end-date 2024-12-31
-
-    # Backfill everything
-    python manage.py backfill_hot_score_v2 --all
 
     # Backfill specific unified document(s)
     python manage.py backfill_hot_score_v2 --unified-document-id 12345
     python manage.py backfill_hot_score_v2 --unified-document-ids 12345 67890 11111
 
     # Dry run (show what would be updated)
-    python manage.py backfill_hot_score_v2 --content-type paper --dry-run
+    python manage.py backfill_hot_score_v2 --dry-run
 """
 
 import logging
@@ -38,35 +32,28 @@ from django.utils import timezone
 from feed.models import FeedEntry
 from feed.tasks import refresh_feed_hot_scores_batch
 from paper.related_models.paper_model import Paper
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 
 logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = "Backfill hot_score_v2 for existing feed entries with filtering"
+    help = "Backfill hot_score_v2 for existing paper feed entries"
 
     def add_arguments(self, parser):
         parser.add_argument(
-            "--content-type",
-            type=str,
-            choices=["paper", "post", "all"],
-            help="Filter by content type (paper, post, or all)",
-        )
-        parser.add_argument(
             "--days",
             type=int,
-            help="Only process entries created in last N days",
+            help="Only process papers published in last N days",
         )
         parser.add_argument(
             "--start-date",
             type=str,
-            help="Start date (YYYY-MM-DD) for filtering by created_date",
+            help="Start date (YYYY-MM-DD) for filtering by paper_publish_date",
         )
         parser.add_argument(
             "--end-date",
             type=str,
-            help="End date (YYYY-MM-DD) for filtering by created_date",
+            help="End date (YYYY-MM-DD) for filtering by paper_publish_date",
         )
         parser.add_argument(
             "--batch-size",
@@ -78,11 +65,6 @@ class Command(BaseCommand):
             "--dry-run",
             action="store_true",
             help="Show what would be updated without making changes",
-        )
-        parser.add_argument(
-            "--all",
-            action="store_true",
-            help="Process all feed entries (ignore filters)",
         )
         parser.add_argument(
             "--unified-document-id",
@@ -97,86 +79,73 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        content_type_filter = options.get("content_type")
         days = options.get("days")
         start_date = options.get("start_date")
         end_date = options.get("end_date")
         batch_size = options["batch_size"]
         dry_run = options["dry_run"]
-        process_all = options["all"]
         unified_document_id = options.get("unified_document_id")
         unified_document_ids = options.get("unified_document_ids")
 
-        self.stdout.write(self.style.SUCCESS("Hot Score V2 Backfill Tool"))
+        self.stdout.write(
+            self.style.SUCCESS("Hot Score V2 Backfill Tool (Papers Only)")
+        )
         self.stdout.write("=" * 80)
 
-        # Build queryset
-        queryset = FeedEntry.objects.select_related(
-            "content_type", "unified_document"
-        ).prefetch_related("item")
+        # Build queryset - only papers
+        paper_ct = ContentType.objects.get_for_model(Paper)
+        queryset = (
+            FeedEntry.objects.select_related("content_type", "unified_document")
+            .prefetch_related("item")
+            .filter(content_type=paper_ct)
+        )
 
-        # Apply content type filter
-        if not process_all and content_type_filter:
-            if content_type_filter == "paper":
-                paper_ct = ContentType.objects.get_for_model(Paper)
-                queryset = queryset.filter(content_type=paper_ct)
-            elif content_type_filter == "post":
-                post_ct = ContentType.objects.get_for_model(ResearchhubPost)
-                queryset = queryset.filter(content_type=post_ct)
-
-        # Apply date filters
-        if not process_all:
-            if days:
-                cutoff_date = timezone.now() - timedelta(days=days)
-                queryset = queryset.filter(created_date__gte=cutoff_date)
-            elif start_date or end_date:
-                if start_date:
-                    start = datetime.strptime(start_date, "%Y-%m-%d")
-                    start = timezone.make_aware(start)
-                    queryset = queryset.filter(created_date__gte=start)
-                if end_date:
-                    end = datetime.strptime(end_date, "%Y-%m-%d")
-                    end = timezone.make_aware(end)
-                    queryset = queryset.filter(created_date__lte=end)
+        # Apply date filters using paper_publish_date
+        if days:
+            cutoff_date = timezone.now() - timedelta(days=days)
+            paper_ids = Paper.objects.filter(
+                paper_publish_date__gte=cutoff_date
+            ).values("id")
+            queryset = queryset.filter(object_id__in=paper_ids)
+        elif start_date or end_date:
+            paper_filter = {}
+            if start_date:
+                start = datetime.strptime(start_date, "%Y-%m-%d")
+                start = timezone.make_aware(start)
+                paper_filter["paper_publish_date__gte"] = start
+            if end_date:
+                end = datetime.strptime(end_date, "%Y-%m-%d")
+                end = timezone.make_aware(end)
+                paper_filter["paper_publish_date__lte"] = end
+            if paper_filter:
+                paper_ids = Paper.objects.filter(**paper_filter).values("id")
+                queryset = queryset.filter(object_id__in=paper_ids)
 
         # Apply unified document ID filter
-        if not process_all:
-            doc_ids = []
-            if unified_document_id:
-                doc_ids.append(unified_document_id)
-            if unified_document_ids:
-                doc_ids.extend(unified_document_ids)
+        doc_ids = []
+        if unified_document_id:
+            doc_ids.append(unified_document_id)
+        if unified_document_ids:
+            doc_ids.extend(unified_document_ids)
 
-            if doc_ids:
-                queryset = queryset.filter(unified_document_id__in=doc_ids)
+        if doc_ids:
+            queryset = queryset.filter(unified_document_id__in=doc_ids)
 
         total_count = queryset.count()
 
         # Display what will be processed
         self.stdout.write("")
-        if process_all:
-            self.stdout.write(self.style.WARNING("Processing ALL feed entries"))
-        else:
-            filters = []
-            if content_type_filter:
-                filters.append(f"Type: {content_type_filter}")
-            if days:
-                filters.append(f"Last {days} days")
-            if start_date:
-                filters.append(f"From: {start_date}")
-            if end_date:
-                filters.append(f"To: {end_date}")
+        filters = ["Content type: paper"]
+        if days:
+            filters.append(f"Published in last {days} days")
+        if start_date:
+            filters.append(f"Published from: {start_date}")
+        if end_date:
+            filters.append(f"Published to: {end_date}")
+        if doc_ids:
+            filters.append(f"Unified Doc IDs: {', '.join(map(str, doc_ids))}")
 
-            # Show unified document ID filter
-            doc_ids = []
-            if unified_document_id:
-                doc_ids.append(unified_document_id)
-            if unified_document_ids:
-                doc_ids.extend(unified_document_ids)
-            if doc_ids:
-                filters.append(f"Unified Doc IDs: {', '.join(map(str, doc_ids))}")
-
-            self.stdout.write(f"Filters: {', '.join(filters) if filters else 'None'}")
+        self.stdout.write(f"Filters: {', '.join(filters)}")
 
         self.stdout.write(f"Total entries to process: {total_count:,}")
         self.stdout.write(f"Batch size: {batch_size}")
@@ -245,7 +214,7 @@ class Command(BaseCommand):
         """Show a sample of what would be updated."""
         self.stdout.write("Sample of entries that would be updated:")
         self.stdout.write("-" * 80)
-        self.stdout.write(f"{'ID':<10} {'Type':<15} {'Title':<40} {'Created':<12}")
+        self.stdout.write(f"{'ID':<10} {'Title':<45} {'Published':<12}")
         self.stdout.write("-" * 80)
 
         sample = queryset[:10]
@@ -259,14 +228,12 @@ class Command(BaseCommand):
                 title = getattr(item, "paper_title", "")
             if not title:
                 title = f"Entry #{entry.id}"
-            title = title[:37] + "..." if len(title) > 40 else title
+            title = title[:42] + "..." if len(title) > 45 else title
 
-            item_type = entry.content_type.model
-            created = entry.created_date.strftime("%Y-%m-%d")
+            publish_date = getattr(item, "paper_publish_date", None)
+            published = publish_date.strftime("%Y-%m-%d") if publish_date else "N/A"
 
-            self.stdout.write(
-                f"{entry.id:<10} {item_type:<15} {title:<40} {created:<12}"
-            )
+            self.stdout.write(f"{entry.id:<10} {title:<45} {published:<12}")
 
         self.stdout.write("")
         self.stdout.write(
