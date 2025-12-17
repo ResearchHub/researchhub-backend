@@ -1,5 +1,7 @@
 from decimal import Decimal
 
+from allauth.socialaccount.models import SocialAccount
+from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.test import TestCase
@@ -46,6 +48,62 @@ class AuthorModelsTests(TestCase):
 
     def test_achievements(self):
         self.assertIn("CITED_AUTHOR", self.user.author_profile.achievements)
+
+    def test_is_orcid_connected_false_when_no_account(self):
+        # Act
+        result = self.user.author_profile.is_orcid_connected
+
+        # Assert
+        self.assertFalse(result)
+
+    def test_is_orcid_connected_true_when_account_exists(self):
+        # Arrange
+        SocialAccount.objects.create(
+            user=self.user, provider=OrcidProvider.id, uid="0000-0001-2345-6789"
+        )
+
+        # Act
+        result = self.user.author_profile.is_orcid_connected
+
+        # Assert
+        self.assertTrue(result)
+
+    def test_orcid_verified_edu_email_none_when_no_account(self):
+        # Act
+        result = self.user.author_profile.orcid_verified_edu_email
+
+        # Assert
+        self.assertIsNone(result)
+
+    def test_orcid_verified_edu_email_none_when_no_emails(self):
+        # Arrange
+        SocialAccount.objects.create(
+            user=self.user,
+            provider=OrcidProvider.id,
+            uid="0000-0001-2345-6789",
+            extra_data={"verified_edu_emails": []},
+        )
+
+        # Act
+        result = self.user.author_profile.orcid_verified_edu_email
+
+        # Assert
+        self.assertIsNone(result)
+
+    def test_orcid_verified_edu_email_returns_first_email(self):
+        # Arrange
+        SocialAccount.objects.create(
+            user=self.user,
+            provider=OrcidProvider.id,
+            uid="0000-0001-2345-6789",
+            extra_data={"verified_edu_emails": ["user@stanford.edu", "user@mit.edu"]},
+        )
+
+        # Act
+        result = self.user.author_profile.orcid_verified_edu_email
+
+        # Assert
+        self.assertEqual(result, "user@stanford.edu")
 
 
 class FollowModelTests(TestCase):
