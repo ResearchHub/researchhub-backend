@@ -940,46 +940,51 @@ class PaperViewSet(
             document = PaperDocument()
             client = document._index._get_connection()
 
-            # Use paper_knn index if available (has KNN enabled), otherwise fall back to paper
-            index_name = "paper_knn"  # Use the new index with KNN enabled
-            paper_knn_exists = True
-            try:
-                # Check if paper_knn index exists
-                client.indices.get(index=index_name)
-            except Exception:
-                # Fall back to default index if paper_knn doesn't exist
-                paper_knn_exists = False
-                index_name = PaperDocument._index._name
+            # Use paper_knn index for KNN search (contains only IDs and vectors)
+            knn_index_name = "paper_knn"
+            paper_index_name = PaperDocument._index._name  # "paper"
 
-            # Get the paper's fast vector from OpenSearch
+            # Check if paper_knn index exists
             try:
-                response = client.get(index=index_name, id=str(paper.id))
+                client.indices.get(index=knn_index_name)
+            except Exception:
+                return Response(
+                    {
+                        "error": f"Index {knn_index_name} does not exist. "
+                        "Please create it first using: python manage.py setup_paper_knn_index"
+                    },
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+            # Get the paper's fast vector from paper_knn index
+            try:
+                response = client.get(index=knn_index_name, id=str(paper.id))
                 source = response.get("_source", {})
                 query_vector = source.get("abstract_fast_vector")
 
                 if not query_vector:
                     return Response(
                         {
-                            "error": f"Paper {paper.id} does not have a fast abstract vector. "
-                            "Please run vectorization first."
+                            "error": f"Paper {paper.id} does not have a fast abstract vector in {knn_index_name}. "
+                            "Please run vectorization first: python manage.py generate_abstract_vectors"
                         },
                         status=status.HTTP_404_NOT_FOUND,
                     )
             except Exception as e:
                 log_error(
-                    e, message=f"Failed to retrieve paper {paper.id} from OpenSearch"
+                    e,
+                    message=f"Failed to retrieve paper {paper.id} from {knn_index_name}",
                 )
                 return Response(
-                    {"error": "Failed to retrieve paper from OpenSearch"},
+                    {"error": f"Failed to retrieve paper from {knn_index_name}"},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
 
-            # Perform similarity search using native OpenSearch KNN
-            # Verify the field is configured as knn_vector
+            # Verify paper_knn index has knn_vector field configured
             try:
-                mapping = client.indices.get_mapping(index=index_name)
+                mapping = client.indices.get_mapping(index=knn_index_name)
                 field_type = (
-                    mapping.get(index_name, {})
+                    mapping.get(knn_index_name, {})
                     .get("mappings", {})
                     .get("properties", {})
                     .get("abstract_fast_vector", {})
@@ -987,26 +992,11 @@ class PaperViewSet(
                 )
                 if field_type != "knn_vector":
                     error_message = (
-                        f"abstract_fast_vector field is not configured as knn_vector "
+                        f"abstract_fast_vector field in {knn_index_name} is not configured as knn_vector "
                         f"(type: {field_type}). Native KNN search requires knn_vector field type.\n\n"
+                        "To fix this, recreate the index:\n"
+                        "  python manage.py setup_paper_knn_index --force\n"
                     )
-
-                    if not paper_knn_exists:
-                        error_message += (
-                            "The 'paper_knn' index does not exist. To enable native KNN search, "
-                            "you need to create a new OpenSearch index with KNN enabled:\n\n"
-                            "1. Create a new index named 'paper_knn' with KNN enabled in the index settings\n"
-                            "2. Configure abstract_fast_vector (and other vector fields) as knn_vector type\n"
-                            "3. Reindex data from the 'paper' index to 'paper_knn'\n"
-                            "4. Update aliases if needed\n\n"
-                            "Note: KNN must be enabled at index creation time (it's a 'final' setting "
-                            "that cannot be updated on existing indices)."
-                        )
-                    else:
-                        error_message += (
-                            f"The 'paper_knn' index exists but abstract_fast_vector is not configured "
-                            f"as knn_vector. Please recreate the index with proper KNN configuration."
-                        )
 
                     return Response(
                         {"error": error_message},
@@ -1015,31 +1005,23 @@ class PaperViewSet(
             except Exception as e:
                 log_error(
                     e,
-                    message=f"Failed to check mapping for index {index_name}",
+                    message=f"Failed to check mapping for index {knn_index_name}",
                 )
-                error_message = "Failed to verify index configuration for KNN search."
-
-                if not paper_knn_exists:
-                    error_message += (
-                        "\n\nThe 'paper_knn' index does not exist. To enable native KNN search, "
-                        "you need to create a new OpenSearch index with KNN enabled:\n\n"
-                        "1. Create a new index named 'paper_knn' with KNN enabled in the index settings\n"
-                        "2. Configure abstract_fast_vector (and other vector fields) as knn_vector type\n"
-                        "3. Reindex data from the 'paper' index to 'paper_knn'\n"
-                        "4. Update aliases if needed\n\n"
-                        "Note: KNN must be enabled at index creation time (it's a 'final' setting "
-                        "that cannot be updated on existing indices)."
-                    )
+                error_message = (
+                    f"Failed to verify {knn_index_name} index configuration for KNN search.\n\n"
+                    "To set up KNN support, run:\n"
+                    "  python manage.py setup_paper_knn_index --force\n"
+                )
 
                 return Response(
                     {"error": error_message},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
 
-            # Use native OpenSearch KNN query
+            # Use native OpenSearch KNN query on paper_knn index
             # Request k=4 to account for potential exclusion of the query paper itself
             # post_filter is needed, filter inside KNN is not supported
-            # Request specificfields from OpenSearch to avoid database query
+            # Only request ID field since paper_knn only contains minimal documents
             search_query = {
                 "size": 3,
                 "query": {
@@ -1055,20 +1037,12 @@ class PaperViewSet(
                         "must_not": [{"term": {"id": paper.id}}],
                     }
                 },
-                "_source": [
-                    "id",
-                    "paper_title",
-                    "title",
-                    "abstract",
-                    "raw_authors",
-                    "hubs",
-                    "created_date",
-                    "paper_publish_date",
-                ],
+                "_source": ["id"],  # Only need IDs from paper_knn
             }
 
             try:
-                search_response = client.search(index=index_name, body=search_query)
+                # Perform KNN search on paper_knn index to get similar paper IDs
+                search_response = client.search(index=knn_index_name, body=search_query)
 
                 hits = search_response.get("hits", {}).get("hits", [])
 
@@ -1077,36 +1051,77 @@ class PaperViewSet(
                         {"count": 0, "results": []}, status=status.HTTP_200_OK
                     )
 
-                # Build response directly from OpenSearch results
-                results = []
+                # Extract paper IDs from KNN search results
+                paper_ids = []
                 for hit in hits:
                     source = hit.get("_source", {})
                     paper_id = source.get("id")
-                    if not paper_id:
-                        continue
+                    if paper_id:
+                        paper_ids.append(paper_id)
 
-                    # Format paper data from OpenSearch
-                    paper_data = {
-                        "id": paper_id,
-                        "paper_title": source.get("paper_title") or source.get("title"),
-                        "title": source.get("title") or source.get("paper_title"),
-                        "abstract": source.get("abstract"),
-                        "raw_authors": source.get("raw_authors", []),
-                        "hubs": source.get("hubs", []),
-                        "created_date": source.get("created_date"),
-                        "paper_publish_date": source.get("paper_publish_date"),
+                if not paper_ids:
+                    return Response(
+                        {"count": 0, "results": []}, status=status.HTTP_200_OK
+                    )
+
+                # Fetch full paper data from paper index using the IDs
+                try:
+                    # Use multi-get to fetch papers from paper index
+                    mget_body = {
+                        "ids": [str(pid) for pid in paper_ids],
                     }
-                    results.append(paper_data)
+                    mget_response = client.mget(index=paper_index_name, body=mget_body)
 
-                return Response(
-                    {
-                        "count": len(results),
-                        "results": results,
-                        "method": "native_knn",
-                        "field_type": "knn_vector",
-                    },
-                    status=status.HTTP_200_OK,
-                )
+                    # Build response from paper index results
+                    results = []
+                    docs = mget_response.get("docs", [])
+                    for doc in docs:
+                        if doc.get("found") is False:
+                            continue
+
+                        source = doc.get("_source", {})
+                        paper_id = source.get("id")
+                        if not paper_id:
+                            continue
+
+                        # Format paper data from paper index
+                        paper_data = {
+                            "id": paper_id,
+                            "paper_title": source.get("paper_title")
+                            or source.get("title"),
+                            "title": source.get("title") or source.get("paper_title"),
+                            "abstract": source.get("abstract"),
+                            "raw_authors": source.get("raw_authors", []),
+                            "hubs": source.get("hubs", []),
+                            "created_date": source.get("created_date"),
+                            "paper_publish_date": source.get("paper_publish_date"),
+                        }
+                        results.append(paper_data)
+
+                    return Response(
+                        {
+                            "count": len(results),
+                            "results": results,
+                            "method": "native_knn",
+                            "field_type": "knn_vector",
+                            "knn_index": knn_index_name,
+                            "paper_index": paper_index_name,
+                        },
+                        status=status.HTTP_200_OK,
+                    )
+
+                except Exception as e:
+                    log_error(
+                        e,
+                        message=f"Failed to fetch papers from {paper_index_name}",
+                    )
+                    return Response(
+                        {
+                            "error": f"Failed to fetch paper details from {paper_index_name}",
+                            "details": str(e),
+                        },
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    )
 
             except Exception as e:
 
