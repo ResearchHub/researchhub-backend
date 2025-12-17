@@ -45,8 +45,8 @@ class OrcidService:
         return f"{self.ORCID_BASE_URL}/oauth/authorize?{urlencode(params)}"
 
     def process_callback(self, code: str, state: str) -> str:
-        """Validates state, fetches token, checks for verified .edu emails, s
-        aves ORCID connection, updates author profile, and returns redirect URL."""
+        """Validates state, fetches token, checks for verified .edu emails,
+        saves ORCID connection, updates author profile, and returns redirect URL."""
         return_url = None
         try:
             user, return_url = self._validate_state(state)
