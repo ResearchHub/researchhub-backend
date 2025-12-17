@@ -485,7 +485,3 @@ def select_primary_image(self, paper_id, retry=0):
             )
 
         return False
-
-        return False
-
-        return False
