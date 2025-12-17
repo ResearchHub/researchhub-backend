@@ -89,7 +89,6 @@ class AuthorSerializer(ModelSerializer):
     is_hub_editor_of = SerializerMethodField()
     is_hub_editor = SerializerMethodField()
     num_posts = SerializerMethodField()
-    orcid_connected = SerializerMethodField()
     orcid_id = SerializerMethodField()
     reputation = SerializerMethodField()
     reputation_v2 = SerializerMethodField()
@@ -110,7 +109,7 @@ class AuthorSerializer(ModelSerializer):
             "is_hub_editor",
             "num_posts",
             "orcid_id",
-            "orcid_connected",
+            "is_orcid_connected",
             "reputation",
             "reputation_v2",
             "reputation_list",
@@ -168,8 +167,6 @@ class AuthorSerializer(ModelSerializer):
     def get_orcid_id(self, author):
         return author.orcid_id
         
-    def get_orcid_connected(self, author):
-        return author.is_orcid_connected
 
     def get_total_score(self, author):
         if author.author_score > 0:
