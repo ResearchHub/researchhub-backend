@@ -8,9 +8,10 @@ from django.core import signing
 
 
 class OrcidService:
-    ##  This service is used to build the auth URL for the ORCID OAuth flow.
-    ##  It creates the correct parameters and encodes the basic state data
-    ##  which will be used in the callback portion to validate and redirect the user back to the app.
+    """
+    Handles ORCID OAuth flow: builds auth URLs,
+    Next Step: processes callbacks, and stores connection data.
+    """
     
     ORCID_BASE_URL = "https://orcid.org"
 
