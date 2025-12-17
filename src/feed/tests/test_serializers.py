@@ -1059,7 +1059,8 @@ class PostSerializerTests(TestCase):
 
         except RecursionError:
             self.fail(
-                "RecursionError was raised - user serializer circular reference fix failed"
+                "RecursionError was raised - user serializer circular "
+                "reference fix failed"
             )
 
     def test_grant_post_no_user_recursion(self):
@@ -1135,7 +1136,8 @@ class PostSerializerTests(TestCase):
 
         except RecursionError:
             self.fail(
-                "RecursionError was raised - grant user serializer circular reference fix failed"
+                "RecursionError was raised - grant user serializer circular "
+                "reference fix failed"
             )
 
 
@@ -1198,6 +1200,8 @@ class SimpleReviewSerializerTests(TestCase):
         self.assertIn("author", data)
 
 
+@patch.object(Figure._meta.get_field("file"), "storage", test_storage)
+@patch.object(Figure._meta.get_field("thumbnail"), "storage", test_storage)
 class FeedEntrySerializerTests(TestCase):
     def setUp(self):
         self.user = create_random_default_user("feed_creator")
