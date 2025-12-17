@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, call, patch
 
 import pytz
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase, override_settings
+from django.test import override_settings
 
 from feed.models import FeedEntry
 from purchase.models import Fundraise, Grant, GrantApplication
@@ -21,11 +21,13 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
     ResearchhubUnifiedDocument,
 )
 from user.tests.helpers import create_random_authenticated_user, create_user
+from utils.test_helpers import RHTestCase
 
 
-class TestPurchaseSignals(TestCase):
+class TestPurchaseSignals(RHTestCase):
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     def setUp(self):
+        super().setUp()
         self.user = create_user("test@example.com", "password")
 
         # Create a unified document

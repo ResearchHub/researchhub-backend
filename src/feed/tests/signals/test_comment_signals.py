@@ -1,7 +1,6 @@
 from unittest.mock import MagicMock, call, patch
 
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase
 
 from feed.models import FeedEntry
 from hub.models import Hub
@@ -15,11 +14,13 @@ from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
 from user.models import User
+from utils.test_helpers import RHTestCase
 
 
-class CommentSignalsTests(TestCase):
+class CommentSignalsTests(RHTestCase):
 
     def setUp(self):
+        super().setUp()
         self.user = User.objects.create_user(username="user1")
         self.paper = Paper.objects.create(title="paper1")
         self.hub1 = Hub.objects.create(name="hub1")

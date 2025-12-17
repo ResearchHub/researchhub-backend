@@ -5,7 +5,6 @@ from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import FileSystemStorage, default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
 
 from feed.models import FeedEntry
 from feed.serializers import (
@@ -48,10 +47,12 @@ from review.models import Review
 from topic.models import Topic, UnifiedDocumentTopics
 from user.related_models.user_verification_model import UserVerification
 from user.tests.helpers import create_random_default_user
+from utils.test_helpers import RHTestCase
 
 
-class SimpleUserSerializerTests(TestCase):
+class SimpleUserSerializerTests(RHTestCase):
     def setUp(self):
+        super().setUp()
         self.user = create_random_default_user("test_user_serializer")
         # Create a verification record with non-APPROVED status
         UserVerification.objects.create(
@@ -75,8 +76,9 @@ class SimpleUserSerializerTests(TestCase):
         self.assertTrue(data["is_verified"])
 
 
-class ContentObjectSerializerTests(TestCase):
+class ContentObjectSerializerTests(RHTestCase):
     def setUp(self):
+        super().setUp()
         self.user = create_random_default_user("content_creator")
         self.author = self.user.author_profile
         self.author.profile_image = "https://example.com/profile.jpg"
@@ -125,8 +127,9 @@ test_storage = FileSystemStorage()
 
 @patch.object(Figure._meta.get_field("file"), "storage", test_storage)
 @patch.object(Figure._meta.get_field("thumbnail"), "storage", test_storage)
-class PaperSerializerTests(TestCase):
+class PaperSerializerTests(RHTestCase):
     def setUp(self):
+        super().setUp()
         self.user = create_random_default_user("paper_creator")
         self.author = self.user.author_profile
         self.author.profile_image = "https://example.com/profile.jpg"
@@ -497,8 +500,9 @@ class PaperSerializerTests(TestCase):
                 self.assertIsNone(data["primary_image_thumbnail"])
 
 
-class PostSerializerTests(TestCase):
+class PostSerializerTests(RHTestCase):
     def setUp(self):
+        super().setUp()
         self.user = create_random_default_user("post_creator")
         self.category = create_hub("Science", namespace=Hub.Namespace.CATEGORY)
         self.subcategory = create_hub(
@@ -1204,8 +1208,9 @@ class PostSerializerTests(TestCase):
             )
 
 
-class SimpleHubSerializerTests(TestCase):
+class SimpleHubSerializerTests(RHTestCase):
     def setUp(self):
+        super().setUp()
         self.hub = create_hub("Test Hub")
 
     def test_serializes_hub(self):
@@ -1217,8 +1222,9 @@ class SimpleHubSerializerTests(TestCase):
         self.assertEqual(data["slug"], self.hub.slug)
 
 
-class SimpleReviewSerializerTests(TestCase):
+class SimpleReviewSerializerTests(RHTestCase):
     def setUp(self):
+        super().setUp()
         self.user = create_random_default_user("paper_creator")
         self.author = self.user.author_profile
         self.author.profile_image = "https://example.com/profile.jpg"
@@ -1265,8 +1271,9 @@ class SimpleReviewSerializerTests(TestCase):
 
 @patch.object(Figure._meta.get_field("file"), "storage", test_storage)
 @patch.object(Figure._meta.get_field("thumbnail"), "storage", test_storage)
-class FeedEntrySerializerTests(TestCase):
+class FeedEntrySerializerTests(RHTestCase):
     def setUp(self):
+        super().setUp()
         self.user = create_random_default_user("feed_creator")
 
         return None
@@ -1862,10 +1869,11 @@ class FeedEntrySerializerTests(TestCase):
         self.assertEqual(content_object["journal"]["slug"], "ARXIV")
 
 
-class FundingFeedEntrySerializerTests(TestCase):
+class FundingFeedEntrySerializerTests(RHTestCase):
     """Test cases for the FundingFeedEntrySerializer"""
 
     def setUp(self):
+        super().setUp()
         self.user = create_random_default_user("funding_feed_user")
 
     @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")

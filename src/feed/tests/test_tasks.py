@@ -1,7 +1,6 @@
 from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase
 
 from feed.models import FeedEntry
 from feed.tasks import (
@@ -25,10 +24,12 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 )
 from user.models import User
 from user.related_models.author_model import Author
+from utils.test_helpers import RHTestCase
 
 
-class FeedTasksTest(TestCase):
+class FeedTasksTest(RHTestCase):
     def setUp(self):
+        super().setUp()
         self.user = User.objects.create(username="testUser1")
 
         self.unified_document = ResearchhubUnifiedDocument.objects.create()

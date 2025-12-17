@@ -1,11 +1,10 @@
 from unittest.mock import Mock
 
-from django.test import TestCase
-
 from feed.views.feed_view_mixin import FeedViewMixin
+from utils.test_helpers import RHTestCase
 
 
-class FeedViewMixinTests(TestCase):
+class FeedViewMixinTests(RHTestCase):
     def test_get_cache_key(self):
         """Test cache key generation method with various inputs"""
         # Arrange

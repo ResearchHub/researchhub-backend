@@ -8,18 +8,19 @@ and FeedEntry.metrics JSON fields instead of querying related models.
 from datetime import datetime, timedelta, timezone
 
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase
 
 from feed.models import FeedEntry, HotScoreV2Breakdown
 from researchhub_document.helpers import create_post
 from user.tests.helpers import create_random_default_user
+from utils.test_helpers import RHTestCase
 
 
-class TestHotScoreV2(TestCase):
+class TestHotScoreV2(RHTestCase):
     """Integration tests for hot score v2 (JSON-based) algorithm."""
 
     def setUp(self):
         """Set up test fixtures."""
+        super().setUp()
         self.user = create_random_default_user("hotscore_v2_test")
         self.now = datetime.now(timezone.utc)
 
