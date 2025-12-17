@@ -25,7 +25,7 @@ class OrcidService:
 
     ORCID_BASE_URL = "https://orcid.org"
     STATE_MAX_AGE = 600
-    EDU_DOMAINS = (".edu", ".ac.uk", ".edu.au", ".ac.jp", ".edu.cn")
+    EDU_DOMAINS = (".edu", ".ac.uk", ".edu.au", ".ac.jp", ".edu.cn", ".gov")
 
     def __init__(self, client: OrcidClient = None):
         self.client = client or OrcidClient()
