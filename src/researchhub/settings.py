@@ -532,8 +532,10 @@ AWS_REGION_NAME = os.environ.get("AWS_REGION_NAME", keys.AWS_REGION_NAME)
 
 
 if not (CLOUD or TESTING) and os.environ.get("AWS_PROFILE") is None:
-    # Set AWS profile for local development
-    os.environ["AWS_PROFILE"] = keys.AWS_PROFILE
+    # Set AWS profile for local development only if it's not empty
+    # If empty, boto3 will use default credential chain (e.g., ~/.aws/credentials)
+    if hasattr(keys, "AWS_PROFILE") and keys.AWS_PROFILE:
+        os.environ["AWS_PROFILE"] = keys.AWS_PROFILE
 
 # AWS Lambda
 
