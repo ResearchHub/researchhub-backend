@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
-from django.core.files.storage import default_storage
+from django.core.files.storage import FileSystemStorage, default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 
@@ -120,6 +120,11 @@ class ContentObjectSerializerTests(TestCase):
         mock_get_primary_hub.assert_called()
 
 
+test_storage = FileSystemStorage()
+
+
+@patch.object(Figure._meta.get_field("file"), "storage", test_storage)
+@patch.object(Figure._meta.get_field("thumbnail"), "storage", test_storage)
 class PaperSerializerTests(TestCase):
     def setUp(self):
         self.user = create_random_default_user("paper_creator")
