@@ -17,11 +17,14 @@ User = get_user_model()
 
 
 class OrcidService:
+    ##  This service is used to build the auth URL for the ORCID OAuth flow.
+    ##  It creates the correct parameters and encodes the basic state data
+    ##  which will be used in the callback portion to validate and redirect the user back to the app. 
+    ORCID_BASE_URL = "https://orcid.org"
     STATE_MAX_AGE = 600
 
-    def __init__(self, base_url: str = OrcidClient.ORCID_BASE_URL):
-        self.base_url = base_url
-        self.client = OrcidClient(base_url=base_url)
+    def __init__(self, client: OrcidClient = None):
+        self.client = client or OrcidClient()
 
     def build_auth_url(self, user_id: int, return_url: Optional[str] = None) -> str:
         app = self._get_orcid_app()
@@ -35,7 +38,7 @@ class OrcidService:
             "redirect_uri": settings.ORCID_REDIRECT_URL,
             "state": self._encode_signed_value(state_data),
         }
-        return f"{self.base_url}/oauth/authorize?{urlencode(params)}"
+        return f"{self.ORCID_BASE_URL}/oauth/authorize?{urlencode(params)}"
 
     def process_callback(self, code: str, state: str) -> str:
         state_data = self.decode_state(state)
@@ -116,7 +119,7 @@ class OrcidService:
 
     def _update_author_orcid(self, user: Any, orcid_id: str) -> None:
         if author := getattr(user, "author_profile", None):
-            author.orcid_id = f"{self.base_url}/{orcid_id}"
+            author.orcid_id = f"{self.ORCID_BASE_URL}/{orcid_id}"
             author.save(update_fields=["orcid_id"])
 
     def decode_state(self, state: str) -> Optional[Dict[str, Any]]:

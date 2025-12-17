@@ -1,11 +1,10 @@
-from unittest.mock import patch
+from unittest.mock import Mock
 
 import requests
 from allauth.socialaccount.models import SocialAccount, SocialToken
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from django.test import TestCase
 
-from orcid.clients.orcid_client import OrcidClient
 from orcid.services.orcid_service import OrcidService
 from orcid.tests.helpers import create_orcid_app
 from user.tests.helpers import create_random_default_user
@@ -104,17 +103,17 @@ class OrcidServiceTests(TestCase):
         self.assertNotIn("evil.com", result)
 
 
-@patch.object(OrcidClient, "exchange_code_for_token")
 class OrcidServiceCallbackTests(TestCase):
 
     def setUp(self):
-        self.service = OrcidService()
+        self.mock_client = Mock()
+        self.service = OrcidService(client=self.mock_client)
         create_orcid_app()
 
-    def test_process_callback_success(self, mock_exchange):
+    def test_process_callback_success(self):
         # Arrange
         user = create_random_default_user("test_user")
-        mock_exchange.return_value = {"orcid": "0000-0001-2345-6789", "access_token": "token"}
+        self.mock_client.exchange_code_for_token.return_value = {"orcid": "0000-0001-2345-6789", "access_token": "token"}
         state = self.service._encode_signed_value({"user_id": user.id, "return_url": "https://researchhub.com/profile"})
 
         # Act
@@ -125,7 +124,7 @@ class OrcidServiceCallbackTests(TestCase):
         self.assertIn("researchhub.com/profile", result)
         self.assertTrue(SocialAccount.objects.filter(user=user).exists())
 
-    def test_process_callback_invalid_state(self, mock_exchange):
+    def test_process_callback_invalid_state(self):
         # Arrange
         invalid_state = "invalid"
 
@@ -135,7 +134,7 @@ class OrcidServiceCallbackTests(TestCase):
         # Assert
         self.assertIn("orcid_error=invalid_state", result)
 
-    def test_process_callback_user_not_found(self, mock_exchange):
+    def test_process_callback_user_not_found(self):
         # Arrange
         state = self.service._encode_signed_value({"user_id": 99999})
 
@@ -145,12 +144,12 @@ class OrcidServiceCallbackTests(TestCase):
         # Assert
         self.assertIn("orcid_error=invalid_state", result)
 
-    def test_process_callback_already_linked(self, mock_exchange):
+    def test_process_callback_already_linked(self):
         # Arrange
         user1 = create_random_default_user("user1")
         user2 = create_random_default_user("user2")
         SocialAccount.objects.create(user=user1, provider=OrcidProvider.id, uid="0000-0001-2345-6789")
-        mock_exchange.return_value = {"orcid": "0000-0001-2345-6789"}
+        self.mock_client.exchange_code_for_token.return_value = {"orcid": "0000-0001-2345-6789"}
         state = self.service._encode_signed_value({"user_id": user2.id})
 
         # Act
@@ -159,11 +158,11 @@ class OrcidServiceCallbackTests(TestCase):
         # Assert
         self.assertIn("orcid_error=already_linked", result)
 
-    def test_process_callback_request_exception(self, mock_exchange):
+    def test_process_callback_request_exception(self):
         # Arrange
         user = create_random_default_user("user")
         state = self.service._encode_signed_value({"user_id": user.id})
-        mock_exchange.side_effect = requests.RequestException()
+        self.mock_client.exchange_code_for_token.side_effect = requests.RequestException()
 
         # Act
         result = self.service.process_callback("code", state)
@@ -171,15 +170,14 @@ class OrcidServiceCallbackTests(TestCase):
         # Assert
         self.assertIn("orcid_error=service_error", result)
 
-    def test_process_callback_missing_orcid_in_response(self, mock_exchange):
+    def test_process_callback_missing_orcid_in_response(self):
         # Arrange
         user = create_random_default_user("user")
         state = self.service._encode_signed_value({"user_id": user.id})
-        mock_exchange.return_value = {"access_token": "token"}
+        self.mock_client.exchange_code_for_token.return_value = {"access_token": "token"}
 
         # Act
         result = self.service.process_callback("code", state)
 
         # Assert
         self.assertIn("orcid_error=service_error", result)
-

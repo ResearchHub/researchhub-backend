@@ -12,7 +12,7 @@ class OrcidConnectView(APIView):
     permission_classes = [IsAuthenticated]
 
     def dispatch(self, request, *args, **kwargs):
-        self.orcid_service = OrcidService()
+        self.orcid_service = kwargs.pop("orcid_service", OrcidService())
         return super().dispatch(request, *args, **kwargs)
 
     def post(self, request: Request, *args, **kwargs) -> Response:
