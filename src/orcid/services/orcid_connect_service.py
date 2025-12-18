@@ -6,11 +6,10 @@ from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from django.conf import settings
 from django.core import signing
 
+from orcid.config.constants import ORCID_BASE_URL
 
 class OrcidConnectService:
     """Handles ORCID OAuth flow: builds auth URLs, processes callbacks, stores connection data."""
-
-    ORCID_BASE_URL = "https://orcid.org"
 
     def build_auth_url(self, user_id: int, return_url: Optional[str] = None) -> str:
         """Build ORCID OAuth authorization URL with signed state token."""
@@ -25,7 +24,7 @@ class OrcidConnectService:
             "redirect_uri": settings.ORCID_REDIRECT_URL,
             "state": signing.dumps(state_data),
         }
-        return f"{self.ORCID_BASE_URL}/oauth/authorize?{urlencode(params)}"
+        return f"{ORCID_BASE_URL}/oauth/authorize?{urlencode(params)}"
 
     def _get_orcid_app(self) -> SocialApp:
         """Get the ORCID social app configuration."""
