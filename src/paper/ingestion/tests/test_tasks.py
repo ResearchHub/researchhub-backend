@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 from django.test import TestCase
 from django.utils import timezone
 
+from paper.ingestion.services.metrics_enrichment import EnrichmentResult
 from paper.ingestion.tasks import (
     enrich_paper_with_bluesky_metrics,
     enrich_paper_with_github_metrics,
@@ -468,29 +469,24 @@ class GithubMetricsTasksTests(TestCase):
     @patch("paper.ingestion.tasks.sentry")
     @patch("paper.ingestion.tasks.PaperMetricsEnrichmentService")
     @patch("paper.ingestion.tasks._create_github_metrics_client")
-    def test_enrich_paper_handles_service_error_with_max_retries(
+    def test_enrich_paper_handles_service_error(
         self, mock_create_client, mock_service_class, mock_sentry
     ):
         """
-        Test error handling when max retries are exceeded.
+        Test error handling when service returns an error status.
         """
         # Arrange
-        from celery.exceptions import MaxRetriesExceededError
+        from paper.ingestion.services.metrics_enrichment import EnrichmentResult
 
         mock_create_client.return_value = Mock()
         mock_service = Mock()
-        mock_service.enrich_paper_with_github_mentions.side_effect = Exception(
-            "Service error"
+        mock_service.enrich_paper_with_github_mentions.return_value = EnrichmentResult(
+            status="error", reason="Service error"
         )
         mock_service_class.return_value = mock_service
 
         # Act
-        with patch.object(
-            enrich_paper_with_github_metrics,
-            "retry",
-            side_effect=MaxRetriesExceededError(),
-        ):
-            result = enrich_paper_with_github_metrics(self.paper_recent.id)
+        result = enrich_paper_with_github_metrics(self.paper_recent.id)
 
         # Assert
         self.assertEqual(result["status"], "error")
@@ -895,7 +891,6 @@ class XMetricsTasksTests(TestCase):
         Test that error status logs to sentry.
         """
         # Arrange
-        from paper.ingestion.services.metrics_enrichment import EnrichmentResult
 
         mock_metrics_client_class.return_value = Mock()
         mock_service = Mock()
