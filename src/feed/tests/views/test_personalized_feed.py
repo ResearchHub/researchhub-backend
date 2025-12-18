@@ -167,7 +167,7 @@ class TestPersonalizedFeed(APITestCase):
         "personalize.clients.recommendation_client.RecommendationClient"
         ".get_recommendations_for_user"
     )
-    def test_personalized_uses_new_content_filter_by_default(
+    def test_personalized_uses_recent_preprints_filter_by_default(
         self, mock_get_recommendations
     ):
         mock_get_recommendations.return_value = {
@@ -183,7 +183,7 @@ class TestPersonalizedFeed(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         mock_get_recommendations.assert_called_once()
         call_args = mock_get_recommendations.call_args
-        self.assertEqual(call_args[1]["filter"], "new-content")
+        self.assertEqual(call_args[1]["filter"], "recent-preprints")
 
     @patch(
         "personalize.clients.recommendation_client.RecommendationClient"
