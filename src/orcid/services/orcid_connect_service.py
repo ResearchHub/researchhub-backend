@@ -8,8 +8,9 @@ from django.core import signing
 
 from orcid.config.constants import ORCID_BASE_URL
 
+
 class OrcidConnectService:
-    """Handles ORCID OAuth flow: builds auth URLs, processes callbacks, stores connection data."""
+    """Handles initiating ORCID OAuth flow by building authorization URLs."""
 
     def build_auth_url(self, user_id: int, return_url: Optional[str] = None) -> str:
         """Build ORCID OAuth authorization URL with signed state token."""

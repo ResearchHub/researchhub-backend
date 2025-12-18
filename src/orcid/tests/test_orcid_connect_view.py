@@ -5,7 +5,7 @@ from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIRequestFactory, force_authenticate
 
-from orcid.views.orcid_connect_view import OrcidConnectView
+from orcid.views import OrcidConnectView
 from user.tests.helpers import create_random_default_user
 
 

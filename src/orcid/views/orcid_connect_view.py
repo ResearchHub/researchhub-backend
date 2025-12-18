@@ -7,7 +7,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from orcid.services.orcid_connect_service import OrcidConnectService
+from orcid.services import OrcidConnectService
 
 logger = logging.getLogger(__name__)
 

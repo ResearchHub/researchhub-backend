@@ -1,6 +1,6 @@
 from django.test import TestCase
 
-from orcid.services.orcid_connect_service import OrcidConnectService
+from orcid.services import OrcidConnectService
 from orcid.tests.helpers import create_orcid_app
 
 
