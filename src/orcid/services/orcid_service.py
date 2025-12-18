@@ -25,6 +25,7 @@ class OrcidService:
 
     ORCID_BASE_URL = "https://orcid.org"
     STATE_MAX_AGE = 600
+    # .gov included for research institutions (NIH, NSF, etc.)
     EDU_DOMAINS = (".edu", ".ac.uk", ".edu.au", ".ac.jp", ".edu.cn", ".gov")
 
     def __init__(self, client: OrcidClient = None):
@@ -130,7 +131,6 @@ class OrcidService:
     def _fetch_verified_edu_emails(self, orcid_id: str, access_token: str) -> List[str]:
         """Fetch verified .edu emails from ORCID (if user has them set to public)."""
         emails = self.client.get_emails(orcid_id, access_token)
-        logger.info(f"Fetched emails from ORCID: {emails}")
         return [
             e["email"] for e in emails
             if e.get("verified") and self._is_edu_email(e.get("email", ""))
