@@ -154,56 +154,49 @@ def enrich_paper_with_github_metrics(self, paper_id: int, retry: int = 0):
         x_metrics_client=None,
     )
 
-    try:
-        enrichment_result = service.enrich_paper_with_github_mentions(paper)
+    enrichment_result = service.enrich_paper_with_github_mentions(paper)
 
-        if enrichment_result.status == "not_found":
-            return {
-                "status": "not_found",
-                "paper_id": paper_id,
-                "doi": paper.doi,
-            }
+    if enrichment_result.status == "retryable_error":
+        # Retry with exponential backoff for rate limit errors
+        logger.warning(
+            f"GitHub API rate limit hit for paper {paper_id}, " f"retrying with backoff"
+        )
+        raise self.retry(args=[paper_id, retry + 1], countdown=60 * (retry + 1))
 
-        if enrichment_result.status == "success":
-            github_metrics = enrichment_result.metrics.get("github_mentions", {})
-            logger.info(
-                f"Successfully enriched paper {paper_id} with GitHub metrics: "
-                f"{github_metrics.get('total_mentions', 0)} total mentions"
-            )
-
-            return {
-                "status": "success",
-                "paper_id": paper_id,
-                "doi": paper.doi,
-                "metrics": github_metrics,
-            }
-
-        # Handle other statuses (skipped, error)
+    if enrichment_result.status == "not_found":
         return {
-            "status": enrichment_result.status,
+            "status": "not_found",
             "paper_id": paper_id,
             "doi": paper.doi,
-            "reason": enrichment_result.reason,
         }
 
-    except Exception as e:
-        logger.error(f"Error enriching paper {paper_id} with GitHub metrics: {str(e)}")
-        sentry.log_error(
-            e, message=f"Error enriching paper {paper_id} with GitHub metrics"
+    if enrichment_result.status == "success":
+        github_metrics = enrichment_result.metrics.get("github_mentions", {})
+        logger.info(
+            f"Successfully enriched paper {paper_id} with GitHub metrics: "
+            f"{github_metrics.get('total_mentions', 0)} total mentions"
         )
 
-        try:
-            # Retry with exponential backoff
-            self.retry(args=[paper_id, retry + 1], exc=e, countdown=60 * (retry + 1))
-        except MaxRetriesExceededError:
-            logger.error(
-                f"Max retries exceeded for GitHub enrichment of paper {paper_id}"
-            )
-            return {
-                "status": "error",
-                "paper_id": paper_id,
-                "reason": str(e),
-            }
+        return {
+            "status": "success",
+            "paper_id": paper_id,
+            "doi": paper.doi,
+            "metrics": github_metrics,
+        }
+
+    # Handle other statuses (skipped, error)
+    if enrichment_result.status == "error":
+        sentry.log_error(
+            Exception(enrichment_result.reason),
+            message=f"Error enriching paper {paper_id} with GitHub metrics",
+        )
+
+    return {
+        "status": enrichment_result.status,
+        "paper_id": paper_id,
+        "doi": paper.doi,
+        "reason": enrichment_result.reason,
+    }
 
 
 def _create_github_metrics_client() -> GithubMetricsClient:
