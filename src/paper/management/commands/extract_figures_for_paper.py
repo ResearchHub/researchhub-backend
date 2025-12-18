@@ -1,8 +1,10 @@
 from dateutil import parser
+from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Q
 from django.utils import timezone
 
+from feed.models import FeedEntry
 from paper.models import Figure, Paper
 from paper.tasks import extract_pdf_figures
 
@@ -56,6 +58,11 @@ class Command(BaseCommand):
             action="store_true",
             help="Process all papers even if they already have primary figures",
         )
+        parser.add_argument(
+            "--min-hot-score",
+            type=int,
+            help="Only process papers with hot_score_v2 >= this value",
+        )
 
     def handle(self, *args, **options):
         paper_ids = options["paper_id"]
@@ -65,6 +72,7 @@ class Command(BaseCommand):
         created_end = options.get("created_end")
         dry_run = options.get("dry_run", False)
         force = options.get("force", False)
+        min_hot_score = options.get("min_hot_score")
 
         # Priority 1: Published date range
         if published_start:
@@ -114,6 +122,37 @@ class Command(BaseCommand):
                 "Please provide paper IDs or use --published-start/--created-start"
             )
 
+        # Apply hot_score_v2 filter if specified
+        if min_hot_score is not None:
+            paper_content_type = ContentType.objects.get_for_model(Paper)
+            feed_entry_paper_ids = set(
+                FeedEntry.objects.filter(
+                    content_type=paper_content_type,
+                    hot_score_v2__gte=min_hot_score,
+                ).values_list("object_id", flat=True)
+            )
+
+            filtered_paper_ids = [
+                pid for pid in paper_ids if pid in feed_entry_paper_ids
+            ]
+            filtered_count = len(paper_ids) - len(filtered_paper_ids)
+
+            if filtered_count > 0:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Filtered out {filtered_count} paper(s) with "
+                        f"hot_score_v2 < {min_hot_score}"
+                    )
+                )
+
+            paper_ids = filtered_paper_ids
+
+            if not paper_ids:
+                raise CommandError(
+                    f"No papers found with hot_score_v2 >= {min_hot_score}. "
+                    "Try lowering the --min-hot-score value."
+                )
+
         # Filter out papers that already have primary figures (unless --force is used)
         if not force:
             papers_with_primary = set(
@@ -134,7 +173,16 @@ class Command(BaseCommand):
                     )
                 )
 
-        self.stdout.write(f"\nFound {len(paper_ids)} papers to process\n")
+        filter_info = []
+        if min_hot_score is not None:
+            filter_info.append(f"hot_score_v2 >= {min_hot_score}")
+        if filter_info:
+            self.stdout.write(
+                f"\nFound {len(paper_ids)} papers to process "
+                f"(filters: {', '.join(filter_info)})\n"
+            )
+        else:
+            self.stdout.write(f"\nFound {len(paper_ids)} papers to process\n")
 
         if dry_run:
             self.stdout.write(self.style.WARNING("DRY RUN - No extraction will occur"))
@@ -145,9 +193,22 @@ class Command(BaseCommand):
                         paper=paper, is_primary=True
                     ).exists()
                     primary_status = " (has primary)" if has_primary else ""
+                    # Show hot_score_v2 if min_hot_score filter is applied
+                    hot_score_info = ""
+                    if min_hot_score is not None:
+                        paper_content_type = ContentType.objects.get_for_model(Paper)
+                        feed_entry = FeedEntry.objects.filter(
+                            content_type=paper_content_type,
+                            object_id=paper.id,
+                        ).first()
+                        if feed_entry:
+                            hot_score_info = (
+                                f" [hot_score_v2: {feed_entry.hot_score_v2}]"
+                            )
                     self.stdout.write(
                         f"  {paper.id}: {paper.title[:60]}... "
                         f"(published: {paper.paper_publish_date}){primary_status}"
+                        f"{hot_score_info}"
                     )
                 except Paper.DoesNotExist:
                     self.stdout.write(f"  {pid}: NOT FOUND")
