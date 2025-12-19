@@ -40,7 +40,7 @@ class OrcidClient:
             )
             response.raise_for_status()
             return response.json().get("email", [])
-        except Exception:
+        except requests.RequestException:
             return []
 
     def get_works(self, orcid_id: str) -> dict:
@@ -53,6 +53,6 @@ class OrcidClient:
             )
             response.raise_for_status()
             return response.json()
-        except Exception:
+        except requests.RequestException:
             return {}
 

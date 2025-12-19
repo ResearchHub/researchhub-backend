@@ -27,3 +27,4 @@ class SyncOrcidPapersTaskTests(TestCase):
         # Act & Assert
         with self.assertRaises(ValueError):
             sync_orcid_papers_task(1, service=mock_service)
+

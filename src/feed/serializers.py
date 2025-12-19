@@ -50,12 +50,15 @@ class SimpleAuthorSerializer(serializers.ModelSerializer):
     user = SimpleUserSerializer()
 
     def get_profile_image(self, obj):
-        if (
-            hasattr(obj, "profile_image")
-            and obj.profile_image.name
-            and obj.profile_image.url
-        ):
-            return obj.profile_image.url
+        try:
+            if (
+                hasattr(obj, "profile_image")
+                and obj.profile_image.name
+                and obj.profile_image.url
+            ):
+                return obj.profile_image.url
+        except Exception:
+            pass
 
         return None
 
@@ -212,6 +215,7 @@ class PaperSerializer(ContentObjectSerializer):
     bounties = serializers.SerializerMethodField()
     purchases = serializers.SerializerMethodField()
     primary_image = serializers.SerializerMethodField()
+    primary_image_thumbnail = serializers.SerializerMethodField()
 
     def get_bounties(self, obj):
         return self.get_bounty_data(obj)
@@ -239,7 +243,16 @@ class PaperSerializer(ContentObjectSerializer):
             primary_figure = obj.figures.filter(is_primary=True).first()
             if not primary_figure or not primary_figure.file:
                 return None
-            return default_storage.url(primary_figure.file.name)
+            return primary_figure.file.url
+        except Exception:
+            return None
+
+    def get_primary_image_thumbnail(self, obj):
+        try:
+            primary_figure = obj.figures.filter(is_primary=True).first()
+            if not primary_figure or not primary_figure.thumbnail:
+                return None
+            return primary_figure.thumbnail.url
         except Exception:
             return None
 
@@ -254,6 +267,7 @@ class PaperSerializer(ContentObjectSerializer):
             "bounties",
             "purchases",
             "primary_image",
+            "primary_image_thumbnail",
         ]
 
 
@@ -585,7 +599,8 @@ class FeedEntrySerializer(serializers.ModelSerializer):
         # Shim #1: temporary shim to ensure we have a journal set for as many
         # papers as possible until we get to the bottom of why some papers
         # don't have journal properly set.
-        # Shim #2: If journal is set but not a known preprint source, fetch journal from unified document.
+        # Shim #2: If journal is set but not a known preprint source,
+        # fetch journal from unified document.
         if obj.content_type.model == "paper":
             journal = content.get("journal")
             journal_slug = (
@@ -612,9 +627,10 @@ class FeedEntrySerializer(serializers.ModelSerializer):
                         },
                     }
 
-        if obj.content_type.model == "paper" and obj.item:
-            primary_image = PaperSerializer(obj.item).get_primary_image(obj.item)
-            content["primary_image"] = primary_image
+            if "primary_image" not in content:
+                content["primary_image"] = None
+            if "primary_image_thumbnail" not in content:
+                content["primary_image_thumbnail"] = None
 
         return content
 

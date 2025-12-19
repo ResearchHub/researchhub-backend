@@ -2,6 +2,7 @@ from django.test import TestCase
 
 from orcid.services import OrcidConnectService
 from orcid.tests.helpers import OrcidTestHelper
+from orcid.utils import is_valid_redirect_url
 
 
 class OrcidConnectServiceTests(TestCase):
@@ -25,9 +26,9 @@ class OrcidConnectServiceTests(TestCase):
 
     def test_is_valid_redirect_url(self):
         # Act
-        valid = self.service._is_valid_redirect_url("https://researchhub.com/page")
-        invalid = self.service._is_valid_redirect_url("https://evil.com")
-        empty = self.service._is_valid_redirect_url(None)
+        valid = is_valid_redirect_url("https://researchhub.com/page")
+        invalid = is_valid_redirect_url("https://evil.com")
+        empty = is_valid_redirect_url(None)
 
         # Assert
         self.assertTrue(valid)

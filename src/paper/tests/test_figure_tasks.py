@@ -2,19 +2,20 @@ from io import BytesIO
 from unittest.mock import MagicMock, patch
 
 from django.core.files.base import ContentFile
+from django.core.files.storage import FileSystemStorage
 from django.test import TestCase
 from PIL import Image
 
 from paper.models import Figure
 from paper.services.bedrock_primary_image_service import MIN_PRIMARY_SCORE_THRESHOLD
-from paper.tasks import (
-    create_pdf_screenshot,
-    extract_pdf_figures,
-    select_primary_image,
-)
+from paper.tasks import create_pdf_screenshot, extract_pdf_figures, select_primary_image
 from paper.tests import helpers
 
+test_storage = FileSystemStorage()
 
+
+@patch.object(Figure._meta.get_field("file"), "storage", test_storage)
+@patch.object(Figure._meta.get_field("thumbnail"), "storage", test_storage)
 class ExtractPdfFiguresTaskTests(TestCase):
     """Test suite for extract_pdf_figures Celery task."""
 
@@ -33,7 +34,9 @@ class ExtractPdfFiguresTaskTests(TestCase):
         paper.file = None
         paper.save()
 
-        with patch("paper.tasks.figure_tasks.extract_pdf_figures.apply_async") as mock_retry:
+        with patch(
+            "paper.tasks.figure_tasks.extract_pdf_figures.apply_async"
+        ) as mock_retry:
             result = extract_pdf_figures(paper.id)
             self.assertFalse(result)
             mock_retry.assert_called_once()
@@ -314,6 +317,8 @@ class ExtractPdfFiguresTaskTests(TestCase):
         mock_retry.assert_called_once()
 
 
+@patch.object(Figure._meta.get_field("file"), "storage", test_storage)
+@patch.object(Figure._meta.get_field("thumbnail"), "storage", test_storage)
 class SelectPrimaryImageTaskTests(TestCase):
     """Test suite for select_primary_image Celery task."""
 
@@ -351,7 +356,9 @@ class SelectPrimaryImageTaskTests(TestCase):
         paper.file.name = "test.pdf"
         paper.save()
 
-        with patch("paper.tasks.figure_tasks.create_pdf_screenshot") as mock_create_preview:
+        with patch(
+            "paper.tasks.figure_tasks.create_pdf_screenshot"
+        ) as mock_create_preview:
             mock_create_preview.return_value = True
             result = select_primary_image(paper.id)
 
@@ -458,6 +465,8 @@ class SelectPrimaryImageTaskTests(TestCase):
         mock_retry.assert_called_once()
 
 
+@patch.object(Figure._meta.get_field("file"), "storage", test_storage)
+@patch.object(Figure._meta.get_field("thumbnail"), "storage", test_storage)
 class CreatePdfScreenshotTests(TestCase):
     """Test suite for create_pdf_screenshot helper function."""
 
@@ -534,4 +543,3 @@ class CreatePdfScreenshotTests(TestCase):
         result = create_pdf_screenshot(paper)
 
         self.assertFalse(result)
-

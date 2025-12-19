@@ -18,15 +18,20 @@ class RecommendationClient:
     Client for interacting with AWS Personalize to get personalized recommendations.
     """
 
-    NEW_CONTENT_FILTER_DAYS = 60
-    TRENDING_NEW_CONTENT_FILTER_DAYS = 60
+    # Number of days to look back for content filtering
+    FILTER_DAYS = 45
 
     def __init__(self):
         """Initialize the Personalize runtime client."""
         self.client = create_client("personalize-runtime")
         self.campaign_arn = settings.AWS_PERSONALIZE_CAMPAIGN_ARN
         self.trending_campaign_arn = settings.AWS_PERSONALIZE_TRENDING_CAMPAIGN_ARN
-        self.filter_arn_gte_date = settings.AWS_PERSONALIZE_FILTER_ARN_GTE_DATE
+        self.filter_arn_recent_preprints = (
+            settings.AWS_PERSONALIZE_FILTER_ARN_RECENT_PREPRINTS
+        )
+        self.filter_arn_recent_preprints_per_hub = (
+            settings.AWS_PERSONALIZE_FILTER_ARN_RECENT_PREPRINTS_PER_HUB
+        )
 
     def get_recommendations(
         self,
@@ -47,9 +52,10 @@ class RecommendationClient:
             }
 
             # Add filter parameters if provided
-            if filter_arn and filter_values:
+            if filter_arn:
                 params["filterArn"] = filter_arn
-                params["filterValues"] = filter_values
+                if filter_values:
+                    params["filterValues"] = filter_values
 
             logger.info(
                 f"Requesting recommendations for user {user_id} "
@@ -76,28 +82,36 @@ class RecommendationClient:
             )
             raise
 
+    def _get_date_cutoff(self) -> str:
+        """Calculate the timestamp cutoff for filtering."""
+        cutoff_date = datetime.now() - timedelta(days=self.FILTER_DAYS)
+        return str(int(cutoff_date.timestamp()))
+
     def get_recommendations_for_user(
         self,
         user_id: str,
         filter: Optional[str] = None,
+        hub_id: Optional[str] = None,
         num_results: int = 20,
     ) -> Dict[str, Any]:
         filter_arn = None
         filter_values = None
+        date_cutoff = self._get_date_cutoff()
 
-        # Apply filtering
-        if filter == "new-content":
-            # Filter to content from last N days
-            cutoff_date = datetime.now() - timedelta(days=self.NEW_CONTENT_FILTER_DAYS)
-            timestamp_cutoff = int(cutoff_date.timestamp())
-
-            filter_arn = self.filter_arn_gte_date
-            filter_values = {"DATE": str(timestamp_cutoff)}
-
+        # Apply filtering based on filter type
+        if filter == "recent-preprints-per-hub" and hub_id:
+            filter_arn = self.filter_arn_recent_preprints_per_hub
+            filter_values = {"DATE": date_cutoff, "HUB_ID": str(hub_id)}
             logger.info(
-                f"Applying new-content filter (last "
-                f"{self.NEW_CONTENT_FILTER_DAYS} days) with "
-                f"timestamp: {timestamp_cutoff}"
+                f"Applying recent-preprints-per-hub filter with hub_id: {hub_id}, "
+                f"date_cutoff: {date_cutoff}"
+            )
+        else:
+            # Default to recent-preprints filter
+            filter_arn = self.filter_arn_recent_preprints
+            filter_values = {"DATE": date_cutoff}
+            logger.info(
+                f"Applying recent-preprints filter with date_cutoff: {date_cutoff}"
             )
 
         result = self.get_recommendations(
@@ -116,34 +130,23 @@ class RecommendationClient:
 
     def get_trending_items(
         self,
-        filter: Optional[str] = None,
         num_results: int = 200,
     ) -> Dict[str, Any]:
         """
         Get global trending items from AWS Personalize.
         """
         try:
+            date_cutoff = self._get_date_cutoff()
             params = {
                 "campaignArn": self.trending_campaign_arn,
                 "numResults": num_results,
+                "filterArn": self.filter_arn_recent_preprints,
+                "filterValues": {"DATE": date_cutoff},
             }
 
-            # Apply filtering
-            if filter == "new-content":
-                # Filter to content from last N days (20 days for trending)
-                cutoff_date = datetime.now() - timedelta(
-                    days=self.TRENDING_NEW_CONTENT_FILTER_DAYS
-                )
-                timestamp_cutoff = int(cutoff_date.timestamp())
-
-                params["filterArn"] = self.filter_arn_gte_date
-                params["filterValues"] = {"DATE": str(timestamp_cutoff)}
-
-                logger.info(
-                    f"Applying new-content filter for trending (last "
-                    f"{self.TRENDING_NEW_CONTENT_FILTER_DAYS} days) with "
-                    f"timestamp: {timestamp_cutoff}"
-                )
+            logger.info(
+                f"Applying recent-preprints filter for trending with date_cutoff: {date_cutoff}"
+            )
 
             response = self.client.get_recommendations(**params)
 

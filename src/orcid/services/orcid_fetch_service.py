@@ -137,3 +137,4 @@ class OrcidFetchService:
             if authorship.get("author", {}).get("orcid") == orcid_url:
                 return authorship.get("author_position", Authorship.MIDDLE_AUTHOR_POSITION)
         return Authorship.MIDDLE_AUTHOR_POSITION
+

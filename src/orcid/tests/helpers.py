@@ -47,3 +47,4 @@ class OrcidTestHelper:
             "doi": f"https://doi.org/{doi}",
             "authorships": [{"author": {"orcid": orcid_url or OrcidTestHelper.ORCID_URL}, "author_position": position}],
         }
+

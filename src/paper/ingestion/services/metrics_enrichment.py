@@ -120,7 +120,18 @@ class PaperMetricsEnrichmentService:
             )
 
         except Exception as e:
-            logger.error(f"Error fetching GitHub mentions for paper {paper.id}: {e}")
+            error_message = f"Error fetching GitHub metrics for paper {paper.id}: {e}"
+
+            # Check for retryable HTTP errors (rate limit, service unavailable)
+            # GitHub uses 403 for rate limiting, unlike X which uses 429
+            response = getattr(e, "response", None)
+            if response is not None:
+                status_code = getattr(response, "status_code", None)
+                if status_code in (401, 403, 429, 503):
+                    logger.warning(error_message)
+                    return EnrichmentResult(status="retryable_error", reason=str(e))
+
+            logger.error(error_message)
             return EnrichmentResult(status="error", reason=str(e))
 
     def enrich_paper_with_bluesky(self, paper: Paper) -> EnrichmentResult:

@@ -2,6 +2,7 @@ from paper.tasks.figure_tasks import (  # noqa: F401
     celery_extract_pdf_preview,
     create_pdf_screenshot,
     extract_pdf_figures,
+    generate_thumbnail_for_figure,
     select_primary_image,
 )
 from paper.tasks.tasks import (  # noqa: F401
