@@ -2,6 +2,7 @@ import base64
 from io import BytesIO
 from unittest.mock import MagicMock, patch
 
+from django.core.files.storage import FileSystemStorage
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from PIL import Image
@@ -13,7 +14,11 @@ from paper.services.bedrock_primary_image_service import (
 )
 from paper.tests import helpers
 
+test_storage = FileSystemStorage()
 
+
+@patch.object(Figure._meta.get_field("file"), "storage", test_storage)
+@patch.object(Figure._meta.get_field("thumbnail"), "storage", test_storage)
 class BedrockPrimaryImageServiceTests(TestCase):
     """Test suite for BedrockPrimaryImageService."""
 

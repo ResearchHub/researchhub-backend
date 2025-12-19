@@ -107,11 +107,8 @@ class FeedFilteringBackend(BaseFilterBackend):
             view._feed_source = "rh-popular"
             return queryset
 
-        filter_param = request.query_params.get("filter", None)
-
         try:
             result = personalize_feed_service.get_trending_ids(
-                filter_param=filter_param,
                 num_results=PERSONALIZE_CONFIG.get(
                     "trending_num_results", DEFAULT_NUM_RESULTS
                 ),
@@ -182,6 +179,8 @@ class FeedFilteringBackend(BaseFilterBackend):
             return self._filter_following(request, queryset, view)
 
         filter_param = request.query_params.get("filter", None)
+        hub_id_param = request.query_params.get("hub_id", None)
+        hub_id = int(hub_id_param) if hub_id_param else None
         force_refresh_header = request.META.get("HTTP_RH_FORCE_REFRESH", "false")
         force_refresh = force_refresh_header.lower() == "true"
 
@@ -189,6 +188,7 @@ class FeedFilteringBackend(BaseFilterBackend):
             result = personalize_feed_service.get_recommendation_ids(
                 user_id=user_id,
                 filter_param=filter_param,
+                hub_id=hub_id,
                 num_results=PERSONALIZE_CONFIG["num_results"],
                 force_refresh=force_refresh,
             )

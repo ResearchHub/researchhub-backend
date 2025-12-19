@@ -22,15 +22,20 @@ class FeedService:
         self,
         user_id: int,
         filter_param: Optional[str] = None,
+        hub_id: Optional[int] = None,
         num_results: Optional[int] = None,
         force_refresh: bool = False,
     ) -> Dict[str, Any]:
-        if not filter_param:
+        # If hub_id is provided, use the per-hub filter
+        if hub_id:
+            filter_param = "recent-preprints-per-hub"
+        elif not filter_param:
             filter_param = PERSONALIZE_CONFIG["default_filter"]
 
         return self._get_recommendation_ids(
             user_id=user_id,
             filter_param=filter_param,
+            hub_id=hub_id,
             num_results=num_results,
             force_refresh=force_refresh,
         )
@@ -39,13 +44,14 @@ class FeedService:
         self,
         user_id: int,
         filter_param: str,
+        hub_id: Optional[int],
         num_results: Optional[int],
         force_refresh: bool,
     ) -> Dict[str, Any]:
         if num_results is None:
             num_results = PERSONALIZE_CONFIG.get("num_results", DEFAULT_NUM_RESULTS)
 
-        cache_key = self._build_cache_key(user_id, filter_param)
+        cache_key = self._build_cache_key(user_id, filter_param, hub_id)
 
         if not force_refresh:
             cached_result = cache.get(cache_key)
@@ -60,6 +66,7 @@ class FeedService:
         result = self.personalize_client.get_recommendations_for_user(
             user_id=str(user_id),
             filter=filter_param,
+            hub_id=str(hub_id) if hub_id else None,
             num_results=num_results,
         )
 
@@ -69,9 +76,12 @@ class FeedService:
 
         return result
 
-    def _build_cache_key(self, user_id: int, filter_param: Optional[str]) -> str:
+    def _build_cache_key(
+        self, user_id: int, filter_param: Optional[str], hub_id: Optional[int] = None
+    ) -> str:
         filter_value = filter_param if filter_param else "none"
-        return f"personalized_ids:user-is-{user_id}:filter-is-{filter_value}"
+        hub_value = f":hub-is-{hub_id}" if hub_id else ""
+        return f"personalized_ids:user-is-{user_id}:filter-is-{filter_value}{hub_value}"
 
     def invalidate_cache_for_user(
         self,
@@ -94,7 +104,6 @@ class FeedService:
 
     def get_trending_ids(
         self,
-        filter_param: Optional[str] = None,
         num_results: Optional[int] = None,
         force_refresh: bool = False,
     ) -> Dict[str, Any]:
@@ -102,13 +111,10 @@ class FeedService:
         Get globally trending item IDs from AWS Personalize.
         Results are cached globally (not per-user).
         """
-        if not filter_param:
-            filter_param = PERSONALIZE_CONFIG["default_filter"]
-
         if num_results is None:
             num_results = PERSONALIZE_CONFIG.get("num_results", DEFAULT_NUM_RESULTS)
 
-        cache_key = self._build_trending_cache_key(num_results, filter_param)
+        cache_key = self._build_trending_cache_key(num_results)
 
         if not force_refresh:
             cached_result = cache.get(cache_key)
@@ -121,7 +127,6 @@ class FeedService:
         self.cache_hit_trending = False
 
         result = self.personalize_client.get_trending_items(
-            filter=filter_param,
             num_results=num_results,
         )
 
@@ -131,22 +136,16 @@ class FeedService:
 
         return result
 
-    def _build_trending_cache_key(
-        self, num_results: int, filter_param: Optional[str] = None
-    ) -> str:
-        filter_value = filter_param if filter_param else "none"
-        return f"trending_ids:num-{num_results}:filter-is-{filter_value}"
+    def _build_trending_cache_key(self, num_results: int) -> str:
+        return f"trending_ids:num-{num_results}"
 
     def invalidate_trending_cache(
         self,
-        filter_param: Optional[str] = None,
         num_results: Optional[int] = None,
     ) -> None:
         """Invalidate trending cache."""
         if num_results is None:
             num_results = PERSONALIZE_CONFIG.get("num_results", DEFAULT_NUM_RESULTS)
-        if not filter_param:
-            filter_param = PERSONALIZE_CONFIG["default_filter"]
-        cache_key = self._build_trending_cache_key(num_results, filter_param)
+        cache_key = self._build_trending_cache_key(num_results)
         cache.delete(cache_key)
         logger.info(f"Invalidated trending cache: {cache_key}")

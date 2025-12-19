@@ -6,7 +6,6 @@ FEED_CONFIG = {
     "personalized": {
         "use_cache": False,
         "allowed_sorts": [],
-        "min_interactions_for_personalize": 5,
     },
     "popular": {
         "allowed_sorts": ["aws_trending", "hot_score_v2", "hot_score"],

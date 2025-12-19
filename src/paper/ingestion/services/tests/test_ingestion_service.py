@@ -190,6 +190,7 @@ class TestPaperIngestionService(TestCase):
         existing_paper.title = "Old Title"
         existing_paper.abstract = "Old Abstract"
         existing_paper.external_source = "old_source"
+        existing_paper.external_metadata = {"metrics": {"x": 100}}
         existing_paper.save = Mock()
 
         new_paper = Mock(spec=Paper)
@@ -200,6 +201,7 @@ class TestPaperIngestionService(TestCase):
         new_paper.raw_authors = [{"name": "Author"}]
         new_paper.external_metadata = {"key": "value"}
         new_paper.external_source = "chemrxiv"
+        new_paper.external_metadata = {"external_id": "12345"}
         new_paper.pdf_url = "https://example.com/paper.pdf"
         new_paper.url = "https://example.com/paper"
         new_paper.is_open_access = True
@@ -210,6 +212,10 @@ class TestPaperIngestionService(TestCase):
         self.assertEqual(existing_paper.title, "New Title")
         self.assertEqual(existing_paper.abstract, "New Abstract")
         self.assertEqual(existing_paper.external_source, "chemrxiv")
+        self.assertEqual(
+            existing_paper.external_metadata,
+            {"metrics": {"x": 100}, "external_id": "12345"},
+        )
         existing_paper.save.assert_called_once()
         self.assertEqual(result, existing_paper)
 
