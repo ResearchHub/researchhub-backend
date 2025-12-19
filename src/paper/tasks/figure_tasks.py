@@ -4,13 +4,16 @@ import fitz
 import requests
 from celery.utils.log import get_task_logger
 from django.apps import apps
+from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.core.files.base import ContentFile
 from django.db import transaction
 from PIL import Image
 
-from paper.services.bedrock_primary_image_service import MIN_PRIMARY_SCORE_THRESHOLD
-from paper.services.bedrock_primary_image_service import BedrockPrimaryImageService
+from paper.services.bedrock_primary_image_service import (
+    MIN_PRIMARY_SCORE_THRESHOLD,
+    BedrockPrimaryImageService,
+)
 from paper.services.figure_extraction_service import FigureExtractionService
 from paper.tasks.tasks import create_download_url
 from paper.utils import download_pdf_from_url, get_cache_key
@@ -18,6 +21,54 @@ from researchhub.celery import QUEUE_PAPER_MISC, app
 from utils import sentry
 
 logger = get_task_logger(__name__)
+
+
+def generate_thumbnail_for_figure(figure) -> bool:
+    """
+    Generate and save a WebP thumbnail for a figure.
+
+    This should be called when a figure is selected as primary image.
+    Thumbnails are only needed for primary images displayed in feeds.
+
+    Args:
+        figure: Figure model instance
+
+    Returns:
+        True if thumbnail was generated successfully, False otherwise
+    """
+    try:
+        if not figure.file:
+            logger.warning(f"Figure {figure.id} has no file, cannot generate thumbnail")
+            return False
+
+        # Read the figure image
+        figure.file.open("rb")
+        image_bytes = figure.file.read()
+        figure.file.close()
+
+        # Open with PIL
+        img_buffer = BytesIO(image_bytes)
+        pil_image = Image.open(img_buffer)
+
+        # Get base filename without extension
+        filename = figure.file.name.split("/")[-1]
+        filename_base = filename.rsplit(".", 1)[0]
+
+        # Generate thumbnail using extraction service
+        extraction_service = FigureExtractionService()
+        thumbnail_file = extraction_service.create_thumbnail(pil_image, filename_base)
+
+        # Save thumbnail to figure
+        figure.thumbnail = thumbnail_file
+        figure.save(update_fields=["thumbnail"])
+
+        logger.info(f"Generated thumbnail for figure {figure.id}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Error generating thumbnail for figure {figure.id}: {e}")
+        sentry.log_error(e)
+        return False
 
 
 @app.task(queue=QUEUE_PAPER_MISC)
@@ -61,7 +112,10 @@ def celery_extract_pdf_preview(paper_id, retry=0):
                 image.save(img_buffer, "png", quality=0)
                 file = ContentFile(img_buffer.getvalue(), name=output_filename)
                 Figure.objects.create(
-                    file=file, paper=paper, figure_type=Figure.PREVIEW
+                    file=file,
+                    paper=paper,
+                    figure_type=Figure.PREVIEW,
+                    thumbnail=None,
                 )
     except Exception as e:
         sentry.log_error(e)
@@ -164,6 +218,7 @@ def extract_pdf_figures(
                         file=content_file,
                         paper=paper,
                         figure_type=Figure.FIGURE,
+                        thumbnail=None,
                     )
                     figures_created += 1
 
@@ -239,6 +294,14 @@ def create_pdf_screenshot(paper) -> bool:
             Figure.objects.filter(paper=paper).update(is_primary=False)
             existing_preview.is_primary = True
             existing_preview.save(update_fields=["is_primary"])
+
+            # Refresh feed entries to update cached primary_image and thumbnail
+            from feed.tasks import refresh_feed_entries_for_objects
+
+            Paper = apps.get_model("paper.Paper")
+            paper_content_type = ContentType.objects.get_for_model(Paper)
+            refresh_feed_entries_for_objects.delay(paper.id, paper_content_type.id)
+
             logger.info(f"Using existing preview for paper {paper.id}")
             return True
 
@@ -269,9 +332,16 @@ def create_pdf_screenshot(paper) -> bool:
         output_filename = f"{paper.id}-preview-page0.png"
         content_file = ContentFile(img_buffer.getvalue(), name=output_filename)
 
-        # Create figure as PREVIEW type
+        # Create thumbnail using FigureExtractionService
+        extraction_service = FigureExtractionService()
+        thumbnail_file = extraction_service.create_thumbnail(
+            image, f"{paper.id}-preview-page0"
+        )
+
+        # Create figure as PREVIEW type with thumbnail
         preview_figure = Figure.objects.create(
             file=content_file,
+            thumbnail=thumbnail_file,
             paper=paper,
             figure_type=Figure.PREVIEW,
             is_primary=True,
@@ -284,7 +354,16 @@ def create_pdf_screenshot(paper) -> bool:
 
         doc.close()
 
-        logger.info(f"Created preview for paper {paper.id}: {output_filename}")
+        # Refresh feed entries to update cached primary_image and thumbnail
+        from feed.tasks import refresh_feed_entries_for_objects
+
+        Paper = apps.get_model("paper.Paper")
+        paper_content_type = ContentType.objects.get_for_model(Paper)
+        refresh_feed_entries_for_objects.delay(paper.id, paper_content_type.id)
+
+        logger.info(
+            f"Created preview with thumbnail for paper {paper.id}: {output_filename}"
+        )
         return True
 
     except Exception as e:
@@ -374,6 +453,16 @@ def select_primary_image(self, paper_id, retry=0):
             Figure.objects.filter(paper=paper).update(is_primary=False)
             Figure.objects.filter(id=selected_figure_id).update(is_primary=True)
 
+            # Generate thumbnail for the selected primary figure
+            selected_figure = Figure.objects.get(id=selected_figure_id)
+            generate_thumbnail_for_figure(selected_figure)
+
+            from feed.tasks import refresh_feed_entries_for_objects
+
+            Paper = apps.get_model("paper.Paper")
+            paper_content_type = ContentType.objects.get_for_model(Paper)
+            refresh_feed_entries_for_objects.delay(paper.id, paper_content_type.id)
+
             logger.info(
                 f"Selected primary image {selected_figure_id} "
                 f"(score: {best_score}%) for paper {paper_id}"
@@ -396,4 +485,3 @@ def select_primary_image(self, paper_id, retry=0):
             )
 
         return False
-

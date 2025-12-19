@@ -8,6 +8,7 @@ from django.db import connection, reset_queries
 from django.db.models import Q, QuerySet
 
 from analytics.models import UserInteractions
+from paper.related_models.paper_model import Paper
 from personalize.config.constants import SUPPORTED_DOCUMENT_TYPES
 from personalize.services.export_service import ExportService
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -19,7 +20,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             "--since-publish-date",
-            help="Include items published/created after this date (YYYY-MM-DD)",
+            help="Include papers with paper_publish_date >= this date (YYYY-MM-DD)",
         )
         parser.add_argument(
             "--ids",
@@ -27,10 +28,11 @@ class Command(BaseCommand):
             type=int,
             help="Specific unified document IDs to export (space-separated)",
         )
+        # Note: Cannot be combined with --since-publish-date. If both are provided, --since-publish-date takes precedence.
         parser.add_argument(
             "--with-interactions",
             action=argparse.BooleanOptionalAction,
-            default=True,
+            default=False,
             help="Export items that have user interactions (default: True)",
         )
         parser.add_argument(
@@ -305,15 +307,17 @@ class Command(BaseCommand):
                 self._debug_log(f"Found {len(post_ids)} post documents")
 
         if since_publish_date:
-            date_ids = set(
-                base_queryset.filter(created_date__gte=since_publish_date).values_list(
-                    "id", flat=True
-                )
+            # Get unified document IDs for papers with paper_publish_date >= since_publish_date
+            paper_doc_ids = set(
+                Paper.objects.filter(
+                    paper_publish_date__gte=since_publish_date,
+                    unified_document__isnull=False,
+                ).values_list("unified_document_id", flat=True)
             )
-            combined_ids.update(date_ids)
+            combined_ids.update(paper_doc_ids)
             if self.debug_mode:
                 self._debug_log(
-                    f"Found {len(date_ids)} documents since {since_publish_date.date()}"
+                    f"Found {len(paper_doc_ids)} papers with publish date >= {since_publish_date.date()}"
                 )
 
         if not combined_ids:
