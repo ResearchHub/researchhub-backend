@@ -12,7 +12,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from orcid.clients import OrcidClient
-from orcid.config import ORCID_BASE_URL, STATE_MAX_AGE
+from orcid.config import EDU_DOMAINS, ORCID_BASE_URL, STATE_MAX_AGE
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -70,10 +70,11 @@ class OrcidCallbackService:
     def _save_orcid_connection(self, user: User, token_data: dict) -> None:
         """Save ORCID connection: social account, token, and author profile."""
         orcid_id = token_data["orcid"]
-
+        access_token = token_data.get("access_token", "")
+        verified_edu_emails = self._fetch_verified_edu_emails(orcid_id, access_token)
         with transaction.atomic():
             self._verify_orcid_not_linked(orcid_id, user)
-            account = self._create_social_account(user, orcid_id, token_data)
+            account = self._create_social_account(user, orcid_id, token_data, verified_edu_emails)
             self._store_oauth_token(account, token_data)
             self._update_author_orcid(user, orcid_id)
 
@@ -82,11 +83,14 @@ class OrcidCallbackService:
         if SocialAccount.objects.filter(provider=OrcidProvider.id, uid=orcid_id).exclude(user=user).exists():
             raise ValueError("ORCID already linked to another account")
 
-    def _create_social_account(self, user: User, orcid_id: str, token_data: dict) -> SocialAccount:
+    def _create_social_account(
+        self, user: User, orcid_id: str, token_data: dict, verified_edu_emails: list[str]
+    ) -> SocialAccount:
         """Create or update the user's ORCID social account."""
         extra_data = {
             "name": token_data.get("name", ""),
             "scope": token_data.get("scope", ""),
+            "verified_edu_emails": verified_edu_emails,
         }
         account, _ = SocialAccount.objects.update_or_create(
             user=user, provider=OrcidProvider.id,
@@ -126,4 +130,16 @@ class OrcidCallbackService:
             return False
         parsed = urlparse(url)
         return f"{parsed.scheme}://{parsed.netloc}" in settings.CORS_ORIGIN_WHITELIST
+
+    def _fetch_verified_edu_emails(self, orcid_id: str, access_token: str) -> list[str]:
+        """Fetch verified .edu emails from ORCID (if public)."""
+        emails = self.client.get_emails(orcid_id, access_token)
+        return [
+            e["email"] for e in emails
+            if e.get("verified") and self._is_edu_email(e.get("email", ""))
+        ]
+
+    def _is_edu_email(self, email: str) -> bool:
+        """Check if email is from an academic domain."""
+        return any(email.lower().endswith(d) for d in EDU_DOMAINS)
 

@@ -36,3 +36,26 @@ class OrcidClientTests(TestCase):
         # Act & Assert
         with self.assertRaises(HTTPError):
             self.client.exchange_code_for_token("code", "id", "secret", "https://example.com")
+
+    def test_get_emails_success(self):
+        # Arrange
+        self.mock_session.get.return_value = Mock(
+            json=lambda: {"email": [{"email": "user@stanford.edu", "verified": True}]},
+            raise_for_status=Mock()
+        )
+
+        # Act
+        result = self.client.get_emails(TEST_ORCID_ID, "token")
+
+        # Assert
+        self.assertEqual(result[0]["email"], "user@stanford.edu")
+
+    def test_get_emails_returns_empty_on_error(self):
+        # Arrange
+        self.mock_session.get.side_effect = Exception("API error")
+
+        # Act
+        result = self.client.get_emails(TEST_ORCID_ID, "token")
+
+        # Assert
+        self.assertEqual(result, [])
