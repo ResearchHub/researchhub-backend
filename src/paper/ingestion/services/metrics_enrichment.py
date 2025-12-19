@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any, Dict, List, Optional
 
+from dateutil import parser as date_parser
 from django.utils import timezone
 
 from paper.ingestion.clients import (
@@ -212,10 +213,7 @@ class PaperMetricsEnrichmentService:
             # Save individual X posts to the database
             posts = result.get("posts", [])
             if posts:
-                saved_count = self._save_x_posts(paper, posts)
-                logger.info(
-                    f"Saved {saved_count} X posts to database for paper {paper.id}."
-                )
+                self._save_x_posts(paper, posts)
 
             logger.info(
                 f"Successfully saved {result['post_count']} X posts for paper {paper.id}."
@@ -275,9 +273,7 @@ class PaperMetricsEnrichmentService:
         Returns:
             Number of posts created or updated
         """
-        from dateutil import parser as date_parser
 
-        saved_count = 0
         for post_data in posts:
             post_id = post_data.get("id")
             if not post_id:
@@ -307,6 +303,3 @@ class PaperMetricsEnrichmentService:
                     "impression_count": post_data.get("impression_count", 0),
                 },
             )
-            saved_count += 1
-
-        return saved_count
