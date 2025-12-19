@@ -50,7 +50,7 @@ class OrcidFetchService:
 
         orcid_id = self._extract_orcid_id(author.orcid_id)
         if not orcid_id:
-            raise ValueError("Author has no ORCID connected")
+            raise ValueError(f"Author {author_id} has no ORCID connected")
         return author, orcid_id
 
     def _extract_orcid_id(self, orcid_url: Optional[str]) -> str:

@@ -2,7 +2,7 @@ from typing import Optional
 
 import requests
 
-from orcid.config import ORCID_API_URL, ORCID_BASE_URL, REQUEST_TIMEOUT
+from orcid.config import ACCEPT_JSON, ORCID_API_URL, ORCID_BASE_URL, REQUEST_TIMEOUT
 
 
 class OrcidClient:
@@ -17,7 +17,7 @@ class OrcidClient:
         """Exchange OAuth authorization code for access token."""
         response = self.session.post(
             f"{ORCID_BASE_URL}/oauth/token",
-            headers={"Accept": "application/json"},
+            headers={"Accept": ACCEPT_JSON},
             data={
                 "client_id": client_id,
                 "client_secret": client_secret,
@@ -35,7 +35,7 @@ class OrcidClient:
         try:
             response = self.session.get(
                 f"{ORCID_API_URL}/v3.0/{orcid_id}/email",
-                headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json"},
+                headers={"Authorization": f"Bearer {access_token}", "Accept": ACCEPT_JSON},
                 timeout=REQUEST_TIMEOUT,
             )
             response.raise_for_status()
@@ -48,7 +48,7 @@ class OrcidClient:
         try:
             response = self.session.get(
                 f"{ORCID_API_URL}/v3.0/{orcid_id}/works",
-                headers={"Accept": "application/json"},
+                headers={"Accept": ACCEPT_JSON},
                 timeout=REQUEST_TIMEOUT,
             )
             response.raise_for_status()

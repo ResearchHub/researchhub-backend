@@ -1,6 +1,6 @@
 import logging
 from datetime import timedelta
-from typing import Optional, Tuple
+from typing import Callable, Optional, Tuple
 from urllib.parse import urlparse
 
 from allauth.socialaccount.models import SocialAccount, SocialApp, SocialToken
@@ -22,7 +22,9 @@ logger = logging.getLogger(__name__)
 class OrcidCallbackService:
     """Handles ORCID OAuth callback: validates state, exchanges tokens, stores connection."""
 
-    def __init__(self, client: Optional[OrcidClient] = None, sync_task=None):
+    def __init__(
+        self, client: Optional[OrcidClient] = None, sync_task: Optional[Callable] = None
+    ):
         self.client = client or OrcidClient()
         self.sync_task = sync_task or sync_orcid_papers_task
         self._orcid_app = None

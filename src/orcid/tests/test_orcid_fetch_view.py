@@ -8,7 +8,6 @@ from rest_framework.test import APIRequestFactory, force_authenticate
 
 from orcid.tests.helpers import OrcidTestHelper
 from orcid.views import OrcidFetchView
-from user.related_models.user_model import User
 from user.tests.helpers import create_random_default_user
 
 
@@ -33,7 +32,7 @@ class OrcidFetchViewTests(TestCase):
     def test_missing_author_returns_400(self):
         # Arrange
         self.user.author_profile.delete()
-        self.user = User.objects.get(id=self.user.id)
+        self.user.refresh_from_db()
         request = self.factory.post("/")
         force_authenticate(request, user=self.user)
 

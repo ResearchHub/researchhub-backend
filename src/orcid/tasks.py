@@ -16,6 +16,6 @@ def sync_orcid_papers_task(author_id: int, service: Optional[OrcidFetchService] 
         result = service.sync_papers(author_id)
         logger.info("Synced %s papers for author %s", result["papers_processed"], author_id)
         return result
-    except Exception as e:
-        logger.error("Failed to sync ORCID papers for author %s: %s", author_id, e)
+    except Exception:
+        logger.exception("Failed to sync ORCID papers for author %s", author_id)
         raise
