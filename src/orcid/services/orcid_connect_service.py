@@ -6,7 +6,7 @@ from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from django.conf import settings
 from django.core import signing
 
-from orcid.config.constants import ORCID_BASE_URL
+from orcid.config import ORCID_BASE_URL
 
 
 class OrcidConnectService:

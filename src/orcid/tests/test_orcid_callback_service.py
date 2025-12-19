@@ -1,0 +1,92 @@
+from unittest.mock import Mock
+
+from allauth.socialaccount.models import SocialAccount, SocialToken
+from allauth.socialaccount.providers.orcid.provider import OrcidProvider
+from django.core import signing
+from django.test import TestCase
+
+from orcid.services import OrcidCallbackService
+from orcid.tests.helpers import TEST_ORCID_ID, create_orcid_app
+from user.tests.helpers import create_random_default_user
+
+
+class OrcidCallbackServiceTests(TestCase):
+
+    def setUp(self):
+        self.mock_client = Mock()
+        self.service = OrcidCallbackService(client=self.mock_client)
+        create_orcid_app()
+
+    def test_process_callback_success(self):
+        # Arrange
+        user = create_random_default_user("test")
+        self.mock_client.exchange_code_for_token.return_value = {
+            "orcid": TEST_ORCID_ID, "access_token": "tk", "refresh_token": "rt", "expires_in": 3600
+        }
+        state = signing.dumps({"user_id": user.id, "return_url": "https://researchhub.com/p"})
+
+        # Act
+        result = self.service.process_callback("code", state)
+
+        # Assert
+        self.assertIn("orcid_connected=true", result)
+        self.assertTrue(SocialAccount.objects.filter(user=user, provider=OrcidProvider.id).exists())
+        self.assertEqual(SocialToken.objects.get(account__user=user).token, "tk")
+        user.author_profile.refresh_from_db()
+        self.assertIn(TEST_ORCID_ID, user.author_profile.orcid_id)
+
+    def test_process_callback_invalid_state(self):
+        # Act
+        result = self.service.process_callback("code", "invalid")
+
+        # Assert
+        self.assertIn("orcid_error=error", result)
+
+    def test_process_callback_user_not_found(self):
+        # Arrange
+        state = signing.dumps({"user_id": 999999})
+
+        # Act
+        result = self.service.process_callback("code", state)
+
+        # Assert
+        self.assertIn("orcid_error=error", result)
+
+    def test_process_callback_already_linked(self):
+        # Arrange
+        user1 = create_random_default_user("u1")
+        user2 = create_random_default_user("u2")
+        SocialAccount.objects.create(user=user1, provider=OrcidProvider.id, uid=TEST_ORCID_ID)
+        self.mock_client.exchange_code_for_token.return_value = {"orcid": TEST_ORCID_ID}
+        state = signing.dumps({"user_id": user2.id})
+
+        # Act
+        result = self.service.process_callback("code", state)
+
+        # Assert
+        self.assertIn("orcid_error=already_linked", result)
+
+    def test_process_callback_missing_orcid(self):
+        # Arrange
+        user = create_random_default_user("u")
+        state = signing.dumps({"user_id": user.id})
+        self.mock_client.exchange_code_for_token.return_value = {"access_token": "tk"}
+
+        # Act
+        result = self.service.process_callback("code", state)
+
+        # Assert
+        self.assertIn("orcid_error=error", result)
+
+    def test_get_redirect_url(self):
+        # Act
+        success = self.service.get_redirect_url(return_url="https://researchhub.com?foo=bar")
+        error = self.service.get_redirect_url(error="failed")
+        invalid = self.service.get_redirect_url(return_url="https://evil.com")
+
+        # Assert
+        self.assertIn("orcid_connected=true", success)
+        self.assertIn("foo=bar", success)
+        self.assertIn("orcid_error=failed", error)
+        self.assertNotIn("evil.com", invalid)
+

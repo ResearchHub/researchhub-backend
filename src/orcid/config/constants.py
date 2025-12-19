@@ -1,1 +1,3 @@
 ORCID_BASE_URL = "https://orcid.org"
+REQUEST_TIMEOUT = 30
+STATE_MAX_AGE = 600
