@@ -1,5 +1,7 @@
 from io import BytesIO
+from unittest.mock import patch
 
+from django.core.files.storage import FileSystemStorage
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.forms.models import model_to_dict
 from django.test import TestCase
@@ -13,7 +15,11 @@ from paper.tests import helpers
 from review.models.peer_review_model import PeerReview
 from user.tests.helpers import create_random_default_user
 
+test_storage = FileSystemStorage()
 
+
+@patch.object(Figure._meta.get_field("file"), "storage", test_storage)
+@patch.object(Figure._meta.get_field("thumbnail"), "storage", test_storage)
 class PaperSerializersTests(TestCase):
 
     def setUp(self):

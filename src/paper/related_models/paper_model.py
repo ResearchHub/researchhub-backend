@@ -15,6 +15,7 @@ from discussion.models import AbstractGenericReactionModel, Vote
 from hub.models import Hub
 from paper.lib import journal_hosts
 from paper.related_models.citation_model import Citation
+from paper.storage.figure_storage import FigureStorage
 from paper.utils import get_csl_item, populate_pdf_url_from_journal_url
 from purchase.models import Purchase
 from reputation.models import Score, ScoreChange
@@ -545,7 +546,19 @@ class Figure(models.Model):
     FIGURE_TYPE_CHOICES = [(FIGURE, "Figure"), (PREVIEW, "Preview")]
 
     file = models.FileField(
-        upload_to="uploads/figures/%Y/%m/%d", default=None, null=True, blank=True
+        upload_to="uploads/figures/%Y/%m/%d",
+        storage=FigureStorage(),
+        default=None,
+        null=True,
+        blank=True,
+    )
+    thumbnail = models.FileField(
+        upload_to="uploads/figures/thumbnails/%Y/%m/%d",
+        storage=FigureStorage(),
+        default=None,
+        null=True,
+        blank=True,
+        help_text="WebP thumbnail for fast loading in feeds",
     )
     paper = models.ForeignKey(Paper, on_delete=models.CASCADE, related_name="figures")
     figure_type = models.CharField(choices=FIGURE_TYPE_CHOICES, max_length=16)

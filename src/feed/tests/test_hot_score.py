@@ -2,14 +2,13 @@
 Tests for the hot score calculation module.
 """
 
-import math
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
-from feed.hot_score import CONTENT_TYPE_WEIGHTS, calculate_hot_score_for_item
+from feed.hot_score import calculate_hot_score_for_item
 from feed.models import FeedEntry
 from feed.serializers import serialize_feed_item, serialize_feed_metrics
 from paper.tests.helpers import create_paper
@@ -136,9 +135,10 @@ class TestHotScore(TestCase):
 
     def test_time_decay_effect(self):
         """Test that time decay significantly reduces scores for old content."""
-        # Create very old content with minimal activity
+        old_publish_date = self.now - timedelta(days=100)
+
+        # Create old paper (published 100 days ago)
         old_paper = create_paper(uploaded_by=self.user)
-        old_paper.created_date = self.now - timedelta(days=100)  # Very old
         old_paper.score = 1
         old_paper.save()
         old_paper_content_type = ContentType.objects.get_for_model(old_paper)
@@ -148,12 +148,12 @@ class TestHotScore(TestCase):
             content_type=old_paper_content_type,
             object_id=old_paper.id,
             action=FeedEntry.PUBLISH,
-            action_date=self.now,
+            action_date=old_publish_date,  # Published 100 days ago
             content=serialize_feed_item(old_paper, old_paper_content_type),
             metrics=serialize_feed_metrics(old_paper, old_paper_content_type),
         )
 
-        # Create new content with same score for comparison
+        # Create new paper (published now)
         new_paper = create_paper(uploaded_by=self.user)
         new_paper.score = 1
         new_paper.save()
@@ -164,7 +164,7 @@ class TestHotScore(TestCase):
             content_type=new_paper_content_type,
             object_id=new_paper.id,
             action=FeedEntry.PUBLISH,
-            action_date=self.now,
+            action_date=self.now,  # Published now
             content=serialize_feed_item(new_paper, new_paper_content_type),
             metrics=serialize_feed_metrics(new_paper, new_paper_content_type),
         )
@@ -223,13 +223,6 @@ class TestHotScore(TestCase):
 
         # Score with bounties should be higher
         self.assertGreater(score_with_bounties, score_no_bounties)
-
-        # Verify sqrt of bounty amount is used in calculation
-        weights = CONTENT_TYPE_WEIGHTS["paper"]
-        # Calculate bounty component
-        bounty_weight = weights["bounty_weight"]
-        bounty_component = math.sqrt(30) * bounty_weight
-        self.assertGreater(bounty_component, 0)
 
     def test_hot_score_increases_with_social_media_engagement(self):
         """Test that social media engagement increases the hot score."""

@@ -432,7 +432,7 @@ class FeedServiceTests(APITestCase):
     @patch(
         "personalize.services.feed_service.PERSONALIZE_CONFIG",
         {
-            "default_filter": "new-content",
+            "default_filter": "recent-preprints",
             "cache_timeout": 1800,
             "num_results": 100,
         },
@@ -446,12 +446,10 @@ class FeedServiceTests(APITestCase):
         service = FeedService(personalize_client=self.mock_client)
         service.get_trending_ids()
 
-        self.mock_client.get_trending_items.assert_called_with(
-            filter="new-content", num_results=100
-        )
+        self.mock_client.get_trending_items.assert_called_with(num_results=100)
 
     def test_trending_cache_key_format(self):
         service = FeedService(personalize_client=self.mock_client)
-        cache_key = service._build_trending_cache_key(200, "new-content")
+        cache_key = service._build_trending_cache_key(200)
 
-        self.assertEqual(cache_key, "trending_ids:num-200:filter-is-new-content")
+        self.assertEqual(cache_key, "trending_ids:num-200")

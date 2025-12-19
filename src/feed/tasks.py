@@ -106,8 +106,8 @@ def refresh_feed_entry(feed_entry_id):
 
     feed_entry.content = content
     feed_entry.metrics = metrics
-    feed_entry.hot_score = feed_entry.calculate_hot_score()
-    feed_entry.save(update_fields=["content", "metrics", "hot_score"])
+    feed_entry.hot_score_v2 = feed_entry.calculate_hot_score_v2()
+    feed_entry.save(update_fields=["content", "metrics", "hot_score_v2"])
 
     # Update authors separately (ManyToMany field)
     if authors:
@@ -133,8 +133,8 @@ def refresh_feed_entries_for_objects(item_id, item_content_type_id):
 
         feed_entry.content = content
         feed_entry.metrics = metrics
-        feed_entry.hot_score = feed_entry.calculate_hot_score()
-        feed_entry.save(update_fields=["content", "metrics", "hot_score"])
+        feed_entry.hot_score_v2 = feed_entry.calculate_hot_score_v2()
+        feed_entry.save(update_fields=["content", "metrics", "hot_score_v2"])
 
         # Update authors separately (ManyToMany field)
         if authors:
@@ -239,8 +239,6 @@ def refresh_feed_hot_scores():
         # Uses default 30-day lookback for papers and posts only
         stats = refresh_feed_hot_scores_batch(
             queryset=None,
-            update_v1=True,
-            update_v2=True,
             content_types=None,
         )
         logger.info(f"Refreshed hot scores: {stats}")
@@ -254,14 +252,12 @@ def refresh_feed_hot_scores():
 def refresh_feed_hot_scores_batch(
     queryset=None,
     batch_size=1000,
-    update_v1=True,
-    update_v2=True,
     days_back=30,
     content_types=None,
     progress_callback=None,
 ):
     """
-    Refresh hot scores for feed entries with optional filtering.
+    Refresh hot scores (v2) for feed entries with optional filtering.
     """
     start_time = time.time()
 
@@ -291,21 +287,7 @@ def refresh_feed_hot_scores_batch(
     updated = 0
     errors = 0
 
-    # Determine which fields to update
-    update_fields = []
-    if update_v1:
-        update_fields.append("hot_score")
-    if update_v2:
-        update_fields.append("hot_score_v2")
-
-    if not update_fields:
-        logger.warning("No update fields specified, skipping hot score refresh")
-        return {
-            "processed": 0,
-            "updated": 0,
-            "errors": 0,
-            "duration": 0,
-        }
+    update_fields = ["hot_score_v2"]
 
     # Process in batches
     for offset in range(0, total_entries, batch_size):
@@ -321,12 +303,7 @@ def refresh_feed_hot_scores_batch(
                     processed += 1
                     continue
 
-                # Calculate scores based on flags
-                if update_v1:
-                    feed_entry.hot_score = feed_entry.calculate_hot_score()
-                if update_v2:
-                    feed_entry.hot_score_v2 = feed_entry.calculate_hot_score_v2()
-
+                feed_entry.hot_score_v2 = feed_entry.calculate_hot_score_v2()
                 entries_to_update.append(feed_entry)
 
             except Exception as e:

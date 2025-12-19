@@ -492,15 +492,17 @@ def get_age_hours_from_content(
     prereg_urgency_days: int = 7,
 ) -> float:
     """
-    Calculate age in hours from content JSON, with urgency adjustments for
-    grants/preregistrations.
+    Calculate age in hours based on feed_entry.action_date, with urgency
+    adjustments for grants/preregistrations.
 
+    For papers: action_date is paper_publish_date (when paper was published)
+    For posts: action_date is created_date (when post was created)
     For grants with approaching deadlines: Uses end_date for urgency
     For preregistrations with approaching fundraise deadlines: Uses end_date
 
     Args:
-        content: The FeedEntry.content JSON dict
-        feed_entry: FeedEntry instance (for fallback created_date)
+        content: The FeedEntry.content JSON dict (for urgency checks)
+        feed_entry: FeedEntry instance
         grant_urgency_days: Days window for grant deadline urgency (default)
         prereg_urgency_days: Days window for preregistration urgency (default)
 
@@ -512,16 +514,9 @@ def get_age_hours_from_content(
             "type": "GRANT",
             "grant": {
                 "end_date": "2025-08-15T07:00:00Z"
-            },
-            "created_date": "2025-07-16T03:25:07.738562Z"
+            }
         }
     """
-    if not isinstance(content, dict):
-        # Fallback to feed_entry created_date
-        now = datetime.now(timezone.utc)
-        age = now - feed_entry.created_date
-        return max(0, age.total_seconds() / 3600)
-
     now = datetime.now(timezone.utc)
     doc_type = safe_get_nested(content, "type", default="")
 
@@ -559,14 +554,7 @@ def get_age_hours_from_content(
                     age = now - fundraise_end + urgency_offset
                     return max(0, age.total_seconds() / 3600)
 
-    # Default: use created_date from content or feed_entry
-    created_date_str = safe_get_nested(content, "created_date")
-    if created_date_str:
-        created_date = parse_iso_datetime(created_date_str)
-        if created_date:
-            age = now - created_date
-            return max(0, age.total_seconds() / 3600)
-
-    # Ultimate fallback: feed_entry.created_date
-    age = now - feed_entry.created_date
+    # For papers: action_date = paper_publish_date
+    # For posts: action_date = created_date
+    age = now - feed_entry.action_date
     return max(0, age.total_seconds() / 3600)

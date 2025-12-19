@@ -18,6 +18,12 @@ MIN_FIGURE_HEIGHT = 400
 MAX_FIGURE_WIDTH = 2000
 MAX_FIGURE_HEIGHT = 2000
 
+MAX_FIGURES_TO_EXTRACT = 20
+
+THUMBNAIL_MAX_WIDTH = 600
+THUMBNAIL_MAX_HEIGHT = 600
+THUMBNAIL_WEBP_QUALITY = 80
+
 # Maximum aspect ratio (width:height)
 MAX_ASPECT_RATIO = 3.0  # 3:1
 
@@ -49,11 +55,44 @@ class FigureExtractionService:
             pil_image = background
         return pil_image
 
+    def create_thumbnail(
+        self, pil_image: Image.Image, filename_base: str
+    ) -> ContentFile:
+        """
+        Create a WebP thumbnail from a PIL image.
+
+        Args:
+            pil_image: PIL Image object (should already be RGB)
+            filename_base: Base filename without extension
+
+        Returns:
+            ContentFile containing the WebP thumbnail
+        """
+        thumbnail = self._resize_image(
+            pil_image, THUMBNAIL_MAX_WIDTH, THUMBNAIL_MAX_HEIGHT
+        )
+
+        thumbnail = self._convert_to_rgb(thumbnail)
+
+        thumbnail_buffer = BytesIO()
+        thumbnail.save(
+            thumbnail_buffer,
+            format="WEBP",
+            quality=THUMBNAIL_WEBP_QUALITY,
+            optimize=True,
+        )
+
+        thumbnail_filename = f"{filename_base}-thumb.webp"
+        return ContentFile(thumbnail_buffer.getvalue(), name=thumbnail_filename)
+
     def extract_figures_from_pdf(
         self, pdf_content: bytes, paper_id: int
     ) -> List[ContentFile]:
         """
         Extract embedded images from PDF content.
+
+        Returns:
+            List of ContentFile objects for the extracted figures
         """
         extracted_figures = []
 
@@ -131,6 +170,14 @@ class FigureExtractionService:
                                 f"(aspect: {aspect_ratio:.2f})"
                             )
 
+                            if len(extracted_figures) >= MAX_FIGURES_TO_EXTRACT:
+                                logger.info(
+                                    f"Reached maximum figure limit "
+                                    f"({MAX_FIGURES_TO_EXTRACT}), "
+                                    f"stopping extraction for paper {paper_id}"
+                                )
+                                break
+
                         except Exception as e:
                             logger.warning(
                                 f"Error extracting image {img_index} "
@@ -141,6 +188,9 @@ class FigureExtractionService:
                 except Exception as e:
                     logger.warning(f"Error processing page {page_num}: {e}")
                     continue
+
+                if len(extracted_figures) >= MAX_FIGURES_TO_EXTRACT:
+                    break
 
             doc.close()
 

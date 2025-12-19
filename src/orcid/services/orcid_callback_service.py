@@ -1,7 +1,6 @@
 import logging
 from datetime import timedelta
 from typing import Optional, Tuple
-from urllib.parse import urlparse
 
 from allauth.socialaccount.models import SocialAccount, SocialApp, SocialToken
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
@@ -13,6 +12,7 @@ from django.utils import timezone
 
 from orcid.clients import OrcidClient
 from orcid.config import EDU_DOMAINS, ORCID_BASE_URL, STATE_MAX_AGE
+from orcid.utils import get_orcid_app, is_valid_redirect_url
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -43,7 +43,7 @@ class OrcidCallbackService:
 
     def get_redirect_url(self, error: Optional[str] = None, return_url: Optional[str] = None) -> str:
         """Build redirect URL with success or error query params."""
-        base = return_url if self._is_valid_redirect_url(return_url) else settings.BASE_FRONTEND_URL
+        base = return_url if is_valid_redirect_url(return_url) else settings.BASE_FRONTEND_URL
         sep = "&" if "?" in base else "?"
         return f"{base}{sep}orcid_error={error}" if error else f"{base}{sep}orcid_connected=true"
 
@@ -121,15 +121,8 @@ class OrcidCallbackService:
     def _get_orcid_app(self) -> SocialApp:
         """Get cached ORCID social app configuration."""
         if self._orcid_app is None:
-            self._orcid_app = SocialApp.objects.get(provider=OrcidProvider.id)
+            self._orcid_app = get_orcid_app()
         return self._orcid_app
-
-    def _is_valid_redirect_url(self, url: Optional[str]) -> bool:
-        """Validate redirect URL against CORS whitelist."""
-        if not url:
-            return False
-        parsed = urlparse(url)
-        return f"{parsed.scheme}://{parsed.netloc}" in settings.CORS_ORIGIN_WHITELIST
 
     def _fetch_verified_edu_emails(self, orcid_id: str, access_token: str) -> list[str]:
         """Fetch verified .edu emails from ORCID (if public)."""
