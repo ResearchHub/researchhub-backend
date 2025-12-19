@@ -13,6 +13,7 @@ from django.utils import timezone
 
 from orcid.clients import OrcidClient
 from orcid.config import EDU_DOMAINS, ORCID_BASE_URL, STATE_MAX_AGE
+from orcid.tasks import sync_orcid_papers_task
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -21,8 +22,9 @@ logger = logging.getLogger(__name__)
 class OrcidCallbackService:
     """Handles ORCID OAuth callback: validates state, exchanges tokens, stores connection."""
 
-    def __init__(self, client: Optional[OrcidClient] = None):
+    def __init__(self, client: Optional[OrcidClient] = None, sync_task=None):
         self.client = client or OrcidClient()
+        self.sync_task = sync_task or sync_orcid_papers_task
         self._orcid_app = None
 
     def process_callback(self, code: str, state: str) -> str:
@@ -33,6 +35,8 @@ class OrcidCallbackService:
             token_data = self._fetch_token(code)
             self._save_orcid_connection(user, token_data)
             logger.info("ORCID connected for user %s: %s", user.id, token_data.get("orcid"))
+            if author := getattr(user, "author_profile", None):
+                self.sync_task.delay(author.id)
             return self.get_redirect_url(return_url=return_url)
         except ValueError:
             logger.warning("ORCID already linked to another account")

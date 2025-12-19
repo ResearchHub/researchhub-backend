@@ -1,7 +1,7 @@
 from django.test import TestCase
 
 from orcid.services import OrcidConnectService
-from orcid.tests.helpers import create_orcid_app
+from orcid.tests.helpers import OrcidTestHelper
 
 
 class OrcidConnectServiceTests(TestCase):
@@ -11,7 +11,7 @@ class OrcidConnectServiceTests(TestCase):
 
     def test_build_auth_url(self):
         # Arrange
-        create_orcid_app()
+        OrcidTestHelper.create_app()
 
         # Act
         url_with_return = self.service.build_auth_url(123, "https://researchhub.com/settings")

@@ -3,8 +3,8 @@ from unittest.mock import Mock
 from django.test import TestCase
 from requests.exceptions import HTTPError
 
-from orcid.clients.orcid_client import OrcidClient
-from orcid.tests.helpers import TEST_ORCID_ID
+from orcid.clients import OrcidClient
+from orcid.tests.helpers import OrcidTestHelper
 
 
 class OrcidClientTests(TestCase):
@@ -16,7 +16,7 @@ class OrcidClientTests(TestCase):
     def test_exchange_code_for_token_success(self):
         # Arrange
         self.mock_session.post.return_value = Mock(
-            json=lambda: {"orcid": TEST_ORCID_ID, "access_token": "token"},
+            json=lambda: {"orcid": OrcidTestHelper.ORCID_ID, "access_token": "token"},
             raise_for_status=Mock()
         )
 
@@ -24,7 +24,7 @@ class OrcidClientTests(TestCase):
         result = self.client.exchange_code_for_token("code", "id", "secret", "https://example.com")
 
         # Assert
-        self.assertEqual(result["orcid"], TEST_ORCID_ID)
+        self.assertEqual(result["orcid"], OrcidTestHelper.ORCID_ID)
         self.assertIn("oauth/token", self.mock_session.post.call_args[0][0])
 
     def test_exchange_code_for_token_raises_on_failure(self):
@@ -45,7 +45,7 @@ class OrcidClientTests(TestCase):
         )
 
         # Act
-        result = self.client.get_emails(TEST_ORCID_ID, "token")
+        result = self.client.get_emails(OrcidTestHelper.ORCID_ID, "token")
 
         # Assert
         self.assertEqual(result[0]["email"], "user@stanford.edu")
@@ -54,8 +54,22 @@ class OrcidClientTests(TestCase):
         # Arrange
         self.mock_session.get.side_effect = Exception("API error")
 
-        # Act
-        result = self.client.get_emails(TEST_ORCID_ID, "token")
+        # Act & Assert
+        self.assertEqual(self.client.get_emails(OrcidTestHelper.ORCID_ID, "token"), [])
 
-        # Assert
-        self.assertEqual(result, [])
+    def test_get_works_success(self):
+        # Arrange
+        self.mock_session.get.return_value = Mock(
+            json=lambda: {"group": [{"work-summary": []}]},
+            raise_for_status=Mock()
+        )
+
+        # Act & Assert
+        self.assertEqual(self.client.get_works(OrcidTestHelper.ORCID_ID), {"group": [{"work-summary": []}]})
+
+    def test_get_works_returns_empty_on_error(self):
+        # Arrange
+        self.mock_session.get.side_effect = Exception("API error")
+
+        # Act & Assert
+        self.assertEqual(self.client.get_works(OrcidTestHelper.ORCID_ID), {})
