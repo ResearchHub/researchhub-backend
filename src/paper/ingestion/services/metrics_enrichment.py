@@ -12,6 +12,7 @@ from paper.ingestion.clients import (
     XMetricsClient,
 )
 from paper.models import Paper
+from paper.related_models.x_post_model import XPost
 
 logger = logging.getLogger(__name__)
 
@@ -208,6 +209,14 @@ class PaperMetricsEnrichmentService:
 
             self._update_paper_metrics(paper, {"x": result})
 
+            # Save individual X posts to the database
+            posts = result.get("posts", [])
+            if posts:
+                saved_count = self._save_x_posts(paper, posts)
+                logger.info(
+                    f"Saved {saved_count} X posts to database for paper {paper.id}."
+                )
+
             logger.info(
                 f"Successfully saved {result['post_count']} X posts for paper {paper.id}."
             )
@@ -254,3 +263,50 @@ class PaperMetricsEnrichmentService:
         paper.external_metadata["metrics"] = existing_metrics
 
         paper.save(update_fields=["external_metadata"])
+
+    def _save_x_posts(self, paper: Paper, posts: List[Dict[str, Any]]) -> int:
+        """
+        Save X posts to the database, updating existing posts or creating new ones.
+
+        Args:
+            paper: Paper instance the posts reference
+            posts: List of post dicts from XMetricsClient
+
+        Returns:
+            Number of posts created or updated
+        """
+        from dateutil import parser as date_parser
+
+        saved_count = 0
+        for post_data in posts:
+            post_id = post_data.get("id")
+            if not post_id:
+                continue
+
+            # Parse posted_at datetime
+            posted_at = None
+            created_at_str = post_data.get("created_at")
+            if created_at_str:
+                try:
+                    posted_at = date_parser.parse(created_at_str)
+                except (ValueError, TypeError):
+                    logger.warning(f"Could not parse created_at: {created_at_str}")
+
+            # Use update_or_create to handle duplicates
+            XPost.objects.update_or_create(
+                paper=paper,
+                post_id=post_id,
+                defaults={
+                    "author_id": post_data.get("author_id"),
+                    "text": post_data.get("text", ""),
+                    "posted_at": posted_at,
+                    "like_count": post_data.get("like_count", 0),
+                    "repost_count": post_data.get("repost_count", 0),
+                    "reply_count": post_data.get("reply_count", 0),
+                    "quote_count": post_data.get("quote_count", 0),
+                    "impression_count": post_data.get("impression_count", 0),
+                },
+            )
+            saved_count += 1
+
+        return saved_count

@@ -6,6 +6,7 @@ from django.utils import timezone
 
 from paper.ingestion.services import PaperMetricsEnrichmentService
 from paper.models import Paper
+from paper.related_models.x_post_model import XPost
 
 
 class PaperMetricsEnrichmentServiceTests(TestCase):
@@ -495,3 +496,158 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         # Assert
         self.assertEqual(result.status, "retryable_error")
         self.assertEqual(result.reason, "Service unavailable")
+
+    def test_enrich_paper_with_x_saves_posts_to_database(self):
+        """
+        Test that X enrichment saves individual posts to the XPost model.
+        """
+        # Arrange
+        sample_x_response = {
+            "post_count": 2,
+            "total_likes": 75,
+            "total_reposts": 15,
+            "total_replies": 8,
+            "total_quotes": 4,
+            "total_impressions": 2000,
+            "terms": [self.paper.doi, self.paper.title],
+            "posts": [
+                {
+                    "id": "1234567890",
+                    "text": "Great paper on DOI 10.1038/news.2011.490",
+                    "author_id": "123456",
+                    "created_at": "2024-01-15T10:30:00Z",
+                    "like_count": 50,
+                    "repost_count": 10,
+                    "reply_count": 5,
+                    "quote_count": 3,
+                    "impression_count": 1000,
+                },
+                {
+                    "id": "9876543210",
+                    "text": "Another mention of the paper",
+                    "author_id": "654321",
+                    "created_at": "2024-01-16T14:00:00Z",
+                    "like_count": 25,
+                    "repost_count": 5,
+                    "reply_count": 3,
+                    "quote_count": 1,
+                    "impression_count": 1000,
+                },
+            ],
+        }
+        self.mock_x_client.get_metrics.return_value = sample_x_response
+
+        # Act
+        result = self.service.enrich_paper_with_x(self.paper)
+
+        # Assert
+        self.assertEqual(result.status, "success")
+
+        # Verify XPost records were created
+        x_posts = XPost.objects.filter(paper=self.paper)
+        self.assertEqual(x_posts.count(), 2)
+
+        # Verify first post
+        post1 = x_posts.get(post_id="1234567890")
+        self.assertEqual(post1.text, "Great paper on DOI 10.1038/news.2011.490")
+        self.assertEqual(post1.author_id, "123456")
+        self.assertEqual(post1.like_count, 50)
+        self.assertEqual(post1.repost_count, 10)
+        self.assertEqual(post1.reply_count, 5)
+        self.assertEqual(post1.quote_count, 3)
+        self.assertEqual(post1.impression_count, 1000)
+        self.assertIsNotNone(post1.posted_at)
+
+        # Verify second post
+        post2 = x_posts.get(post_id="9876543210")
+        self.assertEqual(post2.text, "Another mention of the paper")
+        self.assertEqual(post2.author_id, "654321")
+        self.assertEqual(post2.like_count, 25)
+
+    def test_enrich_paper_with_x_updates_existing_posts(self):
+        """
+        Test that X enrichment updates existing XPost records instead of creating duplicates.
+        """
+        # Arrange - create an existing XPost
+        existing_post = XPost.objects.create(
+            paper=self.paper,
+            post_id="1234567890",
+            text="Old text",
+            author_id="123456",
+            like_count=10,
+            repost_count=2,
+            reply_count=1,
+            quote_count=0,
+            impression_count=100,
+        )
+
+        # Response with updated metrics for the same post
+        sample_x_response = {
+            "post_count": 1,
+            "total_likes": 50,
+            "total_reposts": 10,
+            "total_replies": 5,
+            "total_quotes": 3,
+            "total_impressions": 1000,
+            "terms": [self.paper.doi],
+            "posts": [
+                {
+                    "id": "1234567890",
+                    "text": "Great paper on DOI 10.1038/news.2011.490",
+                    "author_id": "123456",
+                    "created_at": "2024-01-15T10:30:00Z",
+                    "like_count": 50,
+                    "repost_count": 10,
+                    "reply_count": 5,
+                    "quote_count": 3,
+                    "impression_count": 1000,
+                },
+            ],
+        }
+        self.mock_x_client.get_metrics.return_value = sample_x_response
+
+        # Act
+        result = self.service.enrich_paper_with_x(self.paper)
+
+        # Assert
+        self.assertEqual(result.status, "success")
+
+        # Verify no duplicate was created
+        x_posts = XPost.objects.filter(paper=self.paper)
+        self.assertEqual(x_posts.count(), 1)
+
+        # Verify the existing post was updated
+        existing_post.refresh_from_db()
+        self.assertEqual(existing_post.text, "Great paper on DOI 10.1038/news.2011.490")
+        self.assertEqual(existing_post.like_count, 50)
+        self.assertEqual(existing_post.repost_count, 10)
+        self.assertEqual(existing_post.reply_count, 5)
+        self.assertEqual(existing_post.quote_count, 3)
+        self.assertEqual(existing_post.impression_count, 1000)
+
+    def test_enrich_paper_with_x_handles_empty_posts_list(self):
+        """
+        Test that X enrichment handles empty posts list gracefully.
+        """
+        # Arrange
+        sample_x_response = {
+            "post_count": 0,
+            "total_likes": 0,
+            "total_reposts": 0,
+            "total_replies": 0,
+            "total_quotes": 0,
+            "total_impressions": 0,
+            "terms": [self.paper.doi],
+            "posts": [],
+        }
+        self.mock_x_client.get_metrics.return_value = sample_x_response
+
+        # Act
+        result = self.service.enrich_paper_with_x(self.paper)
+
+        # Assert
+        self.assertEqual(result.status, "success")
+
+        # Verify no XPost records were created
+        x_posts = XPost.objects.filter(paper=self.paper)
+        self.assertEqual(x_posts.count(), 0)
