@@ -279,12 +279,12 @@ class PaperMetricsEnrichmentService:
             if not post_id:
                 continue
 
-            # Parse posted_at datetime
-            posted_at = None
+            # Parse posted_date datetime
+            posted_date = None
             created_at_str = post_data.get("created_at")
             if created_at_str:
                 try:
-                    posted_at = date_parser.parse(created_at_str)
+                    posted_date = date_parser.parse(created_at_str)
                 except (ValueError, TypeError):
                     logger.warning(f"Could not parse created_at: {created_at_str}")
 
@@ -295,7 +295,7 @@ class PaperMetricsEnrichmentService:
                 defaults={
                     "author_id": post_data.get("author_id"),
                     "text": post_data.get("text", ""),
-                    "posted_at": posted_at,
+                    "posted_date": posted_date,
                     "like_count": post_data.get("like_count", 0),
                     "repost_count": post_data.get("repost_count", 0),
                     "reply_count": post_data.get("reply_count", 0),
