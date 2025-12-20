@@ -59,8 +59,6 @@ class XPost(DefaultModel):
         ]
         indexes = [
             models.Index(fields=["paper", "-posted_at"]),
-            models.Index(fields=["-like_count"]),
-            models.Index(fields=["-impression_count"]),
         ]
         ordering = ["-posted_at"]
 
