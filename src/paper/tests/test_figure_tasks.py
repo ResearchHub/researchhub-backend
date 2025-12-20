@@ -74,7 +74,11 @@ class ExtractPdfFiguresTaskTests(TestCase):
 
         self.assertTrue(result)
         mock_service.extract_figures_from_pdf.assert_called_once()
-        mock_select_task.assert_called_once_with((paper.id,), priority=5)
+        mock_select_task.assert_called_once_with(
+            (paper.id,),
+            {"skip_feed_refresh_extraction_check": False},
+            priority=5,
+        )
 
     @patch("paper.tasks.figure_tasks.requests.get")
     @patch("paper.tasks.figure_tasks.FigureExtractionService")
@@ -189,7 +193,11 @@ class ExtractPdfFiguresTaskTests(TestCase):
         mock_service.extract_figures_from_pdf.assert_called_once_with(
             pdf_content, paper.id
         )
-        mock_select_task.assert_called_once_with((paper.id,), priority=5)
+        mock_select_task.assert_called_once_with(
+            (paper.id,),
+            {"skip_feed_refresh_extraction_check": False},
+            priority=5,
+        )
 
     @patch("paper.tasks.figure_tasks.download_pdf_from_url")
     @patch("paper.tasks.figure_tasks.create_download_url")
@@ -363,7 +371,9 @@ class SelectPrimaryImageTaskTests(TestCase):
             result = select_primary_image(paper.id)
 
             self.assertTrue(result)
-            mock_create_preview.assert_called_once_with(paper)
+            mock_create_preview.assert_called_once_with(
+                paper, skip_feed_refresh_extraction_check=False
+            )
 
     def test_select_primary_image_keeps_existing_primary(self):
         """Test that task keeps existing primary if no figures."""
@@ -424,7 +434,9 @@ class SelectPrimaryImageTaskTests(TestCase):
         result = select_primary_image(self.paper.id)
 
         self.assertTrue(result)
-        mock_create_preview.assert_called_once_with(self.paper)
+        mock_create_preview.assert_called_once_with(
+            self.paper, skip_feed_refresh_extraction_check=False
+        )
 
     @patch("paper.tasks.figure_tasks.BedrockPrimaryImageService")
     @patch("paper.tasks.figure_tasks.create_pdf_screenshot")
@@ -444,7 +456,9 @@ class SelectPrimaryImageTaskTests(TestCase):
         result = select_primary_image(self.paper.id)
 
         self.assertTrue(result)
-        mock_create_preview.assert_called_once_with(self.paper)
+        mock_create_preview.assert_called_once_with(
+            self.paper, skip_feed_refresh_extraction_check=False
+        )
 
     @patch("paper.tasks.figure_tasks.BedrockPrimaryImageService")
     @patch("paper.tasks.figure_tasks.select_primary_image.apply_async")
@@ -543,3 +557,204 @@ class CreatePdfScreenshotTests(TestCase):
         result = create_pdf_screenshot(paper)
 
         self.assertFalse(result)
+
+
+class TriggerFigureExtractionTests(TestCase):
+    """Test suite for trigger_figure_extraction_for_paper function."""
+
+    def setUp(self):
+        """Set up test environment."""
+        self.paper = helpers.create_paper(title="Test Paper")
+
+    @patch("paper.tasks.figure_tasks.PRODUCTION", False)
+    @patch("paper.tasks.figure_tasks.extract_pdf_figures.apply_async")
+    def test_not_in_production_returns_false(self, mock_extract):
+        """Test that function returns False when not in PRODUCTION."""
+        from paper.tasks.figure_tasks import trigger_figure_extraction_for_paper
+
+        result = trigger_figure_extraction_for_paper(self.paper.id, 100)
+        self.assertFalse(result)
+        mock_extract.assert_not_called()
+
+    @patch("paper.tasks.figure_tasks.PRODUCTION", True)
+    @patch("paper.tasks.figure_tasks.extract_pdf_figures.apply_async")
+    def test_below_threshold_returns_false(self, mock_extract):
+        """Test that function returns False when hot_score_v2 < 75."""
+        from paper.tasks.figure_tasks import trigger_figure_extraction_for_paper
+
+        result = trigger_figure_extraction_for_paper(self.paper.id, 50)
+        self.assertFalse(result)
+        mock_extract.assert_not_called()
+
+    @patch("paper.tasks.figure_tasks.PRODUCTION", True)
+    @patch("paper.tasks.figure_tasks.extract_pdf_figures.apply_async")
+    def test_above_threshold_triggers_extraction(self, mock_extract):
+        """Test that function triggers extraction when hot_score_v2 >= 75."""
+        from paper.tasks.figure_tasks import trigger_figure_extraction_for_paper
+
+        result = trigger_figure_extraction_for_paper(self.paper.id, 100)
+        self.assertTrue(result)
+        mock_extract.assert_called_once_with(
+            (self.paper.id,),
+            {"skip_feed_refresh_extraction_check": True},
+            priority=6,
+        )
+
+    @patch("paper.tasks.figure_tasks.PRODUCTION", True)
+    @patch("paper.tasks.figure_tasks.extract_pdf_figures.apply_async")
+    def test_exactly_at_threshold_triggers_extraction(self, mock_extract):
+        """Test that function triggers extraction when hot_score_v2 == 75."""
+        from paper.tasks.figure_tasks import trigger_figure_extraction_for_paper
+
+        result = trigger_figure_extraction_for_paper(self.paper.id, 75)
+        self.assertTrue(result)
+        mock_extract.assert_called_once()
+
+    @patch("paper.tasks.figure_tasks.PRODUCTION", True)
+    @patch("paper.tasks.figure_tasks.extract_pdf_figures.apply_async")
+    def test_already_has_figures_returns_false(self, mock_extract):
+        """Test that function returns False when paper already has figures."""
+        from paper.tasks.figure_tasks import trigger_figure_extraction_for_paper
+
+        with patch.object(Figure._meta.get_field("file"), "storage", test_storage):
+            Figure.objects.create(
+                paper=self.paper,
+                figure_type=Figure.FIGURE,
+                file=ContentFile(b"fake", name="test.jpg"),
+            )
+        result = trigger_figure_extraction_for_paper(self.paper.id, 100)
+        self.assertFalse(result)
+        mock_extract.assert_not_called()
+
+    @patch("paper.tasks.figure_tasks.PRODUCTION", True)
+    def test_paper_not_found_returns_false(self):
+        """Test that function handles nonexistent paper gracefully."""
+        from paper.tasks.figure_tasks import trigger_figure_extraction_for_paper
+
+        result = trigger_figure_extraction_for_paper(99999, 100)
+        self.assertFalse(result)
+
+    @patch("paper.tasks.figure_tasks.PRODUCTION", True)
+    @patch("paper.tasks.figure_tasks.extract_pdf_figures.apply_async")
+    @patch("paper.tasks.figure_tasks.logger")
+    def test_error_handling_returns_false(self, mock_logger, mock_extract):
+        """Test that exceptions are caught and logged."""
+        from paper.tasks.figure_tasks import trigger_figure_extraction_for_paper
+
+        # Make Paper.objects.get raise an exception
+        with patch("paper.tasks.figure_tasks.Paper.objects.get") as mock_get:
+            mock_get.side_effect = Exception("Database error")
+            result = trigger_figure_extraction_for_paper(self.paper.id, 100)
+            self.assertFalse(result)
+            mock_extract.assert_not_called()
+
+
+@patch.object(Figure._meta.get_field("file"), "storage", test_storage)
+@patch.object(Figure._meta.get_field("thumbnail"), "storage", test_storage)
+class SyncPrimarySelectionTests(TestCase):
+    """Test suite for sync_primary_selection parameter in extract_pdf_figures."""
+
+    def setUp(self):
+        """Set up test environment."""
+        self.paper = helpers.create_paper(title="Test Paper")
+        self.paper.file.name = "test.pdf"
+        self.paper.save()
+
+    @patch("paper.tasks.figure_tasks.requests.get")
+    @patch("paper.tasks.figure_tasks.FigureExtractionService")
+    @patch("paper.tasks.figure_tasks.select_primary_image")
+    def test_sync_primary_selection_calls_synchronously(
+        self, mock_select, mock_service_class, mock_get
+    ):
+        """Test sync_primary_selection=True calls select_primary_image synchronously."""
+        # Mock PDF content
+        mock_response = MagicMock()
+        mock_response.content = b"fake pdf content"
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        # Mock extraction service
+        mock_service = MagicMock()
+        mock_service_class.return_value = mock_service
+
+        # Create mock extracted figures
+        img = Image.new("RGB", (500, 500), color="blue")
+        buffer = BytesIO()
+        img.save(buffer, format="JPEG")
+        content_file = ContentFile(buffer.getvalue(), name="test-figure.jpg")
+        mock_service.extract_figures_from_pdf.return_value = [content_file]
+        mock_select.return_value = True
+
+        result = extract_pdf_figures(self.paper.id, sync_primary_selection=True)
+
+        self.assertTrue(result)
+        mock_select.assert_called_once_with(
+            self.paper.id,
+            skip_feed_refresh_extraction_check=False,
+        )
+
+    @patch("paper.tasks.figure_tasks.requests.get")
+    @patch("paper.tasks.figure_tasks.FigureExtractionService")
+    @patch("paper.tasks.figure_tasks.select_primary_image")
+    def test_sync_primary_selection_error_handling(
+        self, mock_select, mock_service_class, mock_get
+    ):
+        """Test that sync primary selection errors don't break extraction."""
+        # Mock PDF content
+        mock_response = MagicMock()
+        mock_response.content = b"fake pdf content"
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        # Mock extraction service
+        mock_service = MagicMock()
+        mock_service_class.return_value = mock_service
+
+        # Create mock extracted figures
+        img = Image.new("RGB", (500, 500), color="blue")
+        buffer = BytesIO()
+        img.save(buffer, format="JPEG")
+        content_file = ContentFile(buffer.getvalue(), name="test-figure.jpg")
+        mock_service.extract_figures_from_pdf.return_value = [content_file]
+
+        # Make select_primary_image raise an exception
+        mock_select.side_effect = Exception("Selection failed")
+
+        result = extract_pdf_figures(self.paper.id, sync_primary_selection=True)
+
+        # Extraction should still succeed even if selection fails
+        self.assertTrue(result)
+        mock_select.assert_called_once()
+
+    @patch("paper.tasks.figure_tasks.requests.get")
+    @patch("paper.tasks.figure_tasks.FigureExtractionService")
+    @patch("paper.tasks.figure_tasks.select_primary_image.apply_async")
+    def test_async_primary_selection_default(
+        self, mock_select_async, mock_service_class, mock_get
+    ):
+        """Test that default behavior calls select_primary_image asynchronously."""
+        # Mock PDF content
+        mock_response = MagicMock()
+        mock_response.content = b"fake pdf content"
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        # Mock extraction service
+        mock_service = MagicMock()
+        mock_service_class.return_value = mock_service
+
+        # Create mock extracted figures
+        img = Image.new("RGB", (500, 500), color="blue")
+        buffer = BytesIO()
+        img.save(buffer, format="JPEG")
+        content_file = ContentFile(buffer.getvalue(), name="test-figure.jpg")
+        mock_service.extract_figures_from_pdf.return_value = [content_file]
+
+        result = extract_pdf_figures(self.paper.id)
+
+        self.assertTrue(result)
+        mock_select_async.assert_called_once_with(
+            (self.paper.id,),
+            {"skip_feed_refresh_extraction_check": False},
+            priority=5,
+        )
