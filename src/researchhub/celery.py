@@ -58,15 +58,6 @@ app.conf.beat_schedule = {
             "queue": QUEUE_HUBS,
         },
     },
-    # Mailing List
-    "mailinglist_weekly-bounty-digest": {
-        "task": "mailing_list.tasks.weekly_bounty_digest",
-        "schedule": crontab(minute=0, hour=8, day_of_week="friday"),
-        "options": {
-            "priority": 9,
-            "queue": QUEUE_NOTIFICATION,
-        },
-    },
     # Purchase
     "purchase_update-purchases": {
         "task": "purchase.tasks.update_purchases",
