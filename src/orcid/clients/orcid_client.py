@@ -1,8 +1,11 @@
+import logging
 from typing import Optional
 
 import requests
 
 from orcid.config import ACCEPT_JSON, ORCID_API_URL, ORCID_BASE_URL
+
+logger = logging.getLogger(__name__)
 
 REQUEST_TIMEOUT = 30
 
@@ -43,6 +46,7 @@ class OrcidClient:
             response.raise_for_status()
             return response.json().get("email", [])
         except requests.RequestException:
+            logger.warning("Failed to fetch emails for ORCID %s", orcid_id, exc_info=True)
             return []
 
     def get_works(self, orcid_id: str) -> dict:
@@ -56,5 +60,6 @@ class OrcidClient:
             response.raise_for_status()
             return response.json()
         except requests.RequestException:
+            logger.warning("Failed to fetch works for ORCID %s", orcid_id, exc_info=True)
             return {}
 
