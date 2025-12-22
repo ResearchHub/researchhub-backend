@@ -2,7 +2,9 @@ from typing import Optional
 
 import requests
 
-from orcid.config import ORCID_BASE_URL, REQUEST_TIMEOUT
+from orcid.config import ORCID_BASE_URL
+
+REQUEST_TIMEOUT = 30
 
 
 class OrcidClient:
