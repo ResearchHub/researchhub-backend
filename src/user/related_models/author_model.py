@@ -176,6 +176,16 @@ class Author(models.Model):
         return SocialAccount.objects.filter(user=self.user, provider=OrcidProvider.id).exists()
 
     @property
+    def orcid_verified_edu_email(self):
+        if not self.user:
+            return None
+        account = SocialAccount.objects.filter(user=self.user, provider=OrcidProvider.id).first()
+        if not account:
+            return None
+        emails = account.extra_data.get("verified_edu_emails", [])
+        return emails[0] if emails else None
+
+    @property
     def profile_image_indexing(self):
         if self.profile_image is not None:
             try:

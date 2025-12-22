@@ -60,6 +60,8 @@ class ModeratorUserSerializer(ModelSerializer):
             "is_suspended",
             "verification",
             "created_date",
+            "is_orcid_connected",
+            "orcid_verified_edu_email",
         ]
 
     def get_verification(self, user):

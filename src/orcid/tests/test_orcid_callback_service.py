@@ -23,6 +23,7 @@ class OrcidCallbackServiceTests(TestCase):
         self.mock_client.exchange_code_for_token.return_value = {
             "orcid": TEST_ORCID_ID, "access_token": "tk", "refresh_token": "rt", "expires_in": 3600
         }
+        self.mock_client.get_emails.return_value = []
         state = signing.dumps({"user_id": user.id, "return_url": "https://researchhub.com/p"})
 
         # Act
@@ -58,6 +59,7 @@ class OrcidCallbackServiceTests(TestCase):
         user2 = create_random_default_user("u2")
         SocialAccount.objects.create(user=user1, provider=OrcidProvider.id, uid=TEST_ORCID_ID)
         self.mock_client.exchange_code_for_token.return_value = {"orcid": TEST_ORCID_ID}
+        self.mock_client.get_emails.return_value = []
         state = signing.dumps({"user_id": user2.id})
 
         # Act
@@ -89,4 +91,25 @@ class OrcidCallbackServiceTests(TestCase):
         self.assertIn("foo=bar", success)
         self.assertIn("orcid_error=failed", error)
         self.assertNotIn("evil.com", invalid)
+
+    def test_save_connection_filters_edu_emails(self):
+        # Arrange
+        user = create_random_default_user("edu")
+        self.mock_client.get_emails.return_value = [
+            {"email": "user@stanford.edu", "verified": True},
+            {"email": "prof@oxford.ac.uk", "verified": True},
+            {"email": "user@gmail.com", "verified": True},
+            {"email": "user@mit.edu", "verified": False},
+        ]
+        token_data = {"orcid": TEST_ORCID_ID, "access_token": "tk"}
+
+        # Act
+        self.service._save_orcid_connection(user, token_data)
+
+        # Assert
+        account = SocialAccount.objects.get(user=user)
+        self.assertEqual(
+            account.extra_data["verified_edu_emails"],
+            ["user@stanford.edu", "prof@oxford.ac.uk"]
+        )
 

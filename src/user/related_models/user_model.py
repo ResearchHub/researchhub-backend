@@ -104,6 +104,18 @@ class User(AbstractUser):
     def full_name(self):
         return self.first_name + " " + self.last_name
 
+    @property
+    def is_orcid_connected(self):
+        if author := getattr(self, "author_profile", None):
+            return author.is_orcid_connected
+        return False
+
+    @property
+    def orcid_verified_edu_email(self):
+        if author := getattr(self, "author_profile", None):
+            return author.orcid_verified_edu_email
+        return None
+
     def __str__(self):
         return f"{self.id}: {self.first_name} {self.last_name}"
 

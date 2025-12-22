@@ -2,7 +2,7 @@ from typing import Optional
 
 import requests
 
-from orcid.config import ORCID_BASE_URL
+from orcid.config import ORCID_API_URL, ORCID_BASE_URL
 
 REQUEST_TIMEOUT = 30
 
@@ -31,4 +31,17 @@ class OrcidClient:
         )
         response.raise_for_status()
         return response.json()
+
+    def get_emails(self, orcid_id: str, access_token: str) -> list[dict]:
+        """Fetch user's public emails from ORCID. Returns empty list if private or on error."""
+        try:
+            response = self.session.get(
+                f"{ORCID_API_URL}/v3.0/{orcid_id}/email",
+                headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json"},
+                timeout=REQUEST_TIMEOUT,
+            )
+            response.raise_for_status()
+            return response.json().get("email", [])
+        except Exception:
+            return []
 
