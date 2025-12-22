@@ -7,7 +7,7 @@ from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 
 from feed.models import FeedEntry
-from feed.tasks import refresh_feed_entry
+from feed.tasks import refresh_feed_entry_by_id
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.purchase_model import Purchase
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -60,7 +60,9 @@ def refresh_feed_entries_on_purchase(sender, instance, created, **kwargs):
         if feed_entries.exists():
             # Update all matching feed entries
             tasks = [
-                partial(refresh_feed_entry.apply_async, args=(entry.id,), priority=1)
+                partial(
+                    refresh_feed_entry_by_id.apply_async, args=(entry.id,), priority=1
+                )
                 for entry in feed_entries
             ]
             transaction.on_commit(lambda: [task() for task in tasks])
@@ -98,7 +100,7 @@ def refresh_feed_entries_on_grant_application(sender, instance, created, **kwarg
         # Update all matching feed entries to reflect the new application data
         tasks = [
             partial(
-                refresh_feed_entry.apply_async,
+                refresh_feed_entry_by_id.apply_async,
                 args=(entry.id,),
                 priority=1,
             )
@@ -139,7 +141,7 @@ def refresh_feed_entries_on_grant_application_delete(sender, instance, **kwargs)
         # Update all matching feed entries to reflect the removed application
         tasks = [
             partial(
-                refresh_feed_entry.apply_async,
+                refresh_feed_entry_by_id.apply_async,
                 args=(entry.id,),
                 priority=1,
             )

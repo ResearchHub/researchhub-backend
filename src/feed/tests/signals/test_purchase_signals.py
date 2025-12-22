@@ -53,18 +53,18 @@ class TestPurchaseSignals(TestCase):
             metrics={},
         )
 
-    @patch("feed.signals.purchase_signals.refresh_feed_entry")
+    @patch("feed.signals.purchase_signals.refresh_feed_entry_by_id")
     @patch("feed.signals.purchase_signals.transaction")
     def test_refresh_feed_entries_on_purchase_create(
         self,
         mock_transaction,
-        mock_refresh_feed_entry,
+        mock_refresh_feed_entry_by_id,
     ):
         """Test that feed entries are refreshed when a purchase is created"""
 
         # Arrange
         mock_transaction.on_commit = lambda func: func()
-        mock_refresh_feed_entry.apply_async = MagicMock()
+        mock_refresh_feed_entry_by_id.apply_async = MagicMock()
 
         # Act
         Purchase.objects.create(
@@ -77,7 +77,7 @@ class TestPurchaseSignals(TestCase):
         )
 
         # Assert
-        mock_refresh_feed_entry.apply_async.assert_has_calls(
+        mock_refresh_feed_entry_by_id.apply_async.assert_has_calls(
             [
                 call(
                     args=(self.feed_entry.id,),
@@ -86,18 +86,18 @@ class TestPurchaseSignals(TestCase):
             ]
         )
 
-    @patch("feed.signals.purchase_signals.refresh_feed_entry")
+    @patch("feed.signals.purchase_signals.refresh_feed_entry_by_id")
     @patch("feed.signals.purchase_signals.transaction")
     def test_refresh_feed_entries_on_purchase_update(
         self,
         mock_transaction,
-        mock_refresh_feed_entry,
+        mock_refresh_feed_entry_by_id,
     ):
         """Test that feed entries are refreshed when a purchase is updated"""
 
         # Arrange
         mock_transaction.on_commit = lambda func: func()
-        mock_refresh_feed_entry.apply_async = MagicMock()
+        mock_refresh_feed_entry_by_id.apply_async = MagicMock()
 
         # Act
         Purchase.objects.create(
@@ -110,7 +110,7 @@ class TestPurchaseSignals(TestCase):
         )
 
         # Assert
-        mock_refresh_feed_entry.apply_async.assert_has_calls(
+        mock_refresh_feed_entry_by_id.apply_async.assert_has_calls(
             [
                 call(
                     args=(self.feed_entry.id,),
@@ -288,7 +288,7 @@ class TestPurchaseSignals(TestCase):
         self.assertIn("applications", grant_data)
         self.assertEqual(len(grant_data["applications"]), 0)
 
-    @patch("feed.signals.purchase_signals.refresh_feed_entry")
+    @patch("feed.signals.purchase_signals.refresh_feed_entry_by_id")
     @patch("feed.signals.purchase_signals.transaction")
     def test_fundraise_contribution_triggers_feed_update(
         self, mock_transaction, mock_refresh
@@ -344,7 +344,7 @@ class TestPurchaseSignals(TestCase):
             priority=1,
         )
 
-    @patch("feed.signals.purchase_signals.refresh_feed_entry")
+    @patch("feed.signals.purchase_signals.refresh_feed_entry_by_id")
     @patch("feed.signals.purchase_signals.transaction")
     def test_fundraise_contribution_update_triggers_feed_update(
         self, mock_transaction, mock_refresh
