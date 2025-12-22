@@ -944,18 +944,6 @@ class PaperViewSet(
             knn_index_name = "paper_knn"
             paper_index_name = PaperDocument._index._name  # "paper"
 
-            # Check if paper_knn index exists
-            try:
-                client.indices.get(index=knn_index_name)
-            except Exception:
-                return Response(
-                    {
-                        "error": f"Index {knn_index_name} does not exist. "
-                        "Please create it first using: python manage.py setup_paper_knn_index"
-                    },
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )
-
             # Get the paper's fast vector from paper_knn index
             try:
                 response = client.get(index=knn_index_name, id=str(paper.id))
