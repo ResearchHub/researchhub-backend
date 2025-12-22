@@ -4,18 +4,20 @@ Management command to create the paper_knn index with KNN enabled and copy paper
 This command:
 1. Creates a new 'paper_knn' index with KNN enabled
 2. Configures abstract_fast_vector (and other vector fields) as knn_vector type
-3. Copies paper IDs from 'paper' to 'paper_knn' (creates minimal documents)
+3. Optionally copies paper IDs from 'paper' to 'paper_knn' (creates minimal documents)
 4. Vectors will be generated separately using generate_abstract_vectors command
 
 Usage:
     python manage.py setup_paper_knn_index
-    python manage.py setup_paper_knn_index --skip-copy-ids
+    python manage.py setup_paper_knn_index --copy-ids --since 30  # Copy IDs from last 30 days
     python manage.py setup_paper_knn_index --force  # Delete existing index first
 """
 
 import logging
+from datetime import datetime, timedelta
 
 from django.core.management.base import BaseCommand, CommandError
+from django.utils import timezone
 from django_opensearch_dsl.registries import registry
 
 from search.documents.paper import PaperDocument
@@ -42,9 +44,14 @@ class Command(BaseCommand):
             help="Keep existing paper_knn index if it exists (skip deletion)",
         )
         parser.add_argument(
-            "--skip-copy-ids",
+            "--copy-ids",
             action="store_true",
-            help="Skip copying paper IDs from paper index (only create the index)",
+            help="Copy paper IDs from paper index to paper_knn (default: skip)",
+        )
+        parser.add_argument(
+            "--since",
+            type=int,
+            help="Only copy paper IDs created within the last N days (requires --copy-ids)",
         )
         parser.add_argument(
             "--batch-size",
@@ -62,9 +69,16 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         force = options.get("force", False)
         keep_existing = options.get("keep_existing", False)
-        skip_copy_ids = options.get("skip_copy_ids", False)
+        copy_ids = options.get("copy_ids", False)
+        since_days = options.get("since")
         vector_dimension = options.get("vector_dimension", 384)
         batch_size = options.get("batch_size", 1000)
+
+        # Validate --since is only used with --copy-ids
+        if since_days is not None and not copy_ids:
+            raise CommandError(
+                "--since requires --copy-ids flag. Use --copy-ids --since <days>"
+            )
 
         # Get OpenSearch client
         document = PaperDocument()
@@ -119,21 +133,32 @@ class Command(BaseCommand):
         source_settings_data = source_settings.get(source_index, {})
 
         # Build new index settings with KNN enabled
+        # Copy all settings from source, including analyzers
+        source_index_settings = source_settings_data.get("settings", {}).get(
+            "index", {}
+        )
+        source_analysis = source_index_settings.get("analysis", {})
+
         index_settings = {
             "settings": {
                 "index": {
                     "knn": True,  # Enable KNN
                     "knn.algo_param.ef_search": 100,  # HNSW parameter
+                    "number_of_shards": source_index_settings.get(
+                        "number_of_shards", "1"
+                    ),
+                    "number_of_replicas": source_index_settings.get(
+                        "number_of_replicas", "0"
+                    ),
                 },
-                "number_of_shards": source_settings_data.get("settings", {})
-                .get("index", {})
-                .get("number_of_shards", "1"),
-                "number_of_replicas": source_settings_data.get("settings", {})
-                .get("index", {})
-                .get("number_of_replicas", "0"),
             },
             "mappings": source_index_data.get("mappings", {}).copy(),
         }
+
+        # Copy analysis settings (analyzers, tokenizers, filters) if they exist
+        # Analysis is nested under settings.index.analysis
+        if source_analysis:
+            index_settings["settings"]["index"]["analysis"] = source_analysis
 
         # Update mappings to use knn_vector for vector fields
         properties = index_settings["mappings"].get("properties", {})
@@ -170,17 +195,35 @@ class Command(BaseCommand):
             raise CommandError(f"Failed to create index {target_index}: {str(e)}")
 
         # Copy paper IDs from source to target (create minimal documents)
-        if not skip_copy_ids:
+        if copy_ids:
             self.stdout.write(
                 f"\nCopying paper IDs from {source_index} to {target_index}..."
             )
             try:
                 # Get all paper IDs from source index using scroll API
-                self.stdout.write("Fetching paper IDs from source index...")
+                since_date = None
+                if since_days:
+                    since_date = timezone.now() - timedelta(days=since_days)
+                    self.stdout.write(
+                        f"Fetching paper IDs from source index (created in last {since_days} days, since {since_date.date()})..."
+                    )
+                else:
+                    self.stdout.write("Fetching paper IDs from source index...")
 
                 # Use scroll to get all IDs efficiently
                 scroll_size = batch_size
                 paper_ids = []
+
+                # Build query - filter by created_date if --since is provided
+                query = {"match_all": {}}
+                if since_date:
+                    query = {
+                        "range": {
+                            "created_date": {
+                                "gte": since_date.isoformat(),
+                            }
+                        }
+                    }
 
                 # Initial search
                 response = client.search(
@@ -188,7 +231,7 @@ class Command(BaseCommand):
                     body={
                         "size": scroll_size,
                         "_source": ["id"],  # Only fetch ID field
-                        "query": {"match_all": {}},
+                        "query": query,
                     },
                     scroll="2m",  # Keep scroll context alive for 2 minutes
                 )
@@ -340,7 +383,9 @@ class Command(BaseCommand):
                 )
         else:
             self.stdout.write(
-                self.style.WARNING("Skipping paper ID copy (--skip-copy-ids flag set)")
+                self.style.WARNING(
+                    "Skipping paper ID copy (use --copy-ids to enable copying)"
+                )
             )
 
         self.stdout.write("\n" + "=" * 60)
@@ -350,15 +395,27 @@ class Command(BaseCommand):
         self.stdout.write(
             f"Vector fields configured: abstract_fast_vector (dimension: {vector_dimension})"
         )
-        if not skip_copy_ids:
-            self.stdout.write("Paper IDs copied: Yes")
+        if copy_ids:
+            if since_days:
+                self.stdout.write(
+                    f"Paper IDs copied: Yes (last {since_days} days only)"
+                )
+            else:
+                self.stdout.write("Paper IDs copied: Yes (all papers)")
         else:
-            self.stdout.write("Paper IDs copied: No (skipped)")
+            self.stdout.write("Paper IDs copied: No (skipped by default)")
         self.stdout.write("=" * 60)
         self.stdout.write(
             "\nNext steps:\n"
             "1. Verify the index was created correctly\n"
             "2. Generate vectors for papers:\n"
             f"   python manage.py generate_abstract_vectors --index-name {target_index} --days <N>\n"
-            "3. Test the similar_papers endpoint to ensure KNN search works"
+            "3. Test the similar_papers endpoint to ensure KNN search works\n"
         )
+        if not copy_ids:
+            self.stdout.write(
+                "\nNote: To copy paper IDs later, run:\n"
+                f"   python manage.py setup_paper_knn_index --copy-ids --keep-existing\n"
+                "   Or with date filter:\n"
+                f"   python manage.py setup_paper_knn_index --copy-ids --since 30 --keep-existing"
+            )
