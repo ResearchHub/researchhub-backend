@@ -140,7 +140,7 @@ def update_paper_knn_vector_on_save(sender, instance, created, update_fields, **
 
     This signal handler listens for paper saves and triggers vector generation:
     - For new papers: Generate vector after paper is created
-    - For updates: Only regenerate if abstract field was changed
+    - For updates: Only regenerate if abstract field was explicitly changed
 
     It queues a Celery task to generate the vector embedding.
     """
@@ -151,13 +151,17 @@ def update_paper_knn_vector_on_save(sender, instance, created, update_fields, **
         # New paper - generate vector if it has an abstract
         should_process = True
     else:
-        # Updated paper - only process if abstract was in update_fields
+        # Updated paper - ONLY process if abstract was explicitly in update_fields
+        # Don't process if update_fields is None (which happens on any save without update_fields)
+        # This prevents duplicate queuing when other signals save the paper
         if update_fields and "abstract" in update_fields:
-            should_process = True
-        elif update_fields is None:
             should_process = True
 
     if not should_process:
+        logger.debug(
+            f"Paper {instance.id} signal skipped: created={created}, "
+            f"update_fields={update_fields}"
+        )
         return
 
     if not instance.abstract or instance.abstract.strip() == "":
