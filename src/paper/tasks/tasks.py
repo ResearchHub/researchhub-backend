@@ -20,8 +20,6 @@ from paper.ingestion.tasks import (  # noqa: F401
 )
 from paper.utils import download_pdf_from_url
 from researchhub.celery import QUEUE_PAPER_MISC, app
-
-# from researchhub.settings import PRODUCTION
 from utils import sentry
 
 logger = get_task_logger(__name__)
@@ -60,11 +58,6 @@ def download_pdf(paper_id, retry=0):
             paper.file.save(pdf.name, pdf, save=False)
             paper.save(update_fields=["file"])
 
-            # NOTE: Automatic figure extraction is disabled.
-            # Do not forget to filter old papers.
-            # We need to extract figures for new papers: published date after 2025-10-01
-            # from paper.tasks.figure_tasks import extract_pdf_figures
-            # extract_pdf_figures.apply_async((paper.id,), priority=6)
             return True
         except ValueError as e:
             logger.warning(f"No PDF at {url} - paper {paper_id}: {e}")

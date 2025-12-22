@@ -10,6 +10,7 @@ import utils.locking as lock
 from feed.models import FeedEntry
 from feed.serializers import serialize_feed_item, serialize_feed_metrics
 from paper.related_models.paper_model import Paper
+from paper.tasks.figure_tasks import trigger_figure_extraction_for_paper
 from paper.utils import pdf_copyright_allows_display
 from researchhub.celery import app
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -109,19 +110,26 @@ def refresh_feed_entry(feed_entry_id):
     feed_entry.hot_score_v2 = feed_entry.calculate_hot_score_v2()
     feed_entry.save(update_fields=["content", "metrics", "hot_score_v2"])
 
+    if feed_entry.content_type == ContentType.objects.get_for_model(Paper):
+        trigger_figure_extraction_for_paper(feed_entry.item.id, feed_entry.hot_score_v2)
+
     # Update authors separately (ManyToMany field)
     if authors:
         feed_entry.authors.set(authors)
 
 
 @app.task
-def refresh_feed_entries_for_objects(item_id, item_content_type_id):
+def refresh_feed_entries_for_objects(
+    item_id, item_content_type_id, skip_figure_extraction=False
+):
     item_content_type = ContentType.objects.get(id=item_content_type_id)
 
     feed_entries = FeedEntry.objects.filter(
         object_id=item_id,
         content_type=item_content_type,
     )
+
+    checked_figure_extraction = False
 
     for feed_entry in feed_entries:
         content = serialize_feed_item(feed_entry.item, item_content_type)
@@ -135,6 +143,16 @@ def refresh_feed_entries_for_objects(item_id, item_content_type_id):
         feed_entry.metrics = metrics
         feed_entry.hot_score_v2 = feed_entry.calculate_hot_score_v2()
         feed_entry.save(update_fields=["content", "metrics", "hot_score_v2"])
+
+        if (
+            not skip_figure_extraction
+            and not checked_figure_extraction
+            and item_content_type == ContentType.objects.get_for_model(Paper)
+        ):
+            trigger_figure_extraction_for_paper(
+                feed_entry.item.id, feed_entry.hot_score_v2
+            )
+            checked_figure_extraction = True
 
         # Update authors separately (ManyToMany field)
         if authors:
@@ -289,12 +307,15 @@ def refresh_feed_hot_scores_batch(
 
     update_fields = ["hot_score_v2"]
 
+    processed_papers = set()
+    paper_content_type = ContentType.objects.get_for_model(Paper)
+
     # Process in batches
     for offset in range(0, total_entries, batch_size):
         entries_to_update = []
 
         # Process a batch of entries
-        batch = list(queryset[offset : (offset + batch_size)])
+        batch = list(queryset[offset : offset + batch_size])
 
         # Calculate hot scores for each entry in the batch
         for feed_entry in batch:
@@ -318,6 +339,17 @@ def refresh_feed_hot_scores_batch(
                     entries_to_update, update_fields, batch_size=batch_size
                 )
                 updated += len(entries_to_update)
+
+                for feed_entry in entries_to_update:
+                    if (
+                        feed_entry.content_type == paper_content_type
+                        and feed_entry.item.id not in processed_papers
+                    ):
+                        trigger_figure_extraction_for_paper(
+                            feed_entry.item.id, feed_entry.hot_score_v2
+                        )
+                        processed_papers.add(feed_entry.item.id)
+
             except Exception as e:
                 errors += len(entries_to_update)
                 logger.error(f"Error bulk updating batch: {e}")
