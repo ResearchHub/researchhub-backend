@@ -163,26 +163,25 @@ class Command(BaseCommand):
         # Update mappings to use knn_vector for vector fields
         properties = index_settings["mappings"].get("properties", {})
 
-        # Update abstract_fast_vector to knn_vector
-        if "abstract_fast_vector" in properties:
-            properties["abstract_fast_vector"] = {
-                "type": "knn_vector",
-                "dimension": vector_dimension,
-                "method": {
-                    "name": "hnsw",
-                    "space_type": "cosinesimil",
-                    "engine": "nmslib",
-                    "parameters": {
-                        "ef_construction": 128,
-                        "m": 24,
-                    },
+        # Always configure abstract_fast_vector as knn_vector (even if not in source mapping)
+        properties["abstract_fast_vector"] = {
+            "type": "knn_vector",
+            "dimension": vector_dimension,
+            "method": {
+                "name": "hnsw",
+                "space_type": "cosinesimil",
+                "engine": "nmslib",
+                "parameters": {
+                    "ef_construction": 128,
+                    "m": 24,
                 },
-            }
-            self.stdout.write(
-                self.style.SUCCESS(
-                    f"Configured abstract_fast_vector as knn_vector (dimension: {vector_dimension})"
-                )
+            },
+        }
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Configured abstract_fast_vector as knn_vector (dimension: {vector_dimension})"
             )
+        )
 
         # Create the new index
         try:
