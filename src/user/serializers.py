@@ -109,6 +109,7 @@ class AuthorSerializer(ModelSerializer):
             "is_hub_editor",
             "num_posts",
             "orcid_id",
+            "is_orcid_connected",
             "reputation",
             "reputation_v2",
             "reputation_list",
@@ -165,6 +166,7 @@ class AuthorSerializer(ModelSerializer):
 
     def get_orcid_id(self, author):
         return author.orcid_id
+        
 
     def get_total_score(self, author):
         if author.author_score > 0:
