@@ -968,44 +968,6 @@ class PaperViewSet(
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
 
-            # Verify paper_knn index has knn_vector field configured
-            try:
-                mapping = client.indices.get_mapping(index=knn_index_name)
-                field_type = (
-                    mapping.get(knn_index_name, {})
-                    .get("mappings", {})
-                    .get("properties", {})
-                    .get("abstract_fast_vector", {})
-                    .get("type")
-                )
-                if field_type != "knn_vector":
-                    error_message = (
-                        f"abstract_fast_vector field in {knn_index_name} is not configured as knn_vector "
-                        f"(type: {field_type}). Native KNN search requires knn_vector field type.\n\n"
-                        "To fix this, recreate the index:\n"
-                        "  python manage.py setup_paper_knn_index --force\n"
-                    )
-
-                    return Response(
-                        {"error": error_message},
-                        status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    )
-            except Exception as e:
-                log_error(
-                    e,
-                    message=f"Failed to check mapping for index {knn_index_name}",
-                )
-                error_message = (
-                    f"Failed to verify {knn_index_name} index configuration for KNN search.\n\n"
-                    "To set up KNN support, run:\n"
-                    "  python manage.py setup_paper_knn_index --force\n"
-                )
-
-                return Response(
-                    {"error": error_message},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )
-
             # Use native OpenSearch KNN query on paper_knn index
             # Request k=4 to account for potential exclusion of the query paper itself
             # post_filter is needed, filter inside KNN is not supported
