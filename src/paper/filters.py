@@ -19,6 +19,7 @@ class PaperFilter(filters.FilterSet):
             "file",
             "raw_authors",
             "open_alex_raw_json",
+            "title_abstract_embedding",
         ]
 
     def uploaded_by_author(self, queryset, name, value):

@@ -177,6 +177,14 @@ class Paper(AbstractGenericReactionModel):
         max_length=255,
     )
 
+    # Vector embedding of title + abstract for semantic search
+    # Generated using Amazon Bedrock Titan Text Embeddings V2 (1024 dimensions)
+    title_abstract_embedding = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="1024-dimensional embedding vector for semantic search",
+    )
+
     # https://docs.openalex.org/api-entities/works/work-object#language
     language = models.CharField(
         blank=True,
