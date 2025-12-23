@@ -8,8 +8,6 @@ using mock data without requiring database access.
 from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock
 
-from django.test import TestCase
-
 from feed.hot_score_utils import (
     calculate_adjusted_score,
     calculate_bluesky_engagement,
@@ -29,9 +27,10 @@ from feed.hot_score_utils import (
     parse_iso_datetime,
     safe_get_nested,
 )
+from utils.test_helpers import RHTestCase
 
 
-class TestHotScoreUtils(TestCase):
+class TestHotScoreUtils(RHTestCase):
     """Test suite for hot score utility functions."""
 
     # ========================================================================

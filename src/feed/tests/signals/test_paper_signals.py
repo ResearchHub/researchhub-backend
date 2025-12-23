@@ -2,17 +2,18 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase
 
 from feed.models import FeedEntry
 from feed.serializers import serialize_feed_metrics
 from hub.models import Hub
 from paper.related_models.paper_model import Paper
 from user.models import User
+from utils.test_helpers import RHTestCase
 
 
-class PaperSignalsTests(TestCase):
+class PaperSignalsTests(RHTestCase):
     def setUp(self):
+        super().setUp()
         self.user = User.objects.create_user(username="user1")
         self.paper = Paper.objects.create(
             title="Test Paper",

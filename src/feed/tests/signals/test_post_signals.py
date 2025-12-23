@@ -1,7 +1,6 @@
 from unittest.mock import MagicMock, call, patch
 
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase
 
 from feed.models import FeedEntry
 from feed.signals.post_signals import handle_post_create_feed_entry
@@ -12,10 +11,12 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
     ResearchhubUnifiedDocument,
 )
 from user.models import User
+from utils.test_helpers import RHTestCase
 
 
-class TestPostSignals(TestCase):
+class TestPostSignals(RHTestCase):
     def setUp(self):
+        super().setUp()
         self.user = User.objects.create_user(username="testUser1")
         self.hub1 = Hub.objects.create(name="testHub1")
         self.hub2 = Hub.objects.create(name="testHub2")
