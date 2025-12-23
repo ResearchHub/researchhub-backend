@@ -163,7 +163,7 @@ class OrcidFetchServiceTests(TestCase):
         self.mock_openalex.get_work_by_doi.return_value = OrcidTestHelper.make_openalex_work("10.1/x")
 
         # Act
-        result = self.service.sync_papers(user.author_profile.id)
+        self.service.sync_papers(user.author_profile.id)
 
         # Assert
         other_user.author_profile.refresh_from_db()

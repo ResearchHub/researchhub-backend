@@ -1,5 +1,5 @@
 import logging
-from typing import Callable, Optional, Tuple
+from typing import Callable, Optional
 
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from django.db import transaction
@@ -31,18 +31,18 @@ class OrcidFetchService:
 
     def sync_papers(self, author_id: int) -> dict:
         """Sync an author's ORCID papers to their ResearchHub profile."""
-        author, orcid_id = self._get_validated_author(author_id)
+        orcid_id = self._get_author_orcid_id(author_id)
         dois = self._fetch_dois_from_orcid(orcid_id)
 
         if not dois:
             return {"papers_processed": 0, "author_id": author_id}
 
         works = self._fetch_works_from_openalex(dois)
-        linked = self._link_papers_to_author(author, works, orcid_id)
+        linked = self._link_papers_to_author(works)
         return {"papers_processed": linked, "author_id": author_id}
 
-    def _get_validated_author(self, author_id: int) -> Tuple[Author, str]:
-        """Get author and extract ORCID ID, raising if not connected."""
+    def _get_author_orcid_id(self, author_id: int) -> str:
+        """Get ORCID ID for author, raising if not found or not connected."""
         try:
             author = Author.objects.get(id=author_id)
         except Author.DoesNotExist:
@@ -51,7 +51,7 @@ class OrcidFetchService:
         orcid_id = self._extract_orcid_id(author.orcid_id)
         if not orcid_id:
             raise ValueError(f"Author {author_id} has no ORCID connected")
-        return author, orcid_id
+        return orcid_id
 
     def _extract_orcid_id(self, orcid_url: Optional[str]) -> str:
         """Extract bare ORCID ID from full URL (e.g., '0000-0001-2345-6789')."""
@@ -83,9 +83,7 @@ class OrcidFetchService:
             self.process_works_fn(works)
         return works
 
-    def _link_papers_to_author(
-        self, author: Author, works: list[dict], orcid_id: str
-    ) -> int:
+    def _link_papers_to_author(self, works: list[dict]) -> int:
         """Merge authorships for all authors on papers that have ORCID matches."""
         linked = 0
         with transaction.atomic():
