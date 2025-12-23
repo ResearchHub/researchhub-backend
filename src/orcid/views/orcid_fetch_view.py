@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from orcid.tasks import sync_orcid_papers_task
+from django.core.cache import cache
 
 
 class OrcidFetchView(APIView):
@@ -30,5 +31,8 @@ class OrcidFetchView(APIView):
             )
 
         self.sync_task.delay(author.id)
+        
+        cache.delete(f"author-{author.id}-publications")
+        cache.delete(f"author-{author.id}-summary-stats")
         return Response({"message": "Paper sync started"})
 

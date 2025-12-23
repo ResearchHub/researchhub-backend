@@ -1,4 +1,4 @@
-from allauth.socialaccount.models import SocialApp
+from allauth.socialaccount.models import SocialAccount, SocialApp
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from django.contrib.sites.models import Site
 
@@ -12,11 +12,16 @@ class OrcidTestHelper:
     ORCID_URL = f"https://orcid.org/{ORCID_ID}"
 
     @staticmethod
-    def create_author(name: str = "u"):
+    def create_author(name: str = "u", orcid_id: str = None, orcid_connected: bool = True):
         """Create a user with ORCID connected to their author profile."""
+        orcid_url = orcid_id or OrcidTestHelper.ORCID_URL
         user = create_random_default_user(name)
-        user.author_profile.orcid_id = OrcidTestHelper.ORCID_URL
+        user.author_profile.orcid_id = orcid_url
         user.author_profile.save()
+        if orcid_connected:
+            SocialAccount.objects.create(
+                user=user, provider=OrcidProvider.id, uid=orcid_url.replace("https://orcid.org/", "")
+            )
         return user
 
     @staticmethod

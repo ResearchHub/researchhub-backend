@@ -1,7 +1,7 @@
 import logging
 from typing import Callable, Optional, Tuple
 
-from django.core.cache import cache
+from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from django.db import transaction
 from django.db.models import Q
 
@@ -83,44 +83,73 @@ class OrcidFetchService:
             self.process_works_fn(works)
         return works
 
-    def _link_papers_to_author(self, author: Author, works: list[dict], orcid_id: str) -> int:
-        """Link papers to author, merging duplicate authorships from OpenAlex if found."""
+    def _link_papers_to_author(
+        self, author: Author, works: list[dict], orcid_id: str
+    ) -> int:
+        """Merge authorships for all authors on papers that have ORCID matches."""
         linked = 0
         with transaction.atomic():
             for work in works:
-                if self._process_work(author, work, orcid_id):
-                    linked += 1
+                paper = self._find_paper_by_doi(work.get("doi", ""))
+                if not paper:
+                    continue
 
-        if linked > 0:
-            cache.delete(f"author-{author.id}-publications")
+                # Merge ALL authorships on this paper that have ORCID matches
+                merged_count = self._merge_authorships_for_paper(paper, work)
+                if merged_count > 0:
+                    linked += 1
         return linked
 
-    def _process_work(self, author: Author, work: dict, orcid_id: str) -> bool:
-        """Process a single work, creating or updating authorship. Returns True if linked."""
-        paper = self._find_paper_by_doi(work.get("doi", ""))
-        if not paper or Authorship.objects.filter(paper=paper, author=author).exists():
-            return False
+    def _merge_authorships_for_paper(self, paper: Paper, work: dict) -> int:
+        """Merge authorships for all authors on paper that are ORCID-connected in our system."""
+        merged = 0
 
-        existing = Authorship.objects.filter(
-            paper=paper, author__orcid_id=author.orcid_id
-        ).exclude(author=author).first()
-        position = self._get_author_position(work, orcid_id)
+        for authorship_data in work.get("authorships", []):
+            orcid_url = authorship_data.get("author", {}).get("orcid")
+            if not orcid_url:
+                continue
 
-        if existing:
-            self._use_existing_authorship(existing, author, position)
-        else:
-            Authorship.objects.create(paper=paper, author=author, author_position=position)
-        return True
+            # Find an Author with this ORCID who is actually connected to ORCID
+            user_author = Author.objects.filter(
+                orcid_id=orcid_url,
+                user__isnull=False,
+                user__socialaccount__provider=OrcidProvider.id,
+            ).first()
 
-    def _use_existing_authorship(self, existing: Authorship, author: Author, position: str) -> None:
-        """Update existing authorship to point to user's author, marking old author as merged."""
+            if not user_author:
+                continue
+
+            # Skip if already linked
+            if Authorship.objects.filter(paper=paper, author=user_author).exists():
+                continue
+
+            # Find the OpenAlex authorship to merge
+            openalex_authorship = (
+                Authorship.objects.filter(paper=paper, author__orcid_id=orcid_url)
+                .exclude(author=user_author)
+                .first()
+            )
+
+            if openalex_authorship:
+                position = authorship_data.get(
+                    "author_position", Authorship.MIDDLE_AUTHOR_POSITION
+                )
+                self._transfer_authorship(openalex_authorship, user_author, position)
+                merged += 1
+
+        return merged
+
+    def _transfer_authorship(
+        self, existing: Authorship, user_author: Author, position: str
+    ) -> None:
+        """Transfer authorship from OpenAlex author to user's author."""
         old_author = existing.author
-        existing.author = author
+        existing.author = user_author
         existing.author_position = position
         existing.save(update_fields=["author", "author_position"])
 
         if old_author.user is None and old_author.merged_with_author is None:
-            old_author.merged_with_author = author
+            old_author.merged_with_author = user_author
             old_author.save(update_fields=["merged_with_author"])
 
     def _find_paper_by_doi(self, raw_doi: str) -> Optional[Paper]:
@@ -128,13 +157,6 @@ class OrcidFetchService:
         if not raw_doi:
             return None
         clean_doi = raw_doi.replace("https://doi.org/", "")
-        return Paper.objects.filter(Q(doi__iexact=raw_doi) | Q(doi__iexact=clean_doi)).first()
-
-    def _get_author_position(self, work: dict, orcid_id: str) -> str:
-        """Get author's position (first/middle/last) from OpenAlex work data."""
-        orcid_url = f"{ORCID_BASE_URL}/{orcid_id}"
-        for authorship in work.get("authorships", []):
-            if authorship.get("author", {}).get("orcid") == orcid_url:
-                return authorship.get("author_position", Authorship.MIDDLE_AUTHOR_POSITION)
-        return Authorship.MIDDLE_AUTHOR_POSITION
-
+        return Paper.objects.filter(
+            Q(doi__iexact=raw_doi) | Q(doi__iexact=clean_doi)
+        ).first()
