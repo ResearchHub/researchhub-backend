@@ -49,6 +49,7 @@ class HubSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     name = serializers.CharField()
     slug = serializers.CharField()
+    namespace = serializers.CharField(allow_null=True, required=False)
 
 
 class InstitutionSerializer(serializers.Serializer):
@@ -70,14 +71,18 @@ class DocumentResultSerializer(serializers.Serializer):
     created_date = serializers.DateTimeField(allow_null=True, required=False)
     paper_publish_date = serializers.DateTimeField(allow_null=True, required=False)
     score = serializers.IntegerField(required=False)
+    hot_score_v2 = serializers.IntegerField(required=False)
     _search_score = serializers.FloatField(required=False)
     hubs = HubSerializer(many=True, required=False)
     unified_document_id = serializers.IntegerField(required=False)
+    category = HubSerializer(allow_null=True, required=False)
+    subcategory = HubSerializer(allow_null=True, required=False)
 
     # Paper-specific fields
     doi = serializers.CharField(allow_null=True, required=False)
     citations = serializers.IntegerField(required=False)
     abstract = serializers.CharField(allow_null=True, required=False)
+    journal = serializers.CharField(allow_null=True, required=False)
 
     # Post-specific fields
     slug = serializers.CharField(allow_null=True, required=False)
