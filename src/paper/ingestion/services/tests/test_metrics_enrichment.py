@@ -556,7 +556,7 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         self.assertEqual(post1.reply_count, 5)
         self.assertEqual(post1.quote_count, 3)
         self.assertEqual(post1.impression_count, 1000)
-        self.assertIsNotNone(post1.posted_at)
+        self.assertIsNotNone(post1.posted_date)
 
         # Verify second post
         post2 = x_posts.get(post_id="9876543210")

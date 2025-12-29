@@ -36,7 +36,7 @@ class XPost(DefaultModel):
         default="",
         help_text="The text content of the post",
     )
-    posted_at = models.DateTimeField(
+    posted_date = models.DateTimeField(
         null=True,
         blank=True,
         db_index=True,
@@ -58,9 +58,9 @@ class XPost(DefaultModel):
             ),
         ]
         indexes = [
-            models.Index(fields=["paper", "-posted_at"]),
+            models.Index(fields=["paper", "-posted_date"]),
         ]
-        ordering = ["-posted_at"]
+        ordering = ["-posted_date"]
 
     def __str__(self):
         return f"XPost {self.post_id} for Paper {self.paper_id}"
