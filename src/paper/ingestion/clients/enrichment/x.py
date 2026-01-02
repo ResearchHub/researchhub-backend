@@ -119,9 +119,54 @@ class XClient:
         if self._client is None:
             self._client = Client(bearer_token=self.bearer_token)
 
-    def search_posts(self, query: str, max_results: int = 10) -> Optional[Dict]:
+    def search_posts(
+        self,
+        terms: List[str],
+        max_results: int = MAX_SEARCH_RESULTS,
+        external_source: Optional[str] = None,
+        hub_slugs: Optional[List[str]] = None,
+    ) -> Optional[List[Dict]]:
         """
-        Search for posts on X matching a query.
+        Search for X posts matching search terms.
+
+        Builds an OR query from the terms and filters out known bot accounts.
+
+        Args:
+            terms: List of terms to search for (e.g., DOI, title).
+                   Multiple terms are combined with OR logic.
+            max_results: Maximum number of posts to retrieve
+            external_source: The preprint server source (e.g., "arxiv", "biorxiv")
+                for filtering out known bot accounts
+            hub_slugs: List of hub slugs associated with the paper
+                for filtering out category-specific bot accounts
+
+        Returns:
+            List of post dicts if successful, None if error occurred
+        """
+        base_query = self._build_search_query(terms)
+        if not base_query:
+            logger.warning("No valid terms provided for X search")
+            return None
+
+        # Build query with bot account exclusions
+        excluded_accounts = get_bot_accounts_for_paper(external_source, hub_slugs)
+        query = build_query_with_exclusions(base_query, excluded_accounts)
+
+        response_data = self._search_posts(query=query, max_results=max_results)
+
+        if not response_data:
+            logger.warning(f"Failed to retrieve X posts for terms {terms}")
+            return None
+
+        posts = response_data.get("posts", [])
+        if not posts:
+            logger.debug(f"No X posts found for terms: {terms}")
+
+        return posts
+
+    def _search_posts(self, query: str, max_results: int = 10) -> Optional[Dict]:
+        """
+        Execute raw search for posts on X matching a query.
 
         Args:
             query: Search query string
@@ -190,93 +235,7 @@ class XClient:
             "impression_count": public_metrics.get("impression_count", 0),
         }
 
-
-class XMetricsClient:
-    """
-    Client for retrieving X metrics for papers.
-    """
-
-    def __init__(self, x_client: Optional[XClient] = None):
-        """
-        Constructor.
-
-        Args:
-            x_client: X API client.
-                If None, creates an XClient (which is a singleton).
-        """
-        self.x_client = x_client or XClient()
-
-    def get_metrics(
-        self,
-        terms: List[str],
-        max_results: int = XClient.MAX_SEARCH_RESULTS,
-        external_source: Optional[str] = None,
-        hub_slugs: Optional[List[str]] = None,
-    ) -> Optional[Dict]:
-        """
-        Get X metrics for a list of terms using OR logic.
-
-        Args:
-            terms: List of terms to search for (e.g., DOI, title).
-                   Multiple terms are combined with OR logic.
-            max_results: Maximum number of posts to retrieve
-            external_source: The preprint server source (e.g., "arxiv", "biorxiv")
-                for filtering out known bot accounts
-            hub_slugs: List of hub slugs associated with the paper
-                for filtering out category-specific bot accounts
-
-        Returns:
-            Dict containing detailed metrics if successful:
-            {
-                "post_count": int,
-                "total_likes": int,
-                "total_reposts": int,
-                "total_replies": int,
-                "total_quotes": int,
-                "total_impressions": int,
-                "terms": list[str],
-                "posts": [
-                    {
-                        "id": str,
-                        "text": str,
-                        "author_id": str,
-                        "created_at": str,
-                        "like_count": int,
-                        "repost_count": int,
-                        "reply_count": int,
-                        "quote_count": int,
-                        "impression_count": int
-                    },
-                    ...
-                ]
-            }
-            None if error occurred
-        """
-        # Build query with OR logic for multiple terms
-        base_query = self._build_query(terms)
-        if not base_query:
-            logger.warning("No valid terms provided for X search")
-            return None
-
-        # Build query with bot account exclusions
-        excluded_accounts = get_bot_accounts_for_paper(external_source, hub_slugs)
-        query = build_query_with_exclusions(base_query, excluded_accounts)
-
-        response_data = self.x_client.search_posts(query=query, max_results=max_results)
-
-        if not response_data:
-            logger.warning(f"Failed to retrieve X metrics for terms {terms}")
-            return None
-
-        posts = response_data.get("posts", [])
-        if not posts:
-            logger.debug(f"No X posts found for terms: {terms}")
-
-        metrics = self._extract_metrics(posts)
-        metrics["terms"] = terms
-        return metrics
-
-    def _build_query(self, terms: List[str]) -> str:
+    def _build_search_query(self, terms: List[str]) -> str:
         """
         Build an X search query from a list of terms using OR logic.
 
@@ -288,51 +247,5 @@ class XMetricsClient:
         Returns:
             X search query string.
         """
-        # Quote each term and join with OR
         quoted_terms = [f'"{term}"' for term in terms if term]
         return " OR ".join(quoted_terms)
-
-    @staticmethod
-    def _extract_metrics(posts: List[Dict]) -> Dict:
-        """
-        Extract aggregated metrics from a list of posts.
-
-        Args:
-            posts: List of post dictionaries from X API
-
-        Returns:
-            Dictionary with aggregated metrics
-        """
-        if not posts:
-            return {
-                "post_count": 0,
-                "total_likes": 0,
-                "total_reposts": 0,
-                "total_replies": 0,
-                "total_quotes": 0,
-                "total_impressions": 0,
-                "posts": [],
-            }
-
-        total_likes = 0
-        total_reposts = 0
-        total_replies = 0
-        total_quotes = 0
-        total_impressions = 0
-
-        for post in posts:
-            total_likes += post.get("like_count", 0)
-            total_reposts += post.get("repost_count", 0)
-            total_replies += post.get("reply_count", 0)
-            total_quotes += post.get("quote_count", 0)
-            total_impressions += post.get("impression_count", 0)
-
-        return {
-            "post_count": len(posts),
-            "total_likes": total_likes,
-            "total_reposts": total_reposts,
-            "total_replies": total_replies,
-            "total_quotes": total_quotes,
-            "total_impressions": total_impressions,
-            "posts": posts,
-        }

@@ -4,14 +4,10 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any, Dict, List, Optional
 
-from dateutil import parser as date_parser
 from django.utils import timezone
 
-from paper.ingestion.clients import (
-    BlueskyMetricsClient,
-    GithubMetricsClient,
-    XMetricsClient,
-)
+from paper.ingestion.clients import BlueskyMetricsClient, GithubMetricsClient, XClient
+from paper.ingestion.mappers import XMapper
 from paper.models import Paper
 from paper.related_models.x_post_model import XPost
 
@@ -49,7 +45,8 @@ class PaperMetricsEnrichmentService:
         self,
         bluesky_metrics_client: BlueskyMetricsClient,
         github_metrics_client: GithubMetricsClient,
-        x_metrics_client: XMetricsClient,
+        x_client: XClient,
+        x_mapper: Optional[XMapper] = None,
     ):
         """
         Constructor.
@@ -57,11 +54,13 @@ class PaperMetricsEnrichmentService:
         Args:
             github_metrics_client: Client for fetching GitHub metrics
             bluesky_metrics_client: Client for fetching Bluesky metrics
-            x_metrics_client: Client for fetching X (Twitter) metrics
+            x_client: Client for fetching X (Twitter) posts
+            x_mapper: Mapper for X post data (optional, creates default if None)
         """
         self.github_metrics_client = github_metrics_client
         self.bluesky_metrics_client = bluesky_metrics_client
-        self.x_metrics_client = x_metrics_client
+        self.x_client = x_client
+        self.x_mapper = x_mapper or XMapper()
 
     def get_recent_papers_with_dois(self, days: int) -> List[int]:
         """
@@ -198,30 +197,31 @@ class PaperMetricsEnrichmentService:
         hub_slugs = list(paper.hubs.values_list("slug", flat=True))
 
         try:
-            result = self.x_metrics_client.get_metrics(
+            posts = self.x_client.search_posts(
                 terms,
                 external_source=paper.external_source,
                 hub_slugs=hub_slugs,
             )
 
-            if result is None:
+            if posts is None:
                 logger.info(f"No X posts found for paper {paper.id}")
                 return EnrichmentResult(status="not_found", reason="no_x_posts")
 
-            self._update_paper_metrics(paper, {"x": result})
-
             # Save individual X posts to the database
-            posts = result.get("posts", [])
             if posts:
                 self._save_x_posts(paper, posts)
 
+            # Extract and store aggregated metrics in external_metadata
+            metrics = self.x_mapper.extract_metrics(posts)
+            self._update_paper_metrics(paper, {"x": metrics})
+
             logger.info(
-                f"Successfully saved {result['post_count']} X posts for paper {paper.id}."
+                f"Successfully saved {metrics['post_count']} X posts for paper {paper.id}."
             )
 
             return EnrichmentResult(
                 status="success",
-                metrics={"x": result},
+                metrics={"x": metrics},
             )
 
         except Exception as e:
@@ -273,33 +273,20 @@ class PaperMetricsEnrichmentService:
         Returns:
             Number of posts created or updated
         """
+        x_posts = self.x_mapper.map_to_x_posts(posts)
 
-        for post_data in posts:
-            post_id = post_data.get("id")
-            if not post_id:
-                continue
-
-            # Parse posted_date datetime
-            posted_date = None
-            created_at_str = post_data.get("created_at")
-            if created_at_str:
-                try:
-                    posted_date = date_parser.parse(created_at_str)
-                except (ValueError, TypeError):
-                    logger.warning(f"Could not parse created_at: {created_at_str}")
-
-            # Use update_or_create to handle duplicates
+        for x_post in x_posts:
             XPost.objects.update_or_create(
                 paper=paper,
-                post_id=post_id,
+                post_id=x_post.post_id,
                 defaults={
-                    "author_id": post_data.get("author_id"),
-                    "text": post_data.get("text", ""),
-                    "posted_date": posted_date,
-                    "like_count": post_data.get("like_count", 0),
-                    "repost_count": post_data.get("repost_count", 0),
-                    "reply_count": post_data.get("reply_count", 0),
-                    "quote_count": post_data.get("quote_count", 0),
-                    "impression_count": post_data.get("impression_count", 0),
+                    "author_id": x_post.author_id,
+                    "text": x_post.text,
+                    "posted_date": x_post.posted_date,
+                    "like_count": x_post.like_count,
+                    "repost_count": x_post.repost_count,
+                    "reply_count": x_post.reply_count,
+                    "quote_count": x_post.quote_count,
+                    "impression_count": x_post.impression_count,
                 },
             )
