@@ -6,7 +6,7 @@ from .base import BaseClient, ClientConfig
 from .enrichment.bluesky import BlueskyClient, BlueskyMetricsClient
 from .enrichment.github import GithubClient, GithubMetricsClient
 from .enrichment.openalex import OpenAlexClient
-from .enrichment.x import XClient, XMetricsClient
+from .enrichment.x import XClient
 from .preprints.arxiv import ArXivClient, ArXivConfig
 from .preprints.arxiv_oai import ArXivOAIClient, ArXivOAIConfig
 from .preprints.biorxiv import BioRxivClient, BioRxivConfig
@@ -32,5 +32,4 @@ __all__ = [
     "MedRxivConfig",
     "OpenAlexClient",
     "XClient",
-    "XMetricsClient",
 ]
