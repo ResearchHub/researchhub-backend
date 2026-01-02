@@ -155,12 +155,12 @@ class TestPaperIngestionService(TestCase):
         existing_paper = Mock(spec=Paper)
         existing_paper.id = 1
         existing_paper.doi = "10.1234/test"
-        existing_paper.pdf_url = "http://example.com/old.pdf"
+        existing_paper.pdf_url = "https://example.com/old.pdf"
         mock_filter.return_value.first.return_value = existing_paper
 
         mock_paper = Mock(spec=Paper)
         mock_paper.doi = "10.1234/test"
-        mock_paper.pdf_url = "http://example.com/old.pdf"  # Same URL
+        mock_paper.pdf_url = "https://example.com/old.pdf"  # Same URL
         mock_paper.save = Mock()
 
         result, pdf_url_changed = self.service._save_paper(mock_paper)
@@ -567,7 +567,7 @@ class TestPaperIngestionService(TestCase):
             doi="10.48550/arXiv.2507.00004",
             abstract="Test abstract",
             external_source="arxiv",
-            pdf_url="http://arxiv.org/pdf/2507.00004.pdf",  # NOSONAR - http
+            pdf_url="https://arxiv.org/pdf/2507.00004.pdf",  # NOSONAR - http
         )
 
         mock_mapper = Mock()
@@ -602,7 +602,7 @@ class TestPaperIngestionService(TestCase):
             doi="10.48550/arXiv.2507.00006",
             abstract="Test abstract",
             external_source="arxiv",
-            pdf_url="http://arxiv.org/pdf/2507.00006v1.pdf",  # Old version
+            pdf_url="https://arxiv.org/pdf/2507.00006v1.pdf",  # Old version
             file="uploads/papers/2024/01/01/old_version.pdf",
             external_metadata={},
         )
@@ -616,7 +616,7 @@ class TestPaperIngestionService(TestCase):
             doi="10.48550/arXiv.2507.00006",
             abstract="Updated abstract",
             external_source="arxiv",
-            pdf_url="http://arxiv.org/pdf/2507.00006v2.pdf",  # New version
+            pdf_url="https://arxiv.org/pdf/2507.00006v2.pdf",  # New version
             external_metadata={},
         )
 
@@ -653,7 +653,7 @@ class TestPaperIngestionService(TestCase):
             doi="10.48550/arXiv.2507.00007",
             abstract="Test abstract",
             external_source="arxiv",
-            pdf_url="http://arxiv.org/pdf/2507.00007.pdf",
+            pdf_url="https://arxiv.org/pdf/2507.00007.pdf",
             file="uploads/papers/2024/01/01/existing.pdf",
             external_metadata={},
         )
@@ -667,7 +667,7 @@ class TestPaperIngestionService(TestCase):
             doi="10.48550/arXiv.2507.00007",
             abstract="Updated abstract",
             external_source="arxiv",
-            pdf_url="http://arxiv.org/pdf/2507.00007.pdf",  # Same URL
+            pdf_url="https://arxiv.org/pdf/2507.00007.pdf",  # Same URL
             external_metadata={},
         )
 
