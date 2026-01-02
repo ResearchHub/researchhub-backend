@@ -6,7 +6,7 @@ from django.core import signing
 from django.test import TestCase
 
 from orcid.services import OrcidCallbackService
-from orcid.tests.helpers import TEST_ORCID_ID, create_orcid_app
+from orcid.tests.helpers import OrcidTestHelper
 from user.tests.helpers import create_random_default_user
 
 
@@ -14,14 +14,15 @@ class OrcidCallbackServiceTests(TestCase):
 
     def setUp(self):
         self.mock_client = Mock()
-        self.service = OrcidCallbackService(client=self.mock_client)
-        create_orcid_app()
+        self.mock_sync_task = Mock()
+        self.service = OrcidCallbackService(client=self.mock_client, sync_task=self.mock_sync_task)
+        OrcidTestHelper.create_app()
 
     def test_process_callback_success(self):
         # Arrange
         user = create_random_default_user("test")
         self.mock_client.exchange_code_for_token.return_value = {
-            "orcid": TEST_ORCID_ID, "access_token": "tk", "refresh_token": "rt", "expires_in": 3600
+            "orcid": OrcidTestHelper.ORCID_ID, "access_token": "tk", "refresh_token": "rt", "expires_in": 3600
         }
         self.mock_client.get_emails.return_value = []
         state = signing.dumps({"user_id": user.id, "return_url": "https://researchhub.com/p"})
@@ -34,7 +35,8 @@ class OrcidCallbackServiceTests(TestCase):
         self.assertTrue(SocialAccount.objects.filter(user=user, provider=OrcidProvider.id).exists())
         self.assertEqual(SocialToken.objects.get(account__user=user).token, "tk")
         user.author_profile.refresh_from_db()
-        self.assertIn(TEST_ORCID_ID, user.author_profile.orcid_id)
+        self.assertIn(OrcidTestHelper.ORCID_ID, user.author_profile.orcid_id)
+        self.mock_sync_task.delay.assert_called_once_with(user.author_profile.id)
 
     def test_process_callback_invalid_state(self):
         # Act
@@ -57,8 +59,8 @@ class OrcidCallbackServiceTests(TestCase):
         # Arrange
         user1 = create_random_default_user("u1")
         user2 = create_random_default_user("u2")
-        SocialAccount.objects.create(user=user1, provider=OrcidProvider.id, uid=TEST_ORCID_ID)
-        self.mock_client.exchange_code_for_token.return_value = {"orcid": TEST_ORCID_ID}
+        SocialAccount.objects.create(user=user1, provider=OrcidProvider.id, uid=OrcidTestHelper.ORCID_ID)
+        self.mock_client.exchange_code_for_token.return_value = {"orcid": OrcidTestHelper.ORCID_ID}
         self.mock_client.get_emails.return_value = []
         state = signing.dumps({"user_id": user2.id})
 
@@ -101,7 +103,7 @@ class OrcidCallbackServiceTests(TestCase):
             {"email": "user@gmail.com", "verified": True},
             {"email": "user@mit.edu", "verified": False},
         ]
-        token_data = {"orcid": TEST_ORCID_ID, "access_token": "tk"}
+        token_data = {"orcid": OrcidTestHelper.ORCID_ID, "access_token": "tk"}
 
         # Act
         self.service._save_orcid_connection(user, token_data)
@@ -112,4 +114,3 @@ class OrcidCallbackServiceTests(TestCase):
             account.extra_data["verified_edu_emails"],
             ["user@stanford.edu", "prof@oxford.ac.uk"]
         )
-

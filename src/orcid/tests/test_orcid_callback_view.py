@@ -1,5 +1,6 @@
 from unittest.mock import Mock
 
+from django.conf import settings
 from django.test import TestCase
 from rest_framework.test import APIRequestFactory
 
@@ -37,4 +38,16 @@ class OrcidCallbackViewTests(TestCase):
         # Assert
         self.assertEqual(response.url, "https://rh.com?connected=true")
         self.mock_service.process_callback.assert_called_once_with(code="abc", state="xyz")
+
+    def test_exception_in_service_redirects_with_error(self):
+        # Arrange
+        self.mock_service.process_callback.side_effect = Exception("Unexpected error")
+        request = self.factory.get("/?code=abc&state=xyz")
+
+        # Act
+        response = self.view(request, orcid_callback_service=self.mock_service)
+
+        # Assert
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, f"{settings.BASE_FRONTEND_URL}?orcid_error=error")
 
