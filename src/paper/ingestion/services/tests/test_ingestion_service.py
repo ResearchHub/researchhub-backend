@@ -97,7 +97,7 @@ class TestPaperIngestionService(TestCase):
         mock_unified_document.hubs = mock_hubs
         mock_saved_paper.unified_document = mock_unified_document
 
-        mock_save_paper.return_value = (mock_saved_paper, False)
+        mock_save_paper.return_value = mock_saved_paper
 
         # Configure the mock mapper for this test
         self.mock_arxiv_mapper.validate.return_value = True
@@ -131,8 +131,11 @@ class TestPaperIngestionService(TestCase):
         self.assertEqual(failures[0]["error"], "Mapping error")
         self.assertEqual(failures[0]["id"], "test123")
 
+    @patch(
+        "paper.ingestion.services.PaperIngestionService._trigger_pdf_download_if_needed"
+    )
     @patch("paper.models.Paper.objects.filter")
-    def test_save_paper_new(self, mock_filter):
+    def test_save_paper_new(self, mock_filter, mock_trigger_pdf):
         """Test saving a new paper."""
         mock_filter.return_value.first.return_value = None
 
@@ -142,15 +145,21 @@ class TestPaperIngestionService(TestCase):
         mock_paper.title = "New Paper"
         mock_paper.save = Mock()
 
-        result, pdf_url_changed = self.service._save_paper(mock_paper)
+        result = self.service._save_paper(mock_paper)
 
         mock_paper.save.assert_called_once()
         self.assertEqual(result, mock_paper)
-        # New papers always return True for pdf_url_changed
-        self.assertTrue(pdf_url_changed)
+        # PDF download should be triggered for new papers
+        mock_trigger_pdf.assert_called_once_with(mock_paper, pdf_url_changed=True)
 
+    @patch(
+        "paper.ingestion.services.PaperIngestionService._trigger_pdf_download_if_needed"
+    )
+    @patch("paper.ingestion.services.PaperIngestionService._update_paper")
     @patch("paper.models.Paper.objects.filter")
-    def test_save_paper_existing_no_update(self, mock_filter):
+    def test_save_paper_existing_no_update(
+        self, mock_filter, mock_update, mock_trigger_pdf
+    ):
         """Test handling existing paper without update."""
         existing_paper = Mock(spec=Paper)
         existing_paper.id = 1
@@ -163,16 +172,24 @@ class TestPaperIngestionService(TestCase):
         mock_paper.pdf_url = "https://example.com/old.pdf"  # Same URL
         mock_paper.save = Mock()
 
-        result, pdf_url_changed = self.service._save_paper(mock_paper)
+        # Mock _update_paper to return the existing paper with no PDF change
+        mock_update.return_value = (existing_paper, False)
+
+        result = self.service._save_paper(mock_paper)
 
         mock_paper.save.assert_not_called()
         self.assertEqual(result, existing_paper)
-        # Same PDF URL means no change
-        self.assertFalse(pdf_url_changed)
+        # PDF download triggered with pdf_url_changed=False
+        mock_trigger_pdf.assert_called_once_with(existing_paper, pdf_url_changed=False)
 
+    @patch(
+        "paper.ingestion.services.PaperIngestionService._trigger_pdf_download_if_needed"
+    )
     @patch("paper.ingestion.services.PaperIngestionService._update_paper")
     @patch("paper.models.Paper.objects.filter")
-    def test_save_paper_existing_with_update(self, mock_filter, mock_update):
+    def test_save_paper_existing_with_update(
+        self, mock_filter, mock_update, mock_trigger_pdf
+    ):
         """Test updating an existing paper."""
         existing_paper = Mock(spec=Paper)
         existing_paper.id = 1
@@ -185,11 +202,12 @@ class TestPaperIngestionService(TestCase):
         mock_paper = Mock(spec=Paper)
         mock_paper.doi = "10.1234/test"
 
-        result, pdf_url_changed = self.service._save_paper(mock_paper)
+        result = self.service._save_paper(mock_paper)
 
         mock_update.assert_called_once_with(existing_paper, mock_paper)
         self.assertEqual(result, updated_paper)
-        self.assertTrue(pdf_url_changed)
+        # PDF download triggered with pdf_url_changed=True
+        mock_trigger_pdf.assert_called_once_with(updated_paper, pdf_url_changed=True)
 
     def test_update_paper(self):
         """Test updating paper fields."""
