@@ -1,9 +1,14 @@
+import logging
+
+from django.conf import settings
 from django.shortcuts import redirect
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.views import APIView
 
 from orcid.services import OrcidCallbackService
+
+logger = logging.getLogger(__name__)
 
 
 class OrcidCallbackView(APIView):
@@ -15,11 +20,16 @@ class OrcidCallbackView(APIView):
 
     def get(self, request: Request):
         """Handle ORCID OAuth callback redirect."""
-        error = request.query_params.get("error")
-        code = request.query_params.get("code")
+        try:
+            error = request.query_params.get("error")
+            code = request.query_params.get("code")
 
-        if error or not code:
-            return redirect(self.orcid_callback_service.get_redirect_url(error="cancelled"))
+            if error or not code:
+                return redirect(self.orcid_callback_service.get_redirect_url(error="cancelled"))
 
-        state = request.query_params.get("state", "")
-        return redirect(self.orcid_callback_service.process_callback(code=code, state=state))
+            state = request.query_params.get("state", "")
+            return redirect(self.orcid_callback_service.process_callback(code=code, state=state))
+        except Exception:
+            logger.exception("ORCID callback view failed")
+            # Fallback redirect to frontend with error
+            return redirect(f"{settings.BASE_FRONTEND_URL}?orcid_error=error")
