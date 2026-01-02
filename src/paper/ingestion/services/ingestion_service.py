@@ -229,13 +229,16 @@ class PaperIngestionService:
                     )
                     continue
 
-                paper = self._save_paper(paper)
+                paper, pdf_url_changed = self._save_paper(paper)
 
-                # Trigger PDF download for arXiv papers
+                # Trigger PDF download if:
+                # - Paper has a PDF URL
+                # - Source supports PDF download
+                # - Either paper has no file yet OR the PDF URL changed (new version)
                 if (
                     paper.pdf_url
                     and self._supports_pdf_download(source)
-                    and not paper.file
+                    and (not paper.file or pdf_url_changed)
                 ):
                     from paper.tasks import download_pdf
 
@@ -298,7 +301,7 @@ class PaperIngestionService:
             IngestionSource.MEDRXIV,
         ]
 
-    def _save_paper(self, paper: Paper) -> Paper:
+    def _save_paper(self, paper: Paper) -> Tuple[Paper, bool]:
         """
         Save or update a paper in the database.
 
@@ -306,7 +309,7 @@ class PaperIngestionService:
             paper: Paper model instance to save
 
         Returns:
-            Saved Paper instance
+            Tuple of (Saved Paper instance, whether PDF URL changed)
 
         Raises:
             Exception: If save fails
@@ -321,12 +324,14 @@ class PaperIngestionService:
                     logger.info(f"Updating existing paper with DOI {paper.doi}")
                     return self._update_paper(existing_paper, paper)
 
-            # Save new paper
+            # Save new paper - new papers always need PDF download
             paper.save()
             logger.info(f"Saved new paper: {paper.id} - {paper.title}")
-            return paper
+            return paper, True
 
-    def _update_paper(self, existing_paper: Paper, new_paper: Paper) -> Paper:
+    def _update_paper(
+        self, existing_paper: Paper, new_paper: Paper
+    ) -> Tuple[Paper, bool]:
         """
         Update an existing paper with new data.
 
@@ -335,8 +340,12 @@ class PaperIngestionService:
             new_paper: The new Paper instance with updated data
 
         Returns:
-            Updated Paper instance
+            Tuple of (Updated Paper instance, whether PDF URL changed)
         """
+        # Track if PDF URL changed (for re-downloading updated PDFs)
+        pdf_url_changed = (
+            new_paper.pdf_url and existing_paper.pdf_url != new_paper.pdf_url
+        )
         # Fields to update (exclude ID and creation timestamps)
         update_fields = [
             "title",
@@ -365,7 +374,7 @@ class PaperIngestionService:
             existing_paper.external_metadata.update(new_paper.external_metadata)
 
         existing_paper.save(update_fields=update_fields)
-        return existing_paper
+        return existing_paper, pdf_url_changed
 
     def ingest_single_paper(
         self,
