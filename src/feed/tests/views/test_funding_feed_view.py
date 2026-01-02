@@ -4,7 +4,6 @@ from unittest.mock import MagicMock, patch
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
-from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -29,12 +28,15 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from utils.test_helpers import RHTestCase
 
 User = get_user_model()
 
 
-class FundingFeedViewSetTests(TestCase):
+class FundingFeedViewSetTests(RHTestCase):
     def setUp(self):
+        super().setUp()
+
         self.user = User.objects.create_user(
             username="testuser", password=uuid.uuid4().hex
         )
