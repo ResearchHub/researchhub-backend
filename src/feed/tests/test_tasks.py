@@ -445,7 +445,7 @@ class FeedTasksTest(TestCase):
         mock_calculate.return_value = 100
 
         # Act
-        refresh_feed_entry(feed_entry.id)
+        refresh_feed_entry(feed_entry)
 
         # Assert - check it was called with the mocked hot_score_v2 value
         mock_trigger.assert_called_once_with(self.paper.id, 100)
@@ -472,7 +472,7 @@ class FeedTasksTest(TestCase):
         )
 
         # Act
-        refresh_feed_entry(feed_entry.id)
+        refresh_feed_entry(feed_entry)
 
         # Assert
         mock_trigger.assert_not_called()

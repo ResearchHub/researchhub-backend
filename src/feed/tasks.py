@@ -96,10 +96,9 @@ def create_feed_entry(
         )
 
 
-@app.task
-def refresh_feed_entry(feed_entry_id):
-    feed_entry = FeedEntry.objects.get(id=feed_entry_id)
+def refresh_feed_entry(feed_entry, skip_figure_extraction=False):
     content = serialize_feed_item(feed_entry.item, feed_entry.content_type)
+
     metrics = serialize_feed_metrics(feed_entry.item, feed_entry.content_type)
 
     # Get authors for the item
@@ -110,12 +109,27 @@ def refresh_feed_entry(feed_entry_id):
     feed_entry.hot_score_v2 = feed_entry.calculate_hot_score_v2()
     feed_entry.save(update_fields=["content", "metrics", "hot_score_v2"])
 
-    if feed_entry.content_type == ContentType.objects.get_for_model(Paper):
+    if (
+        not skip_figure_extraction
+        and feed_entry.content_type == ContentType.objects.get_for_model(Paper)
+    ):
         trigger_figure_extraction_for_paper(feed_entry.item.id, feed_entry.hot_score_v2)
 
     # Update authors separately (ManyToMany field)
     if authors:
         feed_entry.authors.set(authors)
+
+    # Refresh hubs from unified document
+    unified_document = _get_unified_document(feed_entry.item, feed_entry.content_type)
+    if unified_document:
+        hub_ids = list(unified_document.hubs.values_list("id", flat=True))
+        feed_entry.hubs.set(hub_ids)
+
+
+@app.task
+def refresh_feed_entry_by_id(feed_entry_id):
+    feed_entry = FeedEntry.objects.get(id=feed_entry_id)
+    refresh_feed_entry(feed_entry)
 
 
 @app.task
@@ -129,40 +143,19 @@ def refresh_feed_entries_for_objects(
         content_type=item_content_type,
     )
 
-    checked_figure_extraction = False
-
+    paper_entry = None
     for feed_entry in feed_entries:
-        content = serialize_feed_item(feed_entry.item, item_content_type)
-
-        metrics = serialize_feed_metrics(feed_entry.item, item_content_type)
-
-        # Get authors for the item
-        authors = _get_authors_for_item(feed_entry.item, item_content_type)
-
-        feed_entry.content = content
-        feed_entry.metrics = metrics
-        feed_entry.hot_score_v2 = feed_entry.calculate_hot_score_v2()
-        feed_entry.save(update_fields=["content", "metrics", "hot_score_v2"])
-
+        refresh_feed_entry(feed_entry, skip_figure_extraction=True)
         if (
-            not skip_figure_extraction
-            and not checked_figure_extraction
+            paper_entry is None
             and item_content_type == ContentType.objects.get_for_model(Paper)
         ):
-            trigger_figure_extraction_for_paper(
-                feed_entry.item.id, feed_entry.hot_score_v2
-            )
-            checked_figure_extraction = True
+            paper_entry = feed_entry
 
-        # Update authors separately (ManyToMany field)
-        if authors:
-            feed_entry.authors.set(authors)
-
-        # Refresh hubs from unified document
-        unified_document = _get_unified_document(feed_entry.item, item_content_type)
-        if unified_document:
-            hub_ids = list(unified_document.hubs.values_list("id", flat=True))
-            feed_entry.hubs.set(hub_ids)
+    if not skip_figure_extraction and paper_entry is not None:
+        trigger_figure_extraction_for_paper(
+            paper_entry.item.id, paper_entry.hot_score_v2
+        )
 
 
 @app.task

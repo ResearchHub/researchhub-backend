@@ -131,8 +131,11 @@ class TestPaperIngestionService(TestCase):
         self.assertEqual(failures[0]["error"], "Mapping error")
         self.assertEqual(failures[0]["id"], "test123")
 
+    @patch(
+        "paper.ingestion.services.PaperIngestionService._trigger_pdf_download_if_needed"
+    )
     @patch("paper.models.Paper.objects.filter")
-    def test_save_paper_new(self, mock_filter):
+    def test_save_paper_new(self, mock_filter, mock_trigger_pdf):
         """Test saving a new paper."""
         mock_filter.return_value.first.return_value = None
 
@@ -146,27 +149,47 @@ class TestPaperIngestionService(TestCase):
 
         mock_paper.save.assert_called_once()
         self.assertEqual(result, mock_paper)
+        # PDF download should be triggered for new papers
+        mock_trigger_pdf.assert_called_once_with(mock_paper, pdf_url_changed=True)
 
+    @patch(
+        "paper.ingestion.services.PaperIngestionService._trigger_pdf_download_if_needed"
+    )
+    @patch("paper.ingestion.services.PaperIngestionService._update_paper")
     @patch("paper.models.Paper.objects.filter")
-    def test_save_paper_existing_no_update(self, mock_filter):
+    def test_save_paper_existing_no_update(
+        self, mock_filter, mock_update, mock_trigger_pdf
+    ):
         """Test handling existing paper without update."""
         existing_paper = Mock(spec=Paper)
         existing_paper.id = 1
         existing_paper.doi = "10.1234/test"
+        existing_paper.pdf_url = "https://example.com/old.pdf"
         mock_filter.return_value.first.return_value = existing_paper
 
         mock_paper = Mock(spec=Paper)
         mock_paper.doi = "10.1234/test"
+        mock_paper.pdf_url = "https://example.com/old.pdf"  # Same URL
         mock_paper.save = Mock()
+
+        # Mock _update_paper to return the existing paper with no PDF change
+        mock_update.return_value = (existing_paper, False)
 
         result = self.service._save_paper(mock_paper)
 
         mock_paper.save.assert_not_called()
         self.assertEqual(result, existing_paper)
+        # PDF download triggered with pdf_url_changed=False
+        mock_trigger_pdf.assert_called_once_with(existing_paper, pdf_url_changed=False)
 
+    @patch(
+        "paper.ingestion.services.PaperIngestionService._trigger_pdf_download_if_needed"
+    )
     @patch("paper.ingestion.services.PaperIngestionService._update_paper")
     @patch("paper.models.Paper.objects.filter")
-    def test_save_paper_existing_with_update(self, mock_filter, mock_update):
+    def test_save_paper_existing_with_update(
+        self, mock_filter, mock_update, mock_trigger_pdf
+    ):
         """Test updating an existing paper."""
         existing_paper = Mock(spec=Paper)
         existing_paper.id = 1
@@ -174,7 +197,7 @@ class TestPaperIngestionService(TestCase):
         mock_filter.return_value.first.return_value = existing_paper
 
         updated_paper = Mock(spec=Paper)
-        mock_update.return_value = updated_paper
+        mock_update.return_value = (updated_paper, True)
 
         mock_paper = Mock(spec=Paper)
         mock_paper.doi = "10.1234/test"
@@ -183,6 +206,8 @@ class TestPaperIngestionService(TestCase):
 
         mock_update.assert_called_once_with(existing_paper, mock_paper)
         self.assertEqual(result, updated_paper)
+        # PDF download triggered with pdf_url_changed=True
+        mock_trigger_pdf.assert_called_once_with(updated_paper, pdf_url_changed=True)
 
     def test_update_paper(self):
         """Test updating paper fields."""
@@ -191,6 +216,7 @@ class TestPaperIngestionService(TestCase):
         existing_paper.abstract = "Old Abstract"
         existing_paper.external_source = "old_source"
         existing_paper.external_metadata = {"metrics": {"x": 100}}
+        existing_paper.pdf_url = "https://example.com/old.pdf"
         existing_paper.save = Mock()
 
         new_paper = Mock(spec=Paper)
@@ -207,7 +233,7 @@ class TestPaperIngestionService(TestCase):
         new_paper.is_open_access = True
         new_paper.oa_status = "gold"
 
-        result = self.service._update_paper(existing_paper, new_paper)
+        result, pdf_url_changed = self.service._update_paper(existing_paper, new_paper)
 
         self.assertEqual(existing_paper.title, "New Title")
         self.assertEqual(existing_paper.abstract, "New Abstract")
@@ -218,6 +244,8 @@ class TestPaperIngestionService(TestCase):
         )
         existing_paper.save.assert_called_once()
         self.assertEqual(result, existing_paper)
+        # PDF URL changed from old.pdf to paper.pdf
+        self.assertTrue(pdf_url_changed)
 
     @patch("paper.ingestion.services.PaperIngestionService.ingest_papers")
     def test_ingest_single_paper_success(self, mock_ingest_papers):
@@ -557,7 +585,7 @@ class TestPaperIngestionService(TestCase):
             doi="10.48550/arXiv.2507.00004",
             abstract="Test abstract",
             external_source="arxiv",
-            pdf_url="http://arxiv.org/pdf/2507.00004.pdf",  # NOSONAR - http
+            pdf_url="https://arxiv.org/pdf/2507.00004.pdf",  # NOSONAR - http
         )
 
         mock_mapper = Mock()
@@ -581,32 +609,101 @@ class TestPaperIngestionService(TestCase):
         )
 
     @patch("paper.tasks.download_pdf")
-    def test_pdf_download_not_triggered_when_file_exists(self, mock_download_pdf):
-        """Test that PDF download is skipped when paper already has a file."""
-        # Arrange
-        paper = Paper(
-            title="Test arXiv Paper with File",
-            doi="10.48550/arXiv.2507.00005",
+    @patch("paper.models.Paper.objects.filter")
+    def test_pdf_download_triggered_when_pdf_url_changes(
+        self, mock_filter, mock_download_pdf
+    ):
+        """Test that PDF download is triggered when existing paper has new PDF URL."""
+        # Arrange - existing paper with old PDF URL and file
+        existing_paper = Paper.objects.create(
+            title="Existing arXiv Paper",
+            doi="10.48550/arXiv.2507.00006",
             abstract="Test abstract",
             external_source="arxiv",
-            pdf_url="http://arxiv.org/pdf/2507.00005.pdf",  # NOSONAR - http
-            file="uploads/papers/2024/01/01/existing.pdf",  # File already exists
+            pdf_url="https://arxiv.org/pdf/2507.00006v1.pdf",  # Old version
+            file="uploads/papers/2024/01/01/old_version.pdf",
+            external_metadata={},
+        )
+
+        # Mock the filter to return our existing paper
+        mock_filter.return_value.first.return_value = existing_paper
+
+        # New paper data with updated PDF URL (new version)
+        new_paper = Paper(
+            title="Updated arXiv Paper",
+            doi="10.48550/arXiv.2507.00006",
+            abstract="Updated abstract",
+            external_source="arxiv",
+            pdf_url="https://arxiv.org/pdf/2507.00006v2.pdf",  # New version
+            external_metadata={},
         )
 
         mock_mapper = Mock()
         mock_mapper.validate.return_value = True
-        mock_mapper.map_to_paper.return_value = paper
+        mock_mapper.map_to_paper.return_value = new_paper
         mock_mapper.map_to_hubs.return_value = []
 
         service = PaperIngestionService({IngestionSource.ARXIV_OAI: mock_mapper})
 
         # Act
         papers, failures = service.ingest_papers(
-            [{"id": "2507.00005", "title": "Test arXiv Paper with File"}],
+            [{"id": "2507.00006", "title": "Updated arXiv Paper"}],
             IngestionSource.ARXIV_OAI,
         )
 
         # Assert
         self.assertEqual(len(papers), 1)
         self.assertEqual(len(failures), 0)
+        # PDF download should be triggered because PDF URL changed
+        mock_download_pdf.apply_async.assert_called_once_with(
+            (existing_paper.id,), priority=5
+        )
+
+    @patch("paper.tasks.download_pdf")
+    @patch("paper.models.Paper.objects.filter")
+    def test_pdf_download_not_triggered_when_pdf_url_unchanged(
+        self, mock_filter, mock_download_pdf
+    ):
+        """Test that PDF download is NOT triggered when PDF URL stays the same."""
+        # Arrange - existing paper with PDF URL and file
+        existing_paper = Paper.objects.create(
+            title="Existing arXiv Paper",
+            doi="10.48550/arXiv.2507.00007",
+            abstract="Test abstract",
+            external_source="arxiv",
+            pdf_url="https://arxiv.org/pdf/2507.00007.pdf",
+            file="uploads/papers/2024/01/01/existing.pdf",
+            external_metadata={},
+        )
+
+        # Mock the filter to return our existing paper
+        mock_filter.return_value.first.return_value = existing_paper
+
+        # New paper data with SAME PDF URL (just metadata update)
+        new_paper = Paper(
+            title="Updated Title Only",
+            doi="10.48550/arXiv.2507.00007",
+            abstract="Updated abstract",
+            external_source="arxiv",
+            pdf_url="https://arxiv.org/pdf/2507.00007.pdf",  # Same URL
+            external_metadata={},
+        )
+
+        mock_mapper = Mock()
+        mock_mapper.validate.return_value = True
+        mock_mapper.map_to_paper.return_value = new_paper
+        mock_mapper.map_to_hubs.return_value = []
+
+        service = PaperIngestionService({IngestionSource.ARXIV_OAI: mock_mapper})
+
+        # Act
+        papers, failures = service.ingest_papers(
+            [{"id": "2507.00007", "title": "Updated Title Only"}],
+            IngestionSource.ARXIV_OAI,
+        )
+
+        # Assert
+        self.assertEqual(len(papers), 1)
+        self.assertEqual(len(failures), 0)
+        # PDF download should NOT be triggered (URL unchanged, file exists)
         mock_download_pdf.apply_async.assert_not_called()

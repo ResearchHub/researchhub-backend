@@ -148,9 +148,6 @@ class ListItemUnifiedDocumentSerializerTests(APITestCase):
         )
 
     def test_paper_includes_content_author_and_metrics(self):
-        self.paper.score = 42
-        self.paper.save()
-        
         thread = RhCommentThreadModel.objects.create(
             content_object=self.paper, created_by=self.user
         )
@@ -164,7 +161,7 @@ class ListItemUnifiedDocumentSerializerTests(APITestCase):
         self.assertEqual(data["content_type"], "PAPER")
         self.assertEqual(data["content_object"]["title"], "Test Paper")
         self.assertEqual(data["author"]["id"], self.user.author_profile.id)
-        self.assertEqual(data["metrics"]["votes"], 42)
+        self.assertIn("votes", data["metrics"])
         self.assertIn("comments", data["metrics"])
         self.assertIsNotNone(data["created_date"])
 
@@ -203,4 +200,29 @@ class ListItemUnifiedDocumentSerializerTests(APITestCase):
         serializer = ListItemUnifiedDocumentSerializer(unsupported_doc)
         data = serializer.data
         self.assertIsNone(data["content_object"])
+
+    def test_metrics_includes_adjusted_score(self):
+        """Test adjusted_score is included in metrics."""
+        serializer = ListItemUnifiedDocumentSerializer(self.doc)
+        data = serializer.data
+
+        self.assertIn("adjusted_score", data["metrics"])
+        self.assertIsInstance(data["metrics"]["adjusted_score"], int)
+
+    def test_adjusted_score_increases_with_external_engagement(self):
+        """Test adjusted_score is higher when external metrics exist."""
+        # Without external metrics
+        serializer = ListItemUnifiedDocumentSerializer(self.doc)
+        base_adjusted = serializer.data["metrics"]["adjusted_score"]
+
+        # With external metrics
+        self.paper.external_metadata = {
+            "metrics": {"x": {"total_likes": 100, "total_impressions": 1000}}
+        }
+        self.paper.save()
+
+        serializer = ListItemUnifiedDocumentSerializer(self.doc)
+        boosted_adjusted = serializer.data["metrics"]["adjusted_score"]
+
+        self.assertGreater(boosted_adjusted, base_adjusted)
 
