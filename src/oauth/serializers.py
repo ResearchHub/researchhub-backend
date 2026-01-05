@@ -5,7 +5,6 @@ from django.urls.exceptions import NoReverseMatch
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
-from analytics.models import WebsiteVisits
 from oauth.exceptions import LoginError
 from oauth.helpers import complete_social_login
 from user.models import User
@@ -114,7 +113,6 @@ class SocialLoginSerializer(serializers.Serializer):
 
         login_user = login.account.user
         attrs["user"] = login_user
-        # self.track_user_visit_after_login(attrs)
         self.handle_referral(attrs)
         return attrs
 
@@ -176,16 +174,6 @@ class SocialLoginSerializer(serializers.Serializer):
 
             login.lookup()
             login.save(request, connect=True)
-
-    def track_user_visit_after_login(self, attrs):
-        """failure of this function is trivial"""
-        try:
-            visits = WebsiteVisits.objects.get(uuid=attrs.get("uuid"))
-            visits.user = attrs["user"]
-            visits.save()
-        except Exception as e:
-            print(e)
-            pass
 
     def handle_referral(self, attrs):
         try:
