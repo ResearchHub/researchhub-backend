@@ -117,4 +117,3 @@ class SocialLoginSerializer(serializers.Serializer):
                     user.save()
         except Exception as e:
             sentry.log_error(e)
-            pass
