@@ -1,18 +1,8 @@
 import requests
 from allauth.account.signals import user_logged_in, user_signed_up
-from allauth.socialaccount.helpers import render_authentication_error
-from allauth.socialaccount.models import SocialAccount, SocialLogin
-from allauth.socialaccount.providers.base import ProviderException
+from allauth.socialaccount.models import SocialAccount
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
-from allauth.socialaccount.providers.oauth2.client import OAuth2Client, OAuth2Error
-from allauth.socialaccount.providers.oauth2.views import (
-    AuthError,
-    OAuth2CallbackView,
-    OAuth2LoginView,
-    PermissionDenied,
-    RequestException,
-)
-from allauth.utils import get_request_param
+from allauth.socialaccount.providers.oauth2.client import OAuth2Client
 from dj_rest_auth.registration.views import SocialLoginView
 from dj_rest_auth.views import LoginView
 from django.dispatch import receiver
@@ -23,7 +13,6 @@ from rest_framework.response import Response
 
 from analytics.amplitude import Amplitude
 from oauth.adapters import GoogleOAuth2AdapterIdToken
-from oauth.helpers import complete_social_login
 from oauth.serializers import SocialLoginSerializer
 from researchhub.settings import (
     GOOGLE_REDIRECT_URL,
@@ -74,61 +63,6 @@ class GoogleYoloLogin(SocialLoginView):
     callback_url = GOOGLE_YOLO_REDIRECT_URL
     client_class = OAuth2Client
     serializer_class = SocialLoginSerializer
-
-
-class CallbackView(OAuth2CallbackView):
-    """
-    This class is copied from allauth/socialaccount/providers/oauth2/views.py
-    but uses a custom method for `complete_social_login`
-    """
-
-    permission_classes = (AllowAny,)
-
-    def dispatch(self, request, *args, **kwargs):
-        if "error" in request.GET or "code" not in request.GET:
-            # Distinguish cancel from error
-            auth_error = request.GET.get("error", None)
-            if auth_error == self.adapter.login_cancelled_error:
-                error = AuthError.CANCELLED
-            else:
-                error = AuthError.UNKNOWN
-            return render_authentication_error(
-                request, self.adapter.provider_id, error=error
-            )
-        app = self.adapter.get_provider().get_app(self.request)
-        client = self.get_client(self.request, app)
-
-        try:
-            access_token = self.adapter.get_access_token_data(request, app, client)
-            token = self.adapter.parse_token(access_token)
-            token.app = app
-            login = self.adapter.complete_login(
-                request, app, token, response=access_token
-            )
-            login.token = token
-
-            if self.adapter.supports_state:
-                login.state = SocialLogin.verify_and_unstash_state(
-                    request, get_request_param(request, "state")
-                )
-            else:
-                login.state = SocialLogin.unstash_state(request)
-
-            return complete_social_login(request, login)
-        except (
-            PermissionDenied,
-            OAuth2Error,
-            RequestException,
-            ProviderException,
-        ) as e:
-            return render_authentication_error(
-                request, self.adapter.provider_id, exception=e
-            )
-
-
-google_callback = CallbackView.adapter_view(GoogleOAuth2Adapter)
-google_yolo_login = OAuth2LoginView.adapter_view(GoogleOAuth2AdapterIdToken)
-google_yolo_callback = CallbackView.adapter_view(GoogleOAuth2AdapterIdToken)
 
 
 class EmailLoginView(LoginView):
