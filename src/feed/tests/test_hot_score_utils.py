@@ -27,10 +27,10 @@ from feed.hot_score_utils import (
     parse_iso_datetime,
     safe_get_nested,
 )
-from utils.test_helpers import RHTestCase
+from utils.test_helpers import AWSMockTestCase
 
 
-class TestHotScoreUtils(RHTestCase):
+class TestHotScoreUtils(AWSMockTestCase):
     """Test suite for hot score utility functions."""
 
     # ========================================================================

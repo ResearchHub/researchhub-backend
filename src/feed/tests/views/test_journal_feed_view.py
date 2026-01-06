@@ -19,12 +19,12 @@ from paper.related_models.paper_version import PaperVersion
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
-from utils.test_helpers import RHTestCase
+from utils.test_helpers import AWSMockTestCase
 
 User = get_user_model()
 
 
-class JournalFeedViewSetTests(RHTestCase):
+class JournalFeedViewSetTests(AWSMockTestCase):
     def setUp(self):
         super().setUp()
         self.user = User.objects.create_user(

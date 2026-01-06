@@ -47,10 +47,10 @@ from review.models import Review
 from topic.models import Topic, UnifiedDocumentTopics
 from user.related_models.user_verification_model import UserVerification
 from user.tests.helpers import create_random_default_user
-from utils.test_helpers import RHTestCase
+from utils.test_helpers import AWSMockTestCase
 
 
-class SimpleUserSerializerTests(RHTestCase):
+class SimpleUserSerializerTests(AWSMockTestCase):
     def setUp(self):
         super().setUp()
         self.user = create_random_default_user("test_user_serializer")
@@ -76,7 +76,7 @@ class SimpleUserSerializerTests(RHTestCase):
         self.assertTrue(data["is_verified"])
 
 
-class ContentObjectSerializerTests(RHTestCase):
+class ContentObjectSerializerTests(AWSMockTestCase):
     def setUp(self):
         super().setUp()
         self.user = create_random_default_user("content_creator")
@@ -127,7 +127,7 @@ test_storage = FileSystemStorage()
 
 @patch.object(Figure._meta.get_field("file"), "storage", test_storage)
 @patch.object(Figure._meta.get_field("thumbnail"), "storage", test_storage)
-class PaperSerializerTests(RHTestCase):
+class PaperSerializerTests(AWSMockTestCase):
     def setUp(self):
         super().setUp()
         self.user = create_random_default_user("paper_creator")
@@ -500,7 +500,7 @@ class PaperSerializerTests(RHTestCase):
                 self.assertIsNone(data["primary_image_thumbnail"])
 
 
-class PostSerializerTests(RHTestCase):
+class PostSerializerTests(AWSMockTestCase):
     def setUp(self):
         super().setUp()
         self.user = create_random_default_user("post_creator")
@@ -1208,7 +1208,7 @@ class PostSerializerTests(RHTestCase):
             )
 
 
-class SimpleHubSerializerTests(RHTestCase):
+class SimpleHubSerializerTests(AWSMockTestCase):
     def setUp(self):
         super().setUp()
         self.hub = create_hub("Test Hub")
@@ -1222,7 +1222,7 @@ class SimpleHubSerializerTests(RHTestCase):
         self.assertEqual(data["slug"], self.hub.slug)
 
 
-class SimpleReviewSerializerTests(RHTestCase):
+class SimpleReviewSerializerTests(AWSMockTestCase):
     def setUp(self):
         super().setUp()
         self.user = create_random_default_user("paper_creator")
@@ -1271,7 +1271,7 @@ class SimpleReviewSerializerTests(RHTestCase):
 
 @patch.object(Figure._meta.get_field("file"), "storage", test_storage)
 @patch.object(Figure._meta.get_field("thumbnail"), "storage", test_storage)
-class FeedEntrySerializerTests(RHTestCase):
+class FeedEntrySerializerTests(AWSMockTestCase):
     def setUp(self):
         super().setUp()
         self.user = create_random_default_user("feed_creator")
@@ -1869,7 +1869,7 @@ class FeedEntrySerializerTests(RHTestCase):
         self.assertEqual(content_object["journal"]["slug"], "ARXIV")
 
 
-class FundingFeedEntrySerializerTests(RHTestCase):
+class FundingFeedEntrySerializerTests(AWSMockTestCase):
     """Test cases for the FundingFeedEntrySerializer"""
 
     def setUp(self):

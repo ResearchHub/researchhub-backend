@@ -1,10 +1,10 @@
 from unittest.mock import Mock
 
 from feed.views.feed_view_mixin import FeedViewMixin
-from utils.test_helpers import RHTestCase
+from utils.test_helpers import AWSMockTestCase
 
 
-class FeedViewMixinTests(RHTestCase):
+class FeedViewMixinTests(AWSMockTestCase):
     def test_get_cache_key(self):
         """Test cache key generation method with various inputs"""
         # Arrange

@@ -12,10 +12,10 @@ from researchhub_comment.tests.helpers import create_rh_comment
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import DISCUSSION
 from user.tests.helpers import create_random_default_user
-from utils.test_helpers import RHTestCase
+from utils.test_helpers import AWSMockTestCase
 
 
-class BountySignalsTests(RHTestCase):
+class BountySignalsTests(AWSMockTestCase):
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     def setUp(self):
         super().setUp()

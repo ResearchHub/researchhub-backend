@@ -11,10 +11,10 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
     ResearchhubUnifiedDocument,
 )
 from user.models import User
-from utils.test_helpers import RHTestCase
+from utils.test_helpers import AWSMockTestCase
 
 
-class TestPostSignals(RHTestCase):
+class TestPostSignals(AWSMockTestCase):
     def setUp(self):
         super().setUp()
         self.user = User.objects.create_user(username="testUser1")

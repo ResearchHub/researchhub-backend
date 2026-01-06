@@ -24,10 +24,10 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 )
 from user.models import User
 from user.related_models.author_model import Author
-from utils.test_helpers import RHTestCase
+from utils.test_helpers import AWSMockTestCase
 
 
-class FeedTasksTest(RHTestCase):
+class FeedTasksTest(AWSMockTestCase):
     def setUp(self):
         super().setUp()
         self.user = User.objects.create(username="testUser1")

@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 from allauth.account.models import EmailAddress
 from django.contrib.admin.options import get_content_type_for_model
 from django.db import connection
-from django.test import Client, TestCase, TransactionTestCase, override_settings
+from django.test import Client, TestCase, TransactionTestCase
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient, APITestCase, ForceAuthClientHandler
 
@@ -450,19 +450,23 @@ def create_test_paper(
     )
 
 
-class RHTestCase(TestCase):
+class AWSMockMixin:
     """
-    A TestCase that automatically mocks AWS client creation.
+    A mixin that automatically mocks AWS client creation.
 
     This prevents tests from making real AWS API calls and speeds up test execution.
     The mock client is available as `self.mock_aws_client` for assertions.
 
     Usage:
-        class MyTest(RHTestCase):
+        class MyTest(AWSMockMixin, TestCase):
             def test_something(self):
                 # AWS calls are automatically mocked
                 # Access the mock via self.mock_aws_client
                 pass
+
+        # For transaction tests:
+        class MyTransactionTest(AWSMockMixin, TransactionTestCase):
+            pass
     """
 
     def setUp(self):
@@ -480,31 +484,14 @@ class RHTestCase(TestCase):
         super().tearDown()
 
 
-class RHTransactionTestCase(TransactionTestCase):
-    """
-    A TransactionTestCase that automatically mocks AWS client creation.
+# Convenience classes for common use cases
+class AWSMockTestCase(AWSMockMixin, TestCase):
+    """TestCase with AWS mocking. For most tests."""
 
-    Use this instead of RHTestCase when you need TransactionTestCase behavior
-    (e.g., testing on_commit hooks, multi-database transactions).
+    pass
 
-    Usage:
-        class MyTest(RHTransactionTestCase):
-            def test_something(self):
-                # AWS calls are automatically mocked
-                # Access the mock via self.mock_aws_client
-                pass
-    """
 
-    def setUp(self):
-        super().setUp()
-        self.mock_aws_client = MagicMock()
-        # Patch boto3.Session.client to catch all AWS client creation
-        self.aws_patcher = patch(
-            "boto3.Session.client", return_value=self.mock_aws_client
-        )
-        self.mock_boto3_client = self.aws_patcher.start()
+class AWSMockTransactionTestCase(AWSMockMixin, TransactionTestCase):
+    """TransactionTestCase with AWS mocking. For tests needing on_commit hooks."""
 
-    def tearDown(self):
-        if hasattr(self, "aws_patcher"):
-            self.aws_patcher.stop()
-        super().tearDown()
+    pass

@@ -7,10 +7,10 @@ from hub.tests.helpers import create_hub
 from paper.tests.helpers import create_paper
 from researchhub_document.helpers import create_post
 from user.related_models.user_model import User
-from utils.test_helpers import RHTestCase, RHTransactionTestCase
+from utils.test_helpers import AWSMockTestCase, AWSMockTransactionTestCase
 
 
-class DocumentSignalsTests(RHTestCase):
+class DocumentSignalsTests(AWSMockTestCase):
 
     def setUp(self):
         super().setUp()
@@ -186,9 +186,9 @@ class DocumentSignalsTests(RHTestCase):
         self.assertEqual(feed_entries[0].hubs.first(), hub2)
 
 
-class DocumentRemovalSignalsTests(RHTransactionTestCase):
+class DocumentRemovalSignalsTests(AWSMockTransactionTestCase):
     """
-    Uses RHTransactionTestCase to allow transaction.on_commit() callbacks to execute.
+    Uses AWSMockTransactionTestCase to allow transaction.on_commit() callbacks to execute.
     This is necessary because TestCase wraps tests in an atomic transaction that
     never commits, preventing on_commit hooks from firing.
     """

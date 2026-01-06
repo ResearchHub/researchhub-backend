@@ -23,10 +23,10 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 )
 from user.tests.helpers import create_random_default_user
 from user.views.follow_view_mixins import create_follow
-from utils.test_helpers import RHTestCase
+from utils.test_helpers import AWSMockTestCase
 
 
-class CacheInvalidationTests(RHTestCase):
+class CacheInvalidationTests(AWSMockTestCase):
     """Test cache invalidation for feed views."""
 
     def setUp(self):

@@ -16,10 +16,10 @@ from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_document.helpers import create_post
 from user.tests.helpers import create_random_default_user
-from utils.test_helpers import RHTestCase
+from utils.test_helpers import AWSMockTestCase
 
 
-class TestHotScore(RHTestCase):
+class TestHotScore(AWSMockTestCase):
     """Test suite for hot score calculations."""
 
     def setUp(self):

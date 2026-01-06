@@ -8,10 +8,10 @@ from feed.serializers import serialize_feed_metrics
 from hub.models import Hub
 from paper.related_models.paper_model import Paper
 from user.models import User
-from utils.test_helpers import RHTestCase
+from utils.test_helpers import AWSMockTestCase
 
 
-class PaperSignalsTests(RHTestCase):
+class PaperSignalsTests(AWSMockTestCase):
     def setUp(self):
         super().setUp()
         self.user = User.objects.create_user(username="user1")

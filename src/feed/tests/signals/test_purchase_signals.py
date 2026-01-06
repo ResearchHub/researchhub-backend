@@ -21,10 +21,10 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
     ResearchhubUnifiedDocument,
 )
 from user.tests.helpers import create_random_authenticated_user, create_user
-from utils.test_helpers import RHTestCase
+from utils.test_helpers import AWSMockTestCase
 
 
-class TestPurchaseSignals(RHTestCase):
+class TestPurchaseSignals(AWSMockTestCase):
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     def setUp(self):
         super().setUp()

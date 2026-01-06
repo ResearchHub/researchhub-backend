@@ -12,10 +12,10 @@ from django.contrib.contenttypes.models import ContentType
 from feed.models import FeedEntry, HotScoreV2Breakdown
 from researchhub_document.helpers import create_post
 from user.tests.helpers import create_random_default_user
-from utils.test_helpers import RHTestCase
+from utils.test_helpers import AWSMockTestCase
 
 
-class TestHotScoreV2(RHTestCase):
+class TestHotScoreV2(AWSMockTestCase):
     """Integration tests for hot score v2 (JSON-based) algorithm."""
 
     def setUp(self):

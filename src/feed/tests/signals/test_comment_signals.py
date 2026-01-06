@@ -14,10 +14,10 @@ from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
 from user.models import User
-from utils.test_helpers import RHTestCase
+from utils.test_helpers import AWSMockTestCase
 
 
-class CommentSignalsTests(RHTestCase):
+class CommentSignalsTests(AWSMockTestCase):
 
     def setUp(self):
         super().setUp()
