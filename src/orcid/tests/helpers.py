@@ -10,6 +10,7 @@ class OrcidTestHelper:
 
     ORCID_ID = "0000-0001-2345-6789"
     ORCID_URL = f"https://orcid.org/{ORCID_ID}"
+    OPENALEX_AUTHOR_ID = "https://openalex.org/A5000000001"
 
     @staticmethod
     def create_author(name: str = "u", orcid_id: str = None, orcid_connected: bool = True):
@@ -46,10 +47,18 @@ class OrcidTestHelper:
         }
 
     @staticmethod
-    def make_openalex_work(doi: str, orcid_url: str = None, position: str = "first") -> dict:
+    def make_openalex_work(
+        doi: str, orcid_url: str = None, openalex_author_id: str = None, position: str = "first"
+    ) -> dict:
         """Build an OpenAlex work response."""
         return {
             "doi": f"https://doi.org/{doi}",
-            "authorships": [{"author": {"orcid": orcid_url or OrcidTestHelper.ORCID_URL}, "author_position": position}],
+            "authorships": [{
+                "author": {
+                    "id": openalex_author_id or OrcidTestHelper.OPENALEX_AUTHOR_ID,
+                    "orcid": orcid_url or OrcidTestHelper.ORCID_URL,
+                },
+                "author_position": position,
+            }],
         }
 

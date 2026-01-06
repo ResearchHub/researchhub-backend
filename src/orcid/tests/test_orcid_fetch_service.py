@@ -94,7 +94,9 @@ class OrcidFetchServiceTests(TestCase):
         # Arrange
         user = OrcidTestHelper.create_author()
         openalex_author = Author.objects.create(
-            first_name="J", last_name="D", orcid_id=OrcidTestHelper.ORCID_URL, created_source=Author.SOURCE_OPENALEX
+            first_name="J", last_name="D",
+            openalex_ids=[OrcidTestHelper.OPENALEX_AUTHOR_ID],
+            created_source=Author.SOURCE_OPENALEX,
         )
         paper = Paper.objects.create(title="T", doi="10.1/x")
         Authorship.objects.create(paper=paper, author=openalex_author, author_position="middle")
@@ -115,18 +117,18 @@ class OrcidFetchServiceTests(TestCase):
         # Arrange
         user = OrcidTestHelper.create_author()
         other_author = Author.objects.create(
-            first_name="Real", last_name="Author", orcid_id="https://orcid.org/9999-9999-9999-9999",
-            created_source=Author.SOURCE_OPENALEX
+            first_name="Real", last_name="Author",
+            openalex_ids=["https://openalex.org/A9999999999"],
+            created_source=Author.SOURCE_OPENALEX,
         )
         paper = Paper.objects.create(title="T", doi="10.1/x")
         Authorship.objects.create(paper=paper, author=other_author)
         self.mock_client.get_works.return_value = OrcidTestHelper.make_works_response("10.1/x")
-        # OpenAlex returns paper with one author without ORCID and one with different ORCID
         self.mock_openalex.get_work_by_doi.return_value = {
             "doi": "https://doi.org/10.1/x",
             "authorships": [
-                {"author": {"orcid": None}, "author_position": "first"},
-                {"author": {"orcid": "https://orcid.org/9999-9999-9999-9999"}, "author_position": "last"},
+                {"author": {"id": "https://openalex.org/A1111111111", "orcid": None}, "author_position": "first"},
+                {"author": {"id": "https://openalex.org/A9999999999", "orcid": "https://orcid.org/9999-9999-9999-9999"}, "author_position": "last"},
             ],
         }
 
@@ -174,7 +176,9 @@ class OrcidFetchServiceTests(TestCase):
         # Arrange
         user = OrcidTestHelper.create_author(orcid_connected=False)
         openalex_author = Author.objects.create(
-            first_name="J", last_name="D", orcid_id=OrcidTestHelper.ORCID_URL, created_source=Author.SOURCE_OPENALEX
+            first_name="J", last_name="D",
+            openalex_ids=[OrcidTestHelper.OPENALEX_AUTHOR_ID],
+            created_source=Author.SOURCE_OPENALEX,
         )
         paper = Paper.objects.create(title="T", doi="10.1/x")
         Authorship.objects.create(paper=paper, author=openalex_author)

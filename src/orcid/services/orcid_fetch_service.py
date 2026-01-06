@@ -103,11 +103,14 @@ class OrcidFetchService:
         merged = 0
 
         for authorship_data in work.get("authorships", []):
-            orcid_url = authorship_data.get("author", {}).get("orcid")
-            if not orcid_url:
+            author_data = authorship_data.get("author", {})
+            orcid_url = author_data.get("orcid")
+            openalex_author_id = author_data.get("id")
+
+            if not orcid_url or not openalex_author_id:
                 continue
 
-            # Find an Author with this ORCID who is actually connected to ORCID
+            # Find user's author by ORCID (must be OAuth-connected)
             user_author = Author.objects.filter(
                 orcid_id=orcid_url,
                 user__isnull=False,
@@ -121,9 +124,11 @@ class OrcidFetchService:
             if Authorship.objects.filter(paper=paper, author=user_author).exists():
                 continue
 
-            # Find the OpenAlex authorship to merge
+            # Find the OpenAlex-created authorship by OpenAlex author ID
             openalex_authorship = (
-                Authorship.objects.filter(paper=paper, author__orcid_id=orcid_url)
+                Authorship.objects.filter(
+                    paper=paper, author__openalex_ids__contains=[openalex_author_id]
+                )
                 .exclude(author=user_author)
                 .first()
             )
