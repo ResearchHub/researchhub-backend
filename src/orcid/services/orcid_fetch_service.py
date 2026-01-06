@@ -35,7 +35,7 @@ class OrcidFetchService:
         self.email_service = email_service or OrcidEmailService(client=self.client)
         self.process_works_fn = process_works_fn or process_openalex_works
 
-    def sync_papers(self, author_id: int) -> dict:
+    def sync_orcid(self, author_id: int) -> dict:
         """Sync an author's ORCID papers and edu emails to their ResearchHub profile."""
         author, orcid_id = self._get_author_and_orcid_id(author_id)
 

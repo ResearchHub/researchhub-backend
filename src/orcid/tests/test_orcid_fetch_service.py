@@ -67,9 +67,9 @@ class OrcidFetchServiceTests(TestCase):
 
         # Act & Assert
         with self.assertRaises(ValueError):
-            self.service.sync_papers(999999)
+            self.service.sync_orcid(999999)
         with self.assertRaises(ValueError):
-            self.service.sync_papers(user.author_profile.id)
+            self.service.sync_orcid(user.author_profile.id)
 
     def test_sync_returns_zero_when_no_dois(self):
         # Arrange
@@ -77,7 +77,7 @@ class OrcidFetchServiceTests(TestCase):
         self.mock_client.get_works.return_value = {"group": []}
 
         # Act
-        result = self.service.sync_papers(user.author_profile.id)
+        result = self.service.sync_orcid(user.author_profile.id)
 
         # Assert
         self.assertEqual(result["papers_processed"], 0)
@@ -89,7 +89,7 @@ class OrcidFetchServiceTests(TestCase):
         self.mock_openalex.get_work_by_doi.return_value = OrcidTestHelper.make_openalex_work("10.1/missing")
 
         # Act
-        result = self.service.sync_papers(user.author_profile.id)
+        result = self.service.sync_orcid(user.author_profile.id)
 
         # Assert
         self.assertEqual(result["papers_processed"], 0)
@@ -109,7 +109,7 @@ class OrcidFetchServiceTests(TestCase):
         self.mock_openalex.get_work_by_doi.return_value = OrcidTestHelper.make_openalex_work("10.1/x")
 
         # Act
-        result = self.service.sync_papers(user.author_profile.id)
+        result = self.service.sync_orcid(user.author_profile.id)
 
         # Assert
         self.assertEqual(result["papers_processed"], 1)
@@ -138,7 +138,7 @@ class OrcidFetchServiceTests(TestCase):
         }
 
         # Act
-        result = self.service.sync_papers(user.author_profile.id)
+        result = self.service.sync_orcid(user.author_profile.id)
 
         # Assert
         self.assertEqual(result["papers_processed"], 0)
@@ -153,7 +153,7 @@ class OrcidFetchServiceTests(TestCase):
         self.mock_openalex.get_work_by_doi.return_value = OrcidTestHelper.make_openalex_work("10.1/x")
 
         # Act
-        result = self.service.sync_papers(user.author_profile.id)
+        result = self.service.sync_orcid(user.author_profile.id)
 
         # Assert
         self.assertEqual(result["papers_processed"], 0)
@@ -170,7 +170,7 @@ class OrcidFetchServiceTests(TestCase):
         self.mock_openalex.get_work_by_doi.return_value = OrcidTestHelper.make_openalex_work("10.1/x")
 
         # Act
-        self.service.sync_papers(user.author_profile.id)
+        self.service.sync_orcid(user.author_profile.id)
 
         # Assert
         other_user.author_profile.refresh_from_db()
@@ -191,7 +191,7 @@ class OrcidFetchServiceTests(TestCase):
         self.mock_openalex.get_work_by_doi.return_value = OrcidTestHelper.make_openalex_work("10.1/x")
 
         # Act
-        result = self.service.sync_papers(user.author_profile.id)
+        result = self.service.sync_orcid(user.author_profile.id)
 
         # Assert
         self.assertEqual(result["papers_processed"], 0)

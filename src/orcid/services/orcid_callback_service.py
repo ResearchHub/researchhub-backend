@@ -13,7 +13,7 @@ from django.utils import timezone
 from orcid.clients import OrcidClient
 from orcid.config import ORCID_BASE_URL, STATE_MAX_AGE
 from orcid.services.orcid_email_service import OrcidEmailService
-from orcid.tasks import sync_orcid_papers_task
+from orcid.tasks import sync_orcid_task
 from orcid.utils import get_orcid_app, is_valid_redirect_url
 
 User = get_user_model()
@@ -31,7 +31,7 @@ class OrcidCallbackService:
     ):
         self.client = client or OrcidClient()
         self.email_service = email_service or OrcidEmailService(client=self.client)
-        self.sync_task = sync_task or sync_orcid_papers_task
+        self.sync_task = sync_task or sync_orcid_task
         self._orcid_app = None
 
     def process_callback(self, code: str, state: str) -> str:
