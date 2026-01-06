@@ -256,11 +256,6 @@ urlpatterns = [
         NonprofitFundraiseLinkViewSet.as_view({"get": "get_by_fundraise"}),
         name="nonprofit-get-by-fundraise",
     ),
-    path(
-        "api/auth/google/yolo/",
-        oauth.views.GoogleYoloLogin.as_view(),
-        name="google_yolo",
-    ),
     path("api/auth/captcha_verify/", oauth.views.captcha_verify, name="captcha_verify"),
     path(
         "api/auth/google/login/", oauth.views.GoogleLogin.as_view(), name="google_login"

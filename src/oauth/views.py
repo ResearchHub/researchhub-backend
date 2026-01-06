@@ -12,11 +12,9 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from analytics.amplitude import Amplitude
-from oauth.adapters import GoogleOAuth2AdapterIdToken
 from oauth.serializers import SocialLoginSerializer
 from researchhub.settings import (
     GOOGLE_REDIRECT_URL,
-    GOOGLE_YOLO_REDIRECT_URL,
     MAILCHIMP_LIST_ID,
     MAILCHIMP_SERVER,
     RECAPTCHA_SECRET_KEY,
@@ -53,14 +51,6 @@ def captcha_verify(request):
 class GoogleLogin(SocialLoginView):
     adapter_class = GoogleOAuth2Adapter
     callback_url = GOOGLE_REDIRECT_URL
-    client_class = OAuth2Client
-    serializer_class = SocialLoginSerializer
-
-
-# Google login -> SocialLoingSerializer -> adaptor functions are called in "#complete_login"
-class GoogleYoloLogin(SocialLoginView):
-    adapter_class = GoogleOAuth2AdapterIdToken
-    callback_url = GOOGLE_YOLO_REDIRECT_URL
     client_class = OAuth2Client
     serializer_class = SocialLoginSerializer
 
