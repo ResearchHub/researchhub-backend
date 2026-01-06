@@ -251,12 +251,12 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
         _context_fields = context.get("doc_dps_get_bounties", {})
         _select_related_fields = context.get("doc_dps_get_bounties_select", [])
         _prefetch_related_fields = context.get("doc_dps_get_bounties_prefetch", [])
+        
         bounties = (
-            post.unified_document.related_bounties.select_related(
-                *_select_related_fields
-            )
+            post.unified_document.related_bounties
+            .select_related(*_select_related_fields)
             .prefetch_related(*_prefetch_related_fields)
-            .all()
+            .order_by_open_and_expiration()
         )
         serializer = DynamicBountySerializer(
             bounties,
