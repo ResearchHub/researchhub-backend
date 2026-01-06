@@ -1,5 +1,6 @@
 from unittest.mock import Mock
 
+from allauth.socialaccount.models import SocialAccount, SocialToken
 from django.test import TestCase
 
 from orcid.services import OrcidFetchService
@@ -15,9 +16,13 @@ class OrcidFetchServiceTests(TestCase):
     def setUp(self):
         self.mock_client = Mock()
         self.mock_openalex = Mock()
+        self.mock_email_service = Mock()
         self.mock_process = Mock()
         self.service = OrcidFetchService(
-            client=self.mock_client, openalex=self.mock_openalex, process_works_fn=self.mock_process
+            client=self.mock_client,
+            openalex=self.mock_openalex,
+            email_service=self.mock_email_service,
+            process_works_fn=self.mock_process,
         )
 
     def test_extract_dois(self):
@@ -191,3 +196,25 @@ class OrcidFetchServiceTests(TestCase):
         # Assert
         self.assertEqual(result["papers_processed"], 0)
         self.assertEqual(Authorship.objects.get(paper=paper).author, openalex_author)
+
+    def test_sync_edu_emails_skips_when_no_user(self):
+        # Act
+        self.service._sync_edu_emails(None, "0000-0001")
+
+        # Assert
+        self.mock_email_service.fetch_verified_edu_emails.assert_not_called()
+
+    def test_sync_edu_emails_updates_social_account(self):
+        # Arrange
+        user = OrcidTestHelper.create_author()
+        app = OrcidTestHelper.create_app()
+        account = SocialAccount.objects.get(user=user)
+        SocialToken.objects.create(account=account, token="access_token", app=app)
+        self.mock_email_service.fetch_verified_edu_emails.return_value = ["user@stanford.edu"]
+
+        # Act
+        self.service._sync_edu_emails(user, OrcidTestHelper.ORCID_ID)
+
+        # Assert
+        account.refresh_from_db()
+        self.assertEqual(account.extra_data["verified_edu_emails"], ["user@stanford.edu"])
