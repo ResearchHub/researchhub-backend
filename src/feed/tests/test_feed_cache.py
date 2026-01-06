@@ -7,7 +7,6 @@ from unittest.mock import patch
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
-from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APITestCase
@@ -24,13 +23,15 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 )
 from user.tests.helpers import create_random_default_user
 from user.views.follow_view_mixins import create_follow
+from utils.test_helpers import AWSMockTestCase
 
 
-class CacheInvalidationTests(TestCase):
+class CacheInvalidationTests(AWSMockTestCase):
     """Test cache invalidation for feed views."""
 
     def setUp(self):
         """Set up test cache keys."""
+        super().setUp()
         self.user_id = 123
         cache.clear()
 

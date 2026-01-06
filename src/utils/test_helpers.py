@@ -4,11 +4,12 @@ import secrets
 import string
 import threading
 import time
+from unittest.mock import MagicMock, patch
 
 from allauth.account.models import EmailAddress
 from django.contrib.admin.options import get_content_type_for_model
 from django.db import connection
-from django.test import Client
+from django.test import Client, TestCase, TransactionTestCase
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient, APITestCase, ForceAuthClientHandler
 
@@ -447,3 +448,50 @@ def create_test_paper(
         uploaded_by=uploaded_by,
         paper_publish_date="2023-01-01",
     )
+
+
+class AWSMockMixin:
+    """
+    A mixin that automatically mocks AWS client creation.
+
+    This prevents tests from making real AWS API calls and speeds up test execution.
+    The mock client is available as `self.mock_aws_client` for assertions.
+
+    Usage:
+        class MyTest(AWSMockMixin, TestCase):
+            def test_something(self):
+                # AWS calls are automatically mocked
+                # Access the mock via self.mock_aws_client
+                pass
+
+        # For transaction tests:
+        class MyTransactionTest(AWSMockMixin, TransactionTestCase):
+            pass
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.mock_aws_client = MagicMock()
+        # Patch boto3.Session.client to catch all AWS client creation
+        self.aws_patcher = patch(
+            "boto3.Session.client", return_value=self.mock_aws_client
+        )
+        self.mock_boto3_client = self.aws_patcher.start()
+
+    def tearDown(self):
+        if hasattr(self, "aws_patcher"):
+            self.aws_patcher.stop()
+        super().tearDown()
+
+
+# Convenience classes for common use cases
+class AWSMockTestCase(AWSMockMixin, TestCase):
+    """TestCase with AWS mocking. For most tests."""
+
+    pass
+
+
+class AWSMockTransactionTestCase(AWSMockMixin, TransactionTestCase):
+    """TransactionTestCase with AWS mocking. For tests needing on_commit hooks."""
+
+    pass
