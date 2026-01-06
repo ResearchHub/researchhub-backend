@@ -231,17 +231,6 @@ class PaperIngestionService:
 
                 paper = self._save_paper(paper)
 
-                # Trigger PDF download for arXiv papers
-                if (
-                    paper.pdf_url
-                    and self._supports_pdf_download(source)
-                    and not paper.file
-                ):
-                    from paper.tasks import download_pdf
-
-                    download_pdf.apply_async((paper.id,), priority=5)
-                    logger.info(f"Queued PDF download for paper {paper.id}")
-
                 # Create hubs
                 hubs = mapper.map_to_hubs(record)
                 if hubs:
@@ -286,21 +275,31 @@ class PaperIngestionService:
 
         return successful_papers, failed_records
 
-    def _supports_pdf_download(self, source: IngestionSource) -> bool:
+    def _trigger_pdf_download_if_needed(
+        self, paper: Paper, pdf_url_changed: bool
+    ) -> None:
         """
-        Check if the ingestion source supports PDF download.
-        """
-        return source in [
-            IngestionSource.ARXIV,
-            IngestionSource.ARXIV_OAI,
-            IngestionSource.BIORXIV,
-            IngestionSource.CHEMRXIV,
-            IngestionSource.MEDRXIV,
-        ]
+        Trigger PDF download if conditions are met.
 
-    def _save_paper(self, paper: Paper) -> Paper:
+        Args:
+            paper: The saved Paper instance
+            pdf_url_changed: Whether the PDF URL changed (for updates) or is new
         """
-        Save or update a paper in the database.
+        # Trigger PDF download if:
+        # - Paper has a PDF URL
+        # - Either paper has no file yet OR the PDF URL changed (new version)
+        if paper.pdf_url and (not paper.file or pdf_url_changed):
+            from paper.tasks import download_pdf
+
+            download_pdf.apply_async((paper.id,), priority=5)
+            logger.info(f"Queued PDF download for paper {paper.id}")
+
+    def _save_paper(
+        self,
+        paper: Paper,
+    ) -> Paper:
+        """
+        Save or update a paper in the database, and trigger PDF download if needed.
 
         Args:
             paper: Paper model instance to save
@@ -319,14 +318,21 @@ class PaperIngestionService:
                 if existing_paper:
                     # Update existing paper
                     logger.info(f"Updating existing paper with DOI {paper.doi}")
-                    return self._update_paper(existing_paper, paper)
+                    paper, pdf_url_changed = self._update_paper(existing_paper, paper)
+                    self._trigger_pdf_download_if_needed(
+                        paper, pdf_url_changed=pdf_url_changed
+                    )
+                    return paper
 
             # Save new paper
             paper.save()
             logger.info(f"Saved new paper: {paper.id} - {paper.title}")
+            self._trigger_pdf_download_if_needed(paper, pdf_url_changed=True)
             return paper
 
-    def _update_paper(self, existing_paper: Paper, new_paper: Paper) -> Paper:
+    def _update_paper(
+        self, existing_paper: Paper, new_paper: Paper
+    ) -> Tuple[Paper, bool]:
         """
         Update an existing paper with new data.
 
@@ -335,8 +341,12 @@ class PaperIngestionService:
             new_paper: The new Paper instance with updated data
 
         Returns:
-            Updated Paper instance
+            Tuple of (Updated Paper instance, whether PDF URL changed)
         """
+        # Track if PDF URL changed (for re-downloading updated PDFs)
+        pdf_url_changed = (
+            new_paper.pdf_url and existing_paper.pdf_url != new_paper.pdf_url
+        )
         # Fields to update (exclude ID and creation timestamps)
         update_fields = [
             "title",
@@ -365,7 +375,7 @@ class PaperIngestionService:
             existing_paper.external_metadata.update(new_paper.external_metadata)
 
         existing_paper.save(update_fields=update_fields)
-        return existing_paper
+        return existing_paper, pdf_url_changed
 
     def ingest_single_paper(
         self,

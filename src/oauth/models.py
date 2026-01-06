@@ -1,5 +1,4 @@
 from django.db import models
-from django.utils import timezone
 
 
 class Throttle(models.Model):

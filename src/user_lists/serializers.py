@@ -1,6 +1,7 @@
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import serializers
 
+from feed.hot_score_utils import calculate_adjusted_score
 from feed.serializers import PaperSerializer, PostSerializer, SimpleAuthorSerializer
 from researchhub_document.related_models.constants.document_type import (
     PAPER,
@@ -16,7 +17,8 @@ class ListItemUnifiedDocumentSerializer(serializers.Serializer):
     created_date = serializers.DateTimeField()
     author = serializers.SerializerMethodField()
     metrics = serializers.SerializerMethodField()
-    
+    adjusted_score = serializers.SerializerMethodField()
+
     def get_content_type(self, obj):
             document = obj.get_document()
             if not document:
@@ -39,20 +41,40 @@ class ListItemUnifiedDocumentSerializer(serializers.Serializer):
         if obj.created_by and hasattr(obj.created_by, "author_profile"):
             return SimpleAuthorSerializer(obj.created_by.author_profile).data
         return None
-    
-    def get_metrics(self, obj):
-            document = obj.get_document()
-            metrics = {}
-            if not document:
-                return metrics
-            
-            if hasattr(document, "score"):
-                metrics["votes"] = document.score
-            
-            if hasattr(document, "get_discussion_count"):
-                metrics["comments"] = document.get_discussion_count()
-            
+
+    def _build_metrics(self, obj):
+        """Build metrics dict from document, matching feed entry structure."""
+        document = obj.get_document()
+        metrics = {}
+
+        if not document:
             return metrics
+
+        if hasattr(document, "calculate_score"):
+            metrics["votes"] = document.calculate_score()
+
+        if hasattr(document, "get_discussion_count"):
+            metrics["comments"] = document.get_discussion_count()
+
+        # Include external metrics in same structure as feed entries
+        if obj.document_type == PAPER and document.external_metadata:
+            metrics["external"] = document.external_metadata.get("metrics", {})
+
+        return metrics
+
+    def get_metrics(self, obj):
+        """Return metrics with adjusted_score included."""
+        metrics = self._build_metrics(obj)
+        base_votes = metrics.get("votes", 0)
+        external_metrics = metrics.get("external", {})
+        metrics["adjusted_score"] = calculate_adjusted_score(
+            base_votes, external_metrics
+        )
+        return metrics
+
+    def get_adjusted_score(self, obj):
+        """Return adjusted_score (also available inside metrics)."""
+        return self.get_metrics(obj).get("adjusted_score", 0)
 
 
 class ListSerializer(serializers.ModelSerializer):
