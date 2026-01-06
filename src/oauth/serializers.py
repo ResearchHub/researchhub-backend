@@ -1,6 +1,5 @@
 from allauth.account import app_settings
-from allauth.socialaccount.models import SocialAccount
-from allauth.utils import email_address_exists, get_user_model
+from allauth.utils import get_user_model
 from django.http import HttpRequest
 from django.urls.exceptions import NoReverseMatch
 from django.utils.translation import gettext_lazy as _
@@ -27,18 +26,6 @@ class SocialLoginSerializer(serializers.Serializer):
         if not isinstance(request, HttpRequest):
             request = request._request
         return request
-
-    def _delete_user_account(self, user, error=None):
-        user_email = user.email
-        email_exists = email_address_exists(user_email)
-        if email_exists:
-            user = User.objects.get(email=user_email)
-            social_account_exists = SocialAccount.objects.filter(user=user).exists()
-            if not social_account_exists:
-                deletion_info = user.delete()
-                sentry.log_info(deletion_info, error=error)
-                return True
-        return False
 
     def validate(self, attrs, retry=0):
         view = self.context.get("view")
@@ -183,9 +170,6 @@ class SocialLoginSerializer(serializers.Serializer):
                 )
                 if account_exists:
                     sentry.log_info("User already registered with this email")
-                    # deleted = self._delete_user_account(login.user)
-                    # if deleted and retry < 3:
-                    #     return self.validate(attrs, retry=retry + 1)
                     raise serializers.ValidationError(
                         _("User already registered with this email address.")
                     )
