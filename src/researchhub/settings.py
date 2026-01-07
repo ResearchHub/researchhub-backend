@@ -227,6 +227,7 @@ INSTALLED_APPS = [
     "allauth.account",
     "allauth.socialaccount",
     "allauth.socialaccount.providers.google",
+    "allauth.socialaccount.providers.orcid",
     "rest_framework.authtoken",
     "dj_rest_auth",
     "dj_rest_auth.registration",
@@ -257,6 +258,7 @@ INSTALLED_APPS = [
     "note",
     "notification",
     "oauth",
+    "orcid",
     "paper",
     "purchase",
     "referral",
@@ -421,7 +423,6 @@ ACCOUNT_USERNAME_REQUIRED = False
 ACCOUNT_AUTHENTICATED_LOGIN_REDIRECTS = False
 if STAGING or PRODUCTION:
     ACCOUNT_DEFAULT_HTTP_PROTOCOL = "https"
-SOCIALACCOUNT_ADAPTER = "oauth.adapters.SocialAccountAdapter"
 SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
 SOCIALACCOUNT_EMAIL_REQUIRED = False
 SOCIALACCOUNT_QUERY_EMAIL = True
@@ -444,7 +445,9 @@ if STAGING:
         "https://backend.staging.researchhub.com/auth/google/yolo/callback/"
     )
 
-
+ORCID_CLIENT_ID = os.environ.get("ORCID_CLIENT_ID", getattr(keys, "ORCID_CLIENT_ID", ""))
+ORCID_CLIENT_SECRET = os.environ.get("ORCID_CLIENT_SECRET", getattr(keys, "ORCID_CLIENT_SECRET", ""))
+ORCID_REDIRECT_URL = os.environ.get("ORCID_REDIRECT_URL", getattr(keys, "ORCID_REDIRECT_URL", ""))
 # Database
 # https://docs.djangoproject.com/en/2.2/ref/settings/#databases
 

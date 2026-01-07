@@ -50,6 +50,7 @@ from user.views import author_views, editor_views, moderator_view, persona_webho
 from user.views.custom_verify_email_view import CustomVerifyEmailView
 from user_lists.views import ListItemViewSet, ListViewSet
 from user_saved.views import UserSavedView
+from orcid.views import OrcidConnectView, OrcidCallbackView 
 
 router = routers.DefaultRouter()
 
@@ -218,6 +219,8 @@ urlpatterns = [
         ListItemViewSet.as_view({"delete": "destroy"}),
         name="list-item-detail",
     ),
+    path("api/orcid/connect/", OrcidConnectView.as_view(), name="orcid_connect"),
+    path("api/orcid/callback/", OrcidCallbackView.as_view(), name="orcid_callback"),
     # TODO: calvinhlee - consolidate all mod views into 1 set
     path("api/get_hub_active_contributors/", editor_views.get_hub_active_contributors),
     path(
@@ -252,21 +255,6 @@ urlpatterns = [
         "api/organizations/non-profit/get_by_fundraise/",
         NonprofitFundraiseLinkViewSet.as_view({"get": "get_by_fundraise"}),
         name="nonprofit-get-by-fundraise",
-    ),
-    path(
-        "auth/google/yolo/callback/",
-        oauth.views.google_yolo_callback,
-        name="google_yolo_callback",
-    ),
-    path(
-        "api/auth/google/yolo/",
-        oauth.views.GoogleYoloLogin.as_view(),
-        name="google_yolo",
-    ),
-    path(
-        "auth/google/login/callback/",
-        oauth.views.google_callback,
-        name="google_callback",
     ),
     path("api/auth/captcha_verify/", oauth.views.captcha_verify, name="captcha_verify"),
     path(
