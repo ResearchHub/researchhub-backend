@@ -34,11 +34,13 @@ class Bounty(DefaultModel):
         OTHER = "GENERIC_COMMENT", _("GENERIC_COMMENT")
 
     OPEN = "OPEN"
+    ASSESSMENT = "ASSESSMENT"
     CANCELLED = "CANCELLED"
     EXPIRED = "EXPIRED"
     CLOSED = "CLOSED"
     status_choices = (
         (OPEN, OPEN),
+        (ASSESSMENT, ASSESSMENT),
         (CLOSED, CLOSED),
         (CANCELLED, CANCELLED),
         (EXPIRED, EXPIRED),
@@ -47,6 +49,11 @@ class Bounty(DefaultModel):
     expiration_date = models.DateTimeField(
         null=True,
         default=get_default_expiration_date,  # Can be null for author claim bounties
+    )
+    assessment_end_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="End date for the assessment phase when managers can review and award solutions",
     )
     item_content_type = models.ForeignKey(
         ContentType, on_delete=models.CASCADE, related_name="item_bounty"
@@ -122,6 +129,12 @@ class Bounty(DefaultModel):
 
     def set_closed_status(self, should_save=True):
         self.set_status(self.CLOSED, should_save=should_save)
+
+    def set_assessment_status(self, should_save=True):
+        self.set_status(self.ASSESSMENT, should_save=should_save)
+
+    def set_assessment_status(self, should_save=True):
+        self.set_status(self.ASSESSMENT, should_save=should_save)
 
     def get_bounty_proportions(self):
         children = self.children

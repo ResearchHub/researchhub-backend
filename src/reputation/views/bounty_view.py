@@ -83,10 +83,10 @@ def _create_bounty(
     obj = model_class.objects.get(id=item_object_id)
     unified_document = obj.unified_document
 
-    # Check if there is an existing bounty open on the object
+    # Check if there is an existing bounty open or in assessment on the object
     parent_bounty_id = None
     existing_bounties = Bounty.objects.filter(
-        status=Bounty.OPEN,
+        status__in=(Bounty.OPEN, Bounty.ASSESSMENT),
         item_content_type=content_type,
         item_object_id=item_object_id,
     )
@@ -522,8 +522,8 @@ class BountyViewSet(viewsets.ModelViewSet):
     def cancel_bounty(self, request, pk=None):
         with transaction.atomic():
             bounty = self.get_object()
-            if bounty.status != Bounty.OPEN:
-                return Response({"error": "Bounty is not open."}, status=400)
+            if bounty.status not in (Bounty.OPEN, Bounty.ASSESSMENT):
+                return Response({"error": "Bounty is not open or in assessment phase."}, status=400)
 
             if bounty.parent is not None:
                 return Response({"error": "Please close parent bounty"}, status=400)

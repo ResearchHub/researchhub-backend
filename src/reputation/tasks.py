@@ -17,6 +17,7 @@ from ethereum.lib import RSC_CONTRACT_ADDRESS
 from hub.models import Hub
 from mailing_list.lib import base_email_context
 from notification.models import Notification
+from reputation.constants.bounty import ASSESSMENT_PERIOD_DAYS
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.lib import check_hotwallet, check_pending_withdrawal, contract_abi
@@ -318,11 +319,13 @@ def check_hotwallet_balance():
 
 @app.task
 def check_open_bounties():
+    now = datetime.now(pytz.UTC)
+    
     open_bounties = Bounty.objects.filter(
         status=Bounty.OPEN, parent__isnull=True
     ).annotate(
         time_left=Cast(
-            F("expiration_date") - datetime.now(pytz.UTC),
+            F("expiration_date") - now,
             DurationField(),
         )
     )
@@ -363,14 +366,37 @@ def check_open_bounties():
                 html_template="general_email_message.html",
             )
 
-    expired_bounties = open_bounties.filter(time_left__lte=timedelta(days=0))
-    for bounty in expired_bounties.iterator():
+    # Transition OPEN -> ASSESSMENT when expiration_date passes
+    expired_open_bounties = open_bounties.filter(time_left__lte=timedelta(days=0))
+    for bounty in expired_open_bounties.iterator():
+        # Set assessment_end_date to ASSESSMENT_PERIOD_DAYS from now
+        assessment_end_date = now + timedelta(days=ASSESSMENT_PERIOD_DAYS)
+        bounty.assessment_end_date = assessment_end_date
+        bounty.set_assessment_status()
+        bounty.unified_document.update_filters(
+            (FILTER_BOUNTY_OPEN,)
+        )
+
+    # Handle ASSESSMENT bounties: transition to EXPIRED when assessment_end_date passes
+    assessment_bounties = Bounty.objects.filter(
+        status=Bounty.ASSESSMENT, parent__isnull=True
+    ).annotate(
+        assessment_time_left=Cast(
+            F("assessment_end_date") - now,
+            DurationField(),
+        )
+    )
+
+    expired_assessment_bounties = assessment_bounties.filter(
+        assessment_time_left__lte=timedelta(days=0)
+    )
+    for bounty in expired_assessment_bounties.iterator():
         refund_status = bounty.close(Bounty.EXPIRED)
         bounty.unified_document.update_filters(
             (FILTER_BOUNTY_EXPIRED, FILTER_BOUNTY_OPEN)
         )
         if refund_status is False:
-            ids = expired_bounties.values_list("id", flat=True)
+            ids = expired_assessment_bounties.values_list("id", flat=True)
             log_info(f"Failed to refund bounties: {ids}")
 
 
@@ -514,7 +540,7 @@ def find_bounties_for_user_and_notify(user_id) -> Optional[Notification]:
 
 @app.task
 def recalc_hot_score_for_open_bounties():
-    open_bounties = Bounty.objects.filter(status=Bounty.OPEN)
+    open_bounties = Bounty.objects.filter(status__in=(Bounty.OPEN, Bounty.ASSESSMENT))
 
     for bounty in open_bounties:
         bounty.unified_document.calculate_hot_score(should_save=True)
