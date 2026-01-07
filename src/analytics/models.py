@@ -87,7 +87,12 @@ class UserInteractions(DefaultModel):
                     "object_id",
                 ],
                 condition=models.Q(
-                    event__in=["UPVOTE", "COMMENT_CREATED", "PEER_REVIEW_CREATED"],
+                    event__in=[
+                        "UPVOTE",
+                        "COMMENT_CREATED",
+                        "PEER_REVIEW_CREATED",
+                        "DOCUMENT_SAVED_TO_LIST",
+                    ],
                     user__isnull=False,
                 ),
                 name="unique_non_repeatable_interactions",

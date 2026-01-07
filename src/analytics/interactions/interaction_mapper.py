@@ -6,12 +6,18 @@ from typing import Optional
 
 from django.contrib.contenttypes.models import ContentType
 
-from analytics.constants.event_types import COMMENT_CREATED, PEER_REVIEW_CREATED, UPVOTE
+from analytics.constants.event_types import (
+    COMMENT_CREATED,
+    DOCUMENT_SAVED_TO_LIST,
+    PEER_REVIEW_CREATED,
+    UPVOTE,
+)
 from analytics.interactions.amplitude_event_parser import AmplitudeEvent
 from analytics.models import UserInteractions
 from discussion.models import Vote
 from researchhub_comment.constants.rh_comment_thread_types import COMMUNITY_REVIEW
 from researchhub_comment.models import RhCommentModel
+from user_lists.models import ListItem
 
 
 def map_from_upvote(vote: Vote) -> UserInteractions:
@@ -101,6 +107,35 @@ def map_from_comment(
         content_type=content_type,
         object_id=comment.id,
         event_timestamp=comment.created_date,
+        is_synced_with_personalize=False,
+        personalize_rec_id=None,
+    )
+
+
+def map_from_list_item(
+    list_item: ListItem, content_type: Optional[ContentType] = None
+) -> UserInteractions:
+    """
+    Map a ListItem record (saved to list) to a UserInteractions instance
+    (not saved to database).
+    """
+    if not list_item.created_by_id:
+        raise ValueError(f"ListItem {list_item.id} has no created_by user")
+
+    if not list_item.unified_document_id:
+        raise ValueError(f"ListItem {list_item.id} has no unified_document")
+
+    if content_type is None:
+        content_type = ContentType.objects.get_for_model(ListItem)
+
+    return UserInteractions(
+        user=list_item.created_by,
+        external_user_id=None,
+        event=DOCUMENT_SAVED_TO_LIST,
+        unified_document=list_item.unified_document,
+        content_type=content_type,
+        object_id=list_item.id,
+        event_timestamp=list_item.created_date,
         is_synced_with_personalize=False,
         personalize_rec_id=None,
     )
