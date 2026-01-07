@@ -4,7 +4,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from orcid.tasks import sync_orcid_papers_task
+from orcid.tasks import sync_orcid_task
 from django.core.cache import cache
 
 
@@ -12,7 +12,7 @@ class OrcidFetchView(APIView):
     permission_classes = [IsAuthenticated]
 
     def dispatch(self, request, *args, **kwargs):
-        self.sync_task = kwargs.pop("sync_task", sync_orcid_papers_task)
+        self.sync_task = kwargs.pop("sync_task", sync_orcid_task)
         return super().dispatch(request, *args, **kwargs)
 
     def post(self, request: Request) -> Response:

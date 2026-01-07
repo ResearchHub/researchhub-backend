@@ -1,39 +1,47 @@
 import logging
-from typing import Callable, Optional
+from typing import Callable, Optional, Tuple
 
+from allauth.socialaccount.models import SocialAccount, SocialToken
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
+from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Q
 
 from orcid.clients import OrcidClient
 from orcid.config import ORCID_BASE_URL
+from orcid.services.orcid_email_service import OrcidEmailService
 from paper.models import Paper
 from paper.openalex_util import process_openalex_works
 from paper.related_models.authorship_model import Authorship
 from user.related_models.author_model import Author
 from utils.openalex import OpenAlex
 
+User = get_user_model()
 logger = logging.getLogger(__name__)
 
 
 class OrcidFetchService:
-    """Syncs papers from ORCID to ResearchHub by matching DOIs via OpenAlex."""
+    """Syncs papers and edu emails from ORCID to ResearchHub."""
 
     def __init__(
         self,
         client: Optional[OrcidClient] = None,
         openalex: Optional[OpenAlex] = None,
+        email_service: Optional[OrcidEmailService] = None,
         process_works_fn: Optional[Callable] = None,
     ):
         self.client = client or OrcidClient()
         self.openalex = openalex or OpenAlex()
+        self.email_service = email_service or OrcidEmailService(client=self.client)
         self.process_works_fn = process_works_fn or process_openalex_works
 
-    def sync_papers(self, author_id: int) -> dict:
-        """Sync an author's ORCID papers to their ResearchHub profile."""
-        orcid_id = self._get_author_orcid_id(author_id)
-        dois = self._fetch_dois_from_orcid(orcid_id)
+    def sync_orcid(self, author_id: int) -> dict:
+        """Sync an author's ORCID papers and edu emails to their ResearchHub profile."""
+        author, orcid_id = self._get_author_and_orcid_id(author_id)
 
+        self._sync_edu_emails(author.user, orcid_id)
+
+        dois = self._fetch_dois_from_orcid(orcid_id)
         if not dois:
             return {"papers_processed": 0, "author_id": author_id}
 
@@ -41,17 +49,39 @@ class OrcidFetchService:
         linked = self._link_papers_to_author(works)
         return {"papers_processed": linked, "author_id": author_id}
 
-    def _get_author_orcid_id(self, author_id: int) -> str:
-        """Get ORCID ID for author, raising if not found or not connected."""
+    def _get_author_and_orcid_id(self, author_id: int) -> Tuple[Author, str]:
+        """Get author and ORCID ID, raising if not found or not connected."""
         try:
-            author = Author.objects.get(id=author_id)
+            author = Author.objects.select_related("user").get(id=author_id)
         except Author.DoesNotExist:
             raise ValueError(f"Author {author_id} not found")
 
         orcid_id = self._extract_orcid_id(author.orcid_id)
         if not orcid_id:
             raise ValueError(f"Author {author_id} has no ORCID connected")
-        return orcid_id
+        return author, orcid_id
+
+    def _sync_edu_emails(self, user: Optional[User], orcid_id: str) -> None:
+        """Sync verified edu emails from ORCID to user's social account."""
+        if not user:
+            return
+
+        social_account = SocialAccount.objects.filter(
+            user=user, provider=OrcidProvider.id
+        ).first()
+        if not social_account:
+            return
+
+        token = SocialToken.objects.filter(account=social_account).first()
+        if not token:
+            return
+
+        verified_edu = self.email_service.fetch_verified_edu_emails(orcid_id, token.token)
+
+        extra_data = social_account.extra_data or {}
+        extra_data["verified_edu_emails"] = verified_edu
+        social_account.extra_data = extra_data
+        social_account.save(update_fields=["extra_data"])
 
     def _extract_orcid_id(self, orcid_url: Optional[str]) -> str:
         """Extract bare ORCID ID from full URL (e.g., '0000-0001-2345-6789')."""
@@ -92,7 +122,6 @@ class OrcidFetchService:
                 if not paper:
                     continue
 
-                # Merge ALL authorships on this paper that have ORCID matches
                 merged_count = self._merge_authorships_for_paper(paper, work)
                 if merged_count > 0:
                     linked += 1

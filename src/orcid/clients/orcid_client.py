@@ -35,8 +35,8 @@ class OrcidClient:
         response.raise_for_status()
         return response.json()
 
-    def get_emails(self, orcid_id: str, access_token: str) -> list[dict]:
-        """Fetch user's public emails from ORCID. Returns empty list if private or on error."""
+    def get_email_data(self, orcid_id: str, access_token: str) -> dict:
+        """Fetch user's email data from ORCID. Returns empty dict on error."""
         try:
             response = self.session.get(
                 f"{ORCID_API_URL}/v3.0/{orcid_id}/email",
@@ -44,10 +44,10 @@ class OrcidClient:
                 timeout=REQUEST_TIMEOUT,
             )
             response.raise_for_status()
-            return response.json().get("email", [])
+            return response.json()
         except requests.RequestException:
-            logger.warning("Failed to fetch emails for ORCID %s", orcid_id, exc_info=True)
-            return []
+            logger.warning("Failed to fetch email data for ORCID %s", orcid_id, exc_info=True)
+            return {}
 
     def get_works(self, orcid_id: str) -> dict:
         """Fetch user's works from ORCID. Returns empty dict on error."""

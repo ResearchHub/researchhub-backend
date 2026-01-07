@@ -14,8 +14,14 @@ class OrcidCallbackServiceTests(TestCase):
 
     def setUp(self):
         self.mock_client = Mock()
+        self.mock_email_service = Mock()
         self.mock_sync_task = Mock()
-        self.service = OrcidCallbackService(client=self.mock_client, sync_task=self.mock_sync_task)
+        self.mock_email_service.fetch_verified_edu_emails.return_value = []
+        self.service = OrcidCallbackService(
+            client=self.mock_client,
+            email_service=self.mock_email_service,
+            sync_task=self.mock_sync_task,
+        )
         OrcidTestHelper.create_app()
 
     def test_process_callback_success(self):
@@ -24,7 +30,6 @@ class OrcidCallbackServiceTests(TestCase):
         self.mock_client.exchange_code_for_token.return_value = {
             "orcid": OrcidTestHelper.ORCID_ID, "access_token": "tk", "refresh_token": "rt", "expires_in": 3600
         }
-        self.mock_client.get_emails.return_value = []
         state = signing.dumps({"user_id": user.id, "return_url": "https://researchhub.com/p"})
 
         # Act
@@ -61,7 +66,6 @@ class OrcidCallbackServiceTests(TestCase):
         user2 = create_random_default_user("u2")
         SocialAccount.objects.create(user=user1, provider=OrcidProvider.id, uid=OrcidTestHelper.ORCID_ID)
         self.mock_client.exchange_code_for_token.return_value = {"orcid": OrcidTestHelper.ORCID_ID}
-        self.mock_client.get_emails.return_value = []
         state = signing.dumps({"user_id": user2.id})
 
         # Act
@@ -94,14 +98,11 @@ class OrcidCallbackServiceTests(TestCase):
         self.assertIn("orcid_error=failed", error)
         self.assertNotIn("evil.com", invalid)
 
-    def test_save_connection_filters_edu_emails(self):
+    def test_save_connection_stores_edu_emails(self):
         # Arrange
         user = create_random_default_user("edu")
-        self.mock_client.get_emails.return_value = [
-            {"email": "user@stanford.edu", "verified": True},
-            {"email": "prof@oxford.ac.uk", "verified": True},
-            {"email": "user@gmail.com", "verified": True},
-            {"email": "user@mit.edu", "verified": False},
+        self.mock_email_service.fetch_verified_edu_emails.return_value = [
+            "user@stanford.edu", "prof@oxford.ac.uk"
         ]
         token_data = {"orcid": OrcidTestHelper.ORCID_ID, "access_token": "tk"}
 
@@ -113,4 +114,7 @@ class OrcidCallbackServiceTests(TestCase):
         self.assertEqual(
             account.extra_data["verified_edu_emails"],
             ["user@stanford.edu", "prof@oxford.ac.uk"]
+        )
+        self.mock_email_service.fetch_verified_edu_emails.assert_called_once_with(
+            OrcidTestHelper.ORCID_ID, "tk"
         )
