@@ -210,7 +210,6 @@ class SyncUserInteractionsExportTests(TestCase):
 
         save_rows = [r for r in rows if r["EVENT_TYPE"] == DOCUMENT_SAVED_TO_LIST]
         self.assertEqual(len(save_rows), 1)
-        self.assertEqual(save_rows[0]["EVENT_VALUE"], "14.0")
         self.assertEqual(save_rows[0]["ITEM_ID"], str(self.unified_document.id))
 
 

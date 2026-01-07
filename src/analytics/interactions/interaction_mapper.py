@@ -117,14 +117,7 @@ def map_from_list_item(
 ) -> UserInteractions:
     """
     Map a ListItem record (saved to list) to a UserInteractions instance
-    (not saved to database).
     """
-    if not list_item.created_by_id:
-        raise ValueError(f"ListItem {list_item.id} has no created_by user")
-
-    if not list_item.unified_document_id:
-        raise ValueError(f"ListItem {list_item.id} has no unified_document")
-
     if content_type is None:
         content_type = ContentType.objects.get_for_model(ListItem)
 

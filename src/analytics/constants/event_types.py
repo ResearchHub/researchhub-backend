@@ -34,7 +34,7 @@ EVENT_WEIGHTS = {
     FEED_ITEM_CLICK: 2.0,
     PAGE_VIEW: 1.0,
     DOCUMENT_TAB_CLICKED: 5.0,
-    DOCUMENT_SAVED_TO_LIST: 14.0,
+    DOCUMENT_SAVED_TO_LIST: 10.0,
 }
 
 # Mapping from Amplitude event types to database enum values
