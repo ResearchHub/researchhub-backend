@@ -12,6 +12,7 @@ from rest_framework.test import APITestCase
 from discussion.models import Vote
 from hub.models import Hub
 from hub.tests.helpers import create_hub
+from notification.models import Notification
 from paper.tests.helpers import create_paper
 from reputation.constants.bounty import ASSESSMENT_PERIOD_DAYS
 from reputation.distributions import Distribution as Dist
@@ -1016,7 +1017,7 @@ class BountyViewTests(APITestCase):
         self.assertIsNone(bounty_res.data["results"][0]["user_vote"])
 
     def test_metrics_included_in_bounty_response(self):
-        """Test that metrics are correctly included in bounty response from unified document"""
+        """Test metrics included in bounty response from unified document"""
         # Arrange
         self.client.force_authenticate(self.user)
 
@@ -1578,7 +1579,7 @@ class BountyAssessmentPhaseTests(APITestCase):
         return response
 
     def test_bounty_transitions_to_assessment_when_expiration_passes(self):
-        """Test that OPEN bounty transitions to ASSESSMENT when expiration_date passes."""
+        """Test OPEN bounty transitions to ASSESSMENT when expiration_date passes."""
         self.client.force_authenticate(self.user)
 
         # Create bounty with past expiration
@@ -1834,7 +1835,7 @@ class BountyAssessmentPhaseTests(APITestCase):
         self.assertIsNone(bounty.assessment_end_date)
 
     def test_assessment_bounty_with_future_end_date_stays_assessment(self):
-        """Test that ASSESSMENT bounty with future assessment_end_date stays in ASSESSMENT."""
+        """Test ASSESSMENT bounty with future assessment_end_date stays ASSESSMENT."""
         self.client.force_authenticate(self.user)
 
         bounty_res = self._create_bounty()
@@ -1887,3 +1888,423 @@ class BountyAssessmentPhaseTests(APITestCase):
         parent_bounty.refresh_from_db()
         self.assertEqual(parent_bounty.status, Bounty.ASSESSMENT)
         self.assertIsNotNone(parent_bounty.assessment_end_date)
+
+
+class BountyNotificationTests(APITestCase):
+    """Tests for bounty notification functionality."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.bank_user = create_user(email="bank@researchhub.com")
+        self.user = create_random_default_user("notification_user")
+        self.user_2 = create_random_default_user("notification_user_2")
+        self.user_3 = create_random_default_user("notification_user_3")
+        self.recipient = create_random_default_user("notification_recipient")
+
+        self.comment = create_rh_comment(created_by=self.recipient)
+        self.child_comment_1 = create_rh_comment(
+            created_by=self.user_2, parent=self.comment
+        )
+        self.child_comment_2 = create_rh_comment(
+            created_by=self.user_3, parent=self.comment
+        )
+        self.hub = create_hub()
+        self.bountyFee = BountyFee.objects.create(rh_pct=0.07, dao_pct=0.02)
+
+        self.client.force_authenticate(self.user)
+
+        distribution = Dist("REWARD", 1000000000, give_rep=False)
+        distributor = Distributor(
+            distribution, self.user, self.user, time.time(), self.user
+        )
+        distributor.distribute()
+
+        distributor = Distributor(
+            distribution, self.user_2, self.user_2, time.time(), self.user_2
+        )
+        distributor.distribute()
+
+        distributor = Distributor(
+            distribution, self.user_3, self.user_3, time.time(), self.user_3
+        )
+        distributor.distribute()
+
+    def _create_bounty(self, amount=100, expiration_date=None):
+        """Helper to create a bounty."""
+        data = {
+            "amount": amount,
+            "item_content_type": self.comment._meta.model_name,
+            "item_object_id": self.comment.id,
+        }
+        if expiration_date:
+            data["expiration_date"] = expiration_date.isoformat()
+
+        response = self.client.post("/api/bounty/", data)
+        return response
+
+    @patch("reputation.tasks.send_email_message")
+    def test_bounty_expiring_soon_notification_sent(self, mock_send_email):
+        """Test that BOUNTY_EXPIRING_SOON notification is sent 24h before expiration."""
+        self.client.force_authenticate(self.user)
+
+        # Create bounty expiring in 23 hours (within 24h window)
+        expiration_date = datetime.now(pytz.UTC) + timedelta(hours=23)
+        bounty_res = self._create_bounty(expiration_date=expiration_date)
+        self.assertEqual(bounty_res.status_code, 201)
+        bounty_id = bounty_res.data["id"]
+
+        # Clear any existing notifications
+        Notification.objects.filter(
+            object_id=bounty_id, content_type=ContentType.objects.get_for_model(Bounty)
+        ).delete()
+
+        # Run the scheduled task
+        check_open_bounties()
+
+        # Verify notification was created
+        notification = Notification.objects.filter(
+            object_id=bounty_id,
+            content_type=ContentType.objects.get_for_model(Bounty),
+            notification_type=Notification.BOUNTY_EXPIRING_SOON,
+        ).first()
+
+        self.assertIsNotNone(notification)
+        self.assertEqual(notification.recipient, self.user)
+        self.assertEqual(
+            notification.notification_type, Notification.BOUNTY_EXPIRING_SOON
+        )
+
+    @patch("reputation.tasks.send_email_message")
+    def test_bounty_expiring_soon_notification_not_sent_twice(self, mock_send_email):
+        """Test that BOUNTY_EXPIRING_SOON notification is not sent twice."""
+        self.client.force_authenticate(self.user)
+
+        expiration_date = datetime.now(pytz.UTC) + timedelta(hours=23)
+        bounty_res = self._create_bounty(expiration_date=expiration_date)
+        self.assertEqual(bounty_res.status_code, 201)
+        bounty_id = bounty_res.data["id"]
+
+        # Run task once
+        check_open_bounties()
+
+        # Count notifications
+        notification_count_before = Notification.objects.filter(
+            object_id=bounty_id,
+            content_type=ContentType.objects.get_for_model(Bounty),
+            notification_type=Notification.BOUNTY_EXPIRING_SOON,
+        ).count()
+
+        # Run task again
+        check_open_bounties()
+
+        # Verify notification count didn't increase
+        notification_count_after = Notification.objects.filter(
+            object_id=bounty_id,
+            content_type=ContentType.objects.get_for_model(Bounty),
+            notification_type=Notification.BOUNTY_EXPIRING_SOON,
+        ).count()
+
+        self.assertEqual(notification_count_before, notification_count_after)
+        self.assertEqual(notification_count_before, 1)
+
+    @patch("reputation.tasks.send_email_message")
+    def test_bounty_entered_assessment_notification_sent_to_creator(
+        self, mock_send_email
+    ):
+        """Test that BOUNTY_ENTERED_ASSESSMENT notification is sent to creator."""
+        self.client.force_authenticate(self.user)
+
+        # Create bounty with past expiration
+        past_expiration = datetime.now(pytz.UTC) - timedelta(hours=1)
+        bounty_res = self._create_bounty(expiration_date=past_expiration)
+        self.assertEqual(bounty_res.status_code, 201)
+        bounty_id = bounty_res.data["id"]
+
+        # Clear any existing notifications
+        Notification.objects.filter(
+            object_id=bounty_id, content_type=ContentType.objects.get_for_model(Bounty)
+        ).delete()
+
+        # Run the scheduled task
+        check_open_bounties()
+
+        # Verify notification was created for creator
+        notification = Notification.objects.filter(
+            object_id=bounty_id,
+            content_type=ContentType.objects.get_for_model(Bounty),
+            notification_type=Notification.BOUNTY_ENTERED_ASSESSMENT,
+            recipient=self.user,
+        ).first()
+
+        self.assertIsNotNone(notification)
+        self.assertEqual(notification.recipient, self.user)
+        self.assertEqual(
+            notification.notification_type, Notification.BOUNTY_ENTERED_ASSESSMENT
+        )
+
+    @patch("reputation.tasks.send_email_message")
+    def test_bounty_solution_in_assessment_notification_sent_to_reviewers(
+        self, mock_send_email
+    ):
+        """Test that BOUNTY_SOLUTION_IN_ASSESSMENT notification is sent to reviewers."""
+        self.client.force_authenticate(self.user)
+
+        # Create bounty
+        bounty_res = self._create_bounty()
+        self.assertEqual(bounty_res.status_code, 201)
+        bounty_id = bounty_res.data["id"]
+
+        bounty = Bounty.objects.get(id=bounty_id)
+
+        # Create solutions (simulating reviewers submitting)
+        BountySolution.objects.create(
+            bounty=bounty,
+            created_by=self.user_2,
+            content_type=ContentType.objects.get_for_model(self.child_comment_1),
+            object_id=self.child_comment_1.id,
+            status=BountySolution.Status.SUBMITTED,
+        )
+
+        BountySolution.objects.create(
+            bounty=bounty,
+            created_by=self.user_3,
+            content_type=ContentType.objects.get_for_model(self.child_comment_2),
+            object_id=self.child_comment_2.id,
+            status=BountySolution.Status.SUBMITTED,
+        )
+
+        # Set bounty to expired so it transitions to ASSESSMENT
+        bounty.expiration_date = datetime.now(pytz.UTC) - timedelta(hours=1)
+        bounty.save()
+
+        # Clear any existing notifications
+        Notification.objects.filter(
+            object_id=bounty_id, content_type=ContentType.objects.get_for_model(Bounty)
+        ).delete()
+
+        # Run the scheduled task
+        check_open_bounties()
+
+        # Verify notifications were created for reviewers
+        reviewer_2_notification = Notification.objects.filter(
+            object_id=bounty_id,
+            content_type=ContentType.objects.get_for_model(Bounty),
+            notification_type=Notification.BOUNTY_SOLUTION_IN_ASSESSMENT,
+            recipient=self.user_2,
+        ).first()
+
+        reviewer_3_notification = Notification.objects.filter(
+            object_id=bounty_id,
+            content_type=ContentType.objects.get_for_model(Bounty),
+            notification_type=Notification.BOUNTY_SOLUTION_IN_ASSESSMENT,
+            recipient=self.user_3,
+        ).first()
+
+        self.assertIsNotNone(reviewer_2_notification)
+        self.assertIsNotNone(reviewer_3_notification)
+        self.assertEqual(reviewer_2_notification.recipient, self.user_2)
+        self.assertEqual(reviewer_3_notification.recipient, self.user_3)
+
+    @patch("reputation.tasks.send_email_message")
+    def test_bounty_solution_notification_not_sent_to_creator(self, mock_send_email):
+        """Test reviewers get notification, creator doesn't get it."""
+        self.client.force_authenticate(self.user)
+
+        bounty_res = self._create_bounty()
+        self.assertEqual(bounty_res.status_code, 201)
+        bounty_id = bounty_res.data["id"]
+
+        bounty = Bounty.objects.get(id=bounty_id)
+
+        # Create solution
+        BountySolution.objects.create(
+            bounty=bounty,
+            created_by=self.user_2,
+            content_type=ContentType.objects.get_for_model(self.child_comment_1),
+            object_id=self.child_comment_1.id,
+            status=BountySolution.Status.SUBMITTED,
+        )
+
+        # Set bounty to expired
+        bounty.expiration_date = datetime.now(pytz.UTC) - timedelta(hours=1)
+        bounty.save()
+
+        # Clear notifications
+        Notification.objects.filter(
+            object_id=bounty_id, content_type=ContentType.objects.get_for_model(Bounty)
+        ).delete()
+
+        # Run task
+        check_open_bounties()
+
+        # Creator should NOT get BOUNTY_SOLUTION_IN_ASSESSMENT notification
+        creator_reviewer_notification = Notification.objects.filter(
+            object_id=bounty_id,
+            content_type=ContentType.objects.get_for_model(Bounty),
+            notification_type=Notification.BOUNTY_SOLUTION_IN_ASSESSMENT,
+            recipient=self.user,
+        ).exists()
+
+        self.assertFalse(creator_reviewer_notification)
+
+    @patch("reputation.tasks.send_email_message")
+    def test_bounty_assessment_expiring_soon_notification_sent(self, mock_send_email):
+        """Test BOUNTY_ASSESSMENT_EXPIRING_SOON sent 24h before assessment ends."""
+        self.client.force_authenticate(self.user)
+
+        bounty_res = self._create_bounty()
+        self.assertEqual(bounty_res.status_code, 201)
+        bounty_id = bounty_res.data["id"]
+
+        # Set bounty to ASSESSMENT with assessment_end_date in 23 hours
+        bounty = Bounty.objects.get(id=bounty_id)
+        bounty.status = Bounty.ASSESSMENT
+        bounty.assessment_end_date = datetime.now(pytz.UTC) + timedelta(hours=23)
+        bounty.save()
+
+        # Clear notifications
+        Notification.objects.filter(
+            object_id=bounty_id, content_type=ContentType.objects.get_for_model(Bounty)
+        ).delete()
+
+        # Run the scheduled task
+        check_open_bounties()
+
+        # Verify notification was created
+        notification = Notification.objects.filter(
+            object_id=bounty_id,
+            content_type=ContentType.objects.get_for_model(Bounty),
+            notification_type=Notification.BOUNTY_ASSESSMENT_EXPIRING_SOON,
+        ).first()
+
+        self.assertIsNotNone(notification)
+        self.assertEqual(notification.recipient, self.user)
+        self.assertEqual(
+            notification.notification_type, Notification.BOUNTY_ASSESSMENT_EXPIRING_SOON
+        )
+
+    @patch("reputation.tasks.send_email_message")
+    def test_bounty_assessment_expiring_notification_not_sent_twice(
+        self, mock_send_email
+    ):
+        """Test that BOUNTY_ASSESSMENT_EXPIRING_SOON notification is not sent twice."""
+        self.client.force_authenticate(self.user)
+
+        bounty_res = self._create_bounty()
+        self.assertEqual(bounty_res.status_code, 201)
+        bounty_id = bounty_res.data["id"]
+
+        # Set bounty to ASSESSMENT
+        bounty = Bounty.objects.get(id=bounty_id)
+        bounty.status = Bounty.ASSESSMENT
+        bounty.assessment_end_date = datetime.now(pytz.UTC) + timedelta(hours=23)
+        bounty.save()
+
+        # Run task once
+        check_open_bounties()
+
+        # Count notifications
+        notification_count_before = Notification.objects.filter(
+            object_id=bounty_id,
+            content_type=ContentType.objects.get_for_model(Bounty),
+            notification_type=Notification.BOUNTY_ASSESSMENT_EXPIRING_SOON,
+        ).count()
+
+        # Run task again
+        check_open_bounties()
+
+        # Verify notification count didn't increase
+        notification_count_after = Notification.objects.filter(
+            object_id=bounty_id,
+            content_type=ContentType.objects.get_for_model(Bounty),
+            notification_type=Notification.BOUNTY_ASSESSMENT_EXPIRING_SOON,
+        ).count()
+
+        self.assertEqual(notification_count_before, notification_count_after)
+        self.assertEqual(notification_count_before, 1)
+
+    def test_no_notification_when_bounty_not_in_time_window(self):
+        """Test notifications are not sent when bounties are outside time windows."""
+        self.client.force_authenticate(self.user)
+
+        # Create bounty expiring in 2 days (outside 24h window)
+        expiration_date = datetime.now(pytz.UTC) + timedelta(days=2)
+        bounty_res = self._create_bounty(expiration_date=expiration_date)
+        self.assertEqual(bounty_res.status_code, 201)
+        bounty_id = bounty_res.data["id"]
+
+        # Clear notifications
+        Notification.objects.filter(
+            object_id=bounty_id, content_type=ContentType.objects.get_for_model(Bounty)
+        ).delete()
+
+        # Run task
+        check_open_bounties()
+
+        # Verify no notification was created
+        notification = Notification.objects.filter(
+            object_id=bounty_id,
+            content_type=ContentType.objects.get_for_model(Bounty),
+            notification_type=Notification.BOUNTY_EXPIRING_SOON,
+        ).exists()
+
+        self.assertFalse(notification)
+
+    @patch("reputation.tasks.send_email_message")
+    def test_reviewer_notification_only_for_submitted_solutions(self, mock_send_email):
+        """Test that only reviewers with SUBMITTED solutions get notifications."""
+        self.client.force_authenticate(self.user)
+
+        bounty_res = self._create_bounty()
+        self.assertEqual(bounty_res.status_code, 201)
+        bounty_id = bounty_res.data["id"]
+
+        bounty = Bounty.objects.get(id=bounty_id)
+
+        # Create SUBMITTED solution (should get notification)
+        BountySolution.objects.create(
+            bounty=bounty,
+            created_by=self.user_2,
+            content_type=ContentType.objects.get_for_model(self.child_comment_1),
+            object_id=self.child_comment_1.id,
+            status=BountySolution.Status.SUBMITTED,
+        )
+
+        # Create AWARDED solution (should NOT get notification)
+        BountySolution.objects.create(
+            bounty=bounty,
+            created_by=self.user_3,
+            content_type=ContentType.objects.get_for_model(self.child_comment_2),
+            object_id=self.child_comment_2.id,
+            status=BountySolution.Status.AWARDED,
+        )
+
+        # Set bounty to expired
+        bounty.expiration_date = datetime.now(pytz.UTC) - timedelta(hours=1)
+        bounty.save()
+
+        # Clear notifications
+        Notification.objects.filter(
+            object_id=bounty_id, content_type=ContentType.objects.get_for_model(Bounty)
+        ).delete()
+
+        # Run task
+        check_open_bounties()
+
+        # Verify only user_2 (SUBMITTED) got notification
+        user_2_notification = Notification.objects.filter(
+            object_id=bounty_id,
+            content_type=ContentType.objects.get_for_model(Bounty),
+            notification_type=Notification.BOUNTY_SOLUTION_IN_ASSESSMENT,
+            recipient=self.user_2,
+        ).exists()
+
+        user_3_notification = Notification.objects.filter(
+            object_id=bounty_id,
+            content_type=ContentType.objects.get_for_model(Bounty),
+            notification_type=Notification.BOUNTY_SOLUTION_IN_ASSESSMENT,
+            recipient=self.user_3,
+        ).exists()
+
+        self.assertTrue(user_2_notification)
+        self.assertFalse(user_3_notification)
