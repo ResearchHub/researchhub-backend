@@ -566,17 +566,6 @@ class TriggerFigureExtractionTests(TestCase):
         """Set up test environment."""
         self.paper = helpers.create_paper(title="Test Paper")
 
-    @patch("paper.tasks.figure_tasks.PRODUCTION", False)
-    @patch("paper.tasks.figure_tasks.extract_pdf_figures.apply_async")
-    def test_not_in_production_returns_false(self, mock_extract):
-        """Test that function returns False when not in PRODUCTION."""
-        from paper.tasks.figure_tasks import trigger_figure_extraction_for_paper
-
-        result = trigger_figure_extraction_for_paper(self.paper.id, 100)
-        self.assertFalse(result)
-        mock_extract.assert_not_called()
-
-    @patch("paper.tasks.figure_tasks.PRODUCTION", True)
     @patch("paper.tasks.figure_tasks.extract_pdf_figures.apply_async")
     def test_below_threshold_returns_false(self, mock_extract):
         """Test that function returns False when hot_score_v2 < 75."""
@@ -586,7 +575,6 @@ class TriggerFigureExtractionTests(TestCase):
         self.assertFalse(result)
         mock_extract.assert_not_called()
 
-    @patch("paper.tasks.figure_tasks.PRODUCTION", True)
     @patch("paper.tasks.figure_tasks.extract_pdf_figures.apply_async")
     def test_above_threshold_triggers_extraction(self, mock_extract):
         """Test that function triggers extraction when hot_score_v2 >= 75."""
@@ -600,7 +588,6 @@ class TriggerFigureExtractionTests(TestCase):
             priority=6,
         )
 
-    @patch("paper.tasks.figure_tasks.PRODUCTION", True)
     @patch("paper.tasks.figure_tasks.extract_pdf_figures.apply_async")
     def test_exactly_at_threshold_triggers_extraction(self, mock_extract):
         """Test that function triggers extraction when hot_score_v2 == 75."""
@@ -610,7 +597,6 @@ class TriggerFigureExtractionTests(TestCase):
         self.assertTrue(result)
         mock_extract.assert_called_once()
 
-    @patch("paper.tasks.figure_tasks.PRODUCTION", True)
     @patch("paper.tasks.figure_tasks.extract_pdf_figures.apply_async")
     def test_already_has_figures_returns_false(self, mock_extract):
         """Test that function returns False when paper already has figures."""
@@ -626,7 +612,6 @@ class TriggerFigureExtractionTests(TestCase):
         self.assertFalse(result)
         mock_extract.assert_not_called()
 
-    @patch("paper.tasks.figure_tasks.PRODUCTION", True)
     def test_paper_not_found_returns_false(self):
         """Test that function handles nonexistent paper gracefully."""
         from paper.tasks.figure_tasks import trigger_figure_extraction_for_paper
@@ -634,7 +619,6 @@ class TriggerFigureExtractionTests(TestCase):
         result = trigger_figure_extraction_for_paper(99999, 100)
         self.assertFalse(result)
 
-    @patch("paper.tasks.figure_tasks.PRODUCTION", True)
     @patch("paper.tasks.figure_tasks.extract_pdf_figures.apply_async")
     @patch("paper.tasks.figure_tasks.logger")
     def test_error_handling_returns_false(self, mock_logger, mock_extract):

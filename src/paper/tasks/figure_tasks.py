@@ -19,7 +19,6 @@ from paper.services.figure_extraction_service import FigureExtractionService
 from paper.tasks.tasks import create_download_url
 from paper.utils import download_pdf_from_url, get_cache_key
 from researchhub.celery import QUEUE_PAPER_MISC, app
-from researchhub.settings import PRODUCTION
 from utils import sentry
 
 logger = get_task_logger(__name__)
@@ -252,10 +251,8 @@ def extract_pdf_figures(
                 )
             except Exception as e:
                 logger.warning(
-                    f"Failed to select primary image for paper {paper_id}: {e}. "
-                    f"Figures were extracted successfully."
+                    f"Failed to select primary image for paper {paper_id}: {e}"
                 )
-                sentry.log_error(e)
         else:
             select_primary_image.apply_async(
                 (paper.id,),
@@ -295,19 +292,12 @@ def extract_pdf_figures(
 def trigger_figure_extraction_for_paper(paper_id, hot_score_v2):
     """
     Check if figure extraction should be triggered for a paper when hot_score_v2
-    is recalculated in feed tasks. Only triggers in PRODUCTION environment.
+    is recalculated in feed tasks.
 
     Returns:
         bool: True if extraction was triggered, False otherwise
     """
     try:
-        if not PRODUCTION:
-            logger.debug(
-                f"Skipping figure extraction for paper {paper_id} "
-                f"(not in production, hot_score_v2={hot_score_v2})"
-            )
-            return False
-
         if hot_score_v2 < MIN_HOT_SCORE_FOR_FIGURE_EXTRACTION:
             return False
 
