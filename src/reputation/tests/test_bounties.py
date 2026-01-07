@@ -1,7 +1,9 @@
 import decimal
 import time
 from datetime import datetime, timedelta
+from unittest.mock import patch
 
+import pytz
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Sum
 from django.utils import timezone
@@ -11,9 +13,11 @@ from discussion.models import Vote
 from hub.models import Hub
 from hub.tests.helpers import create_hub
 from paper.tests.helpers import create_paper
+from reputation.constants.bounty import ASSESSMENT_PERIOD_DAYS
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.models import Bounty, BountyFee, BountySolution, Distribution
+from reputation.tasks import check_open_bounties
 from researchhub_comment.tests.helpers import create_rh_comment
 from user.models import User
 from user.related_models.user_model import FOUNDATION_REVENUE_EMAIL
@@ -1529,3 +1533,357 @@ class BountyViewTests(APITestCase):
             distribution_type="BOUNTY_DAO_FEE"
         ).latest("created_date")
         self.assertEqual(dao_fee_distribution.recipient, community_revenue_user)
+
+
+class BountyAssessmentPhaseTests(APITestCase):
+    """Tests for the bounty assessment phase functionality."""
+
+    def setUp(self):
+        self.bank_user = create_user(email="bank@researchhub.com")
+        self.user = create_random_default_user("assessment_user")
+        self.user_2 = create_random_default_user("assessment_user_2")
+        self.recipient = create_random_default_user("assessment_recipient")
+
+        self.comment = create_rh_comment(created_by=self.recipient)
+        self.child_comment = create_rh_comment(
+            created_by=self.user_2, parent=self.comment
+        )
+        self.hub = create_hub()
+        self.bountyFee = BountyFee.objects.create(rh_pct=0.07, dao_pct=0.02)
+
+        self.client.force_authenticate(self.user)
+
+        distribution = Dist("REWARD", 1000000000, give_rep=False)
+        distributor = Distributor(
+            distribution, self.user, self.user, time.time(), self.user
+        )
+        distributor.distribute()
+
+        distributor = Distributor(
+            distribution, self.user_2, self.user_2, time.time(), self.user_2
+        )
+        distributor.distribute()
+
+    def _create_bounty(self, amount=100, expiration_date=None):
+        """Helper to create a bounty."""
+        data = {
+            "amount": amount,
+            "item_content_type": self.comment._meta.model_name,
+            "item_object_id": self.comment.id,
+        }
+        if expiration_date:
+            data["expiration_date"] = expiration_date.isoformat()
+
+        response = self.client.post("/api/bounty/", data)
+        return response
+
+    def test_bounty_transitions_to_assessment_when_expiration_passes(self):
+        """Test that OPEN bounty transitions to ASSESSMENT when expiration_date passes."""
+        self.client.force_authenticate(self.user)
+
+        # Create bounty with past expiration
+        past_expiration = datetime.now(pytz.UTC) - timedelta(hours=1)
+        bounty_res = self._create_bounty(expiration_date=past_expiration)
+        self.assertEqual(bounty_res.status_code, 201)
+        bounty_id = bounty_res.data["id"]
+
+        bounty = Bounty.objects.get(id=bounty_id)
+        self.assertEqual(bounty.status, Bounty.OPEN)
+        self.assertIsNone(bounty.assessment_end_date)
+
+        # Run the scheduled task
+        check_open_bounties()
+
+        bounty.refresh_from_db()
+        self.assertEqual(bounty.status, Bounty.ASSESSMENT)
+        self.assertIsNotNone(bounty.assessment_end_date)
+
+        # Verify assessment_end_date is approximately ASSESSMENT_PERIOD_DAYS from now
+        expected_end = datetime.now(pytz.UTC) + timedelta(days=ASSESSMENT_PERIOD_DAYS)
+        time_diff = abs((bounty.assessment_end_date - expected_end).total_seconds())
+        self.assertLess(time_diff, 60)  # Within 60 seconds
+
+    def test_bounty_expires_when_assessment_period_ends(self):
+        """Test that ASSESSMENT bounty expires when assessment_end_date passes."""
+        self.client.force_authenticate(self.user)
+
+        # Create bounty and manually set to ASSESSMENT with past assessment_end_date
+        bounty_res = self._create_bounty()
+        self.assertEqual(bounty_res.status_code, 201)
+        bounty_id = bounty_res.data["id"]
+
+        bounty = Bounty.objects.get(id=bounty_id)
+        bounty.status = Bounty.ASSESSMENT
+        bounty.assessment_end_date = datetime.now(pytz.UTC) - timedelta(hours=1)
+        bounty.save()
+
+        initial_user_balance = self.user.get_balance()
+
+        # Run the scheduled task
+        check_open_bounties()
+
+        bounty.refresh_from_db()
+        self.assertEqual(bounty.status, Bounty.EXPIRED)
+
+        # Verify refund was issued
+        final_user_balance = self.user.get_balance()
+        self.assertGreater(final_user_balance, initial_user_balance)
+
+    def test_creator_can_award_during_assessment_phase(self):
+        """Test that bounty creator can award solutions during ASSESSMENT phase."""
+        self.client.force_authenticate(self.user)
+
+        bounty_res = self._create_bounty()
+        self.assertEqual(bounty_res.status_code, 201)
+        bounty_id = bounty_res.data["id"]
+
+        # Manually set bounty to ASSESSMENT phase
+        bounty = Bounty.objects.get(id=bounty_id)
+        bounty.status = Bounty.ASSESSMENT
+        bounty.assessment_end_date = datetime.now(pytz.UTC) + timedelta(days=5)
+        bounty.save()
+
+        # Award the bounty
+        approve_res = self.client.post(
+            f"/api/bounty/{bounty_id}/approve_bounty/",
+            [
+                {
+                    "amount": bounty_res.data["amount"],
+                    "object_id": self.child_comment.id,
+                    "content_type": self.child_comment._meta.model_name,
+                }
+            ],
+        )
+
+        self.assertEqual(approve_res.status_code, 200)
+
+    def test_random_user_cannot_award_during_assessment_phase(self):
+        """Test that non-creator cannot award solutions during ASSESSMENT phase."""
+        self.client.force_authenticate(self.user)
+
+        bounty_res = self._create_bounty()
+        self.assertEqual(bounty_res.status_code, 201)
+        bounty_id = bounty_res.data["id"]
+
+        # Manually set bounty to ASSESSMENT phase
+        bounty = Bounty.objects.get(id=bounty_id)
+        bounty.status = Bounty.ASSESSMENT
+        bounty.assessment_end_date = datetime.now(pytz.UTC) + timedelta(days=5)
+        bounty.save()
+
+        # Try to award as different user
+        self.client.force_authenticate(self.user_2)
+        approve_res = self.client.post(
+            f"/api/bounty/{bounty_id}/approve_bounty/",
+            [
+                {
+                    "amount": bounty_res.data["amount"],
+                    "object_id": self.child_comment.id,
+                    "content_type": self.child_comment._meta.model_name,
+                }
+            ],
+        )
+
+        self.assertEqual(approve_res.status_code, 403)
+
+    def test_cannot_award_when_assessment_period_expired(self):
+        """Test that awarding fails when assessment_end_date has passed."""
+        self.client.force_authenticate(self.user)
+
+        bounty_res = self._create_bounty()
+        self.assertEqual(bounty_res.status_code, 201)
+        bounty_id = bounty_res.data["id"]
+
+        # Manually set bounty to ASSESSMENT phase with expired assessment_end_date
+        bounty = Bounty.objects.get(id=bounty_id)
+        bounty.status = Bounty.ASSESSMENT
+        bounty.assessment_end_date = datetime.now(pytz.UTC) - timedelta(hours=1)
+        bounty.save()
+
+        # Try to award
+        approve_res = self.client.post(
+            f"/api/bounty/{bounty_id}/approve_bounty/",
+            [
+                {
+                    "amount": bounty_res.data["amount"],
+                    "object_id": self.child_comment.id,
+                    "content_type": self.child_comment._meta.model_name,
+                }
+            ],
+        )
+
+        self.assertEqual(approve_res.status_code, 403)
+
+    def test_creator_can_cancel_during_assessment_phase(self):
+        """Test that bounty creator can cancel during ASSESSMENT phase."""
+        self.client.force_authenticate(self.user)
+
+        bounty_res = self._create_bounty()
+        self.assertEqual(bounty_res.status_code, 201)
+        bounty_id = bounty_res.data["id"]
+
+        # Manually set bounty to ASSESSMENT phase
+        bounty = Bounty.objects.get(id=bounty_id)
+        bounty.status = Bounty.ASSESSMENT
+        bounty.assessment_end_date = datetime.now(pytz.UTC) + timedelta(days=5)
+        bounty.save()
+
+        # Cancel the bounty
+        cancel_res = self.client.post(f"/api/bounty/{bounty_id}/cancel_bounty/")
+
+        self.assertEqual(cancel_res.status_code, 200)
+
+        bounty.refresh_from_db()
+        self.assertEqual(bounty.status, Bounty.CANCELLED)
+
+    def test_random_user_cannot_cancel_during_assessment_phase(self):
+        """Test that non-creator cannot cancel during ASSESSMENT phase."""
+        self.client.force_authenticate(self.user)
+
+        bounty_res = self._create_bounty()
+        self.assertEqual(bounty_res.status_code, 201)
+        bounty_id = bounty_res.data["id"]
+
+        # Manually set bounty to ASSESSMENT phase
+        bounty = Bounty.objects.get(id=bounty_id)
+        bounty.status = Bounty.ASSESSMENT
+        bounty.assessment_end_date = datetime.now(pytz.UTC) + timedelta(days=5)
+        bounty.save()
+
+        # Try to cancel as different user
+        self.client.force_authenticate(self.user_2)
+        cancel_res = self.client.post(f"/api/bounty/{bounty_id}/cancel_bounty/")
+
+        self.assertEqual(cancel_res.status_code, 403)
+
+    def test_contributing_during_assessment_adds_to_parent(self):
+        """Test that contributing to bounty during ASSESSMENT adds to parent bounty."""
+        self.client.force_authenticate(self.user)
+
+        bounty_res = self._create_bounty(amount=100)
+        self.assertEqual(bounty_res.status_code, 201)
+        parent_bounty_id = bounty_res.data["id"]
+
+        # Manually set bounty to ASSESSMENT phase
+        bounty = Bounty.objects.get(id=parent_bounty_id)
+        bounty.status = Bounty.ASSESSMENT
+        bounty.assessment_end_date = datetime.now(pytz.UTC) + timedelta(days=5)
+        bounty.save()
+        initial_escrow_amount = bounty.escrow.amount_holding
+
+        # User 2 contributes during ASSESSMENT phase
+        self.client.force_authenticate(self.user_2)
+        contribute_res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 200,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
+            },
+        )
+
+        self.assertEqual(contribute_res.status_code, 201)
+
+        # Verify contribution was added to parent bounty
+        child_bounty = Bounty.objects.get(id=contribute_res.data["id"])
+        self.assertEqual(child_bounty.parent_id, parent_bounty_id)
+
+        bounty.refresh_from_db()
+        bounty.escrow.refresh_from_db()
+        self.assertEqual(
+            bounty.escrow.amount_holding,
+            initial_escrow_amount + decimal.Decimal("200"),
+        )
+
+    def test_assessment_bounties_included_in_hot_score_recalc(self):
+        """Test that ASSESSMENT bounties are included in hot score recalculation."""
+        from reputation.tasks import recalc_hot_score_for_open_bounties
+
+        self.client.force_authenticate(self.user)
+
+        bounty_res = self._create_bounty()
+        self.assertEqual(bounty_res.status_code, 201)
+        bounty_id = bounty_res.data["id"]
+
+        # Set bounty to ASSESSMENT phase
+        bounty = Bounty.objects.get(id=bounty_id)
+        bounty.status = Bounty.ASSESSMENT
+        bounty.assessment_end_date = datetime.now(pytz.UTC) + timedelta(days=5)
+        bounty.save()
+
+        # This should not raise an error and should process ASSESSMENT bounties
+        recalc_hot_score_for_open_bounties()
+
+    def test_open_bounty_with_future_expiration_stays_open(self):
+        """Test that OPEN bounty with future expiration_date stays OPEN."""
+        self.client.force_authenticate(self.user)
+
+        future_expiration = datetime.now(pytz.UTC) + timedelta(days=7)
+        bounty_res = self._create_bounty(expiration_date=future_expiration)
+        self.assertEqual(bounty_res.status_code, 201)
+        bounty_id = bounty_res.data["id"]
+
+        bounty = Bounty.objects.get(id=bounty_id)
+        self.assertEqual(bounty.status, Bounty.OPEN)
+
+        # Run the scheduled task
+        check_open_bounties()
+
+        bounty.refresh_from_db()
+        self.assertEqual(bounty.status, Bounty.OPEN)
+        self.assertIsNone(bounty.assessment_end_date)
+
+    def test_assessment_bounty_with_future_end_date_stays_assessment(self):
+        """Test that ASSESSMENT bounty with future assessment_end_date stays in ASSESSMENT."""
+        self.client.force_authenticate(self.user)
+
+        bounty_res = self._create_bounty()
+        self.assertEqual(bounty_res.status_code, 201)
+        bounty_id = bounty_res.data["id"]
+
+        # Set bounty to ASSESSMENT phase with future end date
+        bounty = Bounty.objects.get(id=bounty_id)
+        bounty.status = Bounty.ASSESSMENT
+        bounty.assessment_end_date = datetime.now(pytz.UTC) + timedelta(days=5)
+        bounty.save()
+
+        # Run the scheduled task
+        check_open_bounties()
+
+        bounty.refresh_from_db()
+        self.assertEqual(bounty.status, Bounty.ASSESSMENT)
+
+    def test_child_bounties_also_transition_to_assessment(self):
+        """Test that child bounties transition with parent bounty."""
+        self.client.force_authenticate(self.user)
+
+        # Create parent bounty with past expiration
+        past_expiration = datetime.now(pytz.UTC) - timedelta(hours=1)
+        parent_res = self._create_bounty(amount=100, expiration_date=past_expiration)
+        self.assertEqual(parent_res.status_code, 201)
+        parent_bounty_id = parent_res.data["id"]
+
+        # Create child bounty
+        self.client.force_authenticate(self.user_2)
+        child_res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 200,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
+            },
+        )
+        self.assertEqual(child_res.status_code, 201)
+
+        parent_bounty = Bounty.objects.get(id=parent_bounty_id)
+        child_bounty = Bounty.objects.get(id=child_res.data["id"])
+
+        self.assertEqual(parent_bounty.status, Bounty.OPEN)
+        self.assertEqual(child_bounty.parent_id, parent_bounty_id)
+
+        # Run the scheduled task
+        check_open_bounties()
+
+        parent_bounty.refresh_from_db()
+        self.assertEqual(parent_bounty.status, Bounty.ASSESSMENT)
+        self.assertIsNotNone(parent_bounty.assessment_end_date)
