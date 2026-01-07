@@ -7,7 +7,11 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from django.utils import timezone
 
-from analytics.constants.event_types import FEED_ITEM_CLICK, PAGE_VIEW
+from analytics.constants.event_types import (
+    FEED_ITEM_ABSTRACT_EXPANDED,
+    FEED_ITEM_CLICK,
+    PAGE_VIEW,
+)
 from analytics.interactions.amplitude_event_parser import (
     AmplitudeEvent,
     AmplitudeEventParser,
@@ -98,6 +102,30 @@ class AmplitudeEventParserTests(TestCase):
         self.assertEqual(interaction.event_type, PAGE_VIEW)
         self.assertEqual(interaction.unified_document, self.post.unified_document)
 
+    def test_maps_feed_item_abstract_expanded_event(self):
+        """Test mapping feed_item_abstract_expanded event."""
+        event = {
+            "event_type": "feed_item_abstract_expanded",
+            "event_properties": {
+                "user_id": self.user.id,
+                "related_work": {
+                    "unified_document_id": self.post.unified_document.id,
+                    "content_type": "researchhubpost",
+                    "id": self.post.id,
+                },
+            },
+            "_time": int(timezone.now().timestamp() * 1000),
+        }
+
+        interaction = self.parser.parse_amplitude_event(event)
+
+        self.assertIsInstance(interaction, AmplitudeEvent)
+        self.assertEqual(interaction.user, self.user)
+        self.assertEqual(interaction.event_type, FEED_ITEM_ABSTRACT_EXPANDED)
+        self.assertEqual(interaction.unified_document, self.post.unified_document)
+        self.assertEqual(interaction.content_type, self.content_type)
+        self.assertEqual(interaction.object_id, self.post.id)
+
     def test_converts_event_type_to_uppercase(self):
         """Test that lowercase Amplitude event types are converted to uppercase."""
         event = {
@@ -176,7 +204,9 @@ class AmplitudeEventParserTests(TestCase):
             interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsNone(interaction)
-        self.assertIn("No user_id or external_user_id (amplitude_id) found", log.output[0])
+        self.assertIn(
+            "No user_id or external_user_id (amplitude_id) found", log.output[0]
+        )
 
     def test_invalid_event_type_returns_none(self):
         """Test that invalid event types return None."""

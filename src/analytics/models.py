@@ -106,7 +106,12 @@ class UserInteractions(DefaultModel):
                 "content_type",
                 "object_id",
                 condition=models.Q(
-                    event__in=["FEED_ITEM_CLICK", "PAGE_VIEW", "DOCUMENT_TAB_CLICKED"]
+                    event__in=[
+                        "FEED_ITEM_CLICK",
+                        "PAGE_VIEW",
+                        "DOCUMENT_TAB_CLICKED",
+                        "FEED_ITEM_ABSTRACT_EXPANDED",
+                    ]
                 ),
                 name="unique_daily_repeatable_interactions",
             ),
