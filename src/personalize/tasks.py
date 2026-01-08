@@ -1,10 +1,16 @@
 from celery.utils.log import get_task_logger
 
-from analytics.interactions.interaction_mapper import map_from_comment, map_from_upvote
+from analytics.interactions.interaction_mapper import (
+    map_from_comment,
+    map_from_list_item,
+    map_from_upvote,
+)
 from analytics.models import UserInteractions
 from discussion.models import Vote
 from personalize.services.sync_service import SyncService
 from researchhub.celery import QUEUE_PAPER_MISC, app
+from researchhub_comment.models import RhCommentModel
+from user_lists.models import ListItem
 from utils.sentry import log_error
 
 logger = get_task_logger(__name__)
@@ -55,8 +61,6 @@ def create_upvote_interaction_task(vote_id):
 
 @app.task(queue=QUEUE_PAPER_MISC, max_retries=3, retry_backoff=True)
 def create_comment_interaction_task(comment_id):
-    from researchhub_comment.models import RhCommentModel
-
     try:
         comment = RhCommentModel.objects.get(id=comment_id)
     except RhCommentModel.DoesNotExist:
@@ -88,6 +92,29 @@ def create_comment_interaction_task(comment_id):
         )
     except Exception as e:
         log_error(e, message=f"Failed creating interaction for comment {comment_id}")
+        raise
+
+
+@app.task(queue=QUEUE_PAPER_MISC, max_retries=3, retry_backoff=True)
+def create_list_item_interaction_task(list_item_id):
+    try:
+        list_item = ListItem.objects.get(id=list_item_id)
+    except ListItem.DoesNotExist:
+        logger.error(f"ListItem {list_item_id} not found")
+        return
+
+    try:
+        interaction = map_from_list_item(list_item)
+        UserInteractions.objects.get_or_create(
+            user=interaction.user,
+            event=interaction.event,
+            unified_document=interaction.unified_document,
+            content_type=interaction.content_type,
+            object_id=interaction.object_id,
+            defaults={"event_timestamp": interaction.event_timestamp},
+        )
+    except Exception as e:
+        logger.error(f"Failed creating interaction for list item {list_item_id}: {e}")
         raise
 
 
