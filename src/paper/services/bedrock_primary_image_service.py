@@ -3,6 +3,7 @@ import logging
 from io import BytesIO
 from typing import List, Optional, Tuple
 
+from django.conf import settings
 from PIL import Image
 
 from utils import sentry
@@ -116,7 +117,11 @@ class BedrockPrimaryImageService:
     """Service for selecting primary image using AWS Bedrock."""
 
     def __init__(self):
-        self.bedrock_client = create_client("bedrock-runtime")
+        self.enabled = getattr(settings, "BEDROCK_PROCESSING_ENABLED", False)
+        if self.enabled:
+            self.bedrock_client = create_client("bedrock-runtime")
+        else:
+            self.bedrock_client = None
         self.model_id = BEDROCK_MODEL_ID
         self.anthropic_version = BEDROCK_ANTHROPIC_VERSION
 
@@ -440,6 +445,12 @@ on other criteria."""
         This is the core Bedrock API call logic that processes a single batch
         of figures (max MAX_IMAGES_PER_BEDROCK_REQUEST).
         """
+        if not self.enabled or not self.bedrock_client:
+            logger.warning(
+                "Bedrock figure processing is disabled, skipping batch selection"
+            )
+            return None, None
+
         if not batch_figures:
             logger.warning("No figures provided for batch selection")
             return None, None
@@ -634,6 +645,10 @@ on other criteria."""
             Tuple of (selected_figure_id, best_score) or (None, None) if selection fails
             best_score is the total_score from Bedrock response (0-100)
         """
+        if not self.enabled:
+            logger.info("Bedrock figure processing is disabled, skipping selection")
+            return None, None
+
         if not figures:
             logger.warning("No figures provided for primary image selection")
             return None, None

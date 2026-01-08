@@ -44,11 +44,6 @@ class Command(BaseCommand):
             ),
         )
         parser.add_argument(
-            "--async",
-            action="store_true",
-            help="Run extraction asynchronously (via Celery)",
-        )
-        parser.add_argument(
             "--dry-run",
             action="store_true",
             help="Show what would be processed without actually running extraction",
@@ -249,23 +244,17 @@ class Command(BaseCommand):
                             skipped += 1
                             continue
 
-                    if options["async"]:
-                        extract_pdf_figures.apply_async((paper.id,), priority=6)
-                        self.stdout.write(self.style.SUCCESS("queued"))
-                    else:
-                        result = extract_pdf_figures(
-                            paper.id, sync_primary_selection=True
+                    result = extract_pdf_figures(paper.id, sync_primary_selection=True)
+                    if result:
+                        figures_count = Figure.objects.filter(
+                            paper=paper, figure_type=Figure.FIGURE
+                        ).count()
+                        self.stdout.write(
+                            self.style.SUCCESS(f"✓ ({figures_count} figures)")
                         )
-                        if result:
-                            figures_count = Figure.objects.filter(
-                                paper=paper, figure_type=Figure.FIGURE
-                            ).count()
-                            self.stdout.write(
-                                self.style.SUCCESS(f"✓ ({figures_count} figures)")
-                            )
-                        else:
-                            self.stdout.write(self.style.ERROR("✗ failed"))
-                            failed += 1
+                    else:
+                        self.stdout.write(self.style.ERROR("✗ failed"))
+                        failed += 1
 
                     processed += 1
                 except Paper.DoesNotExist:
@@ -321,26 +310,17 @@ class Command(BaseCommand):
                 "Paper has no PDF file or pdf_url. Cannot extract figures."
             )
 
-        if options["async"]:
-            self.stdout.write("Queuing extraction task...")
-            extract_pdf_figures.apply_async((paper.id,), priority=6)
+        self.stdout.write("Running extraction synchronously...")
+        result = extract_pdf_figures(paper.id, sync_primary_selection=True)
+
+        if result:
+            figures = Figure.objects.filter(paper=paper, figure_type=Figure.FIGURE)
             self.stdout.write(
                 self.style.SUCCESS(
-                    "✓ Extraction task queued. Check Celery logs for progress."
+                    f"\n✓ Successfully extracted {figures.count()} figures"
                 )
             )
+            for fig in figures:
+                self.stdout.write(f"  - {fig.file.name}")
         else:
-            self.stdout.write("Running extraction synchronously...")
-            result = extract_pdf_figures(paper.id, sync_primary_selection=True)
-
-            if result:
-                figures = Figure.objects.filter(paper=paper, figure_type=Figure.FIGURE)
-                self.stdout.write(
-                    self.style.SUCCESS(
-                        f"\n✓ Successfully extracted {figures.count()} figures"
-                    )
-                )
-                for fig in figures:
-                    self.stdout.write(f"  - {fig.file.name}")
-            else:
-                raise CommandError("Extraction failed. Check logs for details.")
+            raise CommandError("Extraction failed. Check logs for details.")

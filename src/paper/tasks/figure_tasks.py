@@ -10,6 +10,7 @@ from django.core.files.base import ContentFile
 from django.db import transaction
 from PIL import Image
 
+from paper.models import Figure, Paper
 from paper.services.bedrock_primary_image_service import (
     MIN_PRIMARY_SCORE_THRESHOLD,
     BedrockPrimaryImageService,
@@ -21,6 +22,8 @@ from researchhub.celery import QUEUE_PAPER_MISC, app
 from utils import sentry
 
 logger = get_task_logger(__name__)
+
+MIN_HOT_SCORE_FOR_FIGURE_EXTRACTION = 75
 
 
 def generate_thumbnail_for_figure(figure) -> bool:
@@ -127,7 +130,11 @@ def celery_extract_pdf_preview(paper_id, retry=0):
 
 @app.task(queue=QUEUE_PAPER_MISC, bind=True)
 def extract_pdf_figures(
-    self, paper_id, retry=0, skip_primary_selection=False, sync_primary_selection=False
+    self,
+    paper_id,
+    retry=0,
+    skip_feed_refresh_extraction_check=False,
+    sync_primary_selection=False,
 ):
     if retry > 2:
         logger.warning(f"Max retries reached for figure extraction - paper {paper_id}")
@@ -185,7 +192,9 @@ def extract_pdf_figures(
         extract_pdf_figures.apply_async(
             (paper.id, retry + 1),
             {
-                "skip_primary_selection": skip_primary_selection,
+                "skip_feed_refresh_extraction_check": (
+                    skip_feed_refresh_extraction_check
+                ),
                 "sync_primary_selection": sync_primary_selection,
             },
             priority=6,
@@ -231,19 +240,31 @@ def extract_pdf_figures(
         cache_key = get_cache_key("figure", paper_id)
         cache.delete(cache_key)
 
-        # Select primary image unless explicitly skipped
-        if skip_primary_selection:
-            # In dev/staging automatic flow, create preview instead
-            create_pdf_screenshot(paper)
-            logger.info(
-                f"Skipping primary image selection (automatic flow, not production). "
-                f"Created preview for paper {paper_id}"
-            )
+        # Select primary image after extraction
+        if sync_primary_selection:
+            try:
+                select_primary_image(
+                    paper.id,
+                    skip_feed_refresh_extraction_check=(
+                        skip_feed_refresh_extraction_check
+                    ),
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Failed to select primary image for paper {paper_id}: {e}"
+                )
         else:
-            if sync_primary_selection:
-                select_primary_image(paper.id)
-            else:
-                select_primary_image.apply_async((paper.id,), priority=5)
+            select_primary_image.apply_async(
+                (paper.id,),
+                {
+                    "skip_feed_refresh_extraction_check": (
+                        skip_feed_refresh_extraction_check
+                    )
+                },
+                priority=5,
+            )
+
+        logger.info(f"Successfully extracted figures for paper {paper_id}")
 
         return True
 
@@ -256,7 +277,9 @@ def extract_pdf_figures(
             extract_pdf_figures.apply_async(
                 (paper.id, retry + 1),
                 {
-                    "skip_primary_selection": skip_primary_selection,
+                    "skip_feed_refresh_extraction_check": (
+                        skip_feed_refresh_extraction_check
+                    ),
                     "sync_primary_selection": sync_primary_selection,
                 },
                 priority=6,
@@ -266,7 +289,50 @@ def extract_pdf_figures(
         return False
 
 
-def create_pdf_screenshot(paper) -> bool:
+def trigger_figure_extraction_for_paper(paper_id, hot_score_v2):
+    """
+    Check if figure extraction should be triggered for a paper when hot_score_v2
+    is recalculated in feed tasks.
+
+    Returns:
+        bool: True if extraction was triggered, False otherwise
+    """
+    try:
+        if hot_score_v2 < MIN_HOT_SCORE_FOR_FIGURE_EXTRACTION:
+            return False
+
+        try:
+            paper = Paper.objects.get(id=paper_id)
+        except Paper.DoesNotExist:
+            logger.warning(f"Paper {paper_id} not found for figure extraction check")
+            return False
+
+        if Figure.objects.filter(paper=paper, figure_type=Figure.FIGURE).exists():
+            logger.debug(
+                f"Paper {paper_id} already has figures extracted, skipping extraction"
+            )
+            return False
+
+        logger.info(
+            f"Triggering figure extraction for paper {paper_id} "
+            f"(hot_score_v2={hot_score_v2} >= {MIN_HOT_SCORE_FOR_FIGURE_EXTRACTION})"
+        )
+        extract_pdf_figures.apply_async(
+            (paper.id,),
+            {"skip_feed_refresh_extraction_check": True},
+            priority=6,
+        )
+        return True
+
+    except Exception as e:
+        logger.error(
+            f"Error checking/triggering figure extraction for paper {paper_id}: {e}",
+            exc_info=True,
+        )
+        return False
+
+
+def create_pdf_screenshot(paper, skip_feed_refresh_extraction_check=False) -> bool:
     """
     Create a preview (screenshot) of the first page of the PDF and mark it as primary.
 
@@ -300,7 +366,11 @@ def create_pdf_screenshot(paper) -> bool:
 
             Paper = apps.get_model("paper.Paper")
             paper_content_type = ContentType.objects.get_for_model(Paper)
-            refresh_feed_entries_for_objects.delay(paper.id, paper_content_type.id)
+            refresh_feed_entries_for_objects.delay(
+                paper.id,
+                paper_content_type.id,
+                skip_figure_extraction=skip_feed_refresh_extraction_check,
+            )
 
             logger.info(f"Using existing preview for paper {paper.id}")
             return True
@@ -359,7 +429,11 @@ def create_pdf_screenshot(paper) -> bool:
 
         Paper = apps.get_model("paper.Paper")
         paper_content_type = ContentType.objects.get_for_model(Paper)
-        refresh_feed_entries_for_objects.delay(paper.id, paper_content_type.id)
+        refresh_feed_entries_for_objects.delay(
+            paper.id,
+            paper_content_type.id,
+            skip_figure_extraction=skip_feed_refresh_extraction_check,
+        )
 
         logger.info(
             f"Created preview with thumbnail for paper {paper.id}: {output_filename}"
@@ -373,7 +447,9 @@ def create_pdf_screenshot(paper) -> bool:
 
 
 @app.task(queue=QUEUE_PAPER_MISC, bind=True)
-def select_primary_image(self, paper_id, retry=0):
+def select_primary_image(
+    self, paper_id, retry=0, skip_feed_refresh_extraction_check=False
+):
     """
     Use AWS Bedrock to select the primary image from extracted figures.
     This task will:
@@ -414,7 +490,10 @@ def select_primary_image(self, paper_id, retry=0):
 
         logger.info(f"No figures found for paper {paper_id}, creating preview")
         # No figures extracted and no primary, create preview of first page
-        return create_pdf_screenshot(paper)
+        return create_pdf_screenshot(
+            paper,
+            skip_feed_refresh_extraction_check=skip_feed_refresh_extraction_check,
+        )
 
     try:
         service = BedrockPrimaryImageService()
@@ -441,7 +520,10 @@ def select_primary_image(self, paper_id, retry=0):
 
         if should_use_preview:
             # Create preview of first page
-            preview_created = create_pdf_screenshot(paper)
+            preview_created = create_pdf_screenshot(
+                paper,
+                skip_feed_refresh_extraction_check=skip_feed_refresh_extraction_check,
+            )
             if preview_created:
                 logger.info(f"Created preview as primary image for paper {paper_id}")
                 return True
@@ -461,7 +543,11 @@ def select_primary_image(self, paper_id, retry=0):
 
             Paper = apps.get_model("paper.Paper")
             paper_content_type = ContentType.objects.get_for_model(Paper)
-            refresh_feed_entries_for_objects.delay(paper.id, paper_content_type.id)
+            refresh_feed_entries_for_objects.delay(
+                paper.id,
+                paper_content_type.id,
+                skip_figure_extraction=skip_feed_refresh_extraction_check,
+            )
 
             logger.info(
                 f"Selected primary image {selected_figure_id} "
