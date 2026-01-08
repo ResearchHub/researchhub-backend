@@ -106,10 +106,12 @@ class UserSerializersTests(TestCase):
         )
 
         # Act
-        serializer = UserEditableSerializer(self.user)
+        serializer = UserEditableSerializer(self.user, context={"user": self.user})
 
         # Assert
         self.assertTrue(serializer.data["is_verified"])
+        self.assertIn("review_availability", serializer.data)
+        self.assertFalse(serializer.data["review_availability"]["can_review"])
 
     def test_user_serializer_is_not_verified(self):
         # Arrange
