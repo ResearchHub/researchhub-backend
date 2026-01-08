@@ -132,6 +132,7 @@ class BedrockPrimaryImageServiceTests(TestCase):
         self.assertIn("Test Abstract", prompt)
 
     @patch("paper.services.bedrock_primary_image_service.create_client")
+    @patch("django.conf.settings.BEDROCK_PROCESSING_ENABLED", True)
     def test_select_best_from_batch_success(self, mock_create_client):
         """Test successful selection from a batch."""
         # Create mock Bedrock client
@@ -176,6 +177,7 @@ class BedrockPrimaryImageServiceTests(TestCase):
         self.assertEqual(score, 75.5)
 
     @patch("paper.services.bedrock_primary_image_service.create_client")
+    @patch("django.conf.settings.BEDROCK_PROCESSING_ENABLED", True)
     def test_select_best_from_batch_tool_use_response(self, mock_create_client):
         """Test parsing Tool Use response from Converse API."""
         mock_client = MagicMock()
@@ -284,6 +286,9 @@ class BedrockPrimaryImageServiceTests(TestCase):
         self.mock_client.converse.return_value = mock_response
 
         service = BedrockPrimaryImageService()
+        # Enable the service since setUp already mocks create_client
+        service.enabled = True
+        service.bedrock_client = self.mock_client
 
         selected_id, score = service.select_primary_image(
             "Test Title", "Test Abstract", [figure1, figure2]
@@ -293,6 +298,7 @@ class BedrockPrimaryImageServiceTests(TestCase):
         self.assertEqual(score, 75.0)
 
     @patch("paper.services.bedrock_primary_image_service.create_client")
+    @patch("django.conf.settings.BEDROCK_PROCESSING_ENABLED", True)
     def test_select_primary_image_batching(self, mock_create_client):
         """Test selection with batching for many figures."""
         mock_client = MagicMock()
