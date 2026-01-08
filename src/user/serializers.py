@@ -17,7 +17,7 @@ from paper.models import Paper, PaperSubmission
 from purchase.models import Purchase
 from referral.models import ReferralSignup
 from reputation.models import Bounty, Contribution, Score, Withdrawal
-from review.services.peer_review_service import get_next_available_review_time
+from review.services.peer_review_service import get_review_availability
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.constants import (
     ASSISTANT_EDITOR,
@@ -513,7 +513,7 @@ class UserEditableSerializer(ModelSerializer):
     locked_balance = SerializerMethodField()
     balance_history = SerializerMethodField()
     email = SerializerMethodField()
-    next_available_review_time = SerializerMethodField()
+    review_availability = SerializerMethodField()
     organization_slug = SerializerMethodField()
     subscribed = SerializerMethodField()
     auth_provider = SerializerMethodField()
@@ -564,11 +564,15 @@ class UserEditableSerializer(ModelSerializer):
             return user.get_locked_balance()
         return None
 
-    def get_next_available_review_time(self, user):
+    def get_review_availability(self, user):
         context = self.context
         request_user = context.get("user", None)
         if request_user and request_user == user:
-            return get_next_available_review_time(user)
+            availability = get_review_availability(user)
+            return {
+                "can_review": availability.can_review,
+                "available_at": availability.available_at,
+            }
         return None
 
     def get_balance_history(self, user):

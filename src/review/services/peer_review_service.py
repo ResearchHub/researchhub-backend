@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -10,8 +11,14 @@ from user.models import User
 REVIEW_COOLDOWN_DAYS = 4
 
 
-def get_next_available_review_time(user: User) -> Optional[datetime]:
-    """Returns when user can next create a review, or None if available now."""
+@dataclass
+class ReviewAvailability:
+    can_review: bool
+    available_at: Optional[datetime] = None
+
+
+def get_review_availability(user: User) -> ReviewAvailability:
+    """Check if user can create a review now, or when they'll be able to."""
     latest_review = (
         RhCommentModel.objects.filter(
             created_by=user,
@@ -21,9 +28,11 @@ def get_next_available_review_time(user: User) -> Optional[datetime]:
         .first()
     )
     if not latest_review:
-        return None
+        return ReviewAvailability(can_review=True)
+
     next_available = latest_review.created_date + timedelta(days=REVIEW_COOLDOWN_DAYS)
     if next_available <= timezone.now():
-        return None
-    return next_available
+        return ReviewAvailability(can_review=True)
+
+    return ReviewAvailability(can_review=False, available_at=next_available)
 

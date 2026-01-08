@@ -23,7 +23,7 @@ from reputation.models import Bounty, Contribution
 from reputation.tasks import create_contribution, find_qualified_users_and_notify
 from reputation.utils import deduct_bounty_fees
 from reputation.views.bounty_view import _create_bounty, _create_bounty_checks
-from review.services.peer_review_service import get_next_available_review_time
+from review.services.peer_review_service import get_review_availability
 from researchhub.pagination import FasterDjangoPaginator
 from researchhub.permissions import IsObjectOwner, IsObjectOwnerOrModerator
 from researchhub.settings import TESTING
@@ -369,9 +369,10 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         user = request.user
         model = self._get_model_name()
 
-        # Enforce 4-day cooldown for community reviews
+        # Enforce cooldown for community reviews
         if data.get("comment_type") == COMMUNITY_REVIEW:
-            if get_next_available_review_time(user) is not None:
+            availability = get_review_availability(user)
+            if not availability.can_review:
                 raise PermissionDenied("You can only create a review once every 4 days.")
 
         # Enforce author-only for author updates
