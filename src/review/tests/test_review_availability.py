@@ -6,7 +6,7 @@ from rest_framework.test import APITestCase
 from paper.tests.helpers import create_paper
 from researchhub_comment.constants.rh_comment_thread_types import COMMUNITY_REVIEW
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
-from review.services.peer_review_service import REVIEW_COOLDOWN_DAYS, get_review_availability
+from review.services.review_service import REVIEW_COOLDOWN_DAYS, get_review_availability
 from user.tests.helpers import create_random_default_user
 
 
@@ -67,6 +67,17 @@ class TestReviewAvailability(APITestCase):
         self.assertIsNone(result.available_at)
 
     # --- API tests ---
+
+    def test_review_availability_endpoint(self):
+        # Arrange
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self.client.get("/api/review/availability/")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["can_review"])
 
     def test_create_review_blocked_during_cooldown(self):
         # Arrange
