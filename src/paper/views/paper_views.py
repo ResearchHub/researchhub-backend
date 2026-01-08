@@ -46,6 +46,7 @@ from reputation.related_models.paper_reward import (
 )
 from researchhub.permissions import IsObjectOwnerOrModerator
 from researchhub_document.permissions import HasDocumentCensorPermission
+from search.documents.paper import PaperDocument
 from user.related_models.author_model import Author
 from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.doi import DOI
@@ -925,6 +926,179 @@ class PaperViewSet(
                 response[paper_id] = data
 
         return Response(response, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["get"])
+    def similar_papers(self, request, pk=None):
+        """
+        Get the 3 most semantically similar papers based on fast abstract vector.
+        """
+        try:
+            # Get the paper
+            paper = self.get_object()
+
+            # Get OpenSearch client
+            document = PaperDocument()
+            client = document._index._get_connection()
+
+            # Use paper_knn index for KNN search (contains only IDs and vectors)
+            knn_index_name = "paper_knn"
+            paper_index_name = PaperDocument._index._name  # "paper"
+
+            # Get the paper's fast vector from paper_knn index
+            try:
+                response = client.get(index=knn_index_name, id=str(paper.id))
+                source = response.get("_source", {})
+                query_vector = source.get("abstract_fast_vector")
+
+                if not query_vector:
+                    return Response(
+                        {
+                            "error": f"Paper {paper.id} does not have a fast abstract vector in {knn_index_name}. "
+                            "Please run vectorization first: python manage.py generate_abstract_vectors"
+                        },
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
+            except Exception as e:
+                log_error(
+                    e,
+                    message=f"Failed to retrieve paper {paper.id} from {knn_index_name}",
+                )
+                return Response(
+                    {"error": f"Failed to retrieve paper from {knn_index_name}"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+            # Use native OpenSearch KNN query on paper_knn index
+            # Request k=4 to account for potential exclusion of the query paper itself
+            # post_filter is needed, filter inside KNN is not supported
+            # Only request ID field since paper_knn only contains minimal documents
+            search_query = {
+                "size": 3,
+                "query": {
+                    "knn": {
+                        "abstract_fast_vector": {
+                            "vector": query_vector,
+                            "k": 4,  # Request 4 to ensure we get 3 after filtering
+                        }
+                    }
+                },
+                "post_filter": {
+                    "bool": {
+                        "must_not": [{"term": {"id": paper.id}}],
+                    }
+                },
+                "_source": ["id"],  # Only need IDs from paper_knn
+            }
+
+            try:
+                # Perform KNN search on paper_knn index to get similar paper IDs
+                search_response = client.search(index=knn_index_name, body=search_query)
+
+                hits = search_response.get("hits", {}).get("hits", [])
+
+                if not hits:
+                    return Response(
+                        {"count": 0, "results": []}, status=status.HTTP_200_OK
+                    )
+
+                # Extract paper IDs from KNN search results
+                paper_ids = []
+                for hit in hits:
+                    source = hit.get("_source", {})
+                    paper_id = source.get("id")
+                    if paper_id:
+                        paper_ids.append(paper_id)
+
+                if not paper_ids:
+                    return Response(
+                        {"count": 0, "results": []}, status=status.HTTP_200_OK
+                    )
+
+                # Fetch full paper data from paper index using the IDs
+                try:
+                    # Use multi-get to fetch papers from paper index
+                    mget_body = {
+                        "ids": [str(pid) for pid in paper_ids],
+                    }
+                    mget_response = client.mget(index=paper_index_name, body=mget_body)
+
+                    # Build response from paper index results
+                    results = []
+                    docs = mget_response.get("docs", [])
+                    for doc in docs:
+                        if doc.get("found") is False:
+                            continue
+
+                        source = doc.get("_source", {})
+                        paper_id = source.get("id")
+                        if not paper_id:
+                            continue
+
+                        # Format paper data from paper index
+                        paper_data = {
+                            "id": paper_id,
+                            "paper_title": source.get("paper_title")
+                            or source.get("title"),
+                            "title": source.get("title") or source.get("paper_title"),
+                            "abstract": source.get("abstract"),
+                            "raw_authors": source.get("raw_authors", []),
+                            "hubs": source.get("hubs", []),
+                            "created_date": source.get("created_date"),
+                            "paper_publish_date": source.get("paper_publish_date"),
+                        }
+                        results.append(paper_data)
+
+                    return Response(
+                        {
+                            "count": len(results),
+                            "results": results,
+                            "method": "native_knn",
+                            "field_type": "knn_vector",
+                            "knn_index": knn_index_name,
+                            "paper_index": paper_index_name,
+                        },
+                        status=status.HTTP_200_OK,
+                    )
+
+                except Exception as e:
+                    log_error(
+                        e,
+                        message=f"Failed to fetch papers from {paper_index_name}",
+                    )
+                    return Response(
+                        {
+                            "error": f"Failed to fetch paper details from {paper_index_name}",
+                            "details": str(e),
+                        },
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    )
+
+            except Exception as e:
+
+                error_details = str(e)
+                log_error(
+                    e,
+                    message=f"Failed to perform similarity search for paper {paper.id}",
+                )
+                # Include error details in response for debugging (remove in production)
+                return Response(
+                    {
+                        "error": "Failed to perform similarity search",
+                        "details": error_details,
+                    },
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+        except Paper.DoesNotExist:
+            return Response(
+                {"error": "Paper not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            log_error(e, message="Error in similar_papers endpoint")
+            return Response(
+                {"error": "An error occurred while finding similar papers"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @action(detail=False, methods=[POST])
     def check_url(self, request):
