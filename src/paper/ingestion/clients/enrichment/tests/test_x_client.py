@@ -1,9 +1,7 @@
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
-from requests.exceptions import HTTPError
-
-from paper.ingestion.clients.enrichment.x import XClient, XMetricsClient
+from paper.ingestion.clients.enrichment.x import XClient
 
 
 class TestXClient(TestCase):
@@ -61,14 +59,13 @@ class TestXClient(TestCase):
         # Mock the generator to yield a single page
         self.mock_xdk_client.posts.search_all.return_value = iter([mock_page])
 
-        result = self.client.search_posts("10.1038/nature12373")
+        result = self.client.search_posts(["10.1038/nature12373"])
 
         self.assertIsNotNone(result)
-        posts = result.get("posts", [])
-        self.assertEqual(len(posts), 1)
-        self.assertEqual(posts[0]["like_count"], 10)
-        self.assertEqual(posts[0]["repost_count"], 5)
-        self.assertEqual(posts[0]["id"], "1234567890")
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["like_count"], 10)
+        self.assertEqual(result[0]["repost_count"], 5)
+        self.assertEqual(result[0]["id"], "1234567890")
         mock_rate_limiter.assert_called_once()
 
     @patch("paper.ingestion.clients.enrichment.x.RateLimiter.wait_if_needed")
@@ -78,10 +75,10 @@ class TestXClient(TestCase):
         mock_page.data = None
         self.mock_xdk_client.posts.search_all.return_value = iter([mock_page])
 
-        result = self.client.search_posts("10.1038/nonexistent")
+        result = self.client.search_posts(["10.1038/nonexistent"])
 
         self.assertIsNotNone(result)
-        self.assertEqual(result["posts"], [])
+        self.assertEqual(result, [])
 
     @patch("paper.ingestion.clients.enrichment.x.RateLimiter.wait_if_needed")
     def test_search_posts_api_error(self, mock_rate_limiter):
@@ -91,7 +88,7 @@ class TestXClient(TestCase):
         )
 
         with self.assertRaises(Exception):
-            self.client.search_posts("test-query")
+            self.client.search_posts(["test-query"])
 
     @patch("paper.ingestion.clients.enrichment.x.RateLimiter.wait_if_needed")
     def test_search_posts_rate_limit_error(self, mock_rate_limiter):
@@ -101,7 +98,7 @@ class TestXClient(TestCase):
         )
 
         with self.assertRaises(Exception):
-            self.client.search_posts("test-query")
+            self.client.search_posts(["test-query"])
 
     @patch("paper.ingestion.clients.enrichment.x.RateLimiter.wait_if_needed")
     def test_parse_post_dict_format(self, mock_rate_limiter):
@@ -151,199 +148,43 @@ class TestXClient(TestCase):
         self.assertEqual(result["like_count"], 10)
         self.assertEqual(result["repost_count"], 8)
 
+    @patch("paper.ingestion.clients.enrichment.x.RateLimiter.wait_if_needed")
+    def test_search_posts_with_multiple_terms(self, mock_rate_limiter):
+        """Test search with multiple terms uses OR logic."""
+        mock_page = Mock()
+        mock_page.data = []
+        self.mock_xdk_client.posts.search_all.return_value = iter([mock_page])
 
-class TestXMetricsClient(TestCase):
-    """Test suite for XMetricsClient."""
+        self.client.search_posts(["10.1038/test", "A Novel Machine Learning Approach"])
 
-    def setUp(self):
-        """Set up test client."""
-        self.x_client = Mock(spec=XClient)
-        self.metrics_client = XMetricsClient(x_client=self.x_client)
-
-    def test_extract_metrics_empty_posts(self):
-        """Test metrics extraction with empty post list."""
-        metrics = XMetricsClient._extract_metrics([])
-
-        self.assertEqual(metrics["post_count"], 0)
-        self.assertEqual(metrics["total_likes"], 0)
-        self.assertEqual(metrics["total_reposts"], 0)
-        self.assertEqual(metrics["total_replies"], 0)
-        self.assertEqual(metrics["total_quotes"], 0)
-        self.assertEqual(metrics["total_impressions"], 0)
-        self.assertEqual(len(metrics["posts"]), 0)
-
-    def test_extract_metrics_multiple_posts(self):
-        """Test metrics extraction with multiple posts."""
-        posts = [
-            {
-                "id": "123",
-                "text": "Great paper!",
-                "author_id": "user1",
-                "created_at": "2024-01-15T10:30:00Z",
-                "like_count": 10,
-                "repost_count": 5,
-                "reply_count": 2,
-                "quote_count": 1,
-                "impression_count": 100,
-            },
-            {
-                "id": "456",
-                "text": "Interesting findings",
-                "author_id": "user2",
-                "created_at": "2024-01-16T14:20:00Z",
-                "like_count": 15,
-                "repost_count": 8,
-                "reply_count": 3,
-                "quote_count": 2,
-                "impression_count": 150,
-            },
-        ]
-
-        metrics = XMetricsClient._extract_metrics(posts)
-
-        self.assertEqual(metrics["post_count"], 2)
-        self.assertEqual(metrics["total_likes"], 25)
-        self.assertEqual(metrics["total_reposts"], 13)
-        self.assertEqual(metrics["total_replies"], 5)
-        self.assertEqual(metrics["total_quotes"], 3)
-        self.assertEqual(metrics["total_impressions"], 250)
-        self.assertEqual(len(metrics["posts"]), 2)
-
-    def test_get_metrics_success(self):
-        """Test successful metrics retrieval."""
-        self.x_client.search_posts.return_value = {
-            "posts": [
-                {
-                    "id": "123",
-                    "text": "Paper link",
-                    "author_id": "user1",
-                    "created_at": "2024-01-15T10:30:00Z",
-                    "like_count": 10,
-                    "repost_count": 5,
-                    "reply_count": 2,
-                    "quote_count": 1,
-                    "impression_count": 100,
-                }
-            ]
-        }
-
-        result = self.metrics_client.get_metrics(["10.1038/test"])
-
-        self.assertIsNotNone(result)
-        self.assertEqual(result["post_count"], 1)
-        self.assertEqual(result["total_likes"], 10)
-        self.assertEqual(result["total_impressions"], 100)
-        self.assertEqual(result["terms"], ["10.1038/test"])
-        self.x_client.search_posts.assert_called_once_with(
-            query='"10.1038/test"', max_results=100
-        )
-
-    def test_get_metrics_no_posts(self):
-        """Test metrics retrieval when no posts found."""
-        self.x_client.search_posts.return_value = {"posts": []}
-
-        result = self.metrics_client.get_metrics(["10.1038/nonexistent"])
-
-        self.assertEqual(
-            result,
-            {
-                "post_count": 0,
-                "total_likes": 0,
-                "total_reposts": 0,
-                "total_replies": 0,
-                "total_quotes": 0,
-                "total_impressions": 0,
-                "posts": [],
-                "terms": ["10.1038/nonexistent"],
-            },
-        )
-
-    def test_get_metrics_no_response(self):
-        """Test metrics retrieval when API returns None."""
-        self.x_client.search_posts.return_value = None
-
-        result = self.metrics_client.get_metrics(["10.1038/test"])
-
-        self.assertIsNone(result)
-
-    def test_get_metrics_rate_limit_error_reraises(self):
-        """Test that 429 rate limit errors are re-raised for retry."""
-        mock_response = Mock()
-        mock_response.status_code = 429
-        error = HTTPError("429 Too Many Requests")
-        error.response = mock_response
-        self.x_client.search_posts.side_effect = error
-
-        with self.assertRaises(HTTPError):
-            self.metrics_client.get_metrics(["10.1038/test"])
-
-    def test_get_metrics_service_unavailable_error_reraises(self):
-        """Test that 503 service unavailable errors are re-raised for retry."""
-        mock_response = Mock()
-        mock_response.status_code = 503
-        error = HTTPError("503 Service Unavailable")
-        error.response = mock_response
-        self.x_client.search_posts.side_effect = error
-
-        with self.assertRaises(HTTPError):
-            self.metrics_client.get_metrics(["10.1038/test"])
-
-    def test_get_metrics_with_custom_limit(self):
-        """Test metrics retrieval with custom result limit."""
-        self.x_client.search_posts.return_value = {"posts": []}
-
-        self.metrics_client.get_metrics(["10.1038/test"], max_results=50)
-
-        self.x_client.search_posts.assert_called_once_with(
-            query='"10.1038/test"', max_results=50
-        )
-
-    def test_get_metrics_with_bot_filtering(self):
-        """Test metrics retrieval with bot account filtering."""
-        self.x_client.search_posts.return_value = {"posts": []}
-
-        self.metrics_client.get_metrics(
-            ["10.1038/test"],
-            external_source="biorxiv",
-            hub_slugs=["neuroscience", "genetics"],
-        )
-
-        # Verify the query includes bot exclusions
-        call_args = self.x_client.search_posts.call_args
-        query = call_args.kwargs["query"]
-        # Should exclude general biorxiv bots and category-specific bots
-        self.assertIn("-from:", query)
-        self.assertIn("10.1038/test", query)
-
-    def test_get_metrics_with_multiple_terms(self):
-        """Test metrics retrieval with multiple terms (DOI and title)."""
-        self.x_client.search_posts.return_value = {
-            "posts": [
-                {
-                    "id": "123",
-                    "text": "Paper link",
-                    "author_id": "user1",
-                    "created_at": "2024-01-15T10:30:00Z",
-                    "like_count": 10,
-                    "repost_count": 5,
-                    "reply_count": 2,
-                    "quote_count": 1,
-                    "impression_count": 100,
-                }
-            ]
-        }
-
-        result = self.metrics_client.get_metrics(
-            ["10.1038/test", "A Novel Machine Learning Approach"]
-        )
-
-        self.assertIsNotNone(result)
-        self.assertEqual(
-            result["terms"], ["10.1038/test", "A Novel Machine Learning Approach"]
-        )
         # Verify OR logic is used in the query
-        call_args = self.x_client.search_posts.call_args
+        call_args = self.mock_xdk_client.posts.search_all.call_args
         query = call_args.kwargs["query"]
         self.assertIn('"10.1038/test"', query)
         self.assertIn('"A Novel Machine Learning Approach"', query)
         self.assertIn(" OR ", query)
+
+    @patch("paper.ingestion.clients.enrichment.x.RateLimiter.wait_if_needed")
+    def test_search_posts_with_bot_filtering(self, mock_rate_limiter):
+        """Test search with bot account filtering."""
+        mock_page = Mock()
+        mock_page.data = []
+        self.mock_xdk_client.posts.search_all.return_value = iter([mock_page])
+
+        self.client.search_posts(
+            ["10.1038/test"],
+            external_source="biorxiv",
+            hub_slugs=["neuroscience"],
+        )
+
+        # Verify the query includes bot exclusions
+        call_args = self.mock_xdk_client.posts.search_all.call_args
+        query = call_args.kwargs["query"]
+        self.assertIn("-from:", query)
+        self.assertIn("10.1038/test", query)
+
+    def test_search_posts_empty_terms_returns_none(self):
+        """Test search with empty terms returns None."""
+        result = self.client.search_posts([])
+
+        self.assertIsNone(result)
