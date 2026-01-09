@@ -1,5 +1,5 @@
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase, TransactionTestCase, override_settings
+from django.test import override_settings
 from django.utils import timezone
 
 from feed.models import FeedEntry
@@ -7,11 +7,13 @@ from hub.tests.helpers import create_hub
 from paper.tests.helpers import create_paper
 from researchhub_document.helpers import create_post
 from user.related_models.user_model import User
+from utils.test_helpers import AWSMockTestCase, AWSMockTransactionTestCase
 
 
-class DocumentSignalsTests(TestCase):
+class DocumentSignalsTests(AWSMockTestCase):
 
     def setUp(self):
+        super().setUp()
         self.user = User.objects.create_user(username="testUser1")
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
@@ -184,15 +186,16 @@ class DocumentSignalsTests(TestCase):
         self.assertEqual(feed_entries[0].hubs.first(), hub2)
 
 
-class DocumentRemovalSignalsTests(TransactionTestCase):
+class DocumentRemovalSignalsTests(AWSMockTransactionTestCase):
     """
-    Uses TransactionTestCase to allow transaction.on_commit() callbacks to execute.
+    Uses AWSMockTransactionTestCase to allow transaction.on_commit() callbacks to execute.
     This is necessary because TestCase wraps tests in an atomic transaction that
     never commits, preventing on_commit hooks from firing.
     """
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     def setUp(self):
+        super().setUp()
         self.hub = create_hub(name="Test Hub")
         self.user = User.objects.create_user(username="testUser1")
         self.paper = create_paper(title="Test Paper", uploaded_by=self.user)

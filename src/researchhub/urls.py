@@ -45,6 +45,7 @@ from purchase.views import stripe_webhook_view
 from researchhub.views import asset_upload_view
 from researchhub_comment.views.rh_comment_view import RhCommentViewSet
 from review.views.peer_review_view import PeerReviewViewSet
+from review.views.review_availability_view import ReviewAvailabilityView
 from review.views.review_view import ReviewViewSet
 from user.views import author_views, editor_views, moderator_view, persona_webhook_view
 from user.views.custom_verify_email_view import CustomVerifyEmailView
@@ -330,6 +331,11 @@ urlpatterns = [
         name="payment_view",
     ),
     path("user_saved/", UserSavedView.as_view(), name="user_saved"),
+    path(
+        "api/review/availability/",
+        ReviewAvailabilityView.as_view(),
+        name="review_availability",
+    ),
 ]
 
 if "silk" in settings.INSTALLED_APPS:

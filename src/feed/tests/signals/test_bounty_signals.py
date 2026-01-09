@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase, override_settings
+from django.test import override_settings
 
 from feed.models import FeedEntry
 from feed.signals.bounty_signals import handle_bounty_delete_update_feed_entries
@@ -12,11 +12,13 @@ from researchhub_comment.tests.helpers import create_rh_comment
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import DISCUSSION
 from user.tests.helpers import create_random_default_user
+from utils.test_helpers import AWSMockTestCase
 
 
-class BountySignalsTests(TestCase):
+class BountySignalsTests(AWSMockTestCase):
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     def setUp(self):
+        super().setUp()
         self.user = create_random_default_user("bounty_signals_test")
         self.hub = create_hub(name="Test Hub")
 

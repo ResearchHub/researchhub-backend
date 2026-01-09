@@ -6,7 +6,11 @@ from django.db import IntegrityError
 from django.test import TestCase
 from django.utils import timezone
 
-from analytics.constants.event_types import PAGE_VIEW, UPVOTE
+from analytics.constants.event_types import (
+    FEED_ITEM_ABSTRACT_EXPANDED,
+    PAGE_VIEW,
+    UPVOTE,
+)
 from analytics.models import UserInteractions
 from researchhub_document.helpers import create_post
 
@@ -169,3 +173,60 @@ class UserInteractionsModelTests(TestCase):
         )
 
         self.assertIsNone(interaction.impression)
+
+    def test_feed_item_abstract_expanded_is_repeatable_event(self):
+        """Test that FEED_ITEM_ABSTRACT_EXPANDED cannot be duplicated on same day."""
+        # Create abstract expanded event at 10am
+        today_10am = timezone.now().replace(hour=10, minute=0, second=0, microsecond=0)
+        today_3pm = timezone.now().replace(hour=15, minute=0, second=0, microsecond=0)
+
+        UserInteractions.objects.create(
+            user=self.user,
+            external_user_id="test_session_123",
+            event=FEED_ITEM_ABSTRACT_EXPANDED,
+            unified_document=self.unified_document,
+            content_type=self.content_type,
+            object_id=self.post.id,
+            event_timestamp=today_10am,
+        )
+
+        # Attempt to create another abstract expanded event same day - should raise IntegrityError
+        with self.assertRaises(IntegrityError):
+            UserInteractions.objects.create(
+                user=self.user,
+                external_user_id="test_session_123",
+                event=FEED_ITEM_ABSTRACT_EXPANDED,
+                unified_document=self.unified_document,
+                content_type=self.content_type,
+                object_id=self.post.id,
+                event_timestamp=today_3pm,
+            )
+
+    def test_feed_item_abstract_expanded_allows_different_day(self):
+        """Test that FEED_ITEM_ABSTRACT_EXPANDED can be created on different days."""
+        today = timezone.now()
+        tomorrow = today + timedelta(days=1)
+
+        # Create abstract expanded event today
+        interaction1 = UserInteractions.objects.create(
+            user=self.user,
+            external_user_id="test_session_123",
+            event=FEED_ITEM_ABSTRACT_EXPANDED,
+            unified_document=self.unified_document,
+            content_type=self.content_type,
+            object_id=self.post.id,
+            event_timestamp=today,
+        )
+
+        # Create abstract expanded event tomorrow - should succeed
+        interaction2 = UserInteractions.objects.create(
+            user=self.user,
+            external_user_id="test_session_123",
+            event=FEED_ITEM_ABSTRACT_EXPANDED,
+            unified_document=self.unified_document,
+            content_type=self.content_type,
+            object_id=self.post.id,
+            event_timestamp=tomorrow,
+        )
+
+        self.assertNotEqual(interaction1.id, interaction2.id)

@@ -423,7 +423,6 @@ ACCOUNT_USERNAME_REQUIRED = False
 ACCOUNT_AUTHENTICATED_LOGIN_REDIRECTS = False
 if STAGING or PRODUCTION:
     ACCOUNT_DEFAULT_HTTP_PROTOCOL = "https"
-SOCIALACCOUNT_ADAPTER = "oauth.adapters.SocialAccountAdapter"
 SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
 SOCIALACCOUNT_EMAIL_REQUIRED = False
 SOCIALACCOUNT_QUERY_EMAIL = True
@@ -446,9 +445,15 @@ if STAGING:
         "https://backend.staging.researchhub.com/auth/google/yolo/callback/"
     )
 
-ORCID_CLIENT_ID = os.environ.get("ORCID_CLIENT_ID", getattr(keys, "ORCID_CLIENT_ID", ""))
-ORCID_CLIENT_SECRET = os.environ.get("ORCID_CLIENT_SECRET", getattr(keys, "ORCID_CLIENT_SECRET", ""))
-ORCID_REDIRECT_URL = os.environ.get("ORCID_REDIRECT_URL", getattr(keys, "ORCID_REDIRECT_URL", ""))
+ORCID_CLIENT_ID = os.environ.get(
+    "ORCID_CLIENT_ID", getattr(keys, "ORCID_CLIENT_ID", "")
+)
+ORCID_CLIENT_SECRET = os.environ.get(
+    "ORCID_CLIENT_SECRET", getattr(keys, "ORCID_CLIENT_SECRET", "")
+)
+ORCID_REDIRECT_URL = os.environ.get(
+    "ORCID_REDIRECT_URL", getattr(keys, "ORCID_REDIRECT_URL", "")
+)
 # Database
 # https://docs.djangoproject.com/en/2.2/ref/settings/#databases
 
@@ -533,7 +538,9 @@ STATICFILES_DIRS = ["stylesheets"]
 AWS_REGION_NAME = os.environ.get("AWS_REGION_NAME", keys.AWS_REGION_NAME)
 
 # AWS Bedrock Configuration
-
+BEDROCK_PROCESSING_ENABLED = (
+    os.environ.get("BEDROCK_PROCESSING_ENABLED", "false").lower() == "true"
+)
 
 if not (CLOUD or TESTING) and os.environ.get("AWS_PROFILE") is None:
     # Set AWS profile for local development

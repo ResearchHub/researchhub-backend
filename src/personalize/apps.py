@@ -8,5 +8,6 @@ class PersonalizeConfig(AppConfig):
     def ready(self):
         import personalize.signals.comment_signals  # noqa: F401
         import personalize.signals.interaction_signals  # noqa: F401
+        import personalize.signals.list_signals  # noqa: F401
         import personalize.signals.unified_document_signals  # noqa: F401
         import personalize.signals.vote_signals  # noqa: F401

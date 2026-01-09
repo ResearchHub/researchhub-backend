@@ -51,6 +51,7 @@ class EventProcessor:
                 "FEED_ITEM_CLICK",
                 "PAGE_VIEW",
                 "DOCUMENT_TAB_CLICKED",
+                "FEED_ITEM_ABSTRACT_EXPANDED",
             ]:
                 lookup_kwargs["event_timestamp__date"] = (
                     interaction.event_timestamp.date()
