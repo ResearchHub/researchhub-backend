@@ -377,6 +377,11 @@ class PaperIngestionService:
                 if new_value:
                     setattr(existing_paper, field, new_value)
 
+        # Set DOI if existing paper doesn't have one
+        if not existing_paper.doi and new_paper.doi:
+            existing_paper.doi = new_paper.doi
+            update_fields.append("doi")
+
         if new_paper.external_metadata:
             if existing_paper.external_metadata is None:
                 existing_paper.external_metadata = {}

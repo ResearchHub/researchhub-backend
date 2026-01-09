@@ -248,7 +248,9 @@ class TestPaperIngestionService(TestCase):
 
     def test_update_paper(self):
         """Test updating paper fields."""
+        # Arrange
         existing_paper = Mock(spec=Paper)
+        existing_paper.doi = None
         existing_paper.title = "Old Title"
         existing_paper.abstract = "Old Abstract"
         existing_paper.external_source = "old_source"
@@ -257,21 +259,26 @@ class TestPaperIngestionService(TestCase):
         existing_paper.save = Mock()
 
         new_paper = Mock(spec=Paper)
+        new_paper.doi = "10.1234/new.doi"
         new_paper.title = "New Title"
         new_paper.paper_title = "New Paper Title"
         new_paper.abstract = "New Abstract"
         new_paper.paper_publish_date = "2024-01-01"
         new_paper.raw_authors = [{"name": "Author"}]
-        new_paper.external_metadata = {"key": "value"}
         new_paper.external_source = "chemrxiv"
         new_paper.external_metadata = {"external_id": "12345"}
         new_paper.pdf_url = "https://example.com/paper.pdf"
         new_paper.url = "https://example.com/paper"
         new_paper.is_open_access = True
         new_paper.oa_status = "gold"
+        new_paper.pdf_license = None
+        new_paper.pdf_license_url = None
 
+        # Act
         result, pdf_url_changed = self.service._update_paper(existing_paper, new_paper)
 
+        # Assert
+        self.assertEqual(existing_paper.doi, "10.1234/new.doi")
         self.assertEqual(existing_paper.title, "New Title")
         self.assertEqual(existing_paper.abstract, "New Abstract")
         self.assertEqual(existing_paper.external_source, "chemrxiv")
