@@ -311,18 +311,24 @@ class PaperIngestionService:
             Exception: If save fails
         """
         with transaction.atomic():
-            # Check if paper exists by DOI
+            # Check if paper exists by DOI or URL
+            existing_paper = None
             if paper.doi:
                 existing_paper = Paper.objects.filter(doi=paper.doi).first()
+            if not existing_paper and paper.url:
+                existing_paper = Paper.objects.filter(url=paper.url).first()
 
-                if existing_paper:
-                    # Update existing paper
-                    logger.info(f"Updating existing paper with DOI {paper.doi}")
-                    paper, pdf_url_changed = self._update_paper(existing_paper, paper)
-                    self._trigger_pdf_download_if_needed(
-                        paper, pdf_url_changed=pdf_url_changed
-                    )
-                    return paper
+            if existing_paper:
+                # Update existing paper
+                logger.info(
+                    f"Updating existing paper {existing_paper.id} "
+                    f"(DOI: {paper.doi}, URL: {paper.url})"
+                )
+                paper, pdf_url_changed = self._update_paper(existing_paper, paper)
+                self._trigger_pdf_download_if_needed(
+                    paper, pdf_url_changed=pdf_url_changed
+                )
+                return paper
 
             # Save new paper
             paper.save()
