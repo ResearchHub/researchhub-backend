@@ -209,6 +209,43 @@ class TestPaperIngestionService(TestCase):
         # PDF download triggered with pdf_url_changed=True
         mock_trigger_pdf.assert_called_once_with(updated_paper, pdf_url_changed=True)
 
+    @patch(
+        "paper.ingestion.services.PaperIngestionService._trigger_pdf_download_if_needed"
+    )
+    @patch("paper.ingestion.services.PaperIngestionService._update_paper")
+    @patch("paper.models.Paper.objects.filter")
+    def test_save_paper_existing_by_url_when_doi_not_found(
+        self, mock_filter, mock_update, mock_trigger_pdf
+    ):
+        """Test updating an existing paper found by URL when DOI lookup fails."""
+        # Arrange
+        existing_paper = Mock(spec=Paper)
+        existing_paper.id = 1
+        existing_paper.url = "https://arxiv.org/abs/1806.03144"
+
+        # First call (DOI lookup) returns None, second call (URL lookup) returns paper
+        mock_filter.return_value.first.side_effect = [None, existing_paper]
+
+        updated_paper = Mock(spec=Paper)
+        mock_update.return_value = (updated_paper, True)
+
+        mock_paper = Mock(spec=Paper)
+        mock_paper.doi = "10.48550/arXiv.1806.03144"
+        mock_paper.url = "https://arxiv.org/abs/1806.03144"
+
+        # Act
+        result = self.service._save_paper(mock_paper)
+
+        # Assert
+        # Should have queried by DOI first, then by URL
+        self.assertEqual(mock_filter.call_count, 2)
+        mock_filter.assert_any_call(doi="10.48550/arXiv.1806.03144")
+        mock_filter.assert_any_call(url="https://arxiv.org/abs/1806.03144")
+
+        mock_update.assert_called_once_with(existing_paper, mock_paper)
+        self.assertEqual(result, updated_paper)
+        mock_trigger_pdf.assert_called_once_with(updated_paper, pdf_url_changed=True)
+
     def test_update_paper(self):
         """Test updating paper fields."""
         existing_paper = Mock(spec=Paper)
@@ -326,6 +363,7 @@ class TestPaperIngestionService(TestCase):
         mock_paper1 = Mock(spec=Paper)
         mock_paper1.id = 1
         mock_paper1.doi = None
+        mock_paper1.url = None
         mock_paper1.save = Mock()
 
         mock_unified_document = Mock()
