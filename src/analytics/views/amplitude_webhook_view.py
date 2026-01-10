@@ -7,7 +7,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from analytics.services.event_processor import EventProcessor
+from analytics.tasks import process_amplitude_event
 from utils.sentry import log_error, log_info
 
 logger = logging.getLogger(__name__)
@@ -17,15 +17,11 @@ class AmplitudeWebhookView(APIView):
     """
     Webhook endpoint for receiving events from Amplitude.
 
-    This endpoint receives events from Amplitude and processes them through
-    EventProcessor.
+    This endpoint receives events from Amplitude and processes them
+    asynchronously via Celery.
     """
 
     permission_classes = [AllowAny]
-
-    def dispatch(self, request, *args, **kwargs):
-        self.processor = kwargs.pop("processor", EventProcessor())
-        return super().dispatch(request, *args, **kwargs)
 
     def post(self, request: Request, *args, **kwargs) -> Response:
         """
@@ -61,38 +57,14 @@ class AmplitudeWebhookView(APIView):
                     )
                 events = [payload]
 
-            processed_count = 0
-            failed_count = 0
-
+            # Queue all events for async processing
             for event in events:
-                try:
-                    self.processor.process_event(event)
-                    processed_count += 1
-                except Exception as e:
-                    failed_count += 1
-                    try:
-                        log_error(
-                            e,
-                            message=(
-                                f"Failed to process individual event: "
-                                f"{event.get('event_type', 'unknown')}"
-                            ),
-                        )
-                    except Exception as sentry_error:
-                        event_type = event.get("event_type", "unknown")
-                        logger.error(
-                            f"Failed to process event {event_type}: {e}. "
-                            f"Also failed to log to Sentry: {sentry_error}"
-                        )
-                    continue
+                process_amplitude_event.delay(event)
 
-            logger.info(
-                f"Amplitude webhook processed: {processed_count} events, "
-                f"{failed_count} failed"
-            )
+            logger.info(f"Amplitude webhook queued {len(events)} events for processing")
 
             return Response(
-                {"processed": processed_count, "failed": failed_count},
+                {"queued": len(events)},
                 status=status.HTTP_200_OK,
             )
 

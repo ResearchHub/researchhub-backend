@@ -1,4 +1,5 @@
 import json
+from unittest.mock import patch
 
 from django.test import TestCase
 from django.urls import reverse
@@ -41,9 +42,10 @@ class AmplitudeWebhookTestCase(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("Invalid JSON", response.data["message"])
 
-    def test_webhook_processes_single_event(self):
-        """Test that the webhook processes a single event."""
-        payload = {
+    @patch("analytics.views.amplitude_webhook_view.process_amplitude_event")
+    def test_webhook_queues_events(self, mock_task):
+        """Test that the webhook queues multiple events for async processing."""
+        event1 = {
             "event_type": "feed_item_clicked",
             "event_properties": {
                 "user_id": str(self.user.id),
@@ -55,145 +57,26 @@ class AmplitudeWebhookTestCase(TestCase):
             },
             "time_": 1234567890000,
         }
-
-        response = self.client.post(
-            self.url, data=json.dumps(payload), content_type="application/json"
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["processed"], 1)
-
-    def test_webhook_handles_multiple_events(self):
-        """Test that the webhook handles multiple events in one payload."""
-        payload = {
-            "events": [
-                {
-                    "event_type": "feed_item_clicked",
-                    "event_properties": {
-                        "user_id": str(self.user.id),
-                        "related_work": {
-                            "unified_document_id": str(self.post.unified_document.id),
-                            "content_type": "researchhubpost",
-                            "id": str(self.post.id),
-                        },
-                    },
-                    "time_": 1234567890000,
-                },
-                {
-                    "event_type": "work_document_viewed",
-                    "event_properties": {
-                        "user_id": str(self.user.id),
-                        "related_work": {
-                            "unified_document_id": str(self.post.unified_document.id),
-                            "content_type": "researchhubpost",
-                            "id": str(self.post.id),
-                        },
-                    },
-                    "time_": 1234567891000,
-                },
-            ]
-        }
-
-        response = self.client.post(
-            self.url, data=json.dumps(payload), content_type="application/json"
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["processed"], 2)
-
-    def test_webhook_continues_on_individual_error(self):
-        """Test that the webhook continues processing even if one event fails."""
-        payload = {
-            "events": [
-                {
-                    "event_type": "feed_item_clicked",
-                    "event_properties": {
-                        "user_id": str(self.user.id),
-                        "related_work": {
-                            "unified_document_id": str(self.post.unified_document.id),
-                            "content_type": "researchhubpost",
-                            "id": str(self.post.id),
-                        },
-                    },
-                    "time_": 1234567890000,
-                },
-                {
-                    "event_type": "feed_item_clicked",
-                    "event_properties": {
-                        "user_id": "99999",  # Non-existent user - will fail
-                        "related_work": {
-                            "unified_document_id": str(self.post.unified_document.id),
-                            "content_type": "researchhubpost",
-                            "id": str(self.post.id),
-                        },
-                    },
-                    "time_": 1234567891000,
-                },
-            ]
-        }
-
-        response = self.client.post(
-            self.url, data=json.dumps(payload), content_type="application/json"
-        )
-
-        # Should still return 200 OK and track processed vs failed separately
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["processed"], 1)
-        self.assertEqual(response.data["failed"], 1)
-
-    def test_webhook_tracks_failed_events(self):
-        """Test that the webhook properly tracks failed events."""
-        payload = {
-            "event_type": "feed_item_clicked",
-            "event_properties": {
-                "user_id": "99999",  # Non-existent user
-                "related_work": {
-                    "unified_document_id": str(self.post.unified_document.id),
-                    "content_type": "researchhubpost",
-                    "id": str(self.post.id),
-                },
-            },
-            "time_": 1234567890000,
-        }
-
-        response = self.client.post(
-            self.url, data=json.dumps(payload), content_type="application/json"
-        )
-
-        # Should return 200 OK and track as failed
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["processed"], 0)
-        self.assertEqual(response.data["failed"], 1)
-
-    def test_webhook_processes_event_with_impression(self):
-        """Test that the webhook processes events with impression."""
-        from analytics.models import UserInteractions
-
-        payload = {
-            "event_type": "feed_item_clicked",
+        event2 = {
+            "event_type": "work_document_viewed",
             "event_properties": {
                 "user_id": str(self.user.id),
-                "impression": ["123", "456", "789"],
                 "related_work": {
                     "unified_document_id": str(self.post.unified_document.id),
                     "content_type": "researchhubpost",
                     "id": str(self.post.id),
                 },
             },
-            "time": 1234567890000,
+            "time_": 1234567891000,
         }
+        payload = {"events": [event1, event2]}
 
-        initial_count = UserInteractions.objects.count()
         response = self.client.post(
             self.url, data=json.dumps(payload), content_type="application/json"
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["processed"], 1)
-
-        # Verify the interaction was created with impression
-        final_count = UserInteractions.objects.count()
-        self.assertEqual(final_count, initial_count + 1)
-
-        interaction = UserInteractions.objects.latest("created_date")
-        self.assertEqual(interaction.impression, "123|456|789")
+        self.assertEqual(response.data["queued"], 2)
+        self.assertEqual(mock_task.delay.call_count, 2)
+        mock_task.delay.assert_any_call(event1)
+        mock_task.delay.assert_any_call(event2)
