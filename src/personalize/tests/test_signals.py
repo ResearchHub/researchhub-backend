@@ -3,11 +3,14 @@ from unittest.mock import patch
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
+from analytics.models import UserInteractions
 from discussion.models import Vote
 from hub.tests.helpers import create_hub
+from personalize.tasks import create_list_item_interaction_task
 from researchhub_document.helpers import create_post
 from researchhub_document.models import ResearchhubUnifiedDocument
 from user.tests.helpers import create_random_default_user
+from user_lists.models import List, ListItem
 
 
 class UnifiedDocumentSignalTests(TestCase):
@@ -152,3 +155,66 @@ class VoteSignalTests(TestCase):
         vote.save()
 
         mock_task.delay.assert_not_called()
+
+
+class ListSaveSignalTests(TestCase):
+    def setUp(self):
+        self.user = create_random_default_user("list_test_user")
+        self.unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="DISCUSSION"
+        )
+        self.list = List.objects.create(name="Test List", created_by=self.user)
+
+    @patch("personalize.signals.list_signals.create_list_item_interaction_task")
+    @patch("personalize.signals.list_signals.transaction")
+    def test_signal_queues_task_on_list_item_creation(
+        self, mock_transaction, mock_task
+    ):
+        mock_transaction.on_commit = lambda func: func()
+
+        list_item = ListItem.objects.create(
+            parent_list=self.list,
+            unified_document=self.unified_doc,
+            created_by=self.user,
+        )
+
+        mock_task.delay.assert_called_once_with(list_item.id)
+
+    @patch("personalize.signals.list_signals.create_list_item_interaction_task")
+    @patch("personalize.signals.list_signals.transaction")
+    def test_signal_does_not_queue_task_on_list_item_removal(
+        self, mock_transaction, mock_task
+    ):
+        mock_transaction.on_commit = lambda func: func()
+
+        list_item = ListItem.objects.create(
+            parent_list=self.list,
+            unified_document=self.unified_doc,
+            created_by=self.user,
+        )
+
+        mock_task.reset_mock()
+
+        # Removal (soft delete) should not trigger the signal (it's an update)
+        list_item.is_removed = True
+        list_item.save()
+
+        mock_task.delay.assert_not_called()
+
+    def test_list_item_creation_leads_to_user_interaction_record_creation(self):
+        list_item = ListItem.objects.create(
+            parent_list=self.list,
+            unified_document=self.unified_doc,
+            created_by=self.user,
+        )
+
+        # Manually trigger the task to verify its internal logic
+        create_list_item_interaction_task(list_item.id)
+
+        self.assertTrue(
+            UserInteractions.objects.filter(
+                user=self.user,
+                event="DOCUMENT_SAVED_TO_LIST",
+                unified_document=self.unified_doc,
+            ).exists()
+        )

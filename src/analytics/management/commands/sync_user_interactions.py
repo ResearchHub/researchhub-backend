@@ -8,10 +8,15 @@ from django.db import transaction
 from django.db.models import QuerySet
 
 from analytics.constants.event_types import EVENT_WEIGHTS
-from analytics.interactions.interaction_mapper import map_from_comment, map_from_upvote
+from analytics.interactions.interaction_mapper import (
+    map_from_comment,
+    map_from_list_item,
+    map_from_upvote,
+)
 from analytics.models import UserInteractions
 from discussion.models import Vote
 from researchhub_comment.models import RhCommentModel
+from user_lists.models import ListItem
 
 
 class Command(BaseCommand):
@@ -25,7 +30,7 @@ class Command(BaseCommand):
         )
         parser.add_argument(
             "--source",
-            choices=["votes", "comments", "all"],
+            choices=["votes", "comments", "list_items", "all"],
             default="all",
             help="Source of interactions to import (default: all)",
         )
@@ -93,6 +98,16 @@ class Command(BaseCommand):
         if source in ["comments", "all"]:
             self.stdout.write("Processing comments...")
             processed, created, skipped = self._import_from_comments(
+                start_date, end_date, batch_size
+            )
+            total_processed += processed
+            total_created += created
+            total_skipped += skipped
+
+        # Import from list items (saved to list)
+        if source in ["list_items", "all"]:
+            self.stdout.write("Processing list item saves...")
+            processed, created, skipped = self._import_from_list_items(
                 start_date, end_date, batch_size
             )
             total_processed += processed
@@ -204,6 +219,57 @@ class Command(BaseCommand):
 
         self.stdout.write(
             f"\nComments: {processed} processed, {created} created"
+            + (f", {skipped} skipped" if skipped else "")
+        )
+        return processed, created, skipped
+
+    def _import_from_list_items(
+        self,
+        start_date: Optional[datetime],
+        end_date: Optional[datetime],
+        batch_size: int,
+    ) -> tuple:
+        """Import interactions from ListItem model (saved to list)."""
+        queryset = self._get_list_item_queryset(start_date, end_date)
+        total = queryset.count()
+
+        if total == 0:
+            self.stdout.write(self.style.WARNING("No list item records found"))
+            return 0, 0, 0
+
+        list_item_content_type = ContentType.objects.get_for_model(ListItem)
+
+        processed = 0
+        created = 0
+        skipped = 0
+        batch = []
+
+        for list_item in queryset.iterator():
+            try:
+                batch.append(map_from_list_item(list_item, list_item_content_type))
+                processed += 1
+
+                if len(batch) >= batch_size:
+                    created += self._insert_batch(batch)
+                    batch = []
+                    self.stdout.write(
+                        f"ListItems Progress: {processed}/{total} "
+                        f"({created} created, {skipped} skipped)",
+                        ending="\r",
+                    )
+            except (ValueError, AttributeError, TypeError) as e:
+                skipped += 1
+                self.stdout.write(self.style.WARNING(f"\nSkipping list item: {e}"))
+                continue
+            except Exception as e:
+                self.stdout.write(self.style.ERROR(f"\nUnexpected error: {e}"))
+                continue
+
+        if batch:
+            created += self._insert_batch(batch)
+
+        self.stdout.write(
+            f"\nListItems: {processed} processed, {created} created"
             + (f", {skipped} skipped" if skipped else "")
         )
         return processed, created, skipped
@@ -337,6 +403,18 @@ class Command(BaseCommand):
         self, start_date: Optional[datetime], end_date: Optional[datetime]
     ) -> QuerySet:
         queryset = RhCommentModel.objects.select_related("created_by")
+        if start_date:
+            queryset = queryset.filter(created_date__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(created_date__lte=end_date)
+        return queryset
+
+    def _get_list_item_queryset(
+        self, start_date: Optional[datetime], end_date: Optional[datetime]
+    ) -> QuerySet:
+        queryset = ListItem.objects.select_related(
+            "created_by", "unified_document", "parent_list"
+        ).filter(is_removed=False, parent_list__is_removed=False)
         if start_date:
             queryset = queryset.filter(created_date__gte=start_date)
         if end_date:

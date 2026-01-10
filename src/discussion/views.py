@@ -350,24 +350,22 @@ def create_automated_bounty(item):
                         "insert": "$150 in ResearchCoin (RSC)",
                     },
                     {
-                        "insert": " for a high-quality, rigorous, and constructive peer review of this manuscript. If your expertise aligns well with this research, please read our "
-                    },
-                    {
-                        "attributes": {
-                            "link": "https://blog.researchhub.foundation/peer-reviewing-on-researchhub/"
-                        },
-                        "insert": "Peer Review Guide",
-                    },
-                    {
-                        "insert": " with details about the process and examples of awarded reviews.\n\n"
+                        "insert": " for a high-quality, rigorous, and constructive peer review of this manuscript. If your expertise aligns well with this research, please consider posting your review.\n\n"
                     },
                     {"attributes": {"bold": True}, "insert": "Requirements:"},
                     {
-                        "insert": "\nSubmit your review within 14 days of the date this bounty was initiated."
+                        "insert": "\nVerify identity and complete profile (including ORCID auth) on ResearchHub."
                     },
                     {"attributes": {"list": "ordered"}, "insert": "\n"},
-                    {"attributes": {"bold": True}, "insert": "Disclose AI use"},
-                    {"insert": ". Please refer to our "},
+                    {
+                        "insert": "Submit your review within 14 days of the date this bounty was initiated."
+                    },
+                    {"attributes": {"list": "ordered"}, "insert": "\n"},
+                    {
+                        "insert": "Describe the relevance of your domain expertise to the manuscript."
+                    },
+                    {"attributes": {"list": "ordered"}, "insert": "\n"},
+                    {"insert": "Disclose AI use. Please refer to our "},
                     {
                         "attributes": {
                             "link": "https://drive.google.com/file/d/1KihDvQze5rzi8xwleWfMNsdPbc6EF0t_/view"
@@ -379,31 +377,20 @@ def create_automated_bounty(item):
                     {"insert": "Disclose conflicts of interest."},
                     {"attributes": {"list": "ordered"}, "insert": "\n"},
                     {
-                        "insert": 'Use the rating system in the "Peer Reviews" tab for all 5 criteria: '
+                        "insert": 'Use the rating system in the "Peer Reviews" tab for all 5 criteria: overall assessment, introduction, methods, results, and discussion. Please read our '
                     },
                     {
-                        "attributes": {"italic": True},
-                        "insert": "overall assessment, introduction, methods, results, and discussion",
+                        "attributes": {
+                            "link": "https://blog.researchhub.foundation/peer-reviewing-on-researchhub/"
+                        },
+                        "insert": "Peer Review Guide",
                     },
-                    {"insert": "."},
+                    {
+                        "insert": " with details about the process and examples of awarded reviews. Please avoid using other review formats."
+                    },
                     {"attributes": {"list": "ordered"}, "insert": "\n"},
                     {
-                        "insert": "a. Please enhance the scientific quality, rigor, and content of the manuscript and "
-                    },
-                    {"attributes": {"bold": True}, "insert": "avoid summaries"},
-                    {"insert": "."},
-                    {"attributes": {"indent": 1}, "insert": "\n"},
-                    {"insert": "b. Please "},
-                    {"attributes": {"bold": True}, "insert": "critically assess"},
-                    {"insert": " the figures and tables."},
-                    {"attributes": {"indent": 1}, "insert": "\n"},
-                    {"insert": "\nEditors will review and award "},
-                    {
-                        "attributes": {"bold": True},
-                        "insert": "up to 2 high-quality peer reviews",
-                    },
-                    {
-                        "insert": " within 1 week following the 14 day submission window. All decisions are final. For questions, please contact "
+                        "insert": "\nEditors will review and award up to 2 high-quality peer reviews within 1 week following the 14 day submission window. All decisions are final. For questions, please contact "
                     },
                     {
                         "attributes": {

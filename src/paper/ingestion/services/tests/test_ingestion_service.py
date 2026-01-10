@@ -247,6 +247,48 @@ class TestPaperIngestionService(TestCase):
         # PDF URL changed from old.pdf to paper.pdf
         self.assertTrue(pdf_url_changed)
 
+    def test_update_paper_with_no_external_metadata(self):
+        """
+        Test updating paper when existing external_metadata is None.
+        """
+        # Arrange
+        existing_paper = Mock(spec=Paper)
+        existing_paper.title = "Old Title"
+        existing_paper.abstract = "Old Abstract"
+        existing_paper.external_source = "old_source"
+        existing_paper.external_metadata = None  # <-- No value!
+        existing_paper.pdf_url = "https://researchhub.com/old.pdf"
+        existing_paper.save = Mock()
+
+        new_paper = Mock(spec=Paper)
+        new_paper.title = "New Title"
+        new_paper.paper_title = "New Paper Title"
+        new_paper.abstract = "New Abstract"
+        new_paper.paper_publish_date = "2024-01-01"
+        new_paper.raw_authors = [{"name": "Author"}]
+        new_paper.external_source = "arxiv"
+        new_paper.external_metadata = {"external_id": "12345"}
+        new_paper.pdf_url = "https://researchhub.com/paper.pdf"
+        new_paper.url = "https://researchhub.com/paper"
+        new_paper.is_open_access = True
+        new_paper.oa_status = "gold"
+        new_paper.pdf_license = None
+        new_paper.pdf_license_url = None
+
+        # Act
+        result, pdf_url_changed = self.service._update_paper(existing_paper, new_paper)
+
+        # Assert
+        self.assertTrue(pdf_url_changed)
+        self.assertEqual(existing_paper.title, "New Title")
+        self.assertEqual(existing_paper.external_source, "arxiv")
+        self.assertEqual(
+            existing_paper.external_metadata,
+            {"external_id": "12345"},
+        )
+        existing_paper.save.assert_called_once()
+        self.assertEqual(result, existing_paper)
+
     @patch("paper.ingestion.services.PaperIngestionService.ingest_papers")
     def test_ingest_single_paper_success(self, mock_ingest_papers):
         """Test ingesting a single paper successfully."""

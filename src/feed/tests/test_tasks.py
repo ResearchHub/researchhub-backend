@@ -424,3 +424,252 @@ class FeedTasksTest(AWSMockTestCase):
         self.assertEqual(updated_feed_entry.authors.count(), 2)
         self.assertIn(author1, updated_feed_entry.authors.all())
         self.assertIn(author2, updated_feed_entry.authors.all())
+
+    @patch("feed.tasks.trigger_figure_extraction_for_paper")
+    @patch("feed.models.FeedEntry.calculate_hot_score_v2")
+    def test_refresh_feed_entry_triggers_figure_extraction_for_paper(
+        self, mock_calculate, mock_trigger
+    ):
+        """Test refresh_feed_entry calls trigger for papers."""
+        from feed.tasks import refresh_feed_entry
+
+        # Create a feed entry
+        feed_entry = create_feed_entry(
+            item_id=self.paper.id,
+            item_content_type_id=self.paper_content_type.id,
+            action=FeedEntry.PUBLISH,
+            hub_ids=[self.hub.id],
+            user_id=self.user.id,
+        )
+
+        # Mock calculate_hot_score_v2 to return a high score
+        mock_calculate.return_value = 100
+
+        # Act
+        refresh_feed_entry(feed_entry)
+
+        # Assert - check it was called with the mocked hot_score_v2 value
+        mock_trigger.assert_called_once_with(self.paper.id, 100)
+
+    @patch("feed.tasks.trigger_figure_extraction_for_paper")
+    def test_refresh_feed_entry_does_not_trigger_for_non_paper(self, mock_trigger):
+        """Test refresh_feed_entry doesn't call trigger for non-paper content types."""
+        from feed.tasks import refresh_feed_entry
+
+        # Create a post
+        unified_doc = ResearchhubUnifiedDocument.objects.create()
+        post = ResearchhubPost.objects.create(
+            unified_document=unified_doc, created_by=self.user
+        )
+        post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
+
+        # Create feed entry for post
+        feed_entry = create_feed_entry(
+            item_id=post.id,
+            item_content_type_id=post_content_type.id,
+            action=FeedEntry.PUBLISH,
+            hub_ids=[self.hub.id],
+            user_id=self.user.id,
+        )
+
+        # Act
+        refresh_feed_entry(feed_entry)
+
+        # Assert
+        mock_trigger.assert_not_called()
+
+    @patch("feed.tasks.trigger_figure_extraction_for_paper")
+    @patch("feed.models.FeedEntry.calculate_hot_score_v2")
+    def test_refresh_feed_entries_for_objects_triggers_figure_extraction(
+        self, mock_calculate, mock_trigger
+    ):
+        """Test function calls trigger when skip_figure_extraction=False."""
+        # Create a feed entry
+        create_feed_entry(
+            item_id=self.paper.id,
+            item_content_type_id=self.paper_content_type.id,
+            action=FeedEntry.PUBLISH,
+            hub_ids=[self.hub.id],
+            user_id=self.user.id,
+        )
+
+        # Mock calculate_hot_score_v2 to return a high score
+        mock_calculate.return_value = 100
+
+        # Act
+        refresh_feed_entries_for_objects(
+            item_id=self.paper.id,
+            item_content_type_id=self.paper_content_type.id,
+            skip_figure_extraction=False,
+        )
+
+        # Assert - check it was called with the mocked hot_score_v2 value
+        mock_trigger.assert_called_once_with(self.paper.id, 100)
+
+    @patch("feed.tasks.trigger_figure_extraction_for_paper")
+    def test_refresh_feed_entries_for_objects_skips_figure_extraction(
+        self, mock_trigger
+    ):
+        """Test that function doesn't call trigger when skip_figure_extraction=True."""
+        # Create a feed entry
+        feed_entry = create_feed_entry(
+            item_id=self.paper.id,
+            item_content_type_id=self.paper_content_type.id,
+            action=FeedEntry.PUBLISH,
+            hub_ids=[self.hub.id],
+            user_id=self.user.id,
+        )
+
+        # Set a high hot_score_v2
+        feed_entry.hot_score_v2 = 100
+        feed_entry.save()
+
+        # Act
+        refresh_feed_entries_for_objects(
+            item_id=self.paper.id,
+            item_content_type_id=self.paper_content_type.id,
+            skip_figure_extraction=True,
+        )
+
+        # Assert
+        mock_trigger.assert_not_called()
+
+    @patch("feed.tasks.trigger_figure_extraction_for_paper")
+    def test_refresh_feed_entries_for_objects_only_triggers_once_per_paper(
+        self, mock_trigger
+    ):
+        """Test that checked_figure_extraction flag prevents multiple calls."""
+        # Create multiple feed entries for the same paper (different hubs)
+        hub2 = Hub.objects.create(name="testHub2")
+        feed_entry1 = create_feed_entry(
+            item_id=self.paper.id,
+            item_content_type_id=self.paper_content_type.id,
+            action=FeedEntry.PUBLISH,
+            hub_ids=[self.hub.id],
+            user_id=self.user.id,
+        )
+        feed_entry2 = create_feed_entry(
+            item_id=self.paper.id,
+            item_content_type_id=self.paper_content_type.id,
+            action=FeedEntry.PUBLISH,
+            hub_ids=[hub2.id],
+            user_id=self.user.id,
+        )
+
+        # Set high hot_score_v2 for both
+        feed_entry1.hot_score_v2 = 100
+        feed_entry1.save()
+        feed_entry2.hot_score_v2 = 100
+        feed_entry2.save()
+
+        # Act
+        refresh_feed_entries_for_objects(
+            item_id=self.paper.id,
+            item_content_type_id=self.paper_content_type.id,
+            skip_figure_extraction=False,
+        )
+
+        # Assert - should only be called once despite multiple feed entries
+        self.assertEqual(mock_trigger.call_count, 1)
+
+    @patch("feed.tasks.trigger_figure_extraction_for_paper")
+    def test_refresh_feed_entries_for_objects_does_not_trigger_for_non_paper(
+        self, mock_trigger
+    ):
+        """Test that function doesn't call trigger for non-paper content types."""
+        # Create a post
+        unified_doc = ResearchhubUnifiedDocument.objects.create()
+        post = ResearchhubPost.objects.create(
+            unified_document=unified_doc, created_by=self.user
+        )
+        post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
+
+        # Create feed entry for post
+        create_feed_entry(
+            item_id=post.id,
+            item_content_type_id=post_content_type.id,
+            action=FeedEntry.PUBLISH,
+            hub_ids=[self.hub.id],
+            user_id=self.user.id,
+        )
+
+        # Act
+        refresh_feed_entries_for_objects(
+            item_id=post.id,
+            item_content_type_id=post_content_type.id,
+            skip_figure_extraction=False,
+        )
+
+        # Assert
+        mock_trigger.assert_not_called()
+
+    @patch("feed.tasks.trigger_figure_extraction_for_paper")
+    def test_refresh_feed_hot_scores_batch_triggers_figure_extraction(
+        self, mock_trigger
+    ):
+        """Test batch refresh calls trigger_figure_extraction_for_paper for papers."""
+        from feed.tasks import refresh_feed_hot_scores_batch
+
+        # Create feed entries with high scores
+        papers = []
+        feed_entries = []
+        for i in range(2):
+            unified_doc = ResearchhubUnifiedDocument.objects.create()
+            paper = Paper.objects.create(
+                title=f"Test Paper {i+1}",
+                paper_publish_date="2025-01-01",
+                unified_document=unified_doc,
+                score=100,  # High score to get high hot_score_v2
+            )
+            papers.append(paper)
+
+            feed_entry = create_feed_entry(
+                item_id=paper.id,
+                item_content_type_id=self.paper_content_type.id,
+                action=FeedEntry.PUBLISH,
+                hub_ids=[self.hub.id],
+                user_id=self.user.id,
+            )
+            feed_entries.append(feed_entry)
+
+        # Act
+        refresh_feed_hot_scores_batch(
+            queryset=FeedEntry.objects.filter(id__in=[e.id for e in feed_entries]),
+            batch_size=1000,
+        )
+
+        # Assert - should be called for each paper
+        self.assertEqual(mock_trigger.call_count, 2)
+
+    @patch("feed.tasks.trigger_figure_extraction_for_paper")
+    def test_refresh_feed_hot_scores_batch_uses_processed_papers_set(
+        self, mock_trigger
+    ):
+        """Test that processed_papers set prevents duplicate calls."""
+        from feed.tasks import refresh_feed_hot_scores_batch
+
+        # Create multiple feed entries for the same paper
+        hub2 = Hub.objects.create(name="testHub2")
+        feed_entry1 = create_feed_entry(
+            item_id=self.paper.id,
+            item_content_type_id=self.paper_content_type.id,
+            action=FeedEntry.PUBLISH,
+            hub_ids=[self.hub.id],
+            user_id=self.user.id,
+        )
+        feed_entry2 = create_feed_entry(
+            item_id=self.paper.id,
+            item_content_type_id=self.paper_content_type.id,
+            action=FeedEntry.PUBLISH,
+            hub_ids=[hub2.id],
+            user_id=self.user.id,
+        )
+
+        # Act
+        refresh_feed_hot_scores_batch(
+            queryset=FeedEntry.objects.filter(id__in=[feed_entry1.id, feed_entry2.id]),
+            batch_size=1000,
+        )
+
+        # Assert - should only be called once per paper
+        self.assertEqual(mock_trigger.call_count, 1)

@@ -1,7 +1,6 @@
 import csv
 import os
 from io import StringIO
-from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
@@ -9,9 +8,14 @@ from django.core.management import call_command
 from django.test import TestCase
 from django.utils import timezone
 
-from analytics.constants.event_types import FEED_ITEM_CLICK, PAGE_VIEW
+from analytics.constants.event_types import (
+    DOCUMENT_SAVED_TO_LIST,
+    FEED_ITEM_CLICK,
+    PAGE_VIEW,
+)
 from analytics.models import UserInteractions
 from researchhub_document.helpers import create_post
+from user_lists.models import List, ListItem
 
 User = get_user_model()
 
@@ -86,7 +90,9 @@ class SyncUserInteractionsExportTests(TestCase):
         self.assertEqual(rows[0]["EVENT_TYPE"], FEED_ITEM_CLICK)
 
     def test_export_without_users_only_includes_all_interactions(self):
-        """Test that export without --users-only includes both registered and anonymous."""
+        """
+        Test that export without --users-only includes both registered and anonymous.
+        """
         out = StringIO()
 
         call_command(
@@ -166,3 +172,90 @@ class SyncUserInteractionsExportTests(TestCase):
         # All rows should have a USER_ID
         for row in rows:
             self.assertNotEqual(row["USER_ID"], "")
+
+    def test_export_includes_save_to_list_event(self):
+        out = StringIO()
+
+        user_list = List.objects.create(name="My List", created_by=self.user)
+        list_item = ListItem.objects.create(
+            parent_list=user_list,
+            unified_document=self.unified_document,
+            created_by=self.user,
+        )
+
+        list_item_content_type = ContentType.objects.get_for_model(ListItem)
+        UserInteractions.objects.create(
+            user=self.user,
+            event=DOCUMENT_SAVED_TO_LIST,
+            unified_document=self.unified_document,
+            content_type=list_item_content_type,
+            object_id=list_item.id,
+            event_timestamp=timezone.now(),
+        )
+
+        call_command(
+            "sync_user_interactions",
+            mode="export",
+            users_only=False,
+            mark_synced=False,
+            stdout=out,
+        )
+
+        csv_files = [f for f in os.listdir(".") if f.startswith("user_interactions_")]
+        self.assertEqual(len(csv_files), 1)
+
+        with open(csv_files[0], "r") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        save_rows = [r for r in rows if r["EVENT_TYPE"] == DOCUMENT_SAVED_TO_LIST]
+        self.assertEqual(len(save_rows), 1)
+        self.assertEqual(save_rows[0]["ITEM_ID"], str(self.unified_document.id))
+
+
+class SyncUserInteractionsImportTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="importuser",
+            email="import@researchhub.com",
+        )
+        self.post = create_post(created_by=self.user)
+        self.unified_document = self.post.unified_document
+
+    def test_import_includes_save_to_list_event(self):
+        user_list = List.objects.create(name="My List", created_by=self.user)
+        list_item = ListItem.objects.create(
+            parent_list=user_list,
+            unified_document=self.unified_document,
+            created_by=self.user,
+        )
+
+        out = StringIO()
+        call_command(
+            "sync_user_interactions",
+            mode="import",
+            source="list_items",
+            batch_size=1000,
+            stdout=out,
+        )
+
+        list_item_content_type = ContentType.objects.get_for_model(ListItem)
+        qs = UserInteractions.objects.filter(
+            user=self.user,
+            event=DOCUMENT_SAVED_TO_LIST,
+            unified_document=self.unified_document,
+            content_type=list_item_content_type,
+            object_id=list_item.id,
+        )
+        self.assertEqual(qs.count(), 1)
+
+        # Re-running import should not create duplicates (idempotent)
+        out2 = StringIO()
+        call_command(
+            "sync_user_interactions",
+            mode="import",
+            source="list_items",
+            batch_size=1000,
+            stdout=out2,
+        )
+        self.assertEqual(qs.count(), 1)

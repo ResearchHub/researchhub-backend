@@ -371,8 +371,11 @@ class PaperIngestionService:
                 if new_value:
                     setattr(existing_paper, field, new_value)
 
-        if hasattr(new_paper, "external_metadata"):
+        if new_paper.external_metadata:
+            if existing_paper.external_metadata is None:
+                existing_paper.external_metadata = {}
             existing_paper.external_metadata.update(new_paper.external_metadata)
+            update_fields.append("external_metadata")
 
         existing_paper.save(update_fields=update_fields)
         return existing_paper, pdf_url_changed
