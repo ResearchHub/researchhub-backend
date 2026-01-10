@@ -4,6 +4,7 @@ from typing import Callable, Optional, Tuple
 from allauth.socialaccount.models import SocialAccount, SocialToken
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.db import transaction
 from django.db.models import Q
 
@@ -116,20 +117,27 @@ class OrcidFetchService:
     def _link_papers_to_author(self, works: list[dict]) -> int:
         """Merge authorships for all authors on papers that have ORCID matches."""
         linked = 0
+        linked_author_ids: set[int] = set()
+        
         with transaction.atomic():
             for work in works:
                 paper = self._find_paper_by_doi(work.get("doi", ""))
                 if not paper:
                     continue
 
-                merged_count = self._merge_authorships_for_paper(paper, work)
-                if merged_count > 0:
+                author_ids = self._merge_authorships_for_paper(paper, work)
+                if author_ids:
                     linked += 1
+                    linked_author_ids.update(author_ids)
+        
+        # Clear cache for all linked authors
+        self._clear_author_caches(linked_author_ids)
+        
         return linked
 
-    def _merge_authorships_for_paper(self, paper: Paper, work: dict) -> int:
+    def _merge_authorships_for_paper(self, paper: Paper, work: dict) -> set[int]:
         """Merge authorships for all authors on paper that are ORCID-connected in our system."""
-        merged = 0
+        linked_author_ids: set[int] = set()
 
         for authorship_data in work.get("authorships", []):
             author_data = authorship_data.get("author", {})
@@ -163,26 +171,27 @@ class OrcidFetchService:
             )
 
             if openalex_authorship:
-                position = authorship_data.get(
-                    "author_position", Authorship.MIDDLE_AUTHOR_POSITION
-                )
-                self._transfer_authorship(openalex_authorship, user_author, position)
-                merged += 1
+                self._link_authorship_to_user(openalex_authorship, user_author)
+                # Track both the user's author and the paper's author for cache clearing
+                linked_author_ids.add(user_author.id)
+                linked_author_ids.add(openalex_authorship.author_id)
 
-        return merged
+        return linked_author_ids
 
-    def _transfer_authorship(
-        self, existing: Authorship, user_author: Author, position: str
+    def _link_authorship_to_user(
+        self, existing: Authorship, user_author: Author
     ) -> None:
-        """Transfer authorship from OpenAlex author to user's author."""
-        old_author = existing.author
-        existing.author = user_author
-        existing.author_position = position
-        existing.save(update_fields=["author", "author_position"])
+        """ Link paper's author to user without changing the displayed author name. """
+        paper_author = existing.author
+        if paper_author.user is None and paper_author.merged_with_author is None:
+            paper_author.merged_with_author = user_author
+            paper_author.save(update_fields=["merged_with_author"])
 
-        if old_author.user is None and old_author.merged_with_author is None:
-            old_author.merged_with_author = user_author
-            old_author.save(update_fields=["merged_with_author"])
+    def _clear_author_caches(self, author_ids: set[int]) -> None:
+        """Clear publication and summary caches for the given authors."""
+        for author_id in author_ids:
+            cache.delete(f"author-{author_id}-publications")
+            cache.delete(f"author-{author_id}-summary-stats")
 
     def _find_paper_by_doi(self, raw_doi: str) -> Optional[Paper]:
         """Find paper by DOI (handles both full URL and bare DOI formats)."""

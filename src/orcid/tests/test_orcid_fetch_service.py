@@ -1,6 +1,7 @@
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from allauth.socialaccount.models import SocialAccount, SocialToken
+from django.core.cache import cache
 from django.test import TestCase
 
 from orcid.services import OrcidFetchService
@@ -95,7 +96,7 @@ class OrcidFetchServiceTests(TestCase):
         self.assertEqual(result["papers_processed"], 0)
 
     def test_sync_merges_authorship_when_orcid_matches(self):
-        """When user's ORCID matches an author on the paper, authorship is transferred."""
+        """When user's ORCID matches an author on the paper, author is merged (not transferred)."""
         # Arrange
         user = OrcidTestHelper.create_author()
         openalex_author = Author.objects.create(
@@ -113,7 +114,9 @@ class OrcidFetchServiceTests(TestCase):
 
         # Assert
         self.assertEqual(result["papers_processed"], 1)
-        self.assertEqual(Authorship.objects.get(paper=paper).author, user.author_profile)
+        # Authorship still points to original author (preserves display name)
+        self.assertEqual(Authorship.objects.get(paper=paper).author, openalex_author)
+        # But the author is marked as merged with user's author
         openalex_author.refresh_from_db()
         self.assertEqual(openalex_author.merged_with_author, user.author_profile)
 
@@ -218,3 +221,33 @@ class OrcidFetchServiceTests(TestCase):
         # Assert
         account.refresh_from_db()
         self.assertEqual(account.extra_data["verified_edu_emails"], ["user@stanford.edu"])
+
+    def test_sync_clears_author_caches(self):
+        """Cache should be cleared for both user's author and paper's author after sync."""
+        # Arrange
+        user = OrcidTestHelper.create_author()
+        openalex_author = Author.objects.create(
+            first_name="J", last_name="D",
+            openalex_ids=[OrcidTestHelper.OPENALEX_AUTHOR_ID],
+            created_source=Author.SOURCE_OPENALEX,
+        )
+        paper = Paper.objects.create(title="T", doi="10.1/x")
+        Authorship.objects.create(paper=paper, author=openalex_author, author_position="middle")
+        self.mock_client.get_works.return_value = OrcidTestHelper.make_works_response("10.1/x")
+        self.mock_openalex.get_work_by_doi.return_value = OrcidTestHelper.make_openalex_work("10.1/x")
+
+        # Set cache values
+        user_author_id = user.author_profile.id
+        cache.set(f"author-{user_author_id}-publications", "cached_value")
+        cache.set(f"author-{user_author_id}-summary-stats", "cached_value")
+        cache.set(f"author-{openalex_author.id}-publications", "cached_value")
+        cache.set(f"author-{openalex_author.id}-summary-stats", "cached_value")
+
+        # Act
+        self.service.sync_orcid(user.author_profile.id)
+
+        # Assert - caches should be cleared
+        self.assertIsNone(cache.get(f"author-{user_author_id}-publications"))
+        self.assertIsNone(cache.get(f"author-{user_author_id}-summary-stats"))
+        self.assertIsNone(cache.get(f"author-{openalex_author.id}-publications"))
+        self.assertIsNone(cache.get(f"author-{openalex_author.id}-summary-stats"))
