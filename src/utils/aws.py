@@ -1,4 +1,5 @@
 import json
+from unittest.mock import MagicMock
 
 import boto3
 from boto3.session import Session
@@ -30,6 +31,12 @@ def create_client(
 ) -> boto3.client:
     """
     Create a boto3 client for the given service.
+
+    During tests, returns a MagicMock to prevent AWS credential lookup
+    and network calls.
     """
+    if settings.TESTING:
+        return MagicMock()
+
     session = Session(region_name=region_name)
     return session.client(service_name)
