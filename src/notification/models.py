@@ -531,6 +531,19 @@ class Notification(models.Model):
         base_url = unified_document.frontend_view_link()
         comments_url = f"{base_url}#comments"
 
+        amount = self.extra.get("amount") if self.extra else None
+        if amount:
+            try:
+                amount = round(float(amount), 2)
+            except (ValueError, TypeError):
+                amount = None
+
+        amount_text = (
+            f"awarded you {amount} RSC for your "
+            if amount
+            else "awarded you RSC for your "
+        )
+
         return [
             {
                 "type": "link",
@@ -540,7 +553,7 @@ class Notification(models.Model):
             },
             {
                 "type": "text",
-                "value": "awarded you RSC for your ",
+                "value": amount_text,
             },
             {
                 "type": "link",

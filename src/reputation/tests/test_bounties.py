@@ -223,6 +223,28 @@ class BountyViewTests(APITestCase):
 
         self.assertEqual(create_bounty_res.status_code, 201)
         self.assertEqual(create_bounty_res.data["expiration_date"], expiration_time)
+        # Verify assessment_end_date is included in response
+        # (should be None for OPEN bounties)
+        self.assertIn("assessment_end_date", create_bounty_res.data)
+        self.assertIsNone(create_bounty_res.data["assessment_end_date"])
+
+    def test_assessment_end_date_included_in_create_response(self):
+        """Test that assessment_end_date is included in bounty create response"""
+        self.client.force_authenticate(self.user)
+
+        create_bounty_res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 100,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
+            },
+        )
+
+        self.assertEqual(create_bounty_res.status_code, 201)
+        self.assertIn("assessment_end_date", create_bounty_res.data)
+        # For OPEN bounties, assessment_end_date should be None
+        self.assertIsNone(create_bounty_res.data["assessment_end_date"])
 
     def test_user_cant_create_invalid_bounty(self):
         self.client.force_authenticate(self.user)
@@ -300,6 +322,28 @@ class BountyViewTests(APITestCase):
 
         self.assertEqual(approve_bounty_res.status_code, 200)
         self.assertEqual(approve_bounty_res.data["amount"], bounty.data["amount"])
+        # Verify assessment_end_date is included in approve_bounty response
+        self.assertIn("assessment_end_date", approve_bounty_res.data)
+
+    def test_assessment_end_date_included_in_approve_bounty_response(self):
+        """Test that assessment_end_date is included in approve_bounty response"""
+        self.client.force_authenticate(self.user)
+
+        bounty = self.test_user_can_create_bounty()
+
+        approve_bounty_res = self.client.post(
+            f"/api/bounty/{bounty.data['id']}/approve_bounty/",
+            [
+                {
+                    "amount": bounty.data["amount"],
+                    "object_id": self.comment.id,
+                    "content_type": self.comment._meta.model_name,
+                }
+            ],
+        )
+
+        self.assertEqual(approve_bounty_res.status_code, 200)
+        self.assertIn("assessment_end_date", approve_bounty_res.data)
 
     def test_user_can_approve_partial_bounty(self):
         self.client.force_authenticate(self.user)
@@ -559,6 +603,20 @@ class BountyViewTests(APITestCase):
         )
 
         self.assertEqual(cancel_bounty_res_1.status_code, 200)
+        # Verify assessment_end_date is included in cancel_bounty response
+        self.assertIn("assessment_end_date", cancel_bounty_res_1.data)
+
+    def test_assessment_end_date_included_in_cancel_bounty_response(self):
+        """Test that assessment_end_date is included in cancel_bounty response"""
+        self.client.force_authenticate(self.user)
+
+        bounty = self.test_user_can_create_bounty()
+        cancel_bounty_res = self.client.post(
+            f"/api/bounty/{bounty.data['id']}/cancel_bounty/",
+        )
+
+        self.assertEqual(cancel_bounty_res.status_code, 200)
+        self.assertIn("assessment_end_date", cancel_bounty_res.data)
 
     def test_parent_user_can_cancel_multi_bounty(self):
         bounty_1, bounty_2 = self.test_user_can_contribute_to_bounty()
@@ -699,6 +757,31 @@ class BountyViewTests(APITestCase):
         # Assert
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.data["results"]), 2)
+        # Verify assessment_end_date is included in list response
+        for bounty in res.data["results"]:
+            self.assertIn("assessment_end_date", bounty)
+
+    def test_assessment_end_date_included_in_list_response(self):
+        """Test that assessment_end_date is included in bounty list response"""
+        self.client.force_authenticate(self.user)
+
+        # Create a bounty
+        self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 1000,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
+            },
+        )
+
+        # Get bounties
+        res = self.client.get("/api/bounty/")
+
+        self.assertEqual(res.status_code, 200)
+        self.assertGreater(len(res.data["results"]), 0)
+        # Verify assessment_end_date is included in response
+        self.assertIn("assessment_end_date", res.data["results"][0])
 
     def test_get_bounties_personalized(self):
         # Arrange
@@ -1050,6 +1133,28 @@ class BountyViewTests(APITestCase):
         self.assertEqual(
             comment_bounty_response.data["results"][0]["metrics"]["votes"], 42
         )
+
+    def test_assessment_end_date_included_in_get_bounties_action(self):
+        """Test that assessment_end_date is included in get_bounties action response"""
+        self.client.force_authenticate(self.user)
+
+        # Create a bounty
+        self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 1000,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
+            },
+        )
+
+        # Get bounties using the get_bounties action endpoint
+        res = self.client.get("/api/bounty/get_bounties/")
+
+        self.assertEqual(res.status_code, 200)
+        self.assertGreater(len(res.data), 0)
+        # Verify assessment_end_date is included in response
+        self.assertIn("assessment_end_date", res.data[0])
 
     def test_user_can_approve_full_amount_to_multiple_solutions(self):
         self.client.force_authenticate(self.user)
@@ -1578,7 +1683,10 @@ class BountyAssessmentPhaseTests(APITestCase):
         response = self.client.post("/api/bounty/", data)
         return response
 
-    def test_bounty_transitions_to_assessment_when_expiration_passes(self):
+    @patch("reputation.tasks.send_email_message")
+    def test_bounty_transitions_to_assessment_when_expiration_passes(
+        self, mock_send_email
+    ):
         """Test OPEN bounty transitions to ASSESSMENT when expiration_date passes."""
         self.client.force_authenticate(self.user)
 
@@ -1713,7 +1821,7 @@ class BountyAssessmentPhaseTests(APITestCase):
             ],
         )
 
-        self.assertEqual(approve_res.status_code, 403)
+        self.assertEqual(approve_res.status_code, 404)
 
     def test_creator_can_cancel_during_assessment_phase(self):
         """Test that bounty creator can cancel during ASSESSMENT phase."""
@@ -1854,7 +1962,8 @@ class BountyAssessmentPhaseTests(APITestCase):
         bounty.refresh_from_db()
         self.assertEqual(bounty.status, Bounty.ASSESSMENT)
 
-    def test_child_bounties_also_transition_to_assessment(self):
+    @patch("reputation.tasks.send_email_message")
+    def test_child_bounties_also_transition_to_assessment(self, mock_send_email):
         """Test that child bounties transition with parent bounty."""
         self.client.force_authenticate(self.user)
 

@@ -260,6 +260,7 @@ class BountyViewSet(viewsets.ModelViewSet):
                     "created_date",
                     "created_by",
                     "expiration_date",
+                    "assessment_end_date",
                     "id",
                     "parent",
                     "status",
@@ -507,6 +508,11 @@ class BountyViewSet(viewsets.ModelViewSet):
                     if bounty.expiration_date
                     else None
                 ),
+                "assessment_end_date": (
+                    bounty.assessment_end_date.isoformat()
+                    if bounty.assessment_end_date
+                    else None
+                ),
                 "awarded_solutions": awarded_solutions,
                 "message": message,
             }
@@ -523,7 +529,9 @@ class BountyViewSet(viewsets.ModelViewSet):
         with transaction.atomic():
             bounty = self.get_object()
             if bounty.status not in (Bounty.OPEN, Bounty.ASSESSMENT):
-                return Response({"error": "Bounty is not open or in assessment phase."}, status=400)
+                return Response(
+                    {"error": "Bounty is not open or in assessment phase."}, status=400
+                )
 
             if bounty.parent is not None:
                 return Response({"error": "Please close parent bounty"}, status=400)
@@ -551,6 +559,7 @@ class BountyViewSet(viewsets.ModelViewSet):
                         "created_date",
                         "created_by",
                         "expiration_date",
+                        "assessment_end_date",
                         "id",
                         "parent",
                         "status",
@@ -600,12 +609,18 @@ class BountyViewSet(viewsets.ModelViewSet):
             review_or_answer_filter |= Q(bounty_type=Bounty.Type.OTHER)
 
         # Only show bounties that have not yet expired.
+        # For OPEN bounties: check expiration_date
+        # For ASSESSMENT bounties: check assessment_end_date
         # We have a periodic celery task to update expiration of bounties
         # that have expired however, it only runs a few times a day so for
         # a brief period, a situation could arise where a bounty is considered
         # OPEN but has actually expired.
         now = timezone.now()
-        applied_filters &= Q(expiration_date__gt=now)
+        # Include OPEN bounties that haven't expired OR ASSESSMENT bounties
+        # that haven't finished assessment
+        applied_filters &= Q(status=Bounty.OPEN, expiration_date__gt=now) | Q(
+            status=Bounty.ASSESSMENT, assessment_end_date__gt=now
+        )
 
         # Combine the filters
         if review_or_answer_filter:
@@ -680,6 +695,7 @@ class BountyViewSet(viewsets.ModelViewSet):
                 "id",
                 "item",
                 "expiration_date",
+                "assessment_end_date",
                 "status",
                 "bounty_type",
                 "hubs",
@@ -715,6 +731,7 @@ class BountyViewSet(viewsets.ModelViewSet):
                 "id",
                 "item",
                 "expiration_date",
+                "assessment_end_date",
                 "status",
                 "total_amount",
                 "unified_document",
