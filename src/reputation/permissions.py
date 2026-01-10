@@ -48,12 +48,22 @@ class UserCanApproveBounty(BasePermission):
     def has_object_permission(self, request, view, obj):
         self.message = "Invalid Bounty user"
 
-        if obj.status != Bounty.OPEN:
+        if obj.status not in (Bounty.OPEN, Bounty.ASSESSMENT):
             self.message = "Bounty is closed."
             return False
-        elif obj.expiration_date <= datetime.now(pytz.UTC):
-            self.message = "Bounty is expired"
-            return False
+        
+        now = datetime.now(pytz.UTC)
+        if obj.status == Bounty.OPEN:
+            # During OPEN phase, check expiration_date
+            if obj.expiration_date and obj.expiration_date <= now:
+                self.message = "Bounty is expired"
+                return False
+        elif obj.status == Bounty.ASSESSMENT:
+            # During ASSESSMENT phase, check assessment_end_date
+            if obj.assessment_end_date and obj.assessment_end_date <= now:
+                self.message = "Bounty assessment period has expired"
+                return False
+        
         if obj.item_content_type == ContentType.objects.get_for_model(
             ResearchhubUnifiedDocument
         ):  # for question bounties, the question creator can control all bounties
@@ -71,7 +81,7 @@ class UserCanCancelBounty(BasePermission):
     def has_object_permission(self, request, view, obj):
         self.message = "Invalid Bounty user"
 
-        if obj.status != Bounty.OPEN:
+        if obj.status not in (Bounty.OPEN, Bounty.ASSESSMENT):
             self.message = "Bounty is closed."
             return False
         return obj.created_by == request.user

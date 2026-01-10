@@ -146,6 +146,7 @@ class Escrow(DefaultModel):
                 action_user=self.created_by,
                 item=self,
                 notification_type=Notification.BOUNTY_PAYOUT,
+                extra={"amount": str(payout_amount)},
             )
             notification.send_notification()
         elif self.hold_type == self.FUNDRAISE:
