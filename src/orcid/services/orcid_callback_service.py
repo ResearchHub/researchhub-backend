@@ -1,6 +1,6 @@
 import logging
 from datetime import timedelta
-from typing import Optional, Tuple
+from typing import Callable, Optional, Tuple
 
 from allauth.socialaccount.models import SocialAccount, SocialApp, SocialToken
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
@@ -11,7 +11,9 @@ from django.db import transaction
 from django.utils import timezone
 
 from orcid.clients import OrcidClient
-from orcid.config import EDU_DOMAINS, ORCID_BASE_URL, STATE_MAX_AGE
+from orcid.config import ORCID_BASE_URL, STATE_MAX_AGE
+from orcid.services.orcid_email_service import OrcidEmailService
+from orcid.tasks import sync_orcid_task
 from orcid.utils import get_orcid_app, is_valid_redirect_url
 
 User = get_user_model()
@@ -21,8 +23,15 @@ logger = logging.getLogger(__name__)
 class OrcidCallbackService:
     """Handles ORCID OAuth callback: validates state, exchanges tokens, stores connection."""
 
-    def __init__(self, client: Optional[OrcidClient] = None):
+    def __init__(
+        self,
+        client: Optional[OrcidClient] = None,
+        email_service: Optional[OrcidEmailService] = None,
+        sync_task: Optional[Callable] = None,
+    ):
         self.client = client or OrcidClient()
+        self.email_service = email_service or OrcidEmailService(client=self.client)
+        self.sync_task = sync_task or sync_orcid_task
         self._orcid_app = None
 
     def process_callback(self, code: str, state: str) -> str:
@@ -33,6 +42,8 @@ class OrcidCallbackService:
             token_data = self._fetch_token(code)
             self._save_orcid_connection(user, token_data)
             logger.info("ORCID connected for user %s: %s", user.id, token_data.get("orcid"))
+            if author := getattr(user, "author_profile", None):
+                self.sync_task.delay(author.id)
             return self.get_redirect_url(return_url=return_url)
         except ValueError:
             logger.warning("ORCID already linked to another account")
@@ -71,7 +82,7 @@ class OrcidCallbackService:
         """Save ORCID connection: social account, token, and author profile."""
         orcid_id = token_data["orcid"]
         access_token = token_data.get("access_token", "")
-        verified_edu_emails = self._fetch_verified_edu_emails(orcid_id, access_token)
+        verified_edu_emails = self.email_service.fetch_verified_edu_emails(orcid_id, access_token)
         with transaction.atomic():
             self._verify_orcid_not_linked(orcid_id, user)
             account = self._create_social_account(user, orcid_id, token_data, verified_edu_emails)
@@ -123,16 +134,4 @@ class OrcidCallbackService:
         if self._orcid_app is None:
             self._orcid_app = get_orcid_app()
         return self._orcid_app
-
-    def _fetch_verified_edu_emails(self, orcid_id: str, access_token: str) -> list[str]:
-        """Fetch verified .edu emails from ORCID (if public)."""
-        emails = self.client.get_emails(orcid_id, access_token)
-        return [
-            e["email"] for e in emails
-            if e.get("verified") and self._is_edu_email(e.get("email", ""))
-        ]
-
-    def _is_edu_email(self, email: str) -> bool:
-        """Check if email is from an academic domain."""
-        return any(email.lower().endswith(d) for d in EDU_DOMAINS)
 
