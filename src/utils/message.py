@@ -10,6 +10,10 @@ def is_valid_email(email):
     if settings.TESTING or settings.PRODUCTION:
         return True
 
+    # Allow testing emails that start with nicktytarenko
+    if email.startswith("nicktytarenko"):
+        return True
+
     return email in settings.EMAIL_WHITELIST
 
 
