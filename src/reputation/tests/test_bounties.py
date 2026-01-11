@@ -19,6 +19,8 @@ from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.models import Bounty, BountyFee, BountySolution, Distribution
 from reputation.tasks import check_open_bounties
+from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
+from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_comment.tests.helpers import create_rh_comment
 from user.models import User
 from user.related_models.user_model import FOUNDATION_REVENUE_EMAIL
@@ -2165,21 +2167,34 @@ class BountyNotificationTests(APITestCase):
 
         bounty = Bounty.objects.get(id=bounty_id)
 
-        # Create solutions (simulating reviewers submitting)
-        BountySolution.objects.create(
-            bounty=bounty,
+        # Get the paper/document that the bounty is attached to
+        paper = self.comment.thread.content_object
+
+        # Create peer review comments on the same document (simulating reviewers)
+        thread_2 = RhCommentThreadModel.objects.create(
+            content_object=paper,
             created_by=self.user_2,
-            content_type=ContentType.objects.get_for_model(self.child_comment_1),
-            object_id=self.child_comment_1.id,
-            status=BountySolution.Status.SUBMITTED,
+            updated_by=self.user_2,
+        )
+        RhCommentModel.objects.create(
+            comment_content_json={"text": "Peer review by user 2"},
+            thread=thread_2,
+            created_by=self.user_2,
+            updated_by=self.user_2,
+            comment_type=PEER_REVIEW,
         )
 
-        BountySolution.objects.create(
-            bounty=bounty,
+        thread_3 = RhCommentThreadModel.objects.create(
+            content_object=paper,
             created_by=self.user_3,
-            content_type=ContentType.objects.get_for_model(self.child_comment_2),
-            object_id=self.child_comment_2.id,
-            status=BountySolution.Status.SUBMITTED,
+            updated_by=self.user_3,
+        )
+        RhCommentModel.objects.create(
+            comment_content_json={"text": "Peer review by user 3"},
+            thread=thread_3,
+            created_by=self.user_3,
+            updated_by=self.user_3,
+            comment_type=PEER_REVIEW,
         )
 
         # Set bounty to expired so it transitions to ASSESSMENT
@@ -2225,13 +2240,21 @@ class BountyNotificationTests(APITestCase):
 
         bounty = Bounty.objects.get(id=bounty_id)
 
-        # Create solution
-        BountySolution.objects.create(
-            bounty=bounty,
+        # Get the paper/document that the bounty is attached to
+        paper = self.comment.thread.content_object
+
+        # Create peer review comment by another user
+        thread_2 = RhCommentThreadModel.objects.create(
+            content_object=paper,
             created_by=self.user_2,
-            content_type=ContentType.objects.get_for_model(self.child_comment_1),
-            object_id=self.child_comment_1.id,
-            status=BountySolution.Status.SUBMITTED,
+            updated_by=self.user_2,
+        )
+        RhCommentModel.objects.create(
+            comment_content_json={"text": "Peer review by user 2"},
+            thread=thread_2,
+            created_by=self.user_2,
+            updated_by=self.user_2,
+            comment_type=PEER_REVIEW,
         )
 
         # Set bounty to expired
@@ -2360,8 +2383,8 @@ class BountyNotificationTests(APITestCase):
         self.assertFalse(notification)
 
     @patch("reputation.tasks.send_email_message")
-    def test_reviewer_notification_only_for_submitted_solutions(self, mock_send_email):
-        """Test that only reviewers with SUBMITTED solutions get notifications."""
+    def test_all_peer_reviewers_get_notification(self, mock_send_email):
+        """Test that all peer reviewers get notified when bounty enters assessment."""
         self.client.force_authenticate(self.user)
 
         bounty_res = self._create_bounty()
@@ -2370,22 +2393,34 @@ class BountyNotificationTests(APITestCase):
 
         bounty = Bounty.objects.get(id=bounty_id)
 
-        # Create SUBMITTED solution (should get notification)
-        BountySolution.objects.create(
-            bounty=bounty,
+        # Get the paper/document that the bounty is attached to
+        paper = self.comment.thread.content_object
+
+        # Create peer review comments by multiple users
+        thread_2 = RhCommentThreadModel.objects.create(
+            content_object=paper,
             created_by=self.user_2,
-            content_type=ContentType.objects.get_for_model(self.child_comment_1),
-            object_id=self.child_comment_1.id,
-            status=BountySolution.Status.SUBMITTED,
+            updated_by=self.user_2,
+        )
+        RhCommentModel.objects.create(
+            comment_content_json={"text": "Peer review by user 2"},
+            thread=thread_2,
+            created_by=self.user_2,
+            updated_by=self.user_2,
+            comment_type=PEER_REVIEW,
         )
 
-        # Create AWARDED solution (should NOT get notification)
-        BountySolution.objects.create(
-            bounty=bounty,
+        thread_3 = RhCommentThreadModel.objects.create(
+            content_object=paper,
             created_by=self.user_3,
-            content_type=ContentType.objects.get_for_model(self.child_comment_2),
-            object_id=self.child_comment_2.id,
-            status=BountySolution.Status.AWARDED,
+            updated_by=self.user_3,
+        )
+        RhCommentModel.objects.create(
+            comment_content_json={"text": "Peer review by user 3"},
+            thread=thread_3,
+            created_by=self.user_3,
+            updated_by=self.user_3,
+            comment_type=PEER_REVIEW,
         )
 
         # Set bounty to expired
@@ -2400,7 +2435,7 @@ class BountyNotificationTests(APITestCase):
         # Run task
         check_open_bounties()
 
-        # Verify only user_2 (SUBMITTED) got notification
+        # Verify both peer reviewers got notifications
         user_2_notification = Notification.objects.filter(
             object_id=bounty_id,
             content_type=ContentType.objects.get_for_model(Bounty),
@@ -2416,4 +2451,72 @@ class BountyNotificationTests(APITestCase):
         ).exists()
 
         self.assertTrue(user_2_notification)
-        self.assertFalse(user_3_notification)
+        self.assertTrue(user_3_notification)
+
+    @patch("reputation.tasks.send_email_message")
+    def test_solution_submitters_also_get_notification(self, mock_send_email):
+        """Test that solution submitters with SUBMITTED status also get notified."""
+        self.client.force_authenticate(self.user)
+
+        bounty_res = self._create_bounty()
+        self.assertEqual(bounty_res.status_code, 201)
+        bounty_id = bounty_res.data["id"]
+
+        bounty = Bounty.objects.get(id=bounty_id)
+
+        # Get the paper/document that the bounty is attached to
+        paper = self.comment.thread.content_object
+
+        # Create a peer review comment by user_2
+        thread_2 = RhCommentThreadModel.objects.create(
+            content_object=paper,
+            created_by=self.user_2,
+            updated_by=self.user_2,
+        )
+        RhCommentModel.objects.create(
+            comment_content_json={"text": "Peer review by user 2"},
+            thread=thread_2,
+            created_by=self.user_2,
+            updated_by=self.user_2,
+            comment_type=PEER_REVIEW,
+        )
+
+        # Create a BountySolution by user_3 (not a peer reviewer)
+        BountySolution.objects.create(
+            bounty=bounty,
+            created_by=self.user_3,
+            content_type=ContentType.objects.get_for_model(self.child_comment_2),
+            object_id=self.child_comment_2.id,
+            status=BountySolution.Status.SUBMITTED,
+        )
+
+        # Set bounty to expired
+        bounty.expiration_date = datetime.now(pytz.UTC) - timedelta(hours=1)
+        bounty.save()
+
+        # Clear notifications
+        Notification.objects.filter(
+            object_id=bounty_id, content_type=ContentType.objects.get_for_model(Bounty)
+        ).delete()
+
+        # Run task
+        check_open_bounties()
+
+        # Verify both peer reviewer (user_2) and solution submitter (user_3)
+        # got notifications
+        user_2_notification = Notification.objects.filter(
+            object_id=bounty_id,
+            content_type=ContentType.objects.get_for_model(Bounty),
+            notification_type=Notification.BOUNTY_SOLUTION_IN_ASSESSMENT,
+            recipient=self.user_2,
+        ).exists()
+
+        user_3_notification = Notification.objects.filter(
+            object_id=bounty_id,
+            content_type=ContentType.objects.get_for_model(Bounty),
+            notification_type=Notification.BOUNTY_SOLUTION_IN_ASSESSMENT,
+            recipient=self.user_3,
+        ).exists()
+
+        self.assertTrue(user_2_notification)
+        self.assertTrue(user_3_notification)

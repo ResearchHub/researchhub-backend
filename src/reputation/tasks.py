@@ -157,7 +157,8 @@ def evaluate_transaction(transaction_hash, w3, token_address, max_age=None):
         transaction_hash: The hash of the transaction to evaluate
         w3: Web3 instance connected to the blockchain
         token_address: Address of the ERC20 token contract
-        max_age: Optional max age in seconds. Defaults to PENDING_TRANSACTION_MAX_AGE if not provided
+        max_age: Optional max age in seconds. Defaults to
+            PENDING_TRANSACTION_MAX_AGE if not provided
 
     Returns:
         tuple: (is_valid_and_recent, deposit_amount)
@@ -352,9 +353,12 @@ def check_open_bounties():
             outer_subject = "Your ResearchHub Bounty Submission Period Ending"
             context = {**base_email_context}
             context["action"] = {
-                "message": f"Your bounty submission period is ending in 24 hours. \
-                After that, no new reviews will be submitted. You'll have {ASSESSMENT_PERIOD_DAYS} days \
-                to review and award the best solutions.",
+                "message": (
+                    f"Your bounty submission period is ending in 24 hours. "
+                    f"After that, no new reviews will be submitted. You'll "
+                    f"have {ASSESSMENT_PERIOD_DAYS} days to review and award "
+                    f"the best solutions."
+                ),
                 "frontend_view_link": unified_doc.frontend_view_link(),
             }
             context["subject"] = "Bounty Submission Period Ending Soon"
@@ -390,8 +394,11 @@ def check_open_bounties():
         outer_subject = "Your ResearchHub Bounty Entered Assessment Phase"
         context = {**base_email_context}
         context["action"] = {
-            "message": f"Submission period has ended. No new peer reviews will be submitted. \
-            You have {ASSESSMENT_PERIOD_DAYS} days to review and award the best solutions.",
+            "message": (
+                f"Submission period has ended. No new peer reviews will be submitted. "
+                f"You have {ASSESSMENT_PERIOD_DAYS} days to review and award the best "
+                f"solutions."
+            ),
             "frontend_view_link": unified_doc.frontend_view_link(),
         }
         context["subject"] = "Bounty Entered Assessment Phase"
@@ -403,17 +410,29 @@ def check_open_bounties():
             html_template="general_email_message.html",
         )
 
-        # Notify reviewers who submitted solutions
-        submitted_solutions = (
-            BountySolution.objects.filter(
-                bounty=bounty, status=BountySolution.Status.SUBMITTED
-            )
-            .select_related("created_by")
-            .values_list("created_by", flat=True)
+        # Notify reviewers who submitted peer reviews on this document
+        # AND solution submitters with SUBMITTED status
+        # Combine both sets of user IDs, excluding bounty creator
+        peer_reviews = unified_doc.get_peer_review_comments()
+        peer_reviewer_ids = set(
+            peer_reviews.exclude(created_by=bounty_creator)
+            .values_list("created_by_id", flat=True)
             .distinct()
         )
 
-        for reviewer_id in submitted_solutions:
+        solution_submitter_ids = set(
+            BountySolution.objects.filter(
+                bounty=bounty, status=BountySolution.Status.SUBMITTED
+            )
+            .exclude(created_by=bounty_creator)
+            .values_list("created_by_id", flat=True)
+            .distinct()
+        )
+
+        # Combine both sets
+        all_reviewer_ids = peer_reviewer_ids | solution_submitter_ids
+
+        for reviewer_id in all_reviewer_ids:
             reviewer = User.objects.get(id=reviewer_id)
             # Check if notification already exists to avoid duplicates
             if not Notification.objects.filter(
