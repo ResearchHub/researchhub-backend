@@ -15,11 +15,11 @@ from analytics.amplitude import Amplitude
 from oauth.serializers import SocialLoginSerializer
 from researchhub.settings import (
     GOOGLE_REDIRECT_URL,
+    MAILCHIMP_KEY,
     MAILCHIMP_LIST_ID,
     MAILCHIMP_SERVER,
     RECAPTCHA_SECRET_KEY,
     RECAPTCHA_VERIFY_URL,
-    keys,
 )
 from utils import sentry
 from utils.http import RequestMethods
@@ -91,7 +91,7 @@ def user_signed_up_(request, user, **kwargs):
 def mailchimp_add_user(request, user, **kwargs):
     """Adds user email to MailChimp"""
     mailchimp = Client()
-    mailchimp.set_config({"api_key": keys.MAILCHIMP_KEY, "server": MAILCHIMP_SERVER})
+    mailchimp.set_config({"api_key": MAILCHIMP_KEY, "server": MAILCHIMP_SERVER})
 
     try:
         member_info = {"email_address": user.email, "status": "subscribed"}
