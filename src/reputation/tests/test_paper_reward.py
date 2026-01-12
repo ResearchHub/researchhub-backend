@@ -9,7 +9,7 @@ from paper.openalex_util import process_openalex_works
 from reputation.related_models.paper_reward import HubCitationValue, PaperReward
 from utils.openalex import OpenAlex
 
-paper_fixtures_dir = Path(__file__).parent.parent.parent / "paper" / "tests" / "fixtures"
+paper_fixtures_dir = Path(__file__).parent / "fixtures"
 
 
 class PaperRewardTestCase(TestCase):

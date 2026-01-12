@@ -18,7 +18,7 @@ from researchhub_comment.tests.helpers import create_rh_comment
 from user.models import User
 from utils.openalex import OpenAlex
 
-paper_fixtures_dir = Path(__file__).parent.parent.parent / "paper" / "tests" / "fixtures"
+paper_fixtures_dir = Path(__file__).parent / "fixtures"
 
 
 class InitializeReputationCommandTestCase(TestCase):
