@@ -133,9 +133,6 @@ class Bounty(DefaultModel):
     def set_assessment_status(self, should_save=True):
         self.set_status(self.ASSESSMENT, should_save=should_save)
 
-    def set_assessment_status(self, should_save=True):
-        self.set_status(self.ASSESSMENT, should_save=should_save)
-
     def get_bounty_proportions(self):
         children = self.children
         has_children = children.exists()

@@ -530,7 +530,7 @@ class BountyViewSet(viewsets.ModelViewSet):
             bounty = self.get_object()
             if bounty.status not in (Bounty.OPEN, Bounty.ASSESSMENT):
                 return Response(
-                    {"error": "Bounty is not open or in assessment phase."}, status=400
+                    {"error": "Bounty must be open or in assessment."}, status=400
                 )
 
             if bounty.parent is not None:
