@@ -1,3 +1,5 @@
+import logging
+
 import regex as re
 import requests
 from django.contrib.contenttypes.fields import GenericRelation
@@ -10,7 +12,6 @@ from django.db.models.functions import Cast
 from manubot.cite.doi import get_doi_csl_item
 from manubot.cite.unpaywall import Unpaywall
 
-import utils.sentry as sentry
 from discussion.models import AbstractGenericReactionModel, Vote
 from hub.models import Hub
 from paper.lib import journal_hosts
@@ -30,6 +31,9 @@ HOT_SCORE_WEIGHT = 5
 HELP_TEXT_IS_PUBLIC = "Hides the paper from the public."
 HELP_TEXT_IS_REMOVED = "Hides the paper because it is not allowed."
 HELP_TEXT_IS_PDF_REMOVED = "Hides the PDF because it infringes Copyright."
+
+
+logger = logging.getLogger(__name__)
 
 
 class Paper(AbstractGenericReactionModel):
@@ -377,7 +381,7 @@ class Paper(AbstractGenericReactionModel):
                 if csl_item:
                     break
             except Exception as e:
-                sentry.log_error(e)
+                logger.error(f"Error getting csl_item for paper {self.id}: {e}")
 
         if not csl_item:
             return None
@@ -387,7 +391,7 @@ class Paper(AbstractGenericReactionModel):
             unpaywall = Unpaywall.from_csl_item(csl_item)
             best_openly_licensed_pdf = unpaywall.best_openly_licensed_pdf
         except Exception as e:
-            sentry.log_error(e)
+            logger.error(f"Error getting openly licensed pdf for paper {self.id}: {e}")
 
         if not best_openly_licensed_pdf:
             return None
