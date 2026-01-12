@@ -38,7 +38,7 @@ class AuthorClaimTests(APITestCase):
         with open("./user/tests/test_files/openalex_authors.json", "r") as authors_file:
             authors_data = json.load(authors_file)["results"]
 
-            with open("./paper/tests/openalex_author_works.json", "r") as works_file:
+            with open("./user/tests/openalex_author_works.json", "r") as works_file:
                 works_data = json.load(works_file)["results"]
                 mock_get_works.return_value = (works_data, None)
                 mock_get_authors.return_value = (authors_data, None)
@@ -79,7 +79,7 @@ class AuthorClaimTests(APITestCase):
         with open("./user/tests/test_files/openalex_authors.json", "r") as authors_file:
             authors_data = json.load(authors_file)["results"]
 
-            with open("./paper/tests/openalex_author_works.json", "r") as works_file:
+            with open("./user/tests/openalex_author_works.json", "r") as works_file:
                 works_data = json.load(works_file)["results"]
                 mock_get_works.return_value = (works_data, None)
                 mock_get_authors.return_value = (authors_data, None)
@@ -122,7 +122,7 @@ class AuthorClaimTests(APITestCase):
         with open("./user/tests/test_files/openalex_authors.json", "r") as authors_file:
             authors_data = json.load(authors_file)["results"]
 
-            with open("./paper/tests/openalex_author_works.json", "r") as works_file:
+            with open("./user/tests/openalex_author_works.json", "r") as works_file:
                 works_data = json.load(works_file)["results"]
                 mock_get_works.return_value = (works_data, None)
                 mock_get_authors.return_value = (authors_data, None)
@@ -173,7 +173,7 @@ class AuthorClaimTests(APITestCase):
         with open("./user/tests/test_files/openalex_authors.json", "r") as authors_file:
             authors_data = json.load(authors_file)["results"]
 
-            with open("./paper/tests/openalex_author_works.json", "r") as works_file:
+            with open("./user/tests/openalex_author_works.json", "r") as works_file:
                 works_data = json.load(works_file)["results"]
                 mock_get_works.return_value = (works_data, None)
                 mock_get_authors.return_value = (authors_data, None)
