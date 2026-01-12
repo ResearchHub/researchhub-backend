@@ -1,8 +1,7 @@
 import json
-import os
+from pathlib import Path
 from unittest.mock import patch
 
-from django.conf import settings
 from rest_framework.test import APITestCase
 
 from notification.models import Notification
@@ -15,6 +14,8 @@ from user.related_models.user_verification_model import UserVerification
 from user.tests.helpers import create_moderator, create_random_default_user
 from utils.openalex import OpenAlex
 
+paper_fixtures_dir = Path(__file__).parent.parent.parent / "paper" / "tests" / "fixtures"
+
 
 class ViewTests(APITestCase):
     @patch.object(OpenAlex, "get_authors")
@@ -23,17 +24,11 @@ class ViewTests(APITestCase):
         self.verified_user = create_random_default_user("verified user")
         self.unverified_user = create_random_default_user("UNVERIFIED USER")
 
-        works_file_path = os.path.join(
-            settings.BASE_DIR, "paper", "tests", "openalex_works.json"
-        )
-        with open(works_file_path, "r") as file:
+        with open(paper_fixtures_dir / "openalex_works.json", "r") as file:
             response = json.load(file)
             self.works = response.get("results")
 
-        authors_file_path = os.path.join(
-            settings.BASE_DIR, "paper", "tests", "openalex_authors.json"
-        )
-        with open(authors_file_path, "r") as file:
+        with open(paper_fixtures_dir / "openalex_authors.json", "r") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
 

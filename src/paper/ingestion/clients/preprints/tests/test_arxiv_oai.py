@@ -2,8 +2,8 @@
 Tests for ArXiv OAI client.
 """
 
-import os
 from datetime import datetime
+from pathlib import Path
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
@@ -14,6 +14,9 @@ from paper.ingestion.clients.preprints.arxiv_oai import (
 )
 
 
+fixtures_dir = Path(__file__).parent / "fixtures"
+
+
 class TestArXivOAIClient(TestCase):
 
     def setUp(self):
@@ -21,24 +24,16 @@ class TestArXivOAIClient(TestCase):
         self.client = ArXivOAIClient(self.config)
 
         # Load fixture files
-        fixtures_dir = os.path.join(os.path.dirname(__file__), "fixtures")
-
-        with open(
-            os.path.join(fixtures_dir, "arxiv_oai_sample_response.xml"), "r"
-        ) as f:
+        with open(fixtures_dir / "arxiv_oai_sample_response.xml", "r") as f:
             self.sample_xml_response = f.read()
 
-        with open(os.path.join(fixtures_dir, "arxiv_oai_empty_response.xml"), "r") as f:
+        with open(fixtures_dir / "arxiv_oai_empty_response.xml", "r") as f:
             self.empty_xml_response = f.read()
 
-        with open(
-            os.path.join(fixtures_dir, "arxiv_oai_with_resumption.xml"), "r"
-        ) as f:
+        with open(fixtures_dir / "arxiv_oai_with_resumption.xml", "r") as f:
             self.resumption_xml_response = f.read()
 
-        with open(
-            os.path.join(fixtures_dir, "arxiv_oai_metadata_sample.xml"), "r"
-        ) as f:
+        with open(fixtures_dir / "arxiv_oai_metadata_sample.xml", "r") as f:
             self.sample_metadata_xml = f.read()
 
     def test_config_defaults(self):

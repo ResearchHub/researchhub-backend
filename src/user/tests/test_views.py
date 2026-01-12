@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from unittest.mock import patch
 
 from django.core.cache import cache
@@ -22,6 +23,8 @@ from user.tests.helpers import (
 )
 from utils.openalex import OpenAlex
 from utils.test_helpers import get_authenticated_patch_response
+
+test_files_dir = Path(__file__).parent / "test_files"
 
 
 class UserApiTests(APITestCase):
@@ -119,7 +122,7 @@ class UserApiTests(APITestCase):
     @patch.object(OpenAlex, "get_authors")
     def test_add_publications_to_author(self, mock_get_authors, mock_get_works):
         with open(
-            "./user/tests/test_files/openalex_author_works.json", "r"
+            test_files_dir / "openalex_author_works.json", "r"
         ) as works_file:
             # Mock responses for OpenAlex API calls
             mock_data = json.load(works_file)
@@ -221,7 +224,7 @@ class UserApiTests(APITestCase):
     @patch.object(OpenAlex, "get_authors")
     def _add_publications_to_author(self, author, mock_get_authors, mock_get_works):
         with open(
-            "./user/tests/test_files/openalex_author_works.json", "r"
+            test_files_dir / "openalex_author_works.json", "r"
         ) as works_file:
             # Mock responses for OpenAlex API calls
             mock_data = json.load(works_file)
@@ -317,11 +320,11 @@ class UserViewsTests(TestCase):
         from paper.models import Paper
 
         works = None
-        with open("./user/tests/test_files/openalex_works.json", "r") as file:
+        with open(test_files_dir / "openalex_works.json", "r") as file:
             response = json.load(file)
             works = response.get("results")
 
-        with open("./user/tests/test_files/openalex_authors.json", "r") as file:
+        with open(test_files_dir / "openalex_authors.json", "r") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
 
@@ -377,11 +380,11 @@ class UserViewsTests(TestCase):
         from paper.models import Paper
 
         works = None
-        with open("./user/tests/test_files/openalex_works.json", "r") as file:
+        with open(test_files_dir / "openalex_works.json", "r") as file:
             response = json.load(file)
             works = response.get("results")
 
-        with open("./user/tests/test_files/openalex_authors.json", "r") as file:
+        with open(test_files_dir / "openalex_authors.json", "r") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
 
@@ -406,11 +409,11 @@ class UserViewsTests(TestCase):
         from paper.models import Paper
 
         works = None
-        with open("./user/tests/test_files/openalex_works.json", "r") as file:
+        with open(test_files_dir / "openalex_works.json", "r") as file:
             response = json.load(file)
             works = response.get("results")
 
-        with open("./user/tests/test_files/openalex_authors.json", "r") as file:
+        with open(test_files_dir / "openalex_authors.json", "r") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
 
@@ -435,11 +438,11 @@ class UserViewsTests(TestCase):
         from paper.models import Paper
 
         works = None
-        with open("./user/tests/test_files/openalex_works.json", "r") as file:
+        with open(test_files_dir / "openalex_works.json", "r") as file:
             response = json.load(file)
             works = response.get("results")
 
-        with open("./user/tests/test_files/openalex_authors.json", "r") as file:
+        with open(test_files_dir / "openalex_authors.json", "r") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
 

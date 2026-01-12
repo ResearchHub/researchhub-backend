@@ -1,8 +1,7 @@
 import json
-import os
+from pathlib import Path
 from unittest.mock import patch
 
-from django.conf import settings
 from django.test import TestCase
 
 from paper.models import Paper
@@ -10,21 +9,17 @@ from paper.openalex_util import process_openalex_works
 from reputation.related_models.paper_reward import HubCitationValue, PaperReward
 from utils.openalex import OpenAlex
 
+paper_fixtures_dir = Path(__file__).parent.parent.parent / "paper" / "tests" / "fixtures"
+
 
 class PaperRewardTestCase(TestCase):
     @patch.object(OpenAlex, "get_authors")
     def setUp(self, mock_get_authors):
-        works_file_path = os.path.join(
-            settings.BASE_DIR, "paper", "tests", "openalex_works.json"
-        )
-        with open(works_file_path, "r") as file:
+        with open(paper_fixtures_dir / "openalex_works.json", "r") as file:
             response = json.load(file)
             self.works = response.get("results")
 
-        authors_file_path = os.path.join(
-            settings.BASE_DIR, "paper", "tests", "openalex_authors.json"
-        )
-        with open(authors_file_path, "r") as file:
+        with open(paper_fixtures_dir / "openalex_authors.json", "r") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
 
