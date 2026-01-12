@@ -1,8 +1,11 @@
+import logging
+
 from django.conf import settings
 from mailchimp_marketing import Client
 
 from analytics.amplitude import Amplitude
-from utils import sentry
+
+logger = logging.getLogger(__name__)
 
 
 class UserSignupService:
@@ -31,8 +34,8 @@ class UserSignupService:
             self.mailchimp_client.lists.add_list_member(
                 settings.MAILCHIMP_LIST_ID, member_info
             )
-        except Exception as error:
-            sentry.log_error(error, message=error.text)
+        except Exception as e:
+            logger.error(f"Failed to add user {user.id} to MailChimp: {e}")
 
     def track_signup(self, request, user, **kwargs):
         """
@@ -53,4 +56,4 @@ class UserSignupService:
             view = TempView()
             self.amplitude_client.build_hit(res, view, request, **kwargs)
         except Exception as e:
-            sentry.log_error(e)
+            logger.error(f"Failed to track signup for user {user.id} in Amplitude: {e}")
