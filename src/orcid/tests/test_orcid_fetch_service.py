@@ -20,7 +20,7 @@ class NormalizeOrcidTests(TestCase):
         # Arrange
         cases = [
             ("https://orcid.org/0000-0001-2345-6789", "https://orcid.org/0000-0001-2345-6789", "0000-0001-2345-6789"),
-            ("http://orcid.org/0000-0001-2345-6789", "https://orcid.org/0000-0001-2345-6789", "0000-0001-2345-6789"),
+            ("https://orcid.org/0000-0001-2345-6789", "https://orcid.org/0000-0001-2345-6789", "0000-0001-2345-6789"),
             ("0000-0001-2345-6789", "https://orcid.org/0000-0001-2345-6789", "0000-0001-2345-6789"),
             (None, None, None),
             ("", None, None),

@@ -25,7 +25,7 @@ def _normalize_orcid(orcid: str | None) -> tuple[str | None, str | None]:
     """Normalize ORCID to (full_url, bare_id) format."""
     if not orcid:
         return None, None
-    bare = orcid.replace("https://orcid.org/", "").replace("http://orcid.org/", "")
+    bare = orcid.replace("https://orcid.org/", "")
     return f"https://orcid.org/{bare}", bare
 
 
