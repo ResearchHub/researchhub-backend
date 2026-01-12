@@ -21,6 +21,14 @@ User = get_user_model()
 logger = logging.getLogger(__name__)
 
 
+def _normalize_orcid(orcid: str | None) -> tuple[str | None, str | None]:
+    """Normalize ORCID to (full_url, bare_id) format."""
+    if not orcid:
+        return None, None
+    bare = orcid.replace("https://orcid.org/", "").replace("http://orcid.org/", "")
+    return f"https://orcid.org/{bare}", bare
+
+
 class OrcidFetchService:
     """Syncs papers and edu emails from ORCID to ResearchHub."""
 
@@ -147,9 +155,12 @@ class OrcidFetchService:
             if not orcid_url or not openalex_author_id:
                 continue
 
+            # Normalize ORCID to handle both full URL and bare ID formats
+            full_orcid, bare_orcid = _normalize_orcid(orcid_url)
+
             # Find user's author by ORCID (must be OAuth-connected)
             user_author = Author.objects.filter(
-                orcid_id=orcid_url,
+                Q(orcid_id=full_orcid) | Q(orcid_id=bare_orcid),
                 user__isnull=False,
                 user__socialaccount__provider=OrcidProvider.id,
             ).first()

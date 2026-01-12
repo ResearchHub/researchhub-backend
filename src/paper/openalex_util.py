@@ -404,6 +404,10 @@ def create_openalex_authorships_and_institutions(
             authors_for_oa_author = authors_by_oa_id.get(author_openalex_id, [])
 
             for author in authors_for_oa_author:
+                # Skip user-connected authors - they are linked via merged_with_author
+                if author.user is not None:
+                    continue
+
                 # Associate paper with author
                 is_corresponding = oa_authorship.get("is_corresponding")
                 raw_author_name = oa_authorship.get("author", {}).get("display_name")
@@ -478,6 +482,13 @@ def merge_openalex_author_with_researchhub_author(openalex_author, researchhub_a
     """
     Merges the OpenAlex author data with the ResearchHub author data. This is necessary because the OpenAlex author data
     """
+    is_user_connected = researchhub_author.user is not None
+
+    # Update ORCID only for non-user authors (users have ORCID from OAuth)
+    orcid = openalex_author.get("orcid")
+    if orcid and not is_user_connected:
+        researchhub_author.orcid_id = orcid
+
     # Update basic metadata fields
     researchhub_author.i10_index = openalex_author.get("summary_stats", {}).get(
         "i10_index"
@@ -486,11 +497,11 @@ def merge_openalex_author_with_researchhub_author(openalex_author, researchhub_a
     researchhub_author.two_year_mean_citedness = openalex_author.get(
         "summary_stats", {}
     ).get("2yr_mean_citedness")
-    researchhub_author.orcid_id = openalex_author.get("orcid")
 
-    # Associate this openalex id with the author
-    if openalex_author["id"] not in researchhub_author.openalex_ids:
-        researchhub_author.openalex_ids.append(openalex_author["id"])
+    # Associate OpenAlex ID only for non-user authors (prevents authorship conflicts)
+    if not is_user_connected:
+        if openalex_author["id"] not in researchhub_author.openalex_ids:
+            researchhub_author.openalex_ids.append(openalex_author["id"])
 
     researchhub_author.save()
 

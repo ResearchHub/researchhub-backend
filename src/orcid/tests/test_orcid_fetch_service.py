@@ -5,11 +5,32 @@ from django.core.cache import cache
 from django.test import TestCase
 
 from orcid.services import OrcidFetchService
+from orcid.services.orcid_fetch_service import _normalize_orcid
 from orcid.tests.helpers import OrcidTestHelper
 from paper.models import Paper
 from paper.related_models.authorship_model import Authorship
 from user.related_models.author_model import Author
 from user.tests.helpers import create_random_default_user
+
+
+class NormalizeOrcidTests(TestCase):
+    """Tests for the _normalize_orcid helper function."""
+
+    def test_normalizes_all_formats_to_consistent_output(self):
+        # Arrange
+        cases = [
+            ("https://orcid.org/0000-0001-2345-6789", "https://orcid.org/0000-0001-2345-6789", "0000-0001-2345-6789"),
+            ("http://orcid.org/0000-0001-2345-6789", "https://orcid.org/0000-0001-2345-6789", "0000-0001-2345-6789"),
+            ("0000-0001-2345-6789", "https://orcid.org/0000-0001-2345-6789", "0000-0001-2345-6789"),
+            (None, None, None),
+            ("", None, None),
+        ]
+
+        # Act & Assert
+        for input_val, expected_full, expected_bare in cases:
+            full, bare = _normalize_orcid(input_val)
+            self.assertEqual(full, expected_full, f"Failed for input: {input_val}")
+            self.assertEqual(bare, expected_bare, f"Failed for input: {input_val}")
 
 
 class OrcidFetchServiceTests(TestCase):
