@@ -58,7 +58,6 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
     authors = serializers.SerializerMethodField()
     boost_amount = serializers.SerializerMethodField()
     bullet_points = serializers.SerializerMethodField()
-    csl_item = serializers.SerializerMethodField()
     file = serializers.SerializerMethodField()
     pdf_url = serializers.SerializerMethodField()
     pdf_copyright_allows_display = serializers.SerializerMethodField()
@@ -152,12 +151,6 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
 
     def get_bullet_points(self, paper):
         return None
-
-    def get_csl_item(self, paper):
-        if self.context.get("purchase_minimal_serialization", False):
-            return None
-
-        return paper.csl_item
 
     def get_first_figure(self, paper):
         try:
@@ -371,7 +364,6 @@ class ContributionPaperSerializer(BasePaperSerializer):
     first_figure = None
     first_preview = None
     bullet_points = None
-    csl_item = None
     summary = None
     discussion_users = None
 
@@ -385,7 +377,6 @@ class PaperSerializer(BasePaperSerializer):
         read_only_fields = [
             "authors",
             "citations",
-            "csl_item",
             "discussion_count",
             "external_source",
             "id",
