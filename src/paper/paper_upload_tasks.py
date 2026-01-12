@@ -706,13 +706,14 @@ def create_paper_related_tags(paper, openalex_concepts=[], openalex_topics=[]):
 
     if paper.external_source:
         journal = _get_or_create_journal_hub(paper.external_source)
-        paper.unified_document.hubs.add(journal)
+        if journal:
+            paper.unified_document.hubs.add(journal)
 
     # Add preprint hub for papers from preprint servers
     _add_preprint_hub_if_applicable(paper)
 
 
-def _get_or_create_journal_hub(external_source: str) -> Hub:
+def _get_or_create_journal_hub(external_source: str) -> Hub | None:
     """
     Get or create a journal hub from the given journal name.
     This function also considers the managed mapping of OpenAlex sources to journal hubs
@@ -728,10 +729,15 @@ def _get_or_create_journal_hub(external_source: str) -> Hub:
     if journal_hub is None:
         journal_hub = _get_journal_hub(external_source)
         if journal_hub is None:
-            journal_hub = Hub.objects.create(
-                name=external_source,
-                namespace=Hub.Namespace.JOURNAL,
-            )
+            try:
+                journal_hub, _ = Hub.objects.get_or_create(
+                    name__iexact=external_source,
+                    namespace=Hub.Namespace.JOURNAL,
+                    defaults={"name": external_source},
+                )
+            except IntegrityError:
+                # Race condition: another worker created it first
+                journal_hub = _get_journal_hub(external_source)
 
     return journal_hub
 

@@ -270,8 +270,9 @@ def fetch_authors_for_works(openalex_works) -> List[Dict[str, Any]]:
         oa_authorships = work.get("authorships", [])
         for oa_authorship in oa_authorships:
             author_openalex_id = oa_authorship.get("author", {}).get("id")
-            just_id = author_openalex_id.split("/")[-1]
-            all_authors_to_fetch.add(just_id)
+            if author_openalex_id:
+                just_id = author_openalex_id.split("/")[-1]
+                all_authors_to_fetch.add(just_id)
 
     fetched_oa_authors = []
     for i in range(0, len(all_authors_to_fetch), batch_size):

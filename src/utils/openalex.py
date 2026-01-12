@@ -103,6 +103,14 @@ class OpenAlex:
             work.get("abstract_inverted_index", {})
         )
 
+        # Parse publication_date and make it timezone-aware
+        publication_date = work.get("publication_date")
+        if publication_date:
+            parsed_date = parser.parse(publication_date)
+            if not is_aware(parsed_date):
+                parsed_date = make_aware(parsed_date, get_current_timezone())
+            publication_date = parsed_date
+
         paper = {
             "doi": doi,
             "url": url,
@@ -110,7 +118,7 @@ class OpenAlex:
             "raw_authors": format_raw_authors(raw_authors),
             "title": title,
             "paper_title": title,
-            "paper_publish_date": work.get("publication_date", None),
+            "paper_publish_date": publication_date,
             "is_open_access": oa.get("is_oa", None),
             "oa_status": oa.get("oa_status", None),
             "pdf_license": primary_location.get("license", None),
