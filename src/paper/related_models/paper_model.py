@@ -362,32 +362,25 @@ class Paper(AbstractGenericReactionModel):
         if pdf_license:
             return pdf_license
 
-        csl_item = self.csl_item
-        retrieved_csl = False
-        if not csl_item:
-            fields = ["doi", "url", "pdf_url"]
-            for field in fields:
-                item = getattr(self, field)
-                if not item:
-                    continue
-                try:
-                    if field == "doi":
-                        csl_item = get_doi_csl_item(item)
-                    else:
-                        csl_item = get_csl_item(item)
+        csl_item = None
+        fields = ["doi", "url", "pdf_url"]
+        for field in fields:
+            item = getattr(self, field)
+            if not item:
+                continue
+            try:
+                if field == "doi":
+                    csl_item = get_doi_csl_item(item)
+                else:
+                    csl_item = get_csl_item(item)
 
-                    if csl_item:
-                        retrieved_csl = True
-                        break
-                except Exception as e:
-                    sentry.log_error(e)
+                if csl_item:
+                    break
+            except Exception as e:
+                sentry.log_error(e)
 
         if not csl_item:
             return None
-
-        if retrieved_csl and save:
-            self.csl_item = csl_item
-            self.save()
 
         best_openly_licensed_pdf = {}
         try:
