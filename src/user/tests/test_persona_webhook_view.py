@@ -7,8 +7,7 @@ from notification.models import Notification
 from user.models import User, UserVerification
 from user.views import PersonaWebhookView
 
-
-test_files_dir = Path(__file__).parent / "test_files"
+fixtures_dir = Path(__file__).parent / "fixtures"
 
 
 class PersonaWebhookViewTests(TestCase):
@@ -28,7 +27,7 @@ class PersonaWebhookViewTests(TestCase):
         )
 
     def read_test_file(self, filename):
-        with open(test_files_dir / filename, "r") as file:
+        with open(fixtures_dir / filename, "r") as file:
             return file.read()
 
     @override_settings(PERSONA_WEBHOOK_SECRET=webhook_secret)

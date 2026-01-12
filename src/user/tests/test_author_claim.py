@@ -9,7 +9,7 @@ from user.models import UserVerification
 from user.tests.helpers import create_user
 from utils.openalex import OpenAlex
 
-test_files_dir = Path(__file__).parent / "test_files"
+fixtures_dir = Path(__file__).parent / "fixtures"
 
 
 class AuthorClaimTests(APITestCase):
@@ -38,10 +38,10 @@ class AuthorClaimTests(APITestCase):
     def test_user_can_claim_openalex_profile_if_not_already_claimed(
         self, mock_get_works, mock_get_authors
     ):
-        with open(test_files_dir / "openalex_authors.json", "r") as authors_file:
+        with open(fixtures_dir / "openalex_authors.json", "r") as authors_file:
             authors_data = json.load(authors_file)["results"]
 
-            with open(test_files_dir / "openalex_author_works.json", "r") as works_file:
+            with open(fixtures_dir / "openalex_author_works.json", "r") as works_file:
                 works_data = json.load(works_file)["results"]
                 mock_get_works.return_value = (works_data, None)
                 mock_get_authors.return_value = (authors_data, None)
@@ -79,10 +79,10 @@ class AuthorClaimTests(APITestCase):
     def test_claiming_user_should_have_publications_in_their_profile(
         self, mock_get_works, mock_get_authors
     ):
-        with open(test_files_dir / "openalex_authors.json", "r") as authors_file:
+        with open(fixtures_dir / "openalex_authors.json", "r") as authors_file:
             authors_data = json.load(authors_file)["results"]
 
-            with open(test_files_dir / "openalex_author_works.json", "r") as works_file:
+            with open(fixtures_dir / "openalex_author_works.json", "r") as works_file:
                 works_data = json.load(works_file)["results"]
                 mock_get_works.return_value = (works_data, None)
                 mock_get_authors.return_value = (authors_data, None)
@@ -122,10 +122,10 @@ class AuthorClaimTests(APITestCase):
     def test_claiming_user_should_have_openalex_stats_set_in_profile(
         self, mock_get_works, mock_get_authors
     ):
-        with open(test_files_dir / "openalex_authors.json", "r") as authors_file:
+        with open(fixtures_dir / "openalex_authors.json", "r") as authors_file:
             authors_data = json.load(authors_file)["results"]
 
-            with open(test_files_dir / "openalex_author_works.json", "r") as works_file:
+            with open(fixtures_dir / "openalex_author_works.json", "r") as works_file:
                 works_data = json.load(works_file)["results"]
                 mock_get_works.return_value = (works_data, None)
                 mock_get_authors.return_value = (authors_data, None)
@@ -173,10 +173,10 @@ class AuthorClaimTests(APITestCase):
     ):
         from user.related_models.author_model import Author
 
-        with open(test_files_dir / "openalex_authors.json", "r") as authors_file:
+        with open(fixtures_dir / "openalex_authors.json", "r") as authors_file:
             authors_data = json.load(authors_file)["results"]
 
-            with open(test_files_dir / "openalex_author_works.json", "r") as works_file:
+            with open(fixtures_dir / "openalex_author_works.json", "r") as works_file:
                 works_data = json.load(works_file)["results"]
                 mock_get_works.return_value = (works_data, None)
                 mock_get_authors.return_value = (authors_data, None)
