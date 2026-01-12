@@ -1,5 +1,6 @@
 import json
 import re
+from pathlib import Path
 
 import responses
 from rest_framework.test import APITestCase
@@ -16,6 +17,8 @@ from paper.paper_upload_tasks import (
 )
 from paper.related_models.paper_model import Paper
 from user.tests.helpers import create_random_default_user
+
+fixtures_dir = Path(__file__).parent
 
 
 class PaperSubmissionViewTests(APITestCase):
@@ -106,7 +109,7 @@ class PaperSubmissionViewTests(APITestCase):
 
     def _install_mock_responses(self):
         # https://api.openalex.org/works?filter=doi:10.34133/2020/8086309
-        with open("./paper/tests/work_by_doi.json", "r") as response_body_file:
+        with open(fixtures_dir / "work_by_doi.json", "r") as response_body_file:
             works_json = json.load(response_body_file)
         works_response = responses.Response(
             method="GET",
@@ -126,7 +129,7 @@ class PaperSubmissionViewTests(APITestCase):
         # |https://openalex.org/C41008148
         # |https://openalex.org/C33923547
         with open(
-            "./paper/tests/concepts_by_openalex_id.json", "r"
+            fixtures_dir / "concepts_by_openalex_id.json", "r"
         ) as response_body_file:
             concepts_json = json.load(response_body_file)
         concepts_response = responses.Response(
