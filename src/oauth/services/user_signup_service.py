@@ -15,9 +15,9 @@ class UserSignupService:
      - Tracking in Amplitude.
     """
 
-    def __init__(self, mailchimp_client=None, amplitude_client=None):
-        self.mailchimp_client = mailchimp_client or Client()
+    def __init__(self, amplitude_client=None, mailchimp_client=None):
         self.amplitude_client = amplitude_client or Amplitude()
+        self.mailchimp_client = mailchimp_client or Client()
 
     def add_to_mailchimp(self, user):
         """
