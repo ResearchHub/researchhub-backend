@@ -18,7 +18,7 @@ from paper.paper_upload_tasks import (
 from paper.related_models.paper_model import Paper
 from user.tests.helpers import create_random_default_user
 
-fixtures_dir = Path(__file__).parent
+fixtures_dir = Path(__file__).parent / "fixtures"
 
 
 class PaperSubmissionViewTests(APITestCase):

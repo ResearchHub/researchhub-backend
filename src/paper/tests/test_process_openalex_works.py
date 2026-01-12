@@ -21,7 +21,7 @@ from paper.tests.helpers import create_paper
 from user.related_models.author_model import Author
 from utils.openalex import OpenAlex
 
-fixtures_dir = Path(__file__).parent
+fixtures_dir = Path(__file__).parent / "fixtures"
 
 
 class ProcessOpenAlexWorksTests(APITestCase):

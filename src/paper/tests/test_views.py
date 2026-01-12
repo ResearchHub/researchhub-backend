@@ -23,7 +23,7 @@ from utils.test_helpers import (
     get_authenticated_post_response,
 )
 
-fixtures_dir = Path(__file__).parent
+fixtures_dir = Path(__file__).parent / "fixtures"
 
 
 class PaperApiTests(APITestCase):
