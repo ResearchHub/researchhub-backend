@@ -12,7 +12,6 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from oauth.serializers import SocialLoginSerializer
-from oauth.services.user_signup_service import UserSignupService
 from utils.http import RequestMethods
 from utils.throttles import captcha_unlock
 
@@ -79,13 +78,3 @@ def user_signed_up_(request, user, **kwargs):
 
     else:
         return None
-
-
-@receiver(user_signed_up)
-def handle_user_signup(request, user, **kwargs):
-    """
-    Add user email to Mailchimp and track signup in Amplitude.
-    """
-    service = UserSignupService()
-    service.add_to_mailchimp(user)
-    service.track_signup(request, user, **kwargs)
