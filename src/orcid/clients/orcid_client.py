@@ -3,7 +3,7 @@ from typing import Optional
 
 import requests
 
-from orcid.config import ACCEPT_JSON, ORCID_API_URL, ORCID_BASE_URL
+from orcid.config import APPLICATION_JSON , ORCID_API_URL, ORCID_BASE_URL
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class OrcidClient:
         """Exchange OAuth authorization code for access token."""
         response = self.session.post(
             f"{ORCID_BASE_URL}/oauth/token",
-            headers={"Accept": ACCEPT_JSON},
+            headers={"Accept": APPLICATION_JSON },
             data={
                 "client_id": client_id,
                 "client_secret": client_secret,
@@ -40,7 +40,7 @@ class OrcidClient:
         try:
             response = self.session.get(
                 f"{ORCID_API_URL}/v3.0/{orcid_id}/email",
-                headers={"Authorization": f"Bearer {access_token}", "Accept": ACCEPT_JSON},
+                headers={"Authorization": f"Bearer {access_token}", "Accept": APPLICATION_JSON },
                 timeout=REQUEST_TIMEOUT,
             )
             response.raise_for_status()
