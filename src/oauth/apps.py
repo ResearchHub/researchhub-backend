@@ -14,3 +14,6 @@ class OAuthConfig(AppConfig):
 
     name = "oauth"
     verbose_name = "OAuth"
+
+    def ready(self):
+        import oauth.signals  # noqa: F401
