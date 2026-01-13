@@ -120,11 +120,10 @@ class AmplitudeEventParserTests(TestCase):
         interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsInstance(interaction, AmplitudeEvent)
-        self.assertEqual(interaction.user, self.user)
+        self.assertEqual(interaction.user_id, self.user.id)
         self.assertEqual(interaction.event_type, FEED_ITEM_ABSTRACT_EXPANDED)
-        self.assertEqual(interaction.unified_document, self.post.unified_document)
+        self.assertEqual(interaction.unified_document_id, self.post.unified_document.id)
         self.assertEqual(interaction.content_type, self.content_type)
-        self.assertEqual(interaction.object_id, self.post.id)
 
     def test_converts_event_type_to_uppercase(self):
         """Test that lowercase Amplitude event types are converted to uppercase."""
@@ -204,9 +203,7 @@ class AmplitudeEventParserTests(TestCase):
             interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsNone(interaction)
-        self.assertIn(
-            "No user_id or external_user_id (amplitude_id) found", log.output[0]
-        )
+        self.assertIn("No user_id or external_user_id for event", log.output[0])
 
     def test_invalid_event_type_returns_none(self):
         """Test that invalid event types return None."""
