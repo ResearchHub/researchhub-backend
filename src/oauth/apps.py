@@ -11,5 +11,9 @@ class OAuthConfig(AppConfig):
     Otherwise, successfull logins will redirect to the url set by
     LOGIN_REDIRECT_URL.
     """
-    name = 'oauth'
-    verbose_name = 'OAuth'
+
+    name = "oauth"
+    verbose_name = "OAuth"
+
+    def ready(self):
+        import oauth.signals  # noqa: F401
