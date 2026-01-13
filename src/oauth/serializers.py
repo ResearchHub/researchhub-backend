@@ -1,3 +1,5 @@
+import logging
+
 from dj_rest_auth.registration.serializers import (
     SocialLoginSerializer as BaseSocialLoginSerializer,
 )
@@ -6,7 +8,8 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from user.models import User
-from utils import sentry
+
+logger = logging.getLogger(__name__)
 
 
 class SocialLoginSerializer(BaseSocialLoginSerializer):
@@ -24,7 +27,7 @@ class SocialLoginSerializer(BaseSocialLoginSerializer):
         except serializers.ValidationError:
             raise
         except Exception as e:
-            sentry.log_error(e, message="Social login failed")
+            logger.error("Social login failed", exc_info=e)
             raise serializers.ValidationError(_("Incorrect value"))
 
     def post_signup(self, login, attrs):
@@ -40,4 +43,6 @@ class SocialLoginSerializer(BaseSocialLoginSerializer):
                     user.invited_by = referral_user
                     user.save()
         except Exception as e:
-            sentry.log_error(e)
+            logger.error(
+                f"Failed to handle referral code for user {user.id}", exc_info=e
+            )
