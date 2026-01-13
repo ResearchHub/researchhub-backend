@@ -10,9 +10,17 @@ from utils.sentry import log_error
 @app.task(queue=QUEUE_EXTERNAL_REPORTING)
 def process_amplitude_event(event: Dict[str, Any]) -> None:
     """Process a single Amplitude event asynchronously."""
+    from analytics.exceptions import EventProcessingError
     from analytics.services.event_processor import EventProcessor
 
-    EventProcessor().process_event(event)
+    try:
+        EventProcessor().process_event(event)
+    except EventProcessingError as e:
+        log_error(
+            e,
+            message="Failed to process Amplitude event",
+            json_data={"event": event},
+        )
 
 
 @app.task(queue=QUEUE_EXTERNAL_REPORTING)

@@ -4,6 +4,7 @@ from typing import Any, Dict
 from django.db import transaction
 
 from analytics.constants.event_types import BULK_FEED_IMPRESSION
+from analytics.exceptions import EventProcessingError
 from analytics.interactions.amplitude_event_parser import AmplitudeEventParser
 from analytics.interactions.interaction_mapper import map_from_amplitude_event
 from analytics.models import UserInteractions
@@ -42,9 +43,9 @@ class EventProcessor:
         amplitude_event = self.amplitude_parser.parse_amplitude_event(event)
         if amplitude_event is None:
             user_identifier = self._get_user_identifier(user_id, external_user_id)
-            error_msg = f"Could not parse event {event_type} for user {user_identifier}"
-            logger.error(error_msg)
-            raise ValueError(error_msg)
+            raise EventProcessingError(
+                f"Could not parse event {event_type} for user {user_identifier}"
+            )
 
         interaction = map_from_amplitude_event(amplitude_event)
 
@@ -91,11 +92,10 @@ class EventProcessor:
 
         except Exception as e:
             user_identifier = self._get_user_identifier(user_id, external_user_id)
-            logger.error(
+            raise EventProcessingError(
                 f"Failed to save interaction: {event_type} "
                 f"for user {user_identifier} - {e}"
-            )
-            raise
+            ) from e
 
     def _process_bulk_event(self, event: Dict[str, Any]) -> None:
         """Process a bulk event that creates multiple interaction records."""
@@ -104,9 +104,7 @@ class EventProcessor:
         external_user_id = event.get("amplitude_id") or event_props.get("amplitude_id")
 
         if not user_id and not external_user_id:
-            error_msg = "No user_id or external_user_id for bulk event"
-            logger.error(error_msg)
-            raise ValueError(error_msg)
+            raise EventProcessingError("No user_id or external_user_id for bulk event")
 
         # Parse the bulk event into individual AmplitudeEvent objects
         amplitude_events = self.amplitude_parser.parse_bulk_impression_event(event)
@@ -114,7 +112,6 @@ class EventProcessor:
         user_identifier = self._get_user_identifier(user_id, external_user_id)
 
         if not amplitude_events:
-            logger.warning(f"No valid impressions parsed for user {user_identifier}")
             return
 
         created_count = 0

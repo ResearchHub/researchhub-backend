@@ -10,6 +10,7 @@ from analytics.constants.event_types import (
     FEED_ITEM_IMPRESSION,
     PAGE_VIEW,
 )
+from analytics.exceptions import EventProcessingError
 from analytics.models import UserInteractions
 from analytics.services.event_processor import EventProcessor
 from researchhub_document.helpers import create_post
@@ -148,7 +149,7 @@ class EventProcessorTestCase(TestCase):
 
         initial_count = UserInteractions.objects.count()
 
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises(EventProcessingError) as context:
             self.processor.process_event(event)
 
         self.assertIn("Could not parse event", str(context.exception))
@@ -208,7 +209,7 @@ class EventProcessorTestCase(TestCase):
         self.assertEqual(interaction.object_id, self.post.id)
 
     def test_process_event_raises_exception_for_flat_format_invalid_content_type(self):
-        """Test process_event raises ValueError for flat format invalid content_type."""
+        """Test process_event raises ValueError for invalid content_type."""
         event = {
             "event_type": "feed_item_clicked",
             "event_properties": {
@@ -221,7 +222,7 @@ class EventProcessorTestCase(TestCase):
 
         initial_count = UserInteractions.objects.count()
 
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises(EventProcessingError) as context:
             self.processor.process_event(event)
 
         self.assertIn("Could not parse event", str(context.exception))
@@ -725,7 +726,7 @@ class EventProcessorTestCase(TestCase):
             },
         }
 
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises(EventProcessingError) as context:
             self.processor.process_event(event)
 
         self.assertIn("No user_id or external_user_id", str(context.exception))
