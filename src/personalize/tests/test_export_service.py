@@ -4,10 +4,13 @@ Tests for ExportService.
 
 import csv
 import tempfile
+from datetime import datetime
 from unittest.mock import patch
 
 from django.test import TestCase
 
+from analytics.constants.event_types import FEED_ITEM_IMPRESSION
+from analytics.models import UserInteractions
 from personalize.config.constants import CSV_HEADERS
 from personalize.services.export_service import ExportService
 from personalize.tests.helpers import (
@@ -21,6 +24,7 @@ from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     QUESTION,
 )
+from user.tests.helpers import create_random_default_user
 
 
 class ExportItemsIteratorTests(TestCase):
@@ -326,3 +330,42 @@ class IntegrationTests(TestCase):
         self.assertIn("HAS_ACTIVE_BOUNTY", items[0])
         self.assertIn("PROPOSAL_IS_OPEN", items[0])
         self.assertIn("RFP_IS_OPEN", items[0])
+
+    def test_export_includes_feed_item_impression_events(self):
+        """Test that documents with FEED_ITEM_IMPRESSION events are exported."""
+        # Arrange
+        user = create_random_default_user("impression_test_user")
+        doc = create_prefetched_paper(title="Paper with Impression")
+
+        # Create a FEED_ITEM_IMPRESSION interaction
+        UserInteractions.objects.create(
+            user=user,
+            event=FEED_ITEM_IMPRESSION,
+            unified_document=doc,
+            content_type=None,
+            object_id=None,
+            event_timestamp=datetime.now(),
+            is_synced_with_personalize=False,
+            personalize_rec_id="test-rec-id",
+        )
+
+        queryset = (
+            ResearchhubUnifiedDocument.objects.filter(id=doc.id)
+            .select_related("paper")
+            .prefetch_related(
+                "hubs",
+                "related_bounties",
+                "fundraises",
+                "grants",
+                "paper__authorships__author",
+            )
+        )
+        service = ExportService(chunk_size=10)
+
+        # Act
+        items = list(service.export_items(queryset))
+
+        # Assert
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["ITEM_ID"], str(doc.id))
+        self.assertIn("TITLE", items[0])
