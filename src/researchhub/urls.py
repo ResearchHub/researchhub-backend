@@ -15,7 +15,6 @@ from django.conf import settings
 from django.urls import include, path, re_path
 from rest_framework import routers
 
-import analytics.views
 import hub.views
 import invite.views as invite_views
 import mailing_list.views
