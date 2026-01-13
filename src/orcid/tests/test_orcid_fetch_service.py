@@ -5,7 +5,6 @@ from django.core.cache import cache
 from django.test import TestCase
 
 from orcid.services import OrcidFetchService
-from orcid.services.orcid_fetch_service import _normalize_orcid
 from orcid.tests.helpers import OrcidTestHelper
 from paper.models import Paper
 from paper.related_models.authorship_model import Authorship
@@ -27,7 +26,7 @@ class NormalizeOrcidTests(TestCase):
 
         # Act & Assert
         for input_val, expected_full, expected_bare in cases:
-            full, bare = _normalize_orcid(input_val)
+            full, bare = OrcidFetchService._normalize_orcid(input_val)
             self.assertEqual(full, expected_full, f"Failed for input: {input_val}")
             self.assertEqual(bare, expected_bare, f"Failed for input: {input_val}")
 

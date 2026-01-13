@@ -44,6 +44,13 @@ class OrcidFetchService:
         self.email_service = email_service or OrcidEmailService(client=self.client)
         self.process_works_fn = process_works_fn or process_openalex_works
 
+    @staticmethod
+    def _normalize_orcid(orcid: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
+        """Normalize ORCID to (full_url, bare_id) format."""
+        if not orcid:
+            return None, None
+        return f"https://orcid.org/{orcid.replace('https://orcid.org/', '')}", orcid.replace("https://orcid.org/", "")
+        
     def sync_orcid(self, author_id: int) -> dict:
         """Sync an author's ORCID papers and edu emails to their ResearchHub profile."""
         author, orcid_id = self._get_author_and_orcid_id(author_id)
