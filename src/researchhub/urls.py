@@ -38,6 +38,7 @@ from feed.views import (
     GrantFeedViewSet,
     JournalFeedViewSet,
 )
+from orcid.views import OrcidCallbackView, OrcidConnectView
 from organizations.views import NonprofitFundraiseLinkViewSet, NonprofitOrgViewSet
 from paper.views import paper_upload_views
 from purchase.views import stripe_webhook_view
@@ -50,7 +51,6 @@ from user.views import author_views, editor_views, moderator_view, persona_webho
 from user.views.custom_verify_email_view import CustomVerifyEmailView
 from user_lists.views import ListItemViewSet, ListViewSet
 from user_saved.views import UserSavedView
-from orcid.views import OrcidConnectView, OrcidCallbackView 
 
 router = routers.DefaultRouter()
 
