@@ -54,7 +54,7 @@ class OrcidClient:
         try:
             response = self.session.get(
                 f"{ORCID_API_URL}/v3.0/{orcid_id}/works",
-                headers={"Accept": ACCEPT_JSON},
+                headers={"Accept": APPLICATION_JSON},
                 timeout=REQUEST_TIMEOUT,
             )
             response.raise_for_status()
