@@ -8,7 +8,7 @@ from personalize.config.settings import PERSONALIZE_CONFIG
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_CACHE_TIMEOUT = 1800
+DEFAULT_CACHE_TIMEOUT = 300
 DEFAULT_NUM_RESULTS = 200
 
 

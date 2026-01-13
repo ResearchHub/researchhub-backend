@@ -50,8 +50,10 @@ class UserInteractions(DefaultModel):
     content_type = models.ForeignKey(
         ContentType,
         on_delete=models.CASCADE,
+        null=True,
+        blank=True,
     )
-    object_id = models.PositiveIntegerField()
+    object_id = models.PositiveIntegerField(null=True, blank=True)
     item = GenericForeignKey("content_type", "object_id")
     event_timestamp = models.DateTimeField()
     is_synced_with_personalize = models.BooleanField(default=False)
@@ -111,6 +113,7 @@ class UserInteractions(DefaultModel):
                         "PAGE_VIEW",
                         "DOCUMENT_TAB_CLICKED",
                         "FEED_ITEM_ABSTRACT_EXPANDED",
+                        "FEED_ITEM_IMPRESSION",
                     ]
                 ),
                 name="unique_daily_repeatable_interactions",

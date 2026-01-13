@@ -7,7 +7,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from django.utils import timezone
 
-from analytics.constants.event_types import PAGE_VIEW
+from analytics.constants.event_types import FEED_ITEM_IMPRESSION, PAGE_VIEW
 from analytics.models import UserInteractions
 from hub.models import Hub
 from hub.tests.helpers import create_hub
@@ -217,3 +217,28 @@ class SyncServiceTests(TestCase):
         # Neither should be present
         self.assertNotIn("impression", event)
         self.assertNotIn("recommendationId", event)
+
+    def test_sync_impression_event_uses_correct_weight(self):
+        """Test that FEED_ITEM_IMPRESSION event uses weight of 0.2"""
+        user = User.objects.create_user(
+            username="impression_user", email="impression@researchhub.com"
+        )
+        post = create_post(created_by=user)
+
+        interaction = UserInteractions.objects.create(
+            user=user,
+            event=FEED_ITEM_IMPRESSION,
+            unified_document=post.unified_document,
+            content_type=None,
+            object_id=None,
+            event_timestamp=timezone.now(),
+            personalize_rec_id="rec-impression-123",
+        )
+
+        service = SyncService()
+        event = service._build_interaction_event(interaction)
+
+        # Check that event weight is 0.2
+        self.assertEqual(event["eventValue"], 0.2)
+        self.assertEqual(event["eventType"], FEED_ITEM_IMPRESSION)
+        self.assertEqual(event["itemId"], str(post.unified_document.id))
