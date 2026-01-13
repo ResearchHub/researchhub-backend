@@ -4,7 +4,6 @@ from allauth.socialaccount.models import SocialAccount
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
 from dj_rest_auth.registration.views import SocialLoginView
-from dj_rest_auth.views import LoginView
 from django.conf import settings
 from django.dispatch import receiver
 from rest_framework.decorators import api_view, permission_classes
@@ -46,12 +45,6 @@ class GoogleLogin(SocialLoginView):
     callback_url = settings.GOOGLE_REDIRECT_URL
     client_class = OAuth2Client
     serializer_class = SocialLoginSerializer
-
-
-class EmailLoginView(LoginView):
-    def post(self, request, *args, **kwargs):
-        res = super().post(request, *args, **kwargs)
-        return res
 
 
 @receiver(user_signed_up)
