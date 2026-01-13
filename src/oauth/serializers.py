@@ -5,7 +5,6 @@ from django.urls.exceptions import NoReverseMatch
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
-from oauth.exceptions import LoginError
 from oauth.helpers import complete_social_login
 from user.models import User
 from utils import sentry
@@ -69,7 +68,7 @@ class SocialLoginSerializer(serializers.Serializer):
             complete_social_login(request, social_login)
         except NoReverseMatch as e:
             if "account_inactive" in str(e):
-                raise LoginError(None, "Account is suspended")
+                raise serializers.ValidationError(_("Account is suspended"))
         except Exception as e:
             sentry.log_error(e, message="Social login failed")
             raise serializers.ValidationError(_("Incorrect value"))
