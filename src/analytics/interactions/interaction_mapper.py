@@ -62,7 +62,6 @@ def map_from_amplitude_event(amplitude_event: AmplitudeEvent) -> UserInteraction
 
     Returns:
         UserInteractions instance (not saved to database).
-        Uses _id fields to set foreign keys without fetching objects.
     """
     return UserInteractions(
         user_id=amplitude_event.user_id,

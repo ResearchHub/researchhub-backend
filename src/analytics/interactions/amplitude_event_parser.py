@@ -98,17 +98,7 @@ class AmplitudeEventParser:
     def _extract_user_ids(
         self, event: Dict[str, Any], validate_user_exists: bool = True
     ) -> Tuple[Optional[int], Optional[str]]:
-        """Extract user_id and external_user_id from event.
-
-        Args:
-            event: Raw event dict
-            validate_user_exists: If True, verify user exists before returning user_id.
-                If user doesn't exist, user_id will be None (falling back to
-                external_user_id). Default True for backwards compatibility.
-
-        Returns:
-            Tuple of (user_id as int or None, external_user_id as str or None)
-        """
+        """Extract user_id and external_user_id from event."""
         event_props = event.get("event_properties", {})
         user_id_str = event_props.get("user_id") or event.get("user_id")
         external_user_id = event.get("amplitude_id") or event_props.get("amplitude_id")
@@ -132,10 +122,6 @@ class AmplitudeEventParser:
         self, event: Dict[str, Any], time_field: str = "time"
     ) -> datetime:
         """Extract timestamp from event.
-
-        Args:
-            event: Raw event dict
-            time_field: Field name for timestamp (default "time", some use "_time")
 
         Returns:
             Parsed datetime or current time if not available
@@ -207,7 +193,6 @@ class AmplitudeEventParser:
                     logger.warning(f"Invalid content_type/object_id: {e}")
                     return None
             elif content_type_str and object_id:
-                # Need to look up unified_document from content_type + object_id
                 try:
                     content_type = AmplitudeEventParser.get_content_type(
                         content_type_str

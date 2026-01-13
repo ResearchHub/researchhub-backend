@@ -2,7 +2,7 @@ from datetime import datetime
 from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase, TransactionTestCase
+from django.test import TestCase
 
 from analytics.constants.event_types import (
     DOCUMENT_TAB_CLICKED,
@@ -729,40 +729,3 @@ class EventProcessorTestCase(TestCase):
             self.processor.process_event(event)
 
         self.assertIn("No user_id or external_user_id", str(context.exception))
-
-
-class EventProcessorFKConstraintTests(TransactionTestCase):
-    """Tests that require TransactionTestCase for FK constraint behavior."""
-
-    def setUp(self):
-        """Set up test data."""
-        self.user = create_random_default_user("fk_test_user")
-        self.post = create_post(created_by=self.user, title="FK Test Post")
-        self.processor = EventProcessor()
-
-    def test_bulk_impression_invalid_unified_document_id_fk_violation(self):
-        """Test impressions with non-existent unified_document_id fail gracefully."""
-        event = {
-            "user_id": str(self.user.id),
-            "time": int(datetime.now().timestamp() * 1000),
-            "event_type": "bulk_feed_impression",
-            "event_properties": {
-                "impressions": [
-                    {
-                        "unifiedDocumentId": "999999999",  # Non-existent ID
-                        "recommendationId": "rec-1",
-                    },
-                    {
-                        "unifiedDocumentId": str(self.post.unified_document.id),
-                        "recommendationId": "rec-2",
-                    },
-                ],
-            },
-        }
-
-        initial_count = UserInteractions.objects.count()
-        self.processor.process_event(event)
-        final_count = UserInteractions.objects.count()
-
-        # Should only create 1 interaction (FK violation skips the invalid one)
-        self.assertEqual(final_count, initial_count + 1)

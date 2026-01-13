@@ -23,12 +23,6 @@ class EventProcessor:
     def process_event(self, event: Dict[str, Any]) -> None:
         """
         Process an event, routing to appropriate handler based on event type.
-
-        Args:
-            event: The Amplitude event data
-
-        Raises:
-            ValueError: If event cannot be parsed or is missing required data
         """
         event_type = event.get("event_type", "unknown").lower()
 
