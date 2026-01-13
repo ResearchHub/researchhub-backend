@@ -1,5 +1,6 @@
 from unittest.mock import Mock, patch
 
+from allauth.socialaccount.models import SocialAccount
 from django.test import TestCase, override_settings
 
 from oauth.services.user_signup_service import UserSignupService
@@ -126,3 +127,90 @@ class TrackSignupTests(TestCase):
             call_args = mock_logger.error.call_args[0][0]
             self.assertIn(str(self.user.id), call_args)
             self.assertIn("Amplitude Error", call_args)
+
+
+class SetGoogleProfileImageTests(TestCase):
+    def setUp(self):
+        self.mock_amplitude_client = Mock()
+        self.mock_mailchimp_client = Mock()
+        self.service = UserSignupService(
+            amplitude_client=self.mock_amplitude_client,
+            mailchimp_client=self.mock_mailchimp_client,
+        )
+        self.user = create_random_default_user("google_profile_test")
+
+    def test_sets_profile_image_from_google_account(self):
+        """
+        Test that profile image is set from Google account.
+        """
+        # Arrange
+        picture_url = "https://google.com/profile.jpg"
+        SocialAccount.objects.create(
+            user=self.user,
+            provider="google",
+            uid="123",
+            extra_data={"picture": picture_url},
+        )
+
+        # Act
+        self.service.set_google_profile_image(self.user)
+
+        # Assert
+        self.user.author_profile.refresh_from_db()
+        self.assertEqual(self.user.author_profile.profile_image, picture_url)
+
+    def test_does_not_overwrite_existing_profile_image(self):
+        """
+        Test that existing profile image is not overwritten.
+        """
+        # Arrange
+        existing_image = "https://researchhub.com/existing.jpg"
+        self.user.author_profile.profile_image = existing_image
+        self.user.author_profile.save()
+
+        SocialAccount.objects.create(
+            user=self.user,
+            provider="google",
+            uid="123",
+            extra_data={"picture": "https://google.com/profile.jpg"},
+        )
+
+        # Act
+        self.service.set_google_profile_image(self.user)
+
+        # Assert
+        self.user.author_profile.refresh_from_db()
+        self.assertEqual(self.user.author_profile.profile_image, existing_image)
+
+    def test_does_nothing_when_no_google_account(self):
+        """
+        Test that nothing happens when user has no Google social account.
+        """
+        # Act
+        self.service.set_google_profile_image(self.user)
+
+        # Assert
+        self.user.author_profile.refresh_from_db()
+        self.assertFalse(self.user.author_profile.profile_image)
+
+    def test_logs_error_when_multiple_google_accounts(self):
+        """
+        Test that an error is logged when user has multiple Google accounts.
+        """
+        # Arrange
+        SocialAccount.objects.create(
+            user=self.user, provider="google", uid="123", extra_data={"picture": "url1"}
+        )
+        SocialAccount.objects.create(
+            user=self.user, provider="google", uid="456", extra_data={"picture": "url2"}
+        )
+
+        # Act
+        with self.assertLogs(
+            "oauth.services.user_signup_service", level="ERROR"
+        ) as logs:
+            self.service.set_google_profile_image(self.user)
+
+        # Assert
+        # User ID should be in the log message
+        self.assertIn(str(self.user.id), logs.output[0])
