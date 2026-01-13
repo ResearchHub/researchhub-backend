@@ -61,23 +61,21 @@ class UserSignupService:
 
     def set_google_profile_image(self, user):
         """
-        After a user signs up with social account, set their profile image.
+        Set user's profile image from their Google account if not already set.
         """
-        queryset = SocialAccount.objects.filter(provider="google", user=user)
+        try:
+            google_account = SocialAccount.objects.get(provider="google", user=user)
+        except SocialAccount.DoesNotExist:
+            return
+        except SocialAccount.MultipleObjectsReturned:
+            logger.error(f"User {user.id} has multiple Google social accounts")
+            return
 
-        if queryset.exists():
-            if queryset.count() > 1:
-                raise Exception(
-                    f"Expected 1 item in the queryset. Found {queryset.count()}."
-                )
+        picture_url = google_account.extra_data.get("picture")
+        if not picture_url:
+            return
 
-            google_account = queryset.first()
-            url = google_account.extra_data.get("picture", None)
-
-            if user.author_profile and not user.author_profile.profile_image:
-                user.author_profile.profile_image = url
-                user.author_profile.save()
-            return None
-
-        else:
-            return None
+        author_profile = user.author_profile
+        if author_profile and not author_profile.profile_image:
+            author_profile.profile_image = picture_url
+            author_profile.save(update_fields=["profile_image"])
