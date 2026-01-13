@@ -47,4 +47,19 @@ class OrcidClient:
             return response.json()
         except requests.RequestException:
             logger.warning("Failed to fetch email data for ORCID %s", orcid_id, exc_info=True)
-            return {} 
+            return {}
+
+    def get_works(self, orcid_id: str) -> dict:
+        """Fetch user's works from ORCID. Returns empty dict on error."""
+        try:
+            response = self.session.get(
+                f"{ORCID_API_URL}/v3.0/{orcid_id}/works",
+                headers={"Accept": ACCEPT_JSON},
+                timeout=REQUEST_TIMEOUT,
+            )
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException:
+            logger.warning("Failed to fetch works for ORCID %s", orcid_id, exc_info=True)
+            return {}
+
