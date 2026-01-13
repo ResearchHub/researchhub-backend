@@ -32,6 +32,7 @@ class Migration(migrations.Migration):
                     ("DOCUMENT_TAB_CLICKED", "DOCUMENT_TAB_CLICKED"),
                     ("DOCUMENT_SAVED_TO_LIST", "DOCUMENT_SAVED_TO_LIST"),
                     ("FEED_ITEM_ABSTRACT_EXPANDED", "FEED_ITEM_ABSTRACT_EXPANDED"),
+                    ("FEED_ITEM_IMPRESSION", "FEED_ITEM_IMPRESSION"),
                 ],
                 max_length=50,
             ),
@@ -53,6 +54,7 @@ class Migration(migrations.Migration):
                             "PAGE_VIEW",
                             "DOCUMENT_TAB_CLICKED",
                             "FEED_ITEM_ABSTRACT_EXPANDED",
+                            "FEED_ITEM_IMPRESSION",
                         ],
                     )
                 ),
