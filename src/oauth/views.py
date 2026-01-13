@@ -7,14 +7,11 @@ from dj_rest_auth.registration.views import SocialLoginView
 from dj_rest_auth.views import LoginView
 from django.conf import settings
 from django.dispatch import receiver
-from mailchimp_marketing import Client
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
-from analytics.amplitude import Amplitude
 from oauth.serializers import SocialLoginSerializer
-from utils import sentry
 from utils.http import RequestMethods
 from utils.throttles import captcha_unlock
 
@@ -81,41 +78,3 @@ def user_signed_up_(request, user, **kwargs):
 
     else:
         return None
-
-
-@receiver(user_signed_up)
-def mailchimp_add_user(request, user, **kwargs):
-    """Adds user email to MailChimp"""
-    mailchimp = Client()
-    mailchimp.set_config(
-        {
-            "api_key": settings.MAILCHIMP_KEY,
-            "server": settings.MAILCHIMP_SERVER,
-        }
-    )
-
-    try:
-        member_info = {"email_address": user.email, "status": "subscribed"}
-        mailchimp.lists.add_list_member(settings.MAILCHIMP_LIST_ID, member_info)
-    except Exception as error:
-        sentry.log_error(error, message=error.text)
-
-
-@receiver(user_signed_up)
-def track_user_signup(request, user, **kwargs):
-    class temp_res:
-        def __init__(self, user):
-            self.data = {"id": user.id}
-
-    class temp_view:
-        def __init__(self):
-            self.__dict__ = {"basename": "user", "action": "signup"}
-
-    try:
-        request.user = user
-        res = temp_res(user)
-        view = temp_view()
-        amp = Amplitude()
-        amp.build_hit(res, view, request, **kwargs)
-    except Exception as e:
-        sentry.log_error(e)
