@@ -1,4 +1,5 @@
 import csv
+from pathlib import Path
 
 from django.core.management import call_command
 from django.test import TestCase
@@ -6,10 +7,12 @@ from django.test import TestCase
 from hub.models import Hub
 from reputation.models import AlgorithmVariables
 
+misc_dir = Path(__file__).parent.parent / "misc"
+
 
 class CreateRepAlgoVarsTest(TestCase):
     def test_create_rep_algo_vars(self):
-        file_path = "./reputation/misc/rep_bins.csv"
+        file_path = misc_dir / "rep_bins.csv"
         with open(file_path, newline="") as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:

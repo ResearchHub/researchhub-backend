@@ -1,5 +1,6 @@
 import json
 import random
+from pathlib import Path
 from unittest.mock import PropertyMock, patch
 
 from django.conf import settings
@@ -22,6 +23,8 @@ from utils.test_helpers import (
     get_authenticated_post_response,
 )
 
+fixtures_dir = Path(__file__).parent / "fixtures"
+
 
 class PaperApiTests(APITestCase):
     @patch.object(settings, "RESEARCHHUB_JOURNAL_ID", "123")
@@ -35,8 +38,8 @@ class PaperApiTests(APITestCase):
         self, mock_get_works, mock_get_data_from_doi
     ):
         with (
-            open("./paper/tests/openalex_author_works.json", "r") as works_file,
-            open("./paper/tests/openalex_single_work.json", "r") as single_work_file,
+            open(fixtures_dir / "openalex_author_works.json", "r") as works_file,
+            open(fixtures_dir / "openalex_single_work.json", "r") as single_work_file,
         ):
             # Set up a user that has a matching name to the one in the mocked response
             user_with_published_works = create_user(
@@ -63,8 +66,8 @@ class PaperApiTests(APITestCase):
         self, mock_get_works, mock_get_data_from_doi
     ):
         with (
-            open("./paper/tests/openalex_author_works.json", "r") as works_file,
-            open("./paper/tests/openalex_single_work.json", "r") as single_work_file,
+            open(fixtures_dir / "openalex_author_works.json", "r") as works_file,
+            open(fixtures_dir / "openalex_single_work.json", "r") as single_work_file,
         ):
             # Set up a user that has a matching name to the one in the mocked response
             user_with_published_works = create_user(
@@ -92,8 +95,8 @@ class PaperApiTests(APITestCase):
         self, mock_get_works, mock_get_data_from_doi
     ):
         with (
-            open("./paper/tests/openalex_author_works.json", "r") as works_file,
-            open("./paper/tests/openalex_single_work.json", "r") as single_work_file,
+            open(fixtures_dir / "openalex_author_works.json", "r") as works_file,
+            open(fixtures_dir / "openalex_single_work.json", "r") as single_work_file,
         ):
             # Set up a user that has a matching name to the one in the mocked response
             user_with_published_works = create_user(

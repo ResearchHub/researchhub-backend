@@ -1,6 +1,6 @@
 import json
-import os
 from datetime import datetime
+from pathlib import Path
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
@@ -8,6 +8,9 @@ import requests
 
 from paper.ingestion.clients.enrichment.openalex import OpenAlexClient, OpenAlexConfig
 from paper.ingestion.exceptions import FetchError, TimeoutError
+
+
+fixtures_dir = Path(__file__).parent / "fixtures"
 
 
 class TestOpenAlexClient(TestCase):
@@ -20,20 +23,13 @@ class TestOpenAlexClient(TestCase):
         self.client = OpenAlexClient(self.config)
 
         # Load fixture files
-        fixtures_dir = os.path.join(os.path.dirname(__file__), "fixtures")
-
-        with open(
-            os.path.join(fixtures_dir, "openalex_sample_response.json"), "r"
-        ) as f:
+        with open(fixtures_dir / "openalex_sample_response.json", "r") as f:
             self.sample_list_response = json.load(f)
 
-        with open(
-            os.path.join(fixtures_dir, "openalex_sample_get_by_doi_response.json"),
-            "r",
-        ) as f:
+        with open(fixtures_dir / "openalex_sample_get_by_doi_response.json", "r") as f:
             self.sample_single_response = json.load(f)
 
-        with open(os.path.join(fixtures_dir, "openalex_empty_response.json"), "r") as f:
+        with open(fixtures_dir / "openalex_empty_response.json", "r") as f:
             self.empty_list_response = json.load(f)
 
     def test_config_defaults(self):
