@@ -446,9 +446,15 @@ if STAGING:
         "https://backend.staging.researchhub.com/auth/google/yolo/callback/"
     )
 
-ORCID_CLIENT_ID = os.environ.get("ORCID_CLIENT_ID", getattr(keys, "ORCID_CLIENT_ID", ""))
-ORCID_CLIENT_SECRET = os.environ.get("ORCID_CLIENT_SECRET", getattr(keys, "ORCID_CLIENT_SECRET", ""))
-ORCID_REDIRECT_URL = os.environ.get("ORCID_REDIRECT_URL", getattr(keys, "ORCID_REDIRECT_URL", ""))
+ORCID_CLIENT_ID = os.environ.get(
+    "ORCID_CLIENT_ID", getattr(keys, "ORCID_CLIENT_ID", "")
+)
+ORCID_CLIENT_SECRET = os.environ.get(
+    "ORCID_CLIENT_SECRET", getattr(keys, "ORCID_CLIENT_SECRET", "")
+)
+ORCID_REDIRECT_URL = os.environ.get(
+    "ORCID_REDIRECT_URL", getattr(keys, "ORCID_REDIRECT_URL", "")
+)
 # Database
 # https://docs.djangoproject.com/en/2.2/ref/settings/#databases
 
@@ -893,7 +899,7 @@ PAPER_INGESTION_ENABLED = (
 # AWS Personalize
 if PRODUCTION:
     AWS_PERSONALIZE_CAMPAIGN_ARN = (
-        "arn:aws:personalize:us-west-2:975049929542:campaign/personalized-recs"
+        "arn:aws:personalize:us-west-2:975049929542:campaign/personalized-no-bias"
     )
     AWS_PERSONALIZE_DATASET_ARN = (
         "arn:aws:personalize:us-west-2:975049929542:"
