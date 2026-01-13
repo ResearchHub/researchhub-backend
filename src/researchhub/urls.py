@@ -6,6 +6,7 @@ The `urlpatterns` list routes URLs to views. For more information please see:
 
 import debug_toolbar
 from dj_rest_auth.views import (
+    LoginView,
     LogoutView,
     PasswordChangeView,
     PasswordResetConfirmView,
@@ -15,7 +16,6 @@ from django.conf import settings
 from django.urls import include, path, re_path
 from rest_framework import routers
 
-import analytics.views
 import hub.views
 import invite.views as invite_views
 import mailing_list.views
@@ -39,18 +39,19 @@ from feed.views import (
     GrantFeedViewSet,
     JournalFeedViewSet,
 )
+from orcid.views import OrcidCallbackView, OrcidConnectView
 from organizations.views import NonprofitFundraiseLinkViewSet, NonprofitOrgViewSet
 from paper.views import paper_upload_views
 from purchase.views import stripe_webhook_view
 from researchhub.views import asset_upload_view
 from researchhub_comment.views.rh_comment_view import RhCommentViewSet
 from review.views.peer_review_view import PeerReviewViewSet
+from review.views.review_availability_view import ReviewAvailabilityView
 from review.views.review_view import ReviewViewSet
 from user.views import author_views, editor_views, moderator_view, persona_webhook_view
 from user.views.custom_verify_email_view import CustomVerifyEmailView
 from user_lists.views import ListItemViewSet, ListViewSet
 from user_saved.views import UserSavedView
-from orcid.views import OrcidConnectView, OrcidCallbackView 
 
 router = routers.DefaultRouter()
 
@@ -202,7 +203,6 @@ urlpatterns = [
         include("health_check.urls"),
     ),
     re_path(r"^api/", include(router.urls)),
-
     # Nested routes for list items
     path(
         "api/list/default/item/",
@@ -266,9 +266,7 @@ urlpatterns = [
         name="rest_verify_email",
     ),
     re_path(r"api/auth/register/", include("dj_rest_auth.registration.urls")),
-    re_path(
-        r"api/auth/login/", oauth.views.EmailLoginView.as_view(), name="rest_login"
-    ),
+    re_path(r"api/auth/login/", LoginView.as_view(), name="rest_login"),
     re_path(r"api/auth/logout/", LogoutView.as_view(), name="rest_logout"),
     re_path(
         r"api/auth/password-reset/$", PasswordResetView.as_view(), name="password-reset"
@@ -329,6 +327,11 @@ urlpatterns = [
         name="payment_view",
     ),
     path("user_saved/", UserSavedView.as_view(), name="user_saved"),
+    path(
+        "api/review/availability/",
+        ReviewAvailabilityView.as_view(),
+        name="review_availability",
+    ),
 ]
 
 if "silk" in settings.INSTALLED_APPS:

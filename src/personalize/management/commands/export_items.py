@@ -17,6 +17,11 @@ from researchhub_document.models import ResearchhubUnifiedDocument
 class Command(BaseCommand):
     help = "Export ResearchHub documents as Personalize items to CSV"
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.debug_mode = False
+        self.log_queries = False
+
     def add_arguments(self, parser):
         parser.add_argument(
             "--since-publish-date",

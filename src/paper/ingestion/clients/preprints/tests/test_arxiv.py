@@ -2,9 +2,9 @@
 Tests for ArXiv client.
 """
 
-import os
 import xml.etree.ElementTree as ET
 from datetime import datetime
+from pathlib import Path
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
@@ -13,6 +13,9 @@ from paper.ingestion.clients.preprints.arxiv import (
     ArXivConfig,
     parse_xml_entry,
 )
+
+
+fixtures_dir = Path(__file__).parent / "fixtures"
 
 
 class TestArXivClient(TestCase):
@@ -24,12 +27,10 @@ class TestArXivClient(TestCase):
         self.client = ArXivClient(self.config)
 
         # Load fixture files
-        fixtures_dir = os.path.join(os.path.dirname(__file__), "fixtures")
-
-        with open(os.path.join(fixtures_dir, "arxiv_sample_response.xml"), "r") as f:
+        with open(fixtures_dir / "arxiv_sample_response.xml", "r") as f:
             self.sample_xml_response = f.read()
 
-        with open(os.path.join(fixtures_dir, "arxiv_empty_response.xml"), "r") as f:
+        with open(fixtures_dir / "arxiv_empty_response.xml", "r") as f:
             self.empty_xml_response = f.read()
 
     def test_config_defaults(self):

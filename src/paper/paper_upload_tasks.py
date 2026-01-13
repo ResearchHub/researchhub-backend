@@ -272,7 +272,6 @@ def celery_manubot(self, celery_data):
 
         data = {
             "abstract": cleaned_abstract,
-            "csl_item": csl_item,
             "doi": doi,
             "paper_publish_date": publish_date,
             "raw_authors": raw_authors,

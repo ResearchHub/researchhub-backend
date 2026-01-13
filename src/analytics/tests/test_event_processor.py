@@ -6,6 +6,7 @@ from django.test import TestCase
 
 from analytics.constants.event_types import (
     DOCUMENT_TAB_CLICKED,
+    FEED_ITEM_ABSTRACT_EXPANDED,
     FEED_ITEM_CLICK,
     PAGE_VIEW,
 )
@@ -129,6 +130,56 @@ class EventProcessorTestCase(TestCase):
         # Verify the created interaction
         interaction = UserInteractions.objects.latest("created_date")
         self.assertEqual(interaction.event, DOCUMENT_TAB_CLICKED)
+
+    def test_process_event_with_feed_item_abstract_expanded_creates_interaction(self):
+        """Test process_event creates UserInteractions for feed_item_abstract_expanded."""
+        event = {
+            "event_type": "feed_item_abstract_expanded",
+            "event_properties": {
+                "user_id": str(self.user.id),
+                "related_work": {
+                    "unified_document_id": str(self.post.unified_document.id),
+                    "content_type": "researchhubpost",
+                    "id": str(self.post.id),
+                },
+            },
+            "time_": int(datetime.now().timestamp() * 1000),
+        }
+
+        initial_count = UserInteractions.objects.count()
+        self.processor.process_event(event)
+        final_count = UserInteractions.objects.count()
+
+        self.assertEqual(final_count, initial_count + 1)
+
+        # Verify the created interaction
+        interaction = UserInteractions.objects.latest("created_date")
+        self.assertEqual(interaction.event, FEED_ITEM_ABSTRACT_EXPANDED)
+
+    def test_process_event_handles_duplicate_feed_item_abstract_expanded_same_day(self):
+        """Test that duplicate feed_item_abstract_expanded on same day is handled."""
+        event = {
+            "event_type": "feed_item_abstract_expanded",
+            "event_properties": {
+                "user_id": str(self.user.id),
+                "related_work": {
+                    "unified_document_id": str(self.post.unified_document.id),
+                    "content_type": "researchhubpost",
+                    "id": str(self.post.id),
+                },
+            },
+            "time_": int(datetime.now().timestamp() * 1000),
+        }
+
+        # Process the same event twice
+        self.processor.process_event(event)
+        initial_count = UserInteractions.objects.count()
+
+        # Second processing should not create a duplicate due to daily uniqueness
+        self.processor.process_event(event)
+        final_count = UserInteractions.objects.count()
+
+        self.assertEqual(final_count, initial_count)
 
     def test_process_event_raises_exception_for_invalid_event(self):
         """Test that process_event raises ValueError for invalid events."""
