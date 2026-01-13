@@ -806,8 +806,9 @@ if elastic_token:
     }
 
 # MailChimp
-MAILCHIMP_SERVER = "us4"
+MAILCHIMP_KEY = os.environ.get("MAILCHIMP_KEY", keys.MAILCHIMP_KEY)
 MAILCHIMP_LIST_ID = os.environ.get("MAILCHIMP_LIST_ID", keys.MAILCHIMP_LIST_ID)
+MAILCHIMP_SERVER = "us4"
 
 MORALIS_API_KEY = os.environ.get("MORALIS_API_KEY", keys.MORALIS_API_KEY)
 
