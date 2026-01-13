@@ -1,6 +1,7 @@
 from allauth.account.signals import user_signed_up
 from allauth.socialaccount.helpers import _social_login
-from django.db.models.signals import pre_social_login, receiver
+from django.db.models.signals import pre_social_login
+from django.dispatch import receiver
 
 from oauth.services.user_signup_service import UserSignupService
 
