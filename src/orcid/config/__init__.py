@@ -1,4 +1,5 @@
 from .constants import (
+    APPLICATION_JSON,
     EDU_DOMAINS,
     ORCID_API_URL,
     ORCID_BASE_URL,
@@ -6,6 +7,7 @@ from .constants import (
 )
 
 __all__ = [
+    "APPLICATION_JSON",
     "EDU_DOMAINS",
     "ORCID_API_URL",
     "ORCID_BASE_URL",
