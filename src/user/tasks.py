@@ -71,6 +71,9 @@ def reinstate_user_task(user_id):
         is_removed=False, is_public=True, is_removed_date=None
     )
 
+    # Restore actions
+    user.actions.update(display=True, is_removed=False)
+
 
 def get_latest_actions(cursor):
     Action = apps.get_model("user.Action")

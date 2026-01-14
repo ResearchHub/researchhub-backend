@@ -228,6 +228,10 @@ class HandleSpamUserTaskTests(TestCase):
         self.assertTrue(self.comment.is_public)
         self.assertIsNone(self.comment.is_removed_date)
 
+        # Check action is restored
+        self.assertFalse(self.action.is_removed)
+        self.assertTrue(self.action.display)
+
     def test_reinstate_user_task_with_multiple_content(self):
         """Test reinstatement with multiple content items"""
         # Create additional papers and posts
