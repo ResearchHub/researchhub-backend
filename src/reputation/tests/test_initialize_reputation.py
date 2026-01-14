@@ -1,9 +1,8 @@
 import json
-import os
 import uuid
+from pathlib import Path
 from unittest.mock import PropertyMock, patch
 
-from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.management import call_command
 from django.test import TestCase
@@ -18,6 +17,8 @@ from reputation.models import AlgorithmVariables, Score, ScoreChange
 from researchhub_comment.tests.helpers import create_rh_comment
 from user.models import User
 from utils.openalex import OpenAlex
+
+paper_fixtures_dir = Path(__file__).parent / "fixtures"
 
 
 class InitializeReputationCommandTestCase(TestCase):
@@ -314,19 +315,13 @@ class InitializeReputationCommandTestCase(TestCase):
 
     @patch.object(OpenAlex, "get_authors")
     def setup_papers_algo_hubs(self, create_review_paper, mock_get_authors):
-        works_file_path = os.path.join(
-            settings.BASE_DIR, "paper", "tests", "openalex_works.json"
-        )
-        with open(works_file_path, "r") as file:
+        with open(paper_fixtures_dir / "openalex_works.json", "r") as file:
             response = json.load(file)
             self.works = sorted(
                 response.get("results"), key=lambda x: x.get("citations") or 0
             )
 
-        authors_file_path = os.path.join(
-            settings.BASE_DIR, "paper", "tests", "openalex_authors.json"
-        )
-        with open(authors_file_path, "r") as file:
+        with open(paper_fixtures_dir / "openalex_authors.json", "r") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
             process_openalex_works(self.works)

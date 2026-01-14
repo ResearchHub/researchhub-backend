@@ -51,9 +51,9 @@ class AmplitudeEventParserTests(TestCase):
         interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsInstance(interaction, AmplitudeEvent)
-        self.assertEqual(interaction.user, self.user)
+        self.assertEqual(interaction.user_id, self.user.id)
         self.assertEqual(interaction.event_type, FEED_ITEM_CLICK)
-        self.assertEqual(interaction.unified_document, self.post.unified_document)
+        self.assertEqual(interaction.unified_document_id, self.post.unified_document.id)
         self.assertEqual(interaction.content_type, self.content_type)
         self.assertEqual(interaction.object_id, self.post.id)
 
@@ -74,9 +74,9 @@ class AmplitudeEventParserTests(TestCase):
         interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsInstance(interaction, AmplitudeEvent)
-        self.assertEqual(interaction.user, self.user)
+        self.assertEqual(interaction.user_id, self.user.id)
         self.assertEqual(interaction.event_type, FEED_ITEM_CLICK)
-        self.assertEqual(interaction.unified_document, self.post.unified_document)
+        self.assertEqual(interaction.unified_document_id, self.post.unified_document.id)
         self.assertEqual(interaction.content_type, self.content_type)
         self.assertEqual(interaction.object_id, self.post.id)
 
@@ -98,9 +98,9 @@ class AmplitudeEventParserTests(TestCase):
         interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsInstance(interaction, AmplitudeEvent)
-        self.assertEqual(interaction.user, self.user)
+        self.assertEqual(interaction.user_id, self.user.id)
         self.assertEqual(interaction.event_type, PAGE_VIEW)
-        self.assertEqual(interaction.unified_document, self.post.unified_document)
+        self.assertEqual(interaction.unified_document_id, self.post.unified_document.id)
 
     def test_maps_feed_item_abstract_expanded_event(self):
         """Test mapping feed_item_abstract_expanded event."""
@@ -120,11 +120,10 @@ class AmplitudeEventParserTests(TestCase):
         interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsInstance(interaction, AmplitudeEvent)
-        self.assertEqual(interaction.user, self.user)
+        self.assertEqual(interaction.user_id, self.user.id)
         self.assertEqual(interaction.event_type, FEED_ITEM_ABSTRACT_EXPANDED)
-        self.assertEqual(interaction.unified_document, self.post.unified_document)
+        self.assertEqual(interaction.unified_document_id, self.post.unified_document.id)
         self.assertEqual(interaction.content_type, self.content_type)
-        self.assertEqual(interaction.object_id, self.post.id)
 
     def test_converts_event_type_to_uppercase(self):
         """Test that lowercase Amplitude event types are converted to uppercase."""
@@ -182,7 +181,7 @@ class AmplitudeEventParserTests(TestCase):
             interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsNone(interaction)
-        self.assertIn("No related_work data found", log.output[0])
+        self.assertIn("No related_work data for event", log.output[0])
 
     def test_event_without_user_id_returns_none(self):
         """Test that events without user_id return None."""
@@ -204,9 +203,7 @@ class AmplitudeEventParserTests(TestCase):
             interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsNone(interaction)
-        self.assertIn(
-            "No user_id or external_user_id (amplitude_id) found", log.output[0]
-        )
+        self.assertIn("No user_id or external_user_id for event", log.output[0])
 
     def test_invalid_event_type_returns_none(self):
         """Test that invalid event types return None."""
@@ -252,10 +249,14 @@ class AmplitudeEventParserTests(TestCase):
             interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsNone(interaction)
-        self.assertIn("Invalid user_id", log.output[0])
+        self.assertIn("User 99999 not found", log.output[0])
 
-    def test_nonexistent_unified_document_returns_none(self):
-        """Test that events with non-existent unified_document_id return None."""
+    def test_nonexistent_unified_document_returns_event_with_id(self):
+        """Test that events with non-existent unified_document_id still parse.
+
+        The parser no longer validates unified document existence - that's handled
+        by FK constraints at insert time. This allows for better performance.
+        """
         event = {
             "event_type": "feed_item_clicked",
             "event_properties": {
@@ -269,13 +270,11 @@ class AmplitudeEventParserTests(TestCase):
             "_time": int(timezone.now().timestamp() * 1000),
         }
 
-        with self.assertLogs(
-            "analytics.interactions.amplitude_event_parser", level=logging.WARNING
-        ) as log:
-            interaction = self.parser.parse_amplitude_event(event)
+        # Parser returns event with the ID - validation happens at insert time
+        interaction = self.parser.parse_amplitude_event(event)
 
-        self.assertIsNone(interaction)
-        self.assertIn("Invalid unified_document_id", log.output[0])
+        self.assertIsNotNone(interaction)
+        self.assertEqual(interaction.unified_document_id, 99999)
 
     def test_handles_missing_timestamp(self):
         """Test that missing timestamp uses current time."""
@@ -343,9 +342,9 @@ class AmplitudeEventParserTests(TestCase):
         interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsInstance(interaction, AmplitudeEvent)
-        self.assertEqual(interaction.user, self.user)
+        self.assertEqual(interaction.user_id, self.user.id)
         self.assertEqual(interaction.event_type, FEED_ITEM_CLICK)
-        self.assertEqual(interaction.unified_document, self.post.unified_document)
+        self.assertEqual(interaction.unified_document_id, self.post.unified_document.id)
         self.assertEqual(interaction.content_type, self.content_type)
         self.assertEqual(interaction.object_id, self.post.id)
 
@@ -365,9 +364,9 @@ class AmplitudeEventParserTests(TestCase):
         interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsInstance(interaction, AmplitudeEvent)
-        self.assertEqual(interaction.user, self.user)
+        self.assertEqual(interaction.user_id, self.user.id)
         self.assertEqual(interaction.event_type, PAGE_VIEW)
-        self.assertEqual(interaction.unified_document, self.post.unified_document)
+        self.assertEqual(interaction.unified_document_id, self.post.unified_document.id)
         self.assertEqual(interaction.content_type, self.content_type)
         self.assertEqual(interaction.object_id, self.post.id)
 
@@ -386,9 +385,9 @@ class AmplitudeEventParserTests(TestCase):
         interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsInstance(interaction, AmplitudeEvent)
-        self.assertEqual(interaction.user, self.user)
+        self.assertEqual(interaction.user_id, self.user.id)
         self.assertEqual(interaction.event_type, FEED_ITEM_CLICK)
-        self.assertEqual(interaction.unified_document, self.post.unified_document)
+        self.assertEqual(interaction.unified_document_id, self.post.unified_document.id)
         self.assertEqual(interaction.content_type, self.content_type)
         self.assertEqual(interaction.object_id, self.post.id)
 
@@ -409,7 +408,7 @@ class AmplitudeEventParserTests(TestCase):
             interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsNone(interaction)
-        self.assertIn("No related_work data found", log.output[0])
+        self.assertIn("No related_work data for event", log.output[0])
 
     def test_flat_format_handles_invalid_content_type(self):
         """Test that flat format with invalid content_type returns None."""

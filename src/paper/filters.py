@@ -14,7 +14,7 @@ class PaperFilter(filters.FilterSet):
         model = Paper
         # TODO: Handle filtering on raw_authors in another way
         exclude = [
-            "csl_item",
+            "csl_item",  # FIXME: Remove on removed from model
             "external_metadata",
             "file",
             "raw_authors",
