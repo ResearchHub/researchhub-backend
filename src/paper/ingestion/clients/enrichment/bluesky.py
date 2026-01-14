@@ -81,7 +81,7 @@ class BlueskyClient:
             logger.info("Successfully authenticated with Bluesky")
 
         except Exception as e:
-            logger.error(f"Bluesky authentication failed: {str(e)}")
+            logger.error(f"Bluesky authentication failed: {e}")
             raise
 
     def search_posts(
