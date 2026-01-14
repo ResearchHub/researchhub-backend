@@ -112,29 +112,6 @@ class PaperDocument(BaseDocument):
             phrases.append(instance.external_source)
             phrases.extend(journal_words)
 
-        # Variation of OpenAlex keywords which may be searched by users
-        try:
-            oa_data = instance.open_alex_raw_json
-            if oa_data and "keywords" in oa_data:
-                keywords = []
-                for keyword_obj in oa_data["keywords"]:
-                    # Handle both old format (keyword) and new format (display_name)
-                    keyword = keyword_obj.get("display_name") or keyword_obj.get(
-                        "keyword"
-                    )
-                    if keyword:
-                        keywords.append(keyword)
-
-                if keywords:
-                    joined_kewords = " ".join(keywords)
-                    phrases.append(joined_kewords)
-                    phrases.extend(keywords)
-
-        except Exception as e:
-            logger.warning(
-                f"Failed to prepare OpenAlex keywords for paper {instance.id}: {e}"
-            )
-
         try:
             hub_names = self.get_hub_names(instance)
             phrases.extend(hub_names)

@@ -70,6 +70,8 @@ LOGGING = {
         "json": {
             "()": "pythonjsonlogger.jsonlogger.JsonFormatter",
             "fmt": "%(asctime)s %(levelname)s %(name)s [%(filename)s:%(lineno)d] [%(threadName)s] %(message)s",
+            "exc_info_as_array": True,
+            "stack_info_as_array": True,
         },
     },
     "handlers": {
@@ -806,8 +808,9 @@ if elastic_token:
     }
 
 # MailChimp
-MAILCHIMP_SERVER = "us4"
+MAILCHIMP_KEY = os.environ.get("MAILCHIMP_KEY", keys.MAILCHIMP_KEY)
 MAILCHIMP_LIST_ID = os.environ.get("MAILCHIMP_LIST_ID", keys.MAILCHIMP_LIST_ID)
+MAILCHIMP_SERVER = "us4"
 
 MORALIS_API_KEY = os.environ.get("MORALIS_API_KEY", keys.MORALIS_API_KEY)
 
@@ -900,7 +903,7 @@ PAPER_INGESTION_ENABLED = (
 # AWS Personalize
 if PRODUCTION:
     AWS_PERSONALIZE_CAMPAIGN_ARN = (
-        "arn:aws:personalize:us-west-2:975049929542:campaign/personalized-recs"
+        "arn:aws:personalize:us-west-2:975049929542:campaign/personalized-no-bias"
     )
     AWS_PERSONALIZE_DATASET_ARN = (
         "arn:aws:personalize:us-west-2:975049929542:"

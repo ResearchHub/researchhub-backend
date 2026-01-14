@@ -1,10 +1,26 @@
-from typing import Literal
+from typing import Any, Dict, Literal
 
 from analytics.amplitude import Amplitude
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub.celery import QUEUE_EXTERNAL_REPORTING, app
 from researchhub.settings import DEVELOPMENT
 from utils.sentry import log_error
+
+
+@app.task(queue=QUEUE_EXTERNAL_REPORTING)
+def process_amplitude_event(event: Dict[str, Any]) -> None:
+    """Process a single Amplitude event asynchronously."""
+    from analytics.exceptions import EventProcessingError
+    from analytics.services.event_processor import EventProcessor
+
+    try:
+        EventProcessor().process_event(event)
+    except EventProcessingError as e:
+        log_error(
+            e,
+            message="Failed to process Amplitude event",
+            json_data={"event": event},
+        )
 
 
 @app.task(queue=QUEUE_EXTERNAL_REPORTING)
