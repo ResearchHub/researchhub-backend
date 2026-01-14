@@ -70,6 +70,8 @@ LOGGING = {
         "json": {
             "()": "pythonjsonlogger.jsonlogger.JsonFormatter",
             "fmt": "%(asctime)s %(levelname)s %(name)s [%(filename)s:%(lineno)d] [%(threadName)s] %(message)s",
+            "exc_info_as_array": True,
+            "stack_info_as_array": True,
         },
     },
     "handlers": {
