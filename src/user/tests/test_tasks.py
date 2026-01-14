@@ -212,6 +212,7 @@ class HandleSpamUserTaskTests(TestCase):
         # Refresh objects
         self.paper.refresh_from_db()
         self.post.unified_document.refresh_from_db()
+        self.comment.refresh_from_db()
         self.action.refresh_from_db()
 
         # Check papers and unified documents are restored
@@ -221,6 +222,11 @@ class HandleSpamUserTaskTests(TestCase):
 
         # Check post's unified document is restored
         self.assertFalse(self.post.unified_document.is_removed)
+
+        # Check comment is restored
+        self.assertFalse(self.comment.is_removed)
+        self.assertTrue(self.comment.is_public)
+        self.assertIsNone(self.comment.is_removed_date)
 
     def test_reinstate_user_task_with_multiple_content(self):
         """Test reinstatement with multiple content items"""
@@ -237,19 +243,37 @@ class HandleSpamUserTaskTests(TestCase):
             ),
         )
 
+        # Create a thread for the second comment
+        thread2 = RhCommentThreadModel.objects.create(
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(post2),
+            object_id=post2.id,
+        )
+
+        # Create a second comment
+        comment2 = RhCommentModel.objects.create(
+            created_by=self.user,
+            comment_content_json={"ops": [{"insert": "Second comment"}]},
+            thread=thread2,
+        )
+
         # First, suspend the user
         handle_spam_user_task(self.user.id, self.moderator)
 
         # Verify everything is removed
         self.paper.refresh_from_db()
         self.post.unified_document.refresh_from_db()
+        self.comment.refresh_from_db()
         paper2.refresh_from_db()
         post2.unified_document.refresh_from_db()
+        comment2.refresh_from_db()
 
         self.assertTrue(self.paper.is_removed)
         self.assertTrue(self.post.unified_document.is_removed)
+        self.assertTrue(self.comment.is_removed)
         self.assertTrue(paper2.is_removed)
         self.assertTrue(post2.unified_document.is_removed)
+        self.assertTrue(comment2.is_removed)
 
         # Now reinstate the user
         reinstate_user_task(self.user.id)
@@ -257,11 +281,17 @@ class HandleSpamUserTaskTests(TestCase):
         # Refresh objects
         self.paper.refresh_from_db()
         self.post.unified_document.refresh_from_db()
+        self.comment.refresh_from_db()
         paper2.refresh_from_db()
         post2.unified_document.refresh_from_db()
+        comment2.refresh_from_db()
 
         # Check all papers and unified documents are restored
         self.assertFalse(self.paper.is_removed)
         self.assertFalse(self.post.unified_document.is_removed)
         self.assertFalse(paper2.is_removed)
         self.assertFalse(post2.unified_document.is_removed)
+
+        # Check all comments are restored
+        self.assertFalse(self.comment.is_removed)
+        self.assertFalse(comment2.is_removed)
