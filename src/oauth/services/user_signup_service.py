@@ -1,5 +1,6 @@
 import logging
 
+from allauth.socialaccount.models import SocialAccount
 from django.conf import settings
 from mailchimp_marketing import Client
 
@@ -57,3 +58,24 @@ class UserSignupService:
             self.amplitude_client.build_hit(res, view, request, **kwargs)
         except Exception as e:
             logger.error(f"Failed to track signup for user {user.id} in Amplitude: {e}")
+
+    def set_google_profile_image(self, user):
+        """
+        Set user's profile image from their Google account if not already set.
+        """
+        try:
+            google_account = SocialAccount.objects.get(provider="google", user=user)
+        except SocialAccount.DoesNotExist:
+            return
+        except SocialAccount.MultipleObjectsReturned:
+            logger.error(f"User {user.id} has multiple Google social accounts")
+            return
+
+        picture_url = google_account.extra_data.get("picture")
+        if not picture_url:
+            return
+
+        author_profile = user.author_profile
+        if author_profile and not author_profile.profile_image:
+            author_profile.profile_image = picture_url
+            author_profile.save(update_fields=["profile_image"])
