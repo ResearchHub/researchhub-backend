@@ -1,4 +1,5 @@
 import json
+from unittest.mock import patch
 
 from django.test import Client, TestCase
 
@@ -106,7 +107,12 @@ class AuthenticationTests(BaseTests):
     """
 
     def setUp(self):
+        self.mailchimp_patcher = patch("oauth.signals.UserSignupService")
+        self.mailchimp_patcher.start()
         self.client = Client()
+
+    def tearDown(self):
+        self.mailchimp_patcher.stop()
 
     def test_signup_with_username(self):
         response = self.valid_signup("test_username")
