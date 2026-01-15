@@ -21,13 +21,7 @@ User = get_user_model()
 logger = logging.getLogger(__name__)
 
 
-def _normalize_orcid(orcid: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
-    """Normalize ORCID to (full_url, bare_id) format."""
-    if not orcid:
-        return None, None
-    bare = orcid.replace("https://orcid.org/", "")
-    return f"https://orcid.org/{bare}", bare
-
+ 
 
 class OrcidFetchService:
     """Syncs papers and edu emails from ORCID to ResearchHub."""
@@ -101,7 +95,7 @@ class OrcidFetchService:
 
     def _extract_orcid_id(self, orcid_url: Optional[str]) -> str:
         """Extract bare ORCID ID from full URL (e.g., '0000-0001-2345-6789')."""
-        _, bare = _normalize_orcid(orcid_url)
+        _, bare = self._normalize_orcid(orcid_url)
         return bare or ""
 
     def _fetch_dois_from_orcid(self, orcid_id: str) -> list[str]:
@@ -237,7 +231,7 @@ class OrcidFetchService:
                 continue
 
             # Normalize ORCID to handle both full URL and bare ID formats
-            full_orcid, bare_orcid = _normalize_orcid(orcid_url)
+            full_orcid, bare_orcid = self._normalize_orcid(orcid_url)
 
             # Find user's author by ORCID (must be OAuth-connected)
             user_author = Author.objects.filter(
