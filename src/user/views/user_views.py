@@ -43,6 +43,8 @@ from user.serializers import (
     UserEditableSerializer,
     UserSerializer,
 )
+from discussion.constants.flag_reasons import OTHER, USER_FLAG_REASONS
+from user.services import UserFlagService
 from user.tasks import handle_spam_user_task, reinstate_user_task
 from user.utils import calculate_show_referral
 from user.views.follow_view_mixins import FollowViewActionMixin
@@ -149,10 +151,26 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
     )
     def mark_probable_spammer(self, request, pk=None):
         author_id = request.data.get("authorId")
+        reason = request.data.get("reason")
+        reason_memo = request.data.get("reasonMemo", "")
 
         if not author_id:
             return Response(
                 {"message": "authorId is required"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate reason if provided
+        if reason and reason not in USER_FLAG_REASONS:
+            return Response(
+                {"message": f"Invalid reason. Must be one of: {sorted(USER_FLAG_REASONS)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Require memo if reason is OTHER
+        if reason == OTHER and not reason_memo:
+            return Response(
+                {"message": "reasonMemo is required when reason is OTHER"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         try:
@@ -163,6 +181,15 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
             )
 
         user_to_flag.set_probable_spammer()
+
+        # Create a Flag record if reason is provided
+        if reason:
+            UserFlagService.create_flag(
+                author=user_to_flag.author_profile,
+                created_by=request.user,
+                reason=reason,
+                reason_memo=reason_memo,
+            )
 
         return Response(
             {"message": "User flagged as probable spammer"}, status=status.HTTP_200_OK
@@ -501,12 +528,17 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
     )
     def reinstate(self, request):
         author_id = request.data["author_id"]
-        user = Author.objects.get(id=author_id).user
+        author = Author.objects.get(id=author_id)
+        user = author.user
         user.is_active = True
         user.is_suspended = False
         user.probable_spammer = False
         user.save()
         reinstate_user_task(user.id)
+
+        # Resolve any open user flags
+        UserFlagService.resolve_flags(author, resolved_by=request.user)
+
         serialized = UserSerializer(user)
         return Response(serialized.data, status=200)
 

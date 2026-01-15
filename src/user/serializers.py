@@ -1073,3 +1073,22 @@ class DynamicAuthorContributionSummarySerializer(DynamicModelFieldSerializer):
     class Meta:
         model = AuthorContributionSummary
         fields = "__all__"
+
+
+class UserFlagSerializer(serializers.Serializer):
+    """Read-only serializer for user/author flags."""
+
+    id = serializers.IntegerField(read_only=True)
+    reason = serializers.CharField(read_only=True)
+    reason_choice = serializers.CharField(read_only=True)
+    reason_memo = serializers.CharField(read_only=True)
+    created_date = serializers.DateTimeField(read_only=True)
+    created_by = serializers.SerializerMethodField()
+
+    def get_created_by(self, flag):
+        user = flag.created_by
+        return {
+            "id": user.id,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+        }
