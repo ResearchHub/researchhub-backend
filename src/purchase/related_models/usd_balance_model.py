@@ -26,8 +26,6 @@ class UsdBalance(DefaultModel):
     object_id = models.PositiveIntegerField(null=True, blank=True)
     source = GenericForeignKey("content_type", "object_id")
 
-    description = models.CharField(max_length=255, blank=True)
-
     class Meta:
         indexes = [
             models.Index(fields=["user"]),

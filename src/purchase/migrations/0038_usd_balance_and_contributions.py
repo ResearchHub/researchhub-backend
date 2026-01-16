@@ -36,7 +36,6 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 ("object_id", models.PositiveIntegerField(blank=True, null=True)),
-                ("description", models.CharField(blank=True, max_length=255)),
                 (
                     "content_type",
                     models.ForeignKey(
