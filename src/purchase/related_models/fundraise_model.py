@@ -56,6 +56,11 @@ class Fundraise(DefaultModel):
     goal_amount = models.DecimalField(default=0, decimal_places=10, max_digits=19)
     goal_currency = models.CharField(max_length=16, default=USD)
 
+    # USD tracking
+    usd_amount_raised_cents = models.IntegerField(
+        default=0, help_text="Total USD raised in cents"
+    )
+
     # time fields
     start_date = models.DateTimeField(auto_now_add=True)
     end_date = models.DateTimeField(
@@ -75,6 +80,10 @@ class Fundraise(DefaultModel):
         if self.end_date:
             return self.end_date < datetime.now(pytz.UTC)
         return False
+
+    def get_usd_contributors(self):
+        """Returns USD contributions with user data."""
+        return self.usd_contributions.select_related("user")
 
     def get_amount_raised(self, currency=USD):
         """
