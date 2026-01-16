@@ -1,4 +1,3 @@
-from django.contrib.contenttypes.models import ContentType
 from rest_framework.test import APITestCase
 
 from purchase.models import Fundraise, UsdBalance, UsdFundraiseContribution
@@ -6,67 +5,6 @@ from purchase.services.fundraise_service import FundraiseService
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from user.tests.helpers import create_random_authenticated_user
-
-
-class UsdBalanceViewTests(APITestCase):
-    def setUp(self):
-        self.user = create_random_authenticated_user("usd_balance_user")
-
-    def test_get_usd_balance_empty(self):
-        """Test getting USD balance when no transactions exist."""
-        self.client.force_authenticate(self.user)
-        response = self.client.get("/api/usd-balance/")
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["balance_cents"], 0)
-
-    def test_get_usd_balance_with_deposits(self):
-        """Test getting USD balance with deposits."""
-        self.client.force_authenticate(self.user)
-
-        # Create deposit records
-        UsdBalance.objects.create(
-            user=self.user,
-            amount_cents=10000,  # $100
-            description="Test deposit",
-        )
-        UsdBalance.objects.create(
-            user=self.user,
-            amount_cents=5000,  # $50
-            description="Second deposit",
-        )
-
-        response = self.client.get("/api/usd-balance/")
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["balance_cents"], 15000)
-
-    def test_get_usd_balance_with_debits(self):
-        """Test getting USD balance with both credits and debits."""
-        self.client.force_authenticate(self.user)
-
-        # Credit
-        UsdBalance.objects.create(
-            user=self.user,
-            amount_cents=10000,  # $100
-            description="Test deposit",
-        )
-        # Debit
-        UsdBalance.objects.create(
-            user=self.user,
-            amount_cents=-3000,  # -$30
-            description="Contribution",
-        )
-
-        response = self.client.get("/api/usd-balance/")
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["balance_cents"], 7000)
-
-    def test_get_usd_balance_unauthenticated(self):
-        """Test that unauthenticated users cannot get balance."""
-        response = self.client.get("/api/usd-balance/")
-        self.assertEqual(response.status_code, 401)
 
 
 class UsdFundraiseContributionTests(APITestCase):

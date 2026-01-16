@@ -187,10 +187,6 @@ router.register(r"fundraise", purchase.views.FundraiseViewSet, basename="fundrai
 
 router.register(r"grant", purchase.views.GrantViewSet, basename="grant")
 
-router.register(
-    r"usd-balance", purchase.views.UsdBalanceViewSet, basename="usd_balance"
-)
-
 router.register(r"feed", FeedViewSet, basename="feed")
 
 router.register(r"funding_feed", FundingFeedViewSet, basename="funding_feed")
