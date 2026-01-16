@@ -59,3 +59,27 @@ class OrcidClientTests(TestCase):
 
         # Assert
         self.assertEqual(result, {})
+
+    def test_get_works_success(self):
+        # Arrange
+        self.mock_session.get.return_value = Mock(
+            json=lambda: {"group": [{"work-summary": []}]},
+            raise_for_status=Mock()
+        )
+
+        # Act
+        result = self.client.get_works(OrcidTestHelper.ORCID_ID)
+
+        # Assert
+        self.assertEqual(result, {"group": [{"work-summary": []}]})
+
+    def test_get_works_returns_empty_on_error(self):
+        # Arrange
+        self.mock_session.get.side_effect = RequestException("API error")
+
+        # Act
+        result = self.client.get_works(OrcidTestHelper.ORCID_ID)
+
+        # Assert
+        self.assertEqual(result, {})
+

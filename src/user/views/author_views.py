@@ -569,8 +569,11 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
 
         if not documents:
             # Fetch the authored papers and order by citations
+            # Include papers where author is directly linked OR merged with this author
             authored_doc_ids = list(
-                Authorship.objects.filter(author=author)
+                Authorship.objects.filter(
+                    Q(author=author) | Q(author__merged_with_author=author)
+                )
                 .order_by("-paper__citations")
                 .values_list("paper__unified_document_id", flat=True)
             )
@@ -675,8 +678,11 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
             NUM_DOCUMENTS_TO_FETCH = 4
 
             # Fetch the authored papers and order by citations
+            # Include papers where author is directly linked OR merged with this author
             authored_doc_ids = list(
-                Authorship.objects.filter(author=author)
+                Authorship.objects.filter(
+                    Q(author=author) | Q(author__merged_with_author=author)
+                )
                 .order_by("-paper__citations")
                 .values_list("paper__unified_document_id", flat=True)[
                     :NUM_DOCUMENTS_TO_FETCH

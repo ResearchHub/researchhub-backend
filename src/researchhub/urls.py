@@ -52,6 +52,7 @@ from user.views import author_views, editor_views, moderator_view, persona_webho
 from user.views.custom_verify_email_view import CustomVerifyEmailView
 from user_lists.views import ListItemViewSet, ListViewSet
 from user_saved.views import UserSavedView
+from orcid.views import OrcidConnectView, OrcidCallbackView, OrcidFetchView 
 
 router = routers.DefaultRouter()
 
@@ -221,6 +222,7 @@ urlpatterns = [
     ),
     path("api/orcid/connect/", OrcidConnectView.as_view(), name="orcid_connect"),
     path("api/orcid/callback/", OrcidCallbackView.as_view(), name="orcid_callback"),
+    path("api/orcid/fetch/", OrcidFetchView.as_view(), name="orcid_fetch"),
     # TODO: calvinhlee - consolidate all mod views into 1 set
     path("api/get_hub_active_contributors/", editor_views.get_hub_active_contributors),
     path(
