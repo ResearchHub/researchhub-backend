@@ -1,6 +1,6 @@
 import uuid
 
-from allauth.utils import get_user_model
+from django.contrib.auth import get_user_model
 
 from invite.related_models.note_invitation import NoteInvitation
 from invite.related_models.organization_invitation import OrganizationInvitation
