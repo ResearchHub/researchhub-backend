@@ -56,6 +56,7 @@ class OrcidFetchService:
 
         works = self._fetch_works_from_openalex(dois)
         linked = self._link_papers_to_author(works, syncing_author=author)
+        self._sync_author_stats(author)
         return {"papers_processed": linked, "author_id": author_id}
 
     def _get_author_and_orcid_id(self, author_id: int) -> Tuple[Author, str]:
@@ -91,6 +92,21 @@ class OrcidFetchService:
         extra_data["verified_edu_emails"] = verified_edu
         social_account.extra_data = extra_data
         social_account.save(update_fields=["extra_data"])
+
+    def _sync_author_stats(self, author: Author) -> None:
+        """Copy h-index and i10-index from merged paper authors to user's author."""
+        # Find the best stats from any paper author merged with this user
+        merged_author = (
+            Author.objects.filter(merged_with_author=author)
+            .exclude(h_index=0, i10_index=0)
+            .order_by("-h_index")
+            .first()
+        )
+        if merged_author:
+            author.h_index = merged_author.h_index
+            author.i10_index = merged_author.i10_index
+            author.two_year_mean_citedness = merged_author.two_year_mean_citedness
+            author.save(update_fields=["h_index", "i10_index", "two_year_mean_citedness"])
 
     def _extract_orcid_id(self, orcid_url: Optional[str]) -> str:
         """Extract bare ORCID ID from full URL (e.g., '0000-0001-2345-6789')."""
@@ -356,8 +372,9 @@ class OrcidFetchService:
         return False
 
     def _clear_author_caches(self, author_ids: set[int]) -> None:
-        """Clear publication and summary caches for the given authors."""
+        """Clear profile caches for the given authors."""
         for author_id in author_ids:
+            cache.delete(f"author-{author_id}-profile")
             cache.delete(f"author-{author_id}-publications")
             cache.delete(f"author-{author_id}-summary-stats")
 

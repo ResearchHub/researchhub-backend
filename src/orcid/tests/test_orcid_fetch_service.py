@@ -423,3 +423,26 @@ class OrcidFetchServiceTests(TestCase):
         authorship = Authorship.objects.get(paper=paper)
         self.assertEqual(authorship.author, paper_author)
         self.assertEqual(authorship.raw_author_name, "Paper Author Name")
+
+    def test_sync_updates_author_h_index_from_merged_author(self):
+        """ORCID sync should copy h-index from merged paper author to user's author."""
+        # Arrange
+        user = OrcidTestHelper.create_author()
+        # Create a paper author that's merged with the user and has h-index
+        merged_author = Author.objects.create(
+            first_name="Paper", last_name="Author",
+            h_index=15, i10_index=8, two_year_mean_citedness=3.5,
+            merged_with_author=user.author_profile,
+            created_source=Author.SOURCE_OPENALEX,
+        )
+        self.mock_client.get_works.return_value = OrcidTestHelper.make_works_response("10.1/x")
+        self.mock_openalex.get_work_by_doi.return_value = OrcidTestHelper.make_openalex_work("10.1/x")
+
+        # Act
+        self.service.sync_orcid(user.author_profile.id)
+
+        # Assert
+        user.author_profile.refresh_from_db()
+        self.assertEqual(user.author_profile.h_index, 15)
+        self.assertEqual(user.author_profile.i10_index, 8)
+        self.assertEqual(user.author_profile.two_year_mean_citedness, 3.5)
