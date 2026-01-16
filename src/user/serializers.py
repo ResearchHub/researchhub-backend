@@ -168,7 +168,6 @@ class AuthorSerializer(ModelSerializer):
 
     def get_orcid_id(self, author):
         return author.orcid_id
-        
 
     def get_total_score(self, author):
         if author.author_score > 0:
@@ -184,7 +183,6 @@ class AuthorSerializer(ModelSerializer):
             return WalletSerializer(obj.wallet).data
         except Exception:
             pass
-
 
     def get_num_posts(self, author):
         user = author.user
