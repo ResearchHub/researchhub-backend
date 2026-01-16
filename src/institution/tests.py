@@ -1,14 +1,17 @@
 import json
 from datetime import datetime
+from pathlib import Path
 
 from rest_framework.test import APITestCase
 
 from institution.models import Institution
 
+fixtures_dir = Path(__file__).parent
+
 
 class ProcessOpenAlexWorksTests(APITestCase):
     def setUp(self):
-        with open("./institution/openalex_institutions.json", "r") as file:
+        with open(fixtures_dir / "openalex_institutions.json", "r") as file:
             response = json.load(file)
             self.institutions = response.get("results")
 

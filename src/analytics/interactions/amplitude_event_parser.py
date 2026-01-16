@@ -1,16 +1,17 @@
 import logging
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
-from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 
-from analytics.constants.event_types import AMPLITUDE_TO_DB_EVENT_MAP
-from researchhub_document.related_models.researchhub_unified_document_model import (
-    ResearchhubUnifiedDocument,
+from analytics.constants.event_types import (
+    AMPLITUDE_TO_DB_EVENT_MAP,
+    BULK_FEED_IMPRESSION,
+    FEED_ITEM_IMPRESSION,
 )
+from user.models import User
 
-User = get_user_model()
 logger = logging.getLogger(__name__)
 
 
@@ -55,36 +56,24 @@ def extract_related_work(event_props: Dict[str, Any]) -> Optional[Dict[str, Any]
     return None
 
 
+@dataclass
 class AmplitudeEvent:
     """
-    Represents a parsed Amplitude event with all necessary fields for creating
-    UserInteractions.
+    Represents a parsed Amplitude event with fields for creating UserInteractions.
 
-    This is a non-database model that holds pre-fetched Django model instances
-    to avoid repeated database queries during mapping.
+    Uses IDs rather than fetched objects to avoid unnecessary database queries.
+    Validation happens at insert time via database constraints.
     """
 
-    def __init__(
-        self,
-        user: Optional[User],
-        event_type: str,
-        unified_document: ResearchhubUnifiedDocument,
-        content_type: ContentType,
-        object_id: int,
-        event_timestamp: datetime,
-        external_user_id: Optional[str] = None,
-        personalize_rec_id: Optional[str] = None,
-        impression: Optional[str] = None,
-    ):
-        self.user = user
-        self.external_user_id = external_user_id
-        self.event_type = event_type
-        self.unified_document = unified_document
-        self.content_type = content_type
-        self.object_id = object_id
-        self.event_timestamp = event_timestamp
-        self.personalize_rec_id = personalize_rec_id
-        self.impression = impression
+    event_type: str
+    unified_document_id: int
+    event_timestamp: datetime
+    user_id: Optional[int] = None
+    external_user_id: Optional[str] = None
+    content_type: Optional[ContentType] = None
+    object_id: Optional[int] = None
+    personalize_rec_id: Optional[str] = None
+    impression: Optional[str] = None
 
 
 class AmplitudeEventParser:
@@ -106,6 +95,42 @@ class AmplitudeEventParser:
             )
         return cls._content_type_cache[model_name]
 
+    def _extract_user_ids(
+        self, event: Dict[str, Any], validate_user_exists: bool = True
+    ) -> Tuple[Optional[int], Optional[str]]:
+        """Extract user_id and external_user_id from event."""
+        event_props = event.get("event_properties", {})
+        user_id_str = event_props.get("user_id") or event.get("user_id")
+        external_user_id = event.get("amplitude_id") or event_props.get("amplitude_id")
+
+        user_id = None
+        if user_id_str:
+            try:
+                user_id = int(user_id_str)
+                if validate_user_exists:
+                    if not User.objects.filter(id=user_id).exists():
+                        logger.warning(
+                            f"User {user_id} not found, using external_user_id"
+                        )
+                        user_id = None
+            except ValueError:
+                logger.warning(f"Invalid user_id format: '{user_id_str}'")
+
+        return user_id, external_user_id
+
+    def _extract_timestamp(
+        self, event: Dict[str, Any], time_field: str = "time"
+    ) -> datetime:
+        """Extract timestamp from event.
+
+        Returns:
+            Parsed datetime or current time if not available
+        """
+        timestamp_ms = event.get(time_field)
+        if timestamp_ms:
+            return datetime.fromtimestamp(timestamp_ms / 1000)
+        return datetime.now()
+
     def parse_amplitude_event(self, event: Dict[str, Any]) -> Optional[AmplitudeEvent]:
         """Parse an Amplitude event and return an AmplitudeEvent object."""
         try:
@@ -122,43 +147,21 @@ class AmplitudeEventParser:
 
             db_event_type = AMPLITUDE_TO_DB_EVENT_MAP[event_type]
 
-            user_id = event_props.get("user_id")
-            external_user_id = event.get("amplitude_id") or event_props.get(
-                "amplitude_id"
-            )
+            # Extract user identifiers
+            user_id, external_user_id = self._extract_user_ids(event)
 
-            user = None
-            if user_id:
-                try:
-                    user_id_int = int(user_id)
-                    user = User.objects.get(id=user_id_int)
-                except (ValueError, User.DoesNotExist) as e:
-                    logger.warning(
-                        f"Invalid user_id '{user_id}' for event_type "
-                        f"'{event_type}': {e}. Continuing with external_user_id only."
-                    )
-
-            if not user and not external_user_id:
+            if not user_id and not external_user_id:
                 logger.warning(
-                    f"No user_id or external_user_id (amplitude_id) found for event_type "
-                    f"'{event_type}'. Event: {event}"
+                    f"No user_id or external_user_id for event '{event_type}'"
                 )
                 return None
 
+            # Extract related work data
             related_work = extract_related_work(event_props)
             if not related_work:
-                user_identifier = (
-                    user_id
-                    if user_id
-                    else (
-                        f"external_user_id:{external_user_id}"
-                        if external_user_id
-                        else "unknown"
-                    )
-                )
                 logger.warning(
-                    f"No related_work data found for event_type '{event_type}', "
-                    f"user: '{user_identifier}'. Event: {event}"
+                    f"No related_work data for event '{event_type}', "
+                    f"user: {user_id or external_user_id}"
                 )
                 return None
 
@@ -166,35 +169,28 @@ class AmplitudeEventParser:
             content_type_str = related_work.get("content_type")
             object_id = related_work.get("id")
 
+            # Get unified_document_id - either directly or via content_type lookup
             if unified_doc_id:
                 try:
                     unified_doc_id = int(unified_doc_id)
-                    unified_document = ResearchhubUnifiedDocument.objects.get(
-                        id=unified_doc_id
+                except ValueError:
+                    logger.warning(f"Invalid unified_document_id: '{unified_doc_id}'")
+                    return None
+
+                if not content_type_str or not object_id:
+                    logger.warning(
+                        f"Missing content_type or object_id for "
+                        f"unified_doc_id '{unified_doc_id}'"
                     )
+                    return None
 
-                    if not content_type_str or not object_id:
-                        logger.warning(
-                            f"Missing content_type or object_id for "
-                            f"unified_doc_id '{unified_doc_id}'. "
-                            f"content_type: '{content_type_str}', "
-                            f"object_id: '{object_id}'"
-                        )
-                        return None
-
+                try:
                     content_type = AmplitudeEventParser.get_content_type(
                         content_type_str
                     )
                     object_id = int(object_id)
-                except (
-                    ValueError,
-                    ResearchhubUnifiedDocument.DoesNotExist,
-                    ContentType.DoesNotExist,
-                ) as e:
-                    logger.warning(
-                        f"Invalid unified_document_id '{unified_doc_id}' "
-                        f"or related data: {e}"
-                    )
+                except (ContentType.DoesNotExist, ValueError) as e:
+                    logger.warning(f"Invalid content_type/object_id: {e}")
                     return None
             elif content_type_str and object_id:
                 try:
@@ -204,62 +200,113 @@ class AmplitudeEventParser:
                     model_class = content_type.model_class()
                     object_id = int(object_id)
                     obj = model_class.objects.get(id=object_id)
-                    unified_document = obj.unified_document
-                except ContentType.DoesNotExist as e:
-                    logger.warning(f"Invalid content_type '{content_type_str}': {e}")
-                    return None
-                except (ValueError, AttributeError) as e:
+                    unified_doc_id = obj.unified_document_id
+                except (ContentType.DoesNotExist, ValueError, AttributeError) as e:
                     logger.warning(
                         f"Invalid content_type '{content_type_str}' or "
                         f"object_id '{object_id}': {e}"
                     )
                     return None
                 except Exception as e:
-                    logger.warning(
-                        f"Invalid content_type '{content_type_str}' or "
-                        f"object_id '{object_id}': {e}"
-                    )
+                    logger.warning(f"Error looking up unified_document: {e}")
                     return None
             else:
                 logger.warning(
-                    f"Neither unified_document_id nor content_type+id provided. "
-                    f"unified_doc_id: '{unified_doc_id}', "
-                    f"content_type: '{content_type_str}', id: '{object_id}'"
+                    "Neither unified_document_id nor content_type+id provided"
                 )
                 return None
 
-            timestamp_ms = event.get("_time")
-            if timestamp_ms:
-                event_timestamp = datetime.fromtimestamp(timestamp_ms / 1000)
-            else:
-                event_timestamp = datetime.now()
+            event_timestamp = self._extract_timestamp(event, "_time")
 
+            # Extract optional fields
             recommendation_id = event_props.get("recommendation_id")
             personalize_rec_id = (
                 str(recommendation_id) if recommendation_id is not None else None
             )
 
-            # Extract and convert impression array to pipe-delimited string
             impression = None
             impression_array = event_props.get("impression")
             if impression_array and isinstance(impression_array, list):
                 impression = "|".join(str(item) for item in impression_array)
 
-            amplitude_event = AmplitudeEvent(
-                user=user,
+            return AmplitudeEvent(
                 event_type=db_event_type,
-                unified_document=unified_document,
+                unified_document_id=unified_doc_id,
+                event_timestamp=event_timestamp,
+                user_id=user_id,
+                external_user_id=external_user_id,
                 content_type=content_type,
                 object_id=object_id,
-                event_timestamp=event_timestamp,
-                external_user_id=external_user_id,
                 personalize_rec_id=personalize_rec_id,
                 impression=impression,
             )
-
-            return amplitude_event
 
         except Exception as e:
             event_type = event.get("event_type", "unknown")
             logger.error(f"Unexpected error parsing event '{event_type}': {e}")
             return None
+
+    def parse_bulk_impression_event(
+        self, event: Dict[str, Any]
+    ) -> List[AmplitudeEvent]:
+        """Parse a bulk_feed_impression event into multiple AmplitudeEvent objects.
+
+        Args:
+            event: Raw Amplitude event with impressions array
+
+        Returns:
+            List of AmplitudeEvent objects, one per impression.
+            Invalid impressions are logged and skipped.
+        """
+        event_type = event.get("event_type", "").lower()
+        if event_type != BULK_FEED_IMPRESSION:
+            logger.warning(f"Expected bulk_feed_impression, got '{event_type}'")
+            return []
+
+        # Extract common fields
+        user_id, external_user_id = self._extract_user_ids(event)
+
+        if not user_id and not external_user_id:
+            logger.warning("No user_id or external_user_id for bulk_feed_impression")
+            return []
+
+        event_timestamp = self._extract_timestamp(event, "time")
+
+        # Extract impressions array
+        event_props = event.get("event_properties", {})
+        impressions = event_props.get("impressions", [])
+        if not impressions:
+            logger.warning(
+                f"No impressions in bulk_feed_impression for "
+                f"user {user_id or external_user_id}"
+            )
+            return []
+
+        # Parse each impression - validation happens at insert time via FK constraint
+        amplitude_events = []
+        for impression_data in impressions:
+            unified_doc_id = impression_data.get("unifiedDocumentId")
+            recommendation_id = impression_data.get("recommendationId")
+
+            if not unified_doc_id:
+                logger.warning("Missing unifiedDocumentId in impression, skipping")
+                continue
+
+            try:
+                unified_doc_id_int = int(unified_doc_id)
+            except ValueError:
+                logger.warning(f"Invalid unified_document_id: '{unified_doc_id}'")
+                continue
+
+            amplitude_events.append(
+                AmplitudeEvent(
+                    event_type=FEED_ITEM_IMPRESSION,
+                    unified_document_id=unified_doc_id_int,
+                    event_timestamp=event_timestamp,
+                    user_id=user_id,
+                    external_user_id=external_user_id,
+                    personalize_rec_id=recommendation_id,
+                )
+            )
+
+        return amplitude_events

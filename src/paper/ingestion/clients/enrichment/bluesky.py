@@ -81,7 +81,7 @@ class BlueskyClient:
             logger.info("Successfully authenticated with Bluesky")
 
         except Exception as e:
-            logger.error(f"Bluesky authentication failed: {str(e)}")
+            logger.error(f"Bluesky authentication failed: {e}")
             raise
 
     def search_posts(
@@ -181,8 +181,8 @@ class BlueskyMetricsClient:
                     query=term, limit=limit
                 )
             except Exception as e:
-                logger.error(
-                    f"Error retrieving Bluesky metrics for term {term}: {str(e)}"
+                logger.warning(
+                    f"Failed to retrieve Bluesky metrics for term {term}: {e}"
                 )
                 continue
 

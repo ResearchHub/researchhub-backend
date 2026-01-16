@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 from unittest import mock
 
 from django.test import TestCase, override_settings
@@ -6,6 +6,8 @@ from django.test import TestCase, override_settings
 from notification.models import Notification
 from user.models import User, UserVerification
 from user.views import PersonaWebhookView
+
+fixtures_dir = Path(__file__).parent / "fixtures"
 
 
 class PersonaWebhookViewTests(TestCase):
@@ -25,8 +27,7 @@ class PersonaWebhookViewTests(TestCase):
         )
 
     def read_test_file(self, filename):
-        file_path = os.path.join(os.path.dirname(__file__), "test_files", filename)
-        with open(file_path, "r") as file:
+        with open(fixtures_dir / filename, "r") as file:
             return file.read()
 
     @override_settings(PERSONA_WEBHOOK_SECRET=webhook_secret)

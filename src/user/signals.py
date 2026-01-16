@@ -8,7 +8,7 @@ from django.utils.crypto import get_random_string
 from django.utils.text import slugify
 
 from discussion.models import Vote
-from mailing_list.tasks import build_notification_context
+from mailing_list.lib import base_email_context
 from paper.models import Paper, PaperSubmission
 from purchase.models import Wallet
 from reputation.models import Bounty
@@ -100,7 +100,10 @@ def send_discussion_email_notification(instance, sender, action):
                     and subscription
                     and not subscription.none
                 ):
-                    context = build_notification_context([action])
+                    context = {
+                        **base_email_context,
+                        "actions": [action.email_context()],
+                    }
                     send_email_message(
                         recipient.email,
                         "notification_email.txt",

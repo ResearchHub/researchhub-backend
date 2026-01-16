@@ -1,5 +1,6 @@
 import json
 import random
+from pathlib import Path
 from unittest.mock import PropertyMock, patch
 
 from django.conf import settings
@@ -22,6 +23,8 @@ from utils.test_helpers import (
     get_authenticated_post_response,
 )
 
+fixtures_dir = Path(__file__).parent / "fixtures"
+
 
 class PaperApiTests(APITestCase):
     @patch.object(settings, "RESEARCHHUB_JOURNAL_ID", "123")
@@ -35,8 +38,8 @@ class PaperApiTests(APITestCase):
         self, mock_get_works, mock_get_data_from_doi
     ):
         with (
-            open("./paper/tests/openalex_author_works.json", "r") as works_file,
-            open("./paper/tests/openalex_single_work.json", "r") as single_work_file,
+            open(fixtures_dir / "openalex_author_works.json", "r") as works_file,
+            open(fixtures_dir / "openalex_single_work.json", "r") as single_work_file,
         ):
             # Set up a user that has a matching name to the one in the mocked response
             user_with_published_works = create_user(
@@ -63,8 +66,8 @@ class PaperApiTests(APITestCase):
         self, mock_get_works, mock_get_data_from_doi
     ):
         with (
-            open("./paper/tests/openalex_author_works.json", "r") as works_file,
-            open("./paper/tests/openalex_single_work.json", "r") as single_work_file,
+            open(fixtures_dir / "openalex_author_works.json", "r") as works_file,
+            open(fixtures_dir / "openalex_single_work.json", "r") as single_work_file,
         ):
             # Set up a user that has a matching name to the one in the mocked response
             user_with_published_works = create_user(
@@ -92,8 +95,8 @@ class PaperApiTests(APITestCase):
         self, mock_get_works, mock_get_data_from_doi
     ):
         with (
-            open("./paper/tests/openalex_author_works.json", "r") as works_file,
-            open("./paper/tests/openalex_single_work.json", "r") as single_work_file,
+            open(fixtures_dir / "openalex_author_works.json", "r") as works_file,
+            open(fixtures_dir / "openalex_single_work.json", "r") as single_work_file,
         ):
             # Set up a user that has a matching name to the one in the mocked response
             user_with_published_works = create_user(
@@ -163,8 +166,10 @@ class PaperApiTests(APITestCase):
         self.assertEqual(len(unclaimed_works), 3)
         self.assertEqual(unclaimed_works, openalex_works)
 
-    def test_create_researchhub_paper_creates_first_version(self):
+    @patch("utils.doi.requests.post")
+    def test_create_researchhub_paper_creates_first_version(self, crossref_post_mock):
         """Test that creating a new paper sets version 1"""
+        crossref_post_mock.return_value.status_code = 200
         user = create_random_authenticated_user("test_user")
         self.client.force_authenticate(user)
         hub = Hub.objects.create(name="Test Hub")
@@ -211,8 +216,10 @@ class PaperApiTests(APITestCase):
 
         self.assertEqual(paper.hubs.first().id, hub.id)
 
-    def test_create_researchhub_paper_with_multiple_authors(self):
+    @patch("utils.doi.requests.post")
+    def test_create_researchhub_paper_with_multiple_authors(self, crossref_post_mock):
         """Test creating a paper with multiple authors in different positions"""
+        crossref_post_mock.return_value.status_code = 200
         user = create_random_authenticated_user("test_user")
         self.client.force_authenticate(user)
 
@@ -304,8 +311,10 @@ class PaperApiTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("corresponding author is required", str(response.data["error"]))
 
-    def test_create_researchhub_paper_increments_version(self):
+    @patch("utils.doi.requests.post")
+    def test_create_researchhub_paper_increments_version(self, crossref_post_mock):
         """Test that creating a new version of an existing paper increments the version number"""
+        crossref_post_mock.return_value.status_code = 200
         # Create initial paper
         original_paper = create_paper()
         PaperVersion.objects.create(
@@ -475,8 +484,12 @@ class PaperApiTests(APITestCase):
             str(response.data["error"]),
         )
 
-    def test_create_researchhub_paper_update_doesnt_require_declarations(self):
+    @patch("utils.doi.requests.post")
+    def test_create_researchhub_paper_update_doesnt_require_declarations(
+        self, crossref_post_mock
+    ):
         """Test that updating a paper (new version) doesn't require declarations"""
+        crossref_post_mock.return_value.status_code = 200
         user = create_random_authenticated_user("test_user")
         self.client.force_authenticate(user)
 
@@ -511,8 +524,10 @@ class PaperApiTests(APITestCase):
         self.assertEqual(paper_version.message, "Updated content")
         self.assertEqual(paper_version.original_paper_id, original_paper.id)
 
-    def test_create_researchhub_paper_version_lineage(self):
+    @patch("utils.doi.requests.post")
+    def test_create_researchhub_paper_version_lineage(self, crossref_post_mock):
         """Test that creating multiple versions maintains consistent base_doi and original_paper_id"""
+        crossref_post_mock.return_value.status_code = 200
         user = create_random_authenticated_user("test_user")
         self.client.force_authenticate(user)
 
@@ -617,9 +632,13 @@ class PaperApiTests(APITestCase):
         self.assertTrue(paper_v2.doi.startswith(doi_base))
         self.assertTrue(paper_v3.doi.startswith(doi_base))
 
+    @patch("utils.doi.requests.post")
     @patch.object(settings, "RESEARCHHUB_JOURNAL_ID", "123")
-    def test_create_researchhub_paper_preserves_publication_metadata(self):
+    def test_create_researchhub_paper_preserves_publication_metadata(
+        self, crossref_post_mock
+    ):
         """Test that journal and publication_status are preserved across versions"""
+        crossref_post_mock.return_value.status_code = 200
         user = create_random_authenticated_user("test_user")
         self.client.force_authenticate(user)
 
@@ -712,9 +731,13 @@ class PaperApiTests(APITestCase):
         self.assertEqual(paper_version_v3.journal, PaperVersion.RESEARCHHUB)
         self.assertEqual(paper_version_v3.publication_status, PaperVersion.PUBLISHED)
 
+    @patch("utils.doi.requests.post")
     @patch.object(settings, "RESEARCHHUB_JOURNAL_ID", "123")
-    def test_researchhub_journal_hub_preserved_across_versions(self):
+    def test_researchhub_journal_hub_preserved_across_versions(
+        self, crossref_post_mock
+    ):
         """Test that ResearchHub Journal hub is preserved in new paper versions"""
+        crossref_post_mock.return_value.status_code = 200
         # Create a user and authenticate
         user = create_random_authenticated_user("test_user")
         self.client.force_authenticate(user)
