@@ -21,8 +21,6 @@ User = get_user_model()
 logger = logging.getLogger(__name__)
 
 
- 
-
 class OrcidFetchService:
     """Syncs papers and edu emails from ORCID to ResearchHub."""
 
@@ -43,7 +41,8 @@ class OrcidFetchService:
         """Normalize ORCID to (full_url, bare_id) format."""
         if not orcid:
             return None, None
-        return f"https://orcid.org/{orcid.replace('https://orcid.org/', '')}", orcid.replace("https://orcid.org/", "")
+        bare = orcid.replace("https://orcid.org/", "")
+        return f"https://orcid.org/{bare}", bare
         
     def sync_orcid(self, author_id: int) -> dict:
         """Sync an author's ORCID papers and edu emails to their ResearchHub profile."""
@@ -56,7 +55,7 @@ class OrcidFetchService:
             return {"papers_processed": 0, "author_id": author_id}
 
         works = self._fetch_works_from_openalex(dois)
-        linked = self._link_papers_to_author(works)
+        linked = self._link_papers_to_author(works, syncing_author=author)
         return {"papers_processed": linked, "author_id": author_id}
 
     def _get_author_and_orcid_id(self, author_id: int) -> Tuple[Author, str]:
@@ -171,16 +170,25 @@ class OrcidFetchService:
                 position = authorship_data.get("author_position", "middle")
                 is_corresponding = authorship_data.get("is_corresponding") or False
 
-                # Create a new paper-specific author
-                name_parts = display_name.split() if display_name else ["Unknown"]
-                paper_author = Author.objects.create(
-                    first_name=name_parts[0],
-                    last_name=name_parts[-1] if len(name_parts) > 1 else "",
-                    openalex_ids=[openalex_author_id],
-                    merged_with_author=user_author,
-                    created_source=Author.SOURCE_OPENALEX,
-                )
-                Wallet.objects.create(author=paper_author)
+                # Reuse existing paper-specific author or create new one
+                paper_author = Author.objects.filter(
+                    openalex_ids__contains=[openalex_author_id],
+                    user__isnull=True,
+                ).first()
+
+                if not paper_author:
+                    name_parts = display_name.split() if display_name else ["Unknown"]
+                    paper_author = Author.objects.create(
+                        first_name=name_parts[0],
+                        last_name=name_parts[-1] if len(name_parts) > 1 else "",
+                        openalex_ids=[openalex_author_id],
+                        merged_with_author=user_author,
+                        created_source=Author.SOURCE_OPENALEX,
+                    )
+                    Wallet.objects.create(author=paper_author)
+                elif not paper_author.merged_with_author:
+                    paper_author.merged_with_author = user_author
+                    paper_author.save(update_fields=["merged_with_author"])
 
                 # Remove the OpenAlex ID from the user's author to prevent future conflicts
                 if openalex_author_id in user_author.openalex_ids:
@@ -199,10 +207,16 @@ class OrcidFetchService:
                     paper.id, paper_author.id, user_author.id,
                 )
 
-    def _link_papers_to_author(self, works: list[dict]) -> int:
+    def _link_papers_to_author(
+        self, works: list[dict], syncing_author: Optional[Author] = None
+    ) -> int:
         """Merge authorships for all authors on papers that have ORCID matches."""
         linked = 0
         linked_author_ids: set[int] = set()
+
+        # Validate syncing author has OAuth once (not per-paper)
+        if syncing_author and not self._has_orcid_oauth(syncing_author):
+            syncing_author = None
 
         with transaction.atomic():
             for work in works:
@@ -210,13 +224,87 @@ class OrcidFetchService:
                 if not paper:
                     continue
 
+                # First, link the syncing user's authorship (we know they wrote this paper)
+                syncing_linked = False
+                if syncing_author:
+                    paper_author_id = self._link_syncing_author(
+                        paper, work, syncing_author
+                    )
+                    if paper_author_id:
+                        syncing_linked = True
+                        linked_author_ids.add(syncing_author.id)
+                        linked_author_ids.add(paper_author_id)
+
+                # Then, link any other ORCID-connected authors on this paper
                 author_ids = self._merge_authorships_for_paper(paper, work)
                 if author_ids:
-                    linked += 1
                     linked_author_ids.update(author_ids)
+
+                if syncing_linked or author_ids:
+                    linked += 1
 
         self._clear_author_caches(linked_author_ids)
         return linked
+
+    def _has_orcid_oauth(self, author: Author) -> bool:
+        """Check if author has ORCID OAuth connected (not just orcid_id set)."""
+        if not author.user:
+            return False
+        return SocialAccount.objects.filter(
+            user=author.user, provider=OrcidProvider.id
+        ).exists()
+
+    def _link_syncing_author(
+        self, paper: Paper, work: dict, syncing_author: Author
+    ) -> Optional[int]:
+        """Link the syncing user's authorship on this paper.
+        Returns the paper author's id if linked, None otherwise.
+        """
+        syncing_orcid = self._extract_orcid_id(syncing_author.orcid_id)
+        syncing_openalex_ids = set(syncing_author.openalex_ids or [])
+
+        # Find the syncing user's OpenAlex author ID on this paper
+        openalex_author_id = self._find_author_openalex_id(
+            work, syncing_orcid, syncing_openalex_ids
+        )
+        if not openalex_author_id:
+            return None
+
+        # Find the paper's authorship with this OpenAlex author ID
+        authorship = (
+            Authorship.objects.filter(
+                paper=paper, author__openalex_ids__contains=[openalex_author_id]
+            )
+            .exclude(author=syncing_author)
+            .select_related("author")
+            .first()
+        )
+
+        if not authorship:
+            return None
+
+        if self._link_authorship_to_user(authorship, syncing_author):
+            return authorship.author_id
+        return None
+
+    def _find_author_openalex_id(
+        self, work: dict, orcid: str, openalex_ids: set[str]
+    ) -> Optional[str]:
+        """Find the OpenAlex author ID matching ORCID or known IDs."""
+        for authorship_data in work.get("authorships", []):
+            author_data = authorship_data.get("author", {})
+            author_id = author_data.get("id")
+            orcid_url = author_data.get("orcid") or ""
+
+            # Match by ORCID first (most reliable)
+            if orcid and orcid in orcid_url:
+                return author_id
+
+            # Fallback: match by known OpenAlex IDs
+            if author_id and author_id in openalex_ids:
+                return author_id
+
+        return None
 
     def _merge_authorships_for_paper(self, paper: Paper, work: dict) -> set[int]:
         """Merge authorships for all authors on paper that are ORCID-connected in our system."""
@@ -257,21 +345,22 @@ class OrcidFetchService:
             )
 
             if openalex_authorship:
-                self._link_authorship_to_user(openalex_authorship, user_author)
-                # Track both the user's author and the paper's author for cache clearing
-                linked_author_ids.add(user_author.id)
-                linked_author_ids.add(openalex_authorship.author_id)
+                if self._link_authorship_to_user(openalex_authorship, user_author):
+                    linked_author_ids.add(user_author.id)
+                    linked_author_ids.add(openalex_authorship.author_id)
 
         return linked_author_ids
 
     def _link_authorship_to_user(
-        self, existing: Authorship, user_author: Author
-    ) -> None:
+        self, authorship: Authorship, user_author: Author
+    ) -> bool:
         """Link paper's author to user without changing the displayed author name."""
-        paper_author = existing.author
+        paper_author = authorship.author
         if paper_author.user is None and paper_author.merged_with_author is None:
             paper_author.merged_with_author = user_author
             paper_author.save(update_fields=["merged_with_author"])
+            return True
+        return False
 
     def _clear_author_caches(self, author_ids: set[int]) -> None:
         """Clear publication and summary caches for the given authors."""
