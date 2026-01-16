@@ -8,7 +8,7 @@ from paper.ingestion.clients import (
     BlueskyMetricsClient,
     GithubClient,
     GithubMetricsClient,
-    XMetricsClient,
+    XClient,
 )
 from paper.ingestion.clients.enrichment.openalex import OpenAlexClient
 from paper.ingestion.mappers import OpenAlexMapper
@@ -93,7 +93,7 @@ def update_recent_papers_with_github_metrics(days: int = 7):
     service = PaperMetricsEnrichmentService(
         bluesky_metrics_client=None,
         github_metrics_client=github_metrics_client,
-        x_metrics_client=None,
+        x_client=None,
     )
 
     papers = service.get_recent_papers_with_dois(days)
@@ -157,7 +157,7 @@ def enrich_paper_with_github_metrics(self, paper_id: int, retry: int = 0):
     service = PaperMetricsEnrichmentService(
         bluesky_metrics_client=None,
         github_metrics_client=github_metrics_client,
-        x_metrics_client=None,
+        x_client=None,
     )
 
     enrichment_result = service.enrich_paper_with_github_mentions(paper)
@@ -225,7 +225,7 @@ def update_recent_papers_with_bluesky_metrics(days: int = 7):
     service = PaperMetricsEnrichmentService(
         bluesky_metrics_client=BlueskyMetricsClient(),
         github_metrics_client=None,
-        x_metrics_client=None,
+        x_client=None,
     )
 
     papers = service.get_recent_papers_with_dois(days)
@@ -288,7 +288,7 @@ def enrich_paper_with_bluesky_metrics(self, paper_id: int, retry: int = 0):
     service = PaperMetricsEnrichmentService(
         bluesky_metrics_client=BlueskyMetricsClient(),
         github_metrics_client=None,
-        x_metrics_client=None,
+        x_client=None,
     )
 
     try:
@@ -357,7 +357,7 @@ def update_recent_papers_with_x_metrics(days: int = 7):
     service = PaperMetricsEnrichmentService(
         bluesky_metrics_client=None,
         github_metrics_client=None,
-        x_metrics_client=XMetricsClient(),
+        x_client=XClient(),
     )
 
     papers = service.get_recent_papers_with_dois(days)
@@ -432,7 +432,7 @@ def enrich_paper_with_x_metrics(self, paper_id: int):
     service = PaperMetricsEnrichmentService(
         bluesky_metrics_client=None,
         github_metrics_client=None,
-        x_metrics_client=XMetricsClient(),
+        x_client=XClient(),
     )
 
     enrichment_result = service.enrich_paper_with_x(paper)

@@ -6,12 +6,10 @@ from typing import Any, Dict, List, Optional
 
 from django.utils import timezone
 
-from paper.ingestion.clients import (
-    BlueskyMetricsClient,
-    GithubMetricsClient,
-    XMetricsClient,
-)
+from paper.ingestion.clients import BlueskyMetricsClient, GithubMetricsClient, XClient
+from paper.ingestion.mappers import XMapper
 from paper.models import Paper
+from paper.related_models.x_post_model import XPost
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +45,8 @@ class PaperMetricsEnrichmentService:
         self,
         bluesky_metrics_client: BlueskyMetricsClient,
         github_metrics_client: GithubMetricsClient,
-        x_metrics_client: XMetricsClient,
+        x_client: XClient,
+        x_mapper: Optional[XMapper] = None,
     ):
         """
         Constructor.
@@ -55,11 +54,13 @@ class PaperMetricsEnrichmentService:
         Args:
             github_metrics_client: Client for fetching GitHub metrics
             bluesky_metrics_client: Client for fetching Bluesky metrics
-            x_metrics_client: Client for fetching X (Twitter) metrics
+            x_client: Client for fetching X (Twitter) posts
+            x_mapper: Mapper for X post data (optional, creates default if None)
         """
         self.github_metrics_client = github_metrics_client
         self.bluesky_metrics_client = bluesky_metrics_client
-        self.x_metrics_client = x_metrics_client
+        self.x_client = x_client
+        self.x_mapper = x_mapper or XMapper()
 
     def get_recent_papers_with_dois(self, days: int) -> List[int]:
         """
@@ -196,25 +197,31 @@ class PaperMetricsEnrichmentService:
         hub_slugs = list(paper.hubs.values_list("slug", flat=True))
 
         try:
-            result = self.x_metrics_client.get_metrics(
+            posts = self.x_client.search_posts(
                 terms,
                 external_source=paper.external_source,
                 hub_slugs=hub_slugs,
             )
 
-            if result is None:
+            if posts is None:
                 logger.info(f"No X posts found for paper {paper.id}")
                 return EnrichmentResult(status="not_found", reason="no_x_posts")
 
-            self._update_paper_metrics(paper, {"x": result})
+            # Save individual X posts to the database
+            if posts:
+                self._save_x_posts(paper, posts)
+
+            # Extract and store aggregated metrics in external_metadata
+            metrics = self.x_mapper.extract_metrics(posts)
+            self._update_paper_metrics(paper, {"x": metrics})
 
             logger.info(
-                f"Successfully saved {result['post_count']} X posts for paper {paper.id}."
+                f"Successfully saved {metrics['post_count']} X posts for paper {paper.id}."
             )
 
             return EnrichmentResult(
                 status="success",
-                metrics={"x": result},
+                metrics={"x": metrics},
             )
 
         except Exception as e:
@@ -254,3 +261,32 @@ class PaperMetricsEnrichmentService:
         paper.external_metadata["metrics"] = existing_metrics
 
         paper.save(update_fields=["external_metadata"])
+
+    def _save_x_posts(self, paper: Paper, posts: List[Dict[str, Any]]) -> int:
+        """
+        Save X posts to the database, updating existing posts or creating new ones.
+
+        Args:
+            paper: Paper instance the posts reference
+            posts: List of post dicts from XMetricsClient
+
+        Returns:
+            Number of posts created or updated
+        """
+        x_posts = self.x_mapper.map_to_x_posts(posts)
+
+        for x_post in x_posts:
+            XPost.objects.update_or_create(
+                paper=paper,
+                post_id=x_post.post_id,
+                defaults={
+                    "author_id": x_post.author_id,
+                    "text": x_post.text,
+                    "posted_date": x_post.posted_date,
+                    "like_count": x_post.like_count,
+                    "repost_count": x_post.repost_count,
+                    "reply_count": x_post.reply_count,
+                    "quote_count": x_post.quote_count,
+                    "impression_count": x_post.impression_count,
+                },
+            )
