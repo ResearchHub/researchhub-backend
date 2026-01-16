@@ -327,6 +327,98 @@ class FundraiseViewSet(viewsets.ModelViewSet):
     @action(
         methods=["POST"],
         detail=True,
+        permission_classes=[IsAuthenticated],
+    )
+    def contribute_usd(self, request, *args, **kwargs):
+        """
+        Contribute USD from balance to fundraise.
+        Minimum contribution is $1 (100 cents).
+        A 9% fee is deducted (7% RH + 2% DAO).
+        """
+        from purchase.models import UsdBalance, UsdFundraiseContribution
+
+        data = request.data
+        user = request.user
+        fundraise_id = kwargs.get("pk", None)
+        amount_cents = data.get("amount_cents", None)
+
+        # Validate amount
+        if amount_cents is None:
+            return Response({"message": "amount_cents is required"}, status=400)
+        try:
+            amount_cents = int(amount_cents)
+        except (ValueError, TypeError):
+            return Response({"message": "Invalid amount_cents"}, status=400)
+
+        # Minimum $1 (100 cents)
+        if amount_cents < 100:
+            return Response(
+                {"message": "Minimum contribution is $1 (100 cents)"}, status=400
+            )
+
+        # Get fundraise
+        try:
+            fundraise = Fundraise.objects.get(id=fundraise_id)
+        except Fundraise.DoesNotExist:
+            return Response({"message": "Fundraise does not exist"}, status=400)
+
+        # Check if fundraise is open
+        if fundraise.status != Fundraise.OPEN:
+            return Response({"message": "Fundraise is not open"}, status=400)
+
+        # Check if fundraise is not expired
+        if fundraise.is_expired():
+            return Response({"message": "Fundraise is expired"}, status=400)
+
+        # Check if user created the fundraise
+        if fundraise.created_by.id == user.id:
+            return Response(
+                {"message": "Cannot contribute to your own fundraise"}, status=400
+            )
+
+        # Calculate 9% fee (7% RH + 2% DAO)
+        fee_cents = int(amount_cents * 9 / 100)
+        total_debit_cents = amount_cents + fee_cents
+
+        with transaction.atomic():
+            user = User.objects.select_for_update().get(id=user.id)
+
+            # Check if user has enough USD balance
+            user_balance_cents = user.get_usd_balance_cents()
+            if user_balance_cents < total_debit_cents:
+                return Response({"message": "Insufficient USD balance"}, status=400)
+
+            # Create contribution record
+            contribution = UsdFundraiseContribution.objects.create(
+                user=user,
+                fundraise=fundraise,
+                amount_cents=amount_cents,
+                fee_cents=fee_cents,
+            )
+
+            # Create debit balance record (negative amount)
+            UsdBalance.objects.create(
+                user=user,
+                amount_cents=-total_debit_cents,
+                content_type=ContentType.objects.get_for_model(
+                    UsdFundraiseContribution
+                ),
+                object_id=contribution.id,
+                description=f"Fundraise contribution: ${amount_cents / 100:.2f} + ${fee_cents / 100:.2f} fee",
+            )
+
+            # Update fundraise USD amount raised
+            fundraise.usd_amount_raised_cents += amount_cents
+            fundraise.save()
+
+        # Return updated fundraise
+        context = self.get_serializer_context()
+        serializer = self.get_serializer(fundraise, context=context)
+        return Response(serializer.data)
+
+    @action(
+        methods=["POST"],
+        detail=True,
         permission_classes=[IsModerator],
     )
     def complete(self, request, *args, **kwargs):
