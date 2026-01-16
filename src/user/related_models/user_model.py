@@ -228,6 +228,12 @@ class User(AbstractUser):
             locked_queryset = locked_queryset.filter(lock_type=lock_type)
         return self.get_balance(queryset=locked_queryset, include_locked=True)
 
+    def get_usd_balance_cents(self):
+        """Returns total USD balance in cents."""
+        return self.usd_balances.aggregate(
+            total=Coalesce(Sum("amount_cents"), Value(0))
+        )["total"]
+
     def notify_inactivity(self, paper_count=0, comment_count=0):
         recipient = [self.email]
         subject = "[Editor] Weekly Inactivity"
