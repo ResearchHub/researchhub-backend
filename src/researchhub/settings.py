@@ -901,7 +901,7 @@ PAPER_INGESTION_ENABLED = (
 # AWS Personalize
 if PRODUCTION:
     AWS_PERSONALIZE_CAMPAIGN_ARN = (
-        "arn:aws:personalize:us-west-2:975049929542:campaign/personalized-no-bias"
+        "arn:aws:personalize:us-west-2:975049929542:campaign/personalized-recs"
     )
     AWS_PERSONALIZE_DATASET_ARN = (
         "arn:aws:personalize:us-west-2:975049929542:"
