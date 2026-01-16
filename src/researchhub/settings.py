@@ -399,12 +399,9 @@ AUTHENTICATION_BACKENDS = (
 
 OAUTH_METHOD = "token"
 
-REST_AUTH_REGISTER_SERIALIZERS = {
+REST_AUTH = {
     "REGISTER_SERIALIZER": "user.serializers.RegisterSerializer",
-}
-
-REST_AUTH_SERIALIZERS = {
-    "PASSWORD_RESET_SERIALIZER": "user.custom_allauth.CustomPasswordResetSerializer"
+    "PASSWORD_RESET_SERIALIZER": "user.custom_allauth.CustomPasswordResetSerializer",
 }
 
 
