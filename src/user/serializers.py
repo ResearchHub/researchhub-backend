@@ -658,6 +658,17 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
             username = get_adapter().clean_username(username)
         return username
 
+    def validate_email(self, email):
+        # Call parent validation first
+        email = super().validate_email(email)
+        # Since User.save() sets username=email, we need to check for existing
+        # users with this email as username to avoid IntegrityError
+        if email and User.objects.filter(username=email).exists():
+            raise serializers.ValidationError(
+                "A user is already registered with this e-mail address."
+            )
+        return email
+
     def validate_first_name(self, first_name):
         return first_name
 
