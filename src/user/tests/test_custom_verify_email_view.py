@@ -1,6 +1,5 @@
-from allauth.account.models import EmailAddress, EmailConfirmation
+from allauth.account.models import EmailAddress, EmailConfirmationHMAC
 from django.contrib.auth import get_user_model
-from django.utils import timezone
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APITransactionTestCase
 
@@ -23,9 +22,7 @@ class CustomVerifyEmailViewTest(APITransactionTestCase):
             user=self.user, email=self.user.email, primary=True, verified=False
         )
 
-        self.confirmation = EmailConfirmation.create(self.email_address)
-        self.confirmation.sent = timezone.now()
-        self.confirmation.save()
+        self.confirmation = EmailConfirmationHMAC(self.email_address)
         self.key = self.confirmation.key
 
         self.verify_url = "/api/auth/register/verify-email/"

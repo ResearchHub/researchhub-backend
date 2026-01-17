@@ -293,6 +293,7 @@ MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "allauth.account.middleware.AccountMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -398,17 +399,14 @@ AUTHENTICATION_BACKENDS = (
 
 OAUTH_METHOD = "token"
 
-REST_AUTH_REGISTER_SERIALIZERS = {
+REST_AUTH = {
     "REGISTER_SERIALIZER": "user.serializers.RegisterSerializer",
-}
-
-REST_AUTH_SERIALIZERS = {
-    "PASSWORD_RESET_SERIALIZER": "user.custom_allauth.CustomPasswordResetSerializer"
+    "PASSWORD_RESET_SERIALIZER": "user.custom_allauth.CustomPasswordResetSerializer",
 }
 
 
 # Django AllAuth setup
-# https://django-allauth.readthedocs.io/en/latest/configuration.html
+# https://docs.allauth.org/en/latest/account/configuration.html
 
 # See: https://docs.allauth.org/en/latest/account/rate_limits.html
 ACCOUNT_RATE_LIMITS = {
@@ -416,12 +414,11 @@ ACCOUNT_RATE_LIMITS = {
     "login_failed": "5/5m/ip,5/5m/key",
 }
 
-ACCOUNT_AUTHENTICATION_METHOD = "email"
+ACCOUNT_LOGIN_METHODS = {"email"}
+ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*"]
 ACCOUNT_EMAIL_VERIFICATION = "mandatory"
-ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_UNIQUE_EMAIL = True
 ACCOUNT_ADAPTER = "user.custom_allauth.CustomAccountAdapter"
-ACCOUNT_USERNAME_REQUIRED = False
 ACCOUNT_AUTHENTICATED_LOGIN_REDIRECTS = False
 if STAGING or PRODUCTION:
     ACCOUNT_DEFAULT_HTTP_PROTOCOL = "https"
