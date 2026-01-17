@@ -1,3 +1,5 @@
+import logging
+
 import requests
 from allauth.account.models import EmailAddress
 from django.contrib.contenttypes.models import ContentType
@@ -21,6 +23,8 @@ from user.constants.organization_constants import PERSONAL
 from user.models import Action, Author, Organization, User
 from utils.message import send_email_message
 from utils.sentry import log_error
+
+logger = logging.getLogger(__name__)
 
 
 @receiver(pre_save, sender=Organization, dispatch_uid="add_organization_slug")
@@ -231,4 +235,4 @@ def sync_email_address_with_user(sender, instance, created, **kwargs):
                 email_address.save(update_fields=["verified", "primary"])
 
     except Exception as e:
-        log_error(e)
+        logger.error("Failed to sync email address for user %s: %s", instance.id, e)
