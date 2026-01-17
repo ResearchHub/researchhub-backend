@@ -22,7 +22,6 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from user.constants.organization_constants import PERSONAL
 from user.models import Action, Author, Organization, User
 from utils.message import send_email_message
-from utils.sentry import log_error
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +116,9 @@ def send_discussion_email_notification(instance, sender, action):
                         html_template="notification_email.html",
                     )
             except Exception as e:
-                log_error(e)
+                logger.error(
+                    "Failed to send discussion email to %s: %s", recipient.email, e
+                )
 
 
 @receiver(post_delete, sender=Paper, dispatch_uid="paper_delete_action")
@@ -189,7 +190,9 @@ def create_user_organization(sender, instance, created, **kwargs):
                         save=True,
                     )
         except Exception as e:
-            log_error(e)
+            logger.error(
+                "Failed to set organization cover image for user %s: %s", instance.id, e
+            )
 
 
 @receiver(post_save, sender=User, dispatch_uid="sync_email_address")
