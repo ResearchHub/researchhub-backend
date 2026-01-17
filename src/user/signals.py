@@ -1,7 +1,8 @@
 import requests
+from allauth.account.models import EmailAddress
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
-from django.db import models
+from django.db import models, transaction
 from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
 from django.utils.crypto import get_random_string
@@ -185,3 +186,49 @@ def create_user_organization(sender, instance, created, **kwargs):
                     )
         except Exception as e:
             log_error(e)
+
+
+@receiver(post_save, sender=User, dispatch_uid="sync_email_address")
+def sync_email_address_with_user(sender, instance, created, **kwargs):
+    """
+    Keep email addresses in `EmailAddress` model in sync with `User.email`.
+
+    When the email address changes in the `User` model, we must ensure that
+    the corresponding `EmailAddress` records are updated accordingly.
+
+    This prevents login/password reset failures after email changes, since
+    allauth requires a verified EmailAddress record matching User.email.
+    """
+    if not instance.email:
+        return
+
+    try:
+        # Check if email address is already in sync
+        current_primary = EmailAddress.objects.filter(
+            user=instance, email=instance.email, verified=True, primary=True
+        ).exists()
+
+        if current_primary:
+            return  # no changes needed
+
+        with transaction.atomic():
+            # First, mark all existing EmailAddress records as non-primary
+            # This must happen before creating/updating to avoid unique constraint
+            # violation on the (user_id, primary) constraint
+            EmailAddress.objects.filter(user=instance).update(primary=False)
+
+            # Get or create primary address with the user's current email
+            email_address, email_created = EmailAddress.objects.get_or_create(
+                user=instance,
+                email=instance.email,
+                defaults={"verified": True, "primary": True},
+            )
+
+            if not email_created:
+                # If the email address already existed, ensure it's verified and primary
+                email_address.verified = True
+                email_address.primary = True
+                email_address.save(update_fields=["verified", "primary"])
+
+    except Exception as e:
+        log_error(e)
