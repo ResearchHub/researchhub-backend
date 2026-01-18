@@ -1,8 +1,11 @@
+import logging
 from typing import Optional
 
 import requests
 
-from orcid.config import ORCID_API_URL, ORCID_BASE_URL
+from orcid.config import APPLICATION_JSON , ORCID_API_URL, ORCID_BASE_URL
+
+logger = logging.getLogger(__name__)
 
 REQUEST_TIMEOUT = 30
 
@@ -19,7 +22,7 @@ class OrcidClient:
         """Exchange OAuth authorization code for access token."""
         response = self.session.post(
             f"{ORCID_BASE_URL}/oauth/token",
-            headers={"Accept": "application/json"},
+            headers={"Accept": APPLICATION_JSON},
             data={
                 "client_id": client_id,
                 "client_secret": client_secret,
@@ -32,16 +35,16 @@ class OrcidClient:
         response.raise_for_status()
         return response.json()
 
-    def get_emails(self, orcid_id: str, access_token: str) -> list[dict]:
-        """Fetch user's public emails from ORCID. Returns empty list if private or on error."""
+    def get_email_data(self, orcid_id: str, access_token: str) -> dict:
+        """Fetch user's email data from ORCID. Returns empty dict on error."""
         try:
             response = self.session.get(
                 f"{ORCID_API_URL}/v3.0/{orcid_id}/email",
-                headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json"},
+                headers={"Authorization": f"Bearer {access_token}", "Accept": APPLICATION_JSON},
                 timeout=REQUEST_TIMEOUT,
             )
             response.raise_for_status()
-            return response.json().get("email", [])
-        except Exception:
-            return []
-
+            return response.json()
+        except requests.RequestException:
+            logger.warning("Failed to fetch email data for ORCID %s", orcid_id, exc_info=True)
+            return {} 
