@@ -195,7 +195,8 @@ class OrcidFetchServiceTests(TestCase):
         self.assertEqual(result["papers_processed"], 0)
         self.assertFalse(Authorship.objects.filter(paper=paper, author=user.author_profile).exists())
 
-    def test_sync_skips_existing_authorship(self):
+    def test_sync_skips_paper_when_user_already_has_authorship(self):
+        """If user already has authorship on a paper, skip processing it."""
         # Arrange
         user = OrcidTestHelper.create_author()
         paper = Paper.objects.create(title="T", doi="10.1/x")
@@ -209,8 +210,8 @@ class OrcidFetchServiceTests(TestCase):
         # Assert
         self.assertEqual(result["papers_processed"], 0)
 
-    def test_sync_does_not_merge_author_with_user(self):
-        """Authors with users attached should not be merged."""
+    def test_sync_does_not_steal_authorship_from_other_users(self):
+        """If another user owns an authorship, don't merge their author into syncing user."""
         # Arrange
         other_orcid = "https://orcid.org/1111-1111-1111-1111"
         user = OrcidTestHelper.create_author("u1")
@@ -247,9 +248,6 @@ class OrcidFetchServiceTests(TestCase):
         # Assert
         self.assertEqual(result["papers_processed"], 0)
         self.assertEqual(Authorship.objects.get(paper=paper).author, openalex_author)
-
-        author_without_user = Author.objects.create(first_name="No", last_name="User")
-        self.assertFalse(self.service._has_orcid_oauth(author_without_user))
 
     def test_sync_edu_emails_skips_when_no_user(self):
         # Act
@@ -289,8 +287,10 @@ class OrcidFetchServiceTests(TestCase):
 
         # Set cache values
         user_author_id = user.author_profile.id
+        cache.set(f"author-{user_author_id}-profile", "cached_value")
         cache.set(f"author-{user_author_id}-publications", "cached_value")
         cache.set(f"author-{user_author_id}-summary-stats", "cached_value")
+        cache.set(f"author-{openalex_author.id}-profile", "cached_value")
         cache.set(f"author-{openalex_author.id}-publications", "cached_value")
         cache.set(f"author-{openalex_author.id}-summary-stats", "cached_value")
 
@@ -298,8 +298,10 @@ class OrcidFetchServiceTests(TestCase):
         self.service.sync_orcid(user.author_profile.id)
 
         # Assert - caches should be cleared
+        self.assertIsNone(cache.get(f"author-{user_author_id}-profile"))
         self.assertIsNone(cache.get(f"author-{user_author_id}-publications"))
         self.assertIsNone(cache.get(f"author-{user_author_id}-summary-stats"))
+        self.assertIsNone(cache.get(f"author-{openalex_author.id}-profile"))
         self.assertIsNone(cache.get(f"author-{openalex_author.id}-publications"))
         self.assertIsNone(cache.get(f"author-{openalex_author.id}-summary-stats"))
 
@@ -342,8 +344,8 @@ class OrcidFetchServiceTests(TestCase):
         openalex_author.refresh_from_db()
         self.assertEqual(openalex_author.merged_with_author, user.author_profile)
 
-    def test_fix_user_author_authorships_reuses_existing_author(self):
-        """When a paper-specific author already exists, reuse it instead of creating duplicate."""
+    def test_fix_reuses_existing_paper_author_instead_of_duplicating(self):
+        """When a paper-specific author already exists, reuse it instead of creating a duplicate."""
         # Arrange
         user = OrcidTestHelper.create_author()
         user.author_profile.openalex_ids = [OrcidTestHelper.OPENALEX_AUTHOR_ID]
@@ -364,19 +366,22 @@ class OrcidFetchServiceTests(TestCase):
         # Act
         self.service.sync_orcid(user.author_profile.id)
 
-        # Assert
+        # Assert - only one paper-specific author (without user) should exist
         self.assertEqual(
-            Author.objects.filter(openalex_ids__contains=[OrcidTestHelper.OPENALEX_AUTHOR_ID]).count(),
+            Author.objects.filter(
+                openalex_ids__contains=[OrcidTestHelper.OPENALEX_AUTHOR_ID],
+                user__isnull=True,
+            ).count(),
             1
         )
         existing_paper_author.refresh_from_db()
         self.assertEqual(existing_paper_author.merged_with_author, user.author_profile)
 
-    def test_fix_user_author_authorships_creates_paper_author(self):
+    def test_fix_creates_paper_author_when_authorship_incorrectly_on_user(self):
         """
-        When user has OpenAlex IDs in their profile (from previous claims),
-        authorships created directly with the user should be fixed to use
-        a paper-specific author linked via merged_with_author.
+        When an authorship was incorrectly created with a user-connected author
+        (because they have an OpenAlex ID in their profile), create a new 
+        paper-specific author and link via merged_with_author.
         """
         # Arrange
         user = OrcidTestHelper.create_author()
@@ -406,12 +411,16 @@ class OrcidFetchServiceTests(TestCase):
         self.service.sync_orcid(user.author_profile.id)
 
         # Assert
-        # User's author should no longer have the OpenAlex ID
+        # User's author keeps their OpenAlex ID (we no longer remove it)
         user.author_profile.refresh_from_db()
-        self.assertNotIn(OrcidTestHelper.OPENALEX_AUTHOR_ID, user.author_profile.openalex_ids)
+        self.assertIn(OrcidTestHelper.OPENALEX_AUTHOR_ID, user.author_profile.openalex_ids)
 
-        # A new paper-specific author should exist with the OpenAlex ID
-        paper_author = Author.objects.get(openalex_ids__contains=[OrcidTestHelper.OPENALEX_AUTHOR_ID])
+        # A new paper-specific author should also exist with the OpenAlex ID
+        paper_author = Author.objects.filter(
+            openalex_ids__contains=[OrcidTestHelper.OPENALEX_AUTHOR_ID],
+            user__isnull=True,
+        ).first()
+        self.assertIsNotNone(paper_author)
         self.assertNotEqual(paper_author.id, user.author_profile.id)
         self.assertEqual(paper_author.first_name, "Paper")
         self.assertEqual(paper_author.last_name, "Name")
@@ -429,7 +438,7 @@ class OrcidFetchServiceTests(TestCase):
         # Arrange
         user = OrcidTestHelper.create_author()
         # Create a paper author that's merged with the user and has h-index
-        merged_author = Author.objects.create(
+        Author.objects.create(
             first_name="Paper", last_name="Author",
             h_index=15, i10_index=8, two_year_mean_citedness=3.5,
             merged_with_author=user.author_profile,
