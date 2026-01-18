@@ -12,6 +12,7 @@ from paper.models import Paper
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubPost
+from user.models import Author
 from user.serializers import DynamicUserSerializer, DynamicVerdictSerializer
 from utils.http import get_user_from_request
 from utils.sentry import log_error
@@ -34,21 +35,38 @@ class DynamicFlagSerializer(DynamicModelFieldSerializer):
 
     def get_item(self, flag):
         context = self.context
-        _context_fields = context.get("dis_dfs_get_item", {})
         item = flag.item
 
         if isinstance(item, Paper):
             from paper.serializers import DynamicPaperSerializer
 
+            _context_fields = context.get("dis_dfs_get_item", {})
             serializer = DynamicPaperSerializer
         elif isinstance(item, ResearchhubPost):
             from researchhub_document.serializers import DynamicPostSerializer
 
+            _context_fields = context.get("dis_dfs_get_item", {})
             serializer = DynamicPostSerializer
         elif isinstance(item, RhCommentModel):
             from researchhub_comment.serializers import DynamicRhCommentSerializer
 
+            _context_fields = context.get("dis_dfs_get_item", {})
             serializer = DynamicRhCommentSerializer
+        elif isinstance(item, Author):
+            from user.serializers import DynamicAuthorSerializer
+
+            _context_fields = context.get("dis_dfs_get_author_item", {})
+            # Provide default fields for author if not in context
+            if not _context_fields:
+                _context_fields = {
+                    "_include_fields": [
+                        "id",
+                        "first_name",
+                        "last_name",
+                        "profile_image",
+                    ]
+                }
+            serializer = DynamicAuthorSerializer
         else:
             return None
         data = serializer(item, context=context, **_context_fields).data

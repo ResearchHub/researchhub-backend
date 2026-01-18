@@ -6,7 +6,11 @@ from rest_framework.decorators import action
 from rest_framework.pagination import CursorPagination
 from rest_framework.response import Response
 
-from discussion.constants.flag_reasons import FLAG_REASON_CHOICES, NOT_SPECIFIED
+from discussion.constants.flag_reasons import (
+    FLAG_REASON_CHOICES,
+    NOT_SPECIFIED,
+    USER_FLAG_REASON_CHOICES,
+)
 from discussion.models import Flag
 from discussion.serializers import DynamicFlagSerializer, FlagSerializer
 from discussion.views import censor
@@ -16,8 +20,9 @@ from researchhub.settings import EMAIL_DOMAIN
 from researchhub_comment.models import RhCommentModel
 from researchhub_comment.views.rh_comment_view import remove_bounties
 from user.filters import AuditDashboardFilterBackend
-from user.models import Action, User
+from user.models import Action, Author, User
 from user.permissions import IsModerator, UserIsEditor
+from user.tasks import handle_spam_user_task
 from user.serializers import DynamicActionSerializer, VerdictSerializer
 from utils import sentry
 from utils.message import send_email_message
@@ -149,8 +154,17 @@ class AuditViewSet(viewsets.GenericViewSet):
             "rhc_dts_get_content_object": {
                 "_include_fields": ["id", "unified_document", "thread_type"]
             },
+            "usr_das_get_author_item": {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "profile_image",
+                ]
+            },
         }
         context["dis_dfs_get_item"] = context["usr_das_get_item"]
+        context["dis_dfs_get_author_item"] = context["usr_das_get_author_item"]
         context["dis_dfs_get_created_by"] = context["usr_das_get_created_by"]
         context["dis_dfs_get_hubs"] = context["usr_das_get_hubs"]
         return context
@@ -254,7 +268,7 @@ class AuditViewSet(viewsets.GenericViewSet):
 
                 is_content_removed = verdict.is_content_removed
                 if is_content_removed:
-                    self._remove_flagged_content(flag)
+                    self._remove_flagged_content(flag, request_user=flagger)
                     self._send_notification_to_content_creator(
                         remover=flagger,
                         send_email=data.get("send_email", True),
@@ -278,7 +292,7 @@ class AuditViewSet(viewsets.GenericViewSet):
         try:
             flags = Flag.objects.filter(id__in=data.get("flag_ids", []))
             for flag in flags:
-                available_reasons = list(map(lambda r: r[0], FLAG_REASON_CHOICES))
+                available_reasons = list(map(lambda r: r[0], FLAG_REASON_CHOICES + USER_FLAG_REASON_CHOICES))
                 verdict_choice = NOT_SPECIFIED
                 if data.get("verdict_choice") in available_reasons:
                     verdict_choice = f'NOT_{data.get("verdict_choice")}'
@@ -316,7 +330,7 @@ class AuditViewSet(viewsets.GenericViewSet):
         with transaction.atomic():
             flags = Flag.objects.filter(id__in=data.get("flag_ids", []))
             for flag in flags.iterator():
-                available_reasons = list(map(lambda r: r[0], FLAG_REASON_CHOICES))
+                available_reasons = list(map(lambda r: r[0], FLAG_REASON_CHOICES + USER_FLAG_REASON_CHOICES))
                 verdict_choice = NOT_SPECIFIED
                 if data.get("verdict_choice") in available_reasons:
                     verdict_choice = data.get("verdict_choice")
@@ -331,7 +345,7 @@ class AuditViewSet(viewsets.GenericViewSet):
                 flag.verdict_created_date = verdict.created_date
                 flag.save()
 
-                self._remove_flagged_content(flag)
+                self._remove_flagged_content(flag, request_user=flagger)
                 try:
                     self._send_notification_to_content_creator(
                         remover=flagger,
@@ -363,7 +377,7 @@ class AuditViewSet(viewsets.GenericViewSet):
                 ):
                     continue
 
-                available_reasons = list(map(lambda r: r[0], FLAG_REASON_CHOICES))
+                available_reasons = list(map(lambda r: r[0], FLAG_REASON_CHOICES + USER_FLAG_REASON_CHOICES))
                 verdict_choice = NOT_SPECIFIED
                 if data.get("verdict_choice") in available_reasons:
                     verdict_choice = data.get("verdict_choice")
@@ -392,9 +406,20 @@ class AuditViewSet(viewsets.GenericViewSet):
             paper.is_pdf_removed_by_moderator = True
             paper.save()
 
-    def _remove_flagged_content(self, flag):
+    def _remove_flagged_content(self, flag, request_user=None):
         with transaction.atomic():
             flag_item = flag.item
+
+            # Handle Author flags differently - suspend the user
+            if isinstance(flag_item, Author):
+                user = flag_item.user
+                if user:
+                    user.set_probable_spammer()
+                    user.set_suspended()
+                    user.save()
+                    handle_spam_user_task(user.id, request_user)
+                return True
+
             if isinstance(flag_item, RhCommentModel):
                 remove_bounties(flag_item)
             censor_response = censor(flag_item)
@@ -413,10 +438,17 @@ class AuditViewSet(viewsets.GenericViewSet):
         else:
             flagged_content = model_class.objects.get(id=flag.object_id)
 
-        if flag.content_type.name == "paper":
+        # Handle Author flags - notify the author's user account
+        if isinstance(flagged_content, Author):
+            content_creator = flagged_content.user
+            unified_document = None
+        elif flag.content_type.name == "paper":
             content_creator = flagged_content.uploaded_by
+            unified_document = flagged_content.unified_document
         else:
             content_creator = flagged_content.created_by
+            unified_document = flagged_content.unified_document
+
         Action.objects.create(
             item=verdict, user=remover, content_type=get_content_type_for_model(verdict)
         )
@@ -429,7 +461,7 @@ class AuditViewSet(viewsets.GenericViewSet):
             action_user=anon_remover,
             item=verdict,
             recipient=content_creator,
-            unified_document=flagged_content.unified_document,
+            unified_document=unified_document,
             notification_type=Notification.FLAGGED_CONTENT_VERDICT,
         )
         notification.send_notification()

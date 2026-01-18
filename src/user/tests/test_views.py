@@ -544,3 +544,47 @@ class UserModerationTests(APITestCase):
         response = self.client.post(url, data)
 
         self.assertEqual(response.status_code, 404)
+
+    def test_flag_reinstate_flag_success(self):
+        """Test that a user can be flagged, reinstated, and flagged again."""
+        from discussion.constants.flag_reasons import SPAM_ACCOUNT, HARASSMENT
+        from discussion.models import Flag
+
+        author_id = self.target_user.author_profile.id
+
+        # First flagging
+        flag_url = "/api/user/mark_probable_spammer/"
+        flag_data = {"authorId": author_id, "reason": SPAM_ACCOUNT}
+        self.client.force_authenticate(user=self.moderator)
+        response = self.client.post(flag_url, flag_data)
+        self.assertEqual(response.status_code, 200)
+
+        # Verify flag was created
+        flags = Flag.objects.filter(object_id=author_id)
+        self.assertEqual(flags.count(), 1)
+        original_flag = flags.first()
+        self.assertEqual(original_flag.reason_choice, SPAM_ACCOUNT)
+        self.assertFalse(hasattr(original_flag, "verdict") and original_flag.verdict)
+
+        # Reinstate user
+        reinstate_url = "/api/user/reinstate/"
+        reinstate_data = {"author_id": author_id}
+        response = self.client.post(reinstate_url, reinstate_data)
+        self.assertEqual(response.status_code, 200)
+
+        # Verify flag was resolved (has verdict)
+        original_flag.refresh_from_db()
+        self.assertTrue(hasattr(original_flag, "verdict"))
+
+        # Second flagging - should not raise IntegrityError
+        flag_data = {"authorId": author_id, "reason": HARASSMENT}
+        response = self.client.post(flag_url, flag_data)
+        self.assertEqual(response.status_code, 200)
+
+        # Verify still only one flag (re-used) and verdict was removed
+        flags = Flag.objects.filter(object_id=author_id)
+        self.assertEqual(flags.count(), 1)
+        reopened_flag = flags.first()
+        self.assertEqual(reopened_flag.id, original_flag.id)
+        self.assertEqual(reopened_flag.reason_choice, HARASSMENT)
+        self.assertFalse(hasattr(reopened_flag, "verdict") and reopened_flag.verdict)

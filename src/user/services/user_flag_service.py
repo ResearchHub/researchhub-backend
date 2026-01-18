@@ -42,9 +42,29 @@ class UserFlagService:
         reason: str,
         reason_memo: str = "",
     ) -> Flag:
-        """Create a flag on an author."""
+        """Create or re-open a flag on an author."""
+        content_type = _get_author_content_type()
+
+        existing_flag = Flag.objects.filter(
+            content_type=content_type,
+            object_id=author.id,
+            created_by=created_by,
+        ).first()
+
+        if existing_flag:
+            # Delete verdict if exists (re-open the flag)
+            if hasattr(existing_flag, "verdict"):
+                existing_flag.verdict.delete()
+
+            # Update flag with new reason info
+            existing_flag.reason = reason
+            existing_flag.reason_choice = reason
+            existing_flag.reason_memo = reason_memo
+            existing_flag.save()
+            return existing_flag
+
         return Flag.objects.create(
-            content_type=_get_author_content_type(),
+            content_type=content_type,
             object_id=author.id,
             created_by=created_by,
             reason=reason,

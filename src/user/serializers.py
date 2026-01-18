@@ -50,6 +50,8 @@ from utils import sentry
 
 class ModeratorUserSerializer(ModelSerializer):
     verification = SerializerMethodField()
+    author_profile = SerializerMethodField()
+    author_flags = SerializerMethodField()
 
     class Meta:
         model = User
@@ -62,6 +64,8 @@ class ModeratorUserSerializer(ModelSerializer):
             "created_date",
             "is_orcid_connected",
             "orcid_verified_edu_email",
+            "author_profile",
+            "author_flags",
         ]
 
     def get_verification(self, user):
@@ -78,6 +82,43 @@ class ModeratorUserSerializer(ModelSerializer):
             "external_id": user_verification.external_id,
             "status": user_verification.status,
         }
+
+    def get_author_profile(self, user):
+        author = getattr(user, "author_profile", None)
+        if not author:
+            return None
+
+        return {
+            "id": author.id,
+            "first_name": author.first_name,
+            "last_name": author.last_name,
+            "profile_image": author.profile_image.url if author.profile_image else None,
+        }
+
+    def get_author_flags(self, user):
+        from user.services import UserFlagService
+
+        author = getattr(user, "author_profile", None)
+        if not author:
+            return {"count": 0, "flags": []}
+
+        flags = UserFlagService.get_open_flags(author)
+        serialized = [
+            {
+                "id": flag.id,
+                "reason": flag.reason,
+                "reason_choice": flag.reason_choice,
+                "reason_memo": flag.reason_memo,
+                "created_date": flag.created_date,
+                "created_by": {
+                    "id": flag.created_by.id,
+                    "first_name": flag.created_by.first_name,
+                    "last_name": flag.created_by.last_name,
+                },
+            }
+            for flag in flags
+        ]
+        return {"count": len(serialized), "flags": serialized}
 
 
 class UniversitySerializer(ModelSerializer):
@@ -1073,22 +1114,3 @@ class DynamicAuthorContributionSummarySerializer(DynamicModelFieldSerializer):
     class Meta:
         model = AuthorContributionSummary
         fields = "__all__"
-
-
-class UserFlagSerializer(serializers.Serializer):
-    """Read-only serializer for user/author flags."""
-
-    id = serializers.IntegerField(read_only=True)
-    reason = serializers.CharField(read_only=True)
-    reason_choice = serializers.CharField(read_only=True)
-    reason_memo = serializers.CharField(read_only=True)
-    created_date = serializers.DateTimeField(read_only=True)
-    created_by = serializers.SerializerMethodField()
-
-    def get_created_by(self, flag):
-        user = flag.created_by
-        return {
-            "id": user.id,
-            "first_name": user.first_name,
-            "last_name": user.last_name,
-        }

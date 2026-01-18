@@ -38,18 +38,14 @@ from user.filters import AuthorFilter
 from user.models import Author
 from user.permissions import (
     DeleteAuthorPermission,
-    IsModerator,
     IsVerifiedUser,
     UpdateAuthor,
-    UserIsEditor,
 )
 from user.serializers import (
     AuthorEditableSerializer,
     AuthorSerializer,
     DynamicAuthorProfileSerializer,
-    UserFlagSerializer,
 )
-from user.services import UserFlagService
 from user.tasks import invalidate_author_profile_caches
 from user.utils import AuthorClaimException, claim_openalex_author_profile
 from user.views.follow_view_mixins import FollowViewActionMixin
@@ -1015,15 +1011,3 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
             context=context,
         )
         return Response(serializer.data, status=200)
-
-    @action(
-        detail=True,
-        methods=["get"],
-        permission_classes=[UserIsEditor | IsModerator],
-    )
-    def flags(self, request, **kwargs):
-        """Get active (unresolved) flags for an author."""
-        author = self.get_object()
-        flags = UserFlagService.get_open_flags(author)
-        serializer = UserFlagSerializer(flags, many=True)
-        return Response({"count": len(serializer.data), "flags": serializer.data})
