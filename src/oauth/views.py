@@ -1,11 +1,8 @@
 import requests
-from allauth.account.signals import user_logged_in, user_signed_up
-from allauth.socialaccount.models import SocialAccount
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
 from dj_rest_auth.registration.views import SocialLoginView
 from django.conf import settings
-from django.dispatch import receiver
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -45,29 +42,3 @@ class GoogleLogin(SocialLoginView):
     callback_url = settings.GOOGLE_REDIRECT_URL
     client_class = OAuth2Client
     serializer_class = SocialLoginSerializer
-
-
-@receiver(user_signed_up)
-@receiver(user_logged_in)
-def user_signed_up_(request, user, **kwargs):
-    """
-    After a user signs up with social account, set their profile image.
-    """
-    queryset = SocialAccount.objects.filter(provider="google", user=user)
-
-    if queryset.exists():
-        if queryset.count() > 1:
-            raise Exception(
-                f"Expected 1 item in the queryset. Found {queryset.count()}."
-            )
-
-        google_account = queryset.first()
-        url = google_account.extra_data.get("picture", None)
-
-        if user.author_profile and not user.author_profile.profile_image:
-            user.author_profile.profile_image = url
-            user.author_profile.save()
-        return None
-
-    else:
-        return None

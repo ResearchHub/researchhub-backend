@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
@@ -10,9 +12,14 @@ User = get_user_model()
 
 class ReferralRegistrationTest(TestCase):
     def setUp(self):
+        self.mailchimp_patcher = patch("oauth.signals.UserSignupService")
+        self.mailchimp_patcher.start()
         self.client = APIClient()
         self.referrer = create_random_default_user("referrer")
         self.referrer_code = self.referrer.referral_code
+
+    def tearDown(self):
+        self.mailchimp_patcher.stop()
 
     def test_user_registration_with_referral_code_creates_signup(self):
         """Test that registering with a valid referral code creates ReferralSignup"""

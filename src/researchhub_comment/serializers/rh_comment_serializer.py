@@ -50,6 +50,7 @@ class DynamicRhCommentSerializer(
     DynamicModelFieldSerializer,
 ):
     awarded_bounty_amount = SerializerMethodField()
+    bounty_creator_id = SerializerMethodField()
     created_by = SerializerMethodField()
     thread = SerializerMethodField()
     children_count = SerializerMethodField()
@@ -218,6 +219,17 @@ class DynamicRhCommentSerializer(
             )
 
         return amount_awarded
+
+    def get_bounty_creator_id(self, comment):
+        bounty_solution = comment.bounty_solution
+
+        if not bounty_solution.exists():
+            return None
+
+        if bounty_solution := bounty_solution.first():
+            return bounty_solution.bounty.created_by_id
+
+        return None
 
     def get_user_vote(self, comment):
         vote = None

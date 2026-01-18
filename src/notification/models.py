@@ -26,6 +26,9 @@ class Notification(models.Model):
     BOUNTY_FOR_YOU = "BOUNTY_FOR_YOU"
     BOUNTY_EXPIRING_SOON = "BOUNTY_EXPIRING_SOON"
     BOUNTY_HUB_EXPIRING_SOON = "BOUNTY_HUB_EXPIRING_SOON"
+    BOUNTY_ENTERED_ASSESSMENT = "BOUNTY_ENTERED_ASSESSMENT"
+    BOUNTY_ASSESSMENT_EXPIRING_SOON = "BOUNTY_ASSESSMENT_EXPIRING_SOON"
+    BOUNTY_SOLUTION_IN_ASSESSMENT = "BOUNTY_SOLUTION_IN_ASSESSMENT"
     DIS_ON_BOUNTY = "DIS_ON_BOUNTY"
     BOUNTY_PAYOUT = "BOUNTY_PAYOUT"
     PAPER_CLAIMED = "PAPER_CLAIMED"
@@ -49,6 +52,9 @@ class Notification(models.Model):
         (RSC_SUPPORT_ON_DIS, RSC_SUPPORT_ON_DIS),
         (FLAGGED_CONTENT_VERDICT, FLAGGED_CONTENT_VERDICT),
         (BOUNTY_EXPIRING_SOON, BOUNTY_EXPIRING_SOON),
+        (BOUNTY_ENTERED_ASSESSMENT, BOUNTY_ENTERED_ASSESSMENT),
+        (BOUNTY_ASSESSMENT_EXPIRING_SOON, BOUNTY_ASSESSMENT_EXPIRING_SOON),
+        (BOUNTY_SOLUTION_IN_ASSESSMENT, BOUNTY_SOLUTION_IN_ASSESSMENT),
         (DIS_ON_BOUNTY, DIS_ON_BOUNTY),
         (COMMENT, COMMENT),
         (COMMENT_ON_COMMENT, COMMENT_ON_COMMENT),
@@ -525,6 +531,19 @@ class Notification(models.Model):
         base_url = unified_document.frontend_view_link()
         comments_url = f"{base_url}#comments"
 
+        amount = self.extra.get("amount") if self.extra else None
+        if amount:
+            try:
+                amount = round(float(amount), 2)
+            except (ValueError, TypeError):
+                amount = None
+
+        amount_text = (
+            f"awarded you {amount} RSC for your "
+            if amount
+            else "awarded you RSC for your "
+        )
+
         return [
             {
                 "type": "link",
@@ -534,7 +553,7 @@ class Notification(models.Model):
             },
             {
                 "type": "text",
-                "value": "awarded you RSC for your ",
+                "value": amount_text,
             },
             {
                 "type": "link",

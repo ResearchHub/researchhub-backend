@@ -47,6 +47,7 @@ def handle_spam_user_task(user_id, requestor=None):
 
 @app.task
 def reinstate_user_task(user_id):
+    from researchhub_comment.models import RhCommentModel
     from researchhub_document.models import ResearchhubUnifiedDocument
     from user.models import User
 
@@ -64,6 +65,14 @@ def reinstate_user_task(user_id):
         posts__in=posts
     ).distinct()
     post_unified_docs.update(is_removed=False)
+
+    # Restore comments
+    RhCommentModel.all_objects.filter(created_by=user).update(
+        is_removed=False, is_public=True, is_removed_date=None
+    )
+
+    # Restore actions
+    user.actions.update(display=True, is_removed=False)
 
 
 def get_latest_actions(cursor):

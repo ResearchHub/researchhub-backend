@@ -17,10 +17,11 @@ from ethereum.lib import RSC_CONTRACT_ADDRESS
 from hub.models import Hub
 from mailing_list.lib import base_email_context
 from notification.models import Notification
+from reputation.constants.bounty import ASSESSMENT_PERIOD_DAYS
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.lib import check_hotwallet, check_pending_withdrawal, contract_abi
-from reputation.models import Bounty, Contribution, Deposit
+from reputation.models import Bounty, BountySolution, Contribution, Deposit
 from reputation.related_models.bounty import AnnotatedBounty
 from reputation.related_models.score import Score
 from reputation.services.wallet import WalletService
@@ -156,7 +157,8 @@ def evaluate_transaction(transaction_hash, w3, token_address, max_age=None):
         transaction_hash: The hash of the transaction to evaluate
         w3: Web3 instance connected to the blockchain
         token_address: Address of the ERC20 token contract
-        max_age: Optional max age in seconds. Defaults to PENDING_TRANSACTION_MAX_AGE if not provided
+        max_age: Optional max age in seconds. Defaults to
+            PENDING_TRANSACTION_MAX_AGE if not provided
 
     Returns:
         tuple: (is_valid_and_recent, deposit_amount)
@@ -318,11 +320,13 @@ def check_hotwallet_balance():
 
 @app.task
 def check_open_bounties():
+    now = datetime.now(pytz.UTC)
+
     open_bounties = Bounty.objects.filter(
         status=Bounty.OPEN, parent__isnull=True
     ).annotate(
         time_left=Cast(
-            F("expiration_date") - datetime.now(pytz.UTC),
+            F("expiration_date") - now,
             DurationField(),
         )
     )
@@ -346,15 +350,18 @@ def check_open_bounties():
             )
             notification.send_notification()
 
-            outer_subject = "Your ResearchHub Bounty is Expiring"
+            outer_subject = "Your ResearchHub Bounty Submission Period Ending"
             context = {**base_email_context}
             context["action"] = {
-                "message": "Your bounty is expiring in one day! \
-                If you have a suitable answer, make sure to pay out \
-                your bounty in order to keep your reputation on ResearchHub high.",
+                "message": (
+                    f"Your bounty submission period is ending in 24 hours. "
+                    f"After that, no new reviews will be submitted. You'll "
+                    f"have {ASSESSMENT_PERIOD_DAYS} days to review and award "
+                    f"the best solutions."
+                ),
                 "frontend_view_link": unified_doc.frontend_view_link(),
             }
-            context["subject"] = "Your Bounty is Expiring"
+            context["subject"] = "Bounty Submission Period Ending Soon"
             send_email_message(
                 [bounty_creator.email],
                 "general_email_message.txt",
@@ -363,14 +370,145 @@ def check_open_bounties():
                 html_template="general_email_message.html",
             )
 
-    expired_bounties = open_bounties.filter(time_left__lte=timedelta(days=0))
-    for bounty in expired_bounties.iterator():
+    # Transition OPEN -> ASSESSMENT when expiration_date passes
+    expired_open_bounties = open_bounties.filter(time_left__lte=timedelta(days=0))
+    for bounty in expired_open_bounties.iterator():
+        # Set assessment_end_date to ASSESSMENT_PERIOD_DAYS from now
+        assessment_end_date = now + timedelta(days=ASSESSMENT_PERIOD_DAYS)
+        bounty.assessment_end_date = assessment_end_date
+        bounty.set_assessment_status()
+        bounty.unified_document.update_filters((FILTER_BOUNTY_OPEN,))
+
+        # Notify creator that bounty entered assessment phase
+        bounty_creator = bounty.created_by
+        unified_doc = bounty.unified_document
+        creator_notification = Notification.objects.create(
+            item=bounty,
+            action_user=bounty_creator,
+            recipient=bounty_creator,
+            unified_document=unified_doc,
+            notification_type=Notification.BOUNTY_ENTERED_ASSESSMENT,
+        )
+        creator_notification.send_notification()
+
+        outer_subject = "Your ResearchHub Bounty Entered Assessment Phase"
+        context = {**base_email_context}
+        context["action"] = {
+            "message": (
+                f"Submission period has ended. No new peer reviews will be submitted. "
+                f"You have {ASSESSMENT_PERIOD_DAYS} days to review and award the best "
+                f"solutions."
+            ),
+            "frontend_view_link": unified_doc.frontend_view_link(),
+        }
+        context["subject"] = "Bounty Entered Assessment Phase"
+        send_email_message(
+            [bounty_creator.email],
+            "general_email_message.txt",
+            outer_subject,
+            context,
+            html_template="general_email_message.html",
+        )
+
+        # Notify reviewers who submitted peer reviews on this document
+        # AND solution submitters with SUBMITTED status
+        # Combine both sets of user IDs, excluding bounty creator
+        peer_reviews = unified_doc.get_peer_review_comments()
+        peer_reviewer_ids = set(
+            peer_reviews.exclude(created_by=bounty_creator)
+            .values_list("created_by_id", flat=True)
+            .distinct()
+        )
+
+        solution_submitter_ids = set(
+            BountySolution.objects.filter(
+                bounty=bounty, status=BountySolution.Status.SUBMITTED
+            )
+            .exclude(created_by=bounty_creator)
+            .values_list("created_by_id", flat=True)
+            .distinct()
+        )
+
+        # Combine both sets
+        all_reviewer_ids = peer_reviewer_ids | solution_submitter_ids
+
+        for reviewer_id in all_reviewer_ids:
+            reviewer = User.objects.get(id=reviewer_id)
+            # Check if notification already exists to avoid duplicates
+            if not Notification.objects.filter(
+                object_id=bounty.id,
+                content_type=ContentType.objects.get_for_model(Bounty),
+                recipient=reviewer,
+                notification_type=Notification.BOUNTY_SOLUTION_IN_ASSESSMENT,
+            ).exists():
+                reviewer_notification = Notification.objects.create(
+                    item=bounty,
+                    action_user=bounty_creator,
+                    recipient=reviewer,
+                    unified_document=unified_doc,
+                    notification_type=Notification.BOUNTY_SOLUTION_IN_ASSESSMENT,
+                )
+                reviewer_notification.send_notification()
+
+    # Handle ASSESSMENT bounties: transition to EXPIRED when assessment_end_date passes
+    assessment_bounties = Bounty.objects.filter(
+        status=Bounty.ASSESSMENT, parent__isnull=True
+    ).annotate(
+        assessment_time_left=Cast(
+            F("assessment_end_date") - now,
+            DurationField(),
+        )
+    )
+
+    # Notify creator 24 hours before assessment period ends
+    upcoming_assessment_expirations = assessment_bounties.filter(
+        assessment_time_left__gt=timedelta(days=0),
+        assessment_time_left__lte=timedelta(days=1),
+    )
+    for bounty in upcoming_assessment_expirations.iterator():
+        # Check if notification already exists to avoid duplicates
+        if not Notification.objects.filter(
+            object_id=bounty.id,
+            content_type=ContentType.objects.get_for_model(Bounty),
+            notification_type=Notification.BOUNTY_ASSESSMENT_EXPIRING_SOON,
+        ).exists():
+            bounty_creator = bounty.created_by
+            unified_doc = bounty.unified_document
+            notification = Notification.objects.create(
+                item=bounty,
+                action_user=bounty_creator,
+                recipient=bounty_creator,
+                unified_document=unified_doc,
+                notification_type=Notification.BOUNTY_ASSESSMENT_EXPIRING_SOON,
+            )
+            notification.send_notification()
+
+            outer_subject = "Your ResearchHub Bounty Assessment Period Ending"
+            context = {**base_email_context}
+            context["action"] = {
+                "message": "Assessment period ending in 24 hours. Award solutions now \
+                or remaining funds will be refunded.",
+                "frontend_view_link": unified_doc.frontend_view_link(),
+            }
+            context["subject"] = "Bounty Assessment Period Ending Soon"
+            send_email_message(
+                [bounty_creator.email],
+                "general_email_message.txt",
+                outer_subject,
+                context,
+                html_template="general_email_message.html",
+            )
+
+    expired_assessment_bounties = assessment_bounties.filter(
+        assessment_time_left__lte=timedelta(days=0)
+    )
+    for bounty in expired_assessment_bounties.iterator():
         refund_status = bounty.close(Bounty.EXPIRED)
         bounty.unified_document.update_filters(
             (FILTER_BOUNTY_EXPIRED, FILTER_BOUNTY_OPEN)
         )
         if refund_status is False:
-            ids = expired_bounties.values_list("id", flat=True)
+            ids = expired_assessment_bounties.values_list("id", flat=True)
             log_info(f"Failed to refund bounties: {ids}")
 
 
@@ -514,7 +652,7 @@ def find_bounties_for_user_and_notify(user_id) -> Optional[Notification]:
 
 @app.task
 def recalc_hot_score_for_open_bounties():
-    open_bounties = Bounty.objects.filter(status=Bounty.OPEN)
+    open_bounties = Bounty.objects.filter(status__in=(Bounty.OPEN, Bounty.ASSESSMENT))
 
     for bounty in open_bounties:
         bounty.unified_document.calculate_hot_score(should_save=True)
