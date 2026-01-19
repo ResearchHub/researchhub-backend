@@ -236,7 +236,7 @@ class User(AbstractUser):
         )["total"]
 
     @transaction.atomic
-    def increase_usd_balance(self, amount_cents, source=None):
+    def increase_usd_balance(self, amount_cents: int, source=None):
         """
         Increase USD balance by creating a positive transaction record.
 
@@ -267,7 +267,7 @@ class User(AbstractUser):
         )
 
     @transaction.atomic
-    def decrease_usd_balance(self, amount_cents, source=None):
+    def decrease_usd_balance(self, amount_cents: int, source=None):
         """
         Decrease USD balance by creating a negative transaction record.
 
