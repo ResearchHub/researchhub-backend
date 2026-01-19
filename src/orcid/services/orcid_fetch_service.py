@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 class OrcidFetchService:
-    """Syncs papers and edu emails from ORCID to ResearchHub."""
+    """Syncs papers and edu emails from ORCID to ResearchHub.""" 
 
     def __init__(
         self,
