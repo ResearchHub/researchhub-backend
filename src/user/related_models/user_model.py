@@ -235,8 +235,32 @@ class User(AbstractUser):
             total=Coalesce(Sum("amount_cents"), Value(0))
         )["total"]
 
+    def _create_usd_balance_record(self, amount_cents: int, source=None) -> UsdBalance:
+        """
+        Helper method to create a UsdBalance record.
+
+        Args:
+            amount_cents: Amount in cents (positive or negative)
+            source: Optional source object to track the transaction origin
+
+        Returns:
+            The created UsdBalance record
+        """
+        content_type = None
+        object_id = None
+        if source is not None:
+            content_type = ContentType.objects.get_for_model(source)
+            object_id = source.id
+
+        return UsdBalance.objects.create(
+            user=self,
+            amount_cents=amount_cents,
+            content_type=content_type,
+            object_id=object_id,
+        )
+
     @transaction.atomic
-    def increase_usd_balance(self, amount_cents: int, source=None):
+    def increase_usd_balance(self, amount_cents: int, source=None) -> UsdBalance:
         """
         Increase USD balance by creating a positive transaction record.
 
@@ -253,21 +277,10 @@ class User(AbstractUser):
         if amount_cents <= 0:
             raise ValueError("amount_cents must be positive")
 
-        content_type = None
-        object_id = None
-        if source is not None:
-            content_type = ContentType.objects.get_for_model(source)
-            object_id = source.id
-
-        return UsdBalance.objects.create(
-            user=self,
-            amount_cents=amount_cents,
-            content_type=content_type,
-            object_id=object_id,
-        )
+        return self._create_usd_balance_record(amount_cents, source)
 
     @transaction.atomic
-    def decrease_usd_balance(self, amount_cents: int, source=None):
+    def decrease_usd_balance(self, amount_cents: int, source=None) -> UsdBalance:
         """
         Decrease USD balance by creating a negative transaction record.
 
@@ -289,18 +302,7 @@ class User(AbstractUser):
         if current_balance < amount_cents:
             raise ValueError("Insufficient balance")
 
-        content_type = None
-        object_id = None
-        if source is not None:
-            content_type = ContentType.objects.get_for_model(source)
-            object_id = source.id
-
-        return UsdBalance.objects.create(
-            user=self,
-            amount_cents=-amount_cents,
-            content_type=content_type,
-            object_id=object_id,
-        )
+        return self._create_usd_balance_record(-amount_cents, source)
 
     def notify_inactivity(self, paper_count=0, comment_count=0):
         recipient = [self.email]
