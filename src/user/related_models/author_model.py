@@ -194,39 +194,35 @@ class Author(models.Model):
                 return str(self.profile_image)
         return None
 
-    def get_all_authorships(self):
-        """
-        Get all authorships for this author, including merged shadow authors.
-        Uses UNION instead of OR for better query performance.
-        """
-        direct = Authorship.objects.filter(author=self)
-        merged = Authorship.objects.filter(author__merged_with_author=self)
-        return direct.union(merged)
-
     @property
     def open_access_pct(self):
-        paper_ids = list(self.get_all_authorships().values_list("paper_id", flat=True))
-        authored_papers = Paper.objects.filter(id__in=paper_ids)
+        authorships = Authorship.objects.filter(author=self)
+        authored_papers = Paper.objects.filter(
+            id__in=authorships.values_list("paper_id", flat=True),
+        )
+
         total_paper_count = authored_papers.count()
 
         if total_paper_count == 0:
             return 0
-        return authored_papers.filter(is_open_access=True).count() / total_paper_count
+        else:
+            return (
+                authored_papers.filter(is_open_access=True).count() / total_paper_count
+            )
 
     @property
     def citation_count(self):
-        # UNION doesn't support aggregate(), so sum two indexed queries
-        direct = (
+        from django.db.models import Sum
+
+        paper_citations_res = (
             Authorship.objects.filter(author=self)
-            .aggregate(total=Sum("paper__citations"))["total"]
-            or 0
+            .select_related("paper")
+            .aggregate(
+                citation_count=Sum("paper__citations"),
+            )
         )
-        merged = (
-            Authorship.objects.filter(author__merged_with_author=self)
-            .aggregate(total=Sum("paper__citations"))["total"]
-            or 0
-        )
-        return direct + merged
+
+        return paper_citations_res.get("citation_count") or 0
 
     @property
     def reputation_list(self):
@@ -259,15 +255,17 @@ class Author(models.Model):
 
     @property
     def paper_count(self):
-        # Get paper IDs from both queries, combine in set for deduplication
-        direct_ids = set(
-            Authorship.objects.filter(author=self).values_list("paper_id", flat=True)
+        from django.db.models import Count
+
+        paper_count_res = (
+            Authorship.objects.filter(author=self)
+            .select_related("paper")
+            .aggregate(
+                paper_count=Count("paper"),
+            )
         )
-        merged_ids = set(
-            Authorship.objects.filter(author__merged_with_author=self)
-            .values_list("paper_id", flat=True)
-        )
-        return len(direct_ids | merged_ids)
+
+        return paper_count_res.get("paper_count") or 0
 
     @property
     def achievements(self):
