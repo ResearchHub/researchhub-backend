@@ -17,6 +17,7 @@ class PaymentPurpose(models.TextChoices):
 
     APC = "APC", _("Article Processing Charge")
     RSC_PURCHASE = "RSC_PURCHASE", _("RSC Purchase")
+    FUNDING_CREDITS = "FUNDING_CREDITS", _("Funding Credits")
 
 
 class PaymentMethodType(models.TextChoices):
