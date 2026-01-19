@@ -7,6 +7,8 @@ from .related_models.payment_model import Payment
 from .related_models.purchase_model import Purchase
 from .related_models.rsc_exchange_rate_model import RscExchangeRate
 from .related_models.support_model import Support
+from .related_models.usd_balance_model import UsdBalance
+from .related_models.usd_fundraise_contribution_model import UsdFundraiseContribution
 from .related_models.wallet_model import Wallet
 
 migratables = (
@@ -19,5 +21,7 @@ migratables = (
     Purchase,
     RscExchangeRate,
     Support,
+    UsdBalance,
+    UsdFundraiseContribution,
     Wallet,
 )
