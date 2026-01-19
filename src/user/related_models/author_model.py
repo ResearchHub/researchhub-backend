@@ -4,7 +4,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import ArrayField
 from django.contrib.postgres.indexes import GinIndex
 from django.db import models, transaction
-from django.db.models import JSONField, Q, Sum
+from django.db.models import JSONField, Sum
 from django.db.models.deletion import SET_NULL
 
 from discussion.models import Vote
@@ -196,9 +196,7 @@ class Author(models.Model):
 
     @property
     def open_access_pct(self):
-        authorships = Authorship.objects.filter(
-            Q(author=self) | Q(author__merged_with_author=self)
-        )
+        authorships = Authorship.objects.filter(author=self)
         authored_papers = Paper.objects.filter(
             id__in=authorships.values_list("paper_id", flat=True),
         )
@@ -217,9 +215,7 @@ class Author(models.Model):
         from django.db.models import Sum
 
         paper_citations_res = (
-            Authorship.objects.filter(
-                Q(author=self) | Q(author__merged_with_author=self)
-            )
+            Authorship.objects.filter(author=self)
             .select_related("paper")
             .aggregate(
                 citation_count=Sum("paper__citations"),
@@ -262,9 +258,7 @@ class Author(models.Model):
         from django.db.models import Count
 
         paper_count_res = (
-            Authorship.objects.filter(
-                Q(author=self) | Q(author__merged_with_author=self)
-            )
+            Authorship.objects.filter(author=self)
             .select_related("paper")
             .aggregate(
                 paper_count=Count("paper"),
