@@ -479,11 +479,7 @@ class ViewTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["is_removed"], False)
 
-    @patch("requests.post")
-    def test_register_doi_no_charge(self, mock_crossref):
-        # Mock Crossref API response
-        mock_crossref.return_value.status_code = 200
-
+    def test_register_doi_no_charge(self):
         author = create_random_default_user("author")
         hub = create_hub()
 
@@ -577,11 +573,7 @@ class ViewTests(APITestCase):
         self.assertEqual(doc_response.status_code, 200)
         self.assertIsNone(doc_response.data["fundraise"])
 
-    @patch("requests.post")
-    def test_preregistration_doi_not_charged(self, mock_crossref):
-        # Mock Crossref API response
-        mock_crossref.return_value.status_code = 200
-
+    def test_preregistration_doi_not_charged(self):
         author = create_random_default_user("author")
         hub = create_hub()
 

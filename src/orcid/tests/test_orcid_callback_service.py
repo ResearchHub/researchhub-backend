@@ -14,13 +14,11 @@ class OrcidCallbackServiceTests(TestCase):
 
     def setUp(self):
         self.mock_client = Mock()
-        self.mock_email_service = Mock()
-        self.mock_sync_task = Mock()
+        self.mock_email_service = Mock() 
         self.mock_email_service.fetch_verified_edu_emails.return_value = []
         self.service = OrcidCallbackService(
             client=self.mock_client,
             email_service=self.mock_email_service,
-            sync_task=self.mock_sync_task,
         )
         OrcidTestHelper.create_app()
 
@@ -41,7 +39,6 @@ class OrcidCallbackServiceTests(TestCase):
         self.assertEqual(SocialToken.objects.get(account__user=user).token, "tk")
         user.author_profile.refresh_from_db()
         self.assertIn(OrcidTestHelper.ORCID_ID, user.author_profile.orcid_id)
-        self.mock_sync_task.delay.assert_called_once_with(user.author_profile.id)
 
     def test_process_callback_invalid_state(self):
         # Act
