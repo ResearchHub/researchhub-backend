@@ -2,13 +2,14 @@ import uuid
 
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.contrib.contenttypes.models import ContentType
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Count, DecimalField, Q, Sum, Value
 from django.db.models.functions import Cast, Coalesce
 from django.utils import timezone
 
 from hub.models import Hub
 from mailing_list.models import EmailRecipient
+from purchase.related_models.usd_balance_model import UsdBalance
 from reputation.models import Bounty, Distribution, PaidStatusModelMixin, Withdrawal
 from researchhub.settings import ASSETS_BASE_URL, BASE_FRONTEND_URL
 from researchhub_access_group.constants import (
@@ -233,6 +234,73 @@ class User(AbstractUser):
         return self.usd_balances.aggregate(
             total=Coalesce(Sum("amount_cents"), Value(0))
         )["total"]
+
+    @transaction.atomic
+    def increase_usd_balance(self, amount_cents, source=None):
+        """
+        Increase USD balance by creating a positive transaction record.
+
+        Args:
+            amount_cents: Amount to add in cents (must be positive)
+            source: Optional source object to track where the funds came from
+
+        Returns:
+            The created UsdBalance record
+
+        Raises:
+            ValueError: If amount_cents is not positive
+        """
+        if amount_cents <= 0:
+            raise ValueError("amount_cents must be positive")
+
+        content_type = None
+        object_id = None
+        if source is not None:
+            content_type = ContentType.objects.get_for_model(source)
+            object_id = source.id
+
+        return UsdBalance.objects.create(
+            user=self,
+            amount_cents=amount_cents,
+            content_type=content_type,
+            object_id=object_id,
+        )
+
+    @transaction.atomic
+    def decrease_usd_balance(self, amount_cents, source=None):
+        """
+        Decrease USD balance by creating a negative transaction record.
+
+        Args:
+            amount_cents: Amount to deduct in cents (must be positive)
+            source: Optional source object to track where the funds went
+
+        Returns:
+            The created UsdBalance record
+
+        Raises:
+            ValueError: If amount_cents is not positive
+            ValueError: If user has insufficient balance
+        """
+        if amount_cents <= 0:
+            raise ValueError("amount_cents must be positive")
+
+        current_balance = self.get_usd_balance_cents()
+        if current_balance < amount_cents:
+            raise ValueError("Insufficient balance")
+
+        content_type = None
+        object_id = None
+        if source is not None:
+            content_type = ContentType.objects.get_for_model(source)
+            object_id = source.id
+
+        return UsdBalance.objects.create(
+            user=self,
+            amount_cents=-amount_cents,
+            content_type=content_type,
+            object_id=object_id,
+        )
 
     def notify_inactivity(self, paper_count=0, comment_count=0):
         recipient = [self.email]
