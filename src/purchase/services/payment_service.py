@@ -10,8 +10,10 @@ from paper.related_models.paper_model import Paper
 from purchase.related_models.balance_model import Balance
 from purchase.related_models.payment_model import (
     Payment,
+    PaymentMethodType,
     PaymentProcessor,
     PaymentPurpose,
+    PaymentStatus,
 )
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.distributions import create_purchase_distribution
@@ -237,3 +239,37 @@ class PaymentService:
         user.save(update_fields=["stripe_customer_id"])
 
         return customer.id
+
+    def _get_payment_method_type(
+        self, checkout_session: stripe.checkout.Session
+    ) -> PaymentMethodType:
+        """
+        Determine payment method type from checkout session.
+        """
+        payment_intent_id = checkout_session.get("payment_intent")
+        if not payment_intent_id:
+            raise ValueError("Missing payment_intent in checkout session")
+
+        payment_intent = stripe.PaymentIntent.retrieve(payment_intent_id)
+        payment_method_id = payment_intent.get("payment_method")
+        if not payment_method_id:
+            raise ValueError(
+                f"Missing payment_method in PaymentIntent {payment_intent_id}"
+            )
+
+        payment_method = stripe.PaymentMethod.retrieve(payment_method_id)
+        if payment_method.get("type") == "us_bank_account":
+            return PaymentMethodType.ACH
+
+        return PaymentMethodType.CARD
+
+    def _get_payment_status(
+        self, checkout_session: stripe.checkout.Session
+    ) -> PaymentStatus:
+        """
+        Determine payment status from checkout session.
+        """
+        payment_status = checkout_session.get("payment_status")
+        if payment_status == "unpaid":
+            return PaymentStatus.PROCESSING
+        return PaymentStatus.SUCCEEDED
