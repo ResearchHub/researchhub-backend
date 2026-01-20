@@ -16,6 +16,7 @@ from purchase.related_models.payment_model import (
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.distributions import create_purchase_distribution
 from reputation.distributor import Distributor
+from user.models import User
 
 logger = logging.getLogger(__name__)
 
@@ -198,3 +199,24 @@ class PaymentService:
             return "ResearchCoin (RSC) Purchase"
         else:
             return "Unknown Purpose"
+
+    def _get_or_create_stripe_customer(self, user: User) -> str:
+        """
+        Get existing Stripe customer or create a new one.
+
+        Returns:
+            Stripe customer ID
+        """
+        if user.stripe_customer_id:
+            return user.stripe_customer_id
+
+        customer = stripe.Customer.create(
+            email=user.email,
+            name=user.full_name(),
+            metadata={"user_id": str(user.id)},
+        )
+
+        user.stripe_customer_id = customer.id
+        user.save(update_fields=["stripe_customer_id"])
+
+        return customer.id
