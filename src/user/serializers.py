@@ -15,6 +15,7 @@ from hub.serializers import DynamicHubSerializer, HubSerializer, SimpleHubSerial
 from institution.serializers import DynamicInstitutionSerializer
 from paper.models import Paper, PaperSubmission
 from purchase.models import Purchase
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from referral.models import ReferralSignup
 from reputation.models import Bounty, Contribution, Score, Withdrawal
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -465,8 +466,6 @@ class UserSerializer(ModelSerializer):
             return obj.get_balance()
 
     def get_balances(self, obj):
-        from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-
         if (
             not self.read_only
             and self.context.get("user")
@@ -584,8 +583,6 @@ class UserEditableSerializer(ModelSerializer):
         return None
 
     def get_balances(self, user):
-        from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-
         context = self.context
         request_user = context.get("user", None)
 
@@ -729,8 +726,6 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
         return getattr(user, "rsc_earned", None)
 
     def get_balances(self, user):
-        from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-
         context = self.context
         request_user = context.get("user", None)
 
