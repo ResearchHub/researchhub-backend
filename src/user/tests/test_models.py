@@ -8,10 +8,11 @@ from django.test import TestCase
 
 from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper
+from purchase.models import Purchase
 from purchase.related_models.balance_model import Balance
 from user.related_models.follow_model import Follow
 from user.related_models.user_model import User
-from user.tests.helpers import create_user
+from user.tests.helpers import create_random_authenticated_user, create_user
 
 
 class AuthorModelsTests(TestCase):
@@ -104,6 +105,8 @@ class AuthorModelsTests(TestCase):
 
         # Assert
         self.assertEqual(result, "user@stanford.edu")
+
+
 class FollowModelTests(TestCase):
     def setUp(self):
         self.user = create_user(
@@ -307,3 +310,73 @@ class UserBalanceTests(TestCase):
 
         # Verify math: available + locked = total
         self.assertEqual(available + locked, total_with_locked)
+
+
+class UserUsdBalanceTests(TestCase):
+    """Tests for User USD balance methods."""
+
+    def setUp(self):
+        self.user = create_random_authenticated_user("test_user")
+
+    def test_increase_with_source_object(self):
+        """Test that increase correctly links to a source object."""
+        initial_balance = self.user.get_usd_balance_cents()
+
+        purchase = Purchase.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(self.user),
+            object_id=self.user.id,
+            purchase_method=Purchase.OFF_CHAIN,
+            purchase_type=Purchase.BOOST,
+            paid_status=Purchase.PAID,
+            amount=100,
+        )
+
+        balance = self.user.increase_usd_balance(10000, source=purchase)
+
+        expected_content_type = ContentType.objects.get_for_model(Purchase)
+        self.assertEqual(balance.content_type, expected_content_type)
+        self.assertEqual(balance.object_id, purchase.id)
+        self.assertEqual(balance.source, purchase)
+        self.assertEqual(self.user.get_usd_balance_cents(), initial_balance + 10000)
+
+    def test_increase_multiple_times_accumulates(self):
+        """Test that multiple increases accumulate correctly."""
+        self.user.increase_usd_balance(1000)
+        self.user.increase_usd_balance(2000)
+        self.user.increase_usd_balance(500)
+
+        self.assertEqual(self.user.get_usd_balance_cents(), 3500)
+
+    def test_decrease_with_source_object(self):
+        """Test that decrease correctly links to a source object."""
+        self.user.increase_usd_balance(10000)  # Give user initial balance
+        initial_balance = self.user.get_usd_balance_cents()
+
+        purchase = Purchase.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(self.user),
+            object_id=self.user.id,
+            purchase_method=Purchase.OFF_CHAIN,
+            purchase_type=Purchase.BOOST,
+            paid_status=Purchase.PAID,
+            amount=100,
+        )
+
+        balance = self.user.decrease_usd_balance(5000, source=purchase)
+
+        expected_content_type = ContentType.objects.get_for_model(Purchase)
+        self.assertEqual(balance.content_type, expected_content_type)
+        self.assertEqual(balance.object_id, purchase.id)
+        self.assertEqual(balance.source, purchase)
+        self.assertEqual(self.user.get_usd_balance_cents(), initial_balance - 5000)
+
+    def test_decrease_multiple_times_accumulates(self):
+        """Test that multiple decreases accumulate correctly."""
+        self.user.increase_usd_balance(10000)  # Give user initial balance
+        self.user.decrease_usd_balance(2000)
+        self.user.decrease_usd_balance(3000)
+        self.user.decrease_usd_balance(1000)
+
+        # Started with 10000, decreased by 6000 total
+        self.assertEqual(self.user.get_usd_balance_cents(), 4000)

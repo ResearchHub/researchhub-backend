@@ -7,6 +7,8 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models, transaction
+from django.db.models import Sum
+from django.db.models.functions import Coalesce
 
 from purchase.related_models.constants.currency import ETHER, RSC, USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
@@ -76,31 +78,55 @@ class Fundraise(DefaultModel):
             return self.end_date < datetime.now(pytz.UTC)
         return False
 
+    def get_usd_contributors(self):
+        """Returns USD contributions with user data."""
+        return self.usd_contributions.select_related("user")
+
     def get_amount_raised(self, currency=USD):
         """
-        Get the net amount raised by looking at the escrow's current holdings
-        and amount paid out. This automatically accounts for refunds since
-        refunds reduce the escrow's amount_holding.
+        Get the net amount raised from both RSC (via escrow) and USD contributions.
+        RSC amounts are calculated from escrow holdings. USD amounts are calculated
+        live from UsdFundraiseContribution records.
         """
-        if not self.escrow:
-            return 0
+        # Calculate RSC amount from escrow
+        rsc_amount = 0.0
+        if self.escrow:
+            rsc_amount = float(self.escrow.amount_holding + self.escrow.amount_paid)
 
-        # The actual amount raised is what's currently held plus what's been paid out
-        rsc_amount = float(self.escrow.amount_holding + self.escrow.amount_paid)
-
-        if rsc_amount <= 0:
-            return 0
+        # Calculate USD amount from contributions (in cents)
+        usd_cents = self.usd_contributions.aggregate(
+            total=Coalesce(Sum("amount_cents"), 0)
+        )["total"]
+        usd_from_contributions = usd_cents / 100.0
 
         if currency == USD:
-            usd_amount = RscExchangeRate.rsc_to_usd(rsc_amount)
-            return usd_amount
+            usd_from_rsc = (
+                RscExchangeRate.rsc_to_usd(rsc_amount) if rsc_amount > 0 else 0
+            )
+            return usd_from_rsc + usd_from_contributions
 
         if currency == RSC:
-            return rsc_amount
+            rsc_from_usd = (
+                RscExchangeRate.usd_to_rsc(usd_from_contributions)
+                if usd_from_contributions > 0
+                else 0
+            )
+            return rsc_amount + rsc_from_usd
 
         if currency == ETHER:
-            eth_amount = RscExchangeRate.rsc_to_eth(rsc_amount)
-            return eth_amount
+            # Convert both RSC and USD to ETH
+            eth_from_rsc = (
+                RscExchangeRate.rsc_to_eth(rsc_amount) if rsc_amount > 0 else 0
+            )
+            rsc_from_usd = (
+                RscExchangeRate.usd_to_rsc(usd_from_contributions)
+                if usd_from_contributions > 0
+                else 0
+            )
+            eth_from_usd = (
+                RscExchangeRate.rsc_to_eth(rsc_from_usd) if rsc_from_usd > 0 else 0
+            )
+            return eth_from_rsc + eth_from_usd
 
         raise ValueError("Invalid currency")
 
