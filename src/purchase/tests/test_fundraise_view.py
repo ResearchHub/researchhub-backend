@@ -775,3 +775,178 @@ class FundraiseViewTests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("no funds to payout", response.data["message"])
+
+    # USD Contribution Tests
+
+    def _give_user_usd_balance(self, user, amount_cents):
+        """Helper method to give a user USD balance."""
+        user.increase_usd_balance(amount_cents)
+
+    def test_create_usd_contribution(self):
+        """Test creating a USD contribution to a fundraise."""
+        # Create a fundraise
+        fundraise = self._create_fundraise(self.post.id, goal_amount=100)
+        fundraise_id = fundraise.data["id"]
+
+        # Create contributor with USD balance
+        user = create_random_authenticated_user("usd_contributor")
+        self._give_user_usd_balance(user, 20000)  # $200 in cents
+
+        # Make USD contribution of $100 (10000 cents)
+        response = self._create_contribution(
+            fundraise_id, user, amount=10000, amount_currency="USD"
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_create_usd_contribution_deducts_balance_with_fee(self):
+        """Test that USD contribution deducts the correct amount including 9% fee."""
+        # Create a fundraise
+        fundraise = self._create_fundraise(self.post.id, goal_amount=100)
+        fundraise_id = fundraise.data["id"]
+
+        # Create contributor with USD balance
+        user = create_random_authenticated_user("usd_contributor")
+        initial_balance = 20000  # $200
+        self._give_user_usd_balance(user, initial_balance)
+
+        # Make USD contribution of $100 (10000 cents)
+        contribution_amount = 10000
+        response = self._create_contribution(
+            fundraise_id, user, amount=contribution_amount, amount_currency="USD"
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        # Check balance was deducted correctly (contribution + 9% fee)
+        expected_fee = (contribution_amount * 9) // 100  # 900 cents
+        expected_deduction = contribution_amount + expected_fee  # 10900 cents
+        expected_remaining = initial_balance - expected_deduction
+
+        actual_balance = user.get_usd_balance_cents()
+        self.assertEqual(actual_balance, expected_remaining)
+
+    def test_create_usd_contribution_insufficient_balance(self):
+        """Test that USD contribution fails with insufficient balance."""
+        # Create a fundraise
+        fundraise = self._create_fundraise(self.post.id, goal_amount=100)
+        fundraise_id = fundraise.data["id"]
+
+        # Create contributor with small USD balance
+        user = create_random_authenticated_user("usd_contributor")
+        self._give_user_usd_balance(user, 500)  # Only $5
+
+        # Try to contribute $100 (10000 cents) - should fail
+        response = self._create_contribution(
+            fundraise_id, user, amount=10000, amount_currency="USD"
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Insufficient USD balance", response.data["message"])
+
+    def test_create_usd_contribution_below_minimum(self):
+        """Test that USD contribution below minimum amount fails."""
+        # Create a fundraise
+        fundraise = self._create_fundraise(self.post.id, goal_amount=100)
+        fundraise_id = fundraise.data["id"]
+
+        # Create contributor with USD balance
+        user = create_random_authenticated_user("usd_contributor")
+        self._give_user_usd_balance(user, 10000)
+
+        # Try to contribute 50 cents (below $1 minimum)
+        response = self._create_contribution(
+            fundraise_id, user, amount=50, amount_currency="USD"
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Invalid amount", response.data["message"])
+
+    def test_create_usd_contribution_creates_record(self):
+        """Test that USD contribution creates a UsdFundraiseContribution record."""
+        from purchase.models import UsdFundraiseContribution
+
+        # Create a fundraise
+        fundraise = self._create_fundraise(self.post.id, goal_amount=100)
+        fundraise_id = fundraise.data["id"]
+
+        # Create contributor with USD balance
+        user = create_random_authenticated_user("usd_contributor")
+        self._give_user_usd_balance(user, 20000)
+
+        # Make USD contribution
+        contribution_amount = 10000  # $100
+        response = self._create_contribution(
+            fundraise_id, user, amount=contribution_amount, amount_currency="USD"
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        # Verify UsdFundraiseContribution record was created
+        contribution = UsdFundraiseContribution.objects.filter(
+            user=user, fundraise_id=fundraise_id
+        ).first()
+
+        self.assertIsNotNone(contribution)
+        self.assertEqual(contribution.amount_cents, contribution_amount)
+        self.assertEqual(contribution.fee_cents, 900)  # 9% of 10000
+
+    def test_create_usd_contribution_own_fundraise_fails(self):
+        """Test that user cannot contribute USD to their own fundraise."""
+        # Create a fundraise
+        fundraise = self._create_fundraise(self.post.id, goal_amount=100)
+        fundraise_id = fundraise.data["id"]
+
+        # Give the owner USD balance
+        self._give_user_usd_balance(self.user, 20000)
+
+        # Try to contribute to own fundraise
+        response = self._create_contribution(
+            fundraise_id, self.user, amount=10000, amount_currency="USD"
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(
+            "Cannot contribute to your own fundraise", response.data["message"]
+        )
+
+    def test_create_usd_contribution_closed_fundraise_fails(self):
+        """Test that USD contribution to closed fundraise fails."""
+        # Create a fundraise
+        fundraise = self._create_fundraise(self.post.id, goal_amount=100)
+        fundraise_id = fundraise.data["id"]
+
+        # Close the fundraise
+        fundraise_obj = Fundraise.objects.get(id=fundraise_id)
+        fundraise_obj.status = Fundraise.CLOSED
+        fundraise_obj.save()
+
+        # Create contributor with USD balance
+        user = create_random_authenticated_user("usd_contributor")
+        self._give_user_usd_balance(user, 20000)
+
+        # Try to contribute
+        response = self._create_contribution(
+            fundraise_id, user, amount=10000, amount_currency="USD"
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("not open", response.data["message"])
+
+    def test_create_usd_contribution_invalid_currency(self):
+        """Test that contribution with invalid currency fails."""
+        # Create a fundraise
+        fundraise = self._create_fundraise(self.post.id, goal_amount=100)
+        fundraise_id = fundraise.data["id"]
+
+        # Create contributor
+        user = create_random_authenticated_user("contributor")
+        self._give_user_balance(user, 10000)
+
+        # Try to contribute with invalid currency
+        response = self._create_contribution(
+            fundraise_id, user, amount=100, amount_currency="INVALID"
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("must be RSC or USD", response.data["message"])
