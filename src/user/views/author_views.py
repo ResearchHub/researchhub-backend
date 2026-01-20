@@ -570,9 +570,15 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         documents = cache.get(cache_key)
 
         if not documents:
-            # Fetch the authored papers and order by citations
+            # Use UNION for better query performance (avoids sequential scan)
+            direct = Authorship.objects.filter(author=author)
+            merged = Authorship.objects.filter(author__merged_with_author=author)
+            all_authorships = direct.union(merged)
+
+            # Get doc IDs and sort by citations (UNION doesn't support order_by)
+            authorship_ids = list(all_authorships.values_list("id", flat=True))
             authored_doc_ids = list(
-                Authorship.objects.filter(author=author)
+                Authorship.objects.filter(id__in=authorship_ids)
                 .order_by("-paper__citations")
                 .values_list("paper__unified_document_id", flat=True)
             )
@@ -676,9 +682,15 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
             # We want to only return a few documents for the overview section
             NUM_DOCUMENTS_TO_FETCH = 4
 
-            # Fetch the authored papers and order by citations
+            # Use UNION for better query performance (avoids sequential scan)
+            direct = Authorship.objects.filter(author=author)
+            merged = Authorship.objects.filter(author__merged_with_author=author)
+            all_authorships = direct.union(merged)
+
+            # Get doc IDs and sort by citations (UNION doesn't support order_by)
+            authorship_ids = list(all_authorships.values_list("id", flat=True))
             authored_doc_ids = list(
-                Authorship.objects.filter(author=author)
+                Authorship.objects.filter(id__in=authorship_ids)
                 .order_by("-paper__citations")
                 .values_list("paper__unified_document_id", flat=True)[
                     :NUM_DOCUMENTS_TO_FETCH
