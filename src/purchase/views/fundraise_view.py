@@ -8,14 +8,12 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from analytics.amplitude import track_event
-from analytics.tasks import track_revenue_event
-from purchase.models import Balance, Fundraise, Purchase, UsdFundraiseContribution
+from purchase.models import Fundraise
 from purchase.related_models.constants import (
     MAXIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC,
     MAXIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_USD_CENTS,
     MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC,
     MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_USD_CENTS,
-    USD_FUNDRAISE_FEE_PERCENT,
 )
 from purchase.related_models.constants.currency import RSC, USD
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
@@ -23,9 +21,6 @@ from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.purchase_serializer import DynamicPurchaseSerializer
 from purchase.services.fundraise_service import FundraiseService
 from referral.services.referral_bonus_service import ReferralBonusService
-from reputation.models import BountyFee
-from reputation.utils import calculate_bounty_fees, deduct_bounty_fees
-from user.models import User
 from user.permissions import IsModerator
 from user.related_models.follow_model import Follow
 from utils.sentry import log_error
@@ -158,144 +153,27 @@ class FundraiseViewSet(viewsets.ModelViewSet):
 
     def _create_rsc_contribution(self, request, fundraise, amount):
         """Creates an RSC contribution to a fundraise."""
-        user = request.user
+        purchase, error = self.fundraise_service.create_rsc_contribution(
+            user=request.user,
+            fundraise=fundraise,
+            amount=amount,
+        )
 
-        # Calculate fees
-        fee, rh_fee, dao_fee, fee_object = calculate_bounty_fees(amount)
-
-        with transaction.atomic():
-            user = User.objects.select_for_update().get(id=user.id)
-
-            # Check if user has enough balance in their wallet
-            # For fundraise contributions, we allow using locked balance
-            user_balance = user.get_balance(include_locked=True)
-            if user_balance - (amount + fee) < 0:
-                return None, Response({"message": "Insufficient balance"}, status=400)
-
-            # Create purchase object
-            purchase = Purchase.objects.create(
-                user=user,
-                content_type=ContentType.objects.get_for_model(Fundraise),
-                object_id=fundraise.id,
-                purchase_method=Purchase.OFF_CHAIN,
-                purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
-                paid_status=Purchase.PAID,
-                amount=amount,
-            )
-
-            # Deduct fees
-            deduct_bounty_fees(user, fee, rh_fee, dao_fee, fee_object)
-
-            # Get user's available locked balance
-            available_locked_balance = user.get_locked_balance()
-
-            # Determine how to split the contribution amount
-            locked_amount_used = min(available_locked_balance, amount)
-            regular_amount_used = amount - locked_amount_used
-
-            # Determine how to split the fees using remaining locked balance
-            remaining_locked_balance = available_locked_balance - locked_amount_used
-            locked_fee_used = min(remaining_locked_balance, fee)
-            regular_fee_used = fee - locked_fee_used
-
-            # Create balance records for the contribution amount
-            if locked_amount_used > 0:
-                Balance.objects.create(
-                    user=user,
-                    content_type=ContentType.objects.get_for_model(Purchase),
-                    object_id=purchase.id,
-                    amount=f"-{locked_amount_used.to_eng_string()}",
-                    is_locked=True,
-                    lock_type=Balance.LockType.REFERRAL_BONUS,
-                )
-
-            if regular_amount_used > 0:
-                Balance.objects.create(
-                    user=user,
-                    content_type=ContentType.objects.get_for_model(Purchase),
-                    object_id=purchase.id,
-                    amount=f"-{regular_amount_used.to_eng_string()}",
-                )
-
-            # Create balance records for the fees
-            if locked_fee_used > 0:
-                Balance.objects.create(
-                    user=user,
-                    content_type=ContentType.objects.get_for_model(BountyFee),
-                    object_id=fee_object.id,
-                    amount=f"-{locked_fee_used.to_eng_string()}",
-                    is_locked=True,
-                    lock_type=Balance.LockType.REFERRAL_BONUS,
-                )
-
-            if regular_fee_used > 0:
-                Balance.objects.create(
-                    user=user,
-                    content_type=ContentType.objects.get_for_model(BountyFee),
-                    object_id=fee_object.id,
-                    amount=f"-{regular_fee_used.to_eng_string()}",
-                )
-
-            # Track in Amplitude
-            rh_fee_str = rh_fee.to_eng_string()
-            track_revenue_event.apply_async(
-                (
-                    user.id,
-                    "FUNDRAISE_CONTRIBUTION_FEE",
-                    rh_fee_str,
-                    None,
-                    "OFF_CHAIN",
-                ),
-                priority=1,
-            )
-
-            # Update escrow object
-            fundraise.escrow.amount_holding += amount
-            fundraise.escrow.save()
+        if error:
+            return None, Response({"message": error}, status=400)
 
         return purchase, None
 
     def _create_usd_contribution(self, request, fundraise, amount_cents):
         """Creates a USD contribution to a fundraise."""
-        user = request.user
+        contribution, error = self.fundraise_service.create_usd_contribution(
+            user=request.user,
+            fundraise=fundraise,
+            amount_cents=amount_cents,
+        )
 
-        # Calculate 9% fee
-        fee_cents = (amount_cents * USD_FUNDRAISE_FEE_PERCENT) // 100
-        total_amount_cents = amount_cents + fee_cents
-
-        with transaction.atomic():
-            user = User.objects.select_for_update().get(id=user.id)
-
-            # Check if user has enough USD balance
-            user_usd_balance = user.get_usd_balance_cents()
-            if user_usd_balance < total_amount_cents:
-                return None, Response(
-                    {"message": "Insufficient USD balance"}, status=400
-                )
-
-            # Create the contribution record
-            contribution = UsdFundraiseContribution.objects.create(
-                user=user,
-                fundraise=fundraise,
-                amount_cents=amount_cents,
-                fee_cents=fee_cents,
-            )
-
-            # Deduct total amount (contribution + fee) from user's USD balance
-            user.decrease_usd_balance(total_amount_cents, source=contribution)
-
-            # Track in Amplitude
-            fee_dollars = fee_cents / 100.0
-            track_revenue_event.apply_async(
-                (
-                    user.id,
-                    "FUNDRAISE_CONTRIBUTION_FEE_USD",
-                    str(fee_dollars),
-                    None,
-                    "USD",
-                ),
-                priority=1,
-            )
+        if error:
+            return None, Response({"message": error}, status=400)
 
         return contribution, None
 
