@@ -35,6 +35,7 @@ class PaymentService:
         paper_id: Optional[int] = None,
         success_url: Optional[str] = None,
         cancel_url: Optional[str] = None,
+        enable_ach: bool = False,
     ) -> Dict[str, Any]:
         """
         Create a Stripe checkout session.
@@ -46,17 +47,29 @@ class PaymentService:
             paper_id: ID of the paper (required for APC).
             success_url: URL to redirect to after successful payment.
             cancel_url: URL to redirect to after cancelled payment.
+            enable_ach: Enable ACH bank transfer as a payment method.
 
         Returns:
             Dict containing session ID and URL
         """
+
+        user = User.objects.get(id=user_id)
+
+        payment_method_types = ["card"]
+        if enable_ach:
+            payment_method_types.append("us_bank_account")
+
+        # Stripe customer ID is required for ACH payments
+        customer_id = self._get_or_create_stripe_customer(user)
+
         product_name = self.get_name_for_purpose(purpose)
         unit_amount = APC_AMOUNT_CENTS if purpose == PaymentPurpose.APC else amount
 
         try:
-            session = stripe.checkout.Session.create(
-                payment_method_types=["card"],
-                line_items=[
+            session_params = {
+                "customer": customer_id,
+                "payment_method_types": payment_method_types,
+                "line_items": [
                     {
                         "price_data": {
                             "currency": "usd",
@@ -68,10 +81,10 @@ class PaymentService:
                         "quantity": 1,
                     },
                 ],
-                mode="payment",
-                success_url=success_url,
-                cancel_url=cancel_url,
-                metadata={
+                "mode": "payment",
+                "success_url": success_url,
+                "cancel_url": cancel_url,
+                "metadata": {
                     "user_id": str(user_id),
                     "purpose": purpose,
                     **(
@@ -81,7 +94,9 @@ class PaymentService:
                         else {}
                     ),
                 },
-            )
+            }
+
+            session = stripe.checkout.Session.create(**session_params)
 
             return {
                 "id": session.get("id"),
@@ -197,6 +212,8 @@ class PaymentService:
             return "Article Processing Charge"
         elif purpose == PaymentPurpose.RSC_PURCHASE:
             return "ResearchCoin (RSC) Purchase"
+        elif purpose == PaymentPurpose.FUNDING_CREDITS:
+            return "Funding Credits"
         else:
             return "Unknown Purpose"
 

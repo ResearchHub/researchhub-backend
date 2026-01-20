@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
@@ -24,9 +24,15 @@ class PaymentServiceTest(TestCase):
         self.user = create_user()
         self.paper = Paper.objects.create(title="Test Paper")
 
+    @patch("stripe.Customer.create")
     @patch("stripe.checkout.Session.create")
-    def test_create_checkout_session_apc_success(self, mock_stripe_session_create):
+    def test_create_checkout_session_apc_success(
+        self, mock_stripe_session_create, mock_stripe_customer_create
+    ):
         # Arrange
+        mock_customer = Mock()
+        mock_customer.id = "stripeCustomer1"
+        mock_stripe_customer_create.return_value = mock_customer
         mock_stripe_session_create.return_value = {
             "id": "sessionId1",
             "url": "https://checkout.stripe.com/session/sessionId1",
@@ -49,6 +55,7 @@ class PaymentServiceTest(TestCase):
 
         # Verify Stripe was called with correct parameters
         mock_stripe_session_create.assert_called_once_with(
+            customer="stripeCustomer1",
             payment_method_types=["card"],
             line_items=[
                 {
@@ -72,11 +79,15 @@ class PaymentServiceTest(TestCase):
             },
         )
 
+    @patch("stripe.Customer.create")
     @patch("stripe.checkout.Session.create")
     def test_create_checkout_session_rsc_purchase_success(
-        self, mock_stripe_session_create
+        self, mock_stripe_session_create, mock_stripe_customer_create
     ):
         # Arrange
+        mock_customer = Mock()
+        mock_customer.id = "stripeCustomer1"
+        mock_stripe_customer_create.return_value = mock_customer
         mock_stripe_session_create.return_value = {
             "id": "sessionId2",
             "url": "https://checkout.stripe.com/session/sessionId2",
@@ -99,6 +110,7 @@ class PaymentServiceTest(TestCase):
 
         # Verify Stripe was called with correct parameters
         mock_stripe_session_create.assert_called_once_with(
+            customer="stripeCustomer1",
             payment_method_types=["card"],
             line_items=[
                 {
@@ -121,9 +133,15 @@ class PaymentServiceTest(TestCase):
             },
         )
 
+    @patch("stripe.Customer.create")
     @patch("stripe.checkout.Session.create")
-    def test_create_checkout_session_stripe_error(self, mock_stripe_session_create):
+    def test_create_checkout_session_stripe_error(
+        self, mock_stripe_session_create, mock_stripe_customer_create
+    ):
         # Arrange
+        mock_customer = Mock()
+        mock_customer.id = "stripeCustomer1"
+        mock_stripe_customer_create.return_value = mock_customer
         mock_stripe_session_create.side_effect = Exception("Stripe error")
 
         # Act & Assert
