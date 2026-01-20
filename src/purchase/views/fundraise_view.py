@@ -249,14 +249,6 @@ class FundraiseViewSet(viewsets.ModelViewSet):
                 priority=1,
             )
 
-            # Let the contributor follow the preregistration
-            document = fundraise.unified_document.get_document()
-            Follow.objects.get_or_create(
-                user=user,
-                object_id=document.id,
-                content_type=ContentType.objects.get_for_model(document),
-            )
-
             # Update escrow object
             fundraise.escrow.amount_holding += amount
             fundraise.escrow.save()
@@ -303,14 +295,6 @@ class FundraiseViewSet(viewsets.ModelViewSet):
                     "USD",
                 ),
                 priority=1,
-            )
-
-            # Let the contributor follow the preregistration
-            document = fundraise.unified_document.get_document()
-            Follow.objects.get_or_create(
-                user=user,
-                object_id=document.id,
-                content_type=ContentType.objects.get_for_model(document),
             )
 
         return contribution, None
@@ -395,6 +379,14 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             purchase, error = self._create_rsc_contribution(request, fundraise, amount)
             if error:
                 return error
+
+        # Let the contributor follow the preregistration
+        document = fundraise.unified_document.get_document()
+        Follow.objects.get_or_create(
+            user=user,
+            object_id=document.id,
+            content_type=ContentType.objects.get_for_model(document),
+        )
 
         # return updated fundraise object
         context = self.get_serializer_context()
