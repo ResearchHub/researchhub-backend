@@ -75,6 +75,9 @@ class WithdrawalViewSetTests(APITestCase):
         )
         self.eth_to_rsc_patcher.start()
 
+        # Create exchange rate for user serializer balances
+        RscExchangeRate.objects.create(rate=0.5, real_rate=0.5)
+
     def tearDown(self):
         self.withdraw_patcher.stop()
         self.eth_to_rsc_patcher.stop()
@@ -559,14 +562,17 @@ class WithdrawalViewSetTests(APITestCase):
         self.client.force_authenticate(user)
 
         # Set a high transaction fee and mock hotwallet balance check
-        with mock.patch.object(
-            WithdrawalViewSet,
-            "calculate_transaction_fee",
-            return_value=decimal.Decimal("700"),
-        ), mock.patch.object(
-            WithdrawalViewSet,
-            "_check_hotwallet_balance",
-            return_value=(True, None),
+        with (
+            mock.patch.object(
+                WithdrawalViewSet,
+                "calculate_transaction_fee",
+                return_value=decimal.Decimal("700"),
+            ),
+            mock.patch.object(
+                WithdrawalViewSet,
+                "_check_hotwallet_balance",
+                return_value=(True, None),
+            ),
         ):
             # Post an amount above the minimum but less than the transaction fee
             withdrawal_amount = 600.0  # Less than the transaction fee
