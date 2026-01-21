@@ -281,3 +281,32 @@ class FundraiseService:
             usd_contribution.save(update_fields=["is_refunded"])
 
         return True
+
+    def close_fundraise(self, fundraise: "Fundraise") -> bool:
+        """
+        Close a fundraise and refund all contributions to their contributors.
+        Also refunds the fees that were deducted when creating contributions.
+        Only works if the fundraise is in OPEN status.
+        Returns True if successful, False otherwise.
+        """
+        with transaction.atomic():
+            # Check if fundraise can be closed (must be open)
+            if fundraise.status != Fundraise.OPEN:
+                return False
+
+            # Refund RSC contributions
+            if not self.refund_rsc_contributions(fundraise):
+                return False
+
+            # Refund USD contributions
+            if not self.refund_usd_contributions(fundraise):
+                return False
+
+            # Update fundraise status
+            fundraise.status = Fundraise.CLOSED
+            fundraise.save()
+
+            # Update escrow status
+            fundraise.escrow.set_cancelled_status()
+
+            return True

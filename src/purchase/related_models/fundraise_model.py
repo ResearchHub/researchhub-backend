@@ -5,7 +5,7 @@ import pytz
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.fields import GenericRelation
-from django.db import models, transaction
+from django.db import models
 from django.db.models import Sum
 from django.db.models.functions import Coalesce
 
@@ -169,36 +169,3 @@ class Fundraise(DefaultModel):
         )
 
         return did_payout
-
-    def close_fundraise(self):
-        """
-        Close a fundraise and refund all contributions to their contributors.
-        Also refunds the fees that were deducted when creating contributions.
-        Only works if the fundraise is in OPEN status.
-        Returns True if successful, False otherwise.
-        """
-        from purchase.services.fundraise_service import FundraiseService
-
-        service = FundraiseService()
-
-        with transaction.atomic():
-            # Check if fundraise can be closed (must be open)
-            if self.status != self.OPEN:
-                return False
-
-            # Refund RSC contributions
-            if not service.refund_rsc_contributions(self):
-                return False
-
-            # Refund USD contributions
-            if not service.refund_usd_contributions(self):
-                return False
-
-            # Update fundraise status
-            self.status = self.CLOSED
-            self.save()
-
-            # Update escrow status
-            self.escrow.set_cancelled_status()
-
-            return True
