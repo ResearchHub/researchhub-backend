@@ -8,21 +8,19 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from analytics.amplitude import track_event
-from analytics.tasks import track_revenue_event
-from purchase.models import Balance, Fundraise, Purchase
+from purchase.models import Fundraise
 from purchase.related_models.constants import (
     MAXIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC,
+    MAXIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_USD_CENTS,
     MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC,
+    MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_USD_CENTS,
 )
-from purchase.related_models.constants.currency import RSC
+from purchase.related_models.constants.currency import RSC, USD
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.purchase_serializer import DynamicPurchaseSerializer
 from purchase.services.fundraise_service import FundraiseService
 from referral.services.referral_bonus_service import ReferralBonusService
-from reputation.models import BountyFee
-from reputation.utils import calculate_bounty_fees, deduct_bounty_fees
-from user.models import User
 from user.permissions import IsModerator
 from user.related_models.follow_model import Follow
 from utils.sentry import log_error
@@ -130,6 +128,55 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         }
         return context
 
+    def _validate_fundraise_for_contribution(self, fundraise_id, user):
+        """
+        Validates that a fundraise exists and is valid for contributions.
+        Returns (fundraise, error_response) tuple.
+        """
+        try:
+            fundraise = Fundraise.objects.get(id=fundraise_id)
+        except Fundraise.DoesNotExist:
+            return None, Response({"message": "Fundraise does not exist"}, status=400)
+
+        if fundraise.status != Fundraise.OPEN:
+            return None, Response({"message": "Fundraise is not open"}, status=400)
+
+        if fundraise.is_expired():
+            return None, Response({"message": "Fundraise is expired"}, status=400)
+
+        if fundraise.created_by.id == user.id:
+            return None, Response(
+                {"message": "Cannot contribute to your own fundraise"}, status=400
+            )
+
+        return fundraise, None
+
+    def _create_rsc_contribution(self, request, fundraise, amount):
+        """Creates an RSC contribution to a fundraise."""
+        purchase, error = self.fundraise_service.create_rsc_contribution(
+            user=request.user,
+            fundraise=fundraise,
+            amount=amount,
+        )
+
+        if error:
+            return None, Response({"message": error}, status=400)
+
+        return purchase, None
+
+    def _create_usd_contribution(self, request, fundraise, amount_cents):
+        """Creates a USD contribution to a fundraise."""
+        contribution, error = self.fundraise_service.create_usd_contribution(
+            user=request.user,
+            fundraise=fundraise,
+            amount_cents=amount_cents,
+        )
+
+        if error:
+            return None, Response({"message": error}, status=400)
+
+        return contribution, None
+
     @track_event
     @action(
         methods=["POST"],
@@ -149,153 +196,75 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             return Response({"message": "fundraise_id is required"}, status=400)
         if amount is None:
             return Response({"message": "amount is required"}, status=400)
-        if amount_currency != RSC:
-            return Response({"message": "amount_currency must be RSC"}, status=400)
-        try:
-            amount = decimal.Decimal(amount)
-        except Exception as e:
-            log_error(e)
-            return Response({"detail": "Invalid amount"}, status=400)
-
-        # Check if amount is within limits
-        if (
-            amount < MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC
-            or amount > MAXIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC
-        ):
+        if amount_currency not in (RSC, USD):
             return Response(
-                {
-                    "message": (
-                        f"Invalid amount. Minimum is "
-                        f"{MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC}"
-                    )
-                },
-                status=400,
+                {"message": "amount_currency must be RSC or USD"}, status=400
             )
 
-        # Get fundraise object
-        try:
-            fundraise = Fundraise.objects.get(id=fundraise_id)
-            if fundraise is None:
-                return Response({"message": "Fundraise does not exist"}, status=400)
-        except Fundraise.DoesNotExist:
-            return Response({"message": "Fundraise does not exist"}, status=400)
+        # Validate fundraise
+        fundraise, error = self._validate_fundraise_for_contribution(fundraise_id, user)
+        if error:
+            return error
 
-        # Check if fundraise is open
-        if fundraise.status != Fundraise.OPEN:
-            return Response({"message": "Fundraise is not open"}, status=400)
-        # Check if fundraise is not expired
-        if fundraise.is_expired():
-            return Response({"message": "Fundraise is expired"}, status=400)
+        if amount_currency == USD:
+            # USD contributions use cents
+            try:
+                amount_cents = int(amount)
+            except (ValueError, TypeError) as e:
+                log_error(e)
+                return Response({"detail": "Invalid amount"}, status=400)
 
-        # Check if user created the fundraise
-        if fundraise.created_by.id == user.id:
-            return Response(
-                {"message": "Cannot contribute to your own fundraise"}, status=400
-            )
-
-        # Calculate fees
-        fee, rh_fee, dao_fee, fee_object = calculate_bounty_fees(amount)
-
-        with transaction.atomic():
-            user = User.objects.select_for_update().get(id=user.id)
-
-            # Check if user has enough balance in their wallet
-            # For fundraise contributions, we allow using locked balance
-            user_balance = user.get_balance(include_locked=True)
-            if user_balance - (amount + fee) < 0:
-                return Response({"message": "Insufficient balance"}, status=400)
-
-            # Create purchase object
-            # In the future, we may want to have the user POST /purchases and then call
-            # this EP with an ID.
-            # Especially for on-chain purchases.
-            purchase = Purchase.objects.create(
-                user=user,
-                content_type=ContentType.objects.get_for_model(Fundraise),
-                object_id=fundraise.id,
-                purchase_method=Purchase.OFF_CHAIN,
-                purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
-                paid_status=Purchase.PAID,
-                amount=amount,
-            )
-
-            # Deduct fees
-            deduct_bounty_fees(user, fee, rh_fee, dao_fee, fee_object)
-
-            # Get user's available locked balance
-            available_locked_balance = user.get_locked_balance()
-
-            # Determine how to split the contribution amount
-            locked_amount_used = min(available_locked_balance, amount)
-            regular_amount_used = amount - locked_amount_used
-
-            # Determine how to split the fees using remaining locked balance
-            remaining_locked_balance = available_locked_balance - locked_amount_used
-            locked_fee_used = min(remaining_locked_balance, fee)
-            regular_fee_used = fee - locked_fee_used
-
-            # Create balance records for the contribution amount
-            if locked_amount_used > 0:
-                Balance.objects.create(
-                    user=user,
-                    content_type=ContentType.objects.get_for_model(Purchase),
-                    object_id=purchase.id,
-                    amount=f"-{locked_amount_used.to_eng_string()}",
-                    is_locked=True,
-                    lock_type=Balance.LockType.REFERRAL_BONUS,
+            # Check if amount is within limits
+            if (
+                amount_cents < MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_USD_CENTS
+                or amount_cents > MAXIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_USD_CENTS
+            ):
+                min_dollars = MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_USD_CENTS / 100
+                return Response(
+                    {"message": f"Invalid amount. Minimum is ${min_dollars:.2f}"},
+                    status=400,
                 )
 
-            if regular_amount_used > 0:
-                Balance.objects.create(
-                    user=user,
-                    content_type=ContentType.objects.get_for_model(Purchase),
-                    object_id=purchase.id,
-                    amount=f"-{regular_amount_used.to_eng_string()}",
-                )
-
-            # Create balance records for the fees
-            if locked_fee_used > 0:
-                Balance.objects.create(
-                    user=user,
-                    content_type=ContentType.objects.get_for_model(BountyFee),
-                    object_id=fee_object.id,
-                    amount=f"-{locked_fee_used.to_eng_string()}",
-                    is_locked=True,
-                    lock_type=Balance.LockType.REFERRAL_BONUS,
-                )
-
-            if regular_fee_used > 0:
-                Balance.objects.create(
-                    user=user,
-                    content_type=ContentType.objects.get_for_model(BountyFee),
-                    object_id=fee_object.id,
-                    amount=f"-{regular_fee_used.to_eng_string()}",
-                )
-
-            # Track in Amplitude
-            rh_fee_str = rh_fee.to_eng_string()
-            track_revenue_event.apply_async(
-                (
-                    user.id,
-                    "FUNDRAISE_CONTRIBUTION_FEE",
-                    rh_fee_str,
-                    None,
-                    "OFF_CHAIN",
-                ),
-                priority=1,
+            contribution, error = self._create_usd_contribution(
+                request, fundraise, amount_cents
             )
+            if error:
+                return error
 
-            # Let the contributor follow the preregistration
-            document = fundraise.unified_document.get_document()
-            Follow.objects.get_or_create(
-                user=user,
-                object_id=document.id,
-                content_type=ContentType.objects.get_for_model(document),
-            )
+        else:
+            # RSC contributions
+            try:
+                amount = decimal.Decimal(amount)
+            except Exception as e:
+                log_error(e)
+                return Response({"detail": "Invalid amount"}, status=400)
 
-            # Update escrow object
-            fundraise.escrow.amount_holding += amount
-            fundraise.escrow.save()
+            # Check if amount is within limits
+            if (
+                amount < MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC
+                or amount > MAXIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC
+            ):
+                return Response(
+                    {
+                        "message": (
+                            f"Invalid amount. Minimum is "
+                            f"{MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC}"
+                        )
+                    },
+                    status=400,
+                )
+
+            purchase, error = self._create_rsc_contribution(request, fundraise, amount)
+            if error:
+                return error
+
+        # Let the contributor follow the preregistration
+        document = fundraise.unified_document.get_document()
+        Follow.objects.get_or_create(
+            user=user,
+            object_id=document.id,
+            content_type=ContentType.objects.get_for_model(document),
+        )
 
         # return updated fundraise object
         context = self.get_serializer_context()
