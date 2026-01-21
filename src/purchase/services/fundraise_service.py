@@ -1,3 +1,4 @@
+import time
 from decimal import Decimal
 from typing import Optional, Tuple
 
@@ -8,6 +9,8 @@ from analytics.tasks import track_revenue_event
 from purchase.models import Balance, Fundraise, Purchase, UsdFundraiseContribution
 from purchase.related_models.constants import USD_FUNDRAISE_FEE_PERCENT
 from purchase.related_models.constants.currency import USD
+from reputation.distributions import create_bounty_refund_distribution
+from reputation.distributor import Distributor
 from reputation.models import BountyFee, Escrow
 from reputation.utils import calculate_bounty_fees, deduct_bounty_fees
 from researchhub_document.related_models.researchhub_unified_document_model import (
@@ -214,3 +217,67 @@ class FundraiseService:
             )
 
         return contribution, None
+
+    def refund_rsc_contributions(self, fundraise: "Fundraise") -> bool:
+        """
+        Refund all RSC contributions from escrow back to contributors.
+        Also refunds the fees that were deducted when creating contributions.
+        Returns True if all refunds successful, False if any fail.
+        """
+        # Get all purchases (RSC contributions) for this fundraise
+        contributions = fundraise.purchases.all()
+
+        # Refund each RSC contributor
+        for contribution in contributions:
+            user = contribution.user
+            amount = Decimal(contribution.amount)
+
+            # Only refund what's still in escrow
+            if amount > 0:
+                success = fundraise.escrow.refund(user, amount)
+                if not success:
+                    # If a refund fails, we should abort the whole transaction
+                    return False
+
+            # Also refund the fees that were deducted when this contribution
+            # was made. Calculate the fee using the same logic used during
+            # contribution creation.
+            fee, _, _, fee_object = calculate_bounty_fees(amount)
+
+            if fee > 0:
+                # Create a refund for the fee
+                rh_revenue_account = User.objects.get_revenue_account()
+                distribution = create_bounty_refund_distribution(fee)
+                distributor = Distributor(
+                    distribution,
+                    user,
+                    fee_object,  # The BountyFee object
+                    time.time(),
+                    giver=rh_revenue_account,
+                )
+                record = distributor.distribute()
+                if record.distributed_status == "FAILED":
+                    # If fee refund fails, we should abort the whole
+                    # transaction
+                    return False
+
+        return True
+
+    def refund_usd_contributions(self, fundraise: "Fundraise") -> bool:
+        """
+        Refund all USD contributions that haven't been refunded yet.
+        Refunds both the contribution amount and the fee to the user's USD balance.
+        """
+        for usd_contribution in fundraise.usd_contributions.filter(is_refunded=False):
+            user = usd_contribution.user
+            # Refund both the contribution amount and the fee
+            total_refund_cents = (
+                usd_contribution.amount_cents + usd_contribution.fee_cents
+            )
+            if total_refund_cents > 0:
+                user.increase_usd_balance(total_refund_cents, source=usd_contribution)
+            # Mark as refunded
+            usd_contribution.is_refunded = True
+            usd_contribution.save(update_fields=["is_refunded"])
+
+        return True

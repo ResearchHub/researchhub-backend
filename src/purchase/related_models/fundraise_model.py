@@ -1,4 +1,3 @@
-import time
 from datetime import datetime, timedelta
 from decimal import Decimal
 
@@ -178,68 +177,22 @@ class Fundraise(DefaultModel):
         Only works if the fundraise is in OPEN status.
         Returns True if successful, False otherwise.
         """
-        # Import inside method to avoid circular imports
-        from reputation.distributions import create_bounty_refund_distribution
-        from reputation.distributor import Distributor
-        from reputation.utils import calculate_bounty_fees
-        from user.models import User
+        from purchase.services.fundraise_service import FundraiseService
+
+        service = FundraiseService()
 
         with transaction.atomic():
             # Check if fundraise can be closed (must be open)
             if self.status != self.OPEN:
                 return False
 
-            # Get all purchases (RSC contributions) for this fundraise
-            contributions = self.purchases.all()
+            # Refund RSC contributions
+            if not service.refund_rsc_contributions(self):
+                return False
 
-            # Refund each RSC contributor
-            for contribution in contributions:
-                user = contribution.user
-                amount = Decimal(contribution.amount)
-
-                # Only refund what's still in escrow
-                if amount > 0:
-                    success = self.escrow.refund(user, amount)
-                    if not success:
-                        # If a refund fails, we should abort the whole transaction
-                        return False
-
-                # Also refund the fees that were deducted when this contribution
-                # was made. Calculate the fee using the same logic used during
-                # contribution creation.
-                fee, _, _, fee_object = calculate_bounty_fees(amount)
-
-                if fee > 0:
-                    # Create a refund for the fee
-                    rh_revenue_account = User.objects.get_revenue_account()
-                    distribution = create_bounty_refund_distribution(fee)
-                    distributor = Distributor(
-                        distribution,
-                        user,
-                        fee_object,  # The BountyFee object
-                        time.time(),
-                        giver=rh_revenue_account,
-                    )
-                    record = distributor.distribute()
-                    if record.distributed_status == "FAILED":
-                        # If fee refund fails, we should abort the whole
-                        # transaction
-                        return False
-
-            # Refund each USD contributor (skip already refunded)
-            for usd_contribution in self.usd_contributions.filter(is_refunded=False):
-                user = usd_contribution.user
-                # Refund both the contribution amount and the fee
-                total_refund_cents = (
-                    usd_contribution.amount_cents + usd_contribution.fee_cents
-                )
-                if total_refund_cents > 0:
-                    user.increase_usd_balance(
-                        total_refund_cents, source=usd_contribution
-                    )
-                # Mark as refunded
-                usd_contribution.is_refunded = True
-                usd_contribution.save(update_fields=["is_refunded"])
+            # Refund USD contributions
+            if not service.refund_usd_contributions(self):
+                return False
 
             # Update fundraise status
             self.status = self.CLOSED
