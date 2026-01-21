@@ -25,6 +25,7 @@ from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.related_models.document_filter_model import DocumentFilter
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -1729,4 +1730,77 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         # $500 open should rank higher than $50 open (ignoring $10k closed)
         self.assertLess(
             result_ids.index(post_current), result_ids.index(post_historical.id)
+        )
+
+    def test_upvotes_sorting_fallback_to_score_when_no_document_filter(self):
+        """Test upvotes sorting falls back to post.score when document_filter is NULL."""
+        # Arrange
+        doc_high = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        post_high_score = ResearchhubPost.objects.create(
+            title="High Score Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=doc_high,
+            score=100,
+        )
+
+        doc_medium = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        post_medium_score = ResearchhubPost.objects.create(
+            title="Medium Score Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=doc_medium,
+            score=50,
+        )
+
+        doc_low = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        post_low_score = ResearchhubPost.objects.create(
+            title="Low Score Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=doc_low,
+            score=10,
+        )
+
+        # Remove document_filter references to test fallback behavior
+        ResearchhubUnifiedDocument.objects.filter(
+            id__in=[doc_high.id, doc_medium.id, doc_low.id]
+        ).update(document_filter=None)
+        doc_high.refresh_from_db()
+        doc_medium.refresh_from_db()
+        doc_low.refresh_from_db()
+
+        # Act
+        response = self.client.get(
+            reverse("funding_feed-list"), {"ordering": "upvotes"}
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertIsNone(doc_high.document_filter_id)
+        self.assertIsNone(doc_medium.document_filter_id)
+        self.assertIsNone(doc_low.document_filter_id)
+
+        result_ids = [r["content_object"]["id"] for r in response.data["results"]]
+
+        high_idx = result_ids.index(post_high_score.id)
+        medium_idx = result_ids.index(post_medium_score.id)
+        low_idx = result_ids.index(post_low_score.id)
+
+        self.assertLess(
+            high_idx,
+            medium_idx,
+            "Post with score=100 should appear before post with score=50",
+        )
+        self.assertLess(
+            medium_idx,
+            low_idx,
+            "Post with score=50 should appear before post with score=10",
         )
