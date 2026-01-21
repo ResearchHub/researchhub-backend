@@ -15,6 +15,7 @@ from hub.serializers import DynamicHubSerializer, HubSerializer, SimpleHubSerial
 from institution.serializers import DynamicInstitutionSerializer
 from paper.models import Paper, PaperSubmission
 from purchase.models import Purchase
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from referral.models import ReferralSignup
 from reputation.models import Bounty, Contribution, Score, Withdrawal
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -46,6 +47,33 @@ from user.related_models.coauthor_model import CoAuthor
 from user.related_models.follow_model import Follow
 from user.related_models.gatekeeper_model import Gatekeeper
 from utils import sentry
+
+
+def compute_user_balances(user):
+    """
+    Compute balance information for a user.
+    Returns a dict with RSC and USD balances, or None if user is None.
+    """
+    if user is None:
+        return None
+
+    rsc = user.get_balance()
+    rsc_locked = user.get_locked_balance()
+    total_rsc = rsc + rsc_locked
+    usd_cents = user.get_usd_balance_cents()
+
+    # Convert RSC to USD cents and USD to RSC for totals
+    # Cast to float for exchange rate calculations
+    rsc_as_usd_cents = int(RscExchangeRate.rsc_to_usd(float(total_rsc)) * 100)
+    usd_as_rsc = RscExchangeRate.usd_to_rsc(usd_cents / 100)
+
+    return {
+        "rsc": rsc,
+        "rsc_locked": rsc_locked,
+        "total_rsc": float(total_rsc) + usd_as_rsc,
+        "usd_cents": usd_cents,
+        "total_usd_cents": usd_cents + rsc_as_usd_cents,
+    }
 
 
 class ModeratorUserSerializer(ModelSerializer):
@@ -168,7 +196,6 @@ class AuthorSerializer(ModelSerializer):
 
     def get_orcid_id(self, author):
         return author.orcid_id
-        
 
     def get_total_score(self, author):
         if author.author_score > 0:
@@ -184,7 +211,6 @@ class AuthorSerializer(ModelSerializer):
             return WalletSerializer(obj.wallet).data
         except Exception:
             pass
-
 
     def get_num_posts(self, author):
         user = author.user
@@ -413,6 +439,7 @@ class FollowSerializer(serializers.ModelSerializer):
 class UserSerializer(ModelSerializer):
     author_profile = AuthorSerializer(read_only=True)
     balance = SerializerMethodField(read_only=True)
+    balances = SerializerMethodField(read_only=True)
     subscribed = SerializerMethodField(read_only=True)
     hub_rep = SerializerMethodField()
     time_rep = SerializerMethodField()
@@ -424,6 +451,7 @@ class UserSerializer(ModelSerializer):
             "id",
             "author_profile",
             "balance",
+            "balances",
             "created_date",
             "has_seen_first_coin_modal",
             "has_seen_orcid_connect_modal",
@@ -463,6 +491,15 @@ class UserSerializer(ModelSerializer):
             and self.context["user"].id == obj.id
         ):
             return obj.get_balance()
+
+    def get_balances(self, obj):
+        if (
+            not self.read_only
+            and self.context.get("user")
+            and self.context["user"].id == obj.id
+        ):
+            return compute_user_balances(obj)
+        return None
 
     def get_subscribed(self, obj):
         if self.context.get("get_subscribed"):
@@ -509,6 +546,7 @@ class MinimalUserSerializer(ModelSerializer):
 class UserEditableSerializer(ModelSerializer):
     author_profile = AuthorSerializer()
     balance = SerializerMethodField()
+    balances = SerializerMethodField()
     locked_balance = SerializerMethodField()
     balance_history = SerializerMethodField()
     email = SerializerMethodField()
@@ -553,6 +591,12 @@ class UserEditableSerializer(ModelSerializer):
 
         if request_user and request_user == user:
             return user.get_balance()
+        return None
+
+    def get_balances(self, user):
+        request_user = self.context.get("user", None)
+        if request_user and request_user == user:
+            return compute_user_balances(user)
         return None
 
     def get_locked_balance(self, user):
@@ -649,6 +693,7 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
 class DynamicUserSerializer(DynamicModelFieldSerializer):
     author_profile = SerializerMethodField()
     rsc_earned = SerializerMethodField()
+    balances = SerializerMethodField()
     benefits_expire_on = SerializerMethodField()
     editor_of = SerializerMethodField()
     is_verified = SerializerMethodField()
@@ -672,6 +717,12 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
 
     def get_rsc_earned(self, user):
         return getattr(user, "rsc_earned", None)
+
+    def get_balances(self, user):
+        request_user = self.context.get("user", None)
+        if request_user and request_user == user:
+            return compute_user_balances(user)
+        return None
 
     def get_benefits_expire_on(self, user):
         return getattr(user, "benefits_expire_on", None)

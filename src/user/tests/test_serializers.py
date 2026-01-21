@@ -8,6 +8,7 @@ from discussion.models import Vote
 from hub.models import Hub
 from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.models import Distribution, Score
@@ -16,7 +17,9 @@ from user.models import UserVerification
 from user.serializers import (
     AuthorSerializer,
     DynamicAuthorProfileSerializer,
+    DynamicUserSerializer,
     UserEditableSerializer,
+    UserSerializer,
 )
 from user.tests.helpers import create_university, create_user
 
@@ -178,3 +181,167 @@ class UserSerializersTests(TestCase):
                 "open_access_pct": 0.0,
             },
         )
+
+
+class UserBalancesSerializerTests(TestCase):
+    def setUp(self):
+        self.user = create_user(first_name="BalanceTest")
+        self.other_user = create_user(email="other@researchhub.com")
+
+        # Create exchange rate: 1 RSC = 0.5 USD (or 1 USD = 2 RSC)
+        RscExchangeRate.objects.create(rate=0.5, real_rate=0.5)
+
+        # Give user some RSC balance
+        distribution = Dist("REWARD", 1000, give_rep=False)
+        distributor = Distributor(
+            distribution, self.user, self.user, time.time(), self.user
+        )
+        distributor.distribute()
+
+        # Give user some USD balance (500 cents = $5)
+        self.user.increase_usd_balance(500)
+
+    def test_user_serializer_balances_returns_for_own_user(self):
+        """UserSerializer should return balances when user views own profile"""
+        serializer = UserSerializer(
+            self.user,
+            context={"user": self.user},
+        )
+        # Set read_only to False to enable balance display
+        serializer.read_only = False
+
+        balances = serializer.data["balances"]
+
+        self.assertIsNotNone(balances)
+        self.assertEqual(balances["rsc"], 1000)
+        self.assertEqual(balances["rsc_locked"], 0)
+        self.assertEqual(balances["usd_cents"], 500)
+        # total_rsc = 1000 RSC + (500 cents / 100 = $5 / 0.5 rate = 10 RSC) = 1010
+        self.assertEqual(balances["total_rsc"], 1010)
+        # total_usd_cents = 500 + (1000 RSC * 0.5 rate * 100) = 500 + 50000 = 50500
+        self.assertEqual(balances["total_usd_cents"], 50500)
+
+    def test_user_serializer_balances_returns_none_for_other_user(self):
+        """UserSerializer should return None for balances when viewing another user"""
+        serializer = UserSerializer(
+            self.user,
+            context={"user": self.other_user},
+        )
+        serializer.read_only = False
+
+        self.assertIsNone(serializer.data["balances"])
+
+    def test_user_serializer_balance_backwards_compatible(self):
+        """UserSerializer should still return top-level balance for backwards compatibility"""
+        serializer = UserSerializer(
+            self.user,
+            context={"user": self.user},
+        )
+        serializer.read_only = False
+
+        self.assertEqual(serializer.data["balance"], 1000)
+
+    def test_user_editable_serializer_balances_returns_for_own_user(self):
+        """UserEditableSerializer should return balances when user views own profile"""
+        serializer = UserEditableSerializer(
+            self.user,
+            context={"user": self.user},
+        )
+
+        balances = serializer.data["balances"]
+
+        self.assertIsNotNone(balances)
+        self.assertEqual(balances["rsc"], 1000)
+        self.assertEqual(balances["rsc_locked"], 0)
+        self.assertEqual(balances["usd_cents"], 500)
+        self.assertEqual(balances["total_rsc"], 1010)
+        self.assertEqual(balances["total_usd_cents"], 50500)
+
+    def test_user_editable_serializer_balances_returns_none_for_other_user(self):
+        """UserEditableSerializer should return None for balances when viewing another user"""
+        serializer = UserEditableSerializer(
+            self.user,
+            context={"user": self.other_user},
+        )
+
+        self.assertIsNone(serializer.data["balances"])
+
+    def test_user_editable_serializer_backwards_compatible(self):
+        """UserEditableSerializer should still return top-level balance and locked_balance"""
+        serializer = UserEditableSerializer(
+            self.user,
+            context={"user": self.user},
+        )
+
+        self.assertEqual(serializer.data["balance"], 1000)
+        self.assertEqual(serializer.data["locked_balance"], 0)
+
+    def test_dynamic_user_serializer_balances_returns_for_own_user(self):
+        """DynamicUserSerializer should return balances when user views own profile"""
+        serializer = DynamicUserSerializer(
+            self.user,
+            context={"user": self.user},
+        )
+
+        balances = serializer.data["balances"]
+
+        self.assertIsNotNone(balances)
+        self.assertEqual(balances["rsc"], 1000)
+        self.assertEqual(balances["rsc_locked"], 0)
+        self.assertEqual(balances["usd_cents"], 500)
+        self.assertEqual(balances["total_rsc"], 1010)
+        self.assertEqual(balances["total_usd_cents"], 50500)
+
+    def test_dynamic_user_serializer_balances_returns_none_for_other_user(self):
+        """DynamicUserSerializer should return None for balances when viewing another user"""
+        serializer = DynamicUserSerializer(
+            self.user,
+            context={"user": self.other_user},
+        )
+
+        self.assertIsNone(serializer.data["balances"])
+
+    def test_balances_with_locked_rsc(self):
+        """Balances should include locked RSC in totals"""
+        # Lock some RSC for the user
+        from purchase.models import Balance
+
+        Balance.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(Distribution),
+            object_id=1,
+            amount=200,
+            is_locked=True,
+        )
+
+        serializer = UserEditableSerializer(
+            self.user,
+            context={"user": self.user},
+        )
+
+        balances = serializer.data["balances"]
+
+        self.assertEqual(balances["rsc"], 1000)
+        self.assertEqual(balances["rsc_locked"], 200)
+        # total_rsc = 1200 RSC + ($5 / 0.5 = 10 RSC) = 1210
+        self.assertEqual(balances["total_rsc"], 1210)
+        # total_usd_cents = 500 + (1200 RSC * 0.5 * 100) = 500 + 60000 = 60500
+        self.assertEqual(balances["total_usd_cents"], 60500)
+
+    def test_balances_with_zero_balances(self):
+        """Balances should work correctly with zero balances"""
+        new_user = create_user(email="newuser@researchhub.com")
+
+        serializer = UserEditableSerializer(
+            new_user,
+            context={"user": new_user},
+        )
+
+        balances = serializer.data["balances"]
+
+        self.assertIsNotNone(balances)
+        self.assertEqual(balances["rsc"], 0)
+        self.assertEqual(balances["rsc_locked"], 0)
+        self.assertEqual(balances["usd_cents"], 0)
+        self.assertEqual(balances["total_rsc"], 0)
+        self.assertEqual(balances["total_usd_cents"], 0)
