@@ -49,6 +49,33 @@ from user.related_models.gatekeeper_model import Gatekeeper
 from utils import sentry
 
 
+def compute_user_balances(user):
+    """
+    Compute balance information for a user.
+    Returns a dict with RSC and USD balances, or None if user is None.
+    """
+    if user is None:
+        return None
+
+    rsc = user.get_balance()
+    rsc_locked = user.get_locked_balance()
+    total_rsc = rsc + rsc_locked
+    usd_cents = user.get_usd_balance_cents()
+
+    # Convert RSC to USD cents and USD to RSC for totals
+    # Cast to float for exchange rate calculations
+    rsc_as_usd_cents = int(RscExchangeRate.rsc_to_usd(float(total_rsc)) * 100)
+    usd_as_rsc = RscExchangeRate.usd_to_rsc(usd_cents / 100)
+
+    return {
+        "rsc": rsc,
+        "rsc_locked": rsc_locked,
+        "total_rsc": float(total_rsc) + usd_as_rsc,
+        "usd_cents": usd_cents,
+        "total_usd_cents": usd_cents + rsc_as_usd_cents,
+    }
+
+
 class ModeratorUserSerializer(ModelSerializer):
     verification = SerializerMethodField()
 
@@ -471,23 +498,7 @@ class UserSerializer(ModelSerializer):
             and self.context.get("user")
             and self.context["user"].id == obj.id
         ):
-            rsc = obj.get_balance()
-            rsc_locked = obj.get_locked_balance()
-            total_rsc = rsc + rsc_locked
-            usd_cents = obj.get_usd_balance_cents()
-
-            # Convert RSC to USD cents and USD to RSC for totals
-            # Cast to float for exchange rate calculations
-            rsc_as_usd_cents = int(RscExchangeRate.rsc_to_usd(float(total_rsc)) * 100)
-            usd_as_rsc = RscExchangeRate.usd_to_rsc(usd_cents / 100)
-
-            return {
-                "rsc": rsc,
-                "rsc_locked": rsc_locked,
-                "total_rsc": float(total_rsc) + usd_as_rsc,
-                "usd_cents": usd_cents,
-                "total_usd_cents": usd_cents + rsc_as_usd_cents,
-            }
+            return compute_user_balances(obj)
         return None
 
     def get_subscribed(self, obj):
@@ -583,27 +594,9 @@ class UserEditableSerializer(ModelSerializer):
         return None
 
     def get_balances(self, user):
-        context = self.context
-        request_user = context.get("user", None)
-
+        request_user = self.context.get("user", None)
         if request_user and request_user == user:
-            rsc = user.get_balance()
-            rsc_locked = user.get_locked_balance()
-            total_rsc = rsc + rsc_locked
-            usd_cents = user.get_usd_balance_cents()
-
-            # Convert RSC to USD cents and USD to RSC for totals
-            # Cast to float for exchange rate calculations
-            rsc_as_usd_cents = int(RscExchangeRate.rsc_to_usd(float(total_rsc)) * 100)
-            usd_as_rsc = RscExchangeRate.usd_to_rsc(usd_cents / 100)
-
-            return {
-                "rsc": rsc,
-                "rsc_locked": rsc_locked,
-                "total_rsc": float(total_rsc) + usd_as_rsc,
-                "usd_cents": usd_cents,
-                "total_usd_cents": usd_cents + rsc_as_usd_cents,
-            }
+            return compute_user_balances(user)
         return None
 
     def get_locked_balance(self, user):
@@ -726,27 +719,9 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
         return getattr(user, "rsc_earned", None)
 
     def get_balances(self, user):
-        context = self.context
-        request_user = context.get("user", None)
-
+        request_user = self.context.get("user", None)
         if request_user and request_user == user:
-            rsc = user.get_balance()
-            rsc_locked = user.get_locked_balance()
-            total_rsc = rsc + rsc_locked
-            usd_cents = user.get_usd_balance_cents()
-
-            # Convert RSC to USD cents and USD to RSC for totals
-            # Cast to float for exchange rate calculations
-            rsc_as_usd_cents = int(RscExchangeRate.rsc_to_usd(float(total_rsc)) * 100)
-            usd_as_rsc = RscExchangeRate.usd_to_rsc(usd_cents / 100)
-
-            return {
-                "rsc": rsc,
-                "rsc_locked": rsc_locked,
-                "total_rsc": float(total_rsc) + usd_as_rsc,
-                "usd_cents": usd_cents,
-                "total_usd_cents": usd_cents + rsc_as_usd_cents,
-            }
+            return compute_user_balances(user)
         return None
 
     def get_benefits_expire_on(self, user):
