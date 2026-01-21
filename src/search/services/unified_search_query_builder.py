@@ -23,7 +23,7 @@ class PopularityConfig:
     """Configuration for popularity boosting using hot_score_v2."""
 
     enabled: bool = True
-    weight: float = 1.0
+    weight: float = 2.0
     boost_mode: str = "sum"
 
 
@@ -175,7 +175,7 @@ class DocumentQueryBuilder:
         if author_queries and title_queries:
             author_match = Q("bool", should=author_queries, minimum_should_match=1)
             title_match = Q("bool", should=title_queries, minimum_should_match=1)
-            author_title_combo = Q("bool", must=[author_match, title_match], boost=15.0)
+            author_title_combo = Q("bool", must=[author_match, title_match], boost=7.0)
             self.should_clauses.append(author_title_combo)
 
         all_fields = author_fields + title_fields
@@ -510,7 +510,7 @@ class UnifiedSearchQueryBuilder:
                 operator="or",
             )
 
-        return builder.add_cross_field_fallback_strategy()
+        return builder
 
     def build_document_query(self, query: str) -> Q:
         return self._configure_document_builder(query).build()
