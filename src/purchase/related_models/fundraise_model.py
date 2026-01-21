@@ -171,6 +171,27 @@ class Fundraise(DefaultModel):
 
         return did_payout
 
+    def _refund_usd_contributions(self):
+        """
+        Refund all USD contributions for this fundraise.
+        Returns True if successful, False otherwise.
+        """
+        # Refund each USD contributor (skip already refunded)
+        for usd_contribution in self.usd_contributions.filter(is_refunded=False):
+            user = usd_contribution.user
+            # Refund both the contribution amount and the fee
+            total_refund_cents = (
+                usd_contribution.amount_cents + usd_contribution.fee_cents
+            )
+            if total_refund_cents > 0:
+                user.increase_usd_balance(
+                    total_refund_cents, source=usd_contribution
+                )
+            # Mark as refunded
+            usd_contribution.is_refunded = True
+            usd_contribution.save(update_fields=["is_refunded"])
+        return True
+
     def close_fundraise(self):
         """
         Close a fundraise and refund all contributions to their contributors.
@@ -226,20 +247,8 @@ class Fundraise(DefaultModel):
                         # transaction
                         return False
 
-            # Refund each USD contributor (skip already refunded)
-            for usd_contribution in self.usd_contributions.filter(is_refunded=False):
-                user = usd_contribution.user
-                # Refund both the contribution amount and the fee
-                total_refund_cents = (
-                    usd_contribution.amount_cents + usd_contribution.fee_cents
-                )
-                if total_refund_cents > 0:
-                    user.increase_usd_balance(
-                        total_refund_cents, source=usd_contribution
-                    )
-                # Mark as refunded
-                usd_contribution.is_refunded = True
-                usd_contribution.save(update_fields=["is_refunded"])
+            # Refund USD contributions
+            self._refund_usd_contributions()
 
             # Update fundraise status
             self.status = self.CLOSED
