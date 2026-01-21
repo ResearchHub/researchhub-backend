@@ -217,11 +217,11 @@ class FundOrderingFilter(OrderingFilter):
         return queryset.order_by('sort_option', '-amount', '-created_date')
     
     def _apply_upvotes_sorting(self, queryset: QuerySet) -> QuerySet:
-        # Use document_filter upvotes if available, otherwise fallback to post score
+        """Use document_filter upvotes if available, otherwise fallback to post score"""
         return queryset.annotate(
             upvotes=Coalesce(
                 F("unified_document__document_filter__upvoted_all"),
-                F("score"),  # Fallback to post's score field
+                F("score"),
                 0
             )
         ).order_by("-upvotes", "-created_date")
