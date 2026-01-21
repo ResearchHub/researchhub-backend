@@ -19,6 +19,7 @@ class UsdFundraiseContribution(DefaultModel):
     )
     amount_cents = models.IntegerField(help_text="Contribution amount in cents")
     fee_cents = models.IntegerField(default=0, help_text="9% fee in cents")
+    is_refunded = models.BooleanField(default=False)
 
     class Meta:
         indexes = [

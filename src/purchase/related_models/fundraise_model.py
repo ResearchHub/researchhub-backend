@@ -189,10 +189,10 @@ class Fundraise(DefaultModel):
             if self.status != self.OPEN:
                 return False
 
-            # Get all purchases (contributions) for this fundraise
+            # Get all purchases (RSC contributions) for this fundraise
             contributions = self.purchases.all()
 
-            # Refund each contributor
+            # Refund each RSC contributor
             for contribution in contributions:
                 user = contribution.user
                 amount = Decimal(contribution.amount)
@@ -225,6 +225,21 @@ class Fundraise(DefaultModel):
                         # If fee refund fails, we should abort the whole
                         # transaction
                         return False
+
+            # Refund each USD contributor (skip already refunded)
+            for usd_contribution in self.usd_contributions.filter(is_refunded=False):
+                user = usd_contribution.user
+                # Refund both the contribution amount and the fee
+                total_refund_cents = (
+                    usd_contribution.amount_cents + usd_contribution.fee_cents
+                )
+                if total_refund_cents > 0:
+                    user.increase_usd_balance(
+                        total_refund_cents, source=usd_contribution
+                    )
+                # Mark as refunded
+                usd_contribution.is_refunded = True
+                usd_contribution.save(update_fields=["is_refunded"])
 
             # Update fundraise status
             self.status = self.CLOSED
