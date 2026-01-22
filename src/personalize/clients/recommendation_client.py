@@ -22,7 +22,6 @@ class RecommendationClient:
     FILTER_DAYS = 45
 
     def __init__(self):
-        """Initialize the Personalize runtime client."""
         self.client = create_client("personalize-runtime")
         self.campaign_arn = settings.AWS_PERSONALIZE_CAMPAIGN_ARN
         self.trending_campaign_arn = settings.AWS_PERSONALIZE_TRENDING_CAMPAIGN_ARN
@@ -44,6 +43,9 @@ class RecommendationClient:
         """
         Get personalized recommendations from AWS Personalize.
         """
+        if settings.TESTING:
+            return {"item_ids": [], "recommendation_id": None}
+
         try:
             params = {
                 "campaignArn": campaign_arn,
@@ -94,6 +96,9 @@ class RecommendationClient:
         hub_id: Optional[str] = None,
         num_results: int = 20,
     ) -> Dict[str, Any]:
+        """
+        Get personalized recommendations for a user.
+        """
         filter_arn = None
         filter_values = None
         date_cutoff = self._get_date_cutoff()
@@ -135,6 +140,9 @@ class RecommendationClient:
         """
         Get global trending items from AWS Personalize.
         """
+        if settings.TESTING:
+            return {"item_ids": [], "recommendation_id": None}
+
         try:
             date_cutoff = self._get_date_cutoff()
             params = {

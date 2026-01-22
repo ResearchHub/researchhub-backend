@@ -901,6 +901,9 @@ PAPER_INGESTION_ENABLED = (
 )
 
 # AWS Personalize
+# Disable Personalize sync during tests to prevent AWS API calls
+PERSONALIZE_SYNC_ENABLED = not TESTING
+
 if PRODUCTION:
     AWS_PERSONALIZE_CAMPAIGN_ARN = (
         "arn:aws:personalize:us-west-2:975049929542:campaign/personalized-recs"
