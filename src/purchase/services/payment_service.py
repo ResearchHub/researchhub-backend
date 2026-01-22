@@ -10,12 +10,15 @@ from paper.related_models.paper_model import Paper
 from purchase.related_models.balance_model import Balance
 from purchase.related_models.payment_model import (
     Payment,
+    PaymentMethodType,
     PaymentProcessor,
     PaymentPurpose,
+    PaymentStatus,
 )
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.distributions import create_purchase_distribution
 from reputation.distributor import Distributor
+from user.models import User
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +37,7 @@ class PaymentService:
         paper_id: Optional[int] = None,
         success_url: Optional[str] = None,
         cancel_url: Optional[str] = None,
+        enable_ach: bool = False,
     ) -> Dict[str, Any]:
         """
         Create a Stripe checkout session.
@@ -45,17 +49,29 @@ class PaymentService:
             paper_id: ID of the paper (required for APC).
             success_url: URL to redirect to after successful payment.
             cancel_url: URL to redirect to after cancelled payment.
+            enable_ach: Enable ACH bank transfer as a payment method.
 
         Returns:
             Dict containing session ID and URL
         """
+
+        user = User.objects.get(id=user_id)
+
+        payment_method_types = ["card"]
+        if enable_ach:
+            payment_method_types.append("us_bank_account")
+
+        # Stripe customer ID is required for ACH payments
+        customer_id = self._get_or_create_stripe_customer(user)
+
         product_name = self.get_name_for_purpose(purpose)
         unit_amount = APC_AMOUNT_CENTS if purpose == PaymentPurpose.APC else amount
 
         try:
-            session = stripe.checkout.Session.create(
-                payment_method_types=["card"],
-                line_items=[
+            session_params = {
+                "customer": customer_id,
+                "payment_method_types": payment_method_types,
+                "line_items": [
                     {
                         "price_data": {
                             "currency": "usd",
@@ -67,10 +83,10 @@ class PaymentService:
                         "quantity": 1,
                     },
                 ],
-                mode="payment",
-                success_url=success_url,
-                cancel_url=cancel_url,
-                metadata={
+                "mode": "payment",
+                "success_url": success_url,
+                "cancel_url": cancel_url,
+                "metadata": {
                     "user_id": str(user_id),
                     "purpose": purpose,
                     **(
@@ -80,7 +96,9 @@ class PaymentService:
                         else {}
                     ),
                 },
-            )
+            }
+
+            session = stripe.checkout.Session.create(**session_params)
 
             return {
                 "id": session.get("id"),
@@ -196,5 +214,62 @@ class PaymentService:
             return "Article Processing Charge"
         elif purpose == PaymentPurpose.RSC_PURCHASE:
             return "ResearchCoin (RSC) Purchase"
+        elif purpose == PaymentPurpose.FUNDING_CREDITS:
+            return "Funding Credits"
         else:
             return "Unknown Purpose"
+
+    def _get_or_create_stripe_customer(self, user: User) -> str:
+        """
+        Get existing Stripe customer or create a new one.
+
+        Returns:
+            Stripe customer ID
+        """
+        if user.stripe_customer_id:
+            return user.stripe_customer_id
+
+        customer = stripe.Customer.create(
+            email=user.email,
+            name=user.full_name(),
+            metadata={"user_id": str(user.id)},
+        )
+
+        user.stripe_customer_id = customer.id
+        user.save(update_fields=["stripe_customer_id"])
+
+        return customer.id
+
+    def _get_payment_method_type(
+        self, checkout_session: stripe.checkout.Session
+    ) -> PaymentMethodType:
+        """
+        Determine payment method type from checkout session.
+        """
+        payment_intent_id = checkout_session.get("payment_intent")
+        if not payment_intent_id:
+            raise ValueError("Missing payment_intent in checkout session")
+
+        payment_intent = stripe.PaymentIntent.retrieve(payment_intent_id)
+        payment_method_id = payment_intent.get("payment_method")
+        if not payment_method_id:
+            raise ValueError(
+                f"Missing payment_method in PaymentIntent {payment_intent_id}"
+            )
+
+        payment_method = stripe.PaymentMethod.retrieve(payment_method_id)
+        if payment_method.get("type") == "us_bank_account":
+            return PaymentMethodType.ACH
+
+        return PaymentMethodType.CARD
+
+    def _get_payment_status(
+        self, checkout_session: stripe.checkout.Session
+    ) -> PaymentStatus:
+        """
+        Determine payment status from checkout session.
+        """
+        payment_status = checkout_session.get("payment_status")
+        if payment_status == "unpaid":
+            return PaymentStatus.PROCESSING
+        return PaymentStatus.SUCCEEDED
