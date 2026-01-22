@@ -70,10 +70,14 @@ class FundOrderingFilter(OrderingFilter):
         """Apply custom sorting based on order value."""
         ordering_list = self.get_ordering(request, queryset, view)
         ordering = ordering_list[0].lstrip('-') if ordering_list else 'newest'
+        grant_id = request.query_params.get('grant_id')
  
         if ordering == 'newest':
             return self._apply_newest_sorting(queryset, model_config)
         elif ordering == 'best':
+            # For RFP applications (when grant_id is passed), sort by most funded
+            if grant_id:
+                return self._apply_amount_raised_sorting(queryset, Fundraise)
             return self._apply_best_sorting(queryset, model_config)
         elif ordering == 'upvotes':
             return self._apply_upvotes_sorting(queryset)
