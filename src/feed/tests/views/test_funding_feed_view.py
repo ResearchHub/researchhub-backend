@@ -1804,3 +1804,60 @@ class FundingFeedViewSetTests(AWSMockTestCase):
             low_idx,
             "Post with score=50 should appear before post with score=10",
         )
+
+    def test_best_sorting_uses_amount_raised_when_grant_id_passed(self):
+        """Test that 'best' sorting uses amount raised when grant_id is passed."""
+        # Arrange
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=ResearchhubUnifiedDocument.objects.create(document_type=GRANT),
+            amount=10000,
+            currency=USD,
+        )
+
+        posts_with_amounts = []
+        for amount in [500, 5000, 1000]:  # Intentionally not sorted
+            doc = ResearchhubUnifiedDocument.objects.create(document_type=PREREGISTRATION)
+            post = ResearchhubPost.objects.create(
+                title=f"Proposal {amount}",
+                created_by=self.user,
+                document_type=PREREGISTRATION,
+                unified_document=doc,
+            )
+            GrantApplication.objects.create(grant=grant, preregistration_post=post, applicant=self.user)
+            escrow = Escrow.objects.create(
+                created_by=self.user,
+                amount_holding=amount,
+                hold_type=Escrow.FUNDRAISE,
+                content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+                object_id=doc.id,
+            )
+            Fundraise.objects.create(
+                created_by=self.user,
+                unified_document=doc,
+                escrow=escrow,
+                goal_amount=10000,
+                status=Fundraise.OPEN,
+            )
+            posts_with_amounts.append((post.id, amount))
+
+        # Act
+        response = self.client.get(
+            reverse("funding_feed-list"),
+            {"grant_id": grant.id, "ordering": "best"},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        result_ids = [r["content_object"]["id"] for r in response.data["results"]]
+
+        # Should be sorted by amount raised: 5000 > 1000 > 500
+        sorted_by_amount = sorted(posts_with_amounts, key=lambda x: x[1], reverse=True)
+        expected_order = [p[0] for p in sorted_by_amount]
+
+        for i, post_id in enumerate(expected_order):
+            self.assertEqual(
+                result_ids[i],
+                post_id,
+                f"Position {i} should be post with amount {sorted_by_amount[i][1]}",
+            )
