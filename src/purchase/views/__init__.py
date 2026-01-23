@@ -5,4 +5,5 @@ from .fundraise_view import FundraiseViewSet
 from .grant_view import GrantViewSet
 from .purchase_view import PurchaseViewSet
 from .rsc_exchange_rate_view import RscExchangeRateViewSet
+from .staking_view import StakingViewSet
 from .support_view import SupportViewSet
