@@ -9,6 +9,7 @@ from django.utils import timezone
 
 from hub.models import Hub
 from mailing_list.models import EmailRecipient
+from purchase.related_models.funding_credit_model import FundingCredit
 from purchase.related_models.usd_balance_model import UsdBalance
 from reputation.models import Bounty, Distribution, PaidStatusModelMixin, Withdrawal
 from researchhub.settings import ASSETS_BASE_URL, BASE_FRONTEND_URL
@@ -303,6 +304,99 @@ class User(AbstractUser):
             raise ValueError("Insufficient balance")
 
         return self._create_usd_balance_record(-amount_cents, source)
+
+    # Funding Credit Methods
+
+    def get_funding_credit_balance(self):
+        """Returns total funding credit balance."""
+        from decimal import Decimal
+
+        return self.funding_credits.aggregate(
+            total=Coalesce(Sum("amount"), Value(Decimal("0")))
+        )["total"]
+
+    def _create_funding_credit_record(
+        self, amount, source=None, credit_type=FundingCredit.CreditType.STAKING_REWARD
+    ):
+        """
+        Helper method to create a FundingCredit record.
+
+        Args:
+            amount: Amount (positive or negative)
+            source: Optional source object to track the transaction origin
+            credit_type: Type of credit transaction
+
+        Returns:
+            The created FundingCredit record
+        """
+        content_type = None
+        object_id = None
+        if source is not None:
+            content_type = ContentType.objects.get_for_model(source)
+            object_id = source.id
+
+        return FundingCredit.objects.create(
+            user=self,
+            amount=amount,
+            credit_type=credit_type,
+            content_type=content_type,
+            object_id=object_id,
+        )
+
+    @transaction.atomic
+    def increase_funding_credits(
+        self, amount, source=None, credit_type=FundingCredit.CreditType.STAKING_REWARD
+    ):
+        """
+        Increase funding credit balance by creating a positive transaction record.
+
+        Args:
+            amount: Amount to add (must be positive)
+            source: Optional source object to track where the credits came from
+            credit_type: Type of credit (default: STAKING_REWARD)
+
+        Returns:
+            The created FundingCredit record
+
+        Raises:
+            ValueError: If amount is not positive
+        """
+        from decimal import Decimal
+
+        if Decimal(str(amount)) <= 0:
+            raise ValueError("amount must be positive")
+
+        return self._create_funding_credit_record(amount, source, credit_type)
+
+    @transaction.atomic
+    def decrease_funding_credits(self, amount, source=None):
+        """
+        Decrease funding credit balance by creating a negative transaction record.
+
+        Args:
+            amount: Amount to deduct (must be positive)
+            source: Optional source object to track where the credits went
+
+        Returns:
+            The created FundingCredit record
+
+        Raises:
+            ValueError: If amount is not positive
+            ValueError: If user has insufficient balance
+        """
+        from decimal import Decimal
+
+        amount = Decimal(str(amount))
+        if amount <= 0:
+            raise ValueError("amount must be positive")
+
+        current_balance = self.get_funding_credit_balance()
+        if current_balance < amount:
+            raise ValueError("Insufficient funding credit balance")
+
+        return self._create_funding_credit_record(
+            -amount, source, FundingCredit.CreditType.FUNDRAISE_CONTRIBUTION
+        )
 
     def notify_inactivity(self, paper_count=0, comment_count=0):
         recipient = [self.email]
