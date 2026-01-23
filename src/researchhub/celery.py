@@ -78,6 +78,24 @@ app.conf.beat_schedule = {
             "queue": QUEUE_PURCHASES,
         },
     },
+    # Staking tasks
+    "staking_create-daily-snapshots": {
+        "task": "purchase.tasks.create_staking_snapshots",
+        "schedule": crontab(hour=0, minute=5),  # Daily at 00:05 UTC
+        "options": {
+            "priority": 3,
+            "queue": QUEUE_PURCHASES,
+        },
+    },
+    "staking_distribute-weekly-rewards": {
+        "task": "purchase.tasks.distribute_staking_rewards",
+        # Sundays at 12:00 UTC
+        "schedule": crontab(hour=12, minute=0, day_of_week="sunday"),
+        "options": {
+            "priority": 3,
+            "queue": QUEUE_PURCHASES,
+        },
+    },
     # Reputation
     "reputation_check-deposits": {
         "task": "reputation.tasks.check_deposits",

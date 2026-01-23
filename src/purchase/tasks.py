@@ -1,14 +1,16 @@
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 import pytz
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.utils import timezone
 
 from mailing_list.lib import base_email_context
 from paper.models import Paper
-from purchase.models import Fundraise, Purchase, Support
+from purchase.models import Fundraise, Purchase, StakingSnapshot, Support
 from purchase.related_models.constants.currency import USD
+from purchase.services.staking_service import StakingService
 from referral.services.referral_bonus_service import ReferralBonusService
 from researchhub.celery import QUEUE_NOTIFICATION, QUEUE_PURCHASES, app
 from researchhub.settings import BASE_FRONTEND_URL
@@ -215,3 +217,78 @@ def send_support_email(
             context,
             html_template="support_receipt.html",
         )
+
+
+@app.task(queue=QUEUE_PURCHASES)
+def create_staking_snapshots():
+    """
+    Creates daily staking snapshots for all users with RSC balance.
+    This task should run daily at 00:05 UTC.
+
+    Snapshots capture each user's RSC balance and time-weighted multiplier
+    for use in weekly reward distributions.
+    """
+    log_info("Starting create_staking_snapshots task")
+
+    snapshot_date = timezone.now().date()
+
+    # Check if snapshots already created today
+    if StakingSnapshot.objects.filter(snapshot_date=snapshot_date).exists():
+        log_info(f"Snapshots already created for {snapshot_date}")
+        return {"status": "already_created", "date": str(snapshot_date)}
+
+    try:
+        staking_service = StakingService()
+        count = staking_service.create_all_user_snapshots(snapshot_date)
+
+        log_info(f"Created {count} staking snapshots for {snapshot_date}")
+        return {
+            "status": "success",
+            "snapshots_created": count,
+            "date": str(snapshot_date),
+        }
+    except Exception as e:
+        log_error(e, message=f"Failed to create staking snapshots for {snapshot_date}")
+        return {
+            "status": "error",
+            "error": str(e),
+            "date": str(snapshot_date),
+        }
+
+
+@app.task(queue=QUEUE_PURCHASES)
+def distribute_staking_rewards():
+    """
+    Distributes weekly staking rewards as funding credits.
+    This task should run every Sunday at 12:00 PM UTC.
+
+    Rewards are distributed proportionally based on users' weighted RSC
+    holdings from the previous day's snapshot.
+    """
+    log_info("Starting distribute_staking_rewards task")
+
+    distribution_date = timezone.now().date()
+
+    try:
+        staking_service = StakingService()
+        record = staking_service.distribute_weekly_rewards(distribution_date)
+
+        log_info(
+            f"Distribution completed for {distribution_date}: "
+            f"{record.users_rewarded} users, status={record.status}"
+        )
+        return {
+            "status": record.status,
+            "users_rewarded": record.users_rewarded,
+            "total_distributed": str(record.total_pool_amount),
+            "date": str(distribution_date),
+        }
+    except Exception as e:
+        log_error(
+            e, message=f"Failed to distribute staking rewards for {distribution_date}"
+        )
+        return {
+            "status": "error",
+            "error": str(e),
+            "date": str(distribution_date),
+        }
