@@ -362,7 +362,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             return Response({"message": "Fundraise does not exist"}, status=400)
 
         # Close the fundraise
-        result = fundraise.close_fundraise()
+        result = self.fundraise_service.close_fundraise(fundraise)
 
         if result:
             # Return updated fundraise object

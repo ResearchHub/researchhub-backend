@@ -1,4 +1,3 @@
-import time
 from datetime import datetime, timedelta
 from decimal import Decimal
 
@@ -6,7 +5,7 @@ import pytz
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.fields import GenericRelation
-from django.db import models, transaction
+from django.db import models
 from django.db.models import Sum
 from django.db.models.functions import Coalesce
 
@@ -170,67 +169,3 @@ class Fundraise(DefaultModel):
         )
 
         return did_payout
-
-    def close_fundraise(self):
-        """
-        Close a fundraise and refund all contributions to their contributors.
-        Also refunds the fees that were deducted when creating contributions.
-        Only works if the fundraise is in OPEN status.
-        Returns True if successful, False otherwise.
-        """
-        # Import inside method to avoid circular imports
-        from reputation.distributions import create_bounty_refund_distribution
-        from reputation.distributor import Distributor
-        from reputation.utils import calculate_bounty_fees
-        from user.models import User
-
-        with transaction.atomic():
-            # Check if fundraise can be closed (must be open)
-            if self.status != self.OPEN:
-                return False
-
-            # Get all purchases (contributions) for this fundraise
-            contributions = self.purchases.all()
-
-            # Refund each contributor
-            for contribution in contributions:
-                user = contribution.user
-                amount = Decimal(contribution.amount)
-
-                # Only refund what's still in escrow
-                if amount > 0:
-                    success = self.escrow.refund(user, amount)
-                    if not success:
-                        # If a refund fails, we should abort the whole transaction
-                        return False
-
-                # Also refund the fees that were deducted when this contribution
-                # was made. Calculate the fee using the same logic used during
-                # contribution creation.
-                fee, _, _, fee_object = calculate_bounty_fees(amount)
-
-                if fee > 0:
-                    # Create a refund for the fee
-                    rh_revenue_account = User.objects.get_revenue_account()
-                    distribution = create_bounty_refund_distribution(fee)
-                    distributor = Distributor(
-                        distribution,
-                        user,
-                        fee_object,  # The BountyFee object
-                        time.time(),
-                        giver=rh_revenue_account,
-                    )
-                    record = distributor.distribute()
-                    if record.distributed_status == "FAILED":
-                        # If fee refund fails, we should abort the whole
-                        # transaction
-                        return False
-
-            # Update fundraise status
-            self.status = self.CLOSED
-            self.save()
-
-            # Update escrow status
-            self.escrow.set_cancelled_status()
-
-            return True
