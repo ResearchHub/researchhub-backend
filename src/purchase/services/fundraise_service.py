@@ -5,9 +5,10 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 
 from analytics.tasks import track_revenue_event
-from purchase.models import Balance, Fundraise, Purchase, UsdFundraiseContribution
+from purchase.models import Balance, Fundraise, FundingCredit, Purchase, UsdFundraiseContribution
 from purchase.related_models.constants import USD_FUNDRAISE_FEE_PERCENT
 from purchase.related_models.constants.currency import USD
+from purchase.services.funding_credit_service import FundingCreditService
 from reputation.models import BountyFee, Escrow
 from reputation.utils import calculate_bounty_fees, deduct_bounty_fees
 from researchhub_document.related_models.researchhub_unified_document_model import (
@@ -214,3 +215,66 @@ class FundraiseService:
             )
 
         return contribution, None
+
+    def create_funding_credit_contribution(
+        self, user: User, fundraise: Fundraise, amount: Decimal
+    ) -> Tuple[Optional[Purchase], Optional[str]]:
+        """
+        Creates a contribution to a fundraise using funding credits.
+
+        Funding credits are non-liquid rewards earned from staking RSC.
+        They can only be spent on funding research proposals.
+
+        Note: No fees are charged for funding credit contributions since
+        credits are already a reward mechanism.
+
+        Args:
+            user: The user making the contribution
+            fundraise: The fundraise to contribute to
+            amount: The contribution amount in funding credits
+
+        Returns:
+            Tuple of (purchase, error_message). If successful, error_message is None.
+            If failed, purchase is None and error_message contains the reason.
+        """
+        funding_credit_service = FundingCreditService()
+
+        with transaction.atomic():
+            user = User.objects.select_for_update().get(id=user.id)
+
+            # Spend funding credits (this validates balance)
+            credit_record, error = funding_credit_service.spend_credits(
+                user, amount, fundraise
+            )
+
+            if error:
+                return None, error
+
+            # Create purchase record for tracking
+            purchase = Purchase.objects.create(
+                user=user,
+                content_type=ContentType.objects.get_for_model(Fundraise),
+                object_id=fundraise.id,
+                purchase_method=Purchase.OFF_CHAIN,
+                purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+                paid_status=Purchase.PAID,
+                amount=amount,
+            )
+
+            # Track in Amplitude
+            track_revenue_event.apply_async(
+                (
+                    user.id,
+                    "FUNDRAISE_CONTRIBUTION_FUNDING_CREDITS",
+                    str(amount),
+                    None,
+                    "FUNDING_CREDITS",
+                ),
+                priority=1,
+            )
+
+            # Update escrow object (credits are treated as RSC-equivalent)
+            fundraise.escrow.amount_holding += amount
+            fundraise.escrow.save()
+
+        return purchase, None
