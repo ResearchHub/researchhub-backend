@@ -1,9 +1,12 @@
+from decimal import Decimal
+
 from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 from django.db import models, transaction
+from django.utils import timezone
 
 import utils.sentry as sentry
-from purchase.models import Balance
+from purchase.models import Balance, BalanceEntryDate
 from reputation.exceptions import ReputationDistributorError
 from reputation.models import Distribution
 from user.models import User
@@ -111,7 +114,7 @@ class Distributor:
 
     def _record_balance(self, distribution, is_locked=False, lock_type=None):
         content_type = ContentType.objects.get_for_model(distribution)
-        Balance.objects.create(
+        balance = Balance.objects.create(
             user=self.recipient,
             content_type=content_type,
             object_id=distribution.id,
@@ -119,6 +122,17 @@ class Distributor:
             is_locked=is_locked,
             lock_type=lock_type,
         )
+
+        # Create BalanceEntryDate for positive amounts (for staking tracking)
+        amount = Decimal(str(self.distribution.amount))
+        if amount > 0:
+            BalanceEntryDate.objects.create(
+                user=self.recipient,
+                balance=balance,
+                entry_date=timezone.now(),
+                original_amount=amount,
+                remaining_amount=amount,
+            )
 
     def distribute_locked_balance(self, lock_type):
         """
