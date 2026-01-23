@@ -177,3 +177,28 @@ class GetAmountRaisedTests(TestCase):
             self.fundraise.get_amount_raised(currency="INVALID")
 
         self.assertEqual(str(context.exception), "Invalid currency")
+
+    @patch(
+        "purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest_exchange_rate"
+    )
+    def test_get_amount_raised_excludes_refunded_contributions(
+        self, mock_exchange_rate
+    ):
+        """Test get_amount_raised excludes refunded USD contributions after fundraise is closed."""
+        mock_exchange_rate.return_value = 0.01
+
+        # Create USD contribution
+        self._create_usd_contribution(self.fundraise, self.contributor, 10000)  # $100
+
+        # Verify amount before refund
+        amount_before = self.fundraise.get_amount_raised(currency=USD)
+        self.assertEqual(amount_before, 100.0)
+
+        # Close the fundraise (refunds all contributions)
+        self.fundraise_service.close_fundraise(self.fundraise)
+        self.fundraise.refresh_from_db()
+
+        amount_after = self.fundraise.get_amount_raised(currency=USD)
+
+        # Should be 0 after all contributions are refunded
+        self.assertEqual(amount_after, 0.0)
