@@ -8,7 +8,7 @@ from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from search.backends.multi_match_query import MultiMatchQueryBackend
+from search.backends.match_bool_prefix import MatchBoolPrefixBackend
 from search.documents.hub import HubDocument
 from search.documents.paper import PaperDocument
 from search.documents.person import PersonDocument
@@ -29,29 +29,17 @@ class SuggestView(APIView):
     MIN_LIMIT = 1  # Minimum number of results allowed
     QUERY_MAX_LENGTH = 50  # Maximum query length for ES completion suggester
 
-    # Multi_match fallback thresholds
-    MULTI_MATCH_MIN_WORDS = 3  # Minimum words in query to trigger multi_match
-    MULTI_MATCH_MIN_RESULTS_THRESHOLD = 3  # Trigger if fewer results from suggester
+    # Match bool prefix fallback thresholds
+    MATCH_BOOL_PREFIX_MIN_WORDS = 2
+    MATCH_BOOL_PREFIX_MIN_RESULTS_THRESHOLD = 3
 
     # Default entity type weights to ensure fair representation
     DEFAULT_WEIGHTS = {
-        "hub": 3.0,  # Prioritize hubs (communities)
-        "paper": 2.0,  # Then papers
-        "user": 2.5,  # Increased weight for users
-        "person": 2.5,  # Authors same as users
-        "post": 1.0,  # Regular posts
-    }
-
-    # Field mappings for hybrid multi_match search
-    MULTI_MATCH_FIELDS = {
-        "paper": [
-            ("paper_title", 3.0),
-            ("raw_authors.full_name", 2.0),
-        ],
-        "post": [
-            ("title", 3.0),
-            ("authors.full_name", 2.0),
-        ],
+        "hub": 5.0,  # Prioritize hubs (communities)
+        "user": 4.0,  # Increased weight for users
+        "person": 4.0,  # Authors same as users
+        "post": 3.5,  # Regular posts
+        "paper": 2.0,  # Papers (lower than posts)
     }
 
     # Map of index names to their document classes and transform functions
@@ -62,6 +50,7 @@ class SuggestView(APIView):
             "document": PaperDocument,
             "transform": lambda self, result: self.transform_es_result(result),
             "external_search": True,  # Indicates if OpenAlex search should be included
+            "partial_match_field": "paper_title",
         },
         "author": {
             "document": PersonDocument,
@@ -103,6 +92,7 @@ class SuggestView(APIView):
                 "source": "researchhub",
                 "_score": result.get("_score", 1.0),
             },
+            "partial_match_field": "title",
         },
         "hub": {
             "document": HubDocument,
@@ -189,6 +179,8 @@ class SuggestView(APIView):
         - index: index(es) to search in (optional, defaults to 'paper')
                Can be a single index or comma-separated list (e.g. 'user,person')
         - limit: maximum number of results to return (optional, defaults to 10)
+        - enable_openalex: enable OpenAlex external search (optional, defaults to False)
+               Set to 'true' to include external results from OpenAlex
         """
         query = request.query_params.get("q", None)
         # More strict validation for empty query strings
@@ -215,6 +207,9 @@ class SuggestView(APIView):
         except ValueError:
             limit = self.DEFAULT_LIMIT
 
+        # Get enable_openalex parameter (defaults to False)
+        enable_openalex = request.query_params.get("enable_openalex", "false") == "true"
+
         # Validate all indexes
         invalid_indexes = [idx for idx in indexes if idx not in self.INDEX_MAP]
         if invalid_indexes:
@@ -230,7 +225,9 @@ class SuggestView(APIView):
             )
 
         try:
-            results = self.perform_regular_search(query, indexes, limit)
+            results = self.perform_regular_search(
+                query, indexes, limit, enable_openalex=enable_openalex
+            )
             return Response(results, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"Error in search: {str(e)}")
@@ -386,7 +383,104 @@ class SuggestView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    def perform_regular_search(self, query, indexes, limit):
+    def _supplement_with_partial_match(
+        self,
+        index: str,
+        index_config: dict,
+        document,
+        transform_func,
+        query: str,
+        results: list,
+        limit_per_index: int,
+    ) -> None:
+        """
+        Supplement completion suggester results with partial match fallback.
+
+        When the completion suggester (prefix-based) returns insufficient results
+        for multi-word queries, this method adds results by matching query terms
+        anywhere in the text, not just from the beginning.
+
+        Modifies the results list in-place by appending new matches.
+
+        Args:
+            index: The index name (e.g., "post", "paper")
+            index_config: Configuration dict from INDEX_MAP
+            document: The document class for the index
+            transform_func: Function to transform ES results to API format
+            query: The search query string
+            results: List of existing results (modified in-place)
+            limit_per_index: Maximum results per index
+        """
+        # Check if fallback should be triggered
+        field_name = index_config.get("partial_match_field")
+        if not field_name:
+            return
+
+        num_input_words = len(query.split())
+        suggest_results_below_threshold = (
+            len(results) < self.MATCH_BOOL_PREFIX_MIN_RESULTS_THRESHOLD
+        )
+
+        if not (
+            num_input_words >= self.MATCH_BOOL_PREFIX_MIN_WORDS
+            and suggest_results_below_threshold
+        ):
+            return
+
+        try:
+            fallback_response = MatchBoolPrefixBackend.execute_search(
+                index_name=document._index._name,
+                field_name=field_name,
+                query=query,
+                limit=limit_per_index,
+            )
+
+            # Build set of existing IDs for deduplication
+            try:
+                existing_ids = {r["id"] for r in results if r.get("id")}
+            except KeyError as e:
+                logger.error(
+                    f"Result missing required 'id' field in {index} results: {e}"
+                )
+                raise
+
+            # Process and add new results
+            for hit in fallback_response.hits:
+                hit_data = {
+                    "_source": hit.to_dict(),
+                    "_score": getattr(hit.meta, "score", 1.0),
+                }
+
+                # Strict ID extraction - documents MUST have IDs
+                try:
+                    hit_id = hit_data["_source"]["id"]
+                except KeyError:
+                    logger.error(
+                        f"Partial match hit missing required 'id' "
+                        f"field in {index}: {hit_data['_source']}"
+                    )
+                    continue  # Skip this malformed result
+
+                if hit_id in existing_ids:
+                    continue
+
+                transformed = self.safe_transform(transform_func, hit_data, index)
+                transformed["_search_method"] = "match_bool_prefix"
+                results.append(transformed)
+                existing_ids.add(hit_id)
+
+            if fallback_response.hits:
+                logger.info(
+                    f"Partial match fallback added {len(fallback_response.hits)} "
+                    f"results for '{query}' in {index}"
+                )
+
+        except Exception as e:
+            logger.warning(f"Partial match fallback error for {index}: {str(e)}")
+
+    def perform_regular_search(
+        self, query, indexes, limit, enable_openalex: bool = False
+    ):
         """
         Perform the regular search functionality extracted from the get method.
         This allows us to reuse this logic for fallback when DOI search finds
@@ -406,7 +500,7 @@ class SuggestView(APIView):
             transform_func = index_config["transform"]
 
             # Get OpenAlex results if enabled for this index
-            if index_config.get("external_search", False):
+            if enable_openalex and index_config.get("external_search", False):
                 try:
                     openalex = OpenAlex()
                     openalex_response = openalex.autocomplete_works(query)
@@ -477,80 +571,17 @@ class SuggestView(APIView):
                 except Exception as e:
                     logger.error(f"Error retrieving suggestions for {index}: {str(e)}")
 
-                # Hybrid search: Add multi_match fallback for flexible word
-                # order when completion suggester fails
-                num_input_words = len(query.split())
-                suggest_results_below_threshold = (
-                    len(results) < self.MULTI_MATCH_MIN_RESULTS_THRESHOLD
+                # Hybrid search: Add partial match fallback for longer phrases
+                # when completion suggester fails
+                self._supplement_with_partial_match(
+                    index=index,
+                    index_config=index_config,
+                    document=document,
+                    transform_func=transform_func,
+                    query=query,
+                    results=results,
+                    limit_per_index=limit_per_index,
                 )
-                index_supports_multi_match = index in self.MULTI_MATCH_FIELDS
-
-                if (
-                    num_input_words >= self.MULTI_MATCH_MIN_WORDS
-                    and suggest_results_below_threshold
-                    and index_supports_multi_match
-                ):
-                    try:
-                        search_fields = self.MULTI_MATCH_FIELDS[index]
-                        multi_match_query = (
-                            MultiMatchQueryBackend.construct_hybrid_bool_query(
-                                query, search_fields
-                            )
-                        )
-
-                        # Execute multi_match search
-                        multi_match_search = Search(index=document._index._name).query(
-                            multi_match_query
-                        )[:limit_per_index]
-                        multi_match_response = multi_match_search.execute()
-
-                        # Build set of existing IDs for deduplication
-                        # All results MUST have IDs - fail fast if they don't
-                        try:
-                            existing_ids = {r["id"] for r in results}
-                        except KeyError as e:
-                            logger.error(
-                                f"Result missing required 'id' field in "
-                                f"{index} results: {e}"
-                            )
-                            raise
-
-                        for hit in multi_match_response.hits:
-                            hit_data = {
-                                "_source": hit.to_dict(),
-                                "_score": getattr(hit.meta, "score", 1.0),
-                            }
-
-                            # Strict ID extraction - documents MUST have IDs
-                            try:
-                                hit_id = hit_data["_source"]["id"]
-                            except KeyError:
-                                logger.error(
-                                    f"Multi_match hit missing required 'id' "
-                                    f"field in {index}: {hit_data['_source']}"
-                                )
-                                continue  # Skip this malformed result
-
-                            if hit_id in existing_ids:
-                                continue
-
-                            transformed = self.safe_transform(
-                                transform_func, hit_data, index
-                            )
-                            transformed["_search_method"] = "multi_match"
-                            results.append(transformed)
-                            existing_ids.add(hit_id)
-
-                        if multi_match_response.hits:
-                            logger.info(
-                                f"Multi_match added {len(multi_match_response.hits)} "
-                                f"results for '{query}' in {index}"
-                            )
-
-                    except Exception as e:
-                        logger.warning(
-                            f"Multi_match fallback error for {index}: {str(e)}"
-                        )
 
             # Handle paper-specific deduplication
             if index == "paper":

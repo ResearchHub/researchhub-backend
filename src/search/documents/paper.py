@@ -14,6 +14,7 @@ from feed.models import FeedEntry
 from paper.models import Paper
 from paper.utils import format_raw_authors
 from search.analyzers import content_analyzer, title_analyzer
+from search.base.utils import generate_ngrams
 from utils.doi import DOI
 
 from .base import BaseDocument
@@ -97,7 +98,11 @@ class PaperDocument(BaseDocument):
         if instance.title:
             phrases.append(instance.title)
             phrases.append(instance.paper_title)
-            phrases.extend(instance.title.split())
+            title_words = instance.title.split()
+            phrases.extend(title_words)
+
+            bigrams = generate_ngrams(title_words, n=2)
+            phrases.extend(bigrams)
 
         # Add DOI variations for search
         if instance.doi:
