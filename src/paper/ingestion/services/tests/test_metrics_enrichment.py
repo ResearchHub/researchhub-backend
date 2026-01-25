@@ -6,6 +6,7 @@ from django.utils import timezone
 
 from paper.ingestion.services import PaperMetricsEnrichmentService
 from paper.models import Paper
+from paper.related_models.x_post_model import XPost
 
 
 class PaperMetricsEnrichmentServiceTests(TestCase):
@@ -72,7 +73,7 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         self.service = PaperMetricsEnrichmentService(
             github_metrics_client=self.mock_github_client,
             bluesky_metrics_client=self.mock_bluesky_client,
-            x_metrics_client=self.mock_x_client,
+            x_client=self.mock_x_client,
         )
 
     def test_get_recent_papers_with_dois(self):
@@ -349,60 +350,49 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         Test successful enrichment of a paper with X metrics.
         """
         # Arrange
-        sample_x_response = {
-            "post_count": 10,
-            "total_likes": 200,
-            "total_reposts": 50,
-            "total_replies": 25,
-            "total_quotes": 12,
-            "total_impressions": 5000,
-            "terms": [self.paper.doi, self.paper.title],
-            "posts": [
-                {
-                    "id": "1234567890",
-                    "text": "Great paper on DOI 10.1038/news.2011.490",
-                    "author_id": "123456",
-                    "created_at": "2024-01-15T10:30:00Z",
-                    "like_count": 50,
-                    "repost_count": 10,
-                    "reply_count": 5,
-                    "quote_count": 3,
-                    "impression_count": 1000,
-                },
-            ],
-        }
-        self.mock_x_client.get_metrics.return_value = sample_x_response
+        sample_posts = [
+            {
+                "id": "1234567890",
+                "text": "Great paper on DOI 10.1038/news.2011.490",
+                "author_id": "123456",
+                "created_at": "2024-01-15T10:30:00Z",
+                "like_count": 50,
+                "repost_count": 10,
+                "reply_count": 5,
+                "quote_count": 3,
+                "impression_count": 1000,
+            },
+        ]
+        self.mock_x_client.search_posts.return_value = sample_posts
 
         # Act
         result = self.service.enrich_paper_with_x(self.paper)
 
         # Assert
         self.assertEqual(result.status, "success")
-        self.assertEqual(result.metrics, {"x": sample_x_response})
 
         # Verify client was called with DOI and title terms (like GitHub)
-        self.mock_x_client.get_metrics.assert_called_once_with(
+        self.mock_x_client.search_posts.assert_called_once_with(
             [self.paper.doi, self.paper.title],
             external_source=self.paper.external_source,
             hub_slugs=list(self.paper.hubs.values_list("slug", flat=True)),
         )
 
-        # Verify paper was updated
+        # Verify paper was updated with aggregated metrics
         self.paper.refresh_from_db()
         self.assertIsNotNone(self.paper.external_metadata)
         self.assertIn("metrics", self.paper.external_metadata)
         self.assertIn("x", self.paper.external_metadata["metrics"])
-        self.assertEqual(
-            self.paper.external_metadata["metrics"]["x"],
-            sample_x_response,
-        )
+        x_metrics = self.paper.external_metadata["metrics"]["x"]
+        self.assertEqual(x_metrics["post_count"], 1)
+        self.assertEqual(x_metrics["total_likes"], 50)
 
     def test_enrich_paper_with_x_not_found(self):
         """
         Test X enrichment when no posts are found.
         """
         # Arrange
-        self.mock_x_client.get_metrics.return_value = None
+        self.mock_x_client.search_posts.return_value = None
 
         # Act
         result = self.service.enrich_paper_with_x(self.paper)
@@ -412,7 +402,7 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         self.assertEqual(result.reason, "no_x_posts")
 
         # Verify client was called with DOI and title terms
-        self.mock_x_client.get_metrics.assert_called_once_with(
+        self.mock_x_client.search_posts.assert_called_once_with(
             [self.paper.doi, self.paper.title],
             external_source=self.paper.external_source,
             hub_slugs=list(self.paper.hubs.values_list("slug", flat=True)),
@@ -423,7 +413,7 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         Test X enrichment uses title when paper has no DOI.
         """
         # Arrange - paper_without_doi still has a title
-        self.mock_x_client.get_metrics.return_value = None
+        self.mock_x_client.search_posts.return_value = None
 
         # Act
         result = self.service.enrich_paper_with_x(self.paper_without_doi)
@@ -433,7 +423,7 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         self.assertEqual(result.reason, "no_x_posts")
 
         # Verify client was called with just the title
-        self.mock_x_client.get_metrics.assert_called_once_with(
+        self.mock_x_client.search_posts.assert_called_once_with(
             [self.paper_without_doi.title],
             external_source=self.paper_without_doi.external_source,
             hub_slugs=list(self.paper_without_doi.hubs.values_list("slug", flat=True)),
@@ -444,7 +434,7 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         Test X enrichment handles API errors gracefully.
         """
         # Arrange
-        self.mock_x_client.get_metrics.side_effect = Exception("X API error")
+        self.mock_x_client.search_posts.side_effect = Exception("X API error")
 
         # Act
         result = self.service.enrich_paper_with_x(self.paper)
@@ -454,7 +444,7 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         self.assertEqual(result.reason, "X API error")
 
         # Verify client was called with DOI and title terms
-        self.mock_x_client.get_metrics.assert_called_once_with(
+        self.mock_x_client.search_posts.assert_called_once_with(
             [self.paper.doi, self.paper.title],
             external_source=self.paper.external_source,
             hub_slugs=list(self.paper.hubs.values_list("slug", flat=True)),
@@ -469,7 +459,7 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         mock_response.status_code = 429
         rate_limit_error = Exception("Rate limit exceeded")
         rate_limit_error.response = mock_response
-        self.mock_x_client.get_metrics.side_effect = rate_limit_error
+        self.mock_x_client.search_posts.side_effect = rate_limit_error
 
         # Act
         result = self.service.enrich_paper_with_x(self.paper)
@@ -487,7 +477,7 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         mock_response.status_code = 503
         service_unavailable_error = Exception("Service unavailable")
         service_unavailable_error.response = mock_response
-        self.mock_x_client.get_metrics.side_effect = service_unavailable_error
+        self.mock_x_client.search_posts.side_effect = service_unavailable_error
 
         # Act
         result = self.service.enrich_paper_with_x(self.paper)
@@ -495,3 +485,130 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
         # Assert
         self.assertEqual(result.status, "retryable_error")
         self.assertEqual(result.reason, "Service unavailable")
+
+    def test_enrich_paper_with_x_saves_posts_to_database(self):
+        """
+        Test that X enrichment saves individual posts to the XPost model.
+        """
+        # Arrange
+        sample_posts = [
+            {
+                "id": "1234567890",
+                "text": "Great paper on DOI 10.1038/news.2011.490",
+                "author_id": "123456",
+                "created_at": "2024-01-15T10:30:00Z",
+                "like_count": 50,
+                "repost_count": 10,
+                "reply_count": 5,
+                "quote_count": 3,
+                "impression_count": 1000,
+            },
+            {
+                "id": "9876543210",
+                "text": "Another mention of the paper",
+                "author_id": "654321",
+                "created_at": "2024-01-16T14:00:00Z",
+                "like_count": 25,
+                "repost_count": 5,
+                "reply_count": 3,
+                "quote_count": 1,
+                "impression_count": 1000,
+            },
+        ]
+        self.mock_x_client.search_posts.return_value = sample_posts
+
+        # Act
+        result = self.service.enrich_paper_with_x(self.paper)
+
+        # Assert
+        self.assertEqual(result.status, "success")
+
+        # Verify XPost records were created
+        x_posts = XPost.objects.filter(paper=self.paper)
+        self.assertEqual(x_posts.count(), 2)
+
+        # Verify first post
+        post1 = x_posts.get(post_id="1234567890")
+        self.assertEqual(post1.text, "Great paper on DOI 10.1038/news.2011.490")
+        self.assertEqual(post1.author_id, "123456")
+        self.assertEqual(post1.like_count, 50)
+        self.assertEqual(post1.repost_count, 10)
+        self.assertEqual(post1.reply_count, 5)
+        self.assertEqual(post1.quote_count, 3)
+        self.assertEqual(post1.impression_count, 1000)
+        self.assertIsNotNone(post1.posted_date)
+
+        # Verify second post
+        post2 = x_posts.get(post_id="9876543210")
+        self.assertEqual(post2.text, "Another mention of the paper")
+        self.assertEqual(post2.author_id, "654321")
+        self.assertEqual(post2.like_count, 25)
+
+    def test_enrich_paper_with_x_updates_existing_posts(self):
+        """
+        Test that X enrichment updates existing XPost records instead of creating duplicates.
+        """
+        # Arrange - create an existing XPost
+        existing_post = XPost.objects.create(
+            paper=self.paper,
+            post_id="1234567890",
+            text="Old text",
+            author_id="123456",
+            like_count=10,
+            repost_count=2,
+            reply_count=1,
+            quote_count=0,
+            impression_count=100,
+        )
+
+        # Response with updated metrics for the same post
+        sample_posts = [
+            {
+                "id": "1234567890",
+                "text": "Great paper on DOI 10.1038/news.2011.490",
+                "author_id": "123456",
+                "created_at": "2024-01-15T10:30:00Z",
+                "like_count": 50,
+                "repost_count": 10,
+                "reply_count": 5,
+                "quote_count": 3,
+                "impression_count": 1000,
+            },
+        ]
+        self.mock_x_client.search_posts.return_value = sample_posts
+
+        # Act
+        result = self.service.enrich_paper_with_x(self.paper)
+
+        # Assert
+        self.assertEqual(result.status, "success")
+
+        # Verify no duplicate was created
+        x_posts = XPost.objects.filter(paper=self.paper)
+        self.assertEqual(x_posts.count(), 1)
+
+        # Verify the existing post was updated
+        existing_post.refresh_from_db()
+        self.assertEqual(existing_post.text, "Great paper on DOI 10.1038/news.2011.490")
+        self.assertEqual(existing_post.like_count, 50)
+        self.assertEqual(existing_post.repost_count, 10)
+        self.assertEqual(existing_post.reply_count, 5)
+        self.assertEqual(existing_post.quote_count, 3)
+        self.assertEqual(existing_post.impression_count, 1000)
+
+    def test_enrich_paper_with_x_handles_empty_posts_list(self):
+        """
+        Test that X enrichment handles empty posts list gracefully.
+        """
+        # Arrange
+        self.mock_x_client.search_posts.return_value = []
+
+        # Act
+        result = self.service.enrich_paper_with_x(self.paper)
+
+        # Assert
+        self.assertEqual(result.status, "success")
+
+        # Verify no XPost records were created
+        x_posts = XPost.objects.filter(paper=self.paper)
+        self.assertEqual(x_posts.count(), 0)

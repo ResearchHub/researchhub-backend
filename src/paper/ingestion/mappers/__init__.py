@@ -4,6 +4,7 @@ Mapper modules for transforming source data to domain models.
 
 from .base import BaseMapper
 from .enrichment.openalex import OpenAlexMapper
+from .enrichment.x import XMapper
 from .preprints.arxiv import ArXivMapper
 from .preprints.arxiv_oai import ArXivOAIMapper
 from .preprints.biorxiv import BioRxivMapper
@@ -20,4 +21,5 @@ __all__ = [
     "MapperFactory",
     "MedRxivMapper",
     "OpenAlexMapper",
+    "XMapper",
 ]

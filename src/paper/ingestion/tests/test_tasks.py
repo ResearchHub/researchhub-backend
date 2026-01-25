@@ -720,25 +720,22 @@ class XMetricsTasksTests(TestCase):
             uploaded_by=self.user,
             paper_publish_date=timezone.now() - timedelta(days=2),
         )
-        self.sample_x_response = {
-            "post_count": 25,
-            "total_likes": 500,
-            "total_reposts": 100,
-            "total_replies": 50,
-            "total_quotes": 25,
-            "total_impressions": 10000,
-            "posts": [
-                {
-                    "id": "1234567890",
-                    "text": "Great paper on DOI 10.1038/news.2011.490",
-                    "author_id": "123456",
-                    "like_count": 50,
-                }
-            ],
-        }
+        self.sample_x_posts = [
+            {
+                "id": "1234567890",
+                "text": "Great paper on DOI 10.1038/news.2011.490",
+                "author_id": "123456",
+                "created_at": "2024-01-15T10:30:00Z",
+                "like_count": 50,
+                "repost_count": 10,
+                "reply_count": 5,
+                "quote_count": 2,
+                "impression_count": 1000,
+            }
+        ]
 
     @patch("paper.ingestion.tasks.enrich_paper_with_x_metrics.delay")
-    @patch("paper.ingestion.tasks.XMetricsClient")
+    @patch("paper.ingestion.tasks.XClient")
     def test_update_recent_papers_with_x_metrics_dispatches_tasks(
         self, mock_metrics_client_class, mock_delay
     ):
@@ -758,7 +755,7 @@ class XMetricsTasksTests(TestCase):
         self.assertIn(self.paper_recent.id, dispatched_ids)
 
     @patch("paper.ingestion.tasks.enrich_paper_with_x_metrics.delay")
-    @patch("paper.ingestion.tasks.XMetricsClient")
+    @patch("paper.ingestion.tasks.XClient")
     def test_update_recent_papers_with_x_metrics_excludes_old_papers(
         self, mock_metrics_client_class, mock_delay
     ):
@@ -779,14 +776,14 @@ class XMetricsTasksTests(TestCase):
         dispatched_ids = [call[0][0] for call in mock_delay.call_args_list]
         self.assertNotIn(self.paper_old.id, dispatched_ids)
 
-    @patch("paper.ingestion.tasks.XMetricsClient")
+    @patch("paper.ingestion.tasks.XClient")
     def test_enrich_paper_with_x_metrics(self, mock_metrics_client_class):
         """
         Test successful enrichment of a single paper with X metrics.
         """
         # Arrange
         mock_client = Mock()
-        mock_client.get_metrics.return_value = self.sample_x_response
+        mock_client.search_posts.return_value = self.sample_x_posts
         mock_metrics_client_class.return_value = mock_client
 
         # Act
@@ -800,7 +797,7 @@ class XMetricsTasksTests(TestCase):
         self.paper_recent.refresh_from_db()
         self.assertIn("x", self.paper_recent.external_metadata["metrics"])
 
-    @patch("paper.ingestion.tasks.XMetricsClient")
+    @patch("paper.ingestion.tasks.XClient")
     def test_enrich_paper_with_x_metrics_not_found(self, mock_metrics_client_class):
         """
         Test enrichment when paper does not exist.
@@ -816,7 +813,7 @@ class XMetricsTasksTests(TestCase):
         self.assertEqual(result["paper_id"], non_existent_id)
         self.assertEqual(result["reason"], "paper_not_found")
 
-    @patch("paper.ingestion.tasks.XMetricsClient")
+    @patch("paper.ingestion.tasks.XClient")
     def test_enrich_paper_with_x_metrics_no_doi_uses_title(
         self, mock_metrics_client_class
     ):
@@ -825,7 +822,7 @@ class XMetricsTasksTests(TestCase):
         """
         # Arrange
         mock_client = Mock()
-        mock_client.get_metrics.return_value = None  # No posts found
+        mock_client.search_posts.return_value = None  # No posts found
         mock_metrics_client_class.return_value = mock_client
 
         # Act
@@ -835,14 +832,14 @@ class XMetricsTasksTests(TestCase):
         self.assertEqual(result["status"], "not_found")
         self.assertEqual(result["paper_id"], self.paper_no_doi.id)
 
-    @patch("paper.ingestion.tasks.XMetricsClient")
+    @patch("paper.ingestion.tasks.XClient")
     def test_enrich_paper_with_x_metrics_no_x_posts(self, mock_metrics_client_class):
         """
         Test enrichment when no X posts are found.
         """
         # Arrange
         mock_client = Mock()
-        mock_client.get_metrics.return_value = None
+        mock_client.search_posts.return_value = None
         mock_metrics_client_class.return_value = mock_client
 
         # Act
@@ -853,7 +850,7 @@ class XMetricsTasksTests(TestCase):
         self.assertEqual(result["paper_id"], self.paper_recent.id)
         self.assertEqual(result["doi"], self.paper_recent.doi)
 
-    @patch("paper.ingestion.tasks.XMetricsClient")
+    @patch("paper.ingestion.tasks.XClient")
     def test_enrich_paper_with_x_metrics_preserves_existing_metadata(
         self, mock_metrics_client_class
     ):
@@ -867,7 +864,7 @@ class XMetricsTasksTests(TestCase):
         }
         self.paper_recent.save()
         mock_client = Mock()
-        mock_client.get_metrics.return_value = self.sample_x_response
+        mock_client.search_posts.return_value = self.sample_x_posts
         mock_metrics_client_class.return_value = mock_client
 
         # Act
@@ -883,7 +880,7 @@ class XMetricsTasksTests(TestCase):
 
     @patch("paper.ingestion.tasks.sentry")
     @patch("paper.ingestion.tasks.PaperMetricsEnrichmentService")
-    @patch("paper.ingestion.tasks.XMetricsClient")
+    @patch("paper.ingestion.tasks.XClient")
     def test_enrich_paper_handles_service_error_logs_to_sentry(
         self, mock_metrics_client_class, mock_service_class, mock_sentry
     ):
@@ -910,7 +907,7 @@ class XMetricsTasksTests(TestCase):
 
     @patch("paper.ingestion.tasks.cache")
     @patch("paper.ingestion.tasks.PaperMetricsEnrichmentService")
-    @patch("paper.ingestion.tasks.XMetricsClient")
+    @patch("paper.ingestion.tasks.XClient")
     def test_enrich_paper_with_x_metrics_sets_backoff_on_retryable_error(
         self, mock_metrics_client_class, mock_service_class, mock_cache
     ):
@@ -941,7 +938,7 @@ class XMetricsTasksTests(TestCase):
         self.assertEqual(call_args[0][1], True)
 
     @patch("paper.ingestion.tasks.cache")
-    @patch("paper.ingestion.tasks.XMetricsClient")
+    @patch("paper.ingestion.tasks.XClient")
     def test_enrich_paper_with_x_metrics_skips_when_backoff_active(
         self, mock_metrics_client_class, mock_cache
     ):

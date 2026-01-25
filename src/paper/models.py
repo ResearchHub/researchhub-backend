@@ -18,3 +18,4 @@ from paper.related_models.paper_version import (
     PaperSeriesDeclaration,
     PaperVersion,
 )
+from paper.related_models.x_post_model import XPost
