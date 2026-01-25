@@ -383,6 +383,22 @@ class SuggestView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+    def _should_trigger_partial_match(
+        self, query: str, results: list, field_name: str
+    ) -> bool:
+        """Check if partial match fallback should be triggered."""
+        if not field_name:
+            return False
+
+        num_input_words = len(query.split())
+        suggest_results_below_threshold = (
+            len(results) < self.MATCH_BOOL_PREFIX_MIN_RESULTS_THRESHOLD
+        )
+        return (
+            num_input_words >= self.MATCH_BOOL_PREFIX_MIN_WORDS
+            and suggest_results_below_threshold
+        )
+
     def _supplement_with_partial_match(
         self,
         index: str,
@@ -411,20 +427,8 @@ class SuggestView(APIView):
             results: List of existing results (modified in-place)
             limit_per_index: Maximum results per index
         """
-        # Check if fallback should be triggered
         field_name = index_config.get("partial_match_field")
-        if not field_name:
-            return
-
-        num_input_words = len(query.split())
-        suggest_results_below_threshold = (
-            len(results) < self.MATCH_BOOL_PREFIX_MIN_RESULTS_THRESHOLD
-        )
-
-        if not (
-            num_input_words >= self.MATCH_BOOL_PREFIX_MIN_WORDS
-            and suggest_results_below_threshold
-        ):
+        if not self._should_trigger_partial_match(query, results, field_name):
             return
 
         try:
@@ -435,31 +439,21 @@ class SuggestView(APIView):
                 limit=limit_per_index,
             )
 
-            # Build set of existing IDs for deduplication
-            try:
-                existing_ids = {r["id"] for r in results if r.get("id")}
-            except KeyError as e:
-                logger.error(
-                    f"Result missing required 'id' field in {index} results: {e}"
-                )
-                raise
-
-            # Process and add new results
+            existing_ids = {r["id"] for r in results if r.get("id")}
             for hit in fallback_response.hits:
                 hit_data = {
                     "_source": hit.to_dict(),
                     "_score": getattr(hit.meta, "score", 1.0),
                 }
 
-                # Strict ID extraction - documents MUST have IDs
                 try:
                     hit_id = hit_data["_source"]["id"]
                 except KeyError:
-                    logger.error(
+                    logger.warning(
                         f"Partial match hit missing required 'id' "
                         f"field in {index}: {hit_data['_source']}"
                     )
-                    continue  # Skip this malformed result
+                    continue
 
                 if hit_id in existing_ids:
                     continue
@@ -468,12 +462,6 @@ class SuggestView(APIView):
                 transformed["_search_method"] = "match_bool_prefix"
                 results.append(transformed)
                 existing_ids.add(hit_id)
-
-            if fallback_response.hits:
-                logger.info(
-                    f"Partial match fallback added {len(fallback_response.hits)} "
-                    f"results for '{query}' in {index}"
-                )
 
         except Exception as e:
             logger.warning(f"Partial match fallback error for {index}: {str(e)}")
