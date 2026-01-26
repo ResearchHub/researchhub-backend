@@ -78,6 +78,7 @@ class SuggestView(APIView):
                 "is_verified": result.get("_source", {}).get("is_verified", False),
                 "_score": result.get("_score", 1.0),
             },
+            "partial_match_field": "full_name",
         },
         "post": {
             "document": PostDocument,
