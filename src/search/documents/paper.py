@@ -1,6 +1,5 @@
 import io
 import logging
-import math
 import sys
 import time
 from typing import Any, Iterable, Optional, override
@@ -89,41 +88,96 @@ class PaperDocument(BaseDocument):
 
     # Used specifically for "autocomplete" style suggest feature.
     # Includes a bunch of phrases the user may search by.
-    def prepare_suggestion_phrases(self, instance) -> dict[str, Any]:
-        phrases = []
+    def prepare_suggestion_phrases(self, instance) -> list[dict[str, Any]]:
+        hot_score_v2 = self.prepare_hot_score_v2(instance)
+        weighted_inputs = []
 
-        phrases.append(str(instance.id))
+        weighted_inputs.append(
+            {
+                "input": str(instance.id),
+                "weight": self.calculate_phrase_weight(hot_score_v2, self.DEFAULT_WEIGHT),
+            }
+        )
 
-        # Variation of title which may be searched by users
         if instance.title:
-            phrases.append(instance.title)
-            phrases.append(instance.paper_title)
+            weighted_inputs.append(
+                {
+                    "input": instance.title,
+                    "weight": self.calculate_phrase_weight(hot_score_v2, self.TITLE_WEIGHT),
+                }
+            )
+            if instance.paper_title and instance.paper_title != instance.title:
+                weighted_inputs.append(
+                    {
+                        "input": instance.paper_title,
+                        "weight": self.calculate_phrase_weight(hot_score_v2, self.TITLE_WEIGHT),
+                    }
+                )
+
             title_words = instance.title.split()
-            phrases.extend(title_words)
+            for word in title_words:
+                weighted_inputs.append(
+                    {
+                        "input": word,
+                        "weight": self.calculate_phrase_weight(hot_score_v2, self.TITLE_WORDS_WEIGHT),
+                    }
+                )
 
             bigrams = generate_ngrams(title_words, n=2)
-            phrases.extend(bigrams)
+            for bigram in bigrams:
+                weighted_inputs.append(
+                    {
+                        "input": bigram,
+                        "weight": self.calculate_phrase_weight(hot_score_v2, self.BIGRAM_WEIGHT),
+                    }
+                )
 
-        # Add DOI variations for search
         if instance.doi:
-            phrases.extend(DOI.get_variants(instance.doi))
+            doi_variants = DOI.get_variants(instance.doi)
+            for doi_variant in doi_variants:
+                weighted_inputs.append(
+                    {
+                        "input": doi_variant,
+                        "weight": self.calculate_phrase_weight(hot_score_v2, self.DOI_WEIGHT),
+                    }
+                )
 
         if instance.url:
-            phrases.append(instance.url)
+            weighted_inputs.append(
+                {
+                    "input": instance.url,
+                    "weight": self.calculate_phrase_weight(hot_score_v2, self.DEFAULT_WEIGHT),
+                }
+            )
 
-        # Variation of journal name which may be searched by users
         if instance.external_source:
+            weighted_inputs.append(
+                {
+                    "input": instance.external_source,
+                    "weight": self.calculate_phrase_weight(hot_score_v2, self.JOURNAL_WEIGHT),
+                }
+            )
             journal_words = instance.external_source.split(" ")
-            phrases.append(instance.external_source)
-            phrases.extend(journal_words)
+            for word in journal_words:
+                weighted_inputs.append(
+                    {
+                        "input": word,
+                        "weight": self.calculate_phrase_weight(hot_score_v2, self.JOURNAL_WEIGHT),
+                    }
+                )
 
         try:
             hub_names = self.get_hub_names(instance)
-            phrases.extend(hub_names)
+            for hub_name in hub_names:
+                weighted_inputs.append(
+                    {
+                        "input": hub_name,
+                        "weight": self.calculate_phrase_weight(hot_score_v2, self.HUB_WEIGHT),
+                    }
+                )
         except Exception as e:
             logger.warning(f"Failed to prepare hubs for paper {instance.id}: {e}")
 
-        # Variation of author names which may be searched by users
         try:
             if instance.raw_authors:
                 authors_list = format_raw_authors(instance.raw_authors)
@@ -135,28 +189,31 @@ class PaperDocument(BaseDocument):
                     ]
                     if author_names_only:
                         all_authors_as_str = ", ".join(author_names_only)
-                        phrases.append(all_authors_as_str)
-                        phrases.extend(author_names_only)
+                        weighted_inputs.append(
+                            {
+                                "input": all_authors_as_str,
+                                "weight": self.calculate_phrase_weight(hot_score_v2, self.AUTHOR_WEIGHT),
+                            }
+                        )
+                        for author_name in author_names_only:
+                            weighted_inputs.append(
+                                {
+                                    "input": author_name,
+                                    "weight": self.calculate_phrase_weight(hot_score_v2, self.AUTHOR_WEIGHT),
+                                }
+                            )
         except Exception as e:
             logger.warning(
                 f"Failed to prepare author names for paper {instance.id}: {e}"
             )
 
-        # Assign weight based on how "hot" the paper is
-        weight = 1
-        hot_score_v2 = self.prepare_hot_score_v2(instance)
-        if hot_score_v2 > 0:
-            # Scale down the hot score to avoid a huge range
-            # of values that could result in bad suggestions
-            weight = int(math.log(hot_score_v2, 10) * 10)
+        seen = {}
+        for item in weighted_inputs:
+            input_str = item["input"]
+            if input_str not in seen or item["weight"] > seen[input_str]["weight"]:
+                seen[input_str] = item
 
-        deduped = list(set(phrases))
-        strings_only = [phrase for phrase in deduped if isinstance(phrase, str)]
-
-        return {
-            "input": strings_only,  # Dedupe using set
-            "weight": weight,
-        }
+        return list(seen.values())
 
     def prepare_paper_publish_date(self, instance):
         """Convert datetime to date for OpenSearch indexing."""

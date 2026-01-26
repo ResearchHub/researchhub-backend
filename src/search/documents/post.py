@@ -1,5 +1,4 @@
 import logging
-import math
 from typing import Any, override
 
 from django.contrib.contenttypes.models import ContentType
@@ -105,49 +104,83 @@ class PostDocument(BaseDocument):
 
     # Used specifically for "autocomplete" style suggest feature.
     # Inlcudes a bunch of phrases the user may search by.
-    def prepare_suggestion_phrases(self, instance) -> dict[str, Any]:
-        phrases = []
+    def prepare_suggestion_phrases(self, instance) -> list[dict[str, Any]]:
+        hot_score_v2 = self.prepare_hot_score_v2(instance)
+        weighted_inputs = []
 
-        # Variation of title which may be searched by users
         if instance.title:
-            phrases.append(instance.title)
+            weighted_inputs.append(
+                {
+                    "input": instance.title,
+                    "weight": self.calculate_phrase_weight(hot_score_v2, self.TITLE_WEIGHT),
+                }
+            )
+
             title_words = instance.title.split()
-            phrases.extend(title_words)
+            for word in title_words:
+                weighted_inputs.append(
+                    {
+                        "input": word,
+                        "weight": self.calculate_phrase_weight(hot_score_v2, self.TITLE_WORDS_WEIGHT),
+                    }
+                )
 
             bigrams = generate_ngrams(title_words, n=2)
-            phrases.extend(bigrams)
+            for bigram in bigrams:
+                weighted_inputs.append(
+                    {
+                        "input": bigram,
+                        "weight": self.calculate_phrase_weight(hot_score_v2, self.BIGRAM_WEIGHT),
+                    }
+                )
 
         if instance.doi:
-            phrases.append(instance.doi)
+            weighted_inputs.append(
+                {
+                    "input": instance.doi,
+                    "weight": self.calculate_phrase_weight(hot_score_v2, self.DOI_WEIGHT),
+                }
+            )
 
-        # Variation of author names which may be searched by users
         try:
             author_names_only = [
                 author.full_name
                 for author in instance.authors.all()
                 if author.first_name and author.last_name
             ]
-            all_authors_as_str = ", ".join(author_names_only)
-            created_by = instance.created_by.full_name()
+            if author_names_only:
+                all_authors_as_str = ", ".join(author_names_only)
+                weighted_inputs.append(
+                    {
+                        "input": all_authors_as_str,
+                        "weight": self.calculate_phrase_weight(hot_score_v2, self.AUTHOR_WEIGHT),
+                    }
+                )
+                for author_name in author_names_only:
+                    weighted_inputs.append(
+                        {
+                            "input": author_name,
+                            "weight": self.calculate_phrase_weight(hot_score_v2, self.AUTHOR_WEIGHT),
+                        }
+                    )
 
-            phrases.append(all_authors_as_str)
-            phrases.append(created_by)
-            phrases.extend(author_names_only)
+            created_by = instance.created_by.full_name()
+            weighted_inputs.append(
+                {
+                    "input": created_by,
+                    "weight": self.calculate_phrase_weight(hot_score_v2, self.AUTHOR_WEIGHT),
+                }
+            )
         except Exception:
             pass
 
-        # Assign weight based on how "hot" the post is
-        weight = 1
-        hot_score_v2 = self.prepare_hot_score_v2(instance)
-        if hot_score_v2 > 0:
-            # Scale down the hot score to avoid a huge range
-            # of values that could result in bad suggestions
-            weight = int(math.log(hot_score_v2, 10) * 10)
+        seen = {}
+        for item in weighted_inputs:
+            input_str = item["input"]
+            if input_str not in seen or item["weight"] > seen[input_str]["weight"]:
+                seen[input_str] = item
 
-        return {
-            "input": list(set(phrases)),  # Dedupe using set
-            "weight": weight,
-        }
+        return list(seen.values())
 
     def get_instances_from_related(
         self,
