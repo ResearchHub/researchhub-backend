@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("purchase", "0036_alter_balance_lock_type"),
+        ("purchase", "0039_add_is_refunded_to_usd_fundraise_contribution"),
     ]
 
     operations = [

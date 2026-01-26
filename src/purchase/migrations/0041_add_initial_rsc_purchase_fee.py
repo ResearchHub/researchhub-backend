@@ -8,7 +8,7 @@ def add_initial_rsc_purchase_fee(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("purchase", "0037_rscpurchasefee"),
+        ("purchase", "0040_rscpurchasefee"),
     ]
 
     operations = [
