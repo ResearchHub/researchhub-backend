@@ -7,7 +7,7 @@ from django.test import TestCase
 
 from paper.related_models.paper_model import Paper
 from purchase.related_models.balance_model import Balance
-from purchase.related_models.constants.currency import RSC, USD
+from purchase.related_models.constants.currency import USD
 from purchase.related_models.payment_model import (
     Payment,
     PaymentProcessor,
