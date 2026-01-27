@@ -1,7 +1,6 @@
 import math
-import math
 from datetime import date, datetime
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
@@ -339,7 +338,9 @@ class PaperDocumentTests(TestCase):
         # Should include DOI variants in primary phrases
         primary = result[0]
         # DOI variants should be included
-        doi_variants = [phrase for phrase in primary["input"] if "10.1234" in str(phrase)]
+        doi_variants = [
+            phrase for phrase in primary["input"] if "10.1234" in str(phrase)
+        ]
         self.assertGreater(len(doi_variants), 0)
 
     def test_prepare_suggestion_phrases_with_url(self):
