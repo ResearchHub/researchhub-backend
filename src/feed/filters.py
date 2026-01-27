@@ -146,25 +146,9 @@ class FundOrderingFilter(OrderingFilter):
                 default=Value(2),
                 output_field=IntegerField(),
             ),
-            sort_date_active=Case(
-                When(sort_option=0, then=F("earliest_open_end_date")),
-                default=None,
-                output_field=DateTimeField(),
-            ),
-            sort_date_expired_or_closed=Case(
-                When(sort_option=1, then=F("earliest_open_end_date")),
-                When(sort_option=2, then=F("latest_closed_end_date")),
-                default=None,
-                output_field=DateTimeField(),
-            ),
         )
         
-        return queryset.order_by(
-            "sort_option",
-            F("sort_date_active").asc(nulls_last=True),
-            F("sort_date_expired_or_closed").desc(nulls_last=True),
-            "-created_date"
-        )
+        return queryset.order_by("sort_option", "-created_date")
 
     def _apply_best_sorting(self, queryset: QuerySet, model_config: dict[str, Union[Type[Grant], Type[Fundraise], str]]) -> QuerySet:
         """
