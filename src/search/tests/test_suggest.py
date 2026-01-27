@@ -156,7 +156,7 @@ class SuggestViewTests(TestCase):
 
         mock_es_execute.return_value = MockResponse()
 
-        response = self.client.get(self.url + "?q=test")
+        response = self.client.get(self.url + "?q=test&enable_openalex=true")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 2)  # Both results included
 
@@ -368,23 +368,23 @@ class SuggestViewTests(TestCase):
 
         mock_es_execute.return_value = MockResponse()
 
-        # Test with default limit (10)
-        response = self.client.get(self.url + "?q=test")
+        # Test with default limit (10) and enable OpenAlex
+        response = self.client.get(self.url + "?q=test&enable_openalex=true")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 10)  # Should be limited to 10 results
 
         # Test with custom limit
-        response = self.client.get(self.url + "?q=test&limit=5")
+        response = self.client.get(self.url + "?q=test&limit=5&enable_openalex=true")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 5)  # Should be limited to 5 results
 
         # Test with limit higher than available results
-        response = self.client.get(self.url + "?q=test&limit=20")
+        response = self.client.get(self.url + "?q=test&limit=20&enable_openalex=true")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 15)  # Should return all 15 available
 
         # Test with invalid limit
-        response = self.client.get(self.url + "?q=test&limit=invalid")
+        response = self.client.get(self.url + "?q=test&limit=invalid&enable_openalex=true")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 10)  # Should use default of 10
 

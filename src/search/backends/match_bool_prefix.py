@@ -19,7 +19,7 @@ class MatchBoolPrefixBackend:
 
     @classmethod
     def execute_search(
-        self,
+        cls,
         index_name: str,
         field_name: str,
         query: str,
@@ -43,7 +43,7 @@ class MatchBoolPrefixBackend:
             # Fuzziness applies to all terms except the last (prefix) term
             query_params = {
                 "query": query,
-                "minimum_should_match": self.MINIMUM_SHOULD_MATCH,
+                "minimum_should_match": cls.MINIMUM_SHOULD_MATCH,
                 "fuzziness": "AUTO",
             }
             search_query = Q("match_bool_prefix", **{field_name: query_params})
