@@ -412,10 +412,12 @@ class PaymentServiceTest(TestCase):
             # Act
             payment = self.service.process_payment_intent_confirmation("pi_123456")
 
-        # Assert
-        self.assertIsInstance(payment, Payment)
-        # The payment should use the locked RSC amount (150.0) instead of recalculating
-        # This is verified by checking that the payment was created successfully
+            # Assert
+            self.assertIsInstance(payment, Payment)
+            # Verify the locked RSC amount (150.0) was used instead of recalculating
+            mock_create_dist.assert_called_once()
+            call_kwargs = mock_create_dist.call_args[1]
+            self.assertEqual(call_kwargs["amount"], Decimal("150.0"))
 
     @patch("stripe.PaymentIntent.create")
     def test_create_payment_intent_includes_fees_in_metadata(
