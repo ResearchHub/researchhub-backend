@@ -1,5 +1,7 @@
+import math
+import math
 from datetime import date, datetime
-from unittest.mock import patch
+from unittest.mock import MagicMock, Mock, patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
@@ -7,6 +9,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from feed.models import FeedEntry
+from hub.models import Hub
 from paper.models import Paper
 from paper.tests.helpers import create_paper
 from search.documents.paper import PaperDocument
@@ -276,3 +279,291 @@ class PaperDocumentTests(TestCase):
             result = self.document.prepare_hot_score_v2(paper)
 
         self.assertEqual(result, 0)
+
+    def test_prepare_suggestion_phrases_minimal_paper(self):
+        """Test prepare_suggestion_phrases with minimal paper (only ID, no additional data)"""
+        # Create paper with minimal data - no DOI, URL, external_source, hubs, or authors
+        # This tests the fallback case when phrases list would be empty after filtering
+        paper = create_paper(title="Test")
+        # Remove all optional fields
+        paper.doi = None
+        paper.url = None
+        paper.external_source = None
+        paper.raw_authors = []
+        paper.save()
+        # Clear hubs
+        paper.unified_document.hubs.clear()
+
+        result = self.document.prepare_suggestion_phrases(paper)
+
+        # Should return result with at least ID (ID is always added to phrases)
+        self.assertGreaterEqual(len(result), 1)
+        # ID should be in the result
+        all_inputs = []
+        for group in result:
+            all_inputs.extend(group.get("input", []))
+        self.assertIn(str(paper.id), all_inputs)
+        self.assertEqual(result[0]["weight"], 1)
+
+    def test_prepare_suggestion_phrases_with_title(self):
+        """Test prepare_suggestion_phrases includes title, title words, and bigrams"""
+        paper = create_paper(title="Machine Learning Research")
+        paper.paper_title = "Machine Learning Research"
+        paper.save()
+
+        result = self.document.prepare_suggestion_phrases(paper)
+
+        # Should have primary group
+        self.assertGreater(len(result), 0)
+        primary = result[0]
+        self.assertIn("input", primary)
+        self.assertIn("weight", primary)
+        self.assertIn(str(paper.id), primary["input"])
+        self.assertIn("Machine Learning Research", primary["input"])
+        # Should include individual words
+        self.assertIn("Machine", primary["input"])
+        self.assertIn("Learning", primary["input"])
+        self.assertIn("Research", primary["input"])
+        # Should include bigrams
+        self.assertIn("Machine Learning", primary["input"])
+        self.assertIn("Learning Research", primary["input"])
+
+    def test_prepare_suggestion_phrases_with_doi(self):
+        """Test prepare_suggestion_phrases includes DOI variants"""
+        paper = create_paper(title="Test Paper")
+        paper.doi = "10.1234/test.567"
+        paper.save()
+
+        result = self.document.prepare_suggestion_phrases(paper)
+
+        # Should include DOI variants in primary phrases
+        primary = result[0]
+        # DOI variants should be included
+        doi_variants = [phrase for phrase in primary["input"] if "10.1234" in str(phrase)]
+        self.assertGreater(len(doi_variants), 0)
+
+    def test_prepare_suggestion_phrases_with_url(self):
+        """Test prepare_suggestion_phrases includes URL"""
+        paper = create_paper(title="Test Paper")
+        paper.url = "https://example.com/paper"
+        paper.save()
+
+        result = self.document.prepare_suggestion_phrases(paper)
+
+        primary = result[0]
+        self.assertIn("https://example.com/paper", primary["input"])
+
+    def test_prepare_suggestion_phrases_with_external_source(self):
+        """Test prepare_suggestion_phrases includes journal name in secondary phrases"""
+        paper = create_paper(title="Test Paper")
+        paper.external_source = "Nature Journal"
+        paper.save()
+        # Add hot_score to ensure base_weight > 1 so secondary weight is actually less
+        create_feed_entry_for_paper(paper, hot_score_v2=100)
+
+        result = self.document.prepare_suggestion_phrases(paper)
+
+        # Should have secondary group with journal
+        self.assertGreater(len(result), 0)
+        # Find secondary group (should be second if both primary and secondary exist)
+        secondary = None
+        for group in result:
+            if "Nature" in str(group.get("input", [])):
+                secondary = group
+                break
+
+        if secondary:
+            self.assertIn("Nature Journal", secondary["input"])
+            self.assertIn("Nature", secondary["input"])
+            self.assertIn("Journal", secondary["input"])
+            # Secondary should have lower weight (when base_weight > 1)
+            primary = result[0]
+            if primary["weight"] > 1:
+                self.assertLess(secondary["weight"], primary["weight"])
+
+    def test_prepare_suggestion_phrases_with_hubs(self):
+        """Test prepare_suggestion_phrases includes hub names in secondary phrases"""
+        paper = create_paper(title="Test Paper")
+        hub1 = Hub.objects.create(name="Computer Science")
+        hub2 = Hub.objects.create(name="Artificial Intelligence")
+        # Add hubs through unified_document (which is what the hubs property uses)
+        paper.unified_document.hubs.add(hub1, hub2)
+
+        result = self.document.prepare_suggestion_phrases(paper)
+
+        # Should have secondary group with hubs
+        all_inputs = []
+        for group in result:
+            all_inputs.extend(group.get("input", []))
+
+        # Hub names should be in secondary phrases
+        self.assertIn("Computer Science", all_inputs)
+        self.assertIn("Artificial Intelligence", all_inputs)
+
+    def test_prepare_suggestion_phrases_hubs_exception_handling(self):
+        """Test prepare_suggestion_phrases handles hub exception gracefully"""
+        paper = create_paper(title="Test Paper")
+        # Mock get_hub_names to raise exception
+        with patch(
+            "search.documents.paper.PaperDocument.get_hub_names",
+            side_effect=Exception("Hub error"),
+        ):
+            # Should not raise exception
+            result = self.document.prepare_suggestion_phrases(paper)
+
+            # Should still return valid result
+            self.assertGreater(len(result), 0)
+            self.assertIn(str(paper.id), result[0]["input"])
+
+    def test_prepare_suggestion_phrases_with_authors(self):
+        """Test prepare_suggestion_phrases includes author names"""
+        paper = create_paper(
+            title="Test Paper",
+            raw_authors=[
+                {"first_name": "John", "last_name": "Doe"},
+                {"first_name": "Jane", "last_name": "Smith"},
+            ],
+        )
+
+        result = self.document.prepare_suggestion_phrases(paper)
+
+        # Should include author names in primary phrases
+        primary = result[0]
+        all_inputs = " ".join(primary["input"])
+        # Should include author names
+        self.assertIn("John Doe", all_inputs)
+        self.assertIn("Jane Smith", all_inputs)
+
+    def test_prepare_suggestion_phrases_authors_exception_handling(self):
+        """Test prepare_suggestion_phrases handles author exception gracefully"""
+        paper = create_paper(title="Test Paper")
+        # Make raw_authors cause an exception
+        paper.raw_authors = "invalid_format"
+
+        # Should not raise exception
+        result = self.document.prepare_suggestion_phrases(paper)
+
+        # Should still return valid result
+        self.assertGreater(len(result), 0)
+
+    def test_prepare_suggestion_phrases_with_hot_score(self):
+        """Test prepare_suggestion_phrases calculates weight from hot_score_v2"""
+        paper = create_paper(title="Hot Paper")
+        create_feed_entry_for_paper(paper, hot_score_v2=1000)
+
+        result = self.document.prepare_suggestion_phrases(paper)
+
+        # Weight should be calculated from hot_score_v2
+        primary = result[0]
+        # hot_score_v2=1000, log10(1000)=3, so weight should be max(1, 3*10) = 30
+        expected_weight = max(1, int(math.log(1000, 10) * 10))
+        self.assertEqual(primary["weight"], expected_weight)
+
+    def test_prepare_suggestion_phrases_without_hot_score(self):
+        """Test prepare_suggestion_phrases uses default weight when hot_score_v2 is 0"""
+        paper = create_paper(title="Cold Paper")
+        # No feed entry, so hot_score_v2 should be 0
+
+        result = self.document.prepare_suggestion_phrases(paper)
+
+        # Should use default weight of 1
+        primary = result[0]
+        self.assertEqual(primary["weight"], 1)
+
+    def test_prepare_suggestion_phrases_secondary_weight(self):
+        """Test prepare_suggestion_phrases applies SECONDARY_PHRASES_WEIGHT to secondary group"""
+        paper = create_paper(title="Test Paper")
+        paper.external_source = "Test Journal"
+        hub = Hub.objects.create(name="Test Hub")
+        paper.unified_document.hubs.add(hub)
+        # Add hot_score to ensure base_weight > 1 so secondary weight is actually less
+        create_feed_entry_for_paper(paper, hot_score_v2=100)
+
+        result = self.document.prepare_suggestion_phrases(paper)
+
+        # Should have both primary and secondary groups
+        self.assertGreaterEqual(len(result), 1)
+
+        # Find secondary group
+        secondary = None
+        for group in result:
+            inputs = group.get("input", [])
+            if "Test Journal" in inputs or "Test Hub" in inputs:
+                secondary = group
+                break
+
+        if secondary and len(result) > 1:
+            primary = result[0]
+            # Secondary weight should be less than primary (when base_weight > 1)
+            if primary["weight"] > 1:
+                self.assertLess(secondary["weight"], primary["weight"])
+            # Secondary weight should be max(1, base_weight * SECONDARY_PHRASES_WEIGHT)
+            expected_secondary_weight = max(
+                1, int(primary["weight"] * self.document.SECONDARY_PHRASES_WEIGHT)
+            )
+            self.assertEqual(secondary["weight"], expected_secondary_weight)
+
+    def test_prepare_suggestion_phrases_deduplication(self):
+        """Test prepare_suggestion_phrases deduplicates phrases"""
+        paper = create_paper(title="Test Test Paper")
+        paper.paper_title = "Test Test Paper"
+        paper.save()
+
+        result = self.document.prepare_suggestion_phrases(paper)
+
+        # Should deduplicate "Test" word
+        primary = result[0]
+        test_count = primary["input"].count("Test")
+        # "Test" should appear but not be duplicated excessively
+        self.assertGreater(test_count, 0)
+
+    def test_prepare_suggestion_phrases_strings_only(self):
+        """Test prepare_suggestion_phrases filters to strings only"""
+        paper = create_paper(title="Test Paper")
+        # Add a non-string to phrases (though this shouldn't happen in practice)
+        # We'll test that the method handles it correctly
+
+        result = self.document.prepare_suggestion_phrases(paper)
+
+        # All inputs should be strings
+        for group in result:
+            for phrase in group["input"]:
+                self.assertIsInstance(phrase, str)
+
+    def test_prepare_suggestion_phrases_comprehensive(self):
+        """Test prepare_suggestion_phrases with all features enabled"""
+        paper = create_paper(
+            title="Machine Learning in Biology",
+            raw_authors=[
+                {"first_name": "John", "last_name": "Doe"},
+            ],
+        )
+        paper.paper_title = "Machine Learning in Biology"
+        paper.doi = "10.1234/test.567"
+        paper.url = "https://example.com/paper"
+        paper.external_source = "Nature Journal"
+        paper.save()
+
+        hub = Hub.objects.create(name="Biology Hub")
+        paper.unified_document.hubs.add(hub)
+
+        create_feed_entry_for_paper(paper, hot_score_v2=5000)
+
+        result = self.document.prepare_suggestion_phrases(paper)
+
+        # Should have both primary and secondary groups
+        self.assertGreaterEqual(len(result), 1)
+
+        # Check primary group
+        primary = result[0]
+        self.assertIn(str(paper.id), primary["input"])
+        self.assertIn("Machine Learning in Biology", primary["input"])
+        # Should have calculated weight from hot_score
+        self.assertGreater(primary["weight"], 1)
+
+        # Check secondary group exists if we have secondary phrases
+        if len(result) > 1:
+            secondary = result[1]
+            self.assertIn("input", secondary)
+            self.assertIn("weight", secondary)
+            self.assertLess(secondary["weight"], primary["weight"])

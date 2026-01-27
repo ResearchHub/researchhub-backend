@@ -10,7 +10,6 @@ from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
 
-from search.backends.match_bool_prefix import MatchBoolPrefixBackend
 from search.views.suggest import SuggestView
 
 # =============================================================================
