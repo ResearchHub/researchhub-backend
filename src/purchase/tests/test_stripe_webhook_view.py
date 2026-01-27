@@ -323,7 +323,7 @@ class StripeWebhookTestCase(TestCase):
         # Mock the payment creation with fee processing
         mock_payment = Payment(
             id=1,
-            amount=1070,  # Amount with fees
+            amount=1079,  # Amount with fees ($10 + $0.20 platform + $0.59 Stripe)
             currency="USD",
             external_payment_id="paymentIntentWithFees",
             user_id=1,
@@ -337,13 +337,14 @@ class StripeWebhookTestCase(TestCase):
             "data": {
                 "object": {
                     "id": "paymentIntentWithFees",
-                    "amount": 1070,
+                    "amount": 1079,
                     "currency": "usd",
                     "metadata": {
                         "user_id": "1",
                         "purpose": "RSC_PURCHASE",
                         "locked_rsc_amount": "100.0",
-                        "platform_fees": "0.70",
+                        "platform_fees": "0.20",
+                        "stripe_fees": "0.59",
                     },
                 },
             },
