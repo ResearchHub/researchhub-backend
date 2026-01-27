@@ -89,8 +89,9 @@ class PaperDocument(BaseDocument):
 
     # Used specifically for "autocomplete" style suggest feature.
     # Includes a bunch of phrases the user may search by.
-    def prepare_suggestion_phrases(self, instance) -> dict[str, Any]:
+    def prepare_suggestion_phrases(self, instance) -> list[dict[str, Any]]:
         phrases = []
+        secondary_phrases = []
 
         phrases.append(str(instance.id))
 
@@ -114,12 +115,13 @@ class PaperDocument(BaseDocument):
         # Variation of journal name which may be searched by users
         if instance.external_source:
             journal_words = instance.external_source.split(" ")
-            phrases.append(instance.external_source)
-            phrases.extend(journal_words)
+            secondary_phrases.append(instance.external_source)
+            secondary_phrases.extend(journal_words)
 
+        # Hub names - secondary priority
         try:
             hub_names = self.get_hub_names(instance)
-            phrases.extend(hub_names)
+            secondary_phrases.extend(hub_names)
         except Exception as e:
             logger.warning(f"Failed to prepare hubs for paper {instance.id}: {e}")
 
@@ -142,21 +144,45 @@ class PaperDocument(BaseDocument):
                 f"Failed to prepare author names for paper {instance.id}: {e}"
             )
 
-        # Assign weight based on how "hot" the paper is
-        weight = 1
+        # Calculate base weight based on how "hot" the paper is
+        base_weight = 1
         hot_score_v2 = self.prepare_hot_score_v2(instance)
         if hot_score_v2 > 0:
-            # Scale down the hot score to avoid a huge range
-            # of values that could result in bad suggestions
-            weight = int(math.log(hot_score_v2, 10) * 10)
+            base_weight = max(1, int(math.log(hot_score_v2, 10) * 10))
 
-        deduped = list(set(phrases))
-        strings_only = [phrase for phrase in deduped if isinstance(phrase, str)]
+        result = []
 
-        return {
-            "input": strings_only,  # Dedupe using set
-            "weight": weight,
-        }
+        # Primary group
+        if phrases:
+            deduped = list(set(phrases))
+            strings_only = [phrase for phrase in deduped if isinstance(phrase, str)]
+            if strings_only:
+                result.append(
+                    {
+                        "input": strings_only,
+                        "weight": base_weight,
+                    }
+                )
+
+        # Secondary group (lower priority for hubs and journal)
+        if secondary_phrases:
+            deduped_secondary = list(set(secondary_phrases))
+            strings_only_secondary = [
+                phrase for phrase in deduped_secondary if isinstance(phrase, str)
+            ]
+            if strings_only_secondary:
+                result.append(
+                    {
+                        "input": strings_only_secondary,
+                        "weight": max(
+                            1, int(base_weight * self.SECONDARY_PHRASES_WEIGHT)
+                        ),
+                    }
+                )
+
+        return (
+            result if result else [{"input": [str(instance.id)], "weight": base_weight}]
+        )
 
     def prepare_paper_publish_date(self, instance):
         """Convert datetime to date for OpenSearch indexing."""
