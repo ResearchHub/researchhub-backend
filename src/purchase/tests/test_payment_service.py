@@ -26,6 +26,9 @@ class PaymentServiceTest(TestCase):
         self.service = PaymentService()
         self.user = create_user()
         self.paper = Paper.objects.create(title="Test Paper")
+        # Create RscPurchaseFee with 2% platform fee
+        RscPurchaseFee.objects.all().delete()
+        RscPurchaseFee.objects.create(rh_pct=0.02, dao_pct=0.00)
 
     @patch("stripe.checkout.Session.create")
     def test_create_checkout_session_apc_success(self, mock_stripe_session_create):
@@ -273,46 +276,7 @@ class PaymentServiceTest(TestCase):
         )
 
     @patch("stripe.PaymentIntent.create")
-    def test_create_payment_intent_usd_success(self, mock_stripe_payment_intent_create):
-        # Arrange
-        mock_payment_intent = MagicMock()
-        mock_payment_intent.client_secret = "pi_secret_123"
-        mock_payment_intent.id = "pi_123456"
-        mock_stripe_payment_intent_create.return_value = mock_payment_intent
-
-        # Mock exchange rate for USD path (also calls usd_to_rsc)
-        with patch.object(RscExchangeRate, "usd_to_rsc", return_value=100.0):
-            # Act
-            result = self.service.create_payment_intent(
-                user_id=self.user.id,
-                amount=1000,  # $10.00
-                currency=USD,
-            )
-
-        # Assert
-        self.assertEqual(result["client_secret"], "pi_secret_123")
-        self.assertEqual(result["payment_intent_id"], "pi_123456")
-        self.assertEqual(result["locked_rsc_amount"], 100.0)
-        # Update this to expect the amount with fees
-        self.assertEqual(result["stripe_amount_cents"], 1070)  # $10.00 + fees
-
-        # Verify Stripe was called with correct parameters
-        mock_stripe_payment_intent_create.assert_called_once_with(
-            amount=1070,  # Updated: $10.00 + fees
-            currency="usd",
-            metadata={
-                "user_id": str(self.user.id),
-                "purpose": PaymentPurpose.RSC_PURCHASE,
-                "locked_rsc_amount": "100.0",
-                "original_currency": "usd",
-                "original_amount": "1000",
-                "platform_fees": "0.700",  # Added: platform fees
-            },
-            automatic_payment_methods={"enabled": True},
-        )
-
-    @patch("stripe.PaymentIntent.create")
-    def test_create_payment_intent_rsc_success(self, mock_stripe_payment_intent_create):
+    def test_create_payment_intent_success(self, mock_stripe_payment_intent_create):
         # Arrange
         mock_payment_intent = MagicMock()
         mock_payment_intent.client_secret = "pi_secret_456"
@@ -324,20 +288,19 @@ class PaymentServiceTest(TestCase):
             # Act
             result = self.service.create_payment_intent(
                 user_id=self.user.id,
-                amount=100,  # 100 RSC
-                currency=RSC,
+                rsc_amount=100,  # 100 RSC
             )
 
         # Assert
         self.assertEqual(result["client_secret"], "pi_secret_456")
         self.assertEqual(result["payment_intent_id"], "pi_789012")
         self.assertEqual(result["locked_rsc_amount"], 100)
-        # Update this to expect the amount with fees
-        self.assertEqual(result["stripe_amount_cents"], 535)  # $5.00 + fees
+        # $5.00 + platform fee ($0.10) + Stripe fee ($0.445) = $5.545 = 554 cents
+        self.assertEqual(result["stripe_amount_cents"], 554)
 
         # Verify Stripe was called with correct parameters
         mock_stripe_payment_intent_create.assert_called_once_with(
-            amount=535,  # Updated: $5.00 + fees
+            amount=554,  # $5.00 + platform fee + Stripe fee
             currency="usd",
             metadata={
                 "user_id": str(self.user.id),
@@ -345,7 +308,8 @@ class PaymentServiceTest(TestCase):
                 "locked_rsc_amount": "100",
                 "original_currency": "rsc",
                 "original_amount": "100",
-                "platform_fees": "0.350",  # Added: platform fees
+                "platform_fees_rsc": "2.00",  # 2% platform fee in RSC
+                "stripe_fees": "0.4450",  # 2.9% + $0.30 Stripe fee
             },
             automatic_payment_methods={"enabled": True},
         )
@@ -464,35 +428,42 @@ class PaymentServiceTest(TestCase):
         mock_stripe_payment_intent_create.return_value = mock_payment_intent
 
         # Mock exchange rate and fee calculation
+        # calculate_rsc_purchase_fees is called twice: once for RSC, once for USD
         with (
-            patch.object(RscExchangeRate, "usd_to_rsc", return_value=100.0),
+            patch.object(RscExchangeRate, "rsc_to_usd", return_value=5.0),
             patch(
                 "purchase.services.payment_service.calculate_rsc_purchase_fees",
-                return_value=(Decimal("0.70"), Decimal("0.50"), Decimal("0.20"), None),
+                side_effect=[
+                    # First call: RSC fees (2% of 100 RSC = 2.0 RSC)
+                    (Decimal("2.00"), Decimal("2.00"), Decimal("0.00"), None),
+                    # Second call: USD fees (2% of $5 = $0.10)
+                    (Decimal("0.10"), Decimal("0.10"), Decimal("0.00"), None),
+                ],
             ),
         ):
 
             # Act
             result = self.service.create_payment_intent(
                 user_id=self.user.id,
-                amount=1000,  # $10.00
-                currency=USD,
+                rsc_amount=100,  # 100 RSC
             )
 
         # Assert
-        self.assertEqual(result["stripe_amount_cents"], 1070)  # $10.00 + $0.70 fees
+        # $5.00 + $0.10 platform fee + $0.445 Stripe fee = $5.545 = 554 cents
+        self.assertEqual(result["stripe_amount_cents"], 554)
 
         # Verify Stripe was called with fees in metadata
         mock_stripe_payment_intent_create.assert_called_once_with(
-            amount=1070,
+            amount=554,
             currency="usd",
             metadata={
                 "user_id": str(self.user.id),
                 "purpose": PaymentPurpose.RSC_PURCHASE,
-                "locked_rsc_amount": "100.0",
-                "original_currency": "usd",
-                "original_amount": "1000",
-                "platform_fees": "0.70",
+                "locked_rsc_amount": "100",
+                "original_currency": "rsc",
+                "original_amount": "100",
+                "platform_fees_rsc": "2.00",
+                "stripe_fees": "0.4450",
             },
             automatic_payment_methods={"enabled": True},
         )
@@ -504,14 +475,14 @@ class PaymentServiceTest(TestCase):
         # Arrange
         mock_payment_intent = MagicMock()
         mock_payment_intent.status = "succeeded"
-        mock_payment_intent.amount = 1070  # $10.70 with fees
+        mock_payment_intent.amount = 1079  # $10.79 with fees
         mock_payment_intent.currency = "usd"
         mock_payment_intent.id = "pi_balance_123"
         mock_payment_intent.metadata = {
             "user_id": str(self.user.id),
             "purpose": PaymentPurpose.RSC_PURCHASE,
             "locked_rsc_amount": "100.0",
-            "platform_fees": "0.70",
+            "platform_fees_rsc": "2.0",
         }
         mock_stripe_retrieve.return_value = mock_payment_intent
 
@@ -537,28 +508,27 @@ class PaymentServiceTest(TestCase):
             # Act
             payment = self.service.process_payment_intent_confirmation("pi_balance_123")
 
+            # Verify distributor was called correctly
+            mock_create_dist.assert_called_once()
+            mock_distributor.distribute_locked_balance.assert_called_once_with(
+                lock_type=Balance.LockType.RSC_PURCHASE
+            )
+
         # Assert
         self.assertIsInstance(payment, Payment)
 
-        # Verify balance records were created
-        from purchase.related_models.balance_model import Balance
-
+        # Verify fee balance record was created
         balance_records = Balance.objects.filter(user=payment.user)
 
-        # Should have 2 balance records: payment amount and fees
-        self.assertEqual(balance_records.count(), 2)
-
-        # Check payment balance record
-        payment_balance = balance_records.filter(content_type__model="payment").first()
-        self.assertIsNotNone(payment_balance)
-        self.assertEqual(payment_balance.amount, "-1070")
+        # Should have 1 balance record for fees (RSC balance created by distributor)
+        self.assertEqual(balance_records.count(), 1)
 
         # Check fee balance record
         fee_balance = balance_records.filter(
             content_type__model="rscpurchasefee"
         ).first()
         self.assertIsNotNone(fee_balance)
-        self.assertEqual(fee_balance.amount, "-0.7")
+        self.assertEqual(fee_balance.amount, "-2.0")
 
     @patch("stripe.PaymentIntent.retrieve")
     def test_process_payment_intent_confirmation_no_fees(self, mock_stripe_retrieve):
@@ -572,7 +542,7 @@ class PaymentServiceTest(TestCase):
             "user_id": str(self.user.id),
             "purpose": PaymentPurpose.RSC_PURCHASE,
             "locked_rsc_amount": "100.0",
-            "platform_fees": "0.00",
+            "platform_fees_rsc": "0.00",
         }
         mock_stripe_retrieve.return_value = mock_payment_intent
 
@@ -595,18 +565,50 @@ class PaymentServiceTest(TestCase):
             # Act
             payment = self.service.process_payment_intent_confirmation("pi_no_fees_123")
 
+            # Verify distributor was called correctly
+            mock_create_dist.assert_called_once()
+            mock_distributor.distribute_locked_balance.assert_called_once_with(
+                lock_type=Balance.LockType.RSC_PURCHASE
+            )
+
         # Assert
         self.assertIsInstance(payment, Payment)
 
-        # Verify only payment balance record was created (no fee record)
-        from purchase.related_models.balance_model import Balance
-
+        # Verify no fee balance record was created (RSC balance created by distributor)
         balance_records = Balance.objects.filter(user=payment.user)
 
-        # Should have only 1 balance record: payment amount
-        self.assertEqual(balance_records.count(), 1)
+        # No balance records (no fees, RSC balance created by mocked distributor)
+        self.assertEqual(balance_records.count(), 0)
 
-        # Check payment balance record
-        payment_balance = balance_records.filter(content_type__model="payment").first()
-        self.assertIsNotNone(payment_balance)
-        self.assertEqual(payment_balance.amount, "-1000")
+    @patch("stripe.PaymentIntent.retrieve")
+    def test_process_payment_intent_confirmation_updates_user_balance(
+        self, mock_stripe_retrieve
+    ):
+        """Integration test: verify user balance is updated after payment."""
+        # Arrange
+        locked_rsc_amount = 100.0
+        mock_payment_intent = MagicMock()
+        mock_payment_intent.status = "succeeded"
+        mock_payment_intent.amount = 1000  # $10.00
+        mock_payment_intent.currency = "usd"
+        mock_payment_intent.id = "pi_integration_123"
+        mock_payment_intent.metadata = {
+            "user_id": str(self.user.id),
+            "purpose": PaymentPurpose.RSC_PURCHASE,
+            "locked_rsc_amount": str(locked_rsc_amount),
+            "platform_fees_rsc": "0.00",
+        }
+        mock_stripe_retrieve.return_value = mock_payment_intent
+
+        # Act - don't mock the Distributor so balance is actually created
+        payment = self.service.process_payment_intent_confirmation("pi_integration_123")
+
+        # Assert
+        self.assertIsInstance(payment, Payment)
+
+        # Refresh user from db and verify locked balance
+        self.user.refresh_from_db()
+        locked_balance = self.user.get_locked_balance(
+            lock_type=Balance.LockType.RSC_PURCHASE
+        )
+        self.assertEqual(locked_balance, locked_rsc_amount)
