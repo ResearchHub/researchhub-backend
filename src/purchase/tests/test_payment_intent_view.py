@@ -1,3 +1,4 @@
+from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 from django.urls import reverse
@@ -37,10 +38,10 @@ class PaymentIntentViewTest(APITestCase):
         self.assertEqual(response.data["locked_rsc_amount"], 100)
         self.assertEqual(response.data["stripe_amount_cents"], 500)
 
-        # Verify the payment service was called correctly
+        # Verify the payment service was called correctly with Decimal
         mock_payment_service.create_payment_intent.assert_called_once_with(
             user_id=self.user.id,
-            rsc_amount=100,
+            rsc_amount=Decimal("100"),
         )
 
     @patch("purchase.views.payment_intent_view.PaymentService")
@@ -69,10 +70,10 @@ class PaymentIntentViewTest(APITestCase):
         self.assertEqual(response.data["locked_rsc_amount"], 100.5)
         self.assertEqual(response.data["stripe_amount_cents"], 503)
 
-        # Verify the payment service was called correctly
+        # Verify the payment service was called correctly with Decimal
         mock_payment_service.create_payment_intent.assert_called_once_with(
             user_id=self.user.id,
-            rsc_amount=100.5,
+            rsc_amount=Decimal("100.50"),
         )
 
     def test_create_payment_intent_unauthenticated(self):
