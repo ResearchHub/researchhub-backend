@@ -270,6 +270,7 @@ class PaymentService:
             logger.error("Error creating payment intent: %s", e)
             raise
 
+    @transaction.atomic
     def process_payment_intent_confirmation(self, payment_intent_id: str) -> Payment:
         """
         Process a confirmed payment intent and create a Payment record for RSC purchase.
