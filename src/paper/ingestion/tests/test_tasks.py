@@ -1,7 +1,7 @@
 from datetime import timedelta
 from unittest.mock import Mock, patch
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from paper.ingestion.services.metrics_enrichment import EnrichmentResult
@@ -700,6 +700,7 @@ class BlueskyMetricsTasksTests(TestCase):
         self.assertTrue(mock_sentry.log_error.called)
 
 
+@override_settings(X_BEARER_TOKEN="test_token")
 class XMetricsTasksTests(TestCase):
     def setUp(self):
         self.user = create_random_default_user("testUser1")
@@ -736,6 +737,24 @@ class XMetricsTasksTests(TestCase):
                 }
             ],
         }
+
+    @override_settings(X_BEARER_TOKEN=None)
+    @patch("paper.ingestion.tasks.XMetricsClient")
+    @patch("paper.ingestion.tasks.enrich_paper_with_x_metrics.delay")
+    def test_update_recent_papers_with_x_metrics_without_token(
+        self, mock_metrics_client_class, mock_delay
+    ):
+        """
+        Test that the task return when the X bearer token is not set.
+        """
+        # Act
+        result = update_recent_papers_with_x_metrics(days=7)
+
+        # Assert
+        self.assertEqual(result["status"], "skipped")
+        self.assertIn("X_BEARER_TOKEN not configured", result["reason"])
+        mock_metrics_client_class.assert_not_called()
+        mock_delay.assert_not_called()
 
     @patch("paper.ingestion.tasks.enrich_paper_with_x_metrics.delay")
     @patch("paper.ingestion.tasks.XMetricsClient")
@@ -778,6 +797,20 @@ class XMetricsTasksTests(TestCase):
         self.assertEqual(result["status"], "success")
         dispatched_ids = [call[0][0] for call in mock_delay.call_args_list]
         self.assertNotIn(self.paper_old.id, dispatched_ids)
+
+    @override_settings(X_BEARER_TOKEN=None)
+    @patch("paper.ingestion.tasks.XMetricsClient")
+    def test_enrich_paper_with_x_metrics_without_token(self, mock_metrics_client_class):
+        """
+        Test that the task return when the X bearer token is not set.
+        """
+        # Act
+        result = enrich_paper_with_x_metrics(self.paper_recent.id)
+
+        # Assert
+        self.assertEqual(result["status"], "skipped")
+        self.assertIn("X_BEARER_TOKEN not configured", result["reason"])
+        mock_metrics_client_class.assert_not_called()
 
     @patch("paper.ingestion.tasks.XMetricsClient")
     def test_enrich_paper_with_x_metrics(self, mock_metrics_client_class):
