@@ -6,7 +6,9 @@ class PaymentIntentSerializer(serializers.Serializer):
     Serializer for RSC purchase payment intent creation.
     """
 
-    amount = serializers.FloatField(
+    amount = serializers.DecimalField(
+        max_digits=19,
+        decimal_places=10,
         min_value=0.01,
         help_text="Amount of RSC to purchase",
     )
