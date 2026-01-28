@@ -878,6 +878,17 @@ TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", keys.TRANSPOSE_KEY)
 # OpenAlex API
 OPENALEX_KEY = os.environ.get("OPENALEX_KEY", keys.OPENALEX_KEY)
 
+# Endaoment API
+ENDAOMENT_API_URL = f"https://api{'' if PRODUCTION else '.dev'}.endaoment.org"
+ENDAOMENT_AUTH_URL = f"https://auth{'' if PRODUCTION else '.dev'}.endaoment.org"
+ENDAOMENT_CLIENT_ID = os.environ.get("ENDAOMENT_CLIENT_ID", keys.ENDAOMENT_CLIENT_ID)
+ENDAOMENT_CLIENT_SECRET = os.environ.get(
+    "ENDAOMENT_CLIENT_SECRET", keys.ENDAOMENT_CLIENT_SECRET
+)
+ENDAOMENT_REDIRECT_URL = os.environ.get(
+    "ENDAOMENT_REDIRECT_URL", keys.ENDAOMENT_REDIRECT_URL
+)
+
 # Etherscan API Key
 ETHERSCAN_API_KEY = os.environ.get("ETHERSCAN_API_KEY", keys.ETHERSCAN_API_KEY)
 

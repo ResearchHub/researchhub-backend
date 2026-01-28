@@ -78,3 +78,29 @@ def normalize_text(text: str) -> str:
 def seconds_to_milliseconds(seconds: float, decimals: int = 2) -> float:
     """Convert seconds to milliseconds with specified decimal precision."""
     return round(seconds * 1000, decimals)
+
+
+def generate_ngrams(words: list[str], n: int = 2) -> list[str]:
+    """
+    Generate n-grams (contiguous sequences of n words) from a list of words.
+
+    Args:
+        words: List of words to generate n-grams from
+        n: Size of n-grams to generate (2 for bigrams, 3 for trigrams, etc.)
+
+    Returns:
+        List of n-gram strings
+
+    Examples:
+        >>> generate_ngrams(["Data", "Science", "Methods", "Analysis", "Techniques"], n=2)
+        ['Data Science', 'Science Methods', 'Methods Analysis', 'Analysis Techniques']
+    """
+    if not words or len(words) < n:
+        return []
+
+    ngrams = []
+    for i in range(len(words) - n + 1):
+        ngram = " ".join(words[i : i + n])
+        ngrams.append(ngram)
+
+    return ngrams
