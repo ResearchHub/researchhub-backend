@@ -52,7 +52,8 @@ from user.views import author_views, editor_views, moderator_view, persona_webho
 from user.views.custom_verify_email_view import CustomVerifyEmailView
 from user_lists.views import ListItemViewSet, ListViewSet
 from user_saved.views import UserSavedView
-from orcid.views import OrcidConnectView, OrcidCallbackView, OrcidFetchView 
+from orcid.views import OrcidConnectView, OrcidCallbackView, OrcidFetchView
+from funding_dashboard.views import FundingDashboardViewSet
 
 router = routers.DefaultRouter()
 
@@ -195,6 +196,10 @@ router.register(r"funding_feed", FundingFeedViewSet, basename="funding_feed")
 router.register(r"grant_feed", GrantFeedViewSet, basename="grant_feed")
 
 router.register(r"journal_feed", JournalFeedViewSet, basename="journal_feed")
+
+router.register(
+    r"funding_dashboard", FundingDashboardViewSet, basename="funding_dashboard"
+)
 
 urlpatterns = [
     # Health check

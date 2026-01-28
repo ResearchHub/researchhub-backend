@@ -5,9 +5,9 @@ and research grant postings.
 """
 
 from django.core.cache import cache
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
-from django_filters.rest_framework import DjangoFilterBackend
 
 from feed.filters import FundOrderingFilter
 from feed.models import FeedEntry
@@ -43,18 +43,18 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         ordering = request.query_params.get("ordering", "")
         status = request.query_params.get("status", "")
         organization = request.query_params.get("organization", "")
+        created_by = request.query_params.get("created_by", "")
 
-        grant_params = f"-ordering:{ordering}-status:{status}-organization:{organization}"
+        grant_params = f"-ordering:{ordering}-status:{status}-organization:{organization}-created_by:{created_by}"
         return base_key + grant_params
 
     def list(self, request, *args, **kwargs):
-        page = request.query_params.get("page", "1")
-        page_num = int(page)
-        cache_key = self.get_cache_key(request, "grants")
-        use_cache = page_num < 4
+        page_num = int(request.query_params.get("page", "1"))
+        created_by = request.query_params.get("created_by")
+        use_cache = page_num < 4 and not created_by
+        cache_key = self.get_cache_key(request, "grants") if use_cache else None
 
         if use_cache:
-            # try to get cached response
             cached_response = cache.get(cache_key)
             if cached_response:
                 if request.user.is_authenticated:
@@ -96,6 +96,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
     def get_queryset(self):
         status = self.request.query_params.get("status")
         organization = self.request.query_params.get("organization")
+        created_by = self.request.query_params.get("created_by")
 
         queryset = (
             ResearchhubPost.objects.all()
@@ -114,10 +115,13 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
 
         if status:
             status_upper = status.upper()
-            if status_upper in [Grant.OPEN, Grant.CLOSED, Grant.COMPLETED]:
+            if status_upper in {Grant.OPEN, Grant.CLOSED, Grant.COMPLETED}:
                 queryset = queryset.filter(unified_document__grants__status=status_upper)
 
         if organization:
             queryset = queryset.filter(unified_document__grants__organization__icontains=organization)
+
+        if created_by:
+            queryset = queryset.filter(created_by_id=created_by)
 
         return queryset
