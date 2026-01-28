@@ -352,6 +352,10 @@ def update_recent_papers_with_x_metrics(days: int = 7):
     Each paper is processed by a separate rate-limited task.
     This dispatcher does not retry - individual tasks handle their own retries.
     """
+    if not getattr(settings, "X_BEARER_TOKEN", None):
+        logger.debug("X metrics enrichment is disabled (X_BEARER_TOKEN missing)")
+        return {"status": "skipped", "reason": "X_BEARER_TOKEN not configured"}
+
     logger.info(f"Starting X metrics update for papers (last {days} days)")
 
     service = PaperMetricsEnrichmentService(
@@ -404,6 +408,14 @@ def enrich_paper_with_x_metrics(self, paper_id: int):
     Returns:
         Dict with status and details
     """
+    if not getattr(settings, "X_BEARER_TOKEN", None):
+        logger.debug("X metrics enrichment is disabled (X_BEARER_TOKEN missing)")
+        return {
+            "status": "skipped",
+            "paper_id": paper_id,
+            "reason": "X_BEARER_TOKEN not configured",
+        }
+
     from paper.models import Paper
 
     # Check if we're in backoff mode due to a previous rate limit error
