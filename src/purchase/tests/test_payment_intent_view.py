@@ -43,6 +43,38 @@ class PaymentIntentViewTest(APITestCase):
             rsc_amount=100,
         )
 
+    @patch("purchase.views.payment_intent_view.PaymentService")
+    def test_create_payment_intent_with_float_amount(self, mock_payment_service_class):
+        # Arrange
+        mock_payment_service = MagicMock()
+        mock_payment_service_class.return_value = mock_payment_service
+        mock_payment_service.create_payment_intent.return_value = {
+            "client_secret": "pi_secret_456",
+            "payment_intent_id": "pi_789012",
+            "locked_rsc_amount": 100.5,
+            "stripe_amount_cents": 503,
+        }
+
+        data = {
+            "amount": 100.5,  # 100.5 RSC (float)
+        }
+
+        self.client.force_authenticate(user=self.user)
+
+        # Act
+        response = self.client.post(self.url, data=data)
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["locked_rsc_amount"], 100.5)
+        self.assertEqual(response.data["stripe_amount_cents"], 503)
+
+        # Verify the payment service was called correctly
+        mock_payment_service.create_payment_intent.assert_called_once_with(
+            user_id=self.user.id,
+            rsc_amount=100.5,
+        )
+
     def test_create_payment_intent_unauthenticated(self):
         # Arrange
         data = {
