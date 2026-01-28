@@ -8,6 +8,7 @@ authors = [{ name = "ResearchHub", email = "dev@researchhub.com" }]
 dependencies = [
     "arxiv>=1.4.8,<2.0.0",
     "atproto>=0.0.63",
+    "authlib>=1.3.0,<2.0.0",
     "beautifulsoup4==4.12.2",
     "boto3==1.34.69",
     "cdp-sdk==1.37.1",
