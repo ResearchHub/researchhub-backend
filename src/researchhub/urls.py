@@ -39,7 +39,7 @@ from feed.views import (
     GrantFeedViewSet,
     JournalFeedViewSet,
 )
-from orcid.views import OrcidCallbackView, OrcidConnectView
+from orcid.views import OrcidCallbackView, OrcidConnectView, OrcidFetchView
 from organizations.views import NonprofitFundraiseLinkViewSet, NonprofitOrgViewSet
 from paper.views import paper_upload_views
 from purchase.views import stripe_webhook_view
@@ -52,7 +52,6 @@ from user.views import author_views, editor_views, moderator_view, persona_webho
 from user.views.custom_verify_email_view import CustomVerifyEmailView
 from user_lists.views import ListItemViewSet, ListViewSet
 from user_saved.views import UserSavedView
-from orcid.views import OrcidConnectView, OrcidCallbackView, OrcidFetchView 
 
 router = routers.DefaultRouter()
 
@@ -332,6 +331,11 @@ urlpatterns = [
         "api/payment/payment-intent/",
         purchase.views.PaymentIntentView.as_view(),
         name="payment_intent_view",
+    ),
+    path(
+        "api/payment/payment-intent/<str:payment_intent_id>/status/",
+        purchase.views.PaymentIntentView.as_view(),
+        name="payment_intent_status_view",
     ),
     path("user_saved/", UserSavedView.as_view(), name="user_saved"),
     path(

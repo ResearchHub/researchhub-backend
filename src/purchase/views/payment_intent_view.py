@@ -5,6 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from purchase.related_models.payment_model import Payment
 from purchase.serializers.payment_intent_serializer import PaymentIntentSerializer
 from purchase.services.payment_service import PaymentService
 
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 class PaymentIntentView(APIView):
     """
-    View for creating Stripe payment intents for RSC purchase.
+    View for creating and checking status of Stripe payment intents for RSC purchase.
     """
 
     permission_classes = [IsAuthenticated]
@@ -41,3 +42,21 @@ class PaymentIntentView(APIView):
         except Exception as e:
             logger.error("Error creating payment intent: %s", e)
             return Response({"message": "Failed to create payment intent"}, status=500)
+
+    def get(self, request, payment_intent_id, *args, **kwargs):
+        """
+        Check if a payment intent has been processed and balance credited.
+
+        Returns:
+            {"status": "completed"} if payment was processed
+            {"status": "pending"} if still waiting for webhook
+        """
+        payment = Payment.objects.filter(
+            external_payment_id=payment_intent_id,
+            user=request.user,
+        ).first()
+
+        if payment:
+            return Response({"status": "completed"})
+
+        return Response({"status": "pending"})
