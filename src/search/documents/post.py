@@ -12,6 +12,7 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
     ResearchhubUnifiedDocument,
 )
 from search.analyzers import content_analyzer, title_analyzer
+from search.base.utils import generate_ngrams
 
 from .base import BaseDocument
 
@@ -110,7 +111,11 @@ class PostDocument(BaseDocument):
         # Variation of title which may be searched by users
         if instance.title:
             phrases.append(instance.title)
-            phrases.extend(instance.title.split())
+            title_words = instance.title.split()
+            phrases.extend(title_words)
+
+            bigrams = generate_ngrams(title_words, n=2)
+            phrases.extend(bigrams)
 
         if instance.doi:
             phrases.append(instance.doi)

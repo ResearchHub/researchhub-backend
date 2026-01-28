@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 
 
 class BaseDocument(Document):
+    SECONDARY_PHRASES_WEIGHT = 0.5
 
     @override
     def _get_actions(self, object_list, action):
