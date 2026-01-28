@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from rest_framework import serializers
 
 
@@ -6,8 +8,10 @@ class PaymentIntentSerializer(serializers.Serializer):
     Serializer for RSC purchase payment intent creation.
     """
 
-    amount = serializers.FloatField(
-        min_value=0.01,
+    amount = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        min_value=Decimal("0.01"),
         help_text="Amount of RSC to purchase",
     )
 

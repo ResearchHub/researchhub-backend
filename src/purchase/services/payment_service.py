@@ -1,6 +1,6 @@
 import logging
 from decimal import Decimal
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 import stripe
 from django.contrib.contenttypes.models import ContentType
@@ -210,14 +210,14 @@ class PaymentService:
     def create_payment_intent(
         self,
         user_id: int,
-        rsc_amount: float,
+        rsc_amount: Union[int, float, Decimal],
     ) -> Dict[str, Any]:
         """
         Create a Stripe payment intent for RSC purchase.
 
         Args:
             user_id: ID of the user making the payment.
-            rsc_amount: Amount of RSC to purchase (can be decimal).
+            rsc_amount: Amount of RSC to purchase (can be integer or decimal).
 
         Returns:
             Dict containing client_secret, payment_intent_id, and locked_rsc_amount
