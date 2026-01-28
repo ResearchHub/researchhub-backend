@@ -32,6 +32,7 @@ def track_revenue_event(
         "SUPPORT_FEE",
         "DOI_FEE",
         "WITHDRAWAL_FEE",
+        "RHJ_APC_FEE",
     ],
     rsc_revenue: str,
     usd_revenue: str = None,
