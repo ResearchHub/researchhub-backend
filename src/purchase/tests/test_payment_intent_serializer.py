@@ -40,3 +40,16 @@ class PaymentIntentSerializerTest(TestCase):
         # Assert
         self.assertFalse(serializer.is_valid())
         self.assertIn("amount", serializer.errors)
+
+    def test_valid_float_amount(self):
+        # Arrange
+        data = {
+            "amount": 50.5,  # 50.5 RSC (fractional)
+        }
+
+        # Act
+        serializer = PaymentIntentSerializer(data=data)
+
+        # Assert
+        self.assertTrue(serializer.is_valid())
+        self.assertEqual(serializer.validated_data["amount"], 50.5)

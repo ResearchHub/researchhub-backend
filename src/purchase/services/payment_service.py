@@ -210,14 +210,14 @@ class PaymentService:
     def create_payment_intent(
         self,
         user_id: int,
-        rsc_amount: int,
+        rsc_amount: float,
     ) -> Dict[str, Any]:
         """
         Create a Stripe payment intent for RSC purchase.
 
         Args:
             user_id: ID of the user making the payment.
-            rsc_amount: Amount of RSC to purchase.
+            rsc_amount: Amount of RSC to purchase (can be fractional).
 
         Returns:
             Dict containing client_secret, payment_intent_id, and locked_rsc_amount
