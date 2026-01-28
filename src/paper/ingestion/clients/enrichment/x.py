@@ -97,12 +97,13 @@ class XClient:
         """
         if self._initialized:
             return
-        self._initialized = True
 
         self.bearer_token = bearer_token or getattr(settings, "X_BEARER_TOKEN", "")
         self.rate_limiter = RateLimiter(rate_limit)
         self._client = client
         self._init_client()
+
+        self._initialized = True
 
     def _init_client(self):
         """
