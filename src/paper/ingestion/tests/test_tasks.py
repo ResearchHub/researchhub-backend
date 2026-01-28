@@ -1,7 +1,7 @@
 from datetime import timedelta
 from unittest.mock import Mock, patch
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from paper.ingestion.services.metrics_enrichment import EnrichmentResult
@@ -700,6 +700,7 @@ class BlueskyMetricsTasksTests(TestCase):
         self.assertTrue(mock_sentry.log_error.called)
 
 
+@override_settings(X_BEARER_TOKEN="test_token")
 class XMetricsTasksTests(TestCase):
     def setUp(self):
         self.user = create_random_default_user("testUser1")
