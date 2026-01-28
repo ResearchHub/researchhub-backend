@@ -328,6 +328,11 @@ urlpatterns = [
         purchase.views.CheckoutView.as_view(),
         name="payment_view",
     ),
+    path(
+        "api/payment/payment-intent/",
+        purchase.views.PaymentIntentView.as_view(),
+        name="payment_intent_view",
+    ),
     path("user_saved/", UserSavedView.as_view(), name="user_saved"),
     path(
         "api/review/availability/",
