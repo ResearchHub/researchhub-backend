@@ -113,6 +113,36 @@ class EndaomentService:
             return ConnectionStatus(True, account.endaoment_user_id)
         return ConnectionStatus(False)
 
+    def get_valid_access_token(self, user) -> Optional[str]:
+        """
+        Get a valid access token for the user, refreshing if necessary.
+
+        Returns None if user has no Endaoment account.
+        """
+        account = EndaomentAccount.objects.filter(user=user).first()
+        if not account:
+            return None
+
+        if account.is_token_expired() and account.refresh_token:
+            self._refresh_account_token(account)
+
+        return account.access_token
+
+    def _refresh_account_token(self, account: EndaomentAccount) -> None:
+        """
+        Refresh the access token for an account.
+        """
+        token_response = self.client.refresh_access_token(account.refresh_token)
+        account.access_token = token_response.access_token
+        if token_response.refresh_token:
+            account.refresh_token = token_response.refresh_token
+        account.token_expires_at = timezone.now() + timedelta(
+            seconds=token_response.expires_in
+        )
+        account.save(
+            update_fields=["access_token", "refresh_token", "token_expires_at"]
+        )
+
     def _save_account(self, user, token_response) -> EndaomentAccount:
         """
         Save (or update) the Endaoment account for a user.

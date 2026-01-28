@@ -1,4 +1,5 @@
-from unittest.mock import Mock, patch
+from datetime import timedelta
+from unittest.mock import Mock
 
 from django.contrib.auth import get_user_model
 from django.core import signing
@@ -269,3 +270,60 @@ class TestEndaomentService(TestCase):
 
         # Assert
         self.assertEqual(result, "https://researchhub.com?endaoment_connected=true")
+
+    def test_get_valid_access_token_no_account(self):
+        """
+        Test get_valid_access_token returns None when user has no account.
+        """
+        # Arrange & Act
+        result = self.service.get_valid_access_token(self.user)
+
+        # Assert
+        self.assertIsNone(result)
+
+    def test_get_valid_access_token(self):
+        """
+        Test get_valid_access_token returns token when not expired.
+        """
+        # Arrange
+        EndaomentAccount.objects.create(
+            user=self.user,
+            access_token="valid_token",
+            refresh_token="refresh_token",
+            token_expires_at=timezone.now() + timedelta(hours=1),
+        )
+
+        # Act
+        result = self.service.get_valid_access_token(self.user)
+
+        # Assert
+        self.assertEqual(result, "valid_token")
+        self.mock_client.refresh_access_token.assert_not_called()
+
+    def test_get_valid_access_token_expired_refreshes(self):
+        """
+        Test get_valid_access_token refreshes expired token.
+        """
+        # Arrange
+        EndaomentAccount.objects.create(
+            user=self.user,
+            access_token="expired_token",
+            refresh_token="refresh_token",
+            token_expires_at=timezone.now() - timedelta(hours=1),
+        )
+        self.mock_client.refresh_access_token.return_value = TokenResponse(
+            access_token="new_token",
+            refresh_token="new_refresh",
+            expires_in=3600,
+        )
+
+        # Act
+        result = self.service.get_valid_access_token(self.user)
+
+        # Assert
+        self.assertEqual(result, "new_token")
+        self.mock_client.refresh_access_token.assert_called_once_with("refresh_token")
+
+        account = EndaomentAccount.objects.get(user=self.user)
+        self.assertEqual(account.access_token, "new_token")
+        self.assertEqual(account.refresh_token, "new_refresh")
