@@ -2,6 +2,7 @@ from datetime import timedelta
 
 from django.db import models
 from django.utils import timezone
+from encrypted_fields import EncryptedTextField
 
 from utils.models import DefaultModel
 
@@ -19,8 +20,8 @@ class EndaomentAccount(DefaultModel):
         related_name="endaoment_account",
     )
 
-    access_token = models.TextField(help_text="Endaoment access token")
-    refresh_token = models.TextField(
+    access_token = EncryptedTextField(help_text="Endaoment access token")
+    refresh_token = EncryptedTextField(
         null=True,
         blank=True,
         help_text="Endaoment refresh token",
