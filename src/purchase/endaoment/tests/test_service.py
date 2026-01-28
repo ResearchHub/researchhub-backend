@@ -20,6 +20,7 @@ User = get_user_model()
     ENDAOMENT_REDIRECT_URI="https://researchhub.com/callback",
     CORS_ORIGIN_WHITELIST=["https://test.com", "https://researchhub.com"],
     BASE_FRONTEND_URL="https://researchhub.com",
+    SALT_KEY="test-salt-key",
 )
 class TestEndaomentService(TestCase):
     """
