@@ -229,7 +229,8 @@ class PaymentService:
         """
         try:
             # Convert RSC amount to USD using current exchange rate
-            usd_amount = RscExchangeRate.rsc_to_usd(rsc_amount)
+            # Convert Decimal to float for rsc_to_usd, then back to Decimal
+            usd_amount = Decimal(str(RscExchangeRate.rsc_to_usd(float(rsc_amount))))
 
             # Calculate platform fees in RSC (2% of RSC amount)
             rsc_fees, rh_fee, dao_fee, current_fee_obj = calculate_rsc_purchase_fees(
