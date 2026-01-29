@@ -6,7 +6,6 @@ from typing import Optional
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core import signing
-from django.db import transaction
 from django.utils import timezone
 
 from purchase.endaoment.client import EndaomentClient
@@ -151,16 +150,16 @@ class EndaomentService:
             user: The user to save the account for.
             token_response: Token response from Endaoment.
         """
-        with transaction.atomic():
-            account, _ = EndaomentAccount.objects.update_or_create(
-                user=user,
-                defaults={
-                    "access_token": token_response.access_token,
-                    "refresh_token": token_response.refresh_token,
-                    "token_expires_at": timezone.now()
-                    + timedelta(seconds=token_response.expires_in),
-                },
-            )
+
+        account, _ = EndaomentAccount.objects.update_or_create(
+            user=user,
+            defaults={
+                "access_token": token_response.access_token,
+                "refresh_token": token_response.refresh_token,
+                "token_expires_at": timezone.now()
+                + timedelta(seconds=token_response.expires_in),
+            },
+        )
         return account
 
     @staticmethod
