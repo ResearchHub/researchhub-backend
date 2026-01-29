@@ -37,18 +37,15 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
     def get_serializer_context(self):
         context = super().get_serializer_context()
         context.update(self.get_common_serializer_context())
-        return context
-
-    def _should_cache(self, page_num: int, request) -> bool:
-        if page_num >= 4:
-            return False
-        params = request.query_params
-        return not any(params.get(k) for k in ("grant_id", "created_by", "funded_by"))
+        return context 
 
     def list(self, request, *args, **kwargs):
-        page_num = int(request.query_params.get("page", "1"))
-        use_cache = self._should_cache(page_num, request)
-        cache_key = self.get_cache_key(request, "funding") if use_cache else None
+        page = request.query_params.get("page", "1")
+        page_num = int(page)
+        grant_id = request.query_params.get("grant_id", None)
+        created_by = request.query_params.get("created_by", None)
+        cache_key = self.get_cache_key(request, "funding")
+        use_cache = page_num < 4 and grant_id is None and created_by is None
 
         if use_cache:
             cached_response = cache.get(cache_key)

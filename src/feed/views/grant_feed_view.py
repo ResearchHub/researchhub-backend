@@ -49,10 +49,10 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         return base_key + grant_params
 
     def list(self, request, *args, **kwargs):
-        page_num = int(request.query_params.get("page", "1"))
-        created_by = request.query_params.get("created_by")
-        use_cache = page_num < 4 and not created_by
-        cache_key = self.get_cache_key(request, "grants") if use_cache else None
+        page = request.query_params.get("page", "1")
+        page_num = int(page)
+        cache_key = self.get_cache_key(request, "grants")
+        use_cache = page_num < 4
 
         if use_cache:
             cached_response = cache.get(cache_key)
