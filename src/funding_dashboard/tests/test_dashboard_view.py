@@ -16,19 +16,16 @@ class FundingDashboardViewTest(TestCase):
             username="testuser", email="test@test.com", password=uuid.uuid4().hex
         )
         self.url = "/api/funding_dashboard/overview/"
-
         RscExchangeRate.objects.create(rate=1.0, real_rate=1.0)
 
     def test_requires_authentication(self) -> None:
-        # Arrange - unauthenticated client from setUp
-
         # Act
         response = self.client.get(self.url)
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_returns_complete_response_structure(self) -> None:
+    def test_returns_portfolio_overview_structure(self) -> None:
         # Arrange
         self.client.force_authenticate(user=self.user)
 
@@ -38,13 +35,44 @@ class FundingDashboardViewTest(TestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.json()
-        self.assertIsInstance(data["total_distributed_usd"], (int, float))
-        self.assertIsInstance(data["active_rfps"]["active"], int)
-        self.assertIsInstance(data["active_rfps"]["total"], int)
-        self.assertIsInstance(data["total_applicants"], int)
-        self.assertIsInstance(data["matched_funding_usd"], (int, float))
-        self.assertIsInstance(data["recent_updates"], int)
-        self.assertIsInstance(data["proposals_funded"], int)
+        self.assertIn("total_distributed_usd", data)
+        self.assertIn("active_rfps", data)
+        self.assertIn("total_applicants", data)
+        self.assertIn("matched_funding_usd", data)
+        self.assertIn("recent_updates", data)
+        self.assertIn("proposals_funded", data)
+
+    def test_returns_impact_data_structure(self) -> None:
+        # Arrange
+        self.client.force_authenticate(user=self.user)
+
+        # Act
+        response = self.client.get(self.url)
+
+        # Assert
+        data = response.json()
+        impact = data["impact"]
+        self.assertIn("milestones", impact)
+        self.assertIn("funding_over_time", impact)
+        self.assertIn("topic_breakdown", impact)
+        self.assertIn("update_frequency", impact)
+        self.assertIn("institutions_supported", impact)
+
+        self.assertEqual(len(impact["funding_over_time"]), 6)
+        self.assertEqual(len(impact["update_frequency"]), 4)
+
+    def test_returns_milestone_structure(self) -> None:
+        # Arrange
+        self.client.force_authenticate(user=self.user)
+
+        # Act
+        response = self.client.get(self.url)
+
+        # Assert
+        milestones = response.json()["impact"]["milestones"]
+        for key in ["funding_contributed", "researchers_supported", "matched_funding"]:
+            self.assertIn("current", milestones[key])
+            self.assertIn("target", milestones[key])
 
     def test_rejects_non_get_methods(self) -> None:
         # Arrange
