@@ -18,9 +18,10 @@ from purchase.related_models.payment_model import (
 )
 from purchase.related_models.purchase_model import Purchase
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from purchase.related_models.rsc_purchase_fee import RscPurchaseFee
 from reputation.distributions import create_purchase_distribution
 from reputation.distributor import Distributor
-from reputation.utils import calculate_rsc_purchase_fees
+from reputation.utils import calculate_rsc_purchase_fees, deduct_rsc_purchase_fees
 from user.models import User
 
 logger = logging.getLogger(__name__)
@@ -357,6 +358,9 @@ class PaymentService:
         Create payment record and credit user's balance.
         This is an atomic operation - either both succeed or both fail.
 
+        For transparency, the full amount (including fees) is credited to the
+        user's locked balance, then the fees are deducted as a separate line item.
+
         Returns:
             Tuple of (Payment, rsc_amount credited)
         """
@@ -380,9 +384,15 @@ class PaymentService:
             usd_amount = payment_intent.amount / 100
             rsc_amount = Decimal(str(RscExchangeRate.usd_to_rsc(usd_amount)))
 
-        # Create a purchase distribution and credit the user's locked balance
+        # Calculate RSC purchase fees (2% platform fee)
+        rsc_fee, rh_fee, dao_fee, fee_obj = calculate_rsc_purchase_fees(rsc_amount)
+
+        # Credit the user's locked balance with amount + fee for transparency
+        # The fee will be deducted separately to show as a line item
+        gross_amount = rsc_amount + rsc_fee
+
         purchase_distribution = create_purchase_distribution(
-            user=payment.user, amount=float(rsc_amount)
+            user=payment.user, amount=float(gross_amount)
         )
         distributor = Distributor(
             distribution=purchase_distribution,
@@ -392,6 +402,20 @@ class PaymentService:
             giver=None,
         )
         distributor.distribute_locked_balance(lock_type=Balance.LockType.RSC_PURCHASE)
+
+        # Deduct the RSC purchase fees and distribute to revenue/dao accounts
+        deduct_rsc_purchase_fees(payment.user, rsc_fee, rh_fee, dao_fee, fee_obj)
+
+        # Create a balance record to subtract the fee from the user's locked balance
+        # This provides a transparent line item showing the 2% purchase fee
+        Balance.objects.create(
+            user=payment.user,
+            content_type=ContentType.objects.get_for_model(RscPurchaseFee),
+            object_id=fee_obj.id,
+            amount=f"-{rsc_fee}",
+            is_locked=True,
+            lock_type=Balance.LockType.RSC_PURCHASE,
+        )
 
         return payment, rsc_amount
 

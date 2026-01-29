@@ -24,6 +24,15 @@ class PaymentServiceTest(TestCase):
     def setUp(self):
         cache.clear()
         self.service = PaymentService()
+        # Create revenue accounts needed for fee deductions
+        from user.models import User
+
+        self.revenue_account = User.objects.create(
+            email="revenue@researchhub.com", username="revenue_account"
+        )
+        self.dao_account = User.objects.create(
+            email="revenue1@researchhub.foundation", username="dao_account"
+        )
         self.user = create_user()
         self.paper = Paper.objects.create(title="Test Paper")
         # Create RscPurchaseFee with 2% platform fee
@@ -396,7 +405,7 @@ class PaymentServiceTest(TestCase):
         }
         mock_stripe_retrieve.return_value = mock_payment_intent
 
-        # Mock distributor
+        # Mock distributor and fee deduction
         with (
             patch(
                 "purchase.services.payment_service.create_purchase_distribution"
@@ -404,6 +413,7 @@ class PaymentServiceTest(TestCase):
             patch(
                 "purchase.services.payment_service.Distributor"
             ) as mock_distributor_class,
+            patch("purchase.services.payment_service.deduct_rsc_purchase_fees"),
         ):
 
             mock_distribution = MagicMock()
@@ -420,10 +430,11 @@ class PaymentServiceTest(TestCase):
             # Assert
             self.assertIsInstance(payment, Payment)
             self.assertIsNone(fundraise_contribution)
-            # Verify the locked RSC amount (150.0) was used instead of recalculating
+            # Verify the gross amount (150.0 + 2% fee = 153.0) was used
+            # This includes the fee for transparency before deduction
             mock_create_dist.assert_called_once()
             call_kwargs = mock_create_dist.call_args[1]
-            self.assertEqual(call_kwargs["amount"], float(Decimal("150.0")))
+            self.assertEqual(call_kwargs["amount"], float(Decimal("153.0")))
 
     @patch("stripe.PaymentIntent.create")
     def test_create_payment_intent_includes_fees_in_metadata(
@@ -501,6 +512,9 @@ class PaymentServiceTest(TestCase):
             patch(
                 "purchase.services.payment_service.Distributor"
             ) as mock_distributor_class,
+            patch(
+                "purchase.services.payment_service.deduct_rsc_purchase_fees"
+            ) as mock_deduct_fees,
         ):
 
             mock_distribution = MagicMock()
@@ -514,37 +528,46 @@ class PaymentServiceTest(TestCase):
                 self.service.process_payment_intent_confirmation("pi_balance_123")
             )
 
-            # Verify distributor was called correctly
+            # Verify distributor was called with gross amount (rsc_amount + fee)
             mock_create_dist.assert_called_once()
+            call_args = mock_create_dist.call_args
+            # The amount should be 102.0 (100 + 2% fee)
+            self.assertAlmostEqual(call_args[1]["amount"], 102.0, places=1)
             mock_distributor.distribute_locked_balance.assert_called_once_with(
                 lock_type=Balance.LockType.RSC_PURCHASE
             )
+
+            # Verify fee deduction was called
+            mock_deduct_fees.assert_called_once()
 
         # Assert
         self.assertIsInstance(payment, Payment)
         self.assertIsNone(fundraise_contribution)
 
-        # Verify no fee balance records created (fees are collected as USD, not deducted from RSC)
+        # Verify fee balance record was created (for transparency)
         balance_records = Balance.objects.filter(user=payment.user)
-        self.assertEqual(balance_records.count(), 0)
+        self.assertEqual(balance_records.count(), 1)
+        fee_record = balance_records.first()
+        self.assertTrue(fee_record.is_locked)
+        self.assertEqual(float(fee_record.amount), -2.0)  # 2% of 100 RSC
 
     @patch("stripe.PaymentIntent.retrieve")
-    def test_process_payment_intent_confirmation_no_fees(self, mock_stripe_retrieve):
-        # Arrange
+    def test_process_payment_intent_confirmation_with_fees(self, mock_stripe_retrieve):
+        # Arrange - Test that fees are properly calculated and deducted
         mock_payment_intent = MagicMock()
         mock_payment_intent.status = "succeeded"
-        mock_payment_intent.amount = 1000  # $10.00 no fees
+        mock_payment_intent.amount = 1000  # $10.00
         mock_payment_intent.currency = "usd"
-        mock_payment_intent.id = "pi_no_fees_123"
+        mock_payment_intent.id = "pi_fees_123"
         mock_payment_intent.metadata = {
             "user_id": str(self.user.id),
             "purpose": PaymentPurpose.RSC_PURCHASE,
             "locked_rsc_amount": "100.0",
-            "platform_fees_rsc": "0.00",
+            "platform_fees_rsc": "2.00",  # 2% of 100
         }
         mock_stripe_retrieve.return_value = mock_payment_intent
 
-        # Mock distributor
+        # Mock distributor but NOT fee functions to test real fee flow
         with (
             patch(
                 "purchase.services.payment_service.create_purchase_distribution"
@@ -552,6 +575,9 @@ class PaymentServiceTest(TestCase):
             patch(
                 "purchase.services.payment_service.Distributor"
             ) as mock_distributor_class,
+            patch(
+                "purchase.services.payment_service.deduct_rsc_purchase_fees"
+            ) as mock_deduct_fees,
         ):
 
             mock_distribution = MagicMock()
@@ -562,24 +588,33 @@ class PaymentServiceTest(TestCase):
 
             # Act
             payment, fundraise_contribution = (
-                self.service.process_payment_intent_confirmation("pi_no_fees_123")
+                self.service.process_payment_intent_confirmation("pi_fees_123")
             )
 
-            # Verify distributor was called correctly
+            # Verify distributor was called with gross amount (100 + 2% = 102)
             mock_create_dist.assert_called_once()
+            call_args = mock_create_dist.call_args
+            self.assertAlmostEqual(call_args[1]["amount"], 102.0, places=1)
             mock_distributor.distribute_locked_balance.assert_called_once_with(
                 lock_type=Balance.LockType.RSC_PURCHASE
             )
+
+            # Verify fee deduction was called with correct amounts
+            mock_deduct_fees.assert_called_once()
+            fee_call_args = mock_deduct_fees.call_args[0]
+            self.assertEqual(fee_call_args[0], payment.user)  # user
+            self.assertAlmostEqual(float(fee_call_args[1]), 2.0, places=1)  # total fee
 
         # Assert
         self.assertIsInstance(payment, Payment)
         self.assertIsNone(fundraise_contribution)
 
-        # Verify no fee balance record was created (RSC balance created by distributor)
+        # Verify fee balance record was created for transparency
         balance_records = Balance.objects.filter(user=payment.user)
-
-        # No balance records (no fees, RSC balance created by mocked distributor)
-        self.assertEqual(balance_records.count(), 0)
+        self.assertEqual(balance_records.count(), 1)
+        fee_record = balance_records.first()
+        self.assertTrue(fee_record.is_locked)
+        self.assertEqual(float(fee_record.amount), -2.0)  # 2% fee deducted
 
     @patch("stripe.PaymentIntent.retrieve")
     def test_process_payment_intent_confirmation_updates_user_balance(
