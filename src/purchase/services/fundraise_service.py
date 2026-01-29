@@ -7,8 +7,14 @@ from django.db import transaction
 
 from analytics.tasks import track_revenue_event
 from purchase.models import Balance, Fundraise, Purchase, UsdFundraiseContribution
-from purchase.related_models.constants import USD_FUNDRAISE_FEE_PERCENT
-from purchase.related_models.constants.currency import USD
+from purchase.related_models.constants import (
+    MAXIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC,
+    MAXIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_USD_CENTS,
+    MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC,
+    MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_USD_CENTS,
+    USD_FUNDRAISE_FEE_PERCENT,
+)
+from purchase.related_models.constants.currency import RSC, USD
 from reputation.distributions import create_bounty_refund_distribution
 from reputation.distributor import Distributor
 from reputation.models import BountyFee, Escrow
@@ -48,6 +54,72 @@ class FundraiseService:
             return False, "Cannot contribute to your own fundraise"
 
         return True, None
+
+    def create_contribution(
+        self,
+        user: User,
+        fundraise: Fundraise,
+        amount: Decimal,
+        currency: str = RSC,
+        check_self_contribution: bool = True,
+    ) -> Tuple[Optional[Purchase], Optional[str]]:
+        """
+        Validates and creates a contribution to a fundraise.
+        Handles both RSC and USD contributions with limit validation.
+
+        Args:
+            user: The user making the contribution
+            fundraise: The fundraise to contribute to
+            amount: The contribution amount (RSC as Decimal, USD in cents as int)
+            currency: The currency type (RSC or USD)
+            check_self_contribution: Whether to check if user is contributing to own fundraise
+
+        Returns:
+            Tuple of (contribution, error_message). If successful, error_message is None.
+            If failed, contribution is None and error_message contains the reason.
+        """
+        # Validate fundraise
+        is_valid, error = self.validate_fundraise_for_contribution(
+            fundraise, user, check_self_contribution
+        )
+        if not is_valid:
+            return None, error
+
+        if currency == USD:
+            # USD contributions use cents
+            try:
+                amount_cents = int(amount)
+            except (ValueError, TypeError):
+                return None, "Invalid amount"
+
+            # Check if amount is within limits
+            if (
+                amount_cents < MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_USD_CENTS
+                or amount_cents > MAXIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_USD_CENTS
+            ):
+                min_dollars = MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_USD_CENTS / 100
+                return None, f"Invalid amount. Minimum is ${min_dollars:.2f}"
+
+            return self.create_usd_contribution(user, fundraise, amount_cents)
+
+        else:
+            # RSC contributions
+            try:
+                amount = Decimal(amount)
+            except Exception:
+                return None, "Invalid amount"
+
+            # Check if amount is within limits
+            if (
+                amount < MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC
+                or amount > MAXIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC
+            ):
+                return None, (
+                    f"Invalid amount. Minimum is "
+                    f"{MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC}"
+                )
+
+            return self.create_rsc_contribution(user, fundraise, amount)
 
     def create_fundraise_with_escrow(
         self,

@@ -318,11 +318,6 @@ class PaymentService:
                 payment_intent.metadata.get("locked_rsc_amount", "0")
             )
 
-            # Get platform fees from metadata (for fundraise contribution calculation)
-            platform_fees_rsc = Decimal(
-                payment_intent.metadata.get("platform_fees_rsc", "0")
-            )
-
             # Process payment and credit balance in its own atomic transaction
             payment, rsc_amount = self._create_payment_and_credit_balance(
                 payment_intent=payment_intent,
@@ -341,8 +336,6 @@ class PaymentService:
                     fundraise_id_str=fundraise_id_str,
                     user_id=user_id,
                     rsc_amount=rsc_amount,
-                    platform_fees_rsc=platform_fees_rsc,
-                    payment_id=payment.id,
                     fundraise_service=FundraiseService(),
                 )
 
@@ -407,8 +400,6 @@ class PaymentService:
         fundraise_id_str: str,
         user_id: int,
         rsc_amount: Decimal,
-        platform_fees_rsc: Decimal,
-        payment_id: int,
         fundraise_service,
     ) -> Optional[Purchase]:
         """
@@ -418,59 +409,18 @@ class PaymentService:
         Returns:
             Purchase if contribution succeeded, None otherwise
         """
-        fundraise_id = int(fundraise_id_str)
         try:
-            fundraise = Fundraise.objects.get(id=fundraise_id)
+            fundraise = Fundraise.objects.get(id=int(fundraise_id_str))
             user = User.objects.get(id=user_id)
-
-            is_valid, error = fundraise_service.validate_fundraise_for_contribution(
-                fundraise, user, check_self_contribution=False
-            )
-            if not is_valid:
-                logger.warning(
-                    "Fundraise %s is no longer open for contributions (%s), "
-                    "skipping auto-contribution for payment %s",
-                    fundraise_id,
-                    error,
-                    payment_id,
-                )
-                return None
-
-            # Contribute the RSC amount minus platform fees
-            contribution_amount = rsc_amount - platform_fees_rsc
-            contribution, error = fundraise_service.create_rsc_contribution(
-                user=user,
-                fundraise=fundraise,
-                amount=contribution_amount,
-            )
-
-            if error:
-                logger.error(
-                    "Failed to auto-contribute to fundraise %s: %s",
-                    fundraise_id,
-                    error,
-                )
-                return None
-
-            logger.info(
-                "Auto-contributed %s RSC to fundraise %s from payment %s",
-                contribution_amount,
-                fundraise_id,
-                payment_id,
-            )
-            return contribution
-
-        except Fundraise.DoesNotExist:
-            logger.error(
-                "Fundraise %s not found for auto-contribution from payment %s",
-                fundraise_id,
-                payment_id,
-            )
+        except (Fundraise.DoesNotExist, User.DoesNotExist):
             return None
-        except Exception as e:
-            logger.error(
-                "Unexpected error during fundraise contribution for payment %s: %s",
-                payment_id,
-                e,
-            )
-            return None
+
+        contribution, error = fundraise_service.create_contribution(
+            user=user,
+            fundraise=fundraise,
+            amount=rsc_amount,
+            currency=RSC,
+            check_self_contribution=False,
+        )
+
+        return contribution if not error else None
