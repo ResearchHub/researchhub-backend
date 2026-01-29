@@ -6,8 +6,8 @@ from django.core import signing
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
+from purchase.endaoment import EndaomentService
 from purchase.endaoment.client import TokenResponse
-from purchase.endaoment.services import EndaomentService
 from purchase.related_models.endaoment_account_model import EndaomentAccount
 
 User = get_user_model()
