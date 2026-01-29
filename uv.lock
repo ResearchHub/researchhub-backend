@@ -157,6 +157,18 @@ wheels = [
 ]
 
 [[package]]
+name = "authlib"
+version = "1.6.6"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cryptography" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/bb/9b/b1661026ff24bc641b76b78c5222d614776b0c085bcfdac9bd15a1cb4b35/authlib-1.6.6.tar.gz", hash = "sha256:45770e8e056d0f283451d9996fbb59b70d45722b45d854d58f32878d0a40c38e", size = 164894, upload-time = "2025-12-12T08:01:41.464Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/54/51/321e821856452f7386c4e9df866f196720b1ad0c5ea1623ea7399969ae3b/authlib-1.6.6-py2.py3-none-any.whl", hash = "sha256:7d9e9bc535c13974313a87f53e8430eb6ea3d1cf6ae4f6efcd793f2e949143fd", size = 244005, upload-time = "2025-12-12T08:01:40.209Z" },
+]
+
+[[package]]
 name = "autobahn"
 version = "25.12.2"
 source = { registry = "https://pypi.org/simple" }
@@ -906,6 +918,19 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/14/8f/893fa9d99f2004eab193c0200e68a9756880a942c31dd81ed7374ac9bf9e/django-extensions-3.0.9.tar.gz", hash = "sha256:6809c89ca952f0e08d4e0766bc0101dfaf508d7649aced1180c091d737046ea7", size = 779297, upload-time = "2020-09-17T19:08:54.962Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b2/c1/d02025f594640723ce3bdb10e2329866a67574a8ebe80d53fd3e3c7762b6/django_extensions-3.0.9-py3-none-any.whl", hash = "sha256:dc663652ac9460fd06580a973576820430c6d428720e874ae46b041fa63e0efa", size = 221977, upload-time = "2020-09-17T19:08:52.937Z" },
+]
+
+[[package]]
+name = "django-fernet-encrypted-fields"
+version = "0.3.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cryptography" },
+    { name = "django" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/1a/aa/529af3888215b8a660fc3897d6d63eaf1de9aa0699c633ca0ec483d4361c/django_fernet_encrypted_fields-0.3.1.tar.gz", hash = "sha256:5ed328c7f9cc7f2d452bb2e125f3ea2bea3563a259fa943e5a1c626175889a71", size = 5265, upload-time = "2025-11-10T08:39:57.398Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/52/7f/4e0b7ed8413fa58e7a77017342e8ab0e977d41cfc376ab9180ae75f216ec/django_fernet_encrypted_fields-0.3.1-py3-none-any.whl", hash = "sha256:3bd2abab02556dc6e15a58a61161ee6c5cdf45a50a8a52d9e035009eb54c6442", size = 5484, upload-time = "2025-11-10T08:39:55.866Z" },
 ]
 
 [[package]]
@@ -2545,6 +2570,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "arxiv" },
     { name = "atproto" },
+    { name = "authlib" },
     { name = "beautifulsoup4" },
     { name = "boto3" },
     { name = "cdp-sdk" },
@@ -2563,6 +2589,7 @@ dependencies = [
     { name = "django-dbbackup" },
     { name = "django-debug-toolbar" },
     { name = "django-extensions" },
+    { name = "django-fernet-encrypted-fields" },
     { name = "django-filter" },
     { name = "django-health-check" },
     { name = "django-mjml" },
@@ -2610,6 +2637,7 @@ dev = [
 requires-dist = [
     { name = "arxiv", specifier = ">=1.4.8,<2.0.0" },
     { name = "atproto", specifier = ">=0.0.63" },
+    { name = "authlib", specifier = ">=1.3.0,<2.0.0" },
     { name = "beautifulsoup4", specifier = "==4.12.2" },
     { name = "boto3", specifier = "==1.34.69" },
     { name = "cdp-sdk", specifier = "==1.37.1" },
@@ -2628,6 +2656,7 @@ requires-dist = [
     { name = "django-dbbackup", specifier = "==4.0.2" },
     { name = "django-debug-toolbar", specifier = "==4.2" },
     { name = "django-extensions", specifier = "==3.0.9" },
+    { name = "django-fernet-encrypted-fields", specifier = ">=0.3.1" },
     { name = "django-filter", specifier = ">=24.3,<25.0" },
     { name = "django-health-check", specifier = ">=3.18.3,<4.0.0" },
     { name = "django-mjml", specifier = ">=1.3,<2.0" },

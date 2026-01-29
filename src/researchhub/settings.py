@@ -102,6 +102,7 @@ USE_DEBUG_TOOLBAR = os.environ.get("USE_DEBUG_TOOLBAR", "False") == "True"
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get("SECRET_KEY", keys.SECRET_KEY)
+SALT_KEY = os.environ.get("SALT_KEY", keys.SALT_KEY)
 
 # python manage.py check --deploy
 SECURE_CONTENT_TYPE_NOSNIFF = True
