@@ -17,6 +17,7 @@ from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.rsc_purchase_fee import RscPurchaseFee
 from purchase.services.payment_service import APC_AMOUNT_CENTS, PaymentService
 from reputation.related_models.distribution import Distribution
+from user.models import User
 from user.tests.helpers import create_user
 
 
@@ -24,8 +25,6 @@ class PaymentServiceTest(TestCase):
     def setUp(self):
         cache.clear()
         self.service = PaymentService()
-        # Create revenue accounts needed for fee deductions
-        from user.models import User
 
         self.revenue_account = User.objects.create(
             email="revenue@researchhub.com", username="revenue_account"
