@@ -423,12 +423,15 @@ class PaymentService:
             fundraise = Fundraise.objects.get(id=fundraise_id)
             user = User.objects.get(id=user_id)
 
-            # Only contribute if fundraise is still open
-            if fundraise.status != Fundraise.OPEN or fundraise.is_expired():
+            is_valid, error = fundraise_service.validate_fundraise_for_contribution(
+                fundraise, user, check_self_contribution=False
+            )
+            if not is_valid:
                 logger.warning(
-                    "Fundraise %s is no longer open for contributions, "
+                    "Fundraise %s is no longer open for contributions (%s), "
                     "skipping auto-contribution for payment %s",
                     fundraise_id,
+                    error,
                     payment_id,
                 )
                 return None

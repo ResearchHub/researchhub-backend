@@ -22,18 +22,19 @@ class PaymentIntentViewTest(APITestCase):
     def setUp(self):
         self.url = reverse("payment_intent_view")
         self.user = create_user()
-        # Set up a fundraise for testing
+        self.fundraise_creator = create_user(email="creator@example.com")
+        # Set up a fundraise for testing (created by a different user)
         self.unified_document = ResearchhubUnifiedDocument.objects.create(
             document_type="PREREGISTRATION",
         )
         self.fundraise = Fundraise.objects.create(
-            created_by=self.user,
+            created_by=self.fundraise_creator,
             unified_document=self.unified_document,
             goal_amount=1000,
             status=Fundraise.OPEN,
         )
         self.escrow = Escrow.objects.create(
-            created_by=self.user,
+            created_by=self.fundraise_creator,
             hold_type=Escrow.FUNDRAISE,
             content_type=ContentType.objects.get_for_model(Fundraise),
             object_id=self.fundraise.id,

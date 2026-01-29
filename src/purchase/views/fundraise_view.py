@@ -138,16 +138,11 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         except Fundraise.DoesNotExist:
             return None, Response({"message": "Fundraise does not exist"}, status=400)
 
-        if fundraise.status != Fundraise.OPEN:
-            return None, Response({"message": "Fundraise is not open"}, status=400)
-
-        if fundraise.is_expired():
-            return None, Response({"message": "Fundraise is expired"}, status=400)
-
-        if fundraise.created_by.id == user.id:
-            return None, Response(
-                {"message": "Cannot contribute to your own fundraise"}, status=400
-            )
+        is_valid, error = self.fundraise_service.validate_fundraise_for_contribution(
+            fundraise, user
+        )
+        if not is_valid:
+            return None, Response({"message": error}, status=400)
 
         return fundraise, None
 

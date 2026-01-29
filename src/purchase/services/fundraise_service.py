@@ -24,6 +24,31 @@ class FundraiseService:
     Service for managing fundraise-related operations.
     """
 
+    def validate_fundraise_for_contribution(
+        self, fundraise: Fundraise, user: User, check_self_contribution: bool = True
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Validates that a fundraise is valid for contributions.
+
+        Args:
+            fundraise: The fundraise to validate
+            user: The user attempting to contribute
+            check_self_contribution: Whether to check if user is contributing to own fundraise
+
+        Returns:
+            Tuple of (is_valid, error_message). If valid, error_message is None.
+        """
+        if fundraise.status != Fundraise.OPEN:
+            return False, "Fundraise is not open"
+
+        if fundraise.is_expired():
+            return False, "Fundraise is expired"
+
+        if check_self_contribution and fundraise.created_by.id == user.id:
+            return False, "Cannot contribute to your own fundraise"
+
+        return True, None
+
     def create_fundraise_with_escrow(
         self,
         user: User,
