@@ -23,7 +23,7 @@ class TestEndaomentConnectView(TestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
         self.service_mock = Mock()
-        self.user = User.objects.create_user(username="user1", password="password1")
+        self.user = User.objects.create_user(username="user1")
 
     def test_post_returns_auth_url(self):
         """
@@ -158,7 +158,7 @@ class TestEndaomentStatusView(TestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
         self.mock_service = Mock()
-        self.user = User.objects.create_user(username="user1", password="password1")
+        self.user = User.objects.create_user(username="user1")
 
     def test_connected_user(self):
         """
