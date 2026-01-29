@@ -37,7 +37,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
     def get_serializer_context(self):
         context = super().get_serializer_context()
         context.update(self.get_common_serializer_context())
-        return context 
+        return context
 
     def list(self, request, *args, **kwargs):
         page = request.query_params.get("page", "1")
