@@ -31,11 +31,13 @@ class PaymentIntentView(APIView):
 
         data = serializer.validated_data
         rsc_amount = data.get("amount")
+        fundraise_id = data.get("fundraise_id")
 
         try:
             payment_intent_data = self.payment_service.create_payment_intent(
                 user_id=user_id,
                 rsc_amount=rsc_amount,
+                fundraise_id=fundraise_id,
             )
 
             return Response(payment_intent_data, status=status.HTTP_200_OK)
