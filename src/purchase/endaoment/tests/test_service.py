@@ -30,11 +30,7 @@ class TestEndaomentService(TestCase):
     def setUp(self):
         self.mock_client = Mock()
         self.service = EndaomentService(client=self.mock_client)
-        self.user = User.objects.create_user(
-            username="testuser",
-            email="test@example.com",
-            password="testpass123",
-        )
+        self.user = User.objects.create_user(username="testUser1")
 
     def tearDown(self):
         EndaomentAccount.objects.all().delete()
