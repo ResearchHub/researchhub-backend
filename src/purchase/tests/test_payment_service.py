@@ -696,7 +696,7 @@ class PaymentServiceTest(TestCase):
         # Mock exchange rate (100 RSC = $5.00)
         with patch.object(RscExchangeRate, "rsc_to_usd", return_value=5.0):
             # Act
-            result = self.service.create_payment_intent(
+            self.service.create_payment_intent(
                 user_id=self.user.id,
                 rsc_amount=Decimal("100"),
                 fundraise_id=None,
