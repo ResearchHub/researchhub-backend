@@ -49,7 +49,7 @@ class TestFundingDashboardViewSet(APITestCase):
         response = self.client.get(self.grant_overview_url)
 
         # Assert
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_grant_overview_returns_200(self):
         # Arrange

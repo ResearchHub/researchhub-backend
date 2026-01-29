@@ -26,7 +26,7 @@ class FundingDashboardViewSet(ViewSet):
         """Return dashboard metrics for a specific grant."""
         grant_id = request.query_params.get("grant_id")
         if not grant_id:
-            return Response({"error": "Grant not found"}, status=404)
+            return Response({"error": "grant_id is required"}, status=400)
         service = DashboardService(request.user)
         serializer = GrantOverviewSerializer(service.get_grant_overview(int(grant_id)))
         return Response(serializer.data)
