@@ -6,7 +6,7 @@ from rest_framework import status
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from purchase.endaoment.service import CallbackResult, ConnectionStatus
-from purchase.views.endaoment_views import (
+from purchase.views import (
     EndaomentCallbackView,
     EndaomentConnectView,
     EndaomentStatusView,

@@ -1,7 +1,7 @@
 from .balance_view import BalanceViewSet
 from .checkout_view import CheckoutView
 from .coinbase_view import CoinbaseViewSet
-from .endaoment_views import (
+from .endaoment_auth_views import (
     EndaomentCallbackView,
     EndaomentConnectView,
     EndaomentStatusView,
