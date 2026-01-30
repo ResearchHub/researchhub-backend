@@ -27,6 +27,10 @@ class FundraiseViewTests(APITestCase):
         # Initialize the view with the service
         self.view = FundraiseViewSet(fundraise_service=self.fundraise_service)
 
+        # URLs for overview endpoints
+        self.overview_url = "/api/fundraise/overview/"
+        self.grant_overview_url = "/api/fundraise/grant_overview/"
+
         self.rsc_exchange_rate = RscExchangeRate.objects.create(
             rate=0.5,
             real_rate=0.5,
@@ -950,3 +954,57 @@ class FundraiseViewTests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("must be RSC or USD", response.data["message"])
+
+    # Overview endpoint tests
+
+    def test_overview_requires_authentication(self):
+        # Arrange
+        self.client.logout()
+
+        # Act
+        response = self.client.get(self.overview_url)
+
+        # Assert
+        self.assertEqual(response.status_code, 401)
+
+    def test_overview_returns_200(self):
+        # Arrange
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self.client.get(self.overview_url)
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(response.data, dict)
+
+    def test_grant_overview_requires_authentication(self):
+        # Arrange
+        self.client.logout()
+
+        # Act
+        response = self.client.get(self.grant_overview_url, {"grant_id": 1})
+
+        # Assert
+        self.assertEqual(response.status_code, 401)
+
+    def test_grant_overview_requires_grant_id(self):
+        # Arrange
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self.client.get(self.grant_overview_url)
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+
+    def test_grant_overview_returns_200(self):
+        # Arrange
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self.client.get(self.grant_overview_url, {"grant_id": 1})
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(response.data, dict)
