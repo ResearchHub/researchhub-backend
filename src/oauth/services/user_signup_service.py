@@ -75,7 +75,7 @@ class UserSignupService:
         if not picture_url:
             return
 
-        author_profile = user.author_profile
+        author_profile = getattr(user, "author_profile", None)
         if author_profile and not author_profile.profile_image:
             author_profile.profile_image = picture_url
             author_profile.save(update_fields=["profile_image"])
