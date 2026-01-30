@@ -22,16 +22,13 @@ from user.models import User
 class FundraiseService:
     """Service for managing fundraise-related operations."""
 
-    def get_overview(self, user: User) -> dict:
+    def get_funder_overview(self, user: User) -> dict:
         """Return funder overview metrics for a given user."""
         return {}
 
     def get_grant_overview(self, user: User, grant_id: int) -> dict:
         """Return metrics for a specific grant."""
         return {}
-    """
-    Service for managing fundraise-related operations.
-    """
 
     def create_fundraise_with_escrow(
         self,

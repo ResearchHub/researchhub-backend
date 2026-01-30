@@ -28,7 +28,7 @@ class FundraiseViewTests(APITestCase):
         self.view = FundraiseViewSet(fundraise_service=self.fundraise_service)
 
         # URLs for overview endpoints
-        self.overview_url = "/api/fundraise/overview/"
+        self.funder_overview_url = "/api/fundraise/funder_overview/"
         self.grant_overview_url = "/api/fundraise/grant_overview/"
 
         self.rsc_exchange_rate = RscExchangeRate.objects.create(
@@ -955,24 +955,24 @@ class FundraiseViewTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("must be RSC or USD", response.data["message"])
 
-    # Overview endpoint tests
+    # Funder overview endpoint tests
 
-    def test_overview_requires_authentication(self):
+    def test_funder_overview_requires_authentication(self):
         # Arrange
         self.client.logout()
 
         # Act
-        response = self.client.get(self.overview_url)
+        response = self.client.get(self.funder_overview_url)
 
         # Assert
         self.assertEqual(response.status_code, 401)
 
-    def test_overview_returns_200(self):
+    def test_funder_overview_returns_200(self):
         # Arrange
         self.client.force_authenticate(self.user)
 
         # Act
-        response = self.client.get(self.overview_url)
+        response = self.client.get(self.funder_overview_url)
 
         # Assert
         self.assertEqual(response.status_code, 200)
