@@ -17,10 +17,8 @@ from purchase.related_models.constants import (
 )
 from purchase.related_models.constants.currency import RSC, USD
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
-from purchase.serializers.fundraise_overview_serializer import (
-    FundraiseOverviewSerializer,
-    GrantOverviewSerializer,
-)
+from purchase.serializers.fundraise_overview_serializer import FundraiseOverviewSerializer
+from purchase.serializers.grant_overview_serializer import GrantOverviewSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.purchase_serializer import DynamicPurchaseSerializer
 from purchase.services.fundraise_service import FundraiseService

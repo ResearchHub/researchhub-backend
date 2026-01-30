@@ -6,9 +6,3 @@ class FundraiseOverviewSerializer(serializers.Serializer):
 
     pass
 
-
-class GrantOverviewSerializer(serializers.Serializer):
-    """Serializer for grant-specific overview response."""
-
-    pass
-
