@@ -37,7 +37,7 @@ class TestFundraiseService(APITestCase):
 
     def test_get_grant_overview_returns_dict(self):
         # Act
-        result = self.service.get_grant_overview(self.user, grant_id=1)
+        result = self.service.get_grant_overview(self.user, 1)
 
         # Assert
         self.assertIsInstance(result, dict)
