@@ -383,9 +383,9 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             )
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
-    def overview(self, request, *args, **kwargs):
+    def funder_overview(self, request, *args, **kwargs):
         """Return funder overview metrics for the authenticated user."""
-        data = self.fundraise_service.get_overview(request.user)
+        data = self.fundraise_service.get_funder_overview(request.user)
         serializer = FundraiseOverviewSerializer(data)
         return Response(serializer.data)
 

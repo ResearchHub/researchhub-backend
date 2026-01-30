@@ -28,9 +28,9 @@ class TestFundraiseService(APITestCase):
         self.unified_document = Mock(spec=ResearchhubUnifiedDocument)
         self.unified_document.document_type = PREREGISTRATION
 
-    def test_get_overview_returns_dict(self):
+    def test_get_funder_overview_returns_dict(self):
         # Act
-        result = self.service.get_overview(self.user)
+        result = self.service.get_funder_overview(self.user)
 
         # Assert
         self.assertIsInstance(result, dict)
