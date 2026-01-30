@@ -1,11 +1,8 @@
-from functools import lru_cache
-
 from django.contrib.contenttypes.models import ContentType
 
 from purchase.models import Fundraise, Purchase, UsdFundraiseContribution
 
 
-@lru_cache(maxsize=1)
 def get_fundraise_content_type() -> ContentType:
     return ContentType.objects.get_for_model(Fundraise)
 
