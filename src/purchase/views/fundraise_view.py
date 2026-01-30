@@ -11,6 +11,8 @@ from analytics.amplitude import track_event
 from purchase.models import Fundraise
 from purchase.related_models.constants.currency import RSC, USD
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
+from purchase.serializers.fundraise_overview_serializer import FundraiseOverviewSerializer
+from purchase.serializers.grant_overview_serializer import GrantOverviewSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.purchase_serializer import DynamicPurchaseSerializer
 from purchase.services.fundraise_service import FundraiseService
@@ -289,3 +291,20 @@ class FundraiseViewSet(viewsets.ModelViewSet):
                 },
                 status=400,
             )
+
+    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
+    def funder_overview(self, request, *args, **kwargs):
+        """Return funder overview metrics for the authenticated user."""
+        data = self.fundraise_service.get_funder_overview(request.user)
+        serializer = FundraiseOverviewSerializer(data)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
+    def grant_overview(self, request, *args, **kwargs):
+        """Return metrics for a specific grant."""
+        grant_id = request.query_params.get("grant_id")
+        if not grant_id:
+            return Response({"error": "grant_id is required"}, status=400)
+        data = self.fundraise_service.get_grant_overview(request.user, int(grant_id))
+        serializer = GrantOverviewSerializer(data)
+        return Response(serializer.data)
