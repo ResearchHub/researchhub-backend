@@ -22,11 +22,11 @@ from user.models import User
 class FundraiseService:
     """Service for managing fundraise-related operations."""
 
-    def get_funder_overview(self, user: User) -> dict:
+    def get_funder_overview(self, _user: User) -> dict:
         """Return funder overview metrics for a given user."""
         return {}
 
-    def get_grant_overview(self, user: User, grant_id: int) -> dict:
+    def get_grant_overview(self, _user: User, _grant_id: int) -> dict:
         """Return metrics for a specific grant."""
         return {}
 
