@@ -17,7 +17,7 @@ from feed.filters import FundOrderingFilter
 from feed.models import FeedEntry
 from feed.serializers import FundingFeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
-from funding_dashboard.utils import get_funded_fundraise_ids
+from purchase.utils import get_funded_fundraise_ids
 from purchase.related_models.fundraise_model import Fundraise
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost

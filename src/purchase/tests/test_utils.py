@@ -1,9 +1,9 @@
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
-from funding_dashboard.utils import get_funded_fundraise_ids, get_fundraise_content_type
 from purchase.models import Fundraise, Purchase
 from purchase.related_models.usd_fundraise_contribution_model import UsdFundraiseContribution
+from purchase.utils import get_funded_fundraise_ids, get_fundraise_content_type
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -84,3 +84,4 @@ class TestGetFundedFundraiseIds(TestCase):
 
         # Assert
         self.assertEqual(result, [])
+
