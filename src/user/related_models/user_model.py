@@ -100,6 +100,8 @@ class User(AbstractUser):
     # Bounties are separated into two categories: official and community.
     is_official_account = models.BooleanField(default=False)
 
+    stripe_customer_id = models.TextField(null=True, blank=True, unique=True)
+
     objects = UserManager()
 
     def full_name(self):
