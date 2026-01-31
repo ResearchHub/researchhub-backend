@@ -1,7 +1,12 @@
 from .related_models.action_model import Action
 from .related_models.author_model import Author
 from .related_models.follow_model import Follow
+from .related_models.funding_activity_model import (
+    FundingActivity,
+    FundingActivityRecipient,
+)
 from .related_models.gatekeeper_model import Gatekeeper
+from .related_models.leaderboard_model import Leaderboard
 from .related_models.organization_model import Organization
 from .related_models.profile_image_storage import ProfileImageStorage
 from .related_models.school_model import Major, University
@@ -14,12 +19,15 @@ migratables = (
     Action,
     Author,
     Follow,
+    FundingActivity,
+    FundingActivityRecipient,
+    Gatekeeper,
+    Leaderboard,
     Major,
     ProfileImageStorage,
     University,
     User,
     Organization,
-    Gatekeeper,
     UserApiToken,
     UserVerification,
     Verdict,
