@@ -30,6 +30,41 @@ class FundraiseService:
     Service for managing fundraise-related operations.
     """
 
+    def _calculate_locked_balance_consumption(
+        self, user: User, amount: Decimal
+    ) -> list[tuple[Decimal, str]]:
+        """
+        Calculate how much locked balance to consume from each lock type.
+
+        Consumes in order:
+        1. REFERRAL_BONUS (designed specifically for fundraise contributions)
+        2. RSC_PURCHASE
+
+        Args:
+            user: The user whose locked balance to consume
+            amount: Total amount to consume from locked balance
+
+        Returns:
+            List of tuples (amount_to_consume, lock_type) for each lock type used
+        """
+        consumption = []
+        remaining = amount
+
+        # Order of consumption: REFERRAL_BONUS first, then RSC_PURCHASE
+        lock_types = [Balance.LockType.REFERRAL_BONUS, Balance.LockType.RSC_PURCHASE]
+
+        for lock_type in lock_types:
+            if remaining <= 0:
+                break
+
+            available = user.get_locked_balance(lock_type=lock_type)
+            if available > 0:
+                consume = min(available, remaining)
+                consumption.append((consume, lock_type))
+                remaining -= consume
+
+        return consumption
+
     def validate_fundraise_for_contribution(
         self, fundraise: Fundraise, user: User, check_self_contribution: bool = True
     ) -> Tuple[bool, Optional[str]]:
@@ -193,46 +228,63 @@ class FundraiseService:
             # Deduct fees
             deduct_bounty_fees(user, fee, rh_fee, dao_fee, fee_object)
 
-            # Get user's available locked balance
-            available_locked_balance = user.get_locked_balance()
+            # Calculate how much to consume from each lock type
+            # Total amount needed from locked balance (contribution + fee)
+            total_needed = amount + fee
+            locked_consumption = self._calculate_locked_balance_consumption(
+                user, total_needed
+            )
 
-            # Determine how to split the contribution amount
-            locked_amount_used = min(available_locked_balance, amount)
-            regular_amount_used = amount - locked_amount_used
+            # Track how much locked balance is used for amount vs fees
+            total_locked_used = sum(amt for amt, _ in locked_consumption)
+            locked_for_amount = min(total_locked_used, amount)
+            locked_for_fee = total_locked_used - locked_for_amount
 
-            # Determine how to split the fees using remaining locked balance
-            remaining_locked_balance = available_locked_balance - locked_amount_used
-            locked_fee_used = min(remaining_locked_balance, fee)
-            regular_fee_used = fee - locked_fee_used
+            # Calculate regular (unlocked) amounts needed
+            regular_amount_used = amount - locked_for_amount
+            regular_fee_used = fee - locked_for_fee
 
-            # Create balance records for the contribution amount
-            if locked_amount_used > 0:
-                Balance.objects.create(
-                    user=user,
-                    content_type=ContentType.objects.get_for_model(Purchase),
-                    object_id=purchase.id,
-                    amount=f"-{locked_amount_used.to_eng_string()}",
-                    is_locked=True,
-                    lock_type=Balance.LockType.REFERRAL_BONUS,
-                )
+            # Create balance records for each lock type consumed
+            remaining_for_amount = locked_for_amount
+            remaining_for_fee = locked_for_fee
 
+            for consumed_amount, lock_type in locked_consumption:
+                # First, allocate to the contribution amount
+                if remaining_for_amount > 0:
+                    amount_from_this_type = min(consumed_amount, remaining_for_amount)
+                    if amount_from_this_type > 0:
+                        Balance.objects.create(
+                            user=user,
+                            content_type=ContentType.objects.get_for_model(Purchase),
+                            object_id=purchase.id,
+                            amount=f"-{amount_from_this_type.to_eng_string()}",
+                            is_locked=True,
+                            lock_type=lock_type,
+                        )
+                        remaining_for_amount -= amount_from_this_type
+                        consumed_amount -= amount_from_this_type
+
+                # Then, allocate remainder to fees
+                if consumed_amount > 0 and remaining_for_fee > 0:
+                    fee_from_this_type = min(consumed_amount, remaining_for_fee)
+                    if fee_from_this_type > 0:
+                        Balance.objects.create(
+                            user=user,
+                            content_type=ContentType.objects.get_for_model(BountyFee),
+                            object_id=fee_object.id,
+                            amount=f"-{fee_from_this_type.to_eng_string()}",
+                            is_locked=True,
+                            lock_type=lock_type,
+                        )
+                        remaining_for_fee -= fee_from_this_type
+
+            # Create balance records for regular (unlocked) amounts
             if regular_amount_used > 0:
                 Balance.objects.create(
                     user=user,
                     content_type=ContentType.objects.get_for_model(Purchase),
                     object_id=purchase.id,
                     amount=f"-{regular_amount_used.to_eng_string()}",
-                )
-
-            # Create balance records for the fees
-            if locked_fee_used > 0:
-                Balance.objects.create(
-                    user=user,
-                    content_type=ContentType.objects.get_for_model(BountyFee),
-                    object_id=fee_object.id,
-                    amount=f"-{locked_fee_used.to_eng_string()}",
-                    is_locked=True,
-                    lock_type=Balance.LockType.REFERRAL_BONUS,
                 )
 
             if regular_fee_used > 0:

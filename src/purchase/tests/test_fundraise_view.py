@@ -695,6 +695,99 @@ class FundraiseViewTests(APITestCase):
         self.assertIsNotNone(regular_fee_balance)
         self.assertEqual(float(regular_fee_balance.amount), -9.0)
 
+    def test_create_contribution_with_mixed_lock_types(self):
+        """
+        Test that locked balance is consumed in order: REFERRAL_BONUS first,
+        then RSC_PURCHASE, and each deduction uses the correct lock_type.
+        """
+        # Arrange
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+
+        user = create_random_authenticated_user("fundraise_views")
+
+        # Give user REFERRAL_BONUS locked balance (consumed first)
+        Balance.objects.create(
+            amount=40,
+            user=user,
+            content_type=ContentType.objects.get(model="distribution"),
+            is_locked=True,
+            lock_type=Balance.LockType.REFERRAL_BONUS,
+        )
+
+        # Give user RSC_PURCHASE locked balance (consumed second)
+        Balance.objects.create(
+            amount=50,
+            user=user,
+            content_type=ContentType.objects.get(model="distribution"),
+            is_locked=True,
+            lock_type=Balance.LockType.RSC_PURCHASE,
+        )
+
+        # Give user regular balance to cover remaining fees
+        Balance.objects.create(
+            amount=30,
+            user=user,
+            content_type=ContentType.objects.get(model="distribution"),
+            is_locked=False,
+        )
+
+        # Total: 120 RSC (40 REFERRAL_BONUS + 50 RSC_PURCHASE + 30 regular)
+        # Need: 109 RSC (100 contribution + 9 fees)
+        # Expected consumption:
+        #   - 40 from REFERRAL_BONUS (all of it)
+        #   - 50 from RSC_PURCHASE (all of it) -> 90 total locked
+        #   - 19 from regular (10 for amount, 9 for fees)
+
+        # Act
+        response = self._create_contribution(fundraise_id, user, amount=100)
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+
+        purchase_content_type = ContentType.objects.get_for_model(Purchase)
+        fee_content_type = ContentType.objects.get_for_model(BountyFee)
+
+        # Should have 3 amount balance records:
+        # - 40 from REFERRAL_BONUS
+        # - 50 from RSC_PURCHASE
+        # - 10 from regular
+        amount_balances = Balance.objects.filter(
+            user=user, content_type=purchase_content_type
+        )
+        self.assertEqual(amount_balances.count(), 3)
+
+        # Check REFERRAL_BONUS amount balance
+        referral_amount = amount_balances.filter(
+            is_locked=True, lock_type=Balance.LockType.REFERRAL_BONUS
+        ).first()
+        self.assertIsNotNone(referral_amount)
+        self.assertEqual(float(referral_amount.amount), -40.0)
+
+        # Check RSC_PURCHASE amount balance
+        rsc_purchase_amount = amount_balances.filter(
+            is_locked=True, lock_type=Balance.LockType.RSC_PURCHASE
+        ).first()
+        self.assertIsNotNone(rsc_purchase_amount)
+        self.assertEqual(float(rsc_purchase_amount.amount), -50.0)
+
+        # Check regular amount balance
+        regular_amount = amount_balances.filter(is_locked=False).first()
+        self.assertIsNotNone(regular_amount)
+        self.assertEqual(float(regular_amount.amount), -10.0)
+
+        # Should have 1 fee balance record: 9 from regular (no locked left)
+        fee_balances = Balance.objects.filter(user=user, content_type=fee_content_type)
+        self.assertEqual(fee_balances.count(), 1)
+
+        regular_fee = fee_balances.filter(is_locked=False).first()
+        self.assertIsNotNone(regular_fee)
+        self.assertEqual(float(regular_fee.amount), -9.0)
+
+        # Verify final balances match expected
+        self.assertEqual(float(user.get_locked_balance()), 0.0)
+        self.assertEqual(float(user.get_balance()), 11.0)  # 30 - 10 - 9 = 11
+
     def test_complete_fundraise(self):
         """Test that a fundraise can be completed via the API by a moderator"""
         # Create a fundraise
