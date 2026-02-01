@@ -1,13 +1,17 @@
 from decimal import Decimal
 from unittest.mock import patch
 
+from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.test import TestCase
 
+from paper.tests.helpers import create_paper
 from purchase.models import Purchase
 from purchase.related_models.fundraise_model import Fundraise
 from reputation.models import Distribution
 from reputation.related_models.escrow import Escrow, EscrowRecipients
+from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
+from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from user.related_models.funding_activity_model import FundingActivity
 from user.tests.helpers import create_user
 
@@ -153,13 +157,39 @@ class FundingActivitySignalsTests(TestCase):
     def test_distribution_created_purchase_schedules_task(
         self, mock_transaction, mock_task
     ):
-        """When Distribution is created with PURCHASE, task is scheduled with TIP_REVIEW."""
+        """When Distribution is created with PURCHASE (proof = Purchase on review comment), task is scheduled with TIP_REVIEW."""
         mock_transaction.on_commit = lambda func: func()
+        paper = create_paper(title="Review paper", uploaded_by=self.recipient)
+        thread = RhCommentThreadModel.objects.create(
+            content_object=paper,
+            created_by=self.recipient,
+            updated_by=self.recipient,
+        )
+        comment = RhCommentModel.objects.create(
+            thread=thread,
+            created_by=self.recipient,
+            updated_by=self.recipient,
+            comment_type=PEER_REVIEW,
+            comment_content_json={"ops": [{"insert": "Review comment"}]},
+        )
+        ct_comment = ContentType.objects.get_for_model(RhCommentModel)
+        proof_purchase = Purchase.objects.create(
+            user=self.funder,
+            content_type=ct_comment,
+            object_id=comment.id,
+            purchase_type=Purchase.BOOST,
+            paid_status=Purchase.PAID,
+            amount=Decimal("20"),
+            purchase_method=Purchase.OFF_CHAIN,
+        )
+        ct_purchase = ContentType.objects.get_for_model(Purchase)
         dist = Distribution.objects.create(
             giver=self.funder,
             recipient=self.recipient,
             amount=Decimal("20"),
             distribution_type="PURCHASE",
+            proof_item_content_type=ct_purchase,
+            proof_item_object_id=proof_purchase.id,
         )
         mock_task.delay.assert_called_once_with(
             FundingActivity.TIP_REVIEW,
