@@ -3,6 +3,7 @@ from typing import Optional
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.db.models import Q
 
 from purchase.models import Purchase
 from purchase.related_models.fundraise_model import Fundraise
@@ -13,10 +14,30 @@ from researchhub_comment.constants.rh_comment_thread_types import (
     PEER_REVIEW,
 )
 from researchhub_comment.models import RhCommentModel
+from user.management.commands.setup_bank_user import BANK_EMAIL
+from user.models import User
 from user.related_models.funding_activity_model import (
     FundingActivity,
     FundingActivityRecipient,
 )
+from user.related_models.user_model import FOUNDATION_EMAIL
+
+
+def get_leaderboard_excluded_user_ids():
+    """
+    User IDs that must not appear in leaderboard results (when building
+    the Leaderboard table or when querying by date range). Their
+    FundingActivity is still stored; they are only excluded from
+    leaderboard display. Used by leaderboard task and views.
+    """
+    return list(
+        User.objects.filter(
+            Q(is_active=False)
+            | Q(is_suspended=True)
+            | Q(probable_spammer=True)
+            | Q(email__in=[BANK_EMAIL, FOUNDATION_EMAIL])
+        ).values_list("id", flat=True)
+    )
 
 
 class FundingActivityService:

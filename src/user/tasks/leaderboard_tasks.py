@@ -6,14 +6,12 @@ from django.db.models import Sum
 from django.utils import timezone
 
 from researchhub.celery import QUEUE_CACHES, app
-from user.management.commands.setup_bank_user import BANK_EMAIL
-from user.models import User
 from user.related_models.funding_activity_model import (
     FundingActivity,
     FundingActivityRecipient,
 )
 from user.related_models.leaderboard_model import Leaderboard
-from user.related_models.user_model import FOUNDATION_EMAIL
+from user.services.funding_activity_service import get_leaderboard_excluded_user_ids
 
 logger = logging.getLogger(__name__)
 
@@ -39,14 +37,6 @@ def _get_period_date_range(period):
         raise ValueError(f"Unknown period: {period}")
 
 
-def _get_excluded_user_ids():
-    """Get user IDs to exclude from leaderboards."""
-    excluded_emails = [BANK_EMAIL, FOUNDATION_EMAIL]
-    return list(
-        User.objects.filter(email__in=excluded_emails).values_list("id", flat=True)
-    )
-
-
 @app.task(queue=QUEUE_CACHES, max_retries=3, retry_backoff=True)
 def refresh_leaderboard_task():
     """
@@ -54,7 +44,7 @@ def refresh_leaderboard_task():
     Aggregates FundingActivity and FundingActivityRecipient data,
     calculates ranks, and writes to Leaderboard table.
     """
-    excluded_user_ids = _get_excluded_user_ids()
+    excluded_user_ids = get_leaderboard_excluded_user_ids()
     periods = [
         Leaderboard.SEVEN_DAYS,
         Leaderboard.THIRTY_DAYS,
