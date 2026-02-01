@@ -44,6 +44,11 @@ class DynamicPermissionSerializer(DynamicModelFieldSerializer):
         if not user:
             return None
 
+        # Prevent circular serialization: if no context fields are specified,
+        # exclude editor_of to avoid User -> Permission -> User -> Permission loop
+        if not _context_fields:
+            _context_fields = {"_exclude_fields": ["editor_of"]}
+
         serializer = DynamicUserSerializer(user, context=context, **_context_fields)
         return serializer.data
 
