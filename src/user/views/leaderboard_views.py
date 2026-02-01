@@ -126,6 +126,69 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
                 status=400,
             )
 
+    def _validate_and_parse_date_range(self, start_date, end_date):
+        """
+        Validate date-range params and parse to datetimes.
+        Returns (error_response, start_dt, end_dt). If invalid, error_response is set.
+        """
+        if not (start_date and end_date):
+            return (
+                Response(
+                    {
+                        "error": "start_date and end_date are required when "
+                        "period is not provided."
+                    },
+                    status=400,
+                ),
+                None,
+                None,
+            )
+        is_valid, error_response = self._validate_date_range(start_date, end_date)
+        if not is_valid:
+            return error_response, None, None
+        start_dt = timezone.make_aware(
+            datetime.strptime(start_date, "%Y-%m-%d").replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+        )
+        end_dt = timezone.make_aware(
+            datetime.strptime(end_date, "%Y-%m-%d").replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+        ) + timedelta(days=1)
+        return None, start_dt, end_dt
+
+    def _paginated_aggregated_response(
+        self, aggregated_queryset, user_id_key, amount_label
+    ):
+        """
+        Build paginated response from aggregated queryset (rows with user_id_key and total).
+        amount_label is the key in each output item (e.g. "earned_rsc", "total_funding").
+        """
+        page = self.paginate_queryset(aggregated_queryset)
+        if page is None:
+            return Response([])
+        user_ids = [row[user_id_key] for row in page]
+        users_by_id = {
+            u.id: u
+            for u in User.objects.filter(id__in=user_ids).select_related(
+                "author_profile"
+            )
+        }
+        totals_by_user = {row[user_id_key]: row["total"] for row in page}
+        data = []
+        for uid in user_ids:
+            user = users_by_id.get(uid)
+            if not user:
+                continue
+            data.append(
+                {
+                    **self.serialize_user(user),
+                    amount_label: totals_by_user[uid],
+                }
+            )
+        return self.get_paginated_response(data)
+
     @method_decorator(cache_page(60 * 60 * 6))
     @action(detail=False, methods=[RequestMethods.GET])
     def overview(self, request):
@@ -199,29 +262,13 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
                 ]
                 return self.get_paginated_response(data)
 
-        if not (start_date and end_date):
-            return Response(
-                {
-                    "error": "start_date and end_date are required when period is not provided."
-                },
-                status=400,
-            )
-        is_valid, error_response = self._validate_date_range(start_date, end_date)
-        if not is_valid:
+        error_response, start_dt, end_dt = self._validate_and_parse_date_range(
+            start_date, end_date
+        )
+        if error_response is not None:
             return error_response
 
         excluded_ids = get_leaderboard_excluded_user_ids()
-        start_dt = timezone.make_aware(
-            datetime.strptime(start_date, "%Y-%m-%d").replace(
-                hour=0, minute=0, second=0, microsecond=0
-            )
-        )
-        end_dt = timezone.make_aware(
-            datetime.strptime(end_date, "%Y-%m-%d").replace(
-                hour=0, minute=0, second=0, microsecond=0
-            )
-        ) + timedelta(days=1)
-
         aggregated = (
             FundingActivityRecipient.objects.filter(
                 activity__activity_date__gte=start_dt,
@@ -232,30 +279,9 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
             .annotate(total=Sum("amount"))
             .order_by("-total")
         )
-
-        page = self.paginate_queryset(aggregated)
-        if page is None:
-            return Response([])
-        user_ids = [row["recipient_user_id"] for row in page]
-        users_by_id = {
-            u.id: u
-            for u in User.objects.filter(id__in=user_ids).select_related(
-                "author_profile"
-            )
-        }
-        totals_by_user = {row["recipient_user_id"]: row["total"] for row in page}
-        data = []
-        for uid in user_ids:
-            user = users_by_id.get(uid)
-            if not user:
-                continue
-            data.append(
-                {
-                    **self.serialize_user(user),
-                    "earned_rsc": totals_by_user[uid],
-                }
-            )
-        return self.get_paginated_response(data)
+        return self._paginated_aggregated_response(
+            aggregated, "recipient_user_id", "earned_rsc"
+        )
 
     @method_decorator(cache_page(60 * 60 * 6))
     @action(detail=False, methods=[RequestMethods.GET])
@@ -290,29 +316,13 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
                 ]
                 return self.get_paginated_response(data)
 
-        if not (start_date and end_date):
-            return Response(
-                {
-                    "error": "start_date and end_date are required when period is not provided."
-                },
-                status=400,
-            )
-        is_valid, error_response = self._validate_date_range(start_date, end_date)
-        if not is_valid:
+        error_response, start_dt, end_dt = self._validate_and_parse_date_range(
+            start_date, end_date
+        )
+        if error_response is not None:
             return error_response
 
         excluded_ids = get_leaderboard_excluded_user_ids()
-        start_dt = timezone.make_aware(
-            datetime.strptime(start_date, "%Y-%m-%d").replace(
-                hour=0, minute=0, second=0, microsecond=0
-            )
-        )
-        end_dt = timezone.make_aware(
-            datetime.strptime(end_date, "%Y-%m-%d").replace(
-                hour=0, minute=0, second=0, microsecond=0
-            )
-        ) + timedelta(days=1)
-
         aggregated = (
             FundingActivity.objects.filter(
                 activity_date__gte=start_dt,
@@ -323,27 +333,6 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
             .annotate(total=Sum("total_amount"))
             .order_by("-total")
         )
-
-        page = self.paginate_queryset(aggregated)
-        if page is None:
-            return Response([])
-        user_ids = [row["funder_id"] for row in page]
-        users_by_id = {
-            u.id: u
-            for u in User.objects.filter(id__in=user_ids).select_related(
-                "author_profile"
-            )
-        }
-        totals_by_user = {row["funder_id"]: row["total"] for row in page}
-        data = []
-        for uid in user_ids:
-            user = users_by_id.get(uid)
-            if not user:
-                continue
-            data.append(
-                {
-                    **self.serialize_user(user),
-                    "total_funding": totals_by_user[uid],
-                }
-            )
-        return self.get_paginated_response(data)
+        return self._paginated_aggregated_response(
+            aggregated, "funder_id", "total_funding"
+        )
