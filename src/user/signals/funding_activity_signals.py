@@ -1,17 +1,35 @@
 import logging
 
+from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
+from paper.models import Paper
 from purchase.models import Purchase
 from reputation.models import Distribution
 from reputation.related_models.escrow import Escrow, EscrowRecipients
+from researchhub_comment.constants.rh_comment_thread_types import (
+    COMMUNITY_REVIEW,
+    PEER_REVIEW,
+)
+from researchhub_comment.models import RhCommentModel
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.related_models.funding_activity_model import FundingActivity
 from user.tasks.funding_activity_tasks import create_funding_activity_task
 from utils.sentry import log_error
 
 logger = logging.getLogger(__name__)
+
+_content_type_cache = {}
+
+
+def _get_content_type(model):
+    """Return ContentType for model, cached."""
+    if model not in _content_type_cache:
+        _content_type_cache[model] = ContentType.objects.get_for_model(model)
+    return _content_type_cache[model]
+
 
 DISTRIBUTION_TYPES_FOR_FUNDING = (
     "PURCHASE",
@@ -35,6 +53,12 @@ def on_purchase_paid(sender, instance, created, **kwargs):
         Purchase.FUNDRAISE_CONTRIBUTION,
     ):
         return
+
+    if instance.purchase_type == Purchase.BOOST:
+        ct_paper = _get_content_type(Paper)
+        ct_post = _get_content_type(ResearchhubPost)
+        if instance.content_type_id not in (ct_paper.id, ct_post.id):
+            return
 
     source_type = (
         FundingActivity.TIP_DOCUMENT
@@ -93,6 +117,24 @@ def on_distribution_created(sender, instance, created, **kwargs):
         return
     if instance.distribution_type not in DISTRIBUTION_TYPES_FOR_FUNDING:
         return
+
+    if instance.distribution_type == "PURCHASE":
+        ct_purchase = _get_content_type(Purchase)
+        ct_comment = _get_content_type(RhCommentModel)
+        if instance.proof_item_content_type_id != ct_purchase.id:
+            return
+        try:
+            proof_purchase = Purchase.objects.get(pk=instance.proof_item_object_id)
+        except Purchase.DoesNotExist:
+            return
+        if proof_purchase.content_type_id != ct_comment.id:
+            return
+        comment = proof_purchase.item
+        if comment is None or getattr(comment, "comment_type", None) not in (
+            PEER_REVIEW,
+            COMMUNITY_REVIEW,
+        ):
+            return
 
     source_type = (
         FundingActivity.TIP_REVIEW
