@@ -144,6 +144,11 @@ app.conf.beat_schedule = {
             "queue": QUEUE_PURCHASES,
         },
     },
+    "leaderboard-refresh": {
+        "task": "user.tasks.leaderboard_tasks.refresh_leaderboard_task",
+        "schedule": crontab(hour="*/6", minute=0),
+        "options": {"priority": 3, "queue": QUEUE_CACHES},
+    },
     # Weekly RSC Burning
     "reputation_burn-revenue-rsc": {
         "task": "reputation.tasks.burn_revenue_rsc",
