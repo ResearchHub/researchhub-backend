@@ -48,6 +48,7 @@ from purchase.views import (
     EndaomentStatusView,
     stripe_webhook_view,
 )
+from purchase.views.endaoment_viewset import EndaomentViewSet
 from researchhub.views import asset_upload_view
 from researchhub_comment.views.rh_comment_view import RhCommentViewSet
 from review.views.peer_review_view import PeerReviewViewSet
@@ -112,6 +113,8 @@ router.register(
 router.register(r"figure", paper_views.FigureViewSet, basename="figure")
 
 router.register(r"purchase", purchase.views.PurchaseViewSet, basename="purchase")
+
+router.register(r"endaoment", EndaomentViewSet, basename="endaoment")
 
 router.register(r"transactions", purchase.views.BalanceViewSet, basename="transactions")
 
