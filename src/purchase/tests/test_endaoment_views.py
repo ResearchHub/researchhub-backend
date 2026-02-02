@@ -5,8 +5,8 @@ from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIRequestFactory, force_authenticate
 
-from purchase.related_models import EndaomentAccount
-from purchase.views.endaoment_viewset import EndaomentViewSet
+from purchase.models import EndaomentAccount
+from purchase.views import EndaomentViewSet
 
 User = get_user_model()
 
