@@ -127,6 +127,23 @@ class EndaomentService:
 
         return account.access_token
 
+    def get_user_funds(self, user) -> list:
+        """
+        Get the user's DAFs from Endaoment.
+
+        Returns:
+            List of fund objects from Endaoment API.
+
+        Raises:
+            EndaomentAccount.DoesNotExist: If user has no Endaoment connection.
+        """
+        access_token = self.get_valid_access_token(user)
+        if not access_token:
+            raise EndaomentAccount.DoesNotExist(
+                "User has no Endaoment connection"
+            )
+        return self.client.get_user_funds(access_token)
+
     def _refresh_account_token(self, account: EndaomentAccount) -> None:
         """
         Refresh the access token for an account.

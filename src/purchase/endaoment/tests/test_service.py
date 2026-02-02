@@ -324,3 +324,58 @@ class TestEndaomentService(TestCase):
         account = EndaomentAccount.objects.get(user=self.user)
         self.assertEqual(account.access_token, "new_token")
         self.assertEqual(account.refresh_token, "new_refresh")
+
+    def test_get_user_funds_returns_funds(self):
+        """
+        Test get_user_funds returns funds from the client.
+        """
+        # Arrange
+        EndaomentAccount.objects.create(
+            user=self.user,
+            access_token="valid_token",
+            refresh_token="refresh_token",
+            token_expires_at=timezone.now() + timedelta(hours=1),
+        )
+        self.mock_client.get_user_funds.return_value = [
+            {"id": "fund-1", "name": "My Fund"}
+        ]
+
+        # Act
+        result = self.service.get_user_funds(self.user)
+
+        # Assert
+        self.assertEqual(result, [{"id": "fund-1", "name": "My Fund"}])
+        self.mock_client.get_user_funds.assert_called_once_with("valid_token")
+
+    def test_get_user_funds_fails_without_account(self):
+        """
+        Test get_user_funds raises DoesNotExist when user has no account.
+        """
+        # Arrange & Act & Assert
+        with self.assertRaises(EndaomentAccount.DoesNotExist):
+            self.service.get_user_funds(self.user)
+
+    def test_get_user_funds_refreshes_expired_token(self):
+        """
+        Test get_user_funds refreshes expired token before fetching funds.
+        """
+        # Arrange
+        EndaomentAccount.objects.create(
+            user=self.user,
+            access_token="expired_token",
+            refresh_token="refresh_token",
+            token_expires_at=timezone.now() - timedelta(hours=1),
+        )
+        self.mock_client.refresh_access_token.return_value = TokenResponse(
+            access_token="new_token",
+            refresh_token="new_refresh",
+            expires_in=3600,
+        )
+        self.mock_client.get_user_funds.return_value = []
+
+        # Act
+        result = self.service.get_user_funds(self.user)
+
+        # Assert
+        self.assertEqual(result, [])
+        self.mock_client.get_user_funds.assert_called_once_with("new_token")
