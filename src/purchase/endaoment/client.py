@@ -145,9 +145,6 @@ class EndaomentClient:
     def _do_request(
         self, method: str, path: str, access_token: Optional[str], **kwargs
     ):
-        if not access_token:
-            raise ValueError("access_token is required")
-
         response = self.http_session.request(
             method,
             f"{self.api_url}{path}",
@@ -164,6 +161,9 @@ class EndaomentClient:
 
         See: https://docs.endaoment.org/developers/api/funds/get-all-funds-managed-by-the-authenticated-user
         """
+        if not access_token:
+            raise ValueError("access_token is required")
+
         return self._do_request("GET", "/v1/funds/mine", access_token)
 
     def create_async_grant(
@@ -179,6 +179,9 @@ class EndaomentClient:
 
         See: https://docs.endaoment.org/developers/api/transfers/create-an-async-grant-request
         """
+        if not access_token:
+            raise ValueError("access_token is required")
+
         return self._do_request(
             "POST",
             "/v1/transfers/async-grants",
