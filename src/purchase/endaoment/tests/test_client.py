@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import requests
 from django.core import signing
 from django.test import TestCase, override_settings
 
@@ -196,7 +197,7 @@ class TestEndaomentClient(TestCase):
         mock_response = Mock()
         mock_response.json.return_value = mock_funds
         mock_response.raise_for_status = Mock()
-        self.client.http_session.get = Mock(return_value=mock_response)
+        self.client.http_session.request = Mock(return_value=mock_response)
 
         # Act
         result = self.client.get_user_funds(access_token="valid_access_token")
@@ -205,7 +206,8 @@ class TestEndaomentClient(TestCase):
         self.assertIsInstance(result, list)
         self.assertEqual(len(result), 1)
         self.assertEqual(result, mock_funds)
-        self.client.http_session.get.assert_called_once_with(
+        self.client.http_session.request.assert_called_once_with(
+            "GET",
             "https://api.dev.endaoment.org/v1/funds/mine",
             headers={"Authorization": "Bearer valid_access_token"},
             timeout=30,
@@ -217,3 +219,76 @@ class TestEndaomentClient(TestCase):
         """
         with self.assertRaises(ValueError):
             self.client.get_user_funds(access_token="")
+
+    @patch("purchase.endaoment.client.uuid.uuid4")
+    def test_create_async_grant(self, uuid_mock):
+        """
+        Test creating an async grant request.
+        """
+        # Arrange
+        uuid_mock.return_value = Mock(hex="abc123")
+        with open(self.FIXTURES_DIR / "async_grant_response.json") as f:
+            mock_grant = json.load(f)
+        mock_response = Mock()
+        mock_response.json.return_value = mock_grant
+        self.client.http_session.request = Mock(return_value=mock_response)
+
+        # Act
+        result = self.client.create_async_grant(
+            access_token="valid_token",
+            origin_fund_id="fund-1",
+            destination_org_id="org-1",
+            amount_in_cents=100000,
+            purpose="Research funding",
+        )
+
+        # Assert
+        self.assertEqual(result, mock_grant)
+        self.client.http_session.request.assert_called_once_with(
+            "POST",
+            "https://api.dev.endaoment.org/v1/transfers/async-grants",
+            headers={"Authorization": "Bearer valid_token"},
+            timeout=30,
+            json={
+                "idempotencyKey": "abc123",
+                "originFundId": "fund-1",
+                "destinationOrgId": "org-1",
+                "requestedAmount": "100000",
+                "purpose": "Research funding",
+            },
+        )
+
+    def test_create_async_grant_fails_without_token(self):
+        """
+        Test creating an async grant fails without access token.
+        """
+        # Act & Assert
+        with self.assertRaises(ValueError):
+            self.client.create_async_grant(
+                access_token="",
+                origin_fund_id="fund-1",
+                destination_org_id="org-1",
+                amount_in_cents=100000,
+                purpose="Research funding",
+            )
+
+    def test_create_async_grant_http_error(self):
+        """
+        Test that HTTP errors from the API are propagated.
+        """
+        # Arrange
+        mock_response = Mock()
+        mock_response.raise_for_status.side_effect = requests.HTTPError(
+            response=Mock(status_code=403)
+        )
+        self.client.http_session.request = Mock(return_value=mock_response)
+
+        # Act & Assert
+        with self.assertRaises(requests.HTTPError):
+            self.client.create_async_grant(
+                access_token="valid_token",
+                origin_fund_id="fund-1",
+                destination_org_id="org-1",
+                amount_in_cents=100000,
+                purpose="Research funding",
+            )

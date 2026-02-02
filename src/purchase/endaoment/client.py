@@ -1,4 +1,5 @@
 import logging
+import uuid
 from dataclasses import dataclass
 from typing import Optional
 from urllib.parse import urlparse
@@ -141,6 +142,19 @@ class EndaomentClient:
             code_challenge_method="S256",
         )
 
+    def _do_request(
+        self, method: str, path: str, access_token: Optional[str], **kwargs
+    ):
+        response = self.http_session.request(
+            method,
+            f"{self.api_url}{path}",
+            headers={"Authorization": f"Bearer {access_token}"} if access_token else {},
+            timeout=REQUEST_TIMEOUT,
+            **kwargs,
+        )
+        response.raise_for_status()
+        return response.json()
+
     def get_user_funds(self, access_token: str) -> list:
         """
         Fetch the authenticated user's DAFs from Endaoment.
@@ -150,13 +164,36 @@ class EndaomentClient:
         if not access_token:
             raise ValueError("access_token is required")
 
-        response = self.http_session.get(
-            f"{self.api_url}/v1/funds/mine",
-            headers={"Authorization": f"Bearer {access_token}"},
-            timeout=REQUEST_TIMEOUT,
+        return self._do_request("GET", "/v1/funds/mine", access_token)
+
+    def create_async_grant(
+        self,
+        access_token: str,
+        origin_fund_id: str,
+        destination_org_id: str,
+        amount_in_cents: int,
+        purpose: str,
+    ) -> dict:
+        """
+        Create an async grant request from a fund (DAF) to an organization.
+
+        See: https://docs.endaoment.org/developers/api/transfers/create-an-async-grant-request
+        """
+        if not access_token:
+            raise ValueError("access_token is required")
+
+        return self._do_request(
+            "POST",
+            "/v1/transfers/async-grants",
+            access_token,
+            json={
+                "destinationOrgId": destination_org_id,
+                "idempotencyKey": uuid.uuid4().hex,
+                "originFundId": origin_fund_id,
+                "purpose": purpose,
+                "requestedAmount": str(amount_in_cents),
+            },
         )
-        response.raise_for_status()
-        return response.json()
 
     @staticmethod
     def is_valid_redirect_url(url: Optional[str]) -> bool:
