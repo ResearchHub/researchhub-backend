@@ -955,8 +955,6 @@ class FundraiseViewTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("must be RSC or USD", response.data["message"])
 
-    # Funder overview endpoint tests
-
     def test_funder_overview_requires_authentication(self):
         # Arrange
         self.client.logout()
