@@ -197,7 +197,7 @@ class TestEndaomentClient(TestCase):
         mock_response = Mock()
         mock_response.json.return_value = mock_funds
         mock_response.raise_for_status = Mock()
-        self.client.http_session.get = Mock(return_value=mock_response)
+        self.client.http_session.request = Mock(return_value=mock_response)
 
         # Act
         result = self.client.get_user_funds(access_token="valid_access_token")
@@ -206,7 +206,8 @@ class TestEndaomentClient(TestCase):
         self.assertIsInstance(result, list)
         self.assertEqual(len(result), 1)
         self.assertEqual(result, mock_funds)
-        self.client.http_session.get.assert_called_once_with(
+        self.client.http_session.request.assert_called_once_with(
+            "GET",
             "https://api.dev.endaoment.org/v1/funds/mine",
             headers={"Authorization": "Bearer valid_access_token"},
             timeout=30,
@@ -230,7 +231,7 @@ class TestEndaomentClient(TestCase):
             mock_grant = json.load(f)
         mock_response = Mock()
         mock_response.json.return_value = mock_grant
-        self.client.http_session.post = Mock(return_value=mock_response)
+        self.client.http_session.request = Mock(return_value=mock_response)
 
         # Act
         result = self.client.create_async_grant(
@@ -243,9 +244,11 @@ class TestEndaomentClient(TestCase):
 
         # Assert
         self.assertEqual(result, mock_grant)
-        self.client.http_session.post.assert_called_once_with(
+        self.client.http_session.request.assert_called_once_with(
+            "POST",
             "https://api.dev.endaoment.org/v1/transfers/async-grants",
             headers={"Authorization": "Bearer valid_token"},
+            timeout=30,
             json={
                 "idempotencyKey": "abc123",
                 "originFundId": "fund-1",
@@ -253,7 +256,6 @@ class TestEndaomentClient(TestCase):
                 "requestedAmount": "100000",
                 "purpose": "Research funding",
             },
-            timeout=30,
         )
 
     def test_create_async_grant_fails_without_token(self):
@@ -279,7 +281,7 @@ class TestEndaomentClient(TestCase):
         mock_response.raise_for_status.side_effect = requests.HTTPError(
             response=Mock(status_code=403)
         )
-        self.client.http_session.post = Mock(return_value=mock_response)
+        self.client.http_session.request = Mock(return_value=mock_response)
 
         # Act & Assert
         with self.assertRaises(requests.HTTPError):
