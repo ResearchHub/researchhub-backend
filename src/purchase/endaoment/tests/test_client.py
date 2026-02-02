@@ -1,3 +1,5 @@
+import json
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 from django.core import signing
@@ -7,6 +9,7 @@ from purchase.endaoment.client import EndaomentClient, TokenResponse
 
 
 @override_settings(
+    ENDAOMENT_API_URL="https://api.dev.endaoment.org",
     ENDAOMENT_AUTH_URL="https://auth.dev.endaoment.org",
     ENDAOMENT_CLIENT_ID="test_client_id",
     ENDAOMENT_CLIENT_SECRET="test_client_secret",
@@ -17,6 +20,8 @@ class TestEndaomentClient(TestCase):
     """
     Tests for the `EndaomentClient`.
     """
+
+    FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
     def setUp(self):
         self.client = EndaomentClient()
@@ -180,3 +185,35 @@ class TestEndaomentClient(TestCase):
             refresh_token="old_refresh_token",
             timeout=30,
         )
+
+    def test_get_user_funds(self):
+        """
+        Test fetching funds for a given user.
+        """
+        # Arrange
+        with open(self.FIXTURES_DIR / "get_user_funds_response.json") as f:
+            mock_funds = json.load(f)
+        mock_response = Mock()
+        mock_response.json.return_value = mock_funds
+        mock_response.raise_for_status = Mock()
+        self.client.http_session.get = Mock(return_value=mock_response)
+
+        # Act
+        result = self.client.get_user_funds(access_token="valid_access_token")
+
+        # Assert
+        self.assertIsInstance(result, list)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result, mock_funds)
+        self.client.http_session.get.assert_called_once_with(
+            "https://api.dev.endaoment.org/v1/funds/mine",
+            headers={"Authorization": "Bearer valid_access_token"},
+            timeout=30,
+        )
+
+    def test_get_user_funds_fails_without_token(self):
+        """
+        Test fetching user funds fails without access token.
+        """
+        with self.assertRaises(ValueError):
+            self.client.get_user_funds(access_token="")

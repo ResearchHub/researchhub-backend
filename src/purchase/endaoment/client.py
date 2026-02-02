@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Optional
 from urllib.parse import urlparse
 
+import requests
 from authlib.common.security import generate_token
 from authlib.integrations.requests_client import OAuth2Session
 from django.conf import settings
@@ -36,10 +37,14 @@ class EndaomentClient:
     """
 
     def __init__(self):
+        self.api_url = settings.ENDAOMENT_API_URL
         self.auth_url = settings.ENDAOMENT_AUTH_URL
         self.client_id = settings.ENDAOMENT_CLIENT_ID
         self.client_secret = settings.ENDAOMENT_CLIENT_SECRET
         self.redirect_uri = settings.ENDAOMENT_REDIRECT_URI
+
+        self.http_session = requests.Session()
+        self.http_session.headers["Content-Type"] = "application/json"
 
     def build_authorization_url(
         self, user_id: int, return_url: Optional[str] = None
@@ -135,6 +140,23 @@ class EndaomentClient:
             client_secret=self.client_secret,
             code_challenge_method="S256",
         )
+
+    def get_user_funds(self, access_token: str) -> list:
+        """
+        Fetch the authenticated user's DAFs from Endaoment.
+
+        See: https://docs.endaoment.org/developers/api/funds/get-all-funds-managed-by-the-authenticated-user
+        """
+        if not access_token:
+            raise ValueError("access_token is required")
+
+        response = self.http_session.get(
+            f"{self.api_url}/v1/funds/mine",
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=REQUEST_TIMEOUT,
+        )
+        response.raise_for_status()
+        return response.json()
 
     @staticmethod
     def is_valid_redirect_url(url: Optional[str]) -> bool:
