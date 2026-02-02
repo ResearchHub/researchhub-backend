@@ -1,13 +1,19 @@
+from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
+from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.payment_model import (
     Payment,
     PaymentProcessor,
     PaymentPurpose,
+)
+from reputation.models import Escrow
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
 )
 from user.tests.helpers import create_user
 
@@ -16,6 +22,25 @@ class PaymentIntentViewTest(APITestCase):
     def setUp(self):
         self.url = reverse("payment_intent_view")
         self.user = create_user()
+        self.fundraise_creator = create_user(email="creator@example.com")
+        # Set up a fundraise for testing (created by a different user)
+        self.unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type="PREREGISTRATION",
+        )
+        self.fundraise = Fundraise.objects.create(
+            created_by=self.fundraise_creator,
+            unified_document=self.unified_document,
+            goal_amount=1000,
+            status=Fundraise.OPEN,
+        )
+        self.escrow = Escrow.objects.create(
+            created_by=self.fundraise_creator,
+            hold_type=Escrow.FUNDRAISE,
+            content_type=ContentType.objects.get_for_model(Fundraise),
+            object_id=self.fundraise.id,
+        )
+        self.fundraise.escrow = self.escrow
+        self.fundraise.save()
 
     @patch("purchase.views.payment_intent_view.PaymentService")
     def test_create_payment_intent_success(self, mock_payment_service_class):
@@ -46,7 +71,8 @@ class PaymentIntentViewTest(APITestCase):
         # Verify the payment service was called correctly
         mock_payment_service.create_payment_intent.assert_called_once_with(
             user_id=self.user.id,
-            rsc_amount=100,
+            rsc_amount=Decimal("100"),
+            fundraise_id=None,
         )
 
     def test_create_payment_intent_unauthenticated(self):
@@ -75,6 +101,73 @@ class PaymentIntentViewTest(APITestCase):
         # Assert
         self.assertEqual(response.status_code, 400)
         self.assertIn("amount", response.data)
+
+    @patch("purchase.views.payment_intent_view.PaymentService")
+    def test_create_payment_intent_with_fundraise_id(self, mock_payment_service_class):
+        # Arrange
+        mock_payment_service = MagicMock()
+        mock_payment_service_class.return_value = mock_payment_service
+        mock_payment_service.create_payment_intent.return_value = {
+            "client_secret": "pi_secret_fundraise",
+            "payment_intent_id": "pi_fundraise_123",
+            "locked_rsc_amount": 100,
+            "stripe_amount_cents": 500,
+        }
+
+        data = {
+            "amount": 100,
+            "fundraise_id": self.fundraise.id,
+        }
+
+        self.client.force_authenticate(user=self.user)
+
+        # Act
+        response = self.client.post(self.url, data=data)
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+
+        # Verify the payment service was called with fundraise_id
+        mock_payment_service.create_payment_intent.assert_called_once_with(
+            user_id=self.user.id,
+            rsc_amount=Decimal("100"),
+            fundraise_id=self.fundraise.id,
+        )
+
+    def test_create_payment_intent_invalid_fundraise_id(self):
+        # Arrange
+        data = {
+            "amount": 100,
+            "fundraise_id": 99999,  # Non-existent
+        }
+
+        self.client.force_authenticate(user=self.user)
+
+        # Act
+        response = self.client.post(self.url, data=data)
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("fundraise_id", response.data)
+
+    def test_create_payment_intent_closed_fundraise(self):
+        # Arrange
+        self.fundraise.status = Fundraise.CLOSED
+        self.fundraise.save()
+
+        data = {
+            "amount": 100,
+            "fundraise_id": self.fundraise.id,
+        }
+
+        self.client.force_authenticate(user=self.user)
+
+        # Act
+        response = self.client.post(self.url, data=data)
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("fundraise_id", response.data)
 
     @patch("purchase.views.payment_intent_view.PaymentService")
     def test_create_payment_intent_service_error(self, mock_payment_service_class):

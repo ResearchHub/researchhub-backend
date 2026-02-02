@@ -76,6 +76,16 @@ def create_bounty_refund_distribution(amount):
     return distribution
 
 
+def create_rsc_purchase_rh_fee_distribution(amount):
+    distribution = Distribution("RSC_PURCHASE_RH_FEE", amount, give_rep=False)
+    return distribution
+
+
+def create_rsc_purchase_dao_fee_distribution(amount):
+    distribution = Distribution("RSC_PURCHASE_DAO_FEE", amount, give_rep=False)
+    return distribution
+
+
 def create_stored_paper_pot(amount):
     distribution = Distribution("STORED_PAPER_POT", amount, give_rep=False)
     return distribution

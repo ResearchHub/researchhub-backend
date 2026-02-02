@@ -178,7 +178,8 @@ class StripeWebhookTestCase(TestCase):
             user_id=1,
         )
         mock_payment_service.process_payment_intent_confirmation.return_value = (
-            mock_payment
+            mock_payment,
+            None,
         )
 
         event_data = {
@@ -329,7 +330,8 @@ class StripeWebhookTestCase(TestCase):
             user_id=1,
         )
         mock_payment_service.process_payment_intent_confirmation.return_value = (
-            mock_payment
+            mock_payment,
+            None,
         )
 
         event_data = {

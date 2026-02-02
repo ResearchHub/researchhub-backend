@@ -4,6 +4,8 @@ from purchase.related_models.rsc_purchase_fee import RscPurchaseFee
 from reputation.distributions import (
     create_bounty_dao_fee_distribution,
     create_bounty_rh_fee_distribution,
+    create_rsc_purchase_dao_fee_distribution,
+    create_rsc_purchase_rh_fee_distribution,
     create_support_dao_fee_distribution,
     create_support_rh_fee_distribution,
 )
@@ -61,6 +63,12 @@ def deduct_support_fees(user, fee, rh_fee, dao_fee, current_fee_obj):
     return _deduct_fees(user, fee, rh_fee, dao_fee, current_fee_obj, fee_type="support")
 
 
+def deduct_rsc_purchase_fees(user, fee, rh_fee, dao_fee, current_fee_obj):
+    return _deduct_fees(
+        user, fee, rh_fee, dao_fee, current_fee_obj, fee_type="rsc_purchase"
+    )
+
+
 def _deduct_fees(
     user,
     fee,
@@ -92,6 +100,9 @@ def _deduct_fees(
     elif fee_type == "support":
         rh_fee_distribution = create_support_rh_fee_distribution(rh_fee)
         dao_fee_distribution = create_support_dao_fee_distribution(dao_fee)
+    elif fee_type == "rsc_purchase":
+        rh_fee_distribution = create_rsc_purchase_rh_fee_distribution(rh_fee)
+        dao_fee_distribution = create_rsc_purchase_dao_fee_distribution(dao_fee)
     else:
         raise ValueError("Invalid fee type")
     rh_inc_distributor = Distributor(

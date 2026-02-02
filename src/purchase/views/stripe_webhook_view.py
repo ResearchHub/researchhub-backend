@@ -72,8 +72,10 @@ class StripeWebhookView(APIView):
                     logger.info("Payment intent ID=%s succeeded", payment_intent["id"])
 
                     # Process the payment intent and create purchase record
-                    payment = self.payment_service.process_payment_intent_confirmation(
-                        payment_intent["id"]
+                    payment, fundraise_contribution = (
+                        self.payment_service.process_payment_intent_confirmation(
+                            payment_intent["id"]
+                        )
                     )
 
                     logger.info(
@@ -82,6 +84,13 @@ class StripeWebhookView(APIView):
                         payment.amount,
                         payment.user_id,
                     )
+
+                    if fundraise_contribution:
+                        logger.info(
+                            "Fundraise contribution created: ID=%s, Amount=%s",
+                            fundraise_contribution.id,
+                            fundraise_contribution.amount,
+                        )
                 case _:
                     logger.info("Unhandled event type: %s", event_type)
         except ValueError as e:
