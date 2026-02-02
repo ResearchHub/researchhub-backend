@@ -1,4 +1,5 @@
 import logging
+import uuid
 from dataclasses import dataclass
 from typing import Optional
 from urllib.parse import urlparse
@@ -153,6 +154,39 @@ class EndaomentClient:
         response = self.http_session.get(
             f"{self.api_url}/v1/funds/mine",
             headers={"Authorization": f"Bearer {access_token}"},
+            timeout=REQUEST_TIMEOUT,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def create_async_grant(
+        self,
+        access_token: str,
+        origin_fund_id: str,
+        destination_org_id: str,
+        amount_in_cents: int,
+        purpose: str,
+    ) -> dict:
+        """
+        Create an async grant request from a fund (DAF) to an organization.
+
+        See: https://docs.endaoment.org/developers/api/transfers/create-an-async-grant-request
+        """
+        if not access_token:
+            raise ValueError("access_token is required")
+
+        payload = {
+            "destinationOrgId": destination_org_id,
+            "idempotencyKey": uuid.uuid4().hex,
+            "originFundId": origin_fund_id,
+            "purpose": purpose,
+            "requestedAmount": str(amount_in_cents),
+        }
+
+        response = self.http_session.post(
+            f"{self.api_url}/v1/transfers/async-grants",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json=payload,
             timeout=REQUEST_TIMEOUT,
         )
         response.raise_for_status()
