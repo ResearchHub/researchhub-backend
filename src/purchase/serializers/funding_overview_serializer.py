@@ -58,4 +58,3 @@ class FundingOverviewSerializer(serializers.Serializer):
     recent_updates = serializers.IntegerField()
     proposals_funded = serializers.IntegerField()
     impact = ImpactDataSerializer()
-

@@ -27,3 +27,13 @@ class TestGrantOverviewService(TestCase):
         self.assertIn("topic_breakdown", impact)
         self.assertIn("update_frequency", impact)
         self.assertIn("institutions_supported", impact)
+
+    def test_get_grant_overview_returns_zeros_for_skeleton(self):
+        # Act
+        result = self.service.get_grant_overview(self.user, 1)
+
+        # Assert - skeleton should return zero values
+        self.assertEqual(result["total_raised_usd"], 0.0)
+        self.assertEqual(result["matched_funding_usd"], 0.0)
+        self.assertEqual(result["total_applicants"], 0)
+        self.assertEqual(result["recent_updates"], 0)

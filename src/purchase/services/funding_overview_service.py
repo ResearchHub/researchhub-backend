@@ -167,7 +167,7 @@ class FundingOverviewService:
             for fid in funded_ids
         }
 
-    def _combine_rsc_usd(self, rsc_amount, usd_cents: int) -> float:
+    def _combine_rsc_usd(self, rsc_amount: Decimal | float, usd_cents: int) -> float:
         """Convert RSC to USD and add USD cents, returning rounded total."""
         return round(RscExchangeRate.rsc_to_usd(float(rsc_amount)) + usd_cents / 100, 2)
 
@@ -309,4 +309,3 @@ class FundingOverviewService:
             [{**d, "amount_usd": round(d["amount_usd"], 2)} for d in data.values()],
             key=lambda x: -x["amount_usd"],
         )
-

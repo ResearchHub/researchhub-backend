@@ -1,5 +1,6 @@
 from django.test import TestCase
 
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.services.funding_overview_service import FundingOverviewService
 from user.tests.helpers import create_random_authenticated_user
 
@@ -8,6 +9,12 @@ class TestFundingOverviewService(TestCase):
     def setUp(self):
         self.service = FundingOverviewService()
         self.user = create_random_authenticated_user("funding_overview_test")
+        RscExchangeRate.objects.create(
+            rate=0.5,
+            real_rate=0.5,
+            price_source="COIN_GECKO",
+            target_currency="USD",
+        )
 
     def test_get_funding_overview_returns_expected_structure(self):
         # Act
@@ -40,4 +47,3 @@ class TestFundingOverviewService(TestCase):
         self.assertEqual(result["total_applicants"], 0)
         self.assertEqual(result["proposals_funded"], 0)
         self.assertEqual(result["recent_updates"], 0)
-
