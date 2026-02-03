@@ -2,7 +2,6 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
-from django.db import transaction
 from django.test import TestCase
 
 from paper.tests.helpers import create_paper
@@ -51,10 +50,8 @@ class FundingActivitySignalsTests(TestCase):
         )
 
     @patch("user.signals.funding_activity_signals.create_funding_activity_task")
-    @patch("user.signals.funding_activity_signals.transaction")
-    def test_purchase_paid_fundraise_schedules_task(self, mock_transaction, mock_task):
-        """When Purchase is saved with PAID + FUNDRAISE_CONTRIBUTION, task is scheduled with FUNDRAISE_PAYOUT."""
-        mock_transaction.on_commit = lambda func: func()
+    def test_purchase_paid_fundraise_does_not_schedule_task(self, mock_task):
+        """FUNDRAISE_CONTRIBUTION+PAID does not schedule task; payouts come from escrow PAID."""
         from django.contrib.contenttypes.models import ContentType
 
         from researchhub_document.related_models.researchhub_unified_document_model import (
@@ -89,9 +86,66 @@ class FundingActivitySignalsTests(TestCase):
             purchase_method=Purchase.OFF_CHAIN,
         )
         purchase.save()
-        mock_task.delay.assert_called_once_with(
+        mock_task.delay.assert_not_called()
+
+    @patch("user.signals.funding_activity_signals.create_funding_activity_task")
+    @patch("user.signals.funding_activity_signals.transaction")
+    def test_escrow_paid_fundraise_schedules_task_per_contribution(
+        self, mock_transaction, mock_task
+    ):
+        """Escrow PAID+FUNDRAISE schedules task per RSC purchase and per USD contribution."""
+        mock_transaction.on_commit = lambda func: func()
+        from django.contrib.contenttypes.models import ContentType
+
+        from purchase.models import UsdFundraiseContribution
+        from researchhub_document.related_models.researchhub_unified_document_model import (
+            ResearchhubUnifiedDocument,
+        )
+
+        uni_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PREREGISTRATION"
+        )
+        fundraise = Fundraise.objects.create(
+            created_by=self.recipient,
+            status=Fundraise.COMPLETED,
+            unified_document=uni_doc,
+        )
+        ct_fundraise = ContentType.objects.get_for_model(Fundraise)
+        escrow = Escrow.objects.create(
+            hold_type=Escrow.FUNDRAISE,
+            status=Escrow.PENDING,
+            created_by=self.funder,
+            content_type=ct_fundraise,
+            object_id=fundraise.id,
+        )
+        fundraise.escrow = escrow
+        fundraise.save()
+        purchase = Purchase.objects.create(
+            user=self.funder,
+            content_type=ct_fundraise,
+            object_id=fundraise.id,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            paid_status=Purchase.PAID,
+            amount="100",
+            purchase_method=Purchase.OFF_CHAIN,
+        )
+        usd_contribution = UsdFundraiseContribution.objects.create(
+            user=self.funder,
+            fundraise=fundraise,
+            amount_cents=5000,
+            fee_cents=450,
+            amount_rsc=Decimal("500"),
+        )
+        escrow.status = Escrow.PAID
+        escrow.save()
+        self.assertEqual(mock_task.delay.call_count, 2)
+        mock_task.delay.assert_any_call(
             FundingActivity.FUNDRAISE_PAYOUT,
             purchase.pk,
+        )
+        mock_task.delay.assert_any_call(
+            FundingActivity.FUNDRAISE_PAYOUT_USD,
+            usd_contribution.pk,
         )
 
     @patch("user.signals.funding_activity_signals.create_funding_activity_task")

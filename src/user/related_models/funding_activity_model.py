@@ -17,6 +17,7 @@ class FundingActivity(DefaultModel):
 
     # Source type choices
     FUNDRAISE_PAYOUT = "FUNDRAISE_PAYOUT"
+    FUNDRAISE_PAYOUT_USD = "FUNDRAISE_PAYOUT_USD"
     BOUNTY_PAYOUT = "BOUNTY_PAYOUT"
     TIP_DOCUMENT = "TIP_DOCUMENT"
     TIP_REVIEW = "TIP_REVIEW"
@@ -24,6 +25,7 @@ class FundingActivity(DefaultModel):
 
     SOURCE_TYPE_CHOICES = [
         (FUNDRAISE_PAYOUT, "Fundraise Payout"),
+        (FUNDRAISE_PAYOUT_USD, "Fundraise Payout (USD)"),
         (BOUNTY_PAYOUT, "Bounty Payout"),
         (TIP_DOCUMENT, "Document Tip"),
         (TIP_REVIEW, "Review Tip"),
@@ -58,7 +60,7 @@ class FundingActivity(DefaultModel):
         help_text="When the funding activity occurred",
     )
 
-    # Generic foreign key to the source object (Purchase, Distribution, EscrowRecipients)
+    # Generic FK to source (Purchase, UsdFundraiseContribution, EscrowRecipients, Distribution)
     source_content_type = models.ForeignKey(
         ContentType,
         on_delete=models.CASCADE,

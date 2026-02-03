@@ -15,6 +15,7 @@ from purchase.related_models.constants import (
     USD_FUNDRAISE_FEE_PERCENT,
 )
 from purchase.related_models.constants.currency import RSC, USD
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.distributions import create_bounty_refund_distribution
 from reputation.distributor import Distributor
 from reputation.models import BountyFee, Escrow
@@ -289,12 +290,16 @@ class FundraiseService:
             if user_usd_balance < total_amount_cents:
                 return None, "Insufficient USD balance"
 
+            usd_amount = amount_cents / 100.0
+            amount_rsc = Decimal(str(RscExchangeRate.usd_to_rsc(usd_amount)))
+
             # Create the contribution record
             contribution = UsdFundraiseContribution.objects.create(
                 user=user,
                 fundraise=fundraise,
                 amount_cents=amount_cents,
                 fee_cents=fee_cents,
+                amount_rsc=amount_rsc,
             )
 
             # Deduct total amount (contribution + fee) from user's USD balance
