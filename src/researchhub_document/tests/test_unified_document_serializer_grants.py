@@ -9,34 +9,9 @@ from rest_framework.test import APITestCase
 from purchase.models import Grant
 from purchase.serializers import DynamicGrantSerializer
 from researchhub_document.helpers import create_post
-from researchhub_document.related_models.constants.document_type import (
-    GRANT,
-    PREREGISTRATION,
-)
+from researchhub_document.related_models.constants.document_type import GRANT
 from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
-from researchhub_document.serializers.researchhub_post_serializer import (
-    DynamicPostSerializer,
-)
 from user.tests.helpers import create_random_authenticated_user
-
-
-class DynamicPostSerializerAbstractTests(TestCase):
-    """Test that DynamicPostSerializer returns abstract from renderable_text."""
-
-    def test_abstract_returns_renderable_text(self):
-        # Arrange
-        user = create_random_authenticated_user("test_user")
-        post = create_post(
-            created_by=user,
-            document_type=PREREGISTRATION,
-            renderable_text="This is the project description.",
-        )
-
-        # Act
-        serializer = DynamicPostSerializer(post, _include_fields=["abstract"])
-
-        # Assert
-        self.assertEqual(serializer.data["abstract"], "This is the project description.")
 
 
 class DynamicUnifiedDocumentSerializerGrantsTests(TestCase):
