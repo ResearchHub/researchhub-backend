@@ -1,0 +1,41 @@
+[
+    {
+        "id": "123e4567-e89b-12d3-a456-426614174000",
+        "name": "Doe Family Foundation",
+        "type": "Private",
+        "manager": {
+            "id": "123e4567-e89b-12d3-a456-426614174000",
+            "walletAddress": "0x742d35Cc6634C0532925a3b844Bc454e4438f44e"
+        },
+        "chainId": 1,
+        "advisor": {
+            "firstName": "John",
+            "lastName": "Doe"
+        },
+        "featuredIndex": 1,
+        "usdcBalance": "20500000",
+        "description": "A family foundation dedicated to supporting educational initiatives",
+        "createdAtUtc": "2024-01-01T00:00:00Z",
+        "updatedAtUtc": "2024-03-14T12:00:00Z",
+        "lifetimeDonationsUsdc": "1000000000",
+        "inboundFeeBps": 25,
+        "outboundFeeBps": 50,
+        "grantsGiven": 10,
+        "inTransitBuyUsdcAmount": "5000000",
+        "inTransitSellUsdcAmount": "3000000",
+        "investedUsdc": "50000000",
+        "totalGrantedUsdc": "25000000",
+        "processingTransfersTotalUsdc": "1000000",
+        "illiquidBalance": "10000000",
+        "deploymentTransactionHash": "0xf89f7da1e5d79dcb1b8863d0926fe41204785b443ce2d1dca4bf50070c492567",
+        "contractAddress": "0x1234567890123456789012345678901234567890",
+        "lastBalanceSyncUtc": "2024-03-14T12:00:00Z",
+        "shortDescription": "Supporting education",
+        "vanityUrl": "doe-family-foundation",
+        "paypalId": "123e4567-e89b-12d3-a456-426614174000",
+        "logo": "https://example.com/logo.png",
+        "staffNotes": "<string>",
+        "category": "Education",
+        "customFeeDetail": "Special Community Fund Agreement"
+    }
+]

@@ -21,7 +21,11 @@ from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.rsc_purchase_fee import RscPurchaseFee
 from reputation.distributions import create_purchase_distribution
 from reputation.distributor import Distributor
-from reputation.utils import calculate_rsc_purchase_fees, deduct_rsc_purchase_fees
+from reputation.utils import (
+    calculate_bounty_fees,
+    calculate_rsc_purchase_fees,
+    deduct_rsc_purchase_fees,
+)
 from user.models import User
 
 logger = logging.getLogger(__name__)
@@ -265,11 +269,16 @@ class PaymentService:
             if fundraise_id is not None:
                 metadata["fundraise_id"] = str(fundraise_id)
 
+            # Get user's email for receipt
+            user = User.objects.get(id=user_id)
+            receipt_email = user.email
+
             payment_intent = stripe.PaymentIntent.create(
                 amount=stripe_amount,
                 currency="usd",
                 metadata=metadata,
                 automatic_payment_methods={"enabled": True},
+                receipt_email=receipt_email,
             )
 
             return {
@@ -388,9 +397,14 @@ class PaymentService:
         # Calculate RSC purchase fees (2% platform fee)
         rsc_fee, rh_fee, dao_fee, fee_obj = calculate_rsc_purchase_fees(rsc_amount)
 
-        # Credit the user's locked balance with amount + fee for transparency
-        # The fee will be deducted separately to show as a line item
-        gross_amount = rsc_amount + rsc_fee
+        # Calculate platform fees (bounty fees) for future fundraise contributions
+        bounty_fee, bounty_rh_fee, bounty_dao_fee, bounty_fee_obj = (
+            calculate_bounty_fees(rsc_amount)
+        )
+
+        # Credit the user's locked balance with amount + both fees for transparency
+        # The fees will be deducted separately to show as line items
+        gross_amount = rsc_amount + rsc_fee + bounty_fee
 
         purchase_distribution = create_purchase_distribution(
             user=payment.user, amount=float(gross_amount)
@@ -407,8 +421,7 @@ class PaymentService:
         # Deduct the RSC purchase fees and distribute to revenue/dao accounts
         deduct_rsc_purchase_fees(payment.user, rsc_fee, rh_fee, dao_fee, fee_obj)
 
-        # Create a balance record to subtract the fee from the user's locked balance
-        # This provides a transparent line item showing the 2% purchase fee
+        # Create a balance record to subtract the RSC purchase fee from locked balance
         Balance.objects.create(
             user=payment.user,
             content_type=ContentType.objects.get_for_model(RscPurchaseFee),
