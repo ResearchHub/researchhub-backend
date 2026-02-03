@@ -5,7 +5,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Q
 
-from purchase.models import Purchase
+from purchase.models import Purchase, UsdFundraiseContribution
 from purchase.related_models.fundraise_model import Fundraise
 from reputation.models import Bounty, Distribution
 from reputation.related_models.escrow import Escrow, EscrowRecipients
@@ -236,6 +236,8 @@ class FundingActivityService:
 
             if source_type == FundingActivity.FUNDRAISE_PAYOUT:
                 return cls._create_fundraise_payout_activity(source_object)
+            if source_type == FundingActivity.FUNDRAISE_PAYOUT_USD:
+                return cls._create_fundraise_payout_usd_activity(source_object)
             if source_type == FundingActivity.BOUNTY_PAYOUT:
                 return cls._create_bounty_payout_activity(source_object)
             if source_type == FundingActivity.TIP_DOCUMENT:
@@ -276,6 +278,47 @@ class FundingActivityService:
             activity_date=purchase.created_date,
             source_content_type=cls._get_content_type(Purchase),
             source_object_id=purchase.pk,
+        )
+        FundingActivityRecipient.objects.create(
+            activity=activity,
+            recipient_user=recipient_user,
+            amount=amount,
+        )
+        return activity
+
+    @classmethod
+    def _create_fundraise_payout_usd_activity(
+        cls, usd_contribution: UsdFundraiseContribution
+    ) -> Optional[FundingActivity]:
+        """One FundingActivity per UsdFundraiseContribution when fundraise is completed."""
+        if usd_contribution.is_refunded:
+            return None
+        if usd_contribution.amount_rsc is None:
+            return None
+        fundraise = (
+            Fundraise.objects.filter(
+                pk=usd_contribution.fundraise_id,
+                status=Fundraise.COMPLETED,
+                escrow__status=Escrow.PAID,
+            )
+            .select_related("escrow", "unified_document")
+            .first()
+        )
+        if not fundraise or not fundraise.escrow:
+            return None
+        try:
+            recipient_user = fundraise.get_recipient()
+        except Exception:
+            return None
+        amount = Decimal(str(usd_contribution.amount_rsc))
+        activity = FundingActivity.objects.create(
+            funder_id=usd_contribution.user_id,
+            source_type=FundingActivity.FUNDRAISE_PAYOUT_USD,
+            total_amount=amount,
+            unified_document_id=fundraise.unified_document_id,
+            activity_date=usd_contribution.created_date,
+            source_content_type=cls._get_content_type(UsdFundraiseContribution),
+            source_object_id=usd_contribution.pk,
         )
         FundingActivityRecipient.objects.create(
             activity=activity,

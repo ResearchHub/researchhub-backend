@@ -6,7 +6,7 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from paper.models import Paper
-from purchase.models import Purchase
+from purchase.models import Fundraise, Purchase
 from reputation.models import Distribution
 from reputation.related_models.escrow import Escrow, EscrowRecipients
 from researchhub_comment.constants.rh_comment_thread_types import (
@@ -45,30 +45,23 @@ DISTRIBUTION_TYPES_FOR_FUNDING = (
     dispatch_uid="funding_activity_on_purchase_paid",
 )
 def on_purchase_paid(sender, instance, created, **kwargs):
-    """Schedule FundingActivity when Purchase is PAID (BOOST or FUNDRAISE_CONTRIBUTION)."""
+    """Schedule FundingActivity when Purchase is PAID (BOOST only). Fundraise payouts are created when escrow is PAID (on_escrow_paid)."""
     if instance.paid_status != Purchase.PAID:
         return
-    if instance.purchase_type not in (
-        Purchase.BOOST,
-        Purchase.FUNDRAISE_CONTRIBUTION,
-    ):
+    if instance.purchase_type != Purchase.BOOST:
         return
 
-    if instance.purchase_type == Purchase.BOOST:
-        ct_paper = _get_content_type(Paper)
-        ct_post = _get_content_type(ResearchhubPost)
-        if instance.content_type_id not in (ct_paper.id, ct_post.id):
-            return
-
-    source_type = (
-        FundingActivity.TIP_DOCUMENT
-        if instance.purchase_type == Purchase.BOOST
-        else FundingActivity.FUNDRAISE_PAYOUT
-    )
+    ct_paper = _get_content_type(Paper)
+    ct_post = _get_content_type(ResearchhubPost)
+    if instance.content_type_id not in (ct_paper.id, ct_post.id):
+        return
 
     def schedule():
         try:
-            create_funding_activity_task.delay(source_type, instance.pk)
+            create_funding_activity_task.delay(
+                FundingActivity.TIP_DOCUMENT,
+                instance.pk,
+            )
         except Exception as e:
             log_error(
                 e,
@@ -85,25 +78,57 @@ def on_purchase_paid(sender, instance, created, **kwargs):
     dispatch_uid="funding_activity_on_escrow_paid",
 )
 def on_escrow_paid(sender, instance, created, **kwargs):
-    """Schedule FundingActivity for each EscrowRecipients when Escrow is PAID (BOUNTY)."""
-    if instance.status != Escrow.PAID or instance.hold_type != Escrow.BOUNTY:
+    """Schedule FundingActivity when Escrow is PAID (BOUNTY or FUNDRAISE)."""
+    if instance.status != Escrow.PAID:
         return
 
-    def schedule():
-        try:
-            for rec in EscrowRecipients.objects.filter(escrow=instance):
-                create_funding_activity_task.delay(
-                    FundingActivity.BOUNTY_PAYOUT,
-                    rec.pk,
-                )
-        except Exception as e:
-            log_error(
-                e,
-                message="Failed to schedule funding activity tasks for Escrow %s"
-                % instance.pk,
-            )
+    if instance.hold_type == Escrow.BOUNTY:
 
-    transaction.on_commit(schedule)
+        def schedule_bounty():
+            try:
+                for rec in EscrowRecipients.objects.filter(escrow=instance):
+                    create_funding_activity_task.delay(
+                        FundingActivity.BOUNTY_PAYOUT,
+                        rec.pk,
+                    )
+            except Exception as e:
+                log_error(
+                    e,
+                    message="Failed to schedule funding activity tasks for Escrow %s"
+                    % instance.pk,
+                )
+
+        transaction.on_commit(schedule_bounty)
+        return
+
+    if instance.hold_type == Escrow.FUNDRAISE:
+        fundraise = Fundraise.objects.filter(escrow=instance).first()
+        if fundraise is not None:
+
+            def schedule_fundraise_funding():
+                try:
+                    for purchase in fundraise.purchases.filter(
+                        paid_status=Purchase.PAID
+                    ):
+                        create_funding_activity_task.delay(
+                            FundingActivity.FUNDRAISE_PAYOUT,
+                            purchase.pk,
+                        )
+                    for contribution in fundraise.usd_contributions.filter(
+                        is_refunded=False
+                    ):
+                        create_funding_activity_task.delay(
+                            FundingActivity.FUNDRAISE_PAYOUT_USD,
+                            contribution.pk,
+                        )
+                except Exception as e:
+                    log_error(
+                        e,
+                        message="Failed to schedule funding activity tasks for "
+                        "fundraise %s" % fundraise.pk,
+                    )
+
+            transaction.on_commit(schedule_fundraise_funding)
 
 
 @receiver(
