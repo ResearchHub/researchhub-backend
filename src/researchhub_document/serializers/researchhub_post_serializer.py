@@ -210,6 +210,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
 
 
 class DynamicPostSerializer(DynamicModelFieldSerializer):
+    abstract = SerializerMethodField()
     authors = SerializerMethodField()
     boost_amount = SerializerMethodField()
     bounties = SerializerMethodField()
@@ -228,6 +229,10 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
     class Meta:
         model = ResearchhubPost
         fields = "__all__"
+
+    def get_abstract(self, post):
+        """Return renderable_text as abstract for preregistrations and posts."""
+        return post.renderable_text or None
 
     def get_authors(self, post):
         context = self.context
