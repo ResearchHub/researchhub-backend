@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import Optional
 
+from authlib.integrations.base_client.errors import OAuthError
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core import signing
@@ -148,7 +149,22 @@ class EndaomentService:
         """
         Refresh the access token for an account.
         """
-        token_response = self.client.refresh_access_token(account.refresh_token)
+        try:
+            token_response = self.client.refresh_access_token(account.refresh_token)
+        except OAuthError as e:
+            if e.error == "invalid_grant":
+                # If the token is invalid, revoked or expired, delete the account.
+                # See: https://datatracker.ietf.org/doc/html/rfc6749#section-5.2
+                logger.warning(
+                    f"Failed to refresh token for user {account.user.id}: {e}"
+                )
+                account.delete()
+            else:
+                logger.error(
+                    f"Unexpected OAuth error refreshing token for user {account.user.id}: {e}"
+                )
+            raise
+
         account.access_token = token_response.access_token
         if token_response.refresh_token:
             account.refresh_token = token_response.refresh_token

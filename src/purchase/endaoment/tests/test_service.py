@@ -1,6 +1,7 @@
 from datetime import timedelta
 from unittest.mock import Mock
 
+from authlib.integrations.base_client.errors import OAuthError
 from django.contrib.auth import get_user_model
 from django.core import signing
 from django.test import TestCase, override_settings
@@ -324,6 +325,30 @@ class TestEndaomentService(TestCase):
         account = EndaomentAccount.objects.get(user=self.user)
         self.assertEqual(account.access_token, "new_token")
         self.assertEqual(account.refresh_token, "new_refresh")
+
+    def test_get_valid_access_token_refresh_token_expired(self):
+        """
+        Test that get_valid_access_token handles expired refresh tokens
+        by deleting the account.
+        """
+        # Arrange
+        EndaomentAccount.objects.create(
+            user=self.user,
+            access_token="expired_token",
+            refresh_token="expired_refresh",
+            token_expires_at=timezone.now() - timedelta(hours=1),
+        )
+        self.mock_client.refresh_access_token.side_effect = OAuthError(
+            error="invalid_grant"
+        )
+
+        # Act & Assert
+        with self.assertRaises(OAuthError):
+            self.service.get_valid_access_token(self.user)
+
+        self.mock_client.refresh_access_token.assert_called_once_with("expired_refresh")
+        # account should be deleted
+        self.assertFalse(EndaomentAccount.objects.filter(user=self.user).exists())
 
     def test_get_user_funds_returns_funds(self):
         """
