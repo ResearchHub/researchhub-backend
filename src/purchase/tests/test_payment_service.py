@@ -16,6 +16,7 @@ from purchase.related_models.payment_model import (
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.rsc_purchase_fee import RscPurchaseFee
 from purchase.services.payment_service import APC_AMOUNT_CENTS, PaymentService
+from reputation.related_models.bounty_fee import BountyFee
 from reputation.related_models.distribution import Distribution
 from user.models import User
 from user.tests.helpers import create_user
@@ -37,6 +38,9 @@ class PaymentServiceTest(TestCase):
         # Create RscPurchaseFee with 2% platform fee
         RscPurchaseFee.objects.all().delete()
         RscPurchaseFee.objects.create(rh_pct=0.02, dao_pct=0.00)
+        # Create BountyFee with 7% platform fee (used for fundraise contributions)
+        BountyFee.objects.all().delete()
+        BountyFee.objects.create(rh_pct=0.07, dao_pct=0.00)
 
     @patch("stripe.checkout.Session.create")
     def test_create_checkout_session_apc_success(self, mock_stripe_session_create):
@@ -320,6 +324,7 @@ class PaymentServiceTest(TestCase):
                 "stripe_fees": "0.4450",  # 2.9% + $0.30 Stripe fee
             },
             automatic_payment_methods={"enabled": True},
+            receipt_email=self.user.email,
         )
 
     @patch("stripe.PaymentIntent.retrieve")
@@ -429,11 +434,11 @@ class PaymentServiceTest(TestCase):
             # Assert
             self.assertIsInstance(payment, Payment)
             self.assertIsNone(fundraise_contribution)
-            # Verify the gross amount (150.0 + 2% fee = 153.0) was used
-            # This includes the fee for transparency before deduction
+            # Verify the gross amount (150.0 + 2% rsc_fee + 7% bounty_fee = 163.5) was used
+            # This includes both fees for transparency before deduction
             mock_create_dist.assert_called_once()
             call_kwargs = mock_create_dist.call_args[1]
-            self.assertEqual(call_kwargs["amount"], float(Decimal("153.0")))
+            self.assertEqual(call_kwargs["amount"], float(Decimal("163.5")))
 
     @patch("stripe.PaymentIntent.create")
     def test_create_payment_intent_includes_fees_in_metadata(
@@ -484,6 +489,7 @@ class PaymentServiceTest(TestCase):
                 "stripe_fees": "0.4450",
             },
             automatic_payment_methods={"enabled": True},
+            receipt_email=self.user.email,
         )
 
     @patch("stripe.PaymentIntent.retrieve")
@@ -527,11 +533,11 @@ class PaymentServiceTest(TestCase):
                 self.service.process_payment_intent_confirmation("pi_balance_123")
             )
 
-            # Verify distributor was called with gross amount (rsc_amount + fee)
+            # Verify distributor was called with gross amount (rsc_amount + fees)
             mock_create_dist.assert_called_once()
             call_args = mock_create_dist.call_args
-            # The amount should be 102.0 (100 + 2% fee)
-            self.assertAlmostEqual(call_args[1]["amount"], 102.0, places=1)
+            # The amount should be 109.0 (100 + 2% rsc_fee + 7% bounty_fee)
+            self.assertAlmostEqual(call_args[1]["amount"], 109.0, places=1)
             mock_distributor.distribute_locked_balance.assert_called_once_with(
                 lock_type=Balance.LockType.RSC_PURCHASE
             )
@@ -590,10 +596,10 @@ class PaymentServiceTest(TestCase):
                 self.service.process_payment_intent_confirmation("pi_fees_123")
             )
 
-            # Verify distributor was called with gross amount (100 + 2% = 102)
+            # Verify distributor was called with gross amount (100 + 2% + 7% = 109)
             mock_create_dist.assert_called_once()
             call_args = mock_create_dist.call_args
-            self.assertAlmostEqual(call_args[1]["amount"], 102.0, places=1)
+            self.assertAlmostEqual(call_args[1]["amount"], 109.0, places=1)
             mock_distributor.distribute_locked_balance.assert_called_once_with(
                 lock_type=Balance.LockType.RSC_PURCHASE
             )
@@ -622,6 +628,8 @@ class PaymentServiceTest(TestCase):
         """Integration test: verify user balance is updated after payment."""
         # Arrange
         locked_rsc_amount = 100.0
+        # Expected balance: 100 + 7% bounty fee = 107 (rsc_fee is deducted)
+        expected_locked_balance = 107.0
         mock_payment_intent = MagicMock()
         mock_payment_intent.status = "succeeded"
         mock_payment_intent.amount = 1000  # $10.00
@@ -645,11 +653,12 @@ class PaymentServiceTest(TestCase):
         self.assertIsNone(fundraise_contribution)
 
         # Refresh user from db and verify locked balance
+        # Balance includes bounty fee for future fundraise contribution
         self.user.refresh_from_db()
         locked_balance = self.user.get_locked_balance(
             lock_type=Balance.LockType.RSC_PURCHASE
         )
-        self.assertEqual(locked_balance, locked_rsc_amount)
+        self.assertEqual(locked_balance, expected_locked_balance)
 
     @patch("stripe.PaymentIntent.create")
     def test_create_payment_intent_with_fundraise_id(
@@ -706,23 +715,24 @@ class PaymentServiceTest(TestCase):
         self.assertNotIn("fundraise_id", call_kwargs["metadata"])
 
     @patch("stripe.PaymentIntent.retrieve")
-    def test_user_receives_full_rsc_amount_after_paying_fees(
+    def test_user_receives_full_rsc_amount_plus_bounty_fee_after_paying_fees(
         self, mock_stripe_retrieve
     ):
         """
-        Integration test: User should receive the FULL RSC amount they requested.
+        Integration test: User should receive the RSC amount plus bounty fee.
 
         The fee structure is designed so users pay fees ON TOP of the RSC value:
         - User requests 100 RSC
         - User pays: $5.00 (RSC value) + $0.10 (2% platform fee) + Stripe fees
-        - User should receive: 100 RSC (NOT 98 RSC)
+        - User receives: 100 RSC + 7 RSC (bounty fee for future fundraise)
 
-        The platform fee was already collected as extra USD, so we should NOT
-        deduct it again from the RSC balance.
+        The RSC purchase fee is deducted immediately. The bounty fee stays in
+        the locked balance to cover fees when the user contributes to a fundraise.
         """
         # Arrange
         requested_rsc_amount = Decimal("100.0")
         platform_fee_rsc = Decimal("2.0")  # 2% of 100 RSC
+        bounty_fee_rsc = Decimal("7.0")  # 7% of 100 RSC
 
         mock_payment_intent = MagicMock()
         mock_payment_intent.status = "succeeded"
@@ -742,8 +752,10 @@ class PaymentServiceTest(TestCase):
             "pi_full_amount_test"
         )
 
-        # Assert - User should have the FULL 100 RSC they requested
+        # Assert - User should have 100 RSC + 7 RSC bounty fee for fundraise
         self.user.refresh_from_db()
         total_balance = float(self.user.get_balance(include_locked=True))
 
-        self.assertEqual(total_balance, float(requested_rsc_amount))
+        # User receives requested amount + bounty fee (for later fundraise contribution)
+        expected_balance = float(requested_rsc_amount + bounty_fee_rsc)
+        self.assertEqual(total_balance, expected_balance)
