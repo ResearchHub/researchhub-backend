@@ -42,7 +42,13 @@ from feed.views import (
 from orcid.views import OrcidCallbackView, OrcidConnectView, OrcidFetchView
 from organizations.views import NonprofitFundraiseLinkViewSet, NonprofitOrgViewSet
 from paper.views import paper_upload_views
-from purchase.views import stripe_webhook_view
+from purchase.views import (
+    EndaomentCallbackView,
+    EndaomentConnectView,
+    EndaomentStatusView,
+    EndaomentViewSet,
+    stripe_webhook_view,
+)
 from researchhub.views import asset_upload_view
 from researchhub_comment.views.rh_comment_view import RhCommentViewSet
 from review.views.peer_review_view import PeerReviewViewSet
@@ -107,6 +113,8 @@ router.register(
 router.register(r"figure", paper_views.FigureViewSet, basename="figure")
 
 router.register(r"purchase", purchase.views.PurchaseViewSet, basename="purchase")
+
+router.register(r"endaoment", EndaomentViewSet, basename="endaoment")
 
 router.register(r"transactions", purchase.views.BalanceViewSet, basename="transactions")
 
@@ -222,6 +230,22 @@ urlpatterns = [
     path("api/orcid/connect/", OrcidConnectView.as_view(), name="orcid_connect"),
     path("api/orcid/callback/", OrcidCallbackView.as_view(), name="orcid_callback"),
     path("api/orcid/fetch/", OrcidFetchView.as_view(), name="orcid_fetch"),
+    # Endaoment OAuth endpoints
+    path(
+        "api/endaoment/connect/",
+        EndaomentConnectView.as_view(),
+        name="endaoment_connect",
+    ),
+    path(
+        "api/endaoment/callback/",
+        EndaomentCallbackView.as_view(),
+        name="endaoment_callback",
+    ),
+    path(
+        "api/endaoment/status/",
+        EndaomentStatusView.as_view(),
+        name="endaoment_status",
+    ),
     # TODO: calvinhlee - consolidate all mod views into 1 set
     path("api/get_hub_active_contributors/", editor_views.get_hub_active_contributors),
     path(

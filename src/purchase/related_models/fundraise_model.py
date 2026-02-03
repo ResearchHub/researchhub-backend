@@ -159,9 +159,8 @@ class Fundraise(DefaultModel):
         # escrow.payout() expects a Decimal object
         recipient = self.get_recipient()
 
-        payout_amount = self.get_amount_raised(currency=RSC)
-        if isinstance(payout_amount, float):
-            payout_amount = Decimal(str(payout_amount))
+        # Only payout RSC held in escrow - USD contributions are paid out separately
+        payout_amount = self.escrow.amount_holding
 
         did_payout = self.escrow.payout(
             recipient=recipient,
