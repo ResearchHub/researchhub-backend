@@ -83,12 +83,14 @@ def complete_eligible_fundraises():
                         log_info(f"Successfully completed fundraise {fundraise.id}")
                     else:
                         log_error(
-                            f"Failed to payout funds for fundraise {fundraise.id}"
+                            Exception(
+                                f"Failed to payout funds for fundraise {fundraise.id}"
+                            )
                         )
                         error_count += 1
 
         except Exception as e:
-            log_error(f"Error processing fundraise {fundraise.id}: {str(e)}")
+            log_error(e, message=f"Error processing fundraise {fundraise.id}")
             error_count += 1
 
     log_info(f"Completed {completed_count} fundraises, {error_count} errors")
