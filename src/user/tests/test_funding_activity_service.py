@@ -8,7 +8,7 @@ from unittest.mock import patch
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
-from purchase.models import Purchase
+from purchase.models import Purchase, UsdFundraiseContribution
 from purchase.related_models.balance_model import Balance
 from purchase.related_models.fundraise_model import Fundraise
 from reputation.models import Distribution
@@ -288,6 +288,47 @@ class FundingActivityServiceTests(TestCase):
             Decimal("100"),
             "Recipient amount must be full 100",
         )
+
+    def test_create_fundraise_payout_usd_creates_activity_and_recipient(self):
+        """FUNDRAISE_PAYOUT_USD creates FundingActivity + one Recipient from UsdFundraiseContribution."""
+        uni_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PREREGISTRATION",
+        )
+        ct_fundraise = ContentType.objects.get_for_model(Fundraise)
+        fundraise = Fundraise.objects.create(
+            created_by=self.other_user,
+            status=Fundraise.COMPLETED,
+            unified_document=uni_doc,
+        )
+        escrow = Escrow.objects.create(
+            hold_type=Escrow.FUNDRAISE,
+            status=Escrow.PAID,
+            created_by=self.user,
+            content_type=ct_fundraise,
+            object_id=fundraise.id,
+        )
+        fundraise.escrow = escrow
+        fundraise.save()
+        contribution = UsdFundraiseContribution.objects.create(
+            user=self.user,
+            fundraise=fundraise,
+            amount_cents=10000,
+            fee_cents=900,
+            amount_rsc=Decimal("1000"),
+            is_refunded=False,
+        )
+        with patch.object(Fundraise, "get_recipient", return_value=self.other_user):
+            activity = FundingActivityService.create_funding_activity(
+                FundingActivity.FUNDRAISE_PAYOUT_USD, contribution
+            )
+        self.assertIsNotNone(activity)
+        self.assertEqual(activity.source_type, FundingActivity.FUNDRAISE_PAYOUT_USD)
+        self.assertEqual(activity.total_amount, Decimal("1000"))
+        self.assertEqual(activity.funder_id, self.user.id)
+        recipients = list(activity.recipients.all())
+        self.assertEqual(len(recipients), 1)
+        self.assertEqual(recipients[0].recipient_user_id, self.other_user.id)
+        self.assertEqual(recipients[0].amount, Decimal("1000"))
 
     def test_create_fee_creates_activity_no_recipient(self):
         """FEE creates FundingActivity, no recipient."""
