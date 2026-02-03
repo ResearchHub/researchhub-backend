@@ -484,3 +484,25 @@ class GrantFeedViewTests(APITestCase):
         # Test with '-' prefix - should work
         response = self.client.get("/api/grant_feed/?ordering=-upvotes")
         self.assertEqual(response.status_code, 200)
+
+    def test_created_by_filter_returns_grants_by_creator(self):
+        """Test created_by filter returns only grants by specified user."""
+        # Arrange
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self.client.get(f"/api/grant_feed/?created_by={self.moderator.id}")
+
+        # Assert
+        self.assertEqual(len(response.data["results"]), 3)
+
+    def test_created_by_filter_returns_empty_for_non_creator(self):
+        """Test created_by filter returns empty when user created no grants."""
+        # Arrange
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self.client.get(f"/api/grant_feed/?created_by={self.user.id}")
+
+        # Assert
+        self.assertEqual(len(response.data["results"]), 0)

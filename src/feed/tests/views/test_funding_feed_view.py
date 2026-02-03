@@ -1637,3 +1637,34 @@ class FundingFeedViewSetTests(AWSMockTestCase):
                 post_id,
                 f"Position {i} should be post with amount {sorted_by_amount[i][1]}",
             )
+
+    def test_funded_by_filter_returns_funded_posts(self):
+        """Test funded_by filter returns posts the user has funded."""
+        # Arrange
+        funder = User.objects.create_user(username="funder", password=uuid.uuid4().hex)
+        Purchase.objects.create(
+            user=funder,
+            content_type=ContentType.objects.get_for_model(Fundraise),
+            object_id=self.open_fundraise.id,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            purchase_method=Purchase.OFF_CHAIN,
+            amount="1000",
+        )
+
+        # Act
+        response = self.client.get(reverse("funding_feed-list") + f"?funded_by={funder.id}")
+
+        # Assert
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(response.data["results"][0]["content_object"]["id"], self.post.id)
+
+    def test_funded_by_filter_returns_empty_for_non_funder(self):
+        """Test funded_by filter returns empty when user has no contributions."""
+        # Arrange
+        non_funder = User.objects.create_user(username="non_funder", password=uuid.uuid4().hex)
+
+        # Act
+        response = self.client.get(reverse("funding_feed-list") + f"?funded_by={non_funder.id}")
+
+        # Assert
+        self.assertEqual(len(response.data["results"]), 0)
