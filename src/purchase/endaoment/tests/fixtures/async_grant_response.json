@@ -1,0 +1,66 @@
+{
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "type": "grant",
+    "status": "approved",
+    "transactionHash": "0x1234567890abcdef",
+    "netAmount": "1000000",
+    "fee": "10000",
+    "createdAtUtc": "2024-03-20T10:30:00Z",
+    "requestedAmount": "1000000",
+    "updatedAtUtc": "2024-03-20T10:30:00Z",
+    "asyncStatus": "pending",
+    "chainId": 1,
+    "destinationOrg": {
+        "id": "123e4567-e89b-12d3-a456-426614174000",
+        "ein": "530196605",
+        "name": "American Red Cross",
+        "description": "Providing disaster relief and emergency assistance",
+        "address": {
+            "line1": "123 Main St",
+            "city": "San Francisco",
+            "state": "CA",
+            "zip": "94105",
+            "country": "USA"
+        },
+        "contactInfo": {
+            "email": "contact@organization.org",
+            "name": "John Doe",
+            "phone": "+1 (555) 123-4567",
+            "title": "Executive Director"
+        },
+        "website": "https://www.redcross.org",
+        "logo": "https://example.com/logo.png",
+        "nteeCode": "E91",
+        "nteeDescription": "Nursing, Convalescent (Geriatric and Nursing)",
+        "featuredIndex": 100,
+        "claimedDateUtc": "2024-03-20T10:30:00Z",
+        "claimedType": "DIRECT",
+        "claimed": true,
+        "contractAddress": "0x1234567890123456789012345678901234567890",
+        "deployments": [
+            {
+                "chainId": 1,
+                "contractAddress": "0x1234567890123456789012345678901234567890",
+                "usdcBalance": "2000000",
+                "isDeployed": true
+            }
+        ]
+    },
+    "destinationSubproject": {
+        "id": "123e4567-e89b-12d3-a456-426614174000",
+        "sponsorOrgId": "123e4567-e89b-12d3-a456-426614174000",
+        "sponsorOrgEin": "123456789",
+        "ein": "123456789",
+        "name": "Education Initiative",
+        "description": "Supporting educational programs in underserved communities",
+        "website": "https://example.org/initiative",
+        "logo": "https://example.org/images/logo.png",
+        "nteeCode": "E91",
+        "nteeDescription": "Nursing, Convalescent (Geriatric and Nursing)",
+        "featuredIndex": 100,
+        "lifetimeContributionsUsdc": "1000000"
+    },
+    "recommender": "John Doe",
+    "purpose": "Supporting educational programs",
+    "specialInstructions": "Funds must be used exclusively for the summer education program"
+}

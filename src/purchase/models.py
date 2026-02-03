@@ -1,5 +1,6 @@
 from .related_models.aggregate_purchase_model import AggregatePurchase
 from .related_models.balance_model import Balance
+from .related_models.endaoment_account_model import EndaomentAccount
 from .related_models.fundraise_model import Fundraise
 from .related_models.grant_application_model import GrantApplication
 from .related_models.grant_model import Grant
@@ -15,6 +16,7 @@ from .related_models.wallet_model import Wallet
 migratables = (
     AggregatePurchase,
     Balance,
+    EndaomentAccount,
     Fundraise,
     Grant,
     GrantApplication,

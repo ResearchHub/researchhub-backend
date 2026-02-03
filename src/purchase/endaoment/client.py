@@ -1,8 +1,10 @@
 import logging
+import uuid
 from dataclasses import dataclass
 from typing import Optional
 from urllib.parse import urlparse
 
+import requests
 from authlib.common.security import generate_token
 from authlib.integrations.requests_client import OAuth2Session
 from django.conf import settings
@@ -36,10 +38,14 @@ class EndaomentClient:
     """
 
     def __init__(self):
+        self.api_url = settings.ENDAOMENT_API_URL
         self.auth_url = settings.ENDAOMENT_AUTH_URL
         self.client_id = settings.ENDAOMENT_CLIENT_ID
         self.client_secret = settings.ENDAOMENT_CLIENT_SECRET
         self.redirect_uri = settings.ENDAOMENT_REDIRECT_URI
+
+        self.http_session = requests.Session()
+        self.http_session.headers["Content-Type"] = "application/json"
 
     def build_authorization_url(
         self, user_id: int, return_url: Optional[str] = None
@@ -134,6 +140,59 @@ class EndaomentClient:
             client_id=self.client_id,
             client_secret=self.client_secret,
             code_challenge_method="S256",
+        )
+
+    def _do_request(
+        self, method: str, path: str, access_token: Optional[str], **kwargs
+    ):
+        response = self.http_session.request(
+            method,
+            f"{self.api_url}{path}",
+            headers={"Authorization": f"Bearer {access_token}"} if access_token else {},
+            timeout=REQUEST_TIMEOUT,
+            **kwargs,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def get_user_funds(self, access_token: str) -> list:
+        """
+        Fetch the authenticated user's DAFs from Endaoment.
+
+        See: https://docs.endaoment.org/developers/api/funds/get-all-funds-managed-by-the-authenticated-user
+        """
+        if not access_token:
+            raise ValueError("access_token is required")
+
+        return self._do_request("GET", "/v1/funds/mine", access_token)
+
+    def create_async_grant(
+        self,
+        access_token: str,
+        origin_fund_id: str,
+        destination_org_id: str,
+        amount_in_cents: int,
+        purpose: str,
+    ) -> dict:
+        """
+        Create an async grant request from a fund (DAF) to an organization.
+
+        See: https://docs.endaoment.org/developers/api/transfers/create-an-async-grant-request
+        """
+        if not access_token:
+            raise ValueError("access_token is required")
+
+        return self._do_request(
+            "POST",
+            "/v1/transfers/async-grants",
+            access_token,
+            json={
+                "destinationOrgId": destination_org_id,
+                "idempotencyKey": uuid.uuid4().hex,
+                "originFundId": origin_fund_id,
+                "purpose": purpose,
+                "requestedAmount": str(amount_in_cents),
+            },
         )
 
     @staticmethod
