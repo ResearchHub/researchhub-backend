@@ -26,9 +26,15 @@ from user.models import User
 
 
 class FundraiseService:
-    """
-    Service for managing fundraise-related operations.
-    """
+    """Service for managing fundraise-related operations."""
+
+    def get_funder_overview(self, _user: User) -> dict:
+        """Return funder overview metrics for a given user."""
+        return {}
+
+    def get_grant_overview(self, _user: User, _grant_id: int) -> dict:
+        """Return metrics for a specific grant."""
+        return {}
 
     def validate_fundraise_for_contribution(
         self, fundraise: Fundraise, user: User, check_self_contribution: bool = True

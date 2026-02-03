@@ -28,6 +28,20 @@ class TestFundraiseService(APITestCase):
         self.unified_document = Mock(spec=ResearchhubUnifiedDocument)
         self.unified_document.document_type = PREREGISTRATION
 
+    def test_get_funder_overview_returns_dict(self):
+        # Act
+        result = self.service.get_funder_overview(self.user)
+
+        # Assert
+        self.assertIsInstance(result, dict)
+
+    def test_get_grant_overview_returns_dict(self):
+        # Act
+        result = self.service.get_grant_overview(self.user, 1)
+
+        # Assert
+        self.assertIsInstance(result, dict)
+
     def test_create_fundraise_with_escrow_success(self):
         # Arrange
         goal_amount = Decimal("100.00")
