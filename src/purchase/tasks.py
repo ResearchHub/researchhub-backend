@@ -1,14 +1,13 @@
 from datetime import datetime, timedelta
-from decimal import Decimal
 
 import pytz
-from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 
 from mailing_list.lib import base_email_context
 from paper.models import Paper
 from purchase.models import Fundraise, Purchase, Support
 from purchase.related_models.constants.currency import USD
+from purchase.services.fundraise_service import FundraiseService
 from referral.services.referral_bonus_service import ReferralBonusService
 from researchhub.celery import QUEUE_NOTIFICATION, QUEUE_PURCHASES, app
 from researchhub.settings import BASE_FRONTEND_URL
@@ -77,6 +76,14 @@ def complete_eligible_fundraises():
                             log_error(
                                 e,
                                 message=f"Failed to process referral bonuses for fundraise {fundraise.id}",
+                            )
+
+                        try:
+                            FundraiseService().submit_endaoment_grants(fundraise)
+                        except Exception as e:
+                            log_error(
+                                e,
+                                message=f"Failed to submit Endaoment grants for fundraise {fundraise.id}",
                             )
 
                         completed_count += 1
