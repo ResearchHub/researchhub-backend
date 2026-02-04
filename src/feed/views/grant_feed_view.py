@@ -5,6 +5,8 @@ and research grant postings.
 """
 
 from django.core.cache import cache
+from django.db.models import Exists, OuterRef, Q
+from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -115,11 +117,35 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
 
         if status:
             status_upper = status.upper()
-            if status_upper in {Grant.OPEN, Grant.CLOSED, Grant.COMPLETED}:
-                queryset = queryset.filter(unified_document__grants__status=status_upper)
+            now = timezone.now()
+
+            if status_upper == Grant.OPEN:
+                # Matches Grant.is_active(): status=OPEN and not expired
+                queryset = queryset.filter(
+                    Exists(
+                        Grant.objects.filter(
+                            unified_document_id=OuterRef("unified_document_id"),
+                            status=Grant.OPEN,
+                        ).filter(Q(end_date__isnull=True) | Q(end_date__gt=now))
+                    )
+                )
+            elif status_upper in (Grant.CLOSED, Grant.COMPLETED):
+                # Inactive: explicitly closed/completed, or open but expired
+                queryset = queryset.filter(
+                    Exists(
+                        Grant.objects.filter(
+                            unified_document_id=OuterRef("unified_document_id"),
+                        ).filter(
+                            Q(status__in=[Grant.CLOSED, Grant.COMPLETED])
+                            | Q(status=Grant.OPEN, end_date__lt=now)
+                        )
+                    )
+                )
 
         if organization:
-            queryset = queryset.filter(unified_document__grants__organization__icontains=organization)
+            queryset = queryset.filter(
+                unified_document__grants__organization__icontains=organization
+            )
 
         if created_by:
             queryset = queryset.filter(created_by_id=created_by)
