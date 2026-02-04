@@ -9,10 +9,6 @@ class UsdFundraiseContribution(DefaultModel):
     Separate from UsdBalance to enable displaying contributors.
     """
 
-    class Source(models.TextChoices):
-        BALANCE = "BALANCE", "BALANCE"
-        ENDAOMENT = "ENDAOMENT", "ENDAOMENT"
-
     class Status(models.TextChoices):
         COMPLETED = "COMPLETED", "COMPLETED"
         RESERVED = "RESERVED", "RESERVED"
@@ -31,12 +27,6 @@ class UsdFundraiseContribution(DefaultModel):
     amount_cents = models.IntegerField(help_text="Contribution amount in cents")
     fee_cents = models.IntegerField(default=0, help_text="9% fee in cents")
     is_refunded = models.BooleanField(default=False)
-    source = models.CharField(
-        max_length=16,
-        choices=Source.choices,
-        default=Source.BALANCE,
-        db_comment="Origin of funds",
-    )
     status = models.CharField(
         max_length=16,
         choices=Status.choices,

@@ -239,9 +239,6 @@ class TestFundraiseService(APITestCase):
         self.assertIsNone(error)
         self.assertIsNotNone(contribution)
         self.assertEqual(
-            contribution.source, UsdFundraiseContribution.Source.ENDAOMENT
-        )
-        self.assertEqual(
             contribution.status, UsdFundraiseContribution.Status.RESERVED
         )
         self.assertEqual(contribution.origin_fund_id, "fund-123")
@@ -263,7 +260,6 @@ class TestFundraiseService(APITestCase):
             fundraise=fundraise,
             amount_cents=10000,
             fee_cents=0,
-            source=UsdFundraiseContribution.Source.ENDAOMENT,
             status=UsdFundraiseContribution.Status.RESERVED,
             origin_fund_id="fund-1",
             destination_org_id="org-1",

@@ -311,7 +311,6 @@ class FundraiseService:
                 fundraise=fundraise,
                 amount_cents=amount_cents,
                 fee_cents=fee_cents,
-                source=UsdFundraiseContribution.Source.BALANCE,
                 status=UsdFundraiseContribution.Status.COMPLETED,
             )
 
@@ -375,7 +374,6 @@ class FundraiseService:
             fundraise=fundraise,
             amount_cents=amount_cents,
             fee_cents=0,
-            source=UsdFundraiseContribution.Source.ENDAOMENT,
             status=UsdFundraiseContribution.Status.RESERVED,
             origin_fund_id=origin_fund_id,
             destination_org_id=nonprofit_link.nonprofit.endaoment_org_id,
@@ -388,7 +386,6 @@ class FundraiseService:
         Submit grants for all reserved Endaoment contributions.
         """
         reservations = fundraise.usd_contributions.filter(
-            source=UsdFundraiseContribution.Source.ENDAOMENT,
             status=UsdFundraiseContribution.Status.RESERVED,
         )
 
@@ -462,7 +459,7 @@ class FundraiseService:
         Refunds both the contribution amount and the fee to the user's USD balance.
         """
         for usd_contribution in fundraise.usd_contributions.filter(is_refunded=False):
-            if usd_contribution.source == UsdFundraiseContribution.Source.ENDAOMENT:
+            if usd_contribution.status != UsdFundraiseContribution.Status.COMPLETED:
                 usd_contribution.status = UsdFundraiseContribution.Status.CANCELLED
                 usd_contribution.save(update_fields=["status", "updated_date"])
                 continue

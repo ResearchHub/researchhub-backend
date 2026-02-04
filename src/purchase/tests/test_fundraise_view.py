@@ -259,7 +259,6 @@ class FundraiseViewTests(APITestCase):
         contribution = UsdFundraiseContribution.objects.get(
             fundraise_id=fundraise_id, user=contributor
         )
-        self.assertEqual(contribution.source, UsdFundraiseContribution.Source.ENDAOMENT)
         self.assertEqual(contribution.status, UsdFundraiseContribution.Status.RESERVED)
         self.assertEqual(contribution.origin_fund_id, "fund-123")
         self.assertEqual(contribution.destination_org_id, "org-123")
