@@ -296,6 +296,11 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             except Exception as e:
                 log_error(e, message="Failed to process referral bonuses")
 
+            try:
+                self.fundraise_service.submit_endaoment_grants(fundraise)
+            except Exception as e:
+                log_error(e, message="Failed to submit Endaoment grants")
+
             # Return updated fundraise object
             context = self.get_serializer_context()
             serializer = self.get_serializer(fundraise, context=context)
