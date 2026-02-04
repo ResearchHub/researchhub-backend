@@ -125,7 +125,10 @@ class EndaomentService:
 
         if account.is_token_expired():
             if account.refresh_token:
-                self._refresh_account_token(account)
+                try:
+                    self._refresh_account_token(account)
+                except OAuthError:
+                    return None
             else:
                 account.delete()
                 return None
