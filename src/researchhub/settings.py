@@ -540,7 +540,11 @@ AWS_REGION_NAME = os.environ.get("AWS_REGION_NAME", keys.AWS_REGION_NAME)
 
 # AWS Bedrock Configuration
 BEDROCK_PROCESSING_ENABLED = (
-    os.environ.get("BEDROCK_PROCESSING_ENABLED", "false").lower() == "true"
+    os.environ.get(
+        "BEDROCK_PROCESSING_ENABLED",
+        getattr(keys, "BEDROCK_PROCESSING_ENABLED", "false"),
+    ).lower()
+    == "true"
 )
 
 if not (CLOUD or TESTING) and os.environ.get("AWS_PROFILE") is None:

@@ -65,3 +65,37 @@ class ProgressService:
                 e,
             )
             # Do not raise; progress publishing must not break the main workflow
+
+    def subscribe_to_progress_sync(
+        self,
+        task_type: Union[TaskType, str],
+        task_id: str,
+    ):
+        """
+        Subscribe to progress updates (sync). Yields parsed message dicts.
+        For use in Django SSE view: loop over this and format as SSE.
+        """
+        if isinstance(task_type, TaskType):
+            task_type = task_type.value
+        channel = f"progress:{task_type}:{task_id}"
+        pubsub = self.redis_client.pubsub()
+        try:
+            pubsub.subscribe(channel)
+            while True:
+                message = pubsub.get_message(timeout=1.0)
+                if message is None:
+                    yield None  # no message this tick
+                    continue
+                if message.get("type") != "message":
+                    continue
+                try:
+                    data = json.loads(message.get("data") or "{}")
+                    yield data
+                except (TypeError, ValueError):
+                    continue
+        finally:
+            try:
+                pubsub.unsubscribe(channel)
+                pubsub.close()
+            except Exception:
+                pass
