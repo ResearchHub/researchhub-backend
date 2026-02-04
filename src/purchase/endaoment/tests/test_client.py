@@ -14,7 +14,7 @@ from purchase.endaoment.client import EndaomentClient, TokenResponse
     ENDAOMENT_AUTH_URL="https://auth.dev.endaoment.org",
     ENDAOMENT_CLIENT_ID="test_client_id",
     ENDAOMENT_CLIENT_SECRET="test_client_secret",
-    ENDAOMENT_REDIRECT_URI="https://researchhub.com/callback",
+    ENDAOMENT_REDIRECT_URL="https://researchhub.com/callback",
     CORS_ORIGIN_WHITELIST=["https://test.com", "https://researchhub.com"],
 )
 class TestEndaomentClient(TestCase):
