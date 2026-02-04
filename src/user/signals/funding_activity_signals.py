@@ -17,19 +17,8 @@ from researchhub_comment.models import RhCommentModel
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.related_models.funding_activity_model import FundingActivity
 from user.tasks.funding_activity_tasks import create_funding_activity_task
-from utils.sentry import log_error
 
 logger = logging.getLogger(__name__)
-
-_content_type_cache = {}
-
-
-def _get_content_type(model):
-    """Return ContentType for model, cached."""
-    if model not in _content_type_cache:
-        _content_type_cache[model] = ContentType.objects.get_for_model(model)
-    return _content_type_cache[model]
-
 
 DISTRIBUTION_TYPES_FOR_FUNDING = (
     "PURCHASE",
@@ -46,37 +35,42 @@ DISTRIBUTION_TYPES_FOR_FUNDING = (
 )
 def on_purchase_paid(sender, instance, created, **kwargs):
     """Schedule FundingActivity when Purchase is PAID (BOOST or FUNDRAISE_CONTRIBUTION)."""
-    if instance.paid_status != Purchase.PAID:
-        return
-    if instance.purchase_type not in (
-        Purchase.BOOST,
-        Purchase.FUNDRAISE_CONTRIBUTION,
-    ):
-        return
-
-    if instance.purchase_type == Purchase.BOOST:
-        ct_paper = _get_content_type(Paper)
-        ct_post = _get_content_type(ResearchhubPost)
-        if instance.content_type_id not in (ct_paper.id, ct_post.id):
+    try:
+        if instance.paid_status != Purchase.PAID:
+            return
+        if instance.purchase_type not in (
+            Purchase.BOOST,
+            Purchase.FUNDRAISE_CONTRIBUTION,
+        ):
             return
 
-    source_type = (
-        FundingActivity.TIP_DOCUMENT
-        if instance.purchase_type == Purchase.BOOST
-        else FundingActivity.FUNDRAISE_PAYOUT
-    )
+        if instance.purchase_type == Purchase.BOOST:
+            ct_paper = ContentType.objects.get_for_model(Paper)
+            ct_post = ContentType.objects.get_for_model(ResearchhubPost)
+            if instance.content_type_id not in (ct_paper.id, ct_post.id):
+                return
 
-    def schedule():
-        try:
-            create_funding_activity_task.delay(source_type, instance.pk)
-        except Exception as e:
-            log_error(
-                e,
-                message="Failed to schedule funding activity task for Purchase %s"
-                % instance.pk,
-            )
+        source_type = (
+            FundingActivity.TIP_DOCUMENT
+            if instance.purchase_type == Purchase.BOOST
+            else FundingActivity.FUNDRAISE_PAYOUT
+        )
 
-    transaction.on_commit(schedule)
+        def schedule():
+            try:
+                create_funding_activity_task.delay(source_type, instance.pk)
+            except Exception:
+                logger.exception(
+                    "Failed to schedule funding activity task for Purchase %s",
+                    instance.pk,
+                )
+
+        transaction.on_commit(schedule)
+    except Exception:
+        logger.exception(
+            "Funding activity signal failed for Purchase %s",
+            instance.pk,
+        )
 
 
 @receiver(
@@ -86,24 +80,29 @@ def on_purchase_paid(sender, instance, created, **kwargs):
 )
 def on_escrow_paid(sender, instance, created, **kwargs):
     """Schedule FundingActivity for each EscrowRecipients when Escrow is PAID (BOUNTY)."""
-    if instance.status != Escrow.PAID or instance.hold_type != Escrow.BOUNTY:
-        return
+    try:
+        if instance.status != Escrow.PAID or instance.hold_type != Escrow.BOUNTY:
+            return
 
-    def schedule():
-        try:
-            for rec in EscrowRecipients.objects.filter(escrow=instance):
-                create_funding_activity_task.delay(
-                    FundingActivity.BOUNTY_PAYOUT,
-                    rec.pk,
+        def schedule():
+            try:
+                for rec in EscrowRecipients.objects.filter(escrow=instance):
+                    create_funding_activity_task.delay(
+                        FundingActivity.BOUNTY_PAYOUT,
+                        rec.pk,
+                    )
+            except Exception:
+                logger.exception(
+                    "Failed to schedule funding activity tasks for Escrow %s",
+                    instance.pk,
                 )
-        except Exception as e:
-            log_error(
-                e,
-                message="Failed to schedule funding activity tasks for Escrow %s"
-                % instance.pk,
-            )
 
-    transaction.on_commit(schedule)
+        transaction.on_commit(schedule)
+    except Exception:
+        logger.exception(
+            "Funding activity signal failed for Escrow %s",
+            instance.pk,
+        )
 
 
 @receiver(
@@ -113,43 +112,48 @@ def on_escrow_paid(sender, instance, created, **kwargs):
 )
 def on_distribution_created(sender, instance, created, **kwargs):
     """Schedule FundingActivity when Distribution is created (PURCHASE tip or fee types)."""
-    if not created:
-        return
-    if instance.distribution_type not in DISTRIBUTION_TYPES_FOR_FUNDING:
-        return
-
-    if instance.distribution_type == "PURCHASE":
-        ct_purchase = _get_content_type(Purchase)
-        ct_comment = _get_content_type(RhCommentModel)
-        if instance.proof_item_content_type_id != ct_purchase.id:
+    try:
+        if not created:
             return
-        try:
-            proof_purchase = Purchase.objects.get(pk=instance.proof_item_object_id)
-        except Purchase.DoesNotExist:
-            return
-        if proof_purchase.content_type_id != ct_comment.id:
-            return
-        comment = proof_purchase.item
-        if comment is None or getattr(comment, "comment_type", None) not in (
-            PEER_REVIEW,
-            COMMUNITY_REVIEW,
-        ):
+        if instance.distribution_type not in DISTRIBUTION_TYPES_FOR_FUNDING:
             return
 
-    source_type = (
-        FundingActivity.TIP_REVIEW
-        if instance.distribution_type == "PURCHASE"
-        else FundingActivity.FEE
-    )
+        if instance.distribution_type == "PURCHASE":
+            ct_purchase = ContentType.objects.get_for_model(Purchase)
+            ct_comment = ContentType.objects.get_for_model(RhCommentModel)
+            if instance.proof_item_content_type_id != ct_purchase.id:
+                return
+            try:
+                proof_purchase = Purchase.objects.get(pk=instance.proof_item_object_id)
+            except Purchase.DoesNotExist:
+                return
+            if proof_purchase.content_type_id != ct_comment.id:
+                return
+            comment = proof_purchase.item
+            if comment is None or getattr(comment, "comment_type", None) not in (
+                PEER_REVIEW,
+                COMMUNITY_REVIEW,
+            ):
+                return
 
-    def schedule():
-        try:
-            create_funding_activity_task.delay(source_type, instance.pk)
-        except Exception as e:
-            log_error(
-                e,
-                message="Failed to schedule funding activity task for Distribution %s"
-                % instance.pk,
-            )
+        source_type = (
+            FundingActivity.TIP_REVIEW
+            if instance.distribution_type == "PURCHASE"
+            else FundingActivity.FEE
+        )
 
-    transaction.on_commit(schedule)
+        def schedule():
+            try:
+                create_funding_activity_task.delay(source_type, instance.pk)
+            except Exception:
+                logger.exception(
+                    "Failed to schedule funding activity task for Distribution %s",
+                    instance.pk,
+                )
+
+        transaction.on_commit(schedule)
+    except Exception:
+        logger.exception(
+            "Funding activity signal failed for Distribution %s",
+            instance.pk,
+        )
