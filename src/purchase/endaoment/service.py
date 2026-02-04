@@ -9,8 +9,8 @@ from django.contrib.auth import get_user_model
 from django.core import signing
 from django.utils import timezone
 
-from purchase.endaoment.client import EndaomentClient
-from purchase.related_models.endaoment_account_model import EndaomentAccount
+from purchase.endaoment import EndaomentClient
+from purchase.models import EndaomentAccount
 
 logger = logging.getLogger(__name__)
 
