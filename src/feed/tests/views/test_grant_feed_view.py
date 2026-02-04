@@ -341,26 +341,64 @@ class GrantFeedViewTests(APITestCase):
         )
 
     def test_grant_feed_filter_by_status_closed(self):
-        """Test grant feed filtering by CLOSED status"""
+        """Test grant feed filtering by CLOSED status returns all inactive grants"""
+        # Arrange
         self.client.force_authenticate(self.user)
+
+        # Act
         response = self.client.get("/api/grant_feed/?status=CLOSED")
 
+        # Assert - CLOSED filter returns both CLOSED and COMPLETED grants
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["results"]), 1)
-        self.assertEqual(
-            response.data["results"][0]["content_object"]["title"], "Closed Grant"
-        )
+        self.assertEqual(len(response.data["results"]), 2)
+        titles = [r["content_object"]["title"] for r in response.data["results"]]
+        self.assertIn("Closed Grant", titles)
+        self.assertIn("Completed Grant", titles)
 
     def test_grant_feed_filter_by_status_completed(self):
-        """Test grant feed filtering by COMPLETED status"""
+        """Test grant feed filtering by COMPLETED status returns all inactive grants"""
+        # Arrange
         self.client.force_authenticate(self.user)
+
+        # Act
         response = self.client.get("/api/grant_feed/?status=COMPLETED")
 
+        # Assert - COMPLETED filter also returns both CLOSED and COMPLETED grants
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["results"]), 1)
-        self.assertEqual(
-            response.data["results"][0]["content_object"]["title"], "Completed Grant"
+        self.assertEqual(len(response.data["results"]), 2)
+        titles = [r["content_object"]["title"] for r in response.data["results"]]
+        self.assertIn("Closed Grant", titles)
+        self.assertIn("Completed Grant", titles)
+
+    def test_grant_feed_expired_open_grant_appears_in_closed(self):
+        """Test that an OPEN grant with expired end_date appears in CLOSED filter"""
+        # Arrange
+        expired_post = create_post(
+            created_by=self.moderator, document_type=GRANT, title="Expired Open Grant"
         )
+        Grant.objects.create(
+            created_by=self.moderator,
+            unified_document=expired_post.unified_document,
+            amount=Decimal("25000.00"),
+            currency="USD",
+            organization="Expired Org",
+            description="Expired but still OPEN status",
+            status=Grant.OPEN,
+            end_date=datetime.now(pytz.UTC) - timedelta(days=1),
+        )
+        self.client.force_authenticate(self.user)
+
+        # Act
+        open_response = self.client.get("/api/grant_feed/?status=OPEN")
+        closed_response = self.client.get("/api/grant_feed/?status=CLOSED")
+
+        # Assert - expired OPEN grant should NOT appear in OPEN filter
+        open_titles = [r["content_object"]["title"] for r in open_response.data["results"]]
+        self.assertNotIn("Expired Open Grant", open_titles)
+
+        # Assert - expired OPEN grant SHOULD appear in CLOSED filter
+        closed_titles = [r["content_object"]["title"] for r in closed_response.data["results"]]
+        self.assertIn("Expired Open Grant", closed_titles)
 
     def test_grant_feed_filter_by_organization(self):
         """Test grant feed filtering by organization"""
