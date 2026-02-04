@@ -212,6 +212,7 @@ class BountyViewSet(viewsets.ModelViewSet):
                 "slug",
                 "title",
                 "abstract",
+                "renderable_text",
                 "authors",
             )
         }
