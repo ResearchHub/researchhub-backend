@@ -295,8 +295,28 @@ class PaymentServiceTest(TestCase):
         mock_payment_intent.id = "pi_789012"
         mock_stripe_payment_intent_create.return_value = mock_payment_intent
 
-        # Mock exchange rate (100 RSC = $5.00)
-        with patch.object(RscExchangeRate, "rsc_to_usd", return_value=5.0):
+        # Mock exchange rate (100 RSC = $5.00) and fee calculations
+        with (
+            patch.object(RscExchangeRate, "rsc_to_usd", return_value=5.0),
+            patch(
+                "purchase.services.payment_service.calculate_rsc_purchase_fees",
+                side_effect=[
+                    # First call: RSC fees (2% of 100 RSC = 2.0 RSC)
+                    (Decimal("2.00"), Decimal("2.00"), Decimal("0.00"), None),
+                    # Second call: USD fees (2% of $5 = $0.10)
+                    (Decimal("0.10"), Decimal("0.10"), Decimal("0.00"), None),
+                ],
+            ),
+            patch(
+                "purchase.services.payment_service.calculate_bounty_fees",
+                side_effect=[
+                    # First call: RSC bounty fees (7% of 100 RSC = 7.0 RSC)
+                    (Decimal("7.00"), Decimal("7.00"), Decimal("0.00"), None),
+                    # Second call: USD bounty fees (7% of $5 = $0.35)
+                    (Decimal("0.35"), Decimal("0.35"), Decimal("0.00"), None),
+                ],
+            ),
+        ):
             # Act
             result = self.service.create_payment_intent(
                 user_id=self.user.id,
@@ -307,12 +327,12 @@ class PaymentServiceTest(TestCase):
         self.assertEqual(result["client_secret"], "pi_secret_456")
         self.assertEqual(result["payment_intent_id"], "pi_789012")
         self.assertEqual(result["locked_rsc_amount"], 100)
-        # $5.00 + platform fee ($0.10) + Stripe fee ($0.445) = $5.545 = 554 cents
-        self.assertEqual(result["stripe_amount_cents"], 554)
+        # $5.00 + RSC purchase fee ($0.10) + bounty fee ($0.35) + Stripe fee ($0.445) = $5.895 = 589 cents
+        self.assertEqual(result["stripe_amount_cents"], 589)
 
         # Verify Stripe was called with correct parameters
         mock_stripe_payment_intent_create.assert_called_once_with(
-            amount=554,  # $5.00 + platform fee + Stripe fee
+            amount=589,  # $5.00 + RSC purchase fee + bounty fee + Stripe fee
             currency="usd",
             metadata={
                 "user_id": str(self.user.id),
@@ -320,7 +340,8 @@ class PaymentServiceTest(TestCase):
                 "locked_rsc_amount": "100",
                 "original_currency": "rsc",
                 "original_amount": "100",
-                "platform_fees_rsc": "2.00",  # 2% platform fee in RSC
+                "platform_fees_rsc": "2.00",  # 2% RSC purchase fee in RSC
+                "bounty_fees_rsc": "7.00",  # 7% bounty fee in RSC
                 "stripe_fees": "0.4450",  # 2.9% + $0.30 Stripe fee
             },
             automatic_payment_methods={"enabled": True},
@@ -450,8 +471,9 @@ class PaymentServiceTest(TestCase):
         mock_payment_intent.id = "pi_fees_123"
         mock_stripe_payment_intent_create.return_value = mock_payment_intent
 
-        # Mock exchange rate and fee calculation
-        # calculate_rsc_purchase_fees is called twice: once for RSC, once for USD
+        # Mock exchange rate and fee calculations
+        # calculate_rsc_purchase_fees and calculate_bounty_fees are each called twice:
+        # once for RSC, once for USD
         with (
             patch.object(RscExchangeRate, "rsc_to_usd", return_value=5.0),
             patch(
@@ -463,6 +485,15 @@ class PaymentServiceTest(TestCase):
                     (Decimal("0.10"), Decimal("0.10"), Decimal("0.00"), None),
                 ],
             ),
+            patch(
+                "purchase.services.payment_service.calculate_bounty_fees",
+                side_effect=[
+                    # First call: RSC bounty fees (7% of 100 RSC = 7.0 RSC)
+                    (Decimal("7.00"), Decimal("7.00"), Decimal("0.00"), None),
+                    # Second call: USD bounty fees (7% of $5 = $0.35)
+                    (Decimal("0.35"), Decimal("0.35"), Decimal("0.00"), None),
+                ],
+            ),
         ):
 
             # Act
@@ -472,12 +503,12 @@ class PaymentServiceTest(TestCase):
             )
 
         # Assert
-        # $5.00 + $0.10 platform fee + $0.445 Stripe fee = $5.545 = 554 cents
-        self.assertEqual(result["stripe_amount_cents"], 554)
+        # $5.00 + $0.10 RSC purchase fee + $0.35 bounty fee + $0.445 Stripe fee = $5.895 = 589 cents
+        self.assertEqual(result["stripe_amount_cents"], 589)
 
         # Verify Stripe was called with fees in metadata
         mock_stripe_payment_intent_create.assert_called_once_with(
-            amount=554,
+            amount=589,
             currency="usd",
             metadata={
                 "user_id": str(self.user.id),
@@ -486,6 +517,7 @@ class PaymentServiceTest(TestCase):
                 "original_currency": "rsc",
                 "original_amount": "100",
                 "platform_fees_rsc": "2.00",
+                "bounty_fees_rsc": "7.00",
                 "stripe_fees": "0.4450",
             },
             automatic_payment_methods={"enabled": True},

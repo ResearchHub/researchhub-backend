@@ -15,6 +15,7 @@ from purchase.related_models.constants import (
     USD_FUNDRAISE_FEE_PERCENT,
 )
 from purchase.related_models.constants.currency import RSC, USD
+from referral.services.referral_bonus_service import ReferralBonusService
 from reputation.distributions import create_bounty_refund_distribution
 from reputation.distributor import Distributor
 from reputation.models import BountyFee, Escrow
@@ -23,6 +24,7 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
     ResearchhubUnifiedDocument,
 )
 from user.models import User
+from utils.sentry import log_error
 
 
 class FundraiseService:
@@ -313,7 +315,7 @@ class FundraiseService:
 
         return contribution, None
 
-    def refund_rsc_contributions(self, fundraise: "Fundraise") -> bool:
+    def refund_rsc_contributions(self, fundraise: Fundraise) -> bool:
         """
         Refund all RSC contributions from escrow back to contributors.
         Also refunds the fees that were deducted when creating contributions.
@@ -358,7 +360,7 @@ class FundraiseService:
 
         return True
 
-    def refund_usd_contributions(self, fundraise: "Fundraise") -> bool:
+    def refund_usd_contributions(self, fundraise: Fundraise) -> bool:
         """
         Refund all USD contributions that haven't been refunded yet.
         Refunds both the contribution amount and the fee to the user's USD balance.
@@ -377,7 +379,38 @@ class FundraiseService:
 
         return True
 
-    def close_fundraise(self, fundraise: "Fundraise") -> bool:
+    def complete_fundraise(self, fundraise: Fundraise) -> None:
+        """
+        Complete a fundraise and payout funds to the recipient.
+        Only works if the fundraise is in OPEN status and has escrow funds.
+
+        Args:
+            fundraise: The fundraise to complete
+
+        Raises:
+            ValueError: If fundraise is not open or has no funds to payout
+            RuntimeError: If payout fails
+        """
+        with transaction.atomic():
+            if fundraise.status != Fundraise.OPEN:
+                raise ValueError("Fundraise is not open")
+
+            if not fundraise.escrow or fundraise.escrow.amount_holding <= 0:
+                raise ValueError("Fundraise has no funds to payout")
+
+            if not fundraise.payout_funds():
+                raise RuntimeError("Failed to payout funds")
+
+            fundraise.status = Fundraise.COMPLETED
+            fundraise.save()
+
+        # Process referral bonuses (outside transaction to not block payout on failure)
+        try:
+            self.referral_bonus_service.process_fundraise_completion(fundraise)
+        except Exception as e:
+            log_error(e, message="Failed to process referral bonuses")
+
+    def close_fundraise(self, fundraise: Fundraise) -> bool:
         """
         Close a fundraise and refund all contributions to their contributors.
         Also refunds the fees that were deducted when creating contributions.
