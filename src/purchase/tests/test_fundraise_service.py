@@ -12,6 +12,7 @@ from purchase.related_models.usd_fundraise_contribution_model import (
 )
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
 from purchase.services.fundraise_service import FundraiseService
+from organizations.models import NonprofitFundraiseLink, NonprofitOrg
 from reputation.models import BountyFee
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
@@ -183,6 +184,105 @@ class TestFundraiseService(APITestCase):
         self.assertEqual(
             str(serializer.errors["non_field_errors"][0]), "Fundraise already exists"
         )
+
+    def test_create_endaoment_reservation_requires_nonprofit_link(self):
+        # Arrange
+        fundraise = self.service.create_fundraise_with_escrow(
+            user=self.user,
+            unified_document=ResearchhubUnifiedDocument.objects.create(
+                document_type=PREREGISTRATION
+            ),
+            goal_amount=Decimal("100.00"),
+            goal_currency=USD,
+            status=Fundraise.OPEN,
+        )
+
+        # Act
+        contribution, error = self.service.create_endaoment_reservation(
+            user=self.user,
+            fundraise=fundraise,
+            amount_cents=10000,
+            origin_fund_id="fund-1",
+        )
+
+        # Assert
+        self.assertIsNone(contribution)
+        self.assertEqual(error, "Fundraise is not linked to an Endaoment nonprofit")
+
+    def test_create_endaoment_reservation_success(self):
+        # Arrange
+        fundraise = self.service.create_fundraise_with_escrow(
+            user=self.user,
+            unified_document=ResearchhubUnifiedDocument.objects.create(
+                document_type=PREREGISTRATION
+            ),
+            goal_amount=Decimal("100.00"),
+            goal_currency=USD,
+            status=Fundraise.OPEN,
+        )
+        nonprofit = NonprofitOrg.objects.create(
+            name="Test Nonprofit", endaoment_org_id="org-123"
+        )
+        NonprofitFundraiseLink.objects.create(
+            nonprofit=nonprofit, fundraise=fundraise
+        )
+
+        # Act
+        contribution, error = self.service.create_endaoment_reservation(
+            user=self.user,
+            fundraise=fundraise,
+            amount_cents=15000,
+            origin_fund_id="fund-123",
+        )
+
+        # Assert
+        self.assertIsNone(error)
+        self.assertIsNotNone(contribution)
+        self.assertEqual(
+            contribution.source, UsdFundraiseContribution.Source.ENDAOMENT
+        )
+        self.assertEqual(
+            contribution.status, UsdFundraiseContribution.Status.RESERVED
+        )
+        self.assertEqual(contribution.origin_fund_id, "fund-123")
+        self.assertEqual(contribution.destination_org_id, "org-123")
+
+    def test_submit_endaoment_grants_updates_status(self):
+        # Arrange
+        fundraise = self.service.create_fundraise_with_escrow(
+            user=self.user,
+            unified_document=ResearchhubUnifiedDocument.objects.create(
+                document_type=PREREGISTRATION
+            ),
+            goal_amount=Decimal("100.00"),
+            goal_currency=USD,
+            status=Fundraise.OPEN,
+        )
+        reservation = UsdFundraiseContribution.objects.create(
+            user=self.user,
+            fundraise=fundraise,
+            amount_cents=10000,
+            fee_cents=0,
+            source=UsdFundraiseContribution.Source.ENDAOMENT,
+            status=UsdFundraiseContribution.Status.RESERVED,
+            origin_fund_id="fund-1",
+            destination_org_id="org-1",
+        )
+
+        mock_endaoment = Mock()
+        mock_endaoment.create_grant.return_value = {"id": "transfer-1"}
+        service = FundraiseService(endaoment_service=mock_endaoment)
+
+        # Act
+        service.submit_endaoment_grants(fundraise)
+
+        # Assert
+        reservation.refresh_from_db()
+        self.assertEqual(
+            reservation.status, UsdFundraiseContribution.Status.SUBMITTED
+        )
+        self.assertEqual(reservation.endaoment_transfer_id, "transfer-1")
+        mock_endaoment.create_grant.assert_called_once()
 
 
 class CloseFundraiseTests(TestCase):

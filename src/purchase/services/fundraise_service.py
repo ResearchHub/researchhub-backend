@@ -6,6 +6,8 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 
 from analytics.tasks import track_revenue_event
+from organizations.models import NonprofitFundraiseLink
+from purchase.endaoment import EndaomentService
 from purchase.models import Balance, Fundraise, Purchase, UsdFundraiseContribution
 from purchase.related_models.constants import (
     MAXIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC,
@@ -27,6 +29,9 @@ from user.models import User
 
 class FundraiseService:
     """Service for managing fundraise-related operations."""
+
+    def __init__(self, endaoment_service=None):
+        self.endaoment_service = endaoment_service or EndaomentService()
 
     def get_funder_overview(self, _user: User) -> dict:
         """Return funder overview metrics for a given user."""
@@ -60,6 +65,15 @@ class FundraiseService:
             return False, "Cannot contribute to your own fundraise"
 
         return True, None
+
+    def _validate_usd_amount_cents(self, amount_cents: int) -> Optional[str]:
+        if (
+            amount_cents < MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_USD_CENTS
+            or amount_cents > MAXIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_USD_CENTS
+        ):
+            min_dollars = MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_USD_CENTS / 100
+            return f"Invalid amount. Minimum is ${min_dollars:.2f}"
+        return None
 
     def create_contribution(
         self,
@@ -98,13 +112,9 @@ class FundraiseService:
             except (ValueError, TypeError):
                 return None, "Invalid amount"
 
-            # Check if amount is within limits
-            if (
-                amount_cents < MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_USD_CENTS
-                or amount_cents > MAXIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_USD_CENTS
-            ):
-                min_dollars = MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_USD_CENTS / 100
-                return None, f"Invalid amount. Minimum is ${min_dollars:.2f}"
+            error = self._validate_usd_amount_cents(amount_cents)
+            if error:
+                return None, error
 
             return self.create_usd_contribution(user, fundraise, amount_cents)
 
@@ -301,6 +311,8 @@ class FundraiseService:
                 fundraise=fundraise,
                 amount_cents=amount_cents,
                 fee_cents=fee_cents,
+                source=UsdFundraiseContribution.Source.BALANCE,
+                status=UsdFundraiseContribution.Status.COMPLETED,
             )
 
             # Deduct total amount (contribution + fee) from user's USD balance
@@ -320,6 +332,84 @@ class FundraiseService:
             )
 
         return contribution, None
+
+    def create_endaoment_reservation(
+        self,
+        user: User,
+        fundraise: Fundraise,
+        amount_cents: int,
+        origin_fund_id: str,
+    ) -> Tuple[Optional[UsdFundraiseContribution], Optional[str]]:
+        """
+        Create a reserved Endaoment contribution for a fundraise.
+        """
+        is_valid, error = self.validate_fundraise_for_contribution(
+            fundraise, user, check_self_contribution=True
+        )
+        if not is_valid:
+            return None, error
+
+        try:
+            amount_cents = int(amount_cents)
+        except (TypeError, ValueError):
+            return None, "Invalid amount"
+
+        error = self._validate_usd_amount_cents(amount_cents)
+        if error:
+            return None, error
+
+        nonprofit_link = (
+            NonprofitFundraiseLink.objects.select_related("nonprofit")
+            .filter(fundraise=fundraise)
+            .first()
+        )
+        if (
+            not nonprofit_link
+            or not nonprofit_link.nonprofit
+            or not nonprofit_link.nonprofit.endaoment_org_id
+        ):
+            return None, "Fundraise is not linked to an Endaoment nonprofit"
+
+        contribution = UsdFundraiseContribution.objects.create(
+            user=user,
+            fundraise=fundraise,
+            amount_cents=amount_cents,
+            fee_cents=0,
+            source=UsdFundraiseContribution.Source.ENDAOMENT,
+            status=UsdFundraiseContribution.Status.RESERVED,
+            origin_fund_id=origin_fund_id,
+            destination_org_id=nonprofit_link.nonprofit.endaoment_org_id,
+        )
+
+        return contribution, None
+
+    def submit_endaoment_grants(self, fundraise: Fundraise) -> None:
+        """
+        Submit grants for all reserved Endaoment contributions.
+        """
+        reservations = fundraise.usd_contributions.filter(
+            source=UsdFundraiseContribution.Source.ENDAOMENT,
+            status=UsdFundraiseContribution.Status.RESERVED,
+        )
+
+        for reservation in reservations:
+            try:
+                response = self.endaoment_service.create_grant(
+                    user=reservation.user,
+                    origin_fund_id=reservation.origin_fund_id,
+                    destination_org_id=reservation.destination_org_id,
+                    amount_cents=reservation.amount_cents,
+                    purpose=f"Fundraise {reservation.fundraise_id}",
+                )
+                reservation.status = UsdFundraiseContribution.Status.SUBMITTED
+                if isinstance(response, dict):
+                    transfer_id = response.get("id") or response.get("transferId") or ""
+                    reservation.endaoment_transfer_id = str(transfer_id)
+            except Exception:
+                reservation.status = UsdFundraiseContribution.Status.FAILED
+            reservation.save(
+                update_fields=["status", "endaoment_transfer_id", "updated_date"]
+            )
 
     def refund_rsc_contributions(self, fundraise: "Fundraise") -> bool:
         """
@@ -372,6 +462,11 @@ class FundraiseService:
         Refunds both the contribution amount and the fee to the user's USD balance.
         """
         for usd_contribution in fundraise.usd_contributions.filter(is_refunded=False):
+            if usd_contribution.source == UsdFundraiseContribution.Source.ENDAOMENT:
+                usd_contribution.status = UsdFundraiseContribution.Status.CANCELLED
+                usd_contribution.save(update_fields=["status", "updated_date"])
+                continue
+
             user = usd_contribution.user
             # Refund both the contribution amount and the fee
             total_refund_cents = (
@@ -381,7 +476,10 @@ class FundraiseService:
                 user.increase_usd_balance(total_refund_cents, source=usd_contribution)
             # Mark as refunded
             usd_contribution.is_refunded = True
-            usd_contribution.save(update_fields=["is_refunded"])
+            usd_contribution.status = UsdFundraiseContribution.Status.CANCELLED
+            usd_contribution.save(
+                update_fields=["is_refunded", "status", "updated_date"]
+            )
 
         return True
 
