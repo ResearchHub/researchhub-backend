@@ -123,8 +123,12 @@ class EndaomentService:
         if not account:
             return None
 
-        if account.is_token_expired() and account.refresh_token:
-            self._refresh_account_token(account)
+        if account.is_token_expired():
+            if account.refresh_token:
+                self._refresh_account_token(account)
+            else:
+                account.delete()
+                return None
 
         return account.access_token
 
@@ -140,9 +144,7 @@ class EndaomentService:
         """
         access_token = self.get_valid_access_token(user)
         if not access_token:
-            raise EndaomentAccount.DoesNotExist(
-                "User has no Endaoment connection"
-            )
+            raise EndaomentAccount.DoesNotExist("User has no Endaoment connection")
         return self.client.get_user_funds(access_token)
 
     def _refresh_account_token(self, account: EndaomentAccount) -> None:
