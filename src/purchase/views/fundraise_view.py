@@ -8,17 +8,21 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from analytics.amplitude import track_event
+from purchase.endaoment import EndaomentService
 from purchase.models import Fundraise
 from purchase.related_models.constants.currency import RSC, USD
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
-from purchase.serializers.fundraise_overview_serializer import FundraiseOverviewSerializer
-from purchase.serializers.grant_overview_serializer import GrantOverviewSerializer
+from purchase.serializers.fundraise_overview_serializer import (
+    FundraiseOverviewSerializer,
+)
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
+from purchase.serializers.grant_overview_serializer import GrantOverviewSerializer
 from purchase.serializers.purchase_serializer import DynamicPurchaseSerializer
 from purchase.services.fundraise_service import FundraiseService
 from referral.services.referral_bonus_service import ReferralBonusService
 from user.permissions import IsModerator
 from user.related_models.follow_model import Follow
+from utils.sentry import log_error
 
 
 class FundraiseViewSet(viewsets.ModelViewSet):
@@ -28,6 +32,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
 
     def dispatch(self, request, *args, **kwargs):
         self.fundraise_service = kwargs.pop("fundraise_service", FundraiseService())
+        self.endaoment_service = kwargs.pop("endaoment_service", EndaomentService())
         self.referral_bonus_service = kwargs.pop(
             "referral_bonus_service",
             ReferralBonusService(),
@@ -179,6 +184,51 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         )
 
         # return updated fundraise object
+        context = self.get_serializer_context()
+        serializer = self.get_serializer(fundraise, context=context)
+        return Response(serializer.data)
+
+    @action(
+        methods=["POST"],
+        detail=True,
+        permission_classes=[IsAuthenticated],
+    )
+    def endaoment_reserve(self, request, *args, **kwargs):
+        data = request.data
+        user = request.user
+
+        fundraise_id = kwargs.get("pk", None)
+        origin_fund_id = data.get("origin_fund_id")
+        amount_cents = data.get("amount_cents")
+
+        if fundraise_id is None:
+            return Response({"message": "fundraise_id is required"}, status=400)
+        if not origin_fund_id:
+            return Response({"message": "origin_fund_id is required"}, status=400)
+        if amount_cents is None:
+            return Response({"message": "amount_cents is required"}, status=400)
+
+        try:
+            fundraise = Fundraise.objects.get(id=fundraise_id)
+        except Fundraise.DoesNotExist:
+            return Response({"message": "Fundraise does not exist"}, status=400)
+
+        # User must have an Endaoment connection
+        if not self.endaoment_service.get_valid_access_token(user):
+            return Response(
+                {"message": "Endaoment connection required"},
+                status=400,
+            )
+
+        _, error = self.fundraise_service.create_endaoment_reservation(
+            user=user,
+            fundraise=fundraise,
+            amount_cents=amount_cents,
+            origin_fund_id=origin_fund_id,
+        )
+        if error:
+            return Response({"message": error}, status=400)
+
         context = self.get_serializer_context()
         serializer = self.get_serializer(fundraise, context=context)
         return Response(serializer.data)

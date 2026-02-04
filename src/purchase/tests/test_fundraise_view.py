@@ -3,9 +3,18 @@ from decimal import Decimal
 
 import pytz
 from django.contrib.contenttypes.models import ContentType
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
-from purchase.models import Balance, Fundraise, Purchase, RscExchangeRate
+from organizations.models import NonprofitFundraiseLink, NonprofitOrg
+from purchase.models import (
+    Balance,
+    EndaomentAccount,
+    Fundraise,
+    Purchase,
+    RscExchangeRate,
+    UsdFundraiseContribution,
+)
 from purchase.services.fundraise_service import FundraiseService
 from purchase.views import FundraiseViewSet
 from referral.models import ReferralSignup
@@ -214,6 +223,46 @@ class FundraiseViewTests(APITestCase):
         response = self._create_contribution(fundraise_id, self.user)
 
         self.assertEqual(response.status_code, 400)
+
+    def test_endaoment_reserve_creates_reserved_contribution(self):
+        # Arrange
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+
+        nonprofit = NonprofitOrg.objects.create(
+            name="Test Nonprofit", endaoment_org_id="org-123"
+        )
+        NonprofitFundraiseLink.objects.create(
+            nonprofit=nonprofit, fundraise=Fundraise.objects.get(id=fundraise_id)
+        )
+
+        contributor = create_random_authenticated_user("endaoment_contributor")
+        EndaomentAccount.objects.create(
+            user=contributor,
+            access_token="token",
+            refresh_token="refresh",
+            token_expires_at=timezone.now() + timedelta(hours=1),
+            endaoment_user_id="endaoment-user-1",
+        )
+
+        self.client.force_authenticate(contributor)
+
+        # Act
+        response = self.client.post(
+            f"/api/fundraise/{fundraise_id}/endaoment_reserve/",
+            {"origin_fund_id": "fund-123", "amount_cents": 10000},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+
+        contribution = UsdFundraiseContribution.objects.get(
+            fundraise_id=fundraise_id, user=contributor
+        )
+        self.assertEqual(contribution.source, UsdFundraiseContribution.Source.ENDAOMENT)
+        self.assertEqual(contribution.status, UsdFundraiseContribution.Status.RESERVED)
+        self.assertEqual(contribution.origin_fund_id, "fund-123")
+        self.assertEqual(contribution.destination_org_id, "org-123")
 
     def test_create_contribution_exceeds_goal(self):
         fundraise = self._create_fundraise(self.post.id, goal_amount=100)
@@ -1001,6 +1050,11 @@ class FundraiseViewTests(APITestCase):
         self.client.force_authenticate(self.user)
 
         # Act
+        response = self.client.get(self.grant_overview_url, {"grant_id": 1})
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(response.data, dict)
         response = self.client.get(self.grant_overview_url, {"grant_id": 1})
 
         # Assert
