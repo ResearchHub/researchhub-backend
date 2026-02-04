@@ -236,21 +236,25 @@ class PaymentService:
             # Convert Decimal to float for rsc_to_usd, then back to Decimal
             usd_amount = Decimal(str(RscExchangeRate.rsc_to_usd(float(rsc_amount))))
 
-            # Calculate platform fees in RSC (2% of RSC amount)
-            rsc_fees, rh_fee, dao_fee, current_fee_obj = calculate_rsc_purchase_fees(
-                Decimal(str(rsc_amount))
-            )
+            # Calculate RSC purchase fees in RSC
+            rsc_fees, _, _, _ = calculate_rsc_purchase_fees(Decimal(str(rsc_amount)))
 
-            # Calculate platform fees in USD (for Stripe charge calculation)
+            # Calculate bounty fees (platform fee) in RSC
+            bounty_fee_rsc, _, _, _ = calculate_bounty_fees(Decimal(str(rsc_amount)))
+
+            # Calculate RSC purchase fees in USD (for Stripe charge calculation)
             usd_fees, _, _, _ = calculate_rsc_purchase_fees(Decimal(str(usd_amount)))
+
+            # Calculate bounty fees (platform fee) in USD (for Stripe charge calculation)
+            bounty_fee_usd, _, _, _ = calculate_bounty_fees(Decimal(str(usd_amount)))
 
             # Calculate Stripe fees (2.9% + $0.30)
             stripe_fee = (Decimal(str(usd_amount)) * STRIPE_FEE_PERCENT) + (
                 Decimal(STRIPE_FEE_FIXED_CENTS) / 100
             )
 
-            # Total amount = base + platform fees (USD) + Stripe fees
-            total_fees = usd_fees + stripe_fee
+            # Total amount = base + RSC purchase fees + bounty fees + Stripe fees
+            total_fees = usd_fees + bounty_fee_usd + stripe_fee
             stripe_amount = int(
                 (Decimal(str(usd_amount)) + total_fees) * 100
             )  # Convert to cents for Stripe
@@ -262,6 +266,7 @@ class PaymentService:
                 "original_currency": RSC.lower(),
                 "original_amount": str(rsc_amount),
                 "platform_fees_rsc": str(rsc_fees),
+                "bounty_fees_rsc": str(bounty_fee_rsc),
                 "stripe_fees": str(stripe_fee),
             }
 
