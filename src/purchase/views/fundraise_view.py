@@ -11,9 +11,11 @@ from analytics.amplitude import track_event
 from purchase.models import Fundraise
 from purchase.related_models.constants.currency import RSC, USD
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
-from purchase.serializers.fundraise_overview_serializer import FundraiseOverviewSerializer
-from purchase.serializers.grant_overview_serializer import GrantOverviewSerializer
+from purchase.serializers.fundraise_overview_serializer import (
+    FundraiseOverviewSerializer,
+)
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
+from purchase.serializers.grant_overview_serializer import GrantOverviewSerializer
 from purchase.serializers.purchase_serializer import DynamicPurchaseSerializer
 from purchase.services.fundraise_service import FundraiseService
 from user.permissions import IsModerator
@@ -155,20 +157,11 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             return Response({"message": "Fundraise does not exist"}, status=400)
 
         if origin_fund_id:
-            from organizations.models import NonprofitFundraiseLink
-
-            nonprofit_link = (
-                NonprofitFundraiseLink.objects.select_related("nonprofit")
-                .filter(fundraise=fundraise)
-                .first()
-            )
-            if (
-                not nonprofit_link
-                or not nonprofit_link.nonprofit
-                or not nonprofit_link.nonprofit.endaoment_org_id
-            ):
+            nonprofit_org = fundraise.get_nonprofit_org()
+            if not nonprofit_org or not nonprofit_org.endaoment_org_id:
                 return Response(
-                    {"message": "Fundraise nonprofit org is not configured"}, status=400
+                    {"message": "Fundraise nonprofit org is not configured"},
+                    status=400,
                 )
 
         # Convert amount to appropriate type
@@ -178,7 +171,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             amount = Decimal(amount)
 
         # Create contribution via service
-        contribution, error = self.fundraise_service.create_contribution(
+        _, error = self.fundraise_service.create_contribution(
             user=user,
             fundraise=fundraise,
             amount=amount,

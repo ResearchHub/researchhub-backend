@@ -326,19 +326,12 @@ class FundraiseService:
 
             if origin_fund_id:
                 # Store intended nonprofit org ID for later manual transfer/refund.
-                nonprofit_link = (
-                    NonprofitFundraiseLink.objects.select_related("nonprofit")
-                    .filter(fundraise=fundraise)
-                    .first()
+                nonprofit_org = fundraise.get_nonprofit_org()
+                destination_org_id = (
+                    nonprofit_org.endaoment_org_id if nonprofit_org else None
                 )
-                if (
-                    not nonprofit_link
-                    or not nonprofit_link.nonprofit
-                    or not nonprofit_link.nonprofit.endaoment_org_id
-                ):
-                    return None, "Fundraise nonprofit org is not configured"
-
-                destination_org_id = nonprofit_link.nonprofit.endaoment_org_id
+                if not destination_org_id:
+                    return None, "Fundraise nonprofit org is not set"
 
                 rh_fund_id = settings.ENDAOMENT_RH_FUND_ID
                 if not rh_fund_id:
