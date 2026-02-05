@@ -323,6 +323,13 @@ class FundraiseService:
         with transaction.atomic():
             user = User.objects.select_for_update().get(id=user.id)
 
+            if not origin_fund_id:
+                return None, "origin_fund_id is required for USD contributions"
+
+            user_usd_balance = user.get_usd_balance_cents()
+            if user_usd_balance < total_amount_cents:
+                return None, "Insufficient USD balance"
+
             # Store intended nonprofit org ID for later manual transfer/refund.
             nonprofit_org = fundraise.get_nonprofit_org()
             destination_org_id = (

@@ -144,6 +144,11 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             return Response(
                 {"message": "amount_currency must be RSC or USD"}, status=400
             )
+        if amount_currency == USD and not origin_fund_id:
+            return Response(
+                {"message": "origin_fund_id is required for USD contributions"},
+                status=400,
+            )
         if origin_fund_id and amount_currency != USD:
             return Response(
                 {"message": "origin_fund_id requires USD amount_currency"},
