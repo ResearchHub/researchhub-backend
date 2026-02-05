@@ -141,12 +141,15 @@ class ExpertSearchDetailView(APIView):
 class ExpertSearchListView(APIView):
     permission_classes = [IsAuthenticated, ResearchAIPermission, IsModerator]
 
+    def get_queryset(self):
+        return ExpertSearch.objects.filter(created_by=self.request.user).order_by(
+            "-created_date"
+        )
+
     def get(self, request):
         limit = max(1, min(100, int(request.query_params.get("limit", 10))))
         offset = max(0, int(request.query_params.get("offset", 0)))
-        qs = ExpertSearch.objects.filter(created_by=request.user).order_by(
-            "-created_date"
-        )
+        qs = self.get_queryset()
         total = qs.count()
         end = offset + limit
         items = list(qs[offset:end])
@@ -210,9 +213,7 @@ def _sse_event_stream(search_id):
             if none_count >= db_check_interval:
                 none_count = 0
                 try:
-                    search = ExpertSearch.objects.filter(
-                        id=UUID(search_id)
-                    ).first()
+                    search = ExpertSearch.objects.filter(id=UUID(search_id)).first()
                     if search and search.status in ("completed", "failed"):
                         final = _final_progress_payload(search)
                         if search.error_message:

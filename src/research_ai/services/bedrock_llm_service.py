@@ -16,7 +16,6 @@ BEDROCK_MODEL_ID = getattr(
 
 
 class BedrockLLMService:
-    """Service for text-generation LLM calls via AWS Bedrock (Claude)."""
 
     def __init__(self):
         self.enabled = getattr(settings, "BEDROCK_PROCESSING_ENABLED", False)

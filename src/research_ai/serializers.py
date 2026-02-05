@@ -2,11 +2,8 @@ from rest_framework import serializers
 
 from research_ai.models import ExpertSearch, GeneratedEmail
 
-# ---- Config (nested in request) ----
-
 
 class ExpertSearchConfigSerializer(serializers.Serializer):
-    """Search configuration (expert count, filters)."""
 
     expert_count = serializers.IntegerField(default=10, min_value=5, max_value=20)
     expertise_level = serializers.CharField(default="All Levels")
@@ -49,11 +46,7 @@ class ExpertSearchConfigSerializer(serializers.Serializer):
         return attrs
 
 
-# ---- Request: start expert search ----
-
-
 class ExpertSearchCreateSerializer(serializers.Serializer):
-    """Request body for POST /api/research_ai/expert-finder/search/."""
 
     unified_document_id = serializers.IntegerField(required=False, allow_null=True)
     query = serializers.CharField(required=False, allow_blank=True)
@@ -98,11 +91,7 @@ class ExpertSearchCreateSerializer(serializers.Serializer):
         return attrs
 
 
-# ---- Response: single expert (for expert_results) ----
-
-
 class ExpertResultSerializer(serializers.Serializer):
-    """One expert in expert_results."""
 
     name = serializers.CharField()
     title = serializers.CharField(allow_blank=True)
@@ -113,11 +102,7 @@ class ExpertResultSerializer(serializers.Serializer):
     sources = serializers.ListField(required=False, allow_null=True)
 
 
-# ---- Response: single search (detail + list item) ----
-
-
 class ExpertSearchSerializer(serializers.ModelSerializer):
-    """Full expert search response (GET by id) and list item (include expert_names)."""
 
     search_id = serializers.UUIDField(source="id", read_only=True)
     expert_names = serializers.SerializerMethodField()
@@ -167,7 +152,6 @@ class ExpertSearchSerializer(serializers.ModelSerializer):
 
 
 class ExpertSearchListItemSerializer(serializers.ModelSerializer):
-    """Abbreviated search for list endpoint (with expert_names for excluder)."""
 
     search_id = serializers.UUIDField(source="id", read_only=True)
     expert_names = serializers.SerializerMethodField()
@@ -192,11 +176,7 @@ class ExpertSearchListItemSerializer(serializers.ModelSerializer):
         return [e.get("name") or "" for e in obj.expert_results if e.get("name")]
 
 
-# ---- Response: submit (POST returns this) ----
-
-
 class ExpertSearchSubmitResponseSerializer(serializers.Serializer):
-    """Response for POST /api/research_ai/expert-finder/search/."""
 
     search_id = serializers.UUIDField()
     status = serializers.CharField()
@@ -204,12 +184,7 @@ class ExpertSearchSubmitResponseSerializer(serializers.Serializer):
     sse_url = serializers.URLField(allow_null=True)
 
 
-# ---- GeneratedEmail (for PR4; minimal here if needed by views) ----
-
-
 class GeneratedEmailSerializer(serializers.ModelSerializer):
-    """Generated email CRUD (used in PR4)."""
-
     class Meta:
         model = GeneratedEmail
         fields = [

@@ -1,6 +1,11 @@
 import logging
 import re
+import urllib.request
 from typing import Any, Callable
+
+import fitz
+from django.core.exceptions import ValidationError
+from django.core.validators import EmailValidator
 
 from research_ai.prompts.expert_finder_prompts import (
     build_system_prompt,
@@ -13,6 +18,7 @@ from research_ai.services.report_generator_service import (
     generate_pdf_report,
     upload_report_to_storage,
 )
+from researchhub_document.related_models.constants.document_type import PAPER
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +38,6 @@ def get_document_content(unified_doc, input_type: str = "abstract"):
     Raises:
         ValueError: If requested content is not available.
     """
-    from researchhub_document.related_models.constants.document_type import PAPER
 
     if unified_doc.document_type == PAPER:
         paper = unified_doc.paper
@@ -63,7 +68,6 @@ def get_document_content(unified_doc, input_type: str = "abstract"):
 
 def _extract_text_from_pdf_url(pdf_url: str) -> str:
     """Download PDF from URL and extract text using PyMuPDF."""
-    import urllib.request
 
     try:
         with urllib.request.urlopen(pdf_url, timeout=60) as resp:
@@ -73,7 +77,6 @@ def _extract_text_from_pdf_url(pdf_url: str) -> str:
         raise ValueError(f"Could not download PDF: {e}") from e
 
     try:
-        import fitz
 
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
         parts = []
@@ -88,8 +91,6 @@ def _extract_text_from_pdf_url(pdf_url: str) -> str:
 
 
 class ExpertFinderService:
-    """Service for generating expert recommendations using Bedrock."""
-
     def __init__(self):
         self.bedrock_llm = BedrockLLMService()
         self.progress_service = ProgressService()
@@ -290,19 +291,11 @@ class ExpertFinderService:
             }
             if citations:
                 expert["sources"] = citations
-            email = expert["email"]
-            if not email or email.lower() in (
-                "not available",
-                "n/a",
-                "tbd",
-                "contact via institution",
-            ):
+            email = (expert["email"] or "").strip()
+            try:
+                EmailValidator()(email)
+            except ValidationError:
                 logger.warning("Skipping expert %s: no valid email", expert["name"])
-                continue
-            if not re.match(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", email):
-                logger.warning(
-                    "Skipping expert %s: invalid email format", expert["name"]
-                )
                 continue
             experts.append(expert)
 

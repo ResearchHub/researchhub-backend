@@ -2,6 +2,8 @@ import logging
 from datetime import datetime
 from uuid import UUID
 
+from research_ai.models import ExpertSearch
+from research_ai.services.expert_finder_service import ExpertFinderService
 from researchhub.celery import app
 
 logger = logging.getLogger(__name__)
@@ -11,7 +13,6 @@ def _update_search_progress(
     search_id: str, percent: int, message: str, status: str = "processing"
 ):
     """Update ExpertSearch progress in DB (for use from Celery)."""
-    from research_ai.models import ExpertSearch
 
     try:
         ExpertSearch.objects.filter(id=UUID(search_id)).update(
@@ -43,8 +44,6 @@ def process_expert_search_task(
         excluded_expert_names: Optional list of expert names to exclude.
         is_pdf: True if query was extracted from PDF.
     """
-    from research_ai.models import ExpertSearch
-    from research_ai.services.expert_finder_service import ExpertFinderService
 
     def progress_callback(sid: str, percent: int, message: str):
         status = "completed" if percent == 100 else "processing"
