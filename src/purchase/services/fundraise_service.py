@@ -328,10 +328,6 @@ class FundraiseService:
             if not origin_fund_id:
                 return None, "origin_fund_id is required for USD contributions"
 
-            user_usd_balance = user.get_usd_balance_cents()
-            if user_usd_balance < total_amount_cents:
-                return None, "Insufficient USD balance"
-
             # Store intended nonprofit org ID for later manual transfer/refund.
             nonprofit_org = fundraise.get_nonprofit_org()
             destination_org_id = (
@@ -372,9 +368,6 @@ class FundraiseService:
                 destination_org_id=destination_org_id,
                 endaoment_transfer_id=endaoment_transfer_id,
             )
-
-            # Deduct total amount (contribution + fee) from user's USD balance
-            user.decrease_usd_balance(total_amount_cents, source=contribution)
 
             # Track in Amplitude
             fee_dollars = fee_cents / 100.0
@@ -438,18 +431,10 @@ class FundraiseService:
 
     def refund_usd_contributions(self, fundraise: Fundraise) -> bool:
         """
-        Refund all USD contributions that haven't been refunded yet.
-        Refunds both the contribution amount and the fee to the user's USD balance.
+        Mark all USD contributions as refunded/cancelled.
+        Actual refunds are handled externally via Endaoment.
         """
         for usd_contribution in fundraise.usd_contributions.filter(is_refunded=False):
-            user = usd_contribution.user
-            # Refund both the contribution amount and the fee
-            total_refund_cents = (
-                usd_contribution.amount_cents + usd_contribution.fee_cents
-            )
-            if total_refund_cents > 0:
-                user.increase_usd_balance(total_refund_cents, source=usd_contribution)
-            # Mark as refunded
             usd_contribution.is_refunded = True
             usd_contribution.status = UsdFundraiseContribution.Status.CANCELLED
             usd_contribution.save(update_fields=["is_refunded", "status"])

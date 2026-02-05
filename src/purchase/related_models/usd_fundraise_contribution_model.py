@@ -6,7 +6,6 @@ from utils.models import DefaultModel
 class UsdFundraiseContribution(DefaultModel):
     """
     Tracks individual USD contributions to fundraises.
-    Separate from UsdBalance to enable displaying contributors.
     """
 
     class Status(models.TextChoices):

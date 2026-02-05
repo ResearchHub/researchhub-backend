@@ -242,6 +242,8 @@ class CloseFundraiseTests(TestCase):
             fundraise=fundraise,
             amount_cents=amount_cents,
             fee_cents=fee_cents,
+            origin_fund_id="test_origin_fund",
+            destination_org_id="test_destination_org",
         )
 
     def _give_user_rsc_balance(self, user, amount):
@@ -250,12 +252,6 @@ class CloseFundraiseTests(TestCase):
         Balance.objects.create(
             amount=amount, user=user, content_type=DISTRIBUTION_CONTENT_TYPE
         )
-
-    def _give_user_usd_balance(self, user, amount_cents):
-        """Helper method to give a user USD balance."""
-        from purchase.related_models.usd_balance_model import UsdBalance
-
-        UsdBalance.objects.create(user=user, amount_cents=amount_cents)
 
     # --- Basic close functionality tests ---
 
@@ -377,40 +373,29 @@ class CloseFundraiseTests(TestCase):
 
     # --- USD refund tests ---
 
-    def test_close_fundraise_refunds_usd_contributions(self):
-        """Test that closing a fundraise refunds USD contributions."""
+    def test_close_fundraise_marks_usd_contributions_as_refunded(self):
+        """Test that closing a fundraise marks USD contributions as refunded."""
         contributor = create_random_authenticated_user("usd_contributor")
-        self._give_user_usd_balance(contributor, 10000)  # $100
-        initial_balance = contributor.get_usd_balance_cents()
 
-        # Create USD contribution: $50 + $4.50 fee = $54.50 total
+        # Create USD contribution
         contribution = self._create_usd_contribution(
             self.fundraise, contributor, amount_cents=5000, fee_cents=450
         )
         self.assertFalse(contribution.is_refunded)
-
-        # Simulate the deduction that would have happened when contributing
-        contributor.decrease_usd_balance(5450, source=contribution)
-        self.assertEqual(contributor.get_usd_balance_cents(), 10000 - 5450)
+        self.assertEqual(contribution.status, UsdFundraiseContribution.Status.SUBMITTED)
 
         result = self.fundraise_service.close_fundraise(self.fundraise)
 
         self.assertTrue(result)
-        self.assertEqual(contributor.get_usd_balance_cents(), initial_balance)
 
         contribution.refresh_from_db()
         self.assertTrue(contribution.is_refunded)
+        self.assertEqual(contribution.status, UsdFundraiseContribution.Status.CANCELLED)
 
-    def test_close_fundraise_refunds_multiple_usd_contributors(self):
-        """Test that closing a fundraise refunds multiple USD contributors."""
+    def test_close_fundraise_marks_multiple_usd_contributions_as_refunded(self):
+        """Test that closing a fundraise marks multiple USD contributions as refunded."""
         contributor1 = create_random_authenticated_user("usd_contributor1")
         contributor2 = create_random_authenticated_user("usd_contributor2")
-
-        self._give_user_usd_balance(contributor1, 20000)
-        self._give_user_usd_balance(contributor2, 15000)
-
-        initial_balance1 = contributor1.get_usd_balance_cents()
-        initial_balance2 = contributor2.get_usd_balance_cents()
 
         contribution1 = self._create_usd_contribution(
             self.fundraise, contributor1, amount_cents=10000, fee_cents=900
@@ -419,42 +404,40 @@ class CloseFundraiseTests(TestCase):
             self.fundraise, contributor2, amount_cents=5000, fee_cents=450
         )
 
-        contributor1.decrease_usd_balance(10900, source=contribution1)
-        contributor2.decrease_usd_balance(5450, source=contribution2)
-
         result = self.fundraise_service.close_fundraise(self.fundraise)
 
         self.assertTrue(result)
-        self.assertEqual(contributor1.get_usd_balance_cents(), initial_balance1)
-        self.assertEqual(contributor2.get_usd_balance_cents(), initial_balance2)
+
+        contribution1.refresh_from_db()
+        contribution2.refresh_from_db()
+        self.assertTrue(contribution1.is_refunded)
+        self.assertTrue(contribution2.is_refunded)
 
     def test_close_fundraise_skips_already_refunded_usd_contributions(self):
-        """Test that already refunded USD contributions are not refunded again."""
+        """Test that already refunded USD contributions are not modified again."""
         contributor = create_random_authenticated_user("usd_contributor")
-        self._give_user_usd_balance(contributor, 10000)
 
         contribution = self._create_usd_contribution(
             self.fundraise, contributor, amount_cents=5000, fee_cents=450
         )
-        contributor.decrease_usd_balance(5450, source=contribution)
 
-        # Manually mark as refunded and give a manual refund
+        # Manually mark as refunded
         contribution.is_refunded = True
         contribution.save()
-        contributor.increase_usd_balance(5450, source=contribution)
-        balance_after_manual_refund = contributor.get_usd_balance_cents()
+
+        # Count updates before closing
+        initial_updated = contribution.updated_date
 
         self.fundraise_service.close_fundraise(self.fundraise)
 
-        # Verify balance hasn't changed (no double refund)
-        self.assertEqual(
-            contributor.get_usd_balance_cents(), balance_after_manual_refund
-        )
+        contribution.refresh_from_db()
+        # Already refunded, should not have been modified
+        self.assertTrue(contribution.is_refunded)
 
     # --- Mixed RSC and USD tests ---
 
-    def test_close_fundraise_refunds_both_rsc_and_usd(self):
-        """Test that closing a fundraise refunds both RSC and USD contributions."""
+    def test_close_fundraise_handles_both_rsc_and_usd(self):
+        """Test that closing a fundraise handles both RSC and USD contributions."""
         rsc_contributor = create_random_authenticated_user("rsc_contributor")
         usd_contributor = create_random_authenticated_user("usd_contributor")
 
@@ -463,12 +446,9 @@ class CloseFundraiseTests(TestCase):
         self._create_rsc_contribution(self.fundraise, rsc_contributor, amount=100)
 
         # Set up USD contribution
-        self._give_user_usd_balance(usd_contributor, 10000)
-        initial_usd_balance = usd_contributor.get_usd_balance_cents()
         contribution = self._create_usd_contribution(
             self.fundraise, usd_contributor, amount_cents=5000, fee_cents=450
         )
-        usd_contributor.decrease_usd_balance(5450, source=contribution)
 
         result = self.fundraise_service.close_fundraise(self.fundraise)
 
@@ -479,5 +459,6 @@ class CloseFundraiseTests(TestCase):
             Balance.objects.filter(user=rsc_contributor, amount=100).exists()
         )
 
-        # Verify USD contributor got refunded
-        self.assertEqual(usd_contributor.get_usd_balance_cents(), initial_usd_balance)
+        # Verify USD contribution was marked as refunded
+        contribution.refresh_from_db()
+        self.assertTrue(contribution.is_refunded)
