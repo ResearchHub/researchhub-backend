@@ -32,14 +32,10 @@ class UsdFundraiseContribution(DefaultModel):
     )
     origin_fund_id = models.CharField(
         max_length=255,
-        blank=True,
-        null=True,
         help_text="Origin fund (DAF) ID in Endaoment",
     )
     destination_org_id = models.CharField(
         max_length=255,
-        blank=True,
-        null=True,
         help_text="Intended destination organization ID in Endaoment",
     )
     endaoment_transfer_id = models.CharField(
