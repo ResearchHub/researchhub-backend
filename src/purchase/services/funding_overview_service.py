@@ -11,7 +11,7 @@ from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.usd_fundraise_contribution_model import (
     UsdFundraiseContribution,
 )
-from purchase.utils import get_funded_fundraise_ids, get_fundraise_content_type
+from purchase.utils import get_funded_fundraise_ids
 from researchhub_comment.constants.rh_comment_thread_types import AUTHOR_UPDATE
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -70,19 +70,19 @@ class FundingOverviewService:
         rsc_qs = apply_filters(
             Purchase.objects.filter(
                 purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
-                content_type=get_fundraise_content_type(),
+                content_type=ContentType.objects.get_for_model(Fundraise),
             ),
             "object_id",
         )
         rsc_total = rsc_qs.annotate(amt=Cast("amount", DECIMAL_FIELD)).aggregate(
-            t=Coalesce(Sum("amt"), Decimal("0"))
-        )["t"]
+            total=Coalesce(Sum("amt"), Decimal("0"))
+        )["total"]
 
         usd_qs = apply_filters(
             UsdFundraiseContribution.objects.filter(is_refunded=False),
             "fundraise_id",
         )
-        usd_cents = usd_qs.aggregate(t=Coalesce(Sum("amount_cents"), 0))["t"]
+        usd_cents = usd_qs.aggregate(total=Coalesce(Sum("amount_cents"), 0))["total"]
 
         return self._combine_rsc_usd(rsc_total, usd_cents)
 
