@@ -22,31 +22,31 @@ DECIMAL_FIELD = DecimalField(max_digits=19, decimal_places=10)
 
 
 class FundingOverviewService:
-    """Service for calculating funding dashboard metrics for RFP creators."""
+    """Service for calculating funding dashboard metrics for grant creators."""
 
     def get_funding_overview(self, user: User) -> dict:
         """Return funding overview metrics for a given user."""
 
-        rfp_fundraise_ids = self._get_rfp_fundraise_ids(user)
-        rfp_doc_ids = self._get_doc_ids(rfp_fundraise_ids)
+        grant_fundraise_ids = self._get_grant_fundraise_ids(user)
+        grant_proposal_doc_ids = self._get_grant_proposal_doc_ids(user)
         user_funded_ids = set(get_funded_fundraise_ids(user.id))
-        funded_rfp_proposals = list(set(rfp_fundraise_ids) & user_funded_ids)
+        funded_grant_proposals = list(set(grant_fundraise_ids) & user_funded_ids)
 
         return {
             "total_distributed_usd": self._sum_contributions(
-                user_id=user.id, fundraise_ids=rfp_fundraise_ids
+                user_id=user.id, fundraise_ids=grant_fundraise_ids
             ),
             "active_grants": self._active_grants(user),
             "total_applicants": self._count_applicants(user),
             "matched_funding_usd": self._sum_contributions(
-                fundraise_ids=funded_rfp_proposals, exclude_user_id=user.id
+                fundraise_ids=funded_grant_proposals, exclude_user_id=user.id
             ),
-            "recent_updates": self._update_count(rfp_doc_ids, RECENT_UPDATES_DAYS),
-            "proposals_funded": len(funded_rfp_proposals),
+            "recent_updates": self._update_count(grant_proposal_doc_ids, RECENT_UPDATES_DAYS),
+            "proposals_funded": len(funded_grant_proposals),
         }
 
-    def _get_rfp_fundraise_ids(self, user: User) -> list[int]:
-        """Get fundraise IDs for proposals connected to user's RFPs."""
+    def _get_grant_fundraise_ids(self, user: User) -> list[int]:
+        """Get fundraise IDs for proposals connected to user's grants."""
         return list(
             Fundraise.objects.filter(
                 unified_document__posts__grant_applications__grant__unified_document__posts__created_by=user
@@ -54,10 +54,20 @@ class FundingOverviewService:
         )
 
     def _count_applicants(self, user: User) -> int:
-        """Count total proposals attached to user's RFPs."""
+        """Count total proposals attached to user's grants."""
         return GrantApplication.objects.filter(
             grant__unified_document__posts__created_by=user
         ).count()
+
+    def _get_grant_proposal_doc_ids(self, user: User) -> list[int]:
+        """Get unified document IDs for all proposals that applied to user's grants."""
+        return list(
+            GrantApplication.objects.filter(
+                grant__unified_document__posts__created_by=user
+            ).values_list(
+                "preregistration_post__unified_document_id", flat=True
+            ).distinct()
+        )
 
     def _sum_contributions(
         self,
@@ -124,16 +134,6 @@ class FundingOverviewService:
             ),
         )
         return {"active": result["active"], "total": result["total"]}
-
-    def _get_doc_ids(self, funded_ids: list[int]) -> list[int]:
-        """Get unified document IDs for the given fundraise IDs."""
-        if not funded_ids:
-            return []
-        return list(
-            Fundraise.objects.filter(id__in=funded_ids).values_list(
-                "unified_document_id", flat=True
-            )
-        )
 
     def _update_count(self, doc_ids: list[int], days: int) -> int:
         """Count author updates on the given documents within the time window."""
