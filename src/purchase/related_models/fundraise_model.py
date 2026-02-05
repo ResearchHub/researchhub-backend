@@ -152,6 +152,22 @@ class Fundraise(DefaultModel):
 
         return self.created_by
 
+    def get_nonprofit_org(self):
+        """
+        Return the nonprofit org if the fundraise is linked, otherwise None.
+        """
+        # Avoid circular imports
+        from organizations.models import NonprofitFundraiseLink
+
+        nonprofit_link = (
+            NonprofitFundraiseLink.objects.select_related("nonprofit")
+            .filter(fundraise=self)
+            .first()
+        )
+        if nonprofit_link and nonprofit_link.nonprofit:
+            return nonprofit_link.nonprofit
+        return None
+
     def payout_funds(self):
         if not self.created_by:
             return
