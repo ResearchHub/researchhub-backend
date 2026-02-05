@@ -107,22 +107,24 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         )
 
         if created_by:
-            queryset = queryset.filter(created_by__id=created_by)
+            queryset = queryset.filter(created_by_id=created_by)
 
         if funded_by:
             funded_ids = get_funded_fundraise_ids(int(funded_by))
-            if funded_ids:
-                queryset = queryset.filter(unified_document__fundraises__id__in=funded_ids)
-            else:
-                queryset = queryset.none()
+            queryset = queryset.filter(unified_document__fundraises__id__in=funded_ids)
 
         if grant_id:
             queryset = queryset.filter(grant_applications__grant_id=grant_id)
 
         if fundraise_status:
-            if fundraise_status.upper() == "OPEN":
-                queryset = queryset.filter(unified_document__fundraises__status=Fundraise.OPEN)
-            elif fundraise_status.upper() == "CLOSED":
-                queryset = queryset.filter(unified_document__fundraises__status=Fundraise.COMPLETED)
+            status_upper = fundraise_status.upper()
+            if status_upper == "OPEN":
+                queryset = queryset.filter(
+                    unified_document__fundraises__status=Fundraise.OPEN
+                )
+            elif status_upper == "CLOSED":
+                queryset = queryset.filter(
+                    unified_document__fundraises__status=Fundraise.COMPLETED
+                )
 
         return queryset
