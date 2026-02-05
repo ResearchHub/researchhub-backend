@@ -17,7 +17,6 @@ from feed.filters import FundOrderingFilter
 from feed.models import FeedEntry
 from feed.serializers import FundingFeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
-from purchase.utils import get_funded_fundraise_ids
 from purchase.related_models.fundraise_model import Fundraise
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -44,8 +43,9 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         page_num = int(page)
         grant_id = request.query_params.get("grant_id", None)
         created_by = request.query_params.get("created_by", None)
+        funded_by = request.query_params.get("funded_by", None)
         cache_key = self.get_cache_key(request, "funding")
-        use_cache = page_num < 4 and grant_id is None and created_by is None
+        use_cache = page_num < 4 and grant_id is None and created_by is None and funded_by is None
 
         if use_cache:
             cached_response = cache.get(cache_key)
@@ -110,8 +110,9 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
             queryset = queryset.filter(created_by_id=created_by)
 
         if funded_by:
-            funded_ids = get_funded_fundraise_ids(int(funded_by))
-            queryset = queryset.filter(unified_document__fundraises__id__in=funded_ids)
+            queryset = queryset.filter(
+                grant_applications__grant__unified_document__posts__created_by_id=funded_by
+            ).distinct()
 
         if grant_id:
             queryset = queryset.filter(grant_applications__grant_id=grant_id)
