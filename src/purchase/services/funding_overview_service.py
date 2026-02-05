@@ -14,7 +14,7 @@ from purchase.related_models.usd_fundraise_contribution_model import (
 from purchase.utils import get_funded_fundraise_ids
 from researchhub_comment.constants.rh_comment_thread_types import AUTHOR_UPDATE
 from researchhub_comment.models import RhCommentModel
-from researchhub_document.models import ResearchhubUnifiedDocument
+from researchhub_document.models import ResearchhubPost
 from user.models import User
 
 RECENT_UPDATES_DAYS = 30
@@ -28,7 +28,7 @@ class FundingOverviewService:
         """Return funding overview metrics for a given user."""
 
         grant_fundraise_ids = self._get_grant_fundraise_ids(user)
-        grant_proposal_doc_ids = self._get_grant_proposal_doc_ids(user)
+        grant_proposal_post_ids = self._get_grant_proposal_post_ids(user)
         user_funded_ids = set(get_funded_fundraise_ids(user.id))
         funded_grant_proposals = list(set(grant_fundraise_ids) & user_funded_ids)
 
@@ -41,7 +41,7 @@ class FundingOverviewService:
             "matched_funding_usd": self._sum_contributions(
                 fundraise_ids=funded_grant_proposals, exclude_user_id=user.id
             ),
-            "recent_updates": self._update_count(grant_proposal_doc_ids, RECENT_UPDATES_DAYS),
+            "recent_updates": self._update_count(grant_proposal_post_ids, RECENT_UPDATES_DAYS),
             "proposals_funded": len(funded_grant_proposals),
         }
 
@@ -59,13 +59,13 @@ class FundingOverviewService:
             grant__unified_document__posts__created_by=user
         ).count()
 
-    def _get_grant_proposal_doc_ids(self, user: User) -> list[int]:
-        """Get unified document IDs for all proposals that applied to user's grants."""
+    def _get_grant_proposal_post_ids(self, user: User) -> list[int]:
+        """Get post IDs for all proposals that applied to user's grants."""
         return list(
             GrantApplication.objects.filter(
                 grant__unified_document__posts__created_by=user
             ).values_list(
-                "preregistration_post__unified_document_id", flat=True
+                "preregistration_post_id", flat=True
             ).distinct()
         )
 
@@ -135,14 +135,14 @@ class FundingOverviewService:
         )
         return {"active": result["active"], "total": result["total"]}
 
-    def _update_count(self, doc_ids: list[int], days: int) -> int:
-        """Count author updates on the given documents within the time window."""
-        if not doc_ids:
+    def _update_count(self, post_ids: list[int], days: int) -> int:
+        """Count author updates on the given posts within the time window."""
+        if not post_ids:
             return 0
-        unified_doc_ct = ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
+        post_ct = ContentType.objects.get_for_model(ResearchhubPost)
         return RhCommentModel.objects.filter(
             comment_type=AUTHOR_UPDATE,
-            thread__content_type=unified_doc_ct,
-            thread__object_id__in=doc_ids,
+            thread__content_type=post_ct,
+            thread__object_id__in=post_ids,
             created_date__gte=timezone.now() - timedelta(days=days),
         ).count()
