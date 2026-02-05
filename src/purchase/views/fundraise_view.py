@@ -131,6 +131,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         fundraise_id = kwargs.get("pk", None)
         amount = data.get("amount", None)
         amount_currency = data.get("amount_currency", RSC)
+        origin_fund_id = data.get("origin_fund_id") or None
 
         # Validate body
         if fundraise_id is None:
@@ -141,12 +142,34 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             return Response(
                 {"message": "amount_currency must be RSC or USD"}, status=400
             )
+        if origin_fund_id and amount_currency != USD:
+            return Response(
+                {"message": "origin_fund_id requires USD amount_currency"},
+                status=400,
+            )
 
         # Get fundraise
         try:
             fundraise = Fundraise.objects.get(id=fundraise_id)
         except Fundraise.DoesNotExist:
             return Response({"message": "Fundraise does not exist"}, status=400)
+
+        if origin_fund_id:
+            from organizations.models import NonprofitFundraiseLink
+
+            nonprofit_link = (
+                NonprofitFundraiseLink.objects.select_related("nonprofit")
+                .filter(fundraise=fundraise)
+                .first()
+            )
+            if (
+                not nonprofit_link
+                or not nonprofit_link.nonprofit
+                or not nonprofit_link.nonprofit.endaoment_org_id
+            ):
+                return Response(
+                    {"message": "Fundraise nonprofit org is not configured"}, status=400
+                )
 
         # Convert amount to appropriate type
         if amount_currency == USD:
@@ -160,6 +183,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             fundraise=fundraise,
             amount=amount,
             currency=amount_currency,
+            origin_fund_id=origin_fund_id,
         )
 
         if error:
