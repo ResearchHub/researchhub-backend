@@ -1645,7 +1645,7 @@ class FundingFeedViewSetTests(AWSMockTestCase):
 
         # Create an RFP (grant) owned by rfp_creator
         rfp_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
-        rfp_post = ResearchhubPost.objects.create(
+        ResearchhubPost.objects.create(
             title="RFP Post",
             created_by=rfp_creator,
             document_type=GRANT,
