@@ -1638,48 +1638,46 @@ class FundingFeedViewSetTests(AWSMockTestCase):
                 f"Position {i} should be post with amount {sorted_by_amount[i][1]}",
             )
 
-    def test_funded_by_filter_returns_proposals_applied_to_users_rfps(self):
-        """Test funded_by filter returns proposals that applied to the user's RFPs."""
+    def test_funded_by_filter_returns_proposals_applied_to_users_grants(self):
+        """Test funded_by filter returns proposals that applied to the user's grants."""
         # Arrange
-        rfp_creator = User.objects.create_user(username="rfp_creator", password=uuid.uuid4().hex)
+        grant_creator = User.objects.create_user(username="grant_creator", password=uuid.uuid4().hex)
 
-        # Create an RFP (grant) owned by rfp_creator
-        rfp_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
+        grant_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
         ResearchhubPost.objects.create(
-            title="RFP Post",
-            created_by=rfp_creator,
+            title="Grant Post",
+            created_by=grant_creator,
             document_type=GRANT,
-            unified_document=rfp_doc,
+            unified_document=grant_doc,
         )
-        rfp_grant = Grant.objects.create(
-            created_by=rfp_creator,
-            unified_document=rfp_doc,
+        test_grant = Grant.objects.create(
+            created_by=grant_creator,
+            unified_document=grant_doc,
             amount=10000,
             currency=USD,
             status=Grant.OPEN,
         )
 
-        # Create a proposal that applies to the RFP
         GrantApplication.objects.create(
-            grant=rfp_grant,
+            grant=test_grant,
             preregistration_post=self.post,
             applicant=self.user,
         )
 
         # Act
-        response = self.client.get(reverse("funding_feed-list") + f"?funded_by={rfp_creator.id}")
+        response = self.client.get(reverse("funding_feed-list") + f"?funded_by={grant_creator.id}")
 
         # Assert
         self.assertEqual(len(response.data["results"]), 1)
         self.assertEqual(response.data["results"][0]["content_object"]["id"], self.post.id)
 
-    def test_funded_by_filter_returns_empty_for_user_with_no_rfps(self):
-        """Test funded_by filter returns empty when user has no RFPs with applications."""
+    def test_funded_by_filter_returns_empty_for_user_with_no_grants(self):
+        """Test funded_by filter returns empty when user has no grants with applications."""
         # Arrange
-        user_without_rfps = User.objects.create_user(username="no_rfps", password=uuid.uuid4().hex)
+        user_without_grants = User.objects.create_user(username="no_grants", password=uuid.uuid4().hex)
 
         # Act
-        response = self.client.get(reverse("funding_feed-list") + f"?funded_by={user_without_rfps.id}")
+        response = self.client.get(reverse("funding_feed-list") + f"?funded_by={user_without_grants.id}")
 
         # Assert
         self.assertEqual(len(response.data["results"]), 0)
