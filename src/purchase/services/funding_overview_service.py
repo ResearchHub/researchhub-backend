@@ -22,7 +22,7 @@ DECIMAL_FIELD = DecimalField(max_digits=19, decimal_places=10)
 
 
 class FundingOverviewService:
-    """Service for calculating funding dashboard metrics for grant creators."""
+    """Service for calculating funding portfolio dashboard metrics for grant creators."""
 
     def get_funding_overview(self, user: User) -> dict:
         """Return funding overview metrics for a given user."""
