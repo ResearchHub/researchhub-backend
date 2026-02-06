@@ -11,12 +11,13 @@ from analytics.amplitude import track_event
 from purchase.models import Fundraise
 from purchase.related_models.constants.currency import RSC, USD
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
-from purchase.serializers.fundraise_overview_serializer import FundraiseOverviewSerializer
-from purchase.serializers.grant_overview_serializer import GrantOverviewSerializer
+from purchase.serializers.fundraise_overview_serializer import (
+    FundraiseOverviewSerializer,
+)
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
+from purchase.serializers.grant_overview_serializer import GrantOverviewSerializer
 from purchase.serializers.purchase_serializer import DynamicPurchaseSerializer
 from purchase.services.fundraise_service import FundraiseService
-from referral.services.referral_bonus_service import ReferralBonusService
 from user.permissions import IsModerator
 from user.related_models.follow_model import Follow
 
@@ -28,10 +29,6 @@ class FundraiseViewSet(viewsets.ModelViewSet):
 
     def dispatch(self, request, *args, **kwargs):
         self.fundraise_service = kwargs.pop("fundraise_service", FundraiseService())
-        self.referral_bonus_service = kwargs.pop(
-            "referral_bonus_service",
-            ReferralBonusService(),
-        )
         return super().dispatch(request, *args, **kwargs)
 
     def get_permissions(self):
@@ -136,6 +133,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         fundraise_id = kwargs.get("pk", None)
         amount = data.get("amount", None)
         amount_currency = data.get("amount_currency", RSC)
+        origin_fund_id = data.get("origin_fund_id") or None
 
         # Validate body
         if fundraise_id is None:
@@ -146,12 +144,30 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             return Response(
                 {"message": "amount_currency must be RSC or USD"}, status=400
             )
+        if amount_currency == USD and not origin_fund_id:
+            return Response(
+                {"message": "origin_fund_id is required for USD contributions"},
+                status=400,
+            )
+        if origin_fund_id and amount_currency != USD:
+            return Response(
+                {"message": "origin_fund_id requires USD amount_currency"},
+                status=400,
+            )
 
         # Get fundraise
         try:
             fundraise = Fundraise.objects.get(id=fundraise_id)
         except Fundraise.DoesNotExist:
             return Response({"message": "Fundraise does not exist"}, status=400)
+
+        if origin_fund_id:
+            nonprofit_org = fundraise.get_nonprofit_org()
+            if not nonprofit_org or not nonprofit_org.endaoment_org_id:
+                return Response(
+                    {"message": "Fundraise nonprofit org is not configured"},
+                    status=400,
+                )
 
         # Convert amount to appropriate type
         if amount_currency == USD:
@@ -160,11 +176,12 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             amount = Decimal(amount)
 
         # Create contribution via service
-        contribution, error = self.fundraise_service.create_contribution(
+        _, error = self.fundraise_service.create_contribution(
             user=user,
             fundraise=fundraise,
             amount=amount,
             currency=amount_currency,
+            origin_fund_id=origin_fund_id,
         )
 
         if error:
@@ -221,37 +238,21 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         # Get fundraise object
         try:
             fundraise = Fundraise.objects.get(id=fundraise_id)
-            if fundraise is None:
-                return Response({"message": "Fundraise does not exist"}, status=400)
         except Fundraise.DoesNotExist:
             return Response({"message": "Fundraise does not exist"}, status=400)
 
-        # Check if fundraise is open
-        if fundraise.status != Fundraise.OPEN:
-            return Response({"message": "Fundraise is not open"}, status=400)
+        # Complete the fundraise via service
+        try:
+            self.fundraise_service.complete_fundraise(fundraise)
+        except ValueError as e:
+            return Response({"message": str(e)}, status=400)
+        except RuntimeError as e:
+            return Response({"message": str(e)}, status=500)
 
-        # Check if fundraise has funds to payout
-        if not fundraise.escrow or fundraise.escrow.amount_holding <= 0:
-            return Response({"message": "Fundraise has no funds to payout"}, status=400)
-
-        # Payout the funds
-        did_payout = fundraise.payout_funds()
-        if did_payout:
-            fundraise.status = Fundraise.COMPLETED
-            fundraise.save()
-
-            # Process referral bonuses for completed fundraise
-            try:
-                self.referral_bonus_service.process_fundraise_completion(fundraise)
-            except Exception as e:
-                log_error(e, message="Failed to process referral bonuses")
-
-            # Return updated fundraise object
-            context = self.get_serializer_context()
-            serializer = self.get_serializer(fundraise, context=context)
-            return Response(serializer.data)
-        else:
-            return Response({"message": "Failed to payout funds"}, status=500)
+        # Return updated fundraise object
+        context = self.get_serializer_context()
+        serializer = self.get_serializer(fundraise, context=context)
+        return Response(serializer.data)
 
     @action(
         methods=["POST"],
