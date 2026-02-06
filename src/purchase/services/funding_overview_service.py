@@ -19,10 +19,11 @@ class FundingOverviewService:
 
     def get_funding_overview(self, user: User) -> dict:
         """Return funding overview metrics for a given user."""
-        grant_fundraise_ids = get_grant_fundraise_ids(user)
-        grant_proposal_post_ids = self._get_grant_proposal_post_ids(user)
-        user_funded_ids = get_funded_fundraise_ids(user.id)
-        funded_grant_proposals = grant_fundraise_ids & user_funded_ids
+
+        grant_fundraise_ids = self._get_grant_fundraise_ids(user)
+        proposal_post_ids = self._get_proposal_post_ids(user)
+        user_funded_ids = set(get_funded_fundraise_ids(user.id))
+        funded_grant_proposals = list(set(grant_fundraise_ids) & user_funded_ids)
 
         return {
             "total_distributed_usd": sum_contributions(
@@ -33,7 +34,7 @@ class FundingOverviewService:
             "matched_funding_usd": sum_contributions(
                 fundraise_ids=funded_grant_proposals, exclude_user_id=user.id
             ),
-            "recent_updates": self._update_count(grant_proposal_post_ids, RECENT_UPDATES_DAYS),
+            "recent_updates": self._update_count(proposal_post_ids, RECENT_UPDATES_DAYS),
             "proposals_funded": len(funded_grant_proposals),
         }
 
@@ -61,8 +62,8 @@ class FundingOverviewService:
             "previous": result["total"] - result["active"],
         }
 
-    def _get_grant_proposal_post_ids(self, user: User) -> list[int]:
-        """Get post IDs for all proposals that applied to user's grants."""
+    def _get_proposal_post_ids(self, user: User) -> list[int]:
+        """Get post IDs for proposals that applied to user's grants (for update tracking)."""
         return list(
             GrantApplication.objects.filter(
                 grant__unified_document__posts__created_by=user

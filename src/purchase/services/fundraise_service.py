@@ -1,12 +1,21 @@
+import logging
 import time
 from decimal import Decimal
 from typing import Optional, Tuple
 
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 
 from analytics.tasks import track_revenue_event
-from purchase.models import Balance, Fundraise, Purchase, UsdFundraiseContribution
+from purchase.endaoment import EndaomentService
+from purchase.models import (
+    Balance,
+    EndaomentAccount,
+    Fundraise,
+    Purchase,
+    UsdFundraiseContribution,
+)
 from purchase.related_models.constants import (
     MAXIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC,
     MAXIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_USD_CENTS,
@@ -24,14 +33,20 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
     ResearchhubUnifiedDocument,
 )
 from user.models import User
-from utils.sentry import log_error
+
+logger = logging.getLogger(__name__)
 
 
 class FundraiseService:
     """Service for managing fundraise-related operations."""
 
-    def __init__(self, referral_bonus_service: ReferralBonusService = None):
+    def __init__(
+        self,
+        referral_bonus_service: ReferralBonusService = None,
+        endaoment_service: EndaomentService = None,
+    ):
         self.referral_bonus_service = referral_bonus_service or ReferralBonusService()
+        self.endaoment_service = endaoment_service or EndaomentService()
 
     def validate_fundraise_for_contribution(
         self, fundraise: Fundraise, user: User, check_self_contribution: bool = True
@@ -65,6 +80,7 @@ class FundraiseService:
         amount: Decimal,
         currency: str = RSC,
         check_self_contribution: bool = True,
+        origin_fund_id: Optional[str] = None,
     ) -> Tuple[Optional[Purchase], Optional[str]]:
         """
         Validates and creates a contribution to a fundraise.
@@ -76,6 +92,7 @@ class FundraiseService:
             amount: The contribution amount (RSC as Decimal, USD in cents as int)
             currency: The currency type (RSC or USD)
             check_self_contribution: Whether to check if user is contributing to own fundraise
+            origin_fund_id: The Endaoment fund (DAF) ID of the doner for USD grants
 
         Returns:
             Tuple of (contribution, error_message). If successful, error_message is None.
@@ -103,7 +120,12 @@ class FundraiseService:
                 min_dollars = MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_USD_CENTS / 100
                 return None, f"Invalid amount. Minimum is ${min_dollars:.2f}"
 
-            return self.create_usd_contribution(user, fundraise, amount_cents)
+            return self.create_usd_contribution(
+                user=user,
+                fundraise=fundraise,
+                amount_cents=amount_cents,
+                origin_fund_id=origin_fund_id,
+            )
 
         else:
             # RSC contributions
@@ -266,7 +288,11 @@ class FundraiseService:
         return purchase, None
 
     def create_usd_contribution(
-        self, user: User, fundraise: Fundraise, amount_cents: int
+        self,
+        user: User,
+        fundraise: Fundraise,
+        amount_cents: int,
+        origin_fund_id: str = None,
     ) -> Tuple[Optional[UsdFundraiseContribution], Optional[str]]:
         """
         Creates a USD contribution to a fundraise.
@@ -275,6 +301,7 @@ class FundraiseService:
             user: The user making the contribution
             fundraise: The fundraise to contribute to
             amount_cents: The contribution amount in cents
+            origin_fund_id: The Endaoment fund (DAF) ID for the grant transfer.
 
         Returns:
             Tuple of (contribution, error_message). If successful, error_message is None.
@@ -283,14 +310,44 @@ class FundraiseService:
         # Calculate 9% fee
         fee_cents = (amount_cents * USD_FUNDRAISE_FEE_PERCENT) // 100
         total_amount_cents = amount_cents + fee_cents
+        origin_fund_id = origin_fund_id or None
+        endaoment_transfer_id = None
+        destination_org_id = None
 
         with transaction.atomic():
             user = User.objects.select_for_update().get(id=user.id)
 
-            # Check if user has enough USD balance
-            user_usd_balance = user.get_usd_balance_cents()
-            if user_usd_balance < total_amount_cents:
-                return None, "Insufficient USD balance"
+            if not origin_fund_id:
+                return None, "origin_fund_id is required for USD contributions"
+
+            # Store intended nonprofit org ID for later manual transfer/refund.
+            nonprofit_org = fundraise.get_nonprofit_org()
+            destination_org_id = (
+                nonprofit_org.endaoment_org_id if nonprofit_org else None
+            )
+            if not destination_org_id:
+                return None, "Fundraise nonprofit org is not set"
+
+            rh_fund_id = settings.ENDAOMENT_RH_FUND_ID
+            if not rh_fund_id:
+                return None, "Endaoment RH fund is not configured"
+
+            try:
+                transfer_result = self.endaoment_service.create_grant(
+                    user=user,
+                    origin_fund_id=origin_fund_id,
+                    # Note: The destination in the call to Endaoment is RH's fund.
+                    # The actual transfer to the nonprofit is handled manually.
+                    destination_org_id=rh_fund_id,
+                    amount_cents=total_amount_cents,
+                    purpose=f"Fundraise {fundraise.id}",
+                )
+                endaoment_transfer_id = transfer_result.get("id")
+            except EndaomentAccount.DoesNotExist:
+                return None, "Endaoment account not connected"
+            except Exception as e:
+                logger.error(f"Failed to create Endaoment grant: {e}", exc_info=e)
+                return None, "Failed to submit Endaoment grant"
 
             # Create the contribution record
             contribution = UsdFundraiseContribution.objects.create(
@@ -298,10 +355,11 @@ class FundraiseService:
                 fundraise=fundraise,
                 amount_cents=amount_cents,
                 fee_cents=fee_cents,
+                status=UsdFundraiseContribution.Status.SUBMITTED,
+                origin_fund_id=origin_fund_id,
+                destination_org_id=destination_org_id,
+                endaoment_transfer_id=endaoment_transfer_id,
             )
-
-            # Deduct total amount (contribution + fee) from user's USD balance
-            user.decrease_usd_balance(total_amount_cents, source=contribution)
 
             # Track in Amplitude
             fee_dollars = fee_cents / 100.0
@@ -365,20 +423,13 @@ class FundraiseService:
 
     def refund_usd_contributions(self, fundraise: Fundraise) -> bool:
         """
-        Refund all USD contributions that haven't been refunded yet.
-        Refunds both the contribution amount and the fee to the user's USD balance.
+        Mark all USD contributions as refunded/cancelled.
+        Actual refunds are handled externally via Endaoment.
         """
         for usd_contribution in fundraise.usd_contributions.filter(is_refunded=False):
-            user = usd_contribution.user
-            # Refund both the contribution amount and the fee
-            total_refund_cents = (
-                usd_contribution.amount_cents + usd_contribution.fee_cents
-            )
-            if total_refund_cents > 0:
-                user.increase_usd_balance(total_refund_cents, source=usd_contribution)
-            # Mark as refunded
             usd_contribution.is_refunded = True
-            usd_contribution.save(update_fields=["is_refunded"])
+            usd_contribution.status = UsdFundraiseContribution.Status.CANCELLED
+            usd_contribution.save(update_fields=["is_refunded", "status"])
 
         return True
 
@@ -411,7 +462,7 @@ class FundraiseService:
         try:
             self.referral_bonus_service.process_fundraise_completion(fundraise)
         except Exception as e:
-            log_error(e, message="Failed to process referral bonuses")
+            logger.error(f"Failed to process referral bonuses: {e}", exc_info=e)
 
     def close_fundraise(self, fundraise: Fundraise) -> bool:
         """
