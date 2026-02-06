@@ -1637,3 +1637,47 @@ class FundingFeedViewSetTests(AWSMockTestCase):
                 post_id,
                 f"Position {i} should be post with amount {sorted_by_amount[i][1]}",
             )
+
+    def test_funded_by_filter_returns_proposals_applied_to_users_grants(self):
+        """Test funded_by filter returns proposals that applied to the user's grants."""
+        # Arrange
+        grant_creator = User.objects.create_user(username="grant_creator", password=uuid.uuid4().hex)
+
+        grant_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
+        ResearchhubPost.objects.create(
+            title="Grant Post",
+            created_by=grant_creator,
+            document_type=GRANT,
+            unified_document=grant_doc,
+        )
+        test_grant = Grant.objects.create(
+            created_by=grant_creator,
+            unified_document=grant_doc,
+            amount=10000,
+            currency=USD,
+            status=Grant.OPEN,
+        )
+
+        GrantApplication.objects.create(
+            grant=test_grant,
+            preregistration_post=self.post,
+            applicant=self.user,
+        )
+
+        # Act
+        response = self.client.get(reverse("funding_feed-list") + f"?funded_by={grant_creator.id}")
+
+        # Assert
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(response.data["results"][0]["content_object"]["id"], self.post.id)
+
+    def test_funded_by_filter_returns_empty_for_user_with_no_grants(self):
+        """Test funded_by filter returns empty when user has no grants with applications."""
+        # Arrange
+        user_without_grants = User.objects.create_user(username="no_grants", password=uuid.uuid4().hex)
+
+        # Act
+        response = self.client.get(reverse("funding_feed-list") + f"?funded_by={user_without_grants.id}")
+
+        # Assert
+        self.assertEqual(len(response.data["results"]), 0)
