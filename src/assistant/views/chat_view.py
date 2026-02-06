@@ -26,32 +26,6 @@ class ChatView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        """
-        Process a chat message and return the assistant's response.
-
-        Request body:
-        {
-            "session_id": "uuid (optional)",
-            "role": "researcher | funder (required for new sessions)",
-            "message": "user's text message",
-            "structured_input": {
-                "field": "author_ids",
-                "value": [142, 387]
-            }
-        }
-
-        Response:
-        {
-            "session_id": "uuid",
-            "message": "Bot's response",
-            "follow_up": "Optional additional content",
-            "input_type": "author_lookup | topic_select | ...",
-            "quick_replies": [...],
-            "field_updates": {...},
-            "complete": false,
-            "payload": null
-        }
-        """
         serializer = ChatRequestSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -61,9 +35,9 @@ class ChatView(APIView):
         role = validated_data.get("role")
         message = validated_data["message"]
         structured_input = validated_data.get("structured_input")
+        is_resume = validated_data.get("is_resume", False)
 
         try:
-            # Get or create session
             session, created = SessionService.get_or_create_session(
                 user=request.user,
                 session_id=session_id,
@@ -80,45 +54,32 @@ class ChatView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        # If this is a new session, return the initial greeting
-        if created:
-            chat_service = BedrockChatService()
-            initial_response = chat_service.get_initial_message(session.role)
+        chat_service = BedrockChatService()
 
-            # Add the initial message to conversation history
+        # Handle resume: return progress summary without adding to history
+        if is_resume and not created:
+            resume_response = chat_service.get_resume_message(session)
+            response_data = {
+                "session_id": session.id,
+                "note_id": session.note_id,
+                **resume_response,
+            }
+            return self._build_response(response_data, status.HTTP_200_OK)
+
+        # Handle structured_input for note_id — store on session model directly
+        if structured_input and structured_input.get("field") == "note_id":
+            note_value = structured_input.get("value")
+            if note_value is not None:
+                session.note_id = int(note_value)
+                session.save()
+
+        # New session: add initial greeting then process the first message
+        if created:
+            initial_response = chat_service.get_initial_message(session.role)
             session.add_message("assistant", initial_response["message"])
             session.save()
 
-            response_data = {
-                "session_id": session.id,
-                **initial_response,
-            }
-
-            # Now process the user's first message
-            chat_response = chat_service.process_message(
-                session=session,
-                user_message=message,
-                structured_input=structured_input,
-            )
-
-            response_data = {
-                "session_id": session.id,
-                **chat_response,
-            }
-
-            response_serializer = ChatResponseSerializer(data=response_data)
-            if response_serializer.is_valid():
-                return Response(
-                    response_serializer.data, status=status.HTTP_201_CREATED
-                )
-            else:
-                logger.error(
-                    f"Response serialization error: {response_serializer.errors}"
-                )
-                return Response(response_data, status=status.HTTP_201_CREATED)
-
-        # Process message for existing session
-        chat_service = BedrockChatService()
+        # Process the message
         chat_response = chat_service.process_message(
             session=session,
             user_message=message,
@@ -127,15 +88,20 @@ class ChatView(APIView):
 
         response_data = {
             "session_id": session.id,
+            "note_id": session.note_id,
             **chat_response,
         }
 
-        response_serializer = ChatResponseSerializer(data=response_data)
+        http_status = status.HTTP_201_CREATED if created else status.HTTP_200_OK
+        return self._build_response(response_data, http_status)
+
+    def _build_response(self, data, http_status):
+        """Build and return a Response, logging serialization issues."""
+        response_serializer = ChatResponseSerializer(data=data)
         if response_serializer.is_valid():
-            return Response(response_serializer.data, status=status.HTTP_200_OK)
+            return Response(response_serializer.data, status=http_status)
         else:
-            # Log serialization issues but still return the response
             logger.warning(
                 f"Response serialization warning: {response_serializer.errors}"
             )
-            return Response(response_data, status=status.HTTP_200_OK)
+            return Response(data, status=http_status)

@@ -5,6 +5,7 @@ from typing import Any, Optional
 
 from django.conf import settings
 
+from assistant.models import FieldStatus
 from assistant.services.prompts import get_system_prompt
 from utils import sentry
 from utils.aws import create_client
@@ -57,11 +58,12 @@ class BedrockChatService:
 
         try:
             # Handle structured input — directly update field state for confirmed values
+            # note_id is stored on the model directly by the view, not in field_state
             if structured_input:
                 field = structured_input.get("field")
                 value = structured_input.get("value")
-                if field and value is not None:
-                    session.update_field(field, "complete", value)
+                if field and field != "note_id" and value is not None:
+                    session.update_field(field, FieldStatus.COMPLETE, value)
 
             # Build the full message including any structured input context
             full_message = self._build_user_message(user_message, structured_input)
@@ -94,9 +96,13 @@ class BedrockChatService:
             # Update field state if there are updates
             if parsed.get("field_updates"):
                 for field_name, field_data in parsed["field_updates"].items():
+                    raw_status = field_data.get("status", "ai_suggested")
+                    # Normalize: the LLM may output "draft" — map to ai_suggested
+                    if raw_status == "draft":
+                        raw_status = FieldStatus.AI_SUGGESTED
                     session.update_field(
                         field_name,
-                        field_data.get("status", "draft"),
+                        raw_status,
                         field_data.get("value"),
                     )
 
@@ -145,7 +151,10 @@ class BedrockChatService:
         field = structured_input.get("field", "")
         value = structured_input.get("value", "")
 
-        if field == "author_ids" and isinstance(value, list):
+        if field == "note_id":
+            # note_id is metadata, not sent to the LLM
+            return user_message
+        elif field == "author_ids" and isinstance(value, list):
             return f"{user_message}\n\n[Selected authors with IDs: {value}]"
         elif field == "topic_ids" and isinstance(value, list):
             return f"{user_message}\n\n[Selected topics/hubs with IDs: {value}]"
@@ -339,6 +348,38 @@ class BedrockChatService:
             ],
             "field_updates": None,
             "complete": False,
+            "payload": None,
+        }
+
+    def get_resume_message(self, session) -> dict:
+        """
+        Get a welcome-back message summarizing session progress.
+
+        Args:
+            session: AssistantSession instance
+
+        Returns:
+            dict with contextual resume message and quick replies
+        """
+        summary = session.get_progress_summary()
+        message = f"Welcome back! {summary} Would you like to continue?"
+
+        quick_replies = [
+            {
+                "label": "Continue where I left off",
+                "value": "Let's continue where we left off.",
+            },
+            {"label": "Start over", "value": "I want to start fresh."},
+        ]
+
+        return {
+            "message": message,
+            "follow_up": None,
+            "input_type": None,
+            "editor_field": None,
+            "quick_replies": quick_replies,
+            "field_updates": None,
+            "complete": session.is_complete,
             "payload": None,
         }
 

@@ -1,13 +1,13 @@
 from rest_framework import serializers
 
-from assistant.models import AssistantSession
+from assistant.models import AssistantSession, FieldStatus
 
 
 class StructuredInputSerializer(serializers.Serializer):
     """Serializer for structured input from UI components."""
 
     field = serializers.CharField(
-        help_text="Field name being set (e.g., 'author_ids', 'topic_ids')"
+        help_text="Field name being set (e.g., 'author_ids', 'topic_ids', 'note_id')"
     )
     value = serializers.JSONField(
         help_text="The value for the field (can be array, string, number, etc.)"
@@ -37,6 +37,11 @@ class ChatRequestSerializer(serializers.Serializer):
         allow_null=True,
         help_text="Optional structured data from UI components (author select, topic select, etc.)",
     )
+    is_resume = serializers.BooleanField(
+        required=False,
+        default=False,
+        help_text="Set to true when resuming a session. Skips adding to history and returns a progress summary.",
+    )
 
     def validate(self, attrs):
         """Validate that role is provided when session_id is not."""
@@ -65,8 +70,8 @@ class FieldUpdateSerializer(serializers.Serializer):
     """Serializer for field update data."""
 
     status = serializers.ChoiceField(
-        choices=["draft", "complete"],
-        help_text="Status of the field: 'draft' or 'complete'",
+        choices=FieldStatus.CHOICES,
+        help_text="Status of the field: 'empty', 'ai_suggested', or 'complete'",
     )
     value = serializers.JSONField(
         help_text="The field value (string, number, array, etc.)"
@@ -80,7 +85,7 @@ class ChatResponseSerializer(serializers.Serializer):
     message = serializers.CharField(help_text="Bot's conversational response")
     follow_up = serializers.CharField(
         allow_null=True,
-        help_text="Optional additional formatted content",
+        help_text="Optional additional formatted content. When input_type is 'rich_editor', contains HTML for the editor.",
     )
     input_type = serializers.CharField(
         allow_null=True,
@@ -90,6 +95,10 @@ class ChatResponseSerializer(serializers.Serializer):
         allow_null=True,
         required=False,
         help_text="When input_type is 'rich_editor', names the field the editor content maps to (e.g. 'description')",
+    )
+    note_id = serializers.IntegerField(
+        allow_null=True,
+        help_text="ID of the note associated with this session, or null",
     )
     quick_replies = QuickReplySerializer(
         many=True,
@@ -110,22 +119,14 @@ class ChatResponseSerializer(serializers.Serializer):
     )
 
 
-class MessageSerializer(serializers.Serializer):
-    """Serializer for a single conversation message."""
-
-    role = serializers.CharField(help_text="Message role: 'user' or 'assistant'")
-    content = serializers.CharField(help_text="Message content")
-
-
 class SessionDetailSerializer(serializers.Serializer):
-    """Serializer for full session detail (GET by ID)."""
+    """Serializer for session state (GET by ID). No conversation history."""
 
     session_id = serializers.UUIDField(source="id", help_text="The session ID")
     role = serializers.CharField(help_text="Session role: 'researcher' or 'funder'")
-    messages = MessageSerializer(
-        source="conversation_history",
-        many=True,
-        help_text="Full conversation history",
+    note_id = serializers.IntegerField(
+        allow_null=True,
+        help_text="ID of the note associated with this session",
     )
     field_state = serializers.JSONField(
         help_text="Current state of collected fields",
@@ -146,6 +147,10 @@ class SessionListSerializer(serializers.Serializer):
 
     session_id = serializers.UUIDField(source="id", help_text="The session ID")
     role = serializers.CharField(help_text="Session role: 'researcher' or 'funder'")
+    note_id = serializers.IntegerField(
+        allow_null=True,
+        help_text="ID of the note associated with this session",
+    )
     is_complete = serializers.BooleanField(
         help_text="Whether all required fields are collected",
     )
@@ -161,27 +166,3 @@ class SessionListSerializer(serializers.Serializer):
 
     def get_message_count(self, obj):
         return len(obj.conversation_history)
-
-
-class SubmitRequestSerializer(serializers.Serializer):
-    """Serializer for submission request."""
-
-    session_id = serializers.UUIDField(
-        required=True,
-        help_text="The session ID with the completed payload",
-    )
-
-
-class SubmitResponseSerializer(serializers.Serializer):
-    """Serializer for submission response."""
-
-    success = serializers.BooleanField(help_text="Whether submission succeeded")
-    message = serializers.CharField(help_text="Status message")
-    document_id = serializers.IntegerField(
-        allow_null=True,
-        help_text="ID of the created document (post or grant)",
-    )
-    document_type = serializers.CharField(
-        allow_null=True,
-        help_text="Type of document created: 'post' or 'grant'",
-    )

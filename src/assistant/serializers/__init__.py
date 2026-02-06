@@ -3,8 +3,6 @@ from assistant.serializers.chat_serializer import (
     ChatResponseSerializer,
     SessionDetailSerializer,
     SessionListSerializer,
-    SubmitRequestSerializer,
-    SubmitResponseSerializer,
 )
 
 __all__ = [
@@ -12,6 +10,4 @@ __all__ = [
     "ChatResponseSerializer",
     "SessionDetailSerializer",
     "SessionListSerializer",
-    "SubmitRequestSerializer",
-    "SubmitResponseSerializer",
 ]

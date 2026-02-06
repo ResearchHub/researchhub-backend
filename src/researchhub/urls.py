@@ -33,7 +33,7 @@ import researchhub_document.views as researchhub_document_views
 import search.urls
 import user.views
 from analytics.views import AmplitudeWebhookView
-from assistant.views import ChatView, SessionDetailView, SessionListView, SubmitView
+from assistant.views import ChatView, SessionDetailView, SessionListView
 from feed.views import (
     FeedViewSet,
     FundingFeedViewSet,
@@ -370,7 +370,6 @@ urlpatterns = [
     ),
     # Assistant endpoints
     path("api/assistant/chat/", ChatView.as_view(), name="assistant_chat"),
-    path("api/assistant/submit/", SubmitView.as_view(), name="assistant_submit"),
     path(
         "api/assistant/sessions/", SessionListView.as_view(), name="assistant_sessions"
     ),

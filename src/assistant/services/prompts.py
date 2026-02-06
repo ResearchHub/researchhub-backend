@@ -87,7 +87,7 @@ At the end of EVERY response, include a JSON block wrapped in <structured> tags:
     {{"label": "Short button text", "value": "Full message to send if tapped"}}
   ] | null,
   "field_updates": {{
-    "field_name": {{"status": "draft|complete", "value": "display value or actual value"}}
+    "field_name": {{"status": "ai_suggested|complete", "value": "display value or actual value"}}
   }} | null,
   "follow_up": "Optional HTML content for rich editor or additional formatted content" | null
 }}
@@ -111,7 +111,7 @@ At the end of EVERY response, include a JSON block wrapped in <structured> tags:
    - Do NOT include quick_replies when input_type is "rich_editor"
 
 4. **field_updates**: Include whenever you've captured or drafted a field value:
-   - Use "draft" for content you generated that needs confirmation
+   - Use "ai_suggested" for content you generated that needs user confirmation
    - Use "complete" for values the user explicitly provided or confirmed
 
 ## Rich Editor Rules
@@ -127,7 +127,7 @@ When using `rich_editor`:
 - Set `editor_field` to the field name (e.g. "description")
 - Put the drafted HTML content in `follow_up`
 - Set `quick_replies` to null
-- Include a `field_updates` entry with status "draft"
+- Include a `field_updates` entry with status "ai_suggested"
 
 The `follow_up` HTML should use clear structure with these supported tags:
 - Headings: <h1>, <h2>, <h3>
@@ -210,7 +210,7 @@ At the end of EVERY response, include a JSON block wrapped in <structured> tags:
     {{"label": "Short button text", "value": "Full message to send if tapped"}}
   ] | null,
   "field_updates": {{
-    "field_name": {{"status": "draft|complete", "value": "display value or actual value"}}
+    "field_name": {{"status": "ai_suggested|complete", "value": "display value or actual value"}}
   }} | null,
   "follow_up": "Optional HTML content for rich editor or additional formatted content" | null
 }}
@@ -232,7 +232,7 @@ At the end of EVERY response, include a JSON block wrapped in <structured> tags:
    - Do NOT include quick_replies when input_type is "rich_editor"
 
 4. **field_updates**: Include whenever you've captured or drafted a field value:
-   - Use "draft" for content you generated that needs confirmation
+   - Use "ai_suggested" for content you generated that needs confirmation
    - Use "complete" for values the funder explicitly provided or confirmed
 
 ## Rich Editor Rules
@@ -248,7 +248,7 @@ When using `rich_editor`:
 - Set `editor_field` to the field name (e.g. "description")
 - Put the drafted HTML content in `follow_up`
 - Set `quick_replies` to null
-- Include a `field_updates` entry with status "draft"
+- Include a `field_updates` entry with status "ai_suggested"
 
 The `follow_up` HTML should use clear structure with these supported tags:
 - Headings: <h1>, <h2>, <h3>

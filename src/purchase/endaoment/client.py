@@ -42,7 +42,7 @@ class EndaomentClient:
         self.auth_url = settings.ENDAOMENT_AUTH_URL
         self.client_id = settings.ENDAOMENT_CLIENT_ID
         self.client_secret = settings.ENDAOMENT_CLIENT_SECRET
-        self.redirect_uri = settings.ENDAOMENT_REDIRECT_URI
+        self.redirect_uri = settings.ENDAOMENT_REDIRECT_URL
 
         self.http_session = requests.Session()
         self.http_session.headers["Content-Type"] = "application/json"

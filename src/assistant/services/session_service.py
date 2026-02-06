@@ -54,10 +54,12 @@ class SessionService:
         if role not in [AssistantSession.RESEARCHER, AssistantSession.FUNDER]:
             raise ValueError(f"Invalid role: {role}")
 
-        session = AssistantSession.objects.create(
+        session = AssistantSession(
             user=user,
             role=role,
         )
+        session.initialize_field_state()
+        session.save()
 
         logger.info(f"Created new assistant session {session.id} for user {user.id}")
         return session, True

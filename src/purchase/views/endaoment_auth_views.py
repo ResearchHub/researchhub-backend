@@ -33,6 +33,7 @@ class EndaomentConnectView(APIView):
         try:
             # The `return_url` is an optional parameter to redirect after OAuth completion
             return_url = request.data.get("return_url")
+            print(f"return_url******: {return_url}")
             auth_url = self.service.get_authorization_url(request.user.id, return_url)
 
             return Response(

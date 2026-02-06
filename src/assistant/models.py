@@ -4,6 +4,44 @@ from django.db import models
 
 from utils.models import DefaultModel
 
+# Initial field state definitions per role
+RESEARCHER_FIELDS = [
+    "title",
+    "description",
+    "topic_ids",
+    "author_ids",
+    "funding_amount_rsc",
+    "deadline",
+    "nonprofit_id",
+]
+
+FUNDER_FIELDS = [
+    "title",
+    "description",
+    "topic_ids",
+    "funding_amount_rsc",
+    "deadline",
+]
+
+RESEARCHER_REQUIRED = {"title", "description", "topic_ids"}
+FUNDER_REQUIRED = {"title", "description", "funding_amount_rsc", "topic_ids"}
+
+
+class FieldStatus:
+    """Constants for field state status values."""
+
+    EMPTY = "empty"
+    AI_SUGGESTED = "ai_suggested"
+    COMPLETE = "complete"
+
+    CHOICES = [EMPTY, AI_SUGGESTED, COMPLETE]
+
+
+def _build_initial_field_state(role: str) -> dict:
+    """Build initial field state with all fields set to empty."""
+    fields = RESEARCHER_FIELDS if role == "researcher" else FUNDER_FIELDS
+    return {field: {"status": FieldStatus.EMPTY, "value": ""} for field in fields}
+
 
 class AssistantSession(DefaultModel):
     """
@@ -52,6 +90,12 @@ class AssistantSession(DefaultModel):
         help_text="Whether all required fields have been collected",
     )
 
+    note_id = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="ID of the note created by the frontend for this session",
+    )
+
     # Store the final payload when complete
     payload = models.JSONField(
         null=True,
@@ -68,6 +112,10 @@ class AssistantSession(DefaultModel):
 
     def __str__(self):
         return f"Session {self.id} - {self.user} ({self.role})"
+
+    def initialize_field_state(self) -> None:
+        """Initialize field state with all fields set to empty based on role."""
+        self.field_state = _build_initial_field_state(self.role)
 
     def add_message(self, role: str, content: str) -> None:
         """Add a message to the conversation history."""
@@ -89,18 +137,55 @@ class AssistantSession(DefaultModel):
         return {
             name: data["value"]
             for name, data in self.field_state.items()
-            if data.get("status") == "complete"
+            if data.get("status") == FieldStatus.COMPLETE
         }
 
     def get_required_fields(self) -> list:
         """Get list of required fields based on role."""
         if self.role == self.RESEARCHER:
-            return ["title", "description", "topic_ids"]
+            return list(RESEARCHER_REQUIRED)
         else:  # FUNDER
-            return ["title", "description", "amount", "topic_ids"]
+            return list(FUNDER_REQUIRED)
 
     def check_completion(self) -> bool:
         """Check if all required fields are complete."""
         required = self.get_required_fields()
         complete_fields = self.get_complete_fields()
         return all(field in complete_fields for field in required)
+
+    def get_progress_summary(self) -> str:
+        """Get a human-readable summary of field progress."""
+        required = set(self.get_required_fields())
+        complete = []
+        draft = []
+        empty = []
+
+        for field_name, data in self.field_state.items():
+            status = data.get("status", "empty")
+            if status == FieldStatus.COMPLETE:
+                complete.append(field_name)
+            elif status == FieldStatus.AI_SUGGESTED:
+                draft.append(field_name)
+            else:
+                empty.append(field_name)
+
+        required_complete = [f for f in complete if f in required]
+        total_required = len(required)
+
+        parts = [
+            f"You've completed {len(required_complete)} of {total_required} required fields"
+        ]
+        if required_complete:
+            names = ", ".join(f.replace("_", " ") for f in required_complete)
+            parts.append(f"({names})")
+
+        remaining = required - set(required_complete)
+        if remaining:
+            names = ", ".join(f.replace("_", " ") for f in remaining)
+            parts.append(f". Still needed: {names}")
+
+        if draft:
+            names = ", ".join(f.replace("_", " ") for f in draft)
+            parts.append(f". In draft: {names}")
+
+        return "".join(parts) + "."
