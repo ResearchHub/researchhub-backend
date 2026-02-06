@@ -11,11 +11,13 @@ from analytics.amplitude import track_event
 from purchase.models import Fundraise
 from purchase.related_models.constants.currency import RSC, USD
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
+from purchase.serializers.funding_impact_serializer import FundingImpactSerializer
 from purchase.serializers.funding_overview_serializer import FundingOverviewSerializer
 from purchase.serializers.grant_overview_serializer import GrantOverviewSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.purchase_serializer import DynamicPurchaseSerializer
 from purchase.services.fundraise_service import FundraiseService
+from purchase.services.funding_impact_service import FundingImpactService
 from purchase.services.funding_overview_service import FundingOverviewService
 from purchase.services.grant_overview_service import GrantOverviewService
 from referral.services.referral_bonus_service import ReferralBonusService
@@ -30,6 +32,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
 
     def dispatch(self, request, *args, **kwargs):
         self.fundraise_service = kwargs.pop("fundraise_service", FundraiseService())
+        self.funding_impact_service = kwargs.pop("funding_impact_service", FundingImpactService())
         self.funding_overview_service = kwargs.pop("funding_overview_service", FundingOverviewService())
         self.grant_overview_service = kwargs.pop("grant_overview_service", GrantOverviewService())
         self.referral_bonus_service = kwargs.pop(
@@ -285,6 +288,13 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         """Return funding overview metrics for the authenticated user."""
         data = self.funding_overview_service.get_funding_overview(request.user)
         serializer = FundingOverviewSerializer(data)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
+    def funding_impact(self, request, *args, **kwargs):
+        """Return funding impact metrics for the authenticated user."""
+        data = self.funding_impact_service.get_funding_impact(request.user)
+        serializer = FundingImpactSerializer(data)
         return Response(serializer.data)
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])

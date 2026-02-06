@@ -9,6 +9,7 @@ from purchase.models import Fundraise, Grant, Purchase
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.usd_fundraise_contribution_model import UsdFundraiseContribution
 from purchase.services.funding_overview_service import FundingOverviewService
+from purchase.utils import sum_contributions
 from researchhub_comment.constants.rh_comment_thread_types import AUTHOR_UPDATE
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_document.helpers import create_post
@@ -34,7 +35,7 @@ class TestFundingOverviewService(TestCase):
         # Assert
         self.assertEqual(result["total_distributed_usd"], 0.0)
         self.assertEqual(result["matched_funding_usd"], 0.0)
-        self.assertEqual(result["total_applicants"], 0)
+        self.assertEqual(result["total_applicants"], {"total": 0, "active": 0, "previous": 0})
         self.assertEqual(result["proposals_funded"], 0)
         self.assertEqual(result["recent_updates"], 0)
         self.assertEqual(result["active_grants"], {"active": 0, "total": 0})
@@ -61,11 +62,11 @@ class TestFundingOverviewService(TestCase):
         UsdFundraiseContribution.objects.create(user=contributor, fundraise=fundraise, amount_cents=10000, fee_cents=0)  # $100
 
         # Act
-        result = self.service._sum_contributions(fundraise_ids=[fundraise.id])
+        result = sum_contributions(fundraise_ids=[fundraise.id])
 
         # Assert
         self.assertEqual(result, 150.0)
-        self.assertEqual(self.service._sum_contributions(fundraise_ids=[]), 0.0)
+        self.assertEqual(sum_contributions(fundraise_ids=[]), 0.0)
 
     def test_sum_contributions_filters_and_excludes_users(self):
         # Arrange
@@ -78,8 +79,8 @@ class TestFundingOverviewService(TestCase):
         Purchase.objects.create(user=user2, content_type=fundraise_ct, object_id=fundraise.id, purchase_type=Purchase.FUNDRAISE_CONTRIBUTION, amount=200)
 
         # Act & Assert
-        self.assertEqual(self.service._sum_contributions(user_id=user1.id, fundraise_ids=[fundraise.id]), 50.0)  # user1 only: 100 * 0.5
-        self.assertEqual(self.service._sum_contributions(fundraise_ids=[fundraise.id], exclude_user_id=user1.id), 100.0)  # exclude user1: 200 * 0.5
+        self.assertEqual(sum_contributions(user_id=user1.id, fundraise_ids=[fundraise.id]), 50.0)  # user1 only: 100 * 0.5
+        self.assertEqual(sum_contributions(fundraise_ids=[fundraise.id], exclude_user_id=user1.id), 100.0)  # exclude user1: 200 * 0.5
 
     def test_update_count_filters_by_date(self):
         # Arrange
@@ -95,10 +96,3 @@ class TestFundingOverviewService(TestCase):
         # Assert
         self.assertEqual(result, 1)
         self.assertEqual(self.service._update_count([], 30), 0)
-
-    def test_combine_rsc_usd(self):
-        # Arrange - uses setUp
-
-        # Act & Assert (100 RSC * 0.5 = $50 + 5000 cents = $50 = $100 total)
-        self.assertEqual(self.service._combine_rsc_usd(Decimal("100"), 5000), 100.0)
-        self.assertEqual(self.service._combine_rsc_usd(Decimal("0"), 0), 0.0)

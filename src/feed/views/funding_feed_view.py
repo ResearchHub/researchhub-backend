@@ -93,8 +93,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         funded_by = self.request.query_params.get("funded_by")
 
         queryset = (
-            ResearchhubPost.objects.all()
-            .select_related(
+            ResearchhubPost.objects.select_related(
                 "created_by",
                 "created_by__author_profile",
                 "unified_document",
