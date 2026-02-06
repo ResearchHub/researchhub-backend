@@ -43,11 +43,11 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         page_num = int(page)
         grant_id = request.query_params.get("grant_id", None)
         created_by = request.query_params.get("created_by", None)
+        funded_by = request.query_params.get("funded_by", None)
         cache_key = self.get_cache_key(request, "funding")
-        use_cache = page_num < 4 and grant_id is None and created_by is None
+        use_cache = page_num < 4 and grant_id is None and created_by is None and funded_by is None
 
         if use_cache:
-            # try to get cached response
             cached_response = cache.get(cache_key)
             if cached_response:
                 if request.user.is_authenticated:
@@ -90,6 +90,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         fundraise_status = self.request.query_params.get("fundraise_status")
         grant_id = self.request.query_params.get("grant_id")
         created_by = self.request.query_params.get("created_by")
+        funded_by = self.request.query_params.get("funded_by")
 
         queryset = (
             ResearchhubPost.objects.all()
@@ -106,15 +107,25 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         )
 
         if created_by:
-            queryset = queryset.filter(created_by__id=created_by)
+            queryset = queryset.filter(created_by_id=created_by)
+
+        if funded_by:
+            queryset = queryset.filter(
+                grant_applications__grant__unified_document__posts__created_by_id=funded_by
+            ).distinct()
 
         if grant_id:
             queryset = queryset.filter(grant_applications__grant_id=grant_id)
 
         if fundraise_status:
-            if fundraise_status.upper() == "OPEN":
-                queryset = queryset.filter(unified_document__fundraises__status=Fundraise.OPEN)
-            elif fundraise_status.upper() == "CLOSED":
-                queryset = queryset.filter(unified_document__fundraises__status=Fundraise.COMPLETED)
+            status_upper = fundraise_status.upper()
+            if status_upper == "OPEN":
+                queryset = queryset.filter(
+                    unified_document__fundraises__status=Fundraise.OPEN
+                )
+            elif status_upper == "CLOSED":
+                queryset = queryset.filter(
+                    unified_document__fundraises__status=Fundraise.COMPLETED
+                )
 
         return queryset
