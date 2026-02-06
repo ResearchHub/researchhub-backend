@@ -30,8 +30,8 @@ from utils.sentry import log_error
 class FundraiseService:
     """Service for managing fundraise-related operations."""
 
-    def __init__(self):
-        self.referral_bonus_service = ReferralBonusService()
+    def __init__(self, referral_bonus_service: ReferralBonusService = None):
+        self.referral_bonus_service = referral_bonus_service or ReferralBonusService()
 
     def validate_fundraise_for_contribution(
         self, fundraise: Fundraise, user: User, check_self_contribution: bool = True
