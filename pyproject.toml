@@ -52,6 +52,7 @@ dependencies = [
     "pyjwt==2.10.1",
     "PyMuPDF>=1.24.13,<2.0.0",
     "python-json-logger>=4.0.0",
+    "reportlab>=4.0.0",
     "pyyaml>=6.0.2",
     "q5-django-inlinecss==0.0.2",
     "requests-mock>=1.12.1,<2.0.0",
