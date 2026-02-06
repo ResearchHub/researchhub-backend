@@ -1,10 +1,13 @@
 from datetime import datetime, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 import pytz
 from django.contrib.contenttypes.models import ContentType
+from django.test import override_settings
 from rest_framework.test import APITestCase
 
+from organizations.models import NonprofitFundraiseLink, NonprofitOrg
 from purchase.models import Balance, Fundraise, Purchase, RscExchangeRate
 from purchase.services.fundraise_service import FundraiseService
 from purchase.views import FundraiseViewSet
@@ -65,14 +68,18 @@ class FundraiseViewTests(APITestCase):
         user,
         amount=100,
         amount_currency="RSC",
+        origin_fund_id=None,
     ):
         self.client.force_authenticate(user)
+        payload = {
+            "amount": amount,
+            "amount_currency": amount_currency,
+        }
+        if origin_fund_id:
+            payload["origin_fund_id"] = origin_fund_id
         return self.client.post(
             f"/api/fundraise/{fundraise_id}/create_contribution/",
-            {
-                "amount": amount,
-                "amount_currency": amount_currency,
-            },
+            payload,
         )
 
     def _get_contributions(self, fundraise_id):
@@ -786,28 +793,54 @@ class FundraiseViewTests(APITestCase):
         """Helper method to give a user USD balance."""
         user.increase_usd_balance(amount_cents)
 
-    def test_create_usd_contribution(self):
+    def _link_nonprofit(self, fundraise_id):
+        nonprofit = NonprofitOrg.objects.create(
+            name="Test Nonprofit", endaoment_org_id="org_123"
+        )
+        fundraise = Fundraise.objects.get(id=fundraise_id)
+        NonprofitFundraiseLink.objects.create(
+            nonprofit=nonprofit, fundraise=fundraise
+        )
+        return nonprofit
+
+    @override_settings(ENDAOMENT_RH_FUND_ID="rh_fund_123")
+    @patch(
+        "purchase.services.fundraise_service.EndaomentService.create_grant",
+        return_value={"id": "transfer1"},
+    )
+    def test_create_usd_contribution(self, _mock_create_grant):
         """Test creating a USD contribution to a fundraise."""
         # Create a fundraise
         fundraise = self._create_fundraise(self.post.id, goal_amount=100)
         fundraise_id = fundraise.data["id"]
+        self._link_nonprofit(fundraise_id)
 
         # Create contributor with USD balance
         user = create_random_authenticated_user("usd_contributor")
-        self._give_user_usd_balance(user, 20000)  # $200 in cents
+        self._give_user_usd_balance(user, 20000)
 
         # Make USD contribution of $100 (10000 cents)
         response = self._create_contribution(
-            fundraise_id, user, amount=10000, amount_currency="USD"
+            fundraise_id,
+            user,
+            amount=10000,
+            amount_currency="USD",
+            origin_fund_id="fund_123",
         )
 
         self.assertEqual(response.status_code, 200)
 
-    def test_create_usd_contribution_deducts_balance_with_fee(self):
-        """Test that USD contribution deducts the correct amount including 9% fee."""
+    @override_settings(ENDAOMENT_RH_FUND_ID="rh_fund_123")
+    @patch(
+        "purchase.services.fundraise_service.EndaomentService.create_grant",
+        return_value={"id": "transfer1"},
+    )
+    def test_create_usd_contribution_deducts_balance(self, _mock_create_grant):
+        """Test that USD contribution deducts internal USD balance."""
         # Create a fundraise
         fundraise = self._create_fundraise(self.post.id, goal_amount=100)
         fundraise_id = fundraise.data["id"]
+        self._link_nonprofit(fundraise_id)
 
         # Create contributor with USD balance
         user = create_random_authenticated_user("usd_contributor")
@@ -817,32 +850,56 @@ class FundraiseViewTests(APITestCase):
         # Make USD contribution of $100 (10000 cents)
         contribution_amount = 10000
         response = self._create_contribution(
-            fundraise_id, user, amount=contribution_amount, amount_currency="USD"
+            fundraise_id,
+            user,
+            amount=contribution_amount,
+            amount_currency="USD",
+            origin_fund_id="fund_123",
         )
 
         self.assertEqual(response.status_code, 200)
 
-        # Check balance was deducted correctly (contribution + 9% fee)
-        expected_fee = (contribution_amount * 9) // 100  # 900 cents
-        expected_deduction = contribution_amount + expected_fee  # 10900 cents
+        expected_fee = (contribution_amount * 9) // 100
+        expected_deduction = contribution_amount + expected_fee
         expected_remaining = initial_balance - expected_deduction
-
         actual_balance = user.get_usd_balance_cents()
         self.assertEqual(actual_balance, expected_remaining)
 
+    def test_create_usd_contribution_requires_origin_fund_id(self):
+        """Test that USD contributions require origin_fund_id."""
+        # Create a fundraise
+        fundraise = self._create_fundraise(self.post.id, goal_amount=100)
+        fundraise_id = fundraise.data["id"]
+
+        # Create contributor
+        user = create_random_authenticated_user("usd_contributor")
+
+        # Try to contribute without origin_fund_id - should fail
+        response = self._create_contribution(
+            fundraise_id, user, amount=10000, amount_currency="USD"
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("origin_fund_id is required", response.data["message"])
+
+    @override_settings(ENDAOMENT_RH_FUND_ID="rh_fund_123")
     def test_create_usd_contribution_insufficient_balance(self):
         """Test that USD contribution fails with insufficient balance."""
         # Create a fundraise
         fundraise = self._create_fundraise(self.post.id, goal_amount=100)
         fundraise_id = fundraise.data["id"]
+        self._link_nonprofit(fundraise_id)
 
         # Create contributor with small USD balance
         user = create_random_authenticated_user("usd_contributor")
-        self._give_user_usd_balance(user, 500)  # Only $5
+        self._give_user_usd_balance(user, 500)  # $5
 
-        # Try to contribute $100 (10000 cents) - should fail
         response = self._create_contribution(
-            fundraise_id, user, amount=10000, amount_currency="USD"
+            fundraise_id,
+            user,
+            amount=10000,
+            amount_currency="USD",
+            origin_fund_id="fund_123",
         )
 
         self.assertEqual(response.status_code, 400)
@@ -853,6 +910,7 @@ class FundraiseViewTests(APITestCase):
         # Create a fundraise
         fundraise = self._create_fundraise(self.post.id, goal_amount=100)
         fundraise_id = fundraise.data["id"]
+        self._link_nonprofit(fundraise_id)
 
         # Create contributor with USD balance
         user = create_random_authenticated_user("usd_contributor")
@@ -860,19 +918,29 @@ class FundraiseViewTests(APITestCase):
 
         # Try to contribute 50 cents (below $1 minimum)
         response = self._create_contribution(
-            fundraise_id, user, amount=50, amount_currency="USD"
+            fundraise_id,
+            user,
+            amount=50,
+            amount_currency="USD",
+            origin_fund_id="fund_123",
         )
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("Invalid amount", response.data["message"])
 
-    def test_create_usd_contribution_creates_record(self):
+    @override_settings(ENDAOMENT_RH_FUND_ID="rh_fund_123")
+    @patch(
+        "purchase.services.fundraise_service.EndaomentService.create_grant",
+        return_value={"id": "transfer1"},
+    )
+    def test_create_usd_contribution_creates_record(self, _mock_create_grant):
         """Test that USD contribution creates a UsdFundraiseContribution record."""
         from purchase.models import UsdFundraiseContribution
 
         # Create a fundraise
         fundraise = self._create_fundraise(self.post.id, goal_amount=100)
         fundraise_id = fundraise.data["id"]
+        self._link_nonprofit(fundraise_id)
 
         # Create contributor with USD balance
         user = create_random_authenticated_user("usd_contributor")
@@ -881,7 +949,11 @@ class FundraiseViewTests(APITestCase):
         # Make USD contribution
         contribution_amount = 10000  # $100
         response = self._create_contribution(
-            fundraise_id, user, amount=contribution_amount, amount_currency="USD"
+            fundraise_id,
+            user,
+            amount=contribution_amount,
+            amount_currency="USD",
+            origin_fund_id="fund_123",
         )
 
         self.assertEqual(response.status_code, 200)
@@ -900,13 +972,18 @@ class FundraiseViewTests(APITestCase):
         # Create a fundraise
         fundraise = self._create_fundraise(self.post.id, goal_amount=100)
         fundraise_id = fundraise.data["id"]
+        self._link_nonprofit(fundraise_id)
 
         # Give the owner USD balance
         self._give_user_usd_balance(self.user, 20000)
 
         # Try to contribute to own fundraise
         response = self._create_contribution(
-            fundraise_id, self.user, amount=10000, amount_currency="USD"
+            fundraise_id,
+            self.user,
+            amount=10000,
+            amount_currency="USD",
+            origin_fund_id="fund_123",
         )
 
         self.assertEqual(response.status_code, 400)
@@ -919,6 +996,7 @@ class FundraiseViewTests(APITestCase):
         # Create a fundraise
         fundraise = self._create_fundraise(self.post.id, goal_amount=100)
         fundraise_id = fundraise.data["id"]
+        self._link_nonprofit(fundraise_id)
 
         # Close the fundraise
         fundraise_obj = Fundraise.objects.get(id=fundraise_id)
@@ -931,7 +1009,11 @@ class FundraiseViewTests(APITestCase):
 
         # Try to contribute
         response = self._create_contribution(
-            fundraise_id, user, amount=10000, amount_currency="USD"
+            fundraise_id,
+            user,
+            amount=10000,
+            amount_currency="USD",
+            origin_fund_id="fund_123",
         )
 
         self.assertEqual(response.status_code, 400)
