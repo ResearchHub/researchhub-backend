@@ -1,3 +1,4 @@
+import logging
 import time
 from decimal import Decimal
 from typing import Optional, Tuple
@@ -32,7 +33,8 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
     ResearchhubUnifiedDocument,
 )
 from user.models import User
-from utils.sentry import log_error
+
+logger = logging.getLogger(__name__)
 
 
 class FundraiseService:
@@ -356,7 +358,7 @@ class FundraiseService:
             except EndaomentAccount.DoesNotExist:
                 return None, "Endaoment account not connected"
             except Exception as e:
-                log_error(e, message="Failed to create Endaoment grant")
+                logger.error(f"Failed to create Endaoment grant: {e}", exc_info=e)
                 return None, "Failed to submit Endaoment grant"
 
             # Create the contribution record
@@ -483,7 +485,7 @@ class FundraiseService:
         try:
             self.referral_bonus_service.process_fundraise_completion(fundraise)
         except Exception as e:
-            log_error(e, message="Failed to process referral bonuses")
+            logger.error(f"Failed to process referral bonuses: {e}", exc_info=e)
 
     def close_fundraise(self, fundraise: Fundraise) -> bool:
         """
