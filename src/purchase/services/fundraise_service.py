@@ -40,7 +40,11 @@ logger = logging.getLogger(__name__)
 class FundraiseService:
     """Service for managing fundraise-related operations."""
 
-    def __init__(self, referral_bonus_service: ReferralBonusService = None):
+    def __init__(
+        self,
+        referral_bonus_service: ReferralBonusService = None,
+        endaoment_service: EndaomentService = None,
+    ):
         self.referral_bonus_service = referral_bonus_service or ReferralBonusService()
         self.endaoment_service = endaoment_service or EndaomentService()
 
