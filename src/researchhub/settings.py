@@ -279,6 +279,7 @@ INSTALLED_APPS = [
     "organizations",
     "user_saved",
     "user_lists",
+    "assistant",
     # Health checks
     "health_check",
     "health_check.db",
@@ -541,6 +542,13 @@ AWS_REGION_NAME = os.environ.get("AWS_REGION_NAME", keys.AWS_REGION_NAME)
 BEDROCK_PROCESSING_ENABLED = (
     os.environ.get("BEDROCK_PROCESSING_ENABLED", "false").lower() == "true"
 )
+
+# Assistant Configuration
+ASSISTANT_ENABLED = True
+ASSISTANT_BEDROCK_MODEL_ID = os.environ.get(
+    "ASSISTANT_BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+)
+ASSISTANT_SESSION_TTL_HOURS = int(os.environ.get("ASSISTANT_SESSION_TTL_HOURS", "24"))
 
 if not (CLOUD or TESTING) and os.environ.get("AWS_PROFILE") is None:
     # Set AWS profile for local development

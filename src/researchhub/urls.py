@@ -33,6 +33,7 @@ import researchhub_document.views as researchhub_document_views
 import search.urls
 import user.views
 from analytics.views import AmplitudeWebhookView
+from assistant.views import ChatView, SessionDetailView, SessionListView, SubmitView
 from feed.views import (
     FeedViewSet,
     FundingFeedViewSet,
@@ -366,6 +367,17 @@ urlpatterns = [
         "api/review/availability/",
         ReviewAvailabilityView.as_view(),
         name="review_availability",
+    ),
+    # Assistant endpoints
+    path("api/assistant/chat/", ChatView.as_view(), name="assistant_chat"),
+    path("api/assistant/submit/", SubmitView.as_view(), name="assistant_submit"),
+    path(
+        "api/assistant/sessions/", SessionListView.as_view(), name="assistant_sessions"
+    ),
+    path(
+        "api/assistant/sessions/<uuid:session_id>/",
+        SessionDetailView.as_view(),
+        name="assistant_session_detail",
     ),
 ]
 
