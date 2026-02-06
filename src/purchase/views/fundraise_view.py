@@ -14,6 +14,7 @@ from purchase.serializers.fundraise_create_serializer import FundraiseCreateSeri
 from purchase.serializers.funding_overview_serializer import FundingOverviewSerializer
 from purchase.serializers.grant_overview_serializer import GrantOverviewSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
+from purchase.serializers.grant_overview_serializer import GrantOverviewSerializer
 from purchase.serializers.purchase_serializer import DynamicPurchaseSerializer
 from purchase.services.fundraise_service import FundraiseService
 from purchase.services.funding_overview_service import FundingOverviewService
@@ -140,6 +141,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         fundraise_id = kwargs.get("pk", None)
         amount = data.get("amount", None)
         amount_currency = data.get("amount_currency", RSC)
+        origin_fund_id = data.get("origin_fund_id") or None
 
         # Validate body
         if fundraise_id is None:
@@ -150,12 +152,30 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             return Response(
                 {"message": "amount_currency must be RSC or USD"}, status=400
             )
+        if amount_currency == USD and not origin_fund_id:
+            return Response(
+                {"message": "origin_fund_id is required for USD contributions"},
+                status=400,
+            )
+        if origin_fund_id and amount_currency != USD:
+            return Response(
+                {"message": "origin_fund_id requires USD amount_currency"},
+                status=400,
+            )
 
         # Get fundraise
         try:
             fundraise = Fundraise.objects.get(id=fundraise_id)
         except Fundraise.DoesNotExist:
             return Response({"message": "Fundraise does not exist"}, status=400)
+
+        if origin_fund_id:
+            nonprofit_org = fundraise.get_nonprofit_org()
+            if not nonprofit_org or not nonprofit_org.endaoment_org_id:
+                return Response(
+                    {"message": "Fundraise nonprofit org is not configured"},
+                    status=400,
+                )
 
         # Convert amount to appropriate type
         if amount_currency == USD:
@@ -164,11 +184,12 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             amount = Decimal(amount)
 
         # Create contribution via service
-        contribution, error = self.fundraise_service.create_contribution(
+        _, error = self.fundraise_service.create_contribution(
             user=user,
             fundraise=fundraise,
             amount=amount,
             currency=amount_currency,
+            origin_fund_id=origin_fund_id,
         )
 
         if error:
