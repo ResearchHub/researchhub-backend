@@ -309,7 +309,7 @@ class FundraiseService:
             user: The user making the contribution
             fundraise: The fundraise to contribute to
             amount_cents: The contribution amount in cents
-            origin_fund_id: The Endaoment fund (DAF) ID for the grant transfer. Optional, but if provided, must be valid.
+            origin_fund_id: The Endaoment fund (DAF) ID for the grant transfer.
 
         Returns:
             Tuple of (contribution, error_message). If successful, error_message is None.
