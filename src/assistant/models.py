@@ -5,26 +5,25 @@ from django.db import models
 from utils.models import DefaultModel
 
 # Initial field state definitions per role
+# Note: "description" (the document body) is NOT a form field — it's managed
+# via the rich editor and AI conversation. Only form fields are tracked here.
 RESEARCHER_FIELDS = [
     "title",
-    "description",
-    "topic_ids",
-    "author_ids",
-    "funding_amount_rsc",
-    "deadline",
-    "nonprofit_id",
+    "authors",
+    "hubs",
 ]
 
 FUNDER_FIELDS = [
     "title",
-    "description",
-    "topic_ids",
-    "funding_amount_rsc",
-    "deadline",
+    "grant_amount",
+    "grant_end_date",
+    "grant_organization",
+    "hubs",
+    "grant_contacts",
 ]
 
-RESEARCHER_REQUIRED = {"title", "description", "topic_ids"}
-FUNDER_REQUIRED = {"title", "description", "funding_amount_rsc", "topic_ids"}
+RESEARCHER_REQUIRED = {"title", "hubs"}
+FUNDER_REQUIRED = {"title", "grant_amount", "hubs"}
 
 
 class FieldStatus:

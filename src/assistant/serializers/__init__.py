@@ -1,6 +1,8 @@
 from assistant.serializers.chat_serializer import (
     ChatRequestSerializer,
     ChatResponseSerializer,
+    CreateSessionRequestSerializer,
+    CreateSessionResponseSerializer,
     SessionDetailSerializer,
     SessionListSerializer,
 )
@@ -8,6 +10,8 @@ from assistant.serializers.chat_serializer import (
 __all__ = [
     "ChatRequestSerializer",
     "ChatResponseSerializer",
+    "CreateSessionRequestSerializer",
+    "CreateSessionResponseSerializer",
     "SessionDetailSerializer",
     "SessionListSerializer",
 ]

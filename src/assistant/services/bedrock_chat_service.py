@@ -154,12 +154,14 @@ class BedrockChatService:
         if field == "note_id":
             # note_id is metadata, not sent to the LLM
             return user_message
-        elif field == "author_ids" and isinstance(value, list):
+        elif field == "authors" and isinstance(value, list):
             return f"{user_message}\n\n[Selected authors with IDs: {value}]"
-        elif field == "topic_ids" and isinstance(value, list):
+        elif field == "hubs" and isinstance(value, list):
             return f"{user_message}\n\n[Selected topics/hubs with IDs: {value}]"
-        elif field == "nonprofit_id":
+        elif field == "nonprofit":
             return f"{user_message}\n\n[Selected nonprofit with ID: {value}]"
+        elif field == "grant_contacts" and isinstance(value, list):
+            return f"{user_message}\n\n[Selected contact persons with IDs: {value}]"
         elif field == "description":
             # Rich editor content — value is a Tiptap JSON string or raw HTML
             return f"{user_message}\n\n[User edited the description in the rich editor. Content confirmed.]"

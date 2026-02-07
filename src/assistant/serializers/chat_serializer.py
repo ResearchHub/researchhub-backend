@@ -14,18 +14,28 @@ class StructuredInputSerializer(serializers.Serializer):
     )
 
 
+class CreateSessionRequestSerializer(serializers.Serializer):
+    """Serializer for session creation request."""
+
+    role = serializers.ChoiceField(
+        choices=AssistantSession.ROLE_CHOICES,
+        required=True,
+        help_text="'researcher' or 'funder'",
+    )
+
+
+class CreateSessionResponseSerializer(serializers.Serializer):
+    """Serializer for session creation response."""
+
+    session_id = serializers.UUIDField(help_text="The new session ID")
+
+
 class ChatRequestSerializer(serializers.Serializer):
     """Serializer for chat request payload."""
 
     session_id = serializers.UUIDField(
-        required=False,
-        allow_null=True,
-        help_text="Existing session ID. If not provided, creates a new session.",
-    )
-    role = serializers.ChoiceField(
-        choices=AssistantSession.ROLE_CHOICES,
-        required=False,
-        help_text="Required when creating a new session: 'researcher' or 'funder'",
+        required=True,
+        help_text="The session ID to send the message to.",
     )
     message = serializers.CharField(
         required=True,
@@ -42,18 +52,6 @@ class ChatRequestSerializer(serializers.Serializer):
         default=False,
         help_text="Set to true when resuming a session. Skips adding to history and returns a progress summary.",
     )
-
-    def validate(self, attrs):
-        """Validate that role is provided when session_id is not."""
-        session_id = attrs.get("session_id")
-        role = attrs.get("role")
-
-        if not session_id and not role:
-            raise serializers.ValidationError(
-                {"role": "Role is required when creating a new session."}
-            )
-
-        return attrs
 
 
 class QuickReplySerializer(serializers.Serializer):
