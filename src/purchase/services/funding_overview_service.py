@@ -20,7 +20,7 @@ class FundingOverviewService:
     def get_funding_overview(self, user: User) -> dict:
         """Return funding overview metrics for a given user."""
 
-        grant_fundraise_ids = self._get_grant_fundraise_ids(user)
+        grant_fundraise_ids = get_grant_fundraise_ids(user)
         proposal_post_ids = self._get_proposal_post_ids(user)
         user_funded_ids = set(get_funded_fundraise_ids(user.id))
         funded_grant_proposals = list(set(grant_fundraise_ids) & user_funded_ids)
