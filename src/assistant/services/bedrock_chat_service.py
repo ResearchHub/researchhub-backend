@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 from django.conf import settings
 
-from assistant.models import FieldStatus
+from assistant.config import FieldStatus
 from assistant.services.prompts import get_system_prompt
 from utils import sentry
 from utils.aws import create_client

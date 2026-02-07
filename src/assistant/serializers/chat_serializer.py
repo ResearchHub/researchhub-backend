@@ -1,13 +1,14 @@
 from rest_framework import serializers
 
-from assistant.models import AssistantSession, FieldStatus
+from assistant.config import ChatAction, FieldStatus
+from assistant.models import AssistantSession
 
 
 class StructuredInputSerializer(serializers.Serializer):
     """Serializer for structured input from UI components."""
 
     field = serializers.CharField(
-        help_text="Field name being set (e.g., 'author_ids', 'topic_ids', 'note_id')"
+        help_text="Field name being set (e.g., 'authors', 'hubs', 'note_id')"
     )
     value = serializers.JSONField(
         help_text="The value for the field (can be array, string, number, etc.)"
@@ -37,21 +38,32 @@ class ChatRequestSerializer(serializers.Serializer):
         required=True,
         help_text="The session ID to send the message to.",
     )
+    action = serializers.ChoiceField(
+        choices=ChatAction.CHOICES,
+        default=ChatAction.MESSAGE,
+        help_text="Request type: 'start' (initial greeting), 'resume' (welcome back), or 'message' (normal chat).",
+    )
     message = serializers.CharField(
-        required=True,
+        required=False,
         allow_blank=False,
-        help_text="The user's message text",
+        help_text="The user's message text. Required when action is 'message'.",
     )
     structured_input = StructuredInputSerializer(
         required=False,
         allow_null=True,
         help_text="Optional structured data from UI components (author select, topic select, etc.)",
     )
-    is_resume = serializers.BooleanField(
-        required=False,
-        default=False,
-        help_text="Set to true when resuming a session. Skips adding to history and returns a progress summary.",
-    )
+
+    def validate(self, attrs):
+        action = attrs.get("action", ChatAction.MESSAGE)
+        message = attrs.get("message")
+
+        if action == ChatAction.MESSAGE and not message:
+            raise serializers.ValidationError(
+                {"message": "Message is required when action is 'message'."}
+            )
+
+        return attrs
 
 
 class QuickReplySerializer(serializers.Serializer):
