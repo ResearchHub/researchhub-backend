@@ -11,13 +11,15 @@ from analytics.amplitude import track_event
 from purchase.models import Fundraise
 from purchase.related_models.constants.currency import RSC, USD
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
-from purchase.serializers.fundraise_overview_serializer import (
-    FundraiseOverviewSerializer,
-)
+from purchase.serializers.funding_overview_serializer import FundingOverviewSerializer
+from purchase.serializers.grant_overview_serializer import GrantOverviewSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.grant_overview_serializer import GrantOverviewSerializer
 from purchase.serializers.purchase_serializer import DynamicPurchaseSerializer
 from purchase.services.fundraise_service import FundraiseService
+from purchase.services.funding_overview_service import FundingOverviewService
+from purchase.services.grant_overview_service import GrantOverviewService
+from referral.services.referral_bonus_service import ReferralBonusService
 from user.permissions import IsModerator
 from user.related_models.follow_model import Follow
 
@@ -29,6 +31,12 @@ class FundraiseViewSet(viewsets.ModelViewSet):
 
     def dispatch(self, request, *args, **kwargs):
         self.fundraise_service = kwargs.pop("fundraise_service", FundraiseService())
+        self.funding_overview_service = kwargs.pop("funding_overview_service", FundingOverviewService())
+        self.grant_overview_service = kwargs.pop("grant_overview_service", GrantOverviewService())
+        self.referral_bonus_service = kwargs.pop(
+            "referral_bonus_service",
+            ReferralBonusService(),
+        )
         return super().dispatch(request, *args, **kwargs)
 
     def get_permissions(self):
@@ -294,10 +302,10 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             )
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
-    def funder_overview(self, request, *args, **kwargs):
-        """Return funder overview metrics for the authenticated user."""
-        data = self.fundraise_service.get_funder_overview(request.user)
-        serializer = FundraiseOverviewSerializer(data)
+    def funding_overview(self, request, *args, **kwargs):
+        """Return funding overview metrics for the authenticated user."""
+        data = self.funding_overview_service.get_funding_overview(request.user)
+        serializer = FundingOverviewSerializer(data)
         return Response(serializer.data)
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
@@ -306,6 +314,6 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         grant_id = request.query_params.get("grant_id")
         if not grant_id:
             return Response({"error": "grant_id is required"}, status=400)
-        data = self.fundraise_service.get_grant_overview(request.user, int(grant_id))
+        data = self.grant_overview_service.get_grant_overview(request.user, int(grant_id))
         serializer = GrantOverviewSerializer(data)
         return Response(serializer.data)

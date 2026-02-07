@@ -1,6 +1,6 @@
 from .balance_serializer import BalanceSerializer, BalanceSourceRelatedField
 from .fundraise_create_serializer import FundraiseCreateSerializer
-from .fundraise_overview_serializer import FundraiseOverviewSerializer
+from .funding_overview_serializer import FundingOverviewSerializer
 from .grant_overview_serializer import GrantOverviewSerializer
 from .fundraise_serializer import DynamicFundraiseSerializer, FundraiseSerializer
 from .grant_create_serializer import GrantCreateSerializer
