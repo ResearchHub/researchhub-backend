@@ -397,44 +397,32 @@ class BedrockChatService:
         """
         if role == "researcher":
             message = (
-                "Hi! I'm here to help you create a compelling research proposal. "
-                "I can help you brainstorm ideas, draft your title and description, "
-                "and guide you through the process.\n\n"
-                "What would you like to do?"
+                "Hi! I'm here to help you create a research proposal on ResearchHub. "
+                "Do you have an existing draft, or would you like to start fresh?"
             )
             quick_replies = [
                 {
-                    "label": "I have an idea",
-                    "value": "I have a research idea I'd like to develop into a proposal.",
+                    "label": "Review my draft",
+                    "value": "I have an existing draft I'd like to use",
                 },
                 {
-                    "label": "Help me brainstorm",
-                    "value": "I'm not sure what to propose. Can you help me brainstorm ideas?",
-                },
-                {
-                    "label": "I have a draft ready",
-                    "value": "I already have a draft proposal I'd like to refine.",
+                    "label": "Create a new proposal",
+                    "value": "I want to start a new proposal from scratch",
                 },
             ]
         else:  # funder
             message = (
-                "Hi! I'm here to help you create an effective funding opportunity. "
-                "I can help you define what kind of research you want to fund, "
-                "set up your requirements, and guide you through the process.\n\n"
-                "What would you like to do?"
+                "Hi! I'm here to help you create a funding opportunity on ResearchHub. "
+                "Do you have an existing draft, or would you like to start fresh?"
             )
             quick_replies = [
                 {
-                    "label": "I know what I want to fund",
-                    "value": "I have a specific research area I want to fund.",
-                },
-                {
-                    "label": "Help me define scope",
-                    "value": "I want to fund research but need help defining the scope.",
-                },
-                {
                     "label": "Review my draft",
-                    "value": "I have a draft funding opportunity I'd like to refine.",
+                    "value": "I have an existing draft I'd like to use",
+                },
+                {
+                    "label": "Create a new funding opportunity",
+                    "value": "I want to start a new RFP from scratch",
                 },
             ]
 
