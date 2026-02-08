@@ -23,14 +23,24 @@ def _get_period_date_range(period):
     For ALL_TIME, start_date is None (no filter).
     """
     now = timezone.now()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
     if period == Leaderboard.SEVEN_DAYS:
-        return now - timedelta(days=7), now
+        start_date = today_start - timedelta(days=7)
+        end_date = now
+        return start_date, end_date
     elif period == Leaderboard.THIRTY_DAYS:
-        return now - timedelta(days=30), now
+        start_date = today_start - timedelta(days=30)
+        end_date = now
+        return start_date, end_date
     elif period == Leaderboard.SIX_MONTHS:
-        return now - timedelta(days=180), now  # ~6 months
+        start_date = today_start - timedelta(days=180)  # ~6 months
+        end_date = now
+        return start_date, end_date
     elif period == Leaderboard.ONE_YEAR:
-        return now - timedelta(days=365), now
+        start_date = today_start - timedelta(days=365)
+        end_date = now
+        return start_date, end_date
     elif period == Leaderboard.ALL_TIME:
         return None, now
     else:

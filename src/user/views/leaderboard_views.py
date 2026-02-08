@@ -153,9 +153,9 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         )
         end_dt = timezone.make_aware(
             datetime.strptime(end_date, "%Y-%m-%d").replace(
-                hour=0, minute=0, second=0, microsecond=0
+                hour=23, minute=59, second=59, microsecond=999999
             )
-        ) + timedelta(days=1)
+        )
         return None, start_dt, end_dt
 
     def _paginated_aggregated_response(
@@ -272,7 +272,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         aggregated = (
             FundingActivityRecipient.objects.filter(
                 activity__activity_date__gte=start_dt,
-                activity__activity_date__lt=end_dt,
+                activity__activity_date__lte=end_dt,
             )
             .exclude(recipient_user_id__in=excluded_ids)
             .values("recipient_user_id")
@@ -326,7 +326,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         aggregated = (
             FundingActivity.objects.filter(
                 activity_date__gte=start_dt,
-                activity_date__lt=end_dt,
+                activity_date__lte=end_dt,
             )
             .exclude(funder_id__in=excluded_ids)
             .values("funder_id")
