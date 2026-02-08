@@ -47,9 +47,15 @@ class FundingOverviewService:
 
     def _get_grant_fundraise_ids(self, user: User) -> list[int]:
         """Get fundraise IDs for proposals connected to user's grants."""
+        # Get prereg posts from applications to user's grants
+        prereg_post_ids = GrantApplication.objects.filter(
+            grant__unified_document__posts__created_by=user
+        ).values_list("preregistration_post_id", flat=True)
+
+        # Get fundraises for those prereg posts
         return list(
             Fundraise.objects.filter(
-                unified_document__posts__grant_applications__grant__unified_document__posts__created_by=user
+                unified_document__posts__id__in=prereg_post_ids
             ).values_list("id", flat=True).distinct()
         )
 
