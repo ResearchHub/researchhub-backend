@@ -71,6 +71,12 @@ class AssistantSession(DefaultModel):
         help_text="ID of the note created by the frontend for this session",
     )
 
+    last_seen_note_content_id = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="ID of the NoteContent version last sent to the AI",
+    )
+
     # Store the final payload when complete
     payload = models.JSONField(
         null=True,

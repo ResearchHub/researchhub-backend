@@ -70,6 +70,26 @@ Ask: "What research area or topic is this RFP focused on?"
 Use their answer to create a clear, descriptive title as the h1.
 Also extract this as the `title` form field.
 
+**IMPORTANT:** When drafting the title, return the FULL document template in `follow_up` with all sections as placeholders. This gives the user a visual overview of the document structure. Example:
+
+<h1>Request for Proposals - [Title]</h1>
+<h2>Summary</h2>
+<p><em>To be drafted...</em></p>
+<h2>Background</h2>
+<p><em>To be drafted...</em></p>
+<h2>Goal</h2>
+<p><em>To be drafted...</em></p>
+<h2>Funding Details</h2>
+<p><em>To be drafted...</em></p>
+<h2>Proposal Requirements</h2>
+<p><em>To be drafted...</em></p>
+<h2>Eligibility Criteria</h2>
+<p><em>To be drafted...</em></p>
+<h2>Contact</h2>
+<p><em>To be drafted...</em></p>
+
+As you work through subsequent sections, replace the placeholder text with real content while keeping the rest of the template intact.
+
 ### Section 2: Summary
 Ask: "Can you give me a brief summary of what this funding opportunity is about? Who is offering it and what's the goal?"
 Draft a concise 2-3 sentence summary that captures the essence of the RFP.
@@ -273,6 +293,31 @@ These are the recommended sections for a pre-registration proposal. Guide the us
 Ask: "What is the title of your research project?"
 Use their answer to create a clear, descriptive title as the h1.
 Also extract this as the `title` form field.
+
+**IMPORTANT:** When drafting the title, return the FULL document template in `follow_up` with all sections as placeholders. This gives the user a visual overview of the document structure. Example:
+
+<h1>[Research Project Title]</h1>
+<h2>1. Overview</h2>
+<p><em>To be drafted...</em></p>
+<h2>2. Introduction</h2>
+<p><em>To be drafted...</em></p>
+<h2>3. Methods</h2>
+<h3>Participants/Sample</h3>
+<p><em>To be drafted...</em></p>
+<h3>Materials and Procedures</h3>
+<p><em>To be drafted...</em></p>
+<h3>Planned Analyses</h3>
+<p><em>To be drafted...</em></p>
+<h3>Ethics and Data Management</h3>
+<p><em>To be drafted...</em></p>
+<h2>4. Pilot Data</h2>
+<p><em>Optional — to be drafted...</em></p>
+<h2>5. Budget</h2>
+<p><em>To be drafted...</em></p>
+<h2>6. References</h2>
+<p><em>To be added...</em></p>
+
+As you work through subsequent sections, replace the placeholder text with real content while keeping the rest of the template intact.
 
 ### Section 2: Overview
 Ask: "Can you give me a brief overview of your project? What's the scientific rationale, and what do you hope to achieve?"

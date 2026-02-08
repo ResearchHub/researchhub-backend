@@ -77,6 +77,18 @@ class BedrockChatService:
             # Get system prompt based on role
             system_prompt = get_system_prompt(session.role, session.field_state)
 
+            # Inject current document draft if the note has changed
+            note_content = self._get_note_content_if_changed(session)
+            if note_content is not None:
+                system_prompt += (
+                    "\n\n## CURRENT DOCUMENT DRAFT\n"
+                    "The user's current document content is below. "
+                    "Use this as the basis when they ask for changes. "
+                    "When returning an updated document via rich_editor, "
+                    "incorporate any edits the user made.\n\n"
+                    f"{note_content}"
+                )
+
             # Call Bedrock
             response_text = self._call_bedrock(system_prompt, messages)
 
@@ -140,6 +152,47 @@ class BedrockChatService:
                 session.conversation_history.pop()
             return self._error_response()
 
+    def _get_note_content_if_changed(self, session) -> Optional[str]:
+        """
+        Fetch the note's plain_text if the document has changed since
+        the AI last saw it.
+
+        Returns:
+            The note's plain_text if changed, None otherwise.
+            Also updates session.last_seen_note_content_id.
+        """
+        if not session.note_id:
+            return None
+
+        try:
+            from note.related_models.note_model import Note
+
+            note = Note.objects.select_related("latest_version").get(id=session.note_id)
+        except Note.DoesNotExist:
+            logger.warning(f"Note {session.note_id} not found for session {session.id}")
+            return None
+
+        latest_version = note.latest_version
+        if not latest_version:
+            return None
+
+        # Check if the version has changed since we last sent it
+        if session.last_seen_note_content_id == latest_version.id:
+            return None
+
+        # Version changed (or first time) — update tracker and return content
+        session.last_seen_note_content_id = latest_version.id
+        plain_text = latest_version.plain_text
+
+        if not plain_text:
+            return None
+
+        logger.info(
+            f"Note content changed for session {session.id} "
+            f"(note_content_id: {latest_version.id})"
+        )
+        return plain_text
+
     def _build_user_message(
         self, user_message: str, structured_input: Optional[dict]
     ) -> str:
@@ -162,9 +215,6 @@ class BedrockChatService:
             return f"{user_message}\n\n[Selected nonprofit with ID: {value}]"
         elif field == "grant_contacts" and isinstance(value, list):
             return f"{user_message}\n\n[Selected contact persons with IDs: {value}]"
-        elif field == "description":
-            # Rich editor content — value is a Tiptap JSON string or raw HTML
-            return f"{user_message}\n\n[User edited the description in the rich editor. Content confirmed.]"
 
         return user_message
 
