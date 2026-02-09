@@ -40,14 +40,6 @@ logger = logging.getLogger(__name__)
 class FundraiseService:
     """Service for managing fundraise-related operations."""
 
-    def get_funder_overview(self, _user: User) -> dict:
-        """Return funder overview metrics for a given user."""
-        return {}
-
-    def get_grant_overview(self, _user: User, _grant_id: int) -> dict:
-        """Return metrics for a specific grant."""
-        return {}
-
     def __init__(
         self,
         referral_bonus_service: ReferralBonusService = None,
