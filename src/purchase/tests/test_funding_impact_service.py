@@ -149,7 +149,7 @@ class TestFundingImpactService(TestCase):
 
         # Add fundraise with no contribution (covers `if not amount: continue`)
         r2 = create_random_authenticated_user("r2")
-        f_no_amount = self._create_proposal_for_grant(grant, r2)
+        self._create_proposal_for_grant(grant, r2)
 
         # Add fundraise where researcher has no institutions (covers `if not author_institutions: continue`)
         r3 = create_random_authenticated_user("r3")
