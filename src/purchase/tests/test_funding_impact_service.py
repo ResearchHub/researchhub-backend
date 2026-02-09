@@ -114,26 +114,31 @@ class TestFundingImpactService(TestCase):
         self.assertEqual(result["topic_breakdown"][1], {"name": "Small", "amount_usd": 50.0})
 
     def test_update_frequency_buckets(self):
-        # Arrange
+        # Arrange - create 4 proposals with 0, 1, 2, and 5 updates to cover all bucket branches
         grant = self._create_grant()
-        fundraise = self._create_proposal_for_grant(grant)
-        self._contribute(self.grant_creator, fundraise, rsc=100)
-        post = fundraise.unified_document.posts.first()
-        thread = RhCommentThreadModel.objects.create(thread_type=AUTHOR_UPDATE, content_object=post, created_by=self.researcher)
-        RhCommentModel.objects.create(thread=thread, created_by=self.researcher, comment_content_json={}, comment_type=AUTHOR_UPDATE)
-        RhCommentModel.objects.create(thread=thread, created_by=self.researcher, comment_content_json={}, comment_type=AUTHOR_UPDATE)
-        old = RhCommentModel.objects.create(thread=thread, created_by=self.researcher, comment_content_json={}, comment_type=AUTHOR_UPDATE)
-        RhCommentModel.objects.filter(id=old.id).update(created_date=timezone.now() - timedelta(days=200))
+        r1, r2, r3, r4 = [create_random_authenticated_user(f"r{i}") for i in range(4)]
+        f0 = self._create_proposal_for_grant(grant, r1)  # 0 updates
+        f1 = self._create_proposal_for_grant(grant, r2)  # 1 update
+        f2 = self._create_proposal_for_grant(grant, r3)  # 2 updates (2-3 bucket)
+        f4 = self._create_proposal_for_grant(grant, r4)  # 5 updates (4+ bucket)
+        for f in [f0, f1, f2, f4]:
+            self._contribute(self.grant_creator, f, rsc=100)
+
+        for f, count in [(f1, 1), (f2, 2), (f4, 5)]:
+            post = f.unified_document.posts.first()
+            thread = RhCommentThreadModel.objects.create(thread_type=AUTHOR_UPDATE, content_object=post, created_by=f.created_by)
+            for _ in range(count):
+                RhCommentModel.objects.create(thread=thread, created_by=f.created_by, comment_content_json={}, comment_type=AUTHOR_UPDATE)
 
         # Act
         result = self.service.get_funding_impact(self.grant_creator)
 
-        # Assert - 2 recent updates = "2-3" bucket, old one ignored
+        # Assert - all bucket branches covered
         buckets = {b["bucket"]: b["count"] for b in result["update_frequency"]}
-        self.assertEqual(buckets, {"0": 0, "1": 0, "2-3": 1, "4+": 0})
+        self.assertEqual(buckets, {"0": 1, "1": 1, "2-3": 1, "4+": 1})
 
     def test_institutions_supported_with_split(self):
-        # Arrange
+        # Arrange - covers all continue branches: no amount, no author_profile, no institutions
         inst1 = Institution.objects.create(openalex_id="I1", ror_id="R1", display_name="Uni A", type="edu", region="CA", country_code="US", associated_institutions=[])
         inst2 = Institution.objects.create(openalex_id="I2", ror_id="R2", display_name="Uni B", type="edu", associated_institutions=[])
         AuthorInstitution.objects.create(author=self.researcher.author_profile, institution=inst1)
@@ -142,10 +147,19 @@ class TestFundingImpactService(TestCase):
         fundraise = self._create_proposal_for_grant(grant)
         self._contribute(self.grant_creator, fundraise, rsc=100)  # $50 split = $25 each
 
+        # Add fundraise with no contribution (covers `if not amount: continue`)
+        r2 = create_random_authenticated_user("r2")
+        f_no_amount = self._create_proposal_for_grant(grant, r2)
+
+        # Add fundraise where researcher has no institutions (covers `if not author_institutions: continue`)
+        r3 = create_random_authenticated_user("r3")
+        f_no_inst = self._create_proposal_for_grant(grant, r3)
+        self._contribute(self.grant_creator, f_no_inst, rsc=50)
+
         # Act
         result = self.service.get_funding_impact(self.grant_creator)
 
-        # Assert
+        # Assert - only the 2 institutions from first fundraise should appear
         self.assertEqual(len(result["institutions_supported"]), 2)
         inst_a = next(i for i in result["institutions_supported"] if i["name"] == "Uni A")
         self.assertEqual(inst_a["location"], "CA, US")
