@@ -212,7 +212,7 @@ class FundingImpactService:
 
     def _get_update_frequency(self, post_ids: list[int]) -> list[dict]:
         """Return distribution of author update counts per proposal."""
-        buckets = {b: 0 for b in UPDATE_BUCKETS}
+        buckets = dict.fromkeys(UPDATE_BUCKETS, 0)
         if not post_ids:
             return [{"bucket": b, "count": c} for b, c in buckets.items()]
 
@@ -233,7 +233,14 @@ class FundingImpactService:
 
         for post_id in post_ids:
             count = update_counts.get(post_id, 0)
-            bucket_key = "0" if count == 0 else "1" if count == 1 else "2-3" if count <= 3 else "4+"
+            if count == 0:
+                bucket_key = "0"
+            elif count == 1:
+                bucket_key = "1"
+            elif count <= 3:
+                bucket_key = "2-3"
+            else:
+                bucket_key = "4+"
             buckets[bucket_key] += 1
 
         return [{"bucket": b, "count": c} for b, c in buckets.items()]
