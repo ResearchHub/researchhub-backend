@@ -52,9 +52,9 @@ class FundingOverviewService:
             ).values_list("id", flat=True).distinct()
         )
 
-    def _count_applicants(self, user: User) -> int:
+    def _count_applicants(self, user: User) -> dict:
         """Count total proposals attached to user's grants."""
-        return GrantApplication.objects.filter(
+        applications = GrantApplication.objects.filter(
             grant__unified_document__posts__created_by=user
         )
         result = applications.aggregate(
