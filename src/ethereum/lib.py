@@ -1,6 +1,8 @@
 from decimal import Decimal
 
 from django.conf import settings
+from eth_account import Account
+from eth_account.messages import encode_defunct
 from web3 import Web3
 
 from ethereum.utils import decimal_to_token_amount
@@ -187,3 +189,98 @@ def get_private_key():
     password = response["SecretString"]
 
     return web3_provider.ethereum.eth.account.decrypt(encrypted_key, password)
+
+
+# EIP-1271 magic value returned by compliant smart wallets
+EIP1271_MAGIC_VALUE = "0x1626ba7e"
+
+
+def verify_eoa_signature(address, message, signature):
+    """Verify that `signature` was produced by the owner of `address` (EOA).
+
+    Args:
+        address: Checksummed Ethereum address.
+        message: The plaintext message that was signed.
+        signature: Hex-encoded signature.
+
+    Returns:
+        True if the recovered signer matches `address`.
+    """
+    signable = encode_defunct(text=message)
+    recovered = Account.recover_message(signable, signature=signature)
+    return recovered.lower() == address.lower()
+
+
+def verify_smart_wallet_signature(w3, address, message_hash, signature):
+    """Verify a signature using EIP-1271 `isValidSignature` on a smart wallet.
+
+    Args:
+        w3: Web3 instance connected to the relevant network.
+        address: Checksummed address of the smart wallet contract.
+        message_hash: 32-byte hash of the signed message.
+        signature: Raw signature bytes (hex-encoded str or bytes).
+
+    Returns:
+        True if the contract returns the EIP-1271 magic value.
+    """
+    code = w3.eth.get_code(address)
+    if code == b"" or code == b"\x00":
+        return False
+
+    eip1271_abi = [
+        {
+            "name": "isValidSignature",
+            "type": "function",
+            "inputs": [
+                {"name": "_hash", "type": "bytes32"},
+                {"name": "_signature", "type": "bytes"},
+            ],
+            "outputs": [{"name": "", "type": "bytes4"}],
+        }
+    ]
+
+    contract = w3.eth.contract(address=address, abi=eip1271_abi)
+    sig_bytes = (
+        bytes.fromhex(signature[2:]) if isinstance(signature, str) else signature
+    )
+
+    result = contract.functions.isValidSignature(message_hash, sig_bytes).call()
+    return result.hex() == EIP1271_MAGIC_VALUE
+
+
+def verify_wallet_signature(address, message, signature, network="ETHEREUM"):
+    """Verify a wallet signature, dispatching to EOA or smart-wallet path.
+
+    Args:
+        address: Checksummed Ethereum address.
+        message: The plaintext message that was signed.
+        signature: Hex-encoded signature string.
+        network: "ETHEREUM" or "BASE" — used to select the web3 provider
+                 for smart wallet (EIP-1271) verification.
+
+    Returns:
+        True if signature is valid for the given address.
+    """
+    network_lower = network.lower()
+    w3 = getattr(web3_provider, network_lower, None)
+    if w3 is None:
+        raise ValueError(f"Unsupported network: {network}")
+
+    checksum_address = Web3.to_checksum_address(address)
+
+    # Check if the address is a smart contract
+    code = w3.eth.get_code(checksum_address)
+    if code and code not in (b"", b"\x00"):
+        # Smart wallet — use EIP-1271
+        signable = encode_defunct(text=message)
+        message_hash = Web3.keccak(
+            b"\x19Ethereum Signed Message:\n"
+            + str(len(message)).encode()
+            + message.encode()
+        )
+        return verify_smart_wallet_signature(
+            w3, checksum_address, message_hash, signature
+        )
+    else:
+        # EOA
+        return verify_eoa_signature(checksum_address, message, signature)
