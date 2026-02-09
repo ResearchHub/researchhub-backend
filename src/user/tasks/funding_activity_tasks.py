@@ -1,6 +1,6 @@
 import logging
 
-from purchase.models import Purchase
+from purchase.models import Purchase, UsdFundraiseContribution
 from reputation.models import Distribution
 from reputation.related_models.escrow import EscrowRecipients
 from researchhub.celery import QUEUE_REPUTATION, app
@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 # Map source_type to model class for fetching the source object by pk
 _SOURCE_TYPE_MODEL = {
     FundingActivity.FUNDRAISE_PAYOUT: Purchase,
+    FundingActivity.FUNDRAISE_PAYOUT_USD: UsdFundraiseContribution,
     FundingActivity.BOUNTY_PAYOUT: EscrowRecipients,
     FundingActivity.TIP_DOCUMENT: Purchase,
     FundingActivity.TIP_REVIEW: Distribution,
@@ -26,10 +27,10 @@ def create_funding_activity_task(source_type, source_id):
     Idempotent: if one already exists for this source, the service returns it.
 
     Args:
-        source_type: One of FundingActivity.FUNDRAISE_PAYOUT, BOUNTY_PAYOUT,
-            TIP_DOCUMENT, TIP_REVIEW, FEE.
-        source_id: Primary key of the source object (Purchase, EscrowRecipients,
-            or Distribution).
+        source_type: One of FundingActivity.FUNDRAISE_PAYOUT, FUNDRAISE_PAYOUT_USD,
+            BOUNTY_PAYOUT, TIP_DOCUMENT, TIP_REVIEW, FEE.
+        source_id: Primary key of the source object (Purchase, UsdFundraiseContribution,
+            EscrowRecipients, or Distribution).
     """
     if source_type not in _SOURCE_TYPE_MODEL:
         logger.warning(
