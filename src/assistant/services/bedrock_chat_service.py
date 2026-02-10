@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+import time
 from typing import Any, Optional
 
 from django.conf import settings
@@ -15,6 +16,18 @@ logger = logging.getLogger(__name__)
 # Use Claude Sonnet 4.5 for conversational AI (better reasoning than Haiku)
 BEDROCK_CHAT_MODEL_ID = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
 
+# Module-level singleton for the Bedrock client (boto3 clients are thread-safe)
+_bedrock_client = None
+
+
+def _get_bedrock_client():
+    """Get or create the singleton Bedrock client."""
+    global _bedrock_client
+    if _bedrock_client is None:
+        _bedrock_client = create_client("bedrock-runtime")
+        logger.info("Created Bedrock client (singleton)")
+    return _bedrock_client
+
 
 class BedrockChatService:
     """
@@ -26,10 +39,7 @@ class BedrockChatService:
 
     def __init__(self):
         self.enabled = getattr(settings, "ASSISTANT_ENABLED", False)
-        if self.enabled:
-            self.bedrock_client = create_client("bedrock-runtime")
-        else:
-            self.bedrock_client = None
+        self.bedrock_client = _get_bedrock_client() if self.enabled else None
         self.model_id = getattr(
             settings, "ASSISTANT_BEDROCK_MODEL_ID", BEDROCK_CHAT_MODEL_ID
         )
@@ -179,12 +189,14 @@ class BedrockChatService:
         if session.last_seen_note_content_id == latest_version.id:
             return None
 
-        # Version changed (or first time) — update tracker and return content
-        session.last_seen_note_content_id = latest_version.id
+        # Version changed (or first time) — return content if available
         plain_text = latest_version.plain_text
 
         if not plain_text:
             return None
+
+        # Only mark as seen if we actually have content to send
+        session.last_seen_note_content_id = latest_version.id
 
         logger.info(
             f"Note content changed for session {session.id} "
@@ -246,7 +258,23 @@ class BedrockChatService:
             The assistant's response text, or None on failure
         """
         try:
-            logger.info(f"Calling Bedrock Converse API with {len(messages)} messages")
+            # Log input sizes for debugging
+            system_prompt_len = len(system_prompt)
+            history_len = sum(
+                len(block["text"])
+                for msg in messages
+                for block in msg.get("content", [])
+                if "text" in block
+            )
+            logger.info(
+                f"Calling Bedrock Converse API: "
+                f"model={self.model_id}, "
+                f"messages={len(messages)}, "
+                f"system_prompt_chars={system_prompt_len}, "
+                f"history_chars={history_len}"
+            )
+
+            start_time = time.time()
 
             response = self.bedrock_client.converse(
                 modelId=self.model_id,
@@ -256,6 +284,21 @@ class BedrockChatService:
                     "maxTokens": 4096,
                     "temperature": 0.7,
                 },
+            )
+
+            elapsed = time.time() - start_time
+
+            # Log usage and performance metrics
+            usage = response.get("usage", {})
+            metrics = response.get("metrics", {})
+            stop_reason = response.get("stopReason", "unknown")
+            logger.info(
+                f"Bedrock response: "
+                f"elapsed={elapsed:.1f}s, "
+                f"input_tokens={usage.get('inputTokens', '?')}, "
+                f"output_tokens={usage.get('outputTokens', '?')}, "
+                f"latency_ms={metrics.get('latencyMs', '?')}, "
+                f"stop_reason={stop_reason}"
             )
 
             if "output" not in response or not response["output"].get("message"):
@@ -271,7 +314,7 @@ class BedrockChatService:
                 if "text" in block:
                     response_text += block["text"]
 
-            logger.info(f"Received response from Bedrock ({len(response_text)} chars)")
+            logger.info(f"Response text: {len(response_text)} chars")
             return response_text
 
         except Exception as e:
