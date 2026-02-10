@@ -158,6 +158,119 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         )
         return None, start_dt, end_dt
 
+    def _get_current_user_rank_and_data(
+        self, leaderboard_type, period=None, start_dt=None, end_dt=None
+    ):
+        """
+        Get current user's rank and data for leaderboard.
+        Returns None if user is not authenticated or has no activity.
+
+        Args:
+            leaderboard_type: Either Leaderboard.EARNER or Leaderboard.FUNDER
+            period: Pre-computed period constant (e.g., Leaderboard.SEVEN_DAYS) or None
+            start_dt: Start datetime for custom date range (None if using pre-computed period)
+            end_dt: End datetime for custom date range (None if using pre-computed period)
+
+        Returns:
+            dict: Serialized user data with rank and amount, or None
+        """
+        user = self.request.user
+        if not user or not user.is_authenticated:
+            return None
+
+        excluded_ids = get_leaderboard_excluded_user_ids()
+        if user.id in excluded_ids:
+            return None
+
+        if period is not None:
+            try:
+                entry = Leaderboard.objects.get(
+                    user=user,
+                    leaderboard_type=leaderboard_type,
+                    period=period,
+                )
+                amount_label = (
+                    "earned_rsc"
+                    if leaderboard_type == Leaderboard.EARNER
+                    else "total_funding"
+                )
+                return {
+                    **self.serialize_user(user),
+                    amount_label: entry.total_amount,
+                    "rank": entry.rank,
+                }
+            except Leaderboard.DoesNotExist:
+                return None
+
+        if leaderboard_type == Leaderboard.EARNER:
+            user_total_qs = FundingActivityRecipient.objects.filter(
+                recipient_user=user,
+                activity__activity_date__gte=start_dt,
+                activity__activity_date__lte=end_dt,
+            ).aggregate(total=Sum("amount"))
+            user_total = user_total_qs["total"] or 0
+
+            if user_total == 0:
+                return None
+
+            higher_count = (
+                FundingActivityRecipient.objects.filter(
+                    activity__activity_date__gte=start_dt,
+                    activity__activity_date__lte=end_dt,
+                )
+                .exclude(recipient_user_id__in=excluded_ids)
+                .values("recipient_user_id")
+                .annotate(total=Sum("amount"))
+                .filter(total__gt=user_total)
+                .count()
+            )
+            rank = higher_count + 1
+
+            return {
+                **self.serialize_user(user),
+                "earned_rsc": user_total,
+                "rank": rank,
+            }
+        else:  # FUNDER
+            user_total_qs = FundingActivity.objects.filter(
+                funder=user,
+                activity_date__gte=start_dt,
+                activity_date__lte=end_dt,
+            ).aggregate(total=Sum("total_amount"))
+            user_total = user_total_qs["total"] or 0
+
+            if user_total == 0:
+                return None
+
+            higher_count = (
+                FundingActivity.objects.filter(
+                    activity_date__gte=start_dt,
+                    activity_date__lte=end_dt,
+                )
+                .exclude(funder_id__in=excluded_ids)
+                .values("funder_id")
+                .annotate(total=Sum("total_amount"))
+                .filter(total__gt=user_total)
+                .count()
+            )
+            rank = higher_count + 1
+
+            return {
+                **self.serialize_user(user),
+                "total_funding": user_total,
+                "rank": rank,
+            }
+
+    def _build_paginated_response_with_current_user(self, data, current_user_data):
+        """
+        Build a paginated response and add current_user data.
+        Returns a Response object with pagination metadata and current_user.
+        """
+        response = self.get_paginated_response(data)
+        response_data = dict(response.data)
+        response_data["current_user"] = current_user_data
+        return Response(response_data)
+
     def _paginated_aggregated_response(
         self, aggregated_queryset, user_id_key, amount_label
     ):
@@ -168,6 +281,11 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         page = self.paginate_queryset(aggregated_queryset)
         if page is None:
             return Response([])
+
+        page_number = self.paginator.page.number
+        page_size = self.paginator.page_size
+        starting_rank = (page_number - 1) * page_size + 1
+
         user_ids = [row[user_id_key] for row in page]
         users_by_id = {
             u.id: u
@@ -177,7 +295,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         }
         totals_by_user = {row[user_id_key]: row["total"] for row in page}
         data = []
-        for uid in user_ids:
+        for index, uid in enumerate(user_ids):
             user = users_by_id.get(uid)
             if not user:
                 continue
@@ -185,6 +303,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
                 {
                     **self.serialize_user(user),
                     amount_label: totals_by_user[uid],
+                    "rank": starting_rank + index,
                 }
             )
         return self.get_paginated_response(data)
@@ -193,7 +312,6 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=[RequestMethods.GET])
     def overview(self, request):
         """Returns top 5 users for each category (reviewers and funders)"""
-        # Use pre-computed leaderboard for reviewers (7 days) and funders (30 days)
         reviewer_entries = (
             Leaderboard.objects.filter(
                 leaderboard_type=Leaderboard.EARNER, period=Leaderboard.SEVEN_DAYS
@@ -210,12 +328,21 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
             .order_by("rank")[:5]
         )
 
+        current_user_reviewer = self._get_current_user_rank_and_data(
+            Leaderboard.EARNER, period=Leaderboard.SEVEN_DAYS
+        )
+
+        current_user_funder = self._get_current_user_rank_and_data(
+            Leaderboard.FUNDER, period=Leaderboard.THIRTY_DAYS
+        )
+
         return Response(
             {
                 "reviewers": [
                     {
                         **self.serialize_user(entry.user),
                         "earned_rsc": entry.total_amount,
+                        "rank": entry.rank,
                     }
                     for entry in reviewer_entries
                 ],
@@ -223,9 +350,14 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
                     {
                         **self.serialize_user(entry.user),
                         "total_funding": entry.total_amount,
+                        "rank": entry.rank,
                     }
                     for entry in funder_entries
                 ],
+                "current_user": {
+                    "reviewer": current_user_reviewer,
+                    "funder": current_user_funder,
+                },
             }
         )
 
@@ -257,10 +389,18 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
                     {
                         **self.serialize_user(entry.user),
                         "earned_rsc": entry.total_amount,
+                        "rank": entry.rank,
                     }
                     for entry in page
                 ]
-                return self.get_paginated_response(data)
+
+                current_user_data = self._get_current_user_rank_and_data(
+                    Leaderboard.EARNER, period=leaderboard_period
+                )
+
+                return self._build_paginated_response_with_current_user(
+                    data, current_user_data
+                )
 
         error_response, start_dt, end_dt = self._validate_and_parse_date_range(
             start_date, end_date
@@ -279,9 +419,41 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
             .annotate(total=Sum("amount"))
             .order_by("-total")
         )
-        return self._paginated_aggregated_response(
-            aggregated, "recipient_user_id", "earned_rsc"
+
+        page = self.paginate_queryset(aggregated)
+        if page is None:
+            return Response([])
+
+        page_number = self.paginator.page.number
+        page_size = self.paginator.page_size
+        starting_rank = (page_number - 1) * page_size + 1
+
+        user_ids = [row["recipient_user_id"] for row in page]
+        users_by_id = {
+            u.id: u
+            for u in User.objects.filter(id__in=user_ids).select_related(
+                "author_profile"
+            )
+        }
+        totals_by_user = {row["recipient_user_id"]: row["total"] for row in page}
+        data = []
+        for index, uid in enumerate(user_ids):
+            user = users_by_id.get(uid)
+            if not user:
+                continue
+            data.append(
+                {
+                    **self.serialize_user(user),
+                    "earned_rsc": totals_by_user[uid],
+                    "rank": starting_rank + index,
+                }
+            )
+
+        current_user_data = self._get_current_user_rank_and_data(
+            Leaderboard.EARNER, start_dt=start_dt, end_dt=end_dt
         )
+
+        return self._build_paginated_response_with_current_user(data, current_user_data)
 
     @method_decorator(cache_page(60 * 60 * 6))
     @action(detail=False, methods=[RequestMethods.GET])
@@ -311,10 +483,18 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
                     {
                         **self.serialize_user(entry.user),
                         "total_funding": entry.total_amount,
+                        "rank": entry.rank,
                     }
                     for entry in page
                 ]
-                return self.get_paginated_response(data)
+
+                current_user_data = self._get_current_user_rank_and_data(
+                    Leaderboard.FUNDER, period=leaderboard_period
+                )
+
+                return self._build_paginated_response_with_current_user(
+                    data, current_user_data
+                )
 
         error_response, start_dt, end_dt = self._validate_and_parse_date_range(
             start_date, end_date
@@ -333,6 +513,38 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
             .annotate(total=Sum("total_amount"))
             .order_by("-total")
         )
-        return self._paginated_aggregated_response(
-            aggregated, "funder_id", "total_funding"
+
+        page = self.paginate_queryset(aggregated)
+        if page is None:
+            return Response([])
+
+        page_number = self.paginator.page.number
+        page_size = self.paginator.page_size
+        starting_rank = (page_number - 1) * page_size + 1
+
+        user_ids = [row["funder_id"] for row in page]
+        users_by_id = {
+            u.id: u
+            for u in User.objects.filter(id__in=user_ids).select_related(
+                "author_profile"
+            )
+        }
+        totals_by_user = {row["funder_id"]: row["total"] for row in page}
+        data = []
+        for index, uid in enumerate(user_ids):
+            user = users_by_id.get(uid)
+            if not user:
+                continue
+            data.append(
+                {
+                    **self.serialize_user(user),
+                    "total_funding": totals_by_user[uid],
+                    "rank": starting_rank + index,
+                }
+            )
+
+        current_user_data = self._get_current_user_rank_and_data(
+            Leaderboard.FUNDER, start_dt=start_dt, end_dt=end_dt
         )
+
+        return self._build_paginated_response_with_current_user(data, current_user_data)
