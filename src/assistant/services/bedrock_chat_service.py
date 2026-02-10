@@ -163,11 +163,13 @@ class BedrockChatService:
 
     def _get_note_content_if_changed(self, session) -> Optional[str]:
         """
-        Fetch the note's plain_text if the document has changed since
+        Fetch the note content as HTML if the document has changed since
         the AI last saw it.
 
+        Tries plain_text first, then converts Tiptap JSON to HTML as fallback.
+
         Returns:
-            The note's plain_text if changed, None otherwise.
+            HTML string if changed, None otherwise.
             Also updates session.last_seen_note_content_id.
         """
         if not session.note_id:
@@ -189,10 +191,16 @@ class BedrockChatService:
         if session.last_seen_note_content_id == latest_version.id:
             return None
 
-        # Version changed (or first time) — return content if available
-        plain_text = latest_version.plain_text
+        # Version changed (or first time) — get content as HTML
+        content = latest_version.plain_text
 
-        if not plain_text:
+        # If plain_text is empty, convert Tiptap JSON to HTML
+        if not content and latest_version.json:
+            from assistant.utils import tiptap_json_to_html
+
+            content = tiptap_json_to_html(latest_version.json)
+
+        if not content:
             return None
 
         # Only mark as seen if we actually have content to send
@@ -200,9 +208,10 @@ class BedrockChatService:
 
         logger.info(
             f"Note content changed for session {session.id} "
-            f"(note_content_id: {latest_version.id})"
+            f"(note_content_id: {latest_version.id}, "
+            f"content_chars: {len(content)})"
         )
-        return plain_text
+        return content
 
     def _build_user_message(
         self, user_message: str, structured_input: Optional[dict]
