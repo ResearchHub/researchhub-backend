@@ -42,7 +42,7 @@ class EndaomentClient:
         self.auth_url = settings.ENDAOMENT_AUTH_URL
         self.client_id = settings.ENDAOMENT_CLIENT_ID
         self.client_secret = settings.ENDAOMENT_CLIENT_SECRET
-        self.redirect_uri = settings.ENDAOMENT_REDIRECT_URI
+        self.redirect_url = settings.ENDAOMENT_REDIRECT_URL
 
         self.http_session = requests.Session()
         self.http_session.headers["Content-Type"] = "application/json"
@@ -72,7 +72,7 @@ class EndaomentClient:
 
         url, _ = session.create_authorization_url(
             f"{self.auth_url}/auth",
-            redirect_uri=self.redirect_uri,
+            redirect_uri=self.redirect_url,
             scope="openid accounts transactions profile",
             state=state,
             code_verifier=code_verifier,
@@ -103,7 +103,7 @@ class EndaomentClient:
             f"{self.auth_url}/token",
             grant_type="authorization_code",
             code=code,
-            redirect_uri=self.redirect_uri,
+            redirect_uri=self.redirect_url,
             code_verifier=code_verifier,
             timeout=REQUEST_TIMEOUT,
         )

@@ -3,13 +3,12 @@ from decimal import Decimal
 
 import pytz
 from django.contrib.contenttypes.models import ContentType
-from django.db import transaction
 
 from mailing_list.lib import base_email_context
 from paper.models import Paper
 from purchase.models import Fundraise, Purchase, Support
 from purchase.related_models.constants.currency import USD
-from referral.services.referral_bonus_service import ReferralBonusService
+from purchase.services.fundraise_service import FundraiseService
 from researchhub.celery import QUEUE_NOTIFICATION, QUEUE_PURCHASES, app
 from researchhub.settings import BASE_FRONTEND_URL
 from researchhub_document.models import ResearchhubPost
@@ -47,6 +46,7 @@ def complete_eligible_fundraises():
         escrow__amount_holding__gt=0,
     ).select_related("escrow")
 
+    fundraise_service = FundraiseService()
     completed_count = 0
     error_count = 0
 
@@ -57,37 +57,9 @@ def complete_eligible_fundraises():
             goal_amount_usd = float(fundraise.goal_amount)
 
             if amount_raised_usd >= goal_amount_usd:
-                # Use atomic transaction to ensure consistency
-                with transaction.atomic():
-                    # Payout the funds
-                    did_payout = fundraise.payout_funds()
-
-                    if did_payout:
-                        # Mark fundraise as completed
-                        fundraise.status = Fundraise.COMPLETED
-                        fundraise.save()
-
-                        # Process referral bonuses for completed fundraise
-                        try:
-                            referral_bonus_service = ReferralBonusService()
-                            referral_bonus_service.process_fundraise_completion(
-                                fundraise
-                            )
-                        except Exception as e:
-                            log_error(
-                                e,
-                                message=f"Failed to process referral bonuses for fundraise {fundraise.id}",
-                            )
-
-                        completed_count += 1
-                        log_info(f"Successfully completed fundraise {fundraise.id}")
-                    else:
-                        log_error(
-                            Exception(
-                                f"Failed to payout funds for fundraise {fundraise.id}"
-                            )
-                        )
-                        error_count += 1
+                fundraise_service.complete_fundraise(fundraise)
+                completed_count += 1
+                log_info(f"Successfully completed fundraise {fundraise.id}")
 
         except Exception as e:
             log_error(e, message=f"Error processing fundraise {fundraise.id}")

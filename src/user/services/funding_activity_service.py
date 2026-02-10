@@ -46,43 +46,9 @@ class FundingActivityService:
     records with idempotency.
     """
 
-    # Content types cached for reuse
-    _purchase_content_type = None
-    _comment_content_type = None
-    _escrow_recipients_content_type = None
-    _distribution_content_type = None
-    _paper_content_type = None
-    _post_content_type = None
-
     @classmethod
     def _get_content_type(cls, model):
         return ContentType.objects.get_for_model(model)
-
-    @classmethod
-    def get_purchase_content_type(cls):
-        if cls._purchase_content_type is None:
-            cls._purchase_content_type = cls._get_content_type(Purchase)
-        return cls._purchase_content_type
-
-    @classmethod
-    def get_comment_content_type(cls):
-        if cls._comment_content_type is None:
-            cls._comment_content_type = cls._get_content_type(RhCommentModel)
-        return cls._comment_content_type
-
-    @classmethod
-    def get_escrow_recipients_content_type(cls):
-        if cls._escrow_recipients_content_type is None:
-            cls._escrow_recipients_content_type = cls._get_content_type(
-                EscrowRecipients
-            )
-        return cls._escrow_recipients_content_type
-
-    @classmethod
-    def get_distribution_content_type(cls):
-        if cls._distribution_content_type is None:
-            cls._distribution_content_type = cls._get_content_type(Distribution)
-        return cls._distribution_content_type
 
     # -------------------------------------------------------------------------
     # Query methods
@@ -158,9 +124,9 @@ class FundingActivityService:
         Distribution PURCHASE for review comments (proof_item is a Purchase
         on a PEER_REVIEW or COMMUNITY_REVIEW comment).
         """
-        ct_purchase = cls.get_purchase_content_type()
+        ct_purchase = cls._get_content_type(Purchase)
         review_purchase_ids = Purchase.objects.filter(
-            content_type=cls.get_comment_content_type(),
+            content_type=cls._get_content_type(RhCommentModel),
             paid_status=Purchase.PAID,
             rh_comments__comment_type__in=[PEER_REVIEW, COMMUNITY_REVIEW],
         ).values_list("id", flat=True)
