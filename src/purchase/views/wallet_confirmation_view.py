@@ -53,7 +53,7 @@ class WalletConfirmationViewSet(viewsets.GenericViewSet):
 
         try:
             checksum_address = Web3.to_checksum_address(address)
-        except Exception:
+        except ValueError:
             return Response(
                 {"error": "Invalid Ethereum address."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -102,7 +102,7 @@ class WalletConfirmationViewSet(viewsets.GenericViewSet):
 
         try:
             checksum_address = Web3.to_checksum_address(address)
-        except Exception:
+        except ValueError:
             return Response(
                 {"error": "Invalid Ethereum address."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -148,7 +148,7 @@ class WalletConfirmationViewSet(viewsets.GenericViewSet):
             is_valid = verify_wallet_signature(
                 checksum_address, message, signature, network=network
             )
-        except Exception:
+        except ValueError:
             return Response(
                 {"error": "Signature verification failed."},
                 status=status.HTTP_400_BAD_REQUEST,

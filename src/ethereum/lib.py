@@ -194,6 +194,18 @@ def get_private_key():
 # EIP-1271 magic value returned by compliant smart wallets
 EIP1271_MAGIC_VALUE = "0x1626ba7e"
 
+EIP1271_ABI = [
+    {
+        "name": "isValidSignature",
+        "type": "function",
+        "inputs": [
+            {"name": "_hash", "type": "bytes32"},
+            {"name": "_signature", "type": "bytes"},
+        ],
+        "outputs": [{"name": "", "type": "bytes4"}],
+    }
+]
+
 
 def verify_eoa_signature(address, message, signature):
     """Verify that `signature` was produced by the owner of `address` (EOA).
@@ -227,19 +239,7 @@ def verify_smart_wallet_signature(w3, address, message_hash, signature):
     if code == b"" or code == b"\x00":
         return False
 
-    eip1271_abi = [
-        {
-            "name": "isValidSignature",
-            "type": "function",
-            "inputs": [
-                {"name": "_hash", "type": "bytes32"},
-                {"name": "_signature", "type": "bytes"},
-            ],
-            "outputs": [{"name": "", "type": "bytes4"}],
-        }
-    ]
-
-    contract = w3.eth.contract(address=address, abi=eip1271_abi)
+    contract = w3.eth.contract(address=address, abi=EIP1271_ABI)
     sig_bytes = (
         bytes.fromhex(signature[2:]) if isinstance(signature, str) else signature
     )
@@ -273,11 +273,7 @@ def verify_wallet_signature(address, message, signature, network="ETHEREUM"):
     if code and code not in (b"", b"\x00"):
         # Smart wallet — use EIP-1271
         signable = encode_defunct(text=message)
-        message_hash = Web3.keccak(
-            b"\x19Ethereum Signed Message:\n"
-            + str(len(message)).encode()
-            + message.encode()
-        )
+        message_hash = Web3.keccak(signable.body)
         return verify_smart_wallet_signature(
             w3, checksum_address, message_hash, signature
         )

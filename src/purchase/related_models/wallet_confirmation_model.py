@@ -12,7 +12,9 @@ class WalletConfirmation(models.Model):
     user = models.ForeignKey(
         "user.User", on_delete=models.CASCADE, related_name="confirmed_wallets"
     )
-    address = models.CharField(max_length=255)  # checksummed ethereum address
+    address = models.CharField(
+        max_length=255, db_index=True
+    )  # checksummed ethereum address
     nonce = models.CharField(max_length=64)  # challenge nonce
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=PENDING)
     confirmed_at = models.DateTimeField(null=True, blank=True)
