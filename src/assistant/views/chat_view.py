@@ -39,6 +39,7 @@ class ChatView(APIView):
         action = validated_data.get("action", ChatAction.MESSAGE)
         message = validated_data.get("message")
         structured_input = validated_data.get("structured_input")
+        note_id = validated_data.get("note_id")
 
         # Look up session — must already exist
         session = SessionService.get_session(session_id, request.user)
@@ -47,6 +48,11 @@ class ChatView(APIView):
                 {"error": "Session not found or access denied"},
                 status=status.HTTP_404_NOT_FOUND,
             )
+
+        # Store note_id on the session if provided (silent, no Bedrock call)
+        if note_id is not None and session.note_id != note_id:
+            session.note_id = note_id
+            session.save()
 
         chat_service = BedrockChatService()
 
@@ -73,14 +79,6 @@ class ChatView(APIView):
             return self._build_response(response_data, status.HTTP_200_OK)
 
         # Action: message — process with Bedrock
-
-        # Handle structured_input for note_id — store on session model directly
-        if structured_input and structured_input.get("field") == "note_id":
-            note_value = structured_input.get("value")
-            if note_value is not None:
-                session.note_id = int(note_value)
-                session.save()
-
         chat_response = chat_service.process_message(
             session=session,
             user_message=message,

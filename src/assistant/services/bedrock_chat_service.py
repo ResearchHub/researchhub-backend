@@ -58,11 +58,10 @@ class BedrockChatService:
 
         try:
             # Handle structured input — directly update field state for confirmed values
-            # note_id is stored on the model directly by the view, not in field_state
             if structured_input:
                 field = structured_input.get("field")
                 value = structured_input.get("value")
-                if field and field != "note_id" and value is not None:
+                if field and value is not None:
                     session.update_field(field, FieldStatus.COMPLETE, value)
 
             # Build the full message including any structured input context
@@ -204,10 +203,7 @@ class BedrockChatService:
         field = structured_input.get("field", "")
         value = structured_input.get("value", "")
 
-        if field == "note_id":
-            # note_id is metadata, not sent to the LLM
-            return user_message
-        elif field == "authors" and isinstance(value, list):
+        if field == "authors" and isinstance(value, list):
             return f"{user_message}\n\n[Selected authors with IDs: {value}]"
         elif field == "hubs" and isinstance(value, list):
             return f"{user_message}\n\n[Selected topics/hubs with IDs: {value}]"

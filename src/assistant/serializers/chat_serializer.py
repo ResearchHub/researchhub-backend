@@ -48,6 +48,11 @@ class ChatRequestSerializer(serializers.Serializer):
         allow_blank=False,
         help_text="The user's message text. Required when action is 'message'.",
     )
+    note_id = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        help_text="Optional. Set once when the frontend creates the note. Stored on the session.",
+    )
     structured_input = StructuredInputSerializer(
         required=False,
         allow_null=True,
