@@ -203,10 +203,15 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
                 return None
 
         if leaderboard_type == Leaderboard.EARNER:
+            earner_source_types = [
+                FundingActivity.TIP_REVIEW,
+                FundingActivity.BOUNTY_PAYOUT,
+            ]
             user_total_qs = FundingActivityRecipient.objects.filter(
                 recipient_user=user,
                 activity__activity_date__gte=start_dt,
                 activity__activity_date__lte=end_dt,
+                activity__source_type__in=earner_source_types,
             ).aggregate(total=Sum("amount"))
             user_total = user_total_qs["total"] or 0
 
@@ -217,6 +222,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
                 FundingActivityRecipient.objects.filter(
                     activity__activity_date__gte=start_dt,
                     activity__activity_date__lte=end_dt,
+                    activity__source_type__in=earner_source_types,
                 )
                 .exclude(recipient_user_id__in=excluded_ids)
                 .values("recipient_user_id")
@@ -311,10 +317,10 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
     @method_decorator(cache_page(60 * 60 * 6))
     @action(detail=False, methods=[RequestMethods.GET])
     def overview(self, request):
-        """Returns top 5 users for each category (reviewers and funders)"""
+        """Returns top 5 users for each category (reviewers and funders), all-time."""
         reviewer_entries = (
             Leaderboard.objects.filter(
-                leaderboard_type=Leaderboard.EARNER, period=Leaderboard.SEVEN_DAYS
+                leaderboard_type=Leaderboard.EARNER, period=Leaderboard.ALL_TIME
             )
             .select_related("user", "user__author_profile")
             .order_by("rank")[:5]
@@ -322,18 +328,18 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
 
         funder_entries = (
             Leaderboard.objects.filter(
-                leaderboard_type=Leaderboard.FUNDER, period=Leaderboard.THIRTY_DAYS
+                leaderboard_type=Leaderboard.FUNDER, period=Leaderboard.ALL_TIME
             )
             .select_related("user", "user__author_profile")
             .order_by("rank")[:5]
         )
 
         current_user_reviewer = self._get_current_user_rank_and_data(
-            Leaderboard.EARNER, period=Leaderboard.SEVEN_DAYS
+            Leaderboard.EARNER, period=Leaderboard.ALL_TIME
         )
 
         current_user_funder = self._get_current_user_rank_and_data(
-            Leaderboard.FUNDER, period=Leaderboard.THIRTY_DAYS
+            Leaderboard.FUNDER, period=Leaderboard.ALL_TIME
         )
 
         return Response(
@@ -413,6 +419,10 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
             FundingActivityRecipient.objects.filter(
                 activity__activity_date__gte=start_dt,
                 activity__activity_date__lte=end_dt,
+                activity__source_type__in=[
+                    FundingActivity.TIP_REVIEW,
+                    FundingActivity.BOUNTY_PAYOUT,
+                ],
             )
             .exclude(recipient_user_id__in=excluded_ids)
             .values("recipient_user_id")

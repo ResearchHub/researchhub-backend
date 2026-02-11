@@ -283,7 +283,21 @@ class LeaderboardApiTests(APITestCase):
         for _ in range(3):
             make_activity(self.funder1, FundingActivity.FEE, 50)
 
-        # Pre-computed leaderboard entries for overview endpoint
+        # Pre-computed leaderboard entries
+        Leaderboard.objects.create(
+            user=self.reviewer1,
+            leaderboard_type=Leaderboard.EARNER,
+            period=Leaderboard.ALL_TIME,
+            rank=1,
+            total_amount=Decimal("250"),
+        )
+        Leaderboard.objects.create(
+            user=self.funder1,
+            leaderboard_type=Leaderboard.FUNDER,
+            period=Leaderboard.ALL_TIME,
+            rank=1,
+            total_amount=Decimal("650"),
+        )
         Leaderboard.objects.create(
             user=self.reviewer1,
             leaderboard_type=Leaderboard.EARNER,
@@ -481,7 +495,7 @@ class LeaderboardApiTests(APITestCase):
         url = "/api/leaderboard/reviewers/"
         start_date = (self.now - timedelta(days=2)).strftime("%Y-%m-%d")
         end_date = (self.now + timedelta(days=2)).strftime("%Y-%m-%d")
-        
+
         self.client.force_authenticate(user=self.reviewer1)
         response = self.client.get(
             f"{url}?start_date={start_date}&end_date={end_date}&page_size=500"
@@ -502,7 +516,7 @@ class LeaderboardApiTests(APITestCase):
         url = "/api/leaderboard/funders/"
         start_date = (self.now - timedelta(days=2)).strftime("%Y-%m-%d")
         end_date = (self.now + timedelta(days=2)).strftime("%Y-%m-%d")
-        
+
         self.client.force_authenticate(user=self.funder1)
         response = self.client.get(
             f"{url}?start_date={start_date}&end_date={end_date}&page_size=500"
@@ -555,7 +569,7 @@ class LeaderboardApiTests(APITestCase):
 
         for entry in results:
             self.assertIn("rank", entry)
-        
+
         reviewer1_entry = next(
             (r for r in results if r["id"] == self.reviewer1.id), None
         )
@@ -573,10 +587,8 @@ class LeaderboardApiTests(APITestCase):
 
         for entry in results:
             self.assertIn("rank", entry)
-        
-        funder1_entry = next(
-            (r for r in results if r["id"] == self.funder1.id), None
-        )
+
+        funder1_entry = next((r for r in results if r["id"] == self.funder1.id), None)
         if funder1_entry:
             self.assertEqual(funder1_entry["rank"], 1)
 
@@ -611,7 +623,7 @@ class LeaderboardApiTests(APITestCase):
         url = "/api/leaderboard/reviewers/"
         start_date = (self.now - timedelta(days=2)).strftime("%Y-%m-%d")
         end_date = (self.now + timedelta(days=2)).strftime("%Y-%m-%d")
-        
+
         self.client.force_authenticate(user=self.reviewer1)
         response = self.client.get(
             f"{url}?start_date={start_date}&end_date={end_date}&page_size=1&page=1"
@@ -630,7 +642,7 @@ class LeaderboardApiTests(APITestCase):
         url = "/api/leaderboard/funders/"
         start_date = (self.now - timedelta(days=2)).strftime("%Y-%m-%d")
         end_date = (self.now + timedelta(days=2)).strftime("%Y-%m-%d")
-        
+
         self.client.force_authenticate(user=self.funder1)
         response = self.client.get(
             f"{url}?start_date={start_date}&end_date={end_date}&page_size=1&page=1"

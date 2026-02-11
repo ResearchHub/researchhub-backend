@@ -125,10 +125,16 @@ def _refresh_earner_leaderboard(period, excluded_user_ids):
     """Refresh earner leaderboard for a given period."""
     start_date, end_date = _get_period_date_range(period)
 
-    # Aggregate FundingActivityRecipient by recipient_user
-    # Join with FundingActivity to filter by activity_date
-    qs = FundingActivityRecipient.objects.select_related("activity").exclude(
-        recipient_user_id__in=excluded_user_ids
+    # Aggregate FundingActivityRecipient by recipient_user (reviewers only: tip + bounty)
+    qs = (
+        FundingActivityRecipient.objects.select_related("activity")
+        .filter(
+            activity__source_type__in=[
+                FundingActivity.TIP_REVIEW,
+                FundingActivity.BOUNTY_PAYOUT,
+            ]
+        )
+        .exclude(recipient_user_id__in=excluded_user_ids)
     )
 
     if start_date:
