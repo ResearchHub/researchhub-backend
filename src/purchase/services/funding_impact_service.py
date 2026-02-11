@@ -7,10 +7,10 @@ from django.db.models import Count, DecimalField, QuerySet, Sum
 from django.db.models.functions import Cast, Coalesce, TruncMonth
 from django.utils import timezone
 
-from purchase.models import Fundraise, Purchase
+from purchase.models import Fundraise, GrantApplication, Purchase
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.usd_fundraise_contribution_model import UsdFundraiseContribution
-from purchase.utils import get_funded_fundraise_ids, get_grant_fundraise_ids, sum_contributions
+from purchase.utils import get_funded_fundraise_ids, sum_contributions
 from researchhub_comment.constants.rh_comment_thread_types import AUTHOR_UPDATE
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubPost
@@ -34,9 +34,9 @@ UPDATE_BUCKETS = ["0", "1", "2-3", "4+"]
 class FundingImpactService:
     """Calculates funding impact metrics for grant creators who also contribute."""
 
-    def get_funding_impact(self, user: User) -> dict:
+    def get_funding_impact_overview(self, user: User) -> dict:
         """Return funding impact metrics for proposals the user funded through their grants."""
-        grant_fundraise_ids = get_grant_fundraise_ids(user)
+        grant_fundraise_ids = GrantApplication.objects.for_user_grants(user).fundraise_ids()
         user_funded_ids = get_funded_fundraise_ids(user.id)
         funded_ids = list(grant_fundraise_ids & user_funded_ids)
 
@@ -54,16 +54,11 @@ class FundingImpactService:
         )
 
         exchange_rate = RscExchangeRate.get_latest_exchange_rate()
-        fundraise_ct = ContentType.objects.get_for_model(Fundraise)
-        contributions = self._get_contributions_by_fundraise(
-            user, funded_ids, exchange_rate, fundraise_ct
-        )
+        contributions = self._get_contributions_by_fundraise(user, funded_ids, exchange_rate)
 
         return {
             "milestones": self._get_milestones(user, funded_ids, fundraises),
-            "funding_over_time": self._get_funding_over_time(
-                user, funded_ids, exchange_rate, fundraise_ct
-            ),
+            "funding_over_time": self._get_funding_over_time(user, funded_ids, exchange_rate),
             "topic_breakdown": self._get_topic_breakdown(fundraises, contributions),
             "update_frequency": self._get_update_frequency(post_ids),
             "institutions_supported": self._get_institutions_supported(fundraises, contributions),
@@ -112,16 +107,11 @@ class FundingImpactService:
         }
 
     def _get_contributions_by_fundraise(
-        self, user: User, fundraise_ids: list[int], exchange_rate: float, fundraise_ct: ContentType
+        self, user: User, fundraise_ids: list[int], exchange_rate: float
     ) -> dict[int, float]:
         """Return user's contribution amount (USD) per fundraise ID."""
         rsc_amounts = dict(
-            Purchase.objects.filter(
-                user=user,
-                purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
-                content_type=fundraise_ct,
-                object_id__in=fundraise_ids,
-            )
+            Purchase.objects.for_user(user.id).funding_contributions().for_fundraises(fundraise_ids)
             .annotate(amount_decimal=Cast("amount", DECIMAL_FIELD))
             .values("object_id")
             .annotate(total=Coalesce(Sum("amount_decimal"), Decimal("0")))
@@ -129,11 +119,7 @@ class FundingImpactService:
         )
 
         usd_amounts = dict(
-            UsdFundraiseContribution.objects.filter(
-                user=user,
-                fundraise_id__in=fundraise_ids,
-                is_refunded=False,
-            )
+            UsdFundraiseContribution.objects.for_user(user.id).not_refunded().for_fundraises(fundraise_ids)
             .values("fundraise_id")
             .annotate(total=Coalesce(Sum("amount_cents"), 0))
             .values_list("fundraise_id", "total")
@@ -145,30 +131,23 @@ class FundingImpactService:
         }
 
     def _get_funding_over_time(
-        self, user: User, fundraise_ids: list[int], exchange_rate: float, fundraise_ct: ContentType
+        self, user: User, fundraise_ids: list[int], exchange_rate: float
     ) -> list[dict]:
         """Return past 6 months of cumulative funding contributions."""
         past_months = self._get_past_months()
         cutoff = timezone.now() - timedelta(days=MONTHS_TO_SHOW * 30)
 
         rsc_monthly = (
-            Purchase.objects.filter(
-                purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
-                content_type=fundraise_ct,
-                object_id__in=fundraise_ids,
-                created_date__gte=cutoff,
-            )
+            Purchase.objects.funding_contributions().for_fundraises(fundraise_ids)
+            .filter(created_date__gte=cutoff)
             .annotate(month=TruncMonth("created_date"), amount_decimal=Cast("amount", DECIMAL_FIELD))
             .values("month", "user_id")
             .annotate(total=Coalesce(Sum("amount_decimal"), Decimal("0")))
         )
 
         usd_monthly = (
-            UsdFundraiseContribution.objects.filter(
-                fundraise_id__in=fundraise_ids,
-                is_refunded=False,
-                created_date__gte=cutoff,
-            )
+            UsdFundraiseContribution.objects.not_refunded().for_fundraises(fundraise_ids)
+            .filter(created_date__gte=cutoff)
             .annotate(month=TruncMonth("created_date"))
             .values("month", "user_id")
             .annotate(total=Coalesce(Sum("amount_cents"), 0))

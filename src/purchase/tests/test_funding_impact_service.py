@@ -49,7 +49,7 @@ class TestFundingImpactService(TestCase):
 
     def test_empty_response_for_new_user(self):
         # Act
-        result = self.service.get_funding_impact(self.grant_creator)
+        result = self.service.get_funding_impact_overview(self.grant_creator)
 
         # Assert
         self.assertEqual(result["milestones"], {k: {"current": 0, "target": v[0]} for k, v in MILESTONES.items()})
@@ -71,7 +71,7 @@ class TestFundingImpactService(TestCase):
         self._contribute(other, f1, rsc=200)  # $100 matched
 
         # Act
-        result = self.service.get_funding_impact(self.grant_creator)
+        result = self.service.get_funding_impact_overview(self.grant_creator)
 
         # Assert
         self.assertEqual(result["milestones"]["funding_contributed"], {"current": 150.0, "target": 500})
@@ -87,7 +87,7 @@ class TestFundingImpactService(TestCase):
         self._contribute(other, fundraise, rsc=200)
 
         # Act
-        result = self.service.get_funding_impact(self.grant_creator)
+        result = self.service.get_funding_impact_overview(self.grant_creator)
 
         # Assert - always 6 months, YYYY-MM format, cumulative values
         self.assertEqual(len(result["funding_over_time"]), 6)
@@ -107,7 +107,7 @@ class TestFundingImpactService(TestCase):
         self._contribute(self.grant_creator, f2, rsc=400)  # $200
 
         # Act
-        result = self.service.get_funding_impact(self.grant_creator)
+        result = self.service.get_funding_impact_overview(self.grant_creator)
 
         # Assert
         self.assertEqual(result["topic_breakdown"][0], {"name": "Big", "amount_usd": 200.0})
@@ -131,7 +131,7 @@ class TestFundingImpactService(TestCase):
                 RhCommentModel.objects.create(thread=thread, created_by=f.created_by, comment_content_json={}, comment_type=AUTHOR_UPDATE)
 
         # Act
-        result = self.service.get_funding_impact(self.grant_creator)
+        result = self.service.get_funding_impact_overview(self.grant_creator)
 
         # Assert - all bucket branches covered
         buckets = {b["bucket"]: b["count"] for b in result["update_frequency"]}
@@ -157,7 +157,7 @@ class TestFundingImpactService(TestCase):
         self._contribute(self.grant_creator, f_no_inst, rsc=50)
 
         # Act
-        result = self.service.get_funding_impact(self.grant_creator)
+        result = self.service.get_funding_impact_overview(self.grant_creator)
 
         # Assert - only the 2 institutions from first fundraise should appear
         self.assertEqual(len(result["institutions_supported"]), 2)

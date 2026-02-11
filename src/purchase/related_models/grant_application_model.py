@@ -4,8 +4,26 @@ from django.db.models import CASCADE
 from utils.models import DefaultModel
 
 
+class GrantApplicationQuerySet(models.QuerySet):
+    """QuerySet for GrantApplication with common filters."""
+
+    def for_user_grants(self, user):
+        """Filter applications for grants created by the given user."""
+        return self.filter(grant__created_by=user)
+
+    def fundraise_ids(self) -> set[int]:
+        """Return set of fundraise IDs for these applications."""
+        return set(
+            self.values_list(
+                "preregistration_post__unified_document__fundraises__id", flat=True
+            )
+        )
+
+
 class GrantApplication(DefaultModel):
     """Simple linking model between grants and preregistration posts."""
+
+    objects = GrantApplicationQuerySet.as_manager()
 
     grant = models.ForeignKey(
         "purchase.Grant", on_delete=CASCADE, related_name="applications"

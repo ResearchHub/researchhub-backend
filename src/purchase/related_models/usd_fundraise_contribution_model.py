@@ -1,12 +1,40 @@
 from django.db import models
+from django.db.models import Sum
+from django.db.models.functions import Coalesce
 
 from utils.models import DefaultModel
+
+
+class UsdFundraiseContributionQuerySet(models.QuerySet):
+    """QuerySet for UsdFundraiseContribution with chainable filters."""
+
+    def for_user(self, user_id: int):
+        """Filter contributions by user."""
+        return self.filter(user_id=user_id)
+
+    def exclude_user(self, user_id: int):
+        """Exclude contributions by user."""
+        return self.exclude(user_id=user_id)
+
+    def not_refunded(self):
+        """Filter for non-refunded contributions."""
+        return self.filter(is_refunded=False)
+
+    def for_fundraises(self, fundraise_ids):
+        """Filter by fundraise IDs."""
+        return self.filter(fundraise_id__in=fundraise_ids)
+
+    def cents_sum(self) -> int:
+        """Return sum of amount_cents."""
+        return self.aggregate(total=Coalesce(Sum("amount_cents"), 0))["total"]
 
 
 class UsdFundraiseContribution(DefaultModel):
     """
     Tracks individual USD contributions to fundraises.
     """
+
+    objects = UsdFundraiseContributionQuerySet.as_manager()
 
     class Status(models.TextChoices):
         SUBMITTED = "SUBMITTED", "SUBMITTED"
