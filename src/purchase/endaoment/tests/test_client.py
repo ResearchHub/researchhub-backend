@@ -221,6 +221,79 @@ class TestEndaomentClient(TestCase):
             self.client.get_user_funds(access_token="")
 
     @patch("purchase.endaoment.client.uuid.uuid4")
+    def test_create_async_entity_transfer(self, mock_uuid):
+        """
+        Test creating an async entity transfer (grant).
+        """
+        # Arrange
+        mock_uuid.return_value = Mock(hex="abc123")
+        with open(
+            self.FIXTURES_DIR / "create_async_entity_transfer_response.json"
+        ) as f:
+            mock_response_data = json.load(f)
+        mock_response = Mock()
+        mock_response.json.return_value = mock_response_data
+        mock_response.raise_for_status = Mock()
+        self.client.http_session.request = Mock(return_value=mock_response)
+
+        # Act
+        result = self.client.create_async_entity_transfer(
+            access_token="valid_access_token",
+            origin_fund_id="fund-123",
+            destination_fund_id="fund-456",
+            amount_in_cents=50000,
+            purpose="Support for research project",
+        )
+
+        # Assert
+        self.assertEqual(result, mock_response_data)
+        self.client.http_session.request.assert_called_once_with(
+            "POST",
+            "https://api.dev.endaoment.org/v1/transfers/async-entity-transfer",
+            headers={"Authorization": "Bearer valid_access_token"},
+            timeout=30,
+            json={
+                "idempotencyKey": "abc123",
+                "originFundId": "fund-123",
+                "destinationFundId": "fund-456",
+                "requestedAmount": "50000",
+                "purpose": "Support for research project",
+            },
+        )
+
+    def test_create_async_entity_transfer_fails_without_token(self):
+        """
+        Test creating an async entity transfer fails without access token.
+        """
+        with self.assertRaises(ValueError):
+            self.client.create_async_entity_transfer(
+                access_token="",
+                origin_fund_id="fund-123",
+                destination_fund_id="fund-456",
+                amount_in_cents=50000,
+                purpose="Support for research project",
+            )
+
+    def test_create_async_entity_transfer_http_error(self):
+        """
+        Test that HTTP errors from the API are propagated when creating an async entity transfer.
+        """
+        mock_response = Mock()
+        mock_response.raise_for_status.side_effect = requests.HTTPError(
+            response=Mock(status_code=403)
+        )
+        self.client.http_session.request = Mock(return_value=mock_response)
+
+        with self.assertRaises(requests.HTTPError):
+            self.client.create_async_entity_transfer(
+                access_token="valid_access_token",
+                origin_fund_id="fund-123",
+                destination_fund_id="fund-456",
+                amount_in_cents=50000,
+                purpose="Support for research project",
+            )
+
+    @patch("purchase.endaoment.client.uuid.uuid4")
     def test_create_async_grant(self, uuid_mock):
         """
         Test creating an async grant request.
