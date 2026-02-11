@@ -1,7 +1,7 @@
 import time
 
-from purchase.models import Purchase, UsdFundraiseContribution
-from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from purchase.models import Purchase
+from purchase.related_models.usd_fundraise_contribution_model import UsdFundraiseContribution
 from reputation.distributions import create_purchase_distribution
 from reputation.distributor import Distributor
 from reputation.models import Escrow
@@ -44,36 +44,3 @@ def get_funded_fundraise_ids(user_id: int) -> set[int]:
         UsdFundraiseContribution.objects.for_user(user_id).not_refunded().values_list("fundraise_id", flat=True)
     )
     return rsc_funded | usd_funded
-
-
-def sum_contributions(
-    user_id: int | None = None,
-    fundraise_ids: set[int] | list[int] | None = None,
-    exclude_user_id: int | None = None,
-) -> float:
-    """Sum contributions in USD, combining RSC and USD payments."""
-    if fundraise_ids is not None and not fundraise_ids:
-        return 0.0
-
-    # Build RSC query with chainable methods
-    rsc_qs = Purchase.objects.funding_contributions()
-    if user_id:
-        rsc_qs = rsc_qs.for_user(user_id)
-    if fundraise_ids:
-        rsc_qs = rsc_qs.for_fundraises(fundraise_ids)
-    if exclude_user_id:
-        rsc_qs = rsc_qs.exclude_user(exclude_user_id)
-
-    # Build USD query with chainable methods
-    usd_qs = UsdFundraiseContribution.objects.not_refunded()
-    if user_id:
-        usd_qs = usd_qs.for_user(user_id)
-    if fundraise_ids:
-        usd_qs = usd_qs.for_fundraises(fundraise_ids)
-    if exclude_user_id:
-        usd_qs = usd_qs.exclude_user(exclude_user_id)
-
-    rsc_total = rsc_qs.rsc_sum()
-    usd_cents = usd_qs.cents_sum()
-
-    return round(RscExchangeRate.rsc_to_usd(float(rsc_total)) + usd_cents / 100, 2)

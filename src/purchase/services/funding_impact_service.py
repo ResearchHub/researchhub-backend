@@ -10,7 +10,7 @@ from django.utils import timezone
 from purchase.models import Fundraise, GrantApplication, Purchase
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.usd_fundraise_contribution_model import UsdFundraiseContribution
-from purchase.utils import get_funded_fundraise_ids, sum_contributions
+from purchase.utils import get_funded_fundraise_ids
 from researchhub_comment.constants.rh_comment_thread_types import AUTHOR_UPDATE
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubPost
@@ -96,14 +96,20 @@ class FundingImpactService:
 
     def _get_milestones(self, user: User, funded_ids: list[int], fundraises: QuerySet) -> dict:
         """Calculate all milestone metrics."""
-        user_total = sum_contributions(user_id=user.id, fundraise_ids=funded_ids)
-        matched_total = sum_contributions(fundraise_ids=funded_ids, exclude_user_id=user.id)
+        user_total = (
+            Purchase.objects.for_user(user.id).funding_contributions().for_fundraises(funded_ids).sum_usd()
+            + UsdFundraiseContribution.objects.for_user(user.id).not_refunded().for_fundraises(funded_ids).sum_usd()
+        )
+        matched_total = (
+            Purchase.objects.funding_contributions().for_fundraises(funded_ids).exclude_user(user.id).sum_usd()
+            + UsdFundraiseContribution.objects.not_refunded().for_fundraises(funded_ids).exclude_user(user.id).sum_usd()
+        )
         researcher_count = fundraises.values("created_by_id").distinct().count()
 
         return {
-            "funding_contributed": self._get_milestone(user_total, "funding_contributed"),
+            "funding_contributed": self._get_milestone(round(user_total, 2), "funding_contributed"),
             "researchers_supported": self._get_milestone(researcher_count, "researchers_supported"),
-            "matched_funding": self._get_milestone(matched_total, "matched_funding"),
+            "matched_funding": self._get_milestone(round(matched_total, 2), "matched_funding"),
         }
 
     def _get_contributions_by_fundraise(

@@ -38,13 +38,18 @@ class PurchaseQuerySet(models.QuerySet):
         """Filter by fundraise IDs."""
         return self.filter(object_id__in=fundraise_ids)
 
-    def rsc_sum(self) -> Decimal:
-        """Return sum of amounts as Decimal."""
+    def sum(self) -> Decimal:
+        """Return sum of RSC amounts as Decimal."""
         return self.annotate(
             amt=Cast("amount", DECIMAL_FIELD)
         ).aggregate(
             total=Coalesce(Sum("amt"), Decimal("0"))
         )["total"]
+
+    def sum_usd(self) -> float:
+        """Return sum of amounts converted to USD."""
+        from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+        return RscExchangeRate.rsc_to_usd(float(self.sum()))
 
 
 class Purchase(PaidStatusModelMixin):

@@ -9,7 +9,6 @@ from purchase.models import Fundraise, Grant, Purchase
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.usd_fundraise_contribution_model import UsdFundraiseContribution
 from purchase.services.funding_overview_service import FundingOverviewService
-from purchase.utils import sum_contributions
 from researchhub_comment.constants.rh_comment_thread_types import AUTHOR_UPDATE
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_document.helpers import create_post
@@ -53,7 +52,7 @@ class TestFundingOverviewService(TestCase):
         # Assert
         self.assertEqual(result, {"active": 1, "total": 3})
 
-    def test_sum_contributions_combines_rsc_and_usd(self):
+    def test_queryset_sum_usd_combines_rsc_and_usd(self):
         # Arrange
         contributor = create_random_authenticated_user("contributor")
         post = create_post(created_by=self.user, document_type=PREREGISTRATION)
@@ -62,13 +61,14 @@ class TestFundingOverviewService(TestCase):
         UsdFundraiseContribution.objects.create(user=contributor, fundraise=fundraise, amount_cents=10000, fee_cents=0)  # $100
 
         # Act
-        result = sum_contributions(fundraise_ids=[fundraise.id])
+        rsc_usd = Purchase.objects.funding_contributions().for_fundraises([fundraise.id]).sum_usd()
+        usd = UsdFundraiseContribution.objects.not_refunded().for_fundraises([fundraise.id]).sum_usd()
 
         # Assert
-        self.assertEqual(result, 150.0)
-        self.assertEqual(sum_contributions(fundraise_ids=[]), 0.0)
+        self.assertEqual(round(rsc_usd + usd, 2), 150.0)
+        self.assertEqual(Purchase.objects.funding_contributions().for_fundraises([]).sum_usd(), 0.0)
 
-    def test_sum_contributions_filters_and_excludes_users(self):
+    def test_queryset_filters_and_excludes_users(self):
         # Arrange
         user1 = create_random_authenticated_user("user1")
         user2 = create_random_authenticated_user("user2")
@@ -78,9 +78,10 @@ class TestFundingOverviewService(TestCase):
         Purchase.objects.create(user=user1, content_type=fundraise_ct, object_id=fundraise.id, purchase_type=Purchase.FUNDRAISE_CONTRIBUTION, amount=100)
         Purchase.objects.create(user=user2, content_type=fundraise_ct, object_id=fundraise.id, purchase_type=Purchase.FUNDRAISE_CONTRIBUTION, amount=200)
 
-        # Act & Assert
-        self.assertEqual(sum_contributions(user_id=user1.id, fundraise_ids=[fundraise.id]), 50.0)  # user1 only: 100 * 0.5
-        self.assertEqual(sum_contributions(fundraise_ids=[fundraise.id], exclude_user_id=user1.id), 100.0)  # exclude user1: 200 * 0.5
+        # Act & Assert - user1 only: 100 * 0.5 = $50
+        self.assertEqual(Purchase.objects.for_user(user1.id).funding_contributions().for_fundraises([fundraise.id]).sum_usd(), 50.0)
+        # exclude user1: 200 * 0.5 = $100
+        self.assertEqual(Purchase.objects.funding_contributions().for_fundraises([fundraise.id]).exclude_user(user1.id).sum_usd(), 100.0)
 
     def test_update_count_filters_by_date(self):
         # Arrange

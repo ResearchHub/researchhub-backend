@@ -24,9 +24,13 @@ class UsdFundraiseContributionQuerySet(models.QuerySet):
         """Filter by fundraise IDs."""
         return self.filter(fundraise_id__in=fundraise_ids)
 
-    def cents_sum(self) -> int:
+    def sum(self) -> int:
         """Return sum of amount_cents."""
         return self.aggregate(total=Coalesce(Sum("amount_cents"), 0))["total"]
+
+    def sum_usd(self) -> float:
+        """Return sum of amounts in USD (converts cents to dollars)."""
+        return self.sum() / 100
 
 
 class UsdFundraiseContribution(DefaultModel):
@@ -77,3 +81,4 @@ class UsdFundraiseContribution(DefaultModel):
             models.Index(fields=["fundraise"]),
             models.Index(fields=["user"]),
         ]
+
