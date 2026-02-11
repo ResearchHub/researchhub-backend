@@ -799,10 +799,10 @@ class FundraiseViewTests(APITestCase):
 
     @override_settings(ENDAOMENT_RH_FUND_ID="rh_fund_123")
     @patch(
-        "purchase.services.fundraise_service.EndaomentService.create_grant",
+        "purchase.services.fundraise_service.EndaomentService.transfer_between_funds",
         return_value={"id": "transfer1"},
     )
-    def test_create_usd_contribution(self, _mock_create_grant):
+    def test_create_usd_contribution(self, _mock_transfer_between_funds):
         """Test creating a USD contribution to a fundraise."""
         # Create a fundraise
         fundraise = self._create_fundraise(self.post.id, goal_amount=100)
@@ -864,10 +864,10 @@ class FundraiseViewTests(APITestCase):
 
     @override_settings(ENDAOMENT_RH_FUND_ID="rh_fund_123")
     @patch(
-        "purchase.services.fundraise_service.EndaomentService.create_grant",
+        "purchase.services.fundraise_service.EndaomentService.transfer_between_funds",
         return_value={"id": "transfer1"},
     )
-    def test_create_usd_contribution_creates_record(self, _mock_create_grant):
+    def test_create_usd_contribution_creates_record(self, _mock_transfer_between_funds):
         """Test that USD contribution creates a UsdFundraiseContribution record."""
         from purchase.models import UsdFundraiseContribution
 
