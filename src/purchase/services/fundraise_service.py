@@ -333,12 +333,12 @@ class FundraiseService:
                 return None, "Endaoment RH fund is not configured"
 
             try:
-                transfer_result = self.endaoment_service.create_grant(
+                transfer_result = self.endaoment_service.transfer_between_funds(
                     user=user,
                     origin_fund_id=origin_fund_id,
-                    # Note: The destination in the call to Endaoment is RH's fund.
-                    # The actual transfer to the nonprofit is handled manually.
-                    destination_org_id=rh_fund_id,
+                    # Note: The destination fund is ResearchHub's fund.
+                    # The actual transfer to the nonprofit org is handled manually.
+                    destination_fund_id=rh_fund_id,
                     amount_cents=total_amount_cents,
                     purpose=f"Fundraise {fundraise.id}",
                 )

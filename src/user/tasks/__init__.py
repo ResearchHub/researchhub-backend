@@ -1,5 +1,6 @@
 # User app Celery tasks - re-export so user.tasks.* resolves correctly
 from user.tasks.funding_activity_tasks import create_funding_activity_task
+from user.tasks.leaderboard_tasks import refresh_leaderboard_task
 from user.tasks.tasks import (
     execute_editor_daily_payout_task,
     execute_rsc_exchange_rate_record_tasks,
@@ -12,6 +13,7 @@ from user.tasks.tasks import (
 
 __all__ = [
     "create_funding_activity_task",
+    "refresh_leaderboard_task",
     "execute_editor_daily_payout_task",
     "execute_rsc_exchange_rate_record_tasks",
     "get_authored_paper_updates",

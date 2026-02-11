@@ -173,6 +173,32 @@ class EndaomentService:
             purpose=purpose,
         )
 
+    def transfer_between_funds(
+        self,
+        user,
+        origin_fund_id: str,
+        destination_fund_id: str,
+        amount_cents: int,
+        purpose: str,
+    ) -> dict:
+        """
+        Create a transfer request from a user's fund (DAF) to another fund.
+        This method is used to transfer funds from a user's DAF to the
+        RH fund which is done for fundraising campaigns that use Endaoment for
+        processing donations.
+        """
+        access_token = self.get_valid_access_token(user)
+        if not access_token:
+            raise EndaomentAccount.DoesNotExist("User has no Endaoment connection")
+
+        return self.client.create_async_entity_transfer(
+            access_token=access_token,
+            origin_fund_id=origin_fund_id,
+            destination_fund_id=destination_fund_id,
+            amount_in_cents=amount_cents,
+            purpose=purpose,
+        )
+
     def _refresh_account_token(self, account: EndaomentAccount) -> None:
         """
         Refresh the access token for an account.
