@@ -30,8 +30,12 @@ class FundraiseViewSet(viewsets.ModelViewSet):
 
     def dispatch(self, request, *args, **kwargs):
         self.fundraise_service = kwargs.pop("fundraise_service", FundraiseService())
-        self.funding_overview_service = kwargs.pop("funding_overview_service", FundingOverviewService())
-        self.grant_overview_service = kwargs.pop("grant_overview_service", GrantOverviewService())
+        self.funding_overview_service = kwargs.pop(
+            "funding_overview_service", FundingOverviewService()
+        )
+        self.grant_overview_service = kwargs.pop(
+            "grant_overview_service", GrantOverviewService()
+        )
         self.referral_bonus_service = kwargs.pop(
             "referral_bonus_service",
             ReferralBonusService(),
@@ -313,6 +317,8 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         grant_id = request.query_params.get("grant_id")
         if not grant_id:
             return Response({"error": "grant_id is required"}, status=400)
-        data = self.grant_overview_service.get_grant_overview(request.user, int(grant_id))
+        data = self.grant_overview_service.get_grant_overview(
+            request.user, int(grant_id)
+        )
         serializer = GrantOverviewSerializer(data)
         return Response(serializer.data)
