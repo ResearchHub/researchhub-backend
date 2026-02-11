@@ -1,10 +1,23 @@
-import rest_framework.serializers as serializers
+from rest_framework import serializers
 
-from purchase.models import (
-    Wallet,
-)
+from purchase.related_models.wallet_model import Wallet
+
 
 class WalletSerializer(serializers.ModelSerializer):
     class Meta:
         model = Wallet
-        fields = "__all__"
+        fields = [
+            "id",
+            "address",
+            "status",
+            "wallet_type",
+            "confirmed_at",
+            "created_date",
+        ]
+        read_only_fields = [
+            "id",
+            "status",
+            "wallet_type",
+            "confirmed_at",
+            "created_date",
+        ]

@@ -1,5 +1,5 @@
 from datetime import timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from django.utils import timezone
 from eth_account import Account
@@ -7,12 +7,12 @@ from eth_account.messages import encode_defunct
 from rest_framework.test import APITestCase
 from web3 import Web3
 
-from purchase.related_models.wallet_confirmation_model import WalletConfirmation
-from purchase.views.wallet_confirmation_view import VERIFICATION_MESSAGE_TEMPLATE
+from purchase.related_models.wallet_model import Wallet
+from purchase.views.wallet_view import VERIFICATION_MESSAGE_TEMPLATE
 from user.tests.helpers import create_random_authenticated_user
 
 
-class WalletConfirmationTests(APITestCase):
+class WalletTests(APITestCase):
     def setUp(self):
         self.user = create_random_authenticated_user("wallet_user")
         self.account = Account.create()
@@ -43,8 +43,8 @@ class WalletConfirmationTests(APITestCase):
         self.assertIn("nonce", response.data)
         self.assertIn(self.address, response.data["message"])
 
-        confirmation = WalletConfirmation.objects.get(id=response.data["id"])
-        self.assertEqual(confirmation.status, WalletConfirmation.PENDING)
+        confirmation = Wallet.objects.get(id=response.data["id"])
+        self.assertEqual(confirmation.status, Wallet.PENDING)
         self.assertEqual(confirmation.user, self.user)
 
     def test_request_verification_invalid_address(self):
@@ -59,23 +59,19 @@ class WalletConfirmationTests(APITestCase):
         """A new request should delete previous PENDING entries."""
         self._request_verification()
         self.assertEqual(
-            WalletConfirmation.objects.filter(
-                user=self.user, status=WalletConfirmation.PENDING
-            ).count(),
+            Wallet.objects.filter(user=self.user, status=Wallet.PENDING).count(),
             1,
         )
 
         self._request_verification()
         self.assertEqual(
-            WalletConfirmation.objects.filter(
-                user=self.user, status=WalletConfirmation.PENDING
-            ).count(),
+            Wallet.objects.filter(user=self.user, status=Wallet.PENDING).count(),
             1,
         )
 
     # ---- confirm (EOA) ----
 
-    @patch("purchase.views.wallet_confirmation_view.verify_wallet_signature")
+    @patch("purchase.views.wallet_view.verify_wallet_signature")
     def test_confirm_eoa_wallet(self, mock_verify):
         mock_verify.return_value = True
         response = self._request_verification()
@@ -89,16 +85,16 @@ class WalletConfirmationTests(APITestCase):
             {"address": self.address, "signature": signature},
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["status"], WalletConfirmation.CONFIRMED)
+        self.assertEqual(response.data["status"], Wallet.CONFIRMED)
 
-        confirmation = WalletConfirmation.objects.get(
+        confirmation = Wallet.objects.get(
             user=self.user,
             address=Web3.to_checksum_address(self.address),
-            status=WalletConfirmation.CONFIRMED,
+            status=Wallet.CONFIRMED,
         )
         self.assertIsNotNone(confirmation.confirmed_at)
 
-    @patch("purchase.views.wallet_confirmation_view.verify_wallet_signature")
+    @patch("purchase.views.wallet_view.verify_wallet_signature")
     def test_confirm_rejects_wrong_signature(self, mock_verify):
         mock_verify.return_value = False
         self._request_verification()
@@ -111,21 +107,21 @@ class WalletConfirmationTests(APITestCase):
         self.assertEqual(response.status_code, 400)
 
         # Still pending
-        confirmation = WalletConfirmation.objects.get(
+        confirmation = Wallet.objects.get(
             user=self.user,
             address=Web3.to_checksum_address(self.address),
-            status=WalletConfirmation.PENDING,
+            status=Wallet.PENDING,
         )
-        self.assertEqual(confirmation.status, WalletConfirmation.PENDING)
+        self.assertEqual(confirmation.status, Wallet.PENDING)
 
-    @patch("purchase.views.wallet_confirmation_view.verify_wallet_signature")
+    @patch("purchase.views.wallet_view.verify_wallet_signature")
     def test_confirm_rejects_expired_nonce(self, mock_verify):
         mock_verify.return_value = True
         response = self._request_verification()
 
         # Manually expire the nonce
-        confirmation = WalletConfirmation.objects.get(id=response.data["id"])
-        WalletConfirmation.objects.filter(id=confirmation.id).update(
+        confirmation = Wallet.objects.get(id=response.data["id"])
+        Wallet.objects.filter(id=confirmation.id).update(
             created_date=timezone.now() - timedelta(minutes=11)
         )
 
@@ -140,7 +136,7 @@ class WalletConfirmationTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("expired", response.data["error"].lower())
 
-    @patch("purchase.views.wallet_confirmation_view.verify_wallet_signature")
+    @patch("purchase.views.wallet_view.verify_wallet_signature")
     def test_confirm_rejects_duplicate_address(self, mock_verify):
         """A second user cannot confirm an already-confirmed address."""
         mock_verify.return_value = True
@@ -169,7 +165,7 @@ class WalletConfirmationTests(APITestCase):
 
     # ---- list ----
 
-    @patch("purchase.views.wallet_confirmation_view.verify_wallet_signature")
+    @patch("purchase.views.wallet_view.verify_wallet_signature")
     def test_list_confirmed_wallets(self, mock_verify):
         mock_verify.return_value = True
 
@@ -194,7 +190,7 @@ class WalletConfirmationTests(APITestCase):
 
     # ---- destroy ----
 
-    @patch("purchase.views.wallet_confirmation_view.verify_wallet_signature")
+    @patch("purchase.views.wallet_view.verify_wallet_signature")
     def test_delete_confirmed_wallet(self, mock_verify):
         mock_verify.return_value = True
         self._request_verification()
@@ -204,10 +200,10 @@ class WalletConfirmationTests(APITestCase):
             {"address": self.address, "signature": "0xvalid"},
         )
 
-        confirmation = WalletConfirmation.objects.get(
+        confirmation = Wallet.objects.get(
             user=self.user,
             address=Web3.to_checksum_address(self.address),
-            status=WalletConfirmation.CONFIRMED,
+            status=Wallet.CONFIRMED,
         )
 
         response = self.client.delete(f"/api/wallet/{confirmation.id}/")
@@ -219,14 +215,14 @@ class WalletConfirmationTests(APITestCase):
 
     def test_delete_other_users_wallet_returns_404(self):
         """A user cannot delete another user's confirmed wallet."""
-        WalletConfirmation.objects.create(
+        Wallet.objects.create(
             user=self.user,
             address=Web3.to_checksum_address(self.address),
             nonce="test",
-            status=WalletConfirmation.CONFIRMED,
+            status=Wallet.CONFIRMED,
             confirmed_at=timezone.now(),
         )
-        confirmation = WalletConfirmation.objects.get(user=self.user)
+        confirmation = Wallet.objects.get(user=self.user)
 
         user2 = create_random_authenticated_user("wallet_user3")
         self.client.force_authenticate(user2)
@@ -235,7 +231,7 @@ class WalletConfirmationTests(APITestCase):
 
     # ---- smart wallet (EIP-1271) ----
 
-    @patch("purchase.views.wallet_confirmation_view.verify_wallet_signature")
+    @patch("purchase.views.wallet_view.verify_wallet_signature")
     def test_confirm_smart_wallet(self, mock_verify):
         """Smart wallet verification via mocked EIP-1271."""
         mock_verify.return_value = True
@@ -251,9 +247,9 @@ class WalletConfirmationTests(APITestCase):
             },
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["status"], WalletConfirmation.CONFIRMED)
+        self.assertEqual(response.data["status"], Wallet.CONFIRMED)
 
-    @patch("purchase.views.wallet_confirmation_view.verify_wallet_signature")
+    @patch("purchase.views.wallet_view.verify_wallet_signature")
     def test_smart_wallet_invalid_signature(self, mock_verify):
         """Smart wallet with invalid EIP-1271 signature returns 400."""
         mock_verify.return_value = False

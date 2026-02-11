@@ -193,7 +193,7 @@ router.register(
 
 router.register(r"fundraise", purchase.views.FundraiseViewSet, basename="fundraise")
 
-router.register(r"wallet", purchase.views.WalletConfirmationViewSet, basename="wallet")
+router.register(r"wallet", purchase.views.WalletViewSet, basename="wallet")
 
 router.register(r"grant", purchase.views.GrantViewSet, basename="grant")
 

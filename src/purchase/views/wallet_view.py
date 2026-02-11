@@ -9,10 +9,8 @@ from rest_framework.response import Response
 from web3 import Web3
 
 from ethereum.lib import verify_wallet_signature
-from purchase.related_models.wallet_confirmation_model import WalletConfirmation
-from purchase.serializers.wallet_confirmation_serializer import (
-    WalletConfirmationSerializer,
-)
+from purchase.related_models.wallet_model import Wallet
+from purchase.serializers.wallet_serializer import WalletSerializer
 
 NONCE_EXPIRY_MINUTES = 10
 
@@ -26,14 +24,12 @@ VERIFICATION_MESSAGE_TEMPLATE = (
 )
 
 
-class WalletConfirmationViewSet(viewsets.GenericViewSet):
+class WalletViewSet(viewsets.GenericViewSet):
     permission_classes = [IsAuthenticated]
-    serializer_class = WalletConfirmationSerializer
+    serializer_class = WalletSerializer
 
     def get_queryset(self):
-        return WalletConfirmation.objects.filter(
-            user=self.request.user, status=WalletConfirmation.CONFIRMED
-        )
+        return Wallet.objects.filter(user=self.request.user, status=Wallet.CONFIRMED)
 
     def list(self, request):
         """List all confirmed wallets for the authenticated user."""
@@ -60,18 +56,18 @@ class WalletConfirmationViewSet(viewsets.GenericViewSet):
             )
 
         # Delete any existing PENDING verifications for this user + address
-        WalletConfirmation.objects.filter(
+        Wallet.objects.filter(
             user=request.user,
             address=checksum_address,
-            status=WalletConfirmation.PENDING,
+            status=Wallet.PENDING,
         ).delete()
 
         nonce = secrets.token_hex(32)
-        confirmation = WalletConfirmation.objects.create(
+        confirmation = Wallet.objects.create(
             user=request.user,
             address=checksum_address,
             nonce=nonce,
-            status=WalletConfirmation.PENDING,
+            status=Wallet.PENDING,
         )
 
         message = VERIFICATION_MESSAGE_TEMPLATE.format(
@@ -116,12 +112,12 @@ class WalletConfirmationViewSet(viewsets.GenericViewSet):
 
         # Look up the pending confirmation
         try:
-            confirmation = WalletConfirmation.objects.get(
+            confirmation = Wallet.objects.get(
                 user=request.user,
                 address=checksum_address,
-                status=WalletConfirmation.PENDING,
+                status=Wallet.PENDING,
             )
-        except WalletConfirmation.DoesNotExist:
+        except Wallet.DoesNotExist:
             return Response(
                 {"error": "No pending verification found for this address."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -161,8 +157,8 @@ class WalletConfirmationViewSet(viewsets.GenericViewSet):
             )
 
         # Check if this address is already confirmed by another user
-        existing = WalletConfirmation.objects.filter(
-            address=checksum_address, status=WalletConfirmation.CONFIRMED
+        existing = Wallet.objects.filter(
+            address=checksum_address, status=Wallet.CONFIRMED
         ).exclude(user=request.user)
         if existing.exists():
             return Response(
@@ -172,17 +168,17 @@ class WalletConfirmationViewSet(viewsets.GenericViewSet):
 
         # If the same user already has a confirmed entry for this address,
         # delete the pending one (idempotent)
-        existing_own = WalletConfirmation.objects.filter(
+        existing_own = Wallet.objects.filter(
             user=request.user,
             address=checksum_address,
-            status=WalletConfirmation.CONFIRMED,
+            status=Wallet.CONFIRMED,
         ).first()
         if existing_own:
             confirmation.delete()
             serializer = self.get_serializer(existing_own)
             return Response(serializer.data, status=status.HTTP_200_OK)
 
-        confirmation.status = WalletConfirmation.CONFIRMED
+        confirmation.status = Wallet.CONFIRMED
         confirmation.confirmed_at = timezone.now()
         confirmation.save()
 
@@ -192,10 +188,10 @@ class WalletConfirmationViewSet(viewsets.GenericViewSet):
     def destroy(self, request, pk=None):
         """Remove a confirmed wallet."""
         try:
-            confirmation = WalletConfirmation.objects.get(
-                pk=pk, user=request.user, status=WalletConfirmation.CONFIRMED
+            confirmation = Wallet.objects.get(
+                pk=pk, user=request.user, status=Wallet.CONFIRMED
             )
-        except WalletConfirmation.DoesNotExist:
+        except Wallet.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
         confirmation.delete()

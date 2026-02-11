@@ -12,5 +12,4 @@ from .purchase_serializer import (
 )
 from .rsc_exchange_serializer import RscExchangeRateSerializer
 from .support_serializer import SupportSerializer
-from .wallet_confirmation_serializer import WalletConfirmationSerializer
 from .wallet_serializer import WalletSerializer

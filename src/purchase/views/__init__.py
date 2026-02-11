@@ -13,4 +13,4 @@ from .payment_intent_view import PaymentIntentView
 from .purchase_view import PurchaseViewSet
 from .rsc_exchange_rate_view import RscExchangeRateViewSet
 from .support_view import SupportViewSet
-from .wallet_confirmation_view import WalletConfirmationViewSet
+from .wallet_view import WalletViewSet
