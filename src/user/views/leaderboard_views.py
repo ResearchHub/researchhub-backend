@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 
+from django.core.cache import cache
 from django.db.models import Sum
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -7,7 +8,7 @@ from django.views.decorators.cache import cache_page
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from user.models import User
@@ -22,6 +23,9 @@ from utils.http import RequestMethods
 
 # Maximum allowed date range (in days) when querying leaderboard by start_date/end_date.
 MAX_DATE_RANGE_DAYS = 60
+
+# Cache timeout for /leaderboard/me/ (1 hour).
+LEADERBOARD_ME_CACHE_TIMEOUT = 60 * 60
 
 
 class LeaderboardPagination(PageNumberPagination):
@@ -267,15 +271,66 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
                 "rank": rank,
             }
 
-    def _build_paginated_response_with_current_user(self, data, current_user_data):
+    @action(
+        detail=False,
+        methods=[RequestMethods.GET],
+        permission_classes=[IsAuthenticated],
+        url_path="me",
+    )
+    def me(self, request):
         """
-        Build a paginated response and add current_user data.
-        Returns a Response object with pagination metadata and current_user.
+        Returns the current user's leaderboard rank and data (reviewer and funder).
+        Only for authenticated users. Optional: period (e.g. all_time, 30_days) or
+        start_date & end_date for custom range. Default: all_time. Cached 1h per user.
         """
-        response = self.get_paginated_response(data)
-        response_data = dict(response.data)
-        response_data["current_user"] = current_user_data
-        return Response(response_data)
+        cache_key = f"leaderboard:me:{request.user.id}:{request.get_full_path()}"
+        data = cache.get(cache_key)
+        if data is not None:
+            return Response(data)
+
+        period_str = request.GET.get("period")
+        start_date = request.GET.get("start_date")
+        end_date = request.GET.get("end_date")
+
+        if period_str:
+            leaderboard_period = self._map_period_to_leaderboard_period(period_str)
+            if leaderboard_period:
+                reviewer = self._get_current_user_rank_and_data(
+                    Leaderboard.EARNER, period=leaderboard_period
+                )
+                funder = self._get_current_user_rank_and_data(
+                    Leaderboard.FUNDER, period=leaderboard_period
+                )
+                data = {"reviewer": reviewer, "funder": funder}
+                cache.set(cache_key, data, LEADERBOARD_ME_CACHE_TIMEOUT)
+                return Response(data)
+
+        if start_date and end_date:
+            error_response, start_dt, end_dt = self._validate_and_parse_date_range(
+                start_date, end_date
+            )
+            if error_response is not None:
+                return error_response
+            reviewer = self._get_current_user_rank_and_data(
+                Leaderboard.EARNER, start_dt=start_dt, end_dt=end_dt
+            )
+            funder = self._get_current_user_rank_and_data(
+                Leaderboard.FUNDER, start_dt=start_dt, end_dt=end_dt
+            )
+            data = {"reviewer": reviewer, "funder": funder}
+            cache.set(cache_key, data, LEADERBOARD_ME_CACHE_TIMEOUT)
+            return Response(data)
+
+        # Default: all_time (e.g. for overview)
+        reviewer = self._get_current_user_rank_and_data(
+            Leaderboard.EARNER, period=Leaderboard.ALL_TIME
+        )
+        funder = self._get_current_user_rank_and_data(
+            Leaderboard.FUNDER, period=Leaderboard.ALL_TIME
+        )
+        data = {"reviewer": reviewer, "funder": funder}
+        cache.set(cache_key, data, LEADERBOARD_ME_CACHE_TIMEOUT)
+        return Response(data)
 
     def _paginated_aggregated_response(
         self, aggregated_queryset, user_id_key, amount_label
@@ -334,14 +389,6 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
             .order_by("rank")[:5]
         )
 
-        current_user_reviewer = self._get_current_user_rank_and_data(
-            Leaderboard.EARNER, period=Leaderboard.ALL_TIME
-        )
-
-        current_user_funder = self._get_current_user_rank_and_data(
-            Leaderboard.FUNDER, period=Leaderboard.ALL_TIME
-        )
-
         return Response(
             {
                 "reviewers": [
@@ -360,10 +407,6 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
                     }
                     for entry in funder_entries
                 ],
-                "current_user": {
-                    "reviewer": current_user_reviewer,
-                    "funder": current_user_funder,
-                },
             }
         )
 
@@ -399,14 +442,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
                     }
                     for entry in page
                 ]
-
-                current_user_data = self._get_current_user_rank_and_data(
-                    Leaderboard.EARNER, period=leaderboard_period
-                )
-
-                return self._build_paginated_response_with_current_user(
-                    data, current_user_data
-                )
+                return self.get_paginated_response(data)
 
         error_response, start_dt, end_dt = self._validate_and_parse_date_range(
             start_date, end_date
@@ -458,12 +494,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
                     "rank": starting_rank + index,
                 }
             )
-
-        current_user_data = self._get_current_user_rank_and_data(
-            Leaderboard.EARNER, start_dt=start_dt, end_dt=end_dt
-        )
-
-        return self._build_paginated_response_with_current_user(data, current_user_data)
+        return self.get_paginated_response(data)
 
     @method_decorator(cache_page(60 * 60 * 6))
     @action(detail=False, methods=[RequestMethods.GET])
@@ -497,14 +528,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
                     }
                     for entry in page
                 ]
-
-                current_user_data = self._get_current_user_rank_and_data(
-                    Leaderboard.FUNDER, period=leaderboard_period
-                )
-
-                return self._build_paginated_response_with_current_user(
-                    data, current_user_data
-                )
+                return self.get_paginated_response(data)
 
         error_response, start_dt, end_dt = self._validate_and_parse_date_range(
             start_date, end_date
@@ -552,9 +576,4 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
                     "rank": starting_rank + index,
                 }
             )
-
-        current_user_data = self._get_current_user_rank_and_data(
-            Leaderboard.FUNDER, start_dt=start_dt, end_dt=end_dt
-        )
-
-        return self._build_paginated_response_with_current_user(data, current_user_data)
+        return self.get_paginated_response(data)

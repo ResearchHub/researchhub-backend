@@ -391,10 +391,6 @@ class LeaderboardApiTests(APITestCase):
         self.assertIn("rank", top_funder)
         self.assertEqual(top_funder["rank"], 1)
 
-        self.assertIn("current_user", response.data)
-        self.assertIsNone(response.data["current_user"]["reviewer"])
-        self.assertIsNone(response.data["current_user"]["funder"])
-
     def test_date_range_exceeds_max_days_reviewers(self):
         """Test that date range exceeding 60 days returns 400."""
         url = "/api/leaderboard/reviewers/"
@@ -490,73 +486,51 @@ class LeaderboardApiTests(APITestCase):
             self.assertIn("rank", entry)
             self.assertEqual(entry["rank"], i + 1)
 
-    def test_reviewers_leaderboard_current_user_authenticated(self):
-        """Test that reviewers endpoint includes current_user for authenticated user."""
-        url = "/api/leaderboard/reviewers/"
+    def test_leaderboard_me_requires_auth(self):
+        """Test that GET /leaderboard/me/ returns 401 when not authenticated."""
+        url = "/api/leaderboard/me/"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 401)
+
+    def test_leaderboard_me_reviewer_date_range(self):
+        """Test /leaderboard/me/ returns current user reviewer data for date range."""
+        url = "/api/leaderboard/me/"
         start_date = (self.now - timedelta(days=2)).strftime("%Y-%m-%d")
         end_date = (self.now + timedelta(days=2)).strftime("%Y-%m-%d")
 
         self.client.force_authenticate(user=self.reviewer1)
-        response = self.client.get(
-            f"{url}?start_date={start_date}&end_date={end_date}&page_size=500"
-        )
+        response = self.client.get(f"{url}?start_date={start_date}&end_date={end_date}")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("current_user", response.data)
-        current_user = response.data["current_user"]
-        if current_user:
-            self.assertEqual(current_user["id"], self.reviewer1.id)
-            self.assertIn("rank", current_user)
-            self.assertIn("earned_rsc", current_user)
-            self.assertEqual(float(current_user["earned_rsc"]), 250.0)
-            self.assertEqual(current_user["rank"], 1)
+        self.assertIn("reviewer", response.data)
+        self.assertIn("funder", response.data)
+        reviewer = response.data["reviewer"]
+        self.assertIsNotNone(reviewer)
+        self.assertEqual(reviewer["id"], self.reviewer1.id)
+        self.assertIn("rank", reviewer)
+        self.assertIn("earned_rsc", reviewer)
+        self.assertEqual(float(reviewer["earned_rsc"]), 250.0)
+        self.assertEqual(reviewer["rank"], 1)
 
-    def test_funders_leaderboard_current_user_authenticated(self):
-        """Test that funders endpoint includes current_user for authenticated user."""
-        url = "/api/leaderboard/funders/"
+    def test_leaderboard_me_funder_date_range(self):
+        """Test /leaderboard/me/ returns current user funder data for date range."""
+        url = "/api/leaderboard/me/"
         start_date = (self.now - timedelta(days=2)).strftime("%Y-%m-%d")
         end_date = (self.now + timedelta(days=2)).strftime("%Y-%m-%d")
 
         self.client.force_authenticate(user=self.funder1)
-        response = self.client.get(
-            f"{url}?start_date={start_date}&end_date={end_date}&page_size=500"
-        )
+        response = self.client.get(f"{url}?start_date={start_date}&end_date={end_date}")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("current_user", response.data)
-        current_user = response.data["current_user"]
-        if current_user:
-            self.assertEqual(current_user["id"], self.funder1.id)
-            self.assertIn("rank", current_user)
-            self.assertIn("total_funding", current_user)
-            self.assertEqual(float(current_user["total_funding"]), 725.0)
-            self.assertEqual(current_user["rank"], 1)
-
-    def test_reviewers_leaderboard_current_user_anonymous(self):
-        """Test that reviewers endpoint returns None for current_user when anonymous."""
-        url = "/api/leaderboard/reviewers/"
-        start_date = (timezone.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-        end_date = (timezone.now() + timedelta(days=1)).strftime("%Y-%m-%d")
-        response = self.client.get(
-            f"{url}?start_date={start_date}&end_date={end_date}&page_size=500"
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("current_user", response.data)
-        self.assertIsNone(response.data["current_user"])
-
-    def test_funders_leaderboard_current_user_anonymous(self):
-        """Test that funders endpoint returns None for current_user when anonymous."""
-        url = "/api/leaderboard/funders/"
-        start_date = (timezone.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-        end_date = (timezone.now() + timedelta(days=1)).strftime("%Y-%m-%d")
-        response = self.client.get(
-            f"{url}?start_date={start_date}&end_date={end_date}&page_size=500"
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("current_user", response.data)
-        self.assertIsNone(response.data["current_user"])
+        self.assertIn("reviewer", response.data)
+        self.assertIn("funder", response.data)
+        funder = response.data["funder"]
+        self.assertIsNotNone(funder)
+        self.assertEqual(funder["id"], self.funder1.id)
+        self.assertIn("rank", funder)
+        self.assertIn("total_funding", funder)
+        self.assertEqual(float(funder["total_funding"]), 725.0)
+        self.assertEqual(funder["rank"], 1)
 
     def test_reviewers_leaderboard_precomputed_period_includes_rank(self):
         """Test that reviewers endpoint with pre-computed period includes rank."""
@@ -592,66 +566,47 @@ class LeaderboardApiTests(APITestCase):
         if funder1_entry:
             self.assertEqual(funder1_entry["rank"], 1)
 
-    def test_reviewers_leaderboard_precomputed_period_current_user(self):
-        """Test that reviewers endpoint with pre-computed period includes current_user."""
-        url = "/api/leaderboard/reviewers/"
+    def test_leaderboard_me_reviewer_precomputed_period(self):
+        """Test /leaderboard/me/ with period=7_days returns reviewer data from Leaderboard."""
+        url = "/api/leaderboard/me/"
         self.client.force_authenticate(user=self.reviewer1)
         response = self.client.get(f"{url}?period=7_days")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("current_user", response.data)
-        self.assertIsNotNone(response.data["current_user"])
-        self.assertEqual(response.data["current_user"]["id"], self.reviewer1.id)
-        self.assertEqual(response.data["current_user"]["rank"], 1)
-        self.assertEqual(float(response.data["current_user"]["earned_rsc"]), 250.0)
+        self.assertIn("reviewer", response.data)
+        self.assertIn("funder", response.data)
+        reviewer = response.data["reviewer"]
+        self.assertIsNotNone(reviewer)
+        self.assertEqual(reviewer["id"], self.reviewer1.id)
+        self.assertEqual(reviewer["rank"], 1)
+        self.assertEqual(float(reviewer["earned_rsc"]), 250.0)
 
-    def test_funders_leaderboard_precomputed_period_current_user(self):
-        """Test that funders endpoint with pre-computed period includes current_user."""
-        url = "/api/leaderboard/funders/"
+    def test_leaderboard_me_funder_precomputed_period(self):
+        """Test /leaderboard/me/ with period=30_days returns funder data from Leaderboard."""
+        url = "/api/leaderboard/me/"
         self.client.force_authenticate(user=self.funder1)
         response = self.client.get(f"{url}?period=30_days")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("current_user", response.data)
-        self.assertIsNotNone(response.data["current_user"])
-        self.assertEqual(response.data["current_user"]["id"], self.funder1.id)
-        self.assertEqual(response.data["current_user"]["rank"], 1)
-        self.assertEqual(float(response.data["current_user"]["total_funding"]), 650.0)
+        self.assertIn("reviewer", response.data)
+        self.assertIn("funder", response.data)
+        funder = response.data["funder"]
+        self.assertIsNotNone(funder)
+        self.assertEqual(funder["id"], self.funder1.id)
+        self.assertEqual(funder["rank"], 1)
+        self.assertEqual(float(funder["total_funding"]), 650.0)
 
-    def test_reviewers_leaderboard_current_user_out_of_range(self):
-        """Test that current_user is included even when not in paginated results."""
-        url = "/api/leaderboard/reviewers/"
-        start_date = (self.now - timedelta(days=2)).strftime("%Y-%m-%d")
-        end_date = (self.now + timedelta(days=2)).strftime("%Y-%m-%d")
-
+    def test_leaderboard_me_default_all_time(self):
+        """Test /leaderboard/me/ with no params defaults to all_time (overview-style)."""
+        url = "/api/leaderboard/me/"
         self.client.force_authenticate(user=self.reviewer1)
-        response = self.client.get(
-            f"{url}?start_date={start_date}&end_date={end_date}&page_size=1&page=1"
-        )
+        response = self.client.get(url)
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("current_user", response.data)
-        current_user = response.data["current_user"]
-        if current_user:
-            self.assertEqual(current_user["id"], self.reviewer1.id)
-            self.assertIn("rank", current_user)
-            self.assertEqual(current_user["rank"], 1)
-
-    def test_funders_leaderboard_current_user_out_of_range(self):
-        """Test that current_user is included even when not in paginated results."""
-        url = "/api/leaderboard/funders/"
-        start_date = (self.now - timedelta(days=2)).strftime("%Y-%m-%d")
-        end_date = (self.now + timedelta(days=2)).strftime("%Y-%m-%d")
-
-        self.client.force_authenticate(user=self.funder1)
-        response = self.client.get(
-            f"{url}?start_date={start_date}&end_date={end_date}&page_size=1&page=1"
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("current_user", response.data)
-        current_user = response.data["current_user"]
-        if current_user:
-            self.assertEqual(current_user["id"], self.funder1.id)
-            self.assertIn("rank", current_user)
-            self.assertEqual(current_user["rank"], 1)
+        self.assertIn("reviewer", response.data)
+        self.assertIn("funder", response.data)
+        reviewer = response.data["reviewer"]
+        self.assertIsNotNone(reviewer)
+        self.assertEqual(reviewer["id"], self.reviewer1.id)
+        self.assertIn("rank", reviewer)
+        self.assertIn("earned_rsc", reviewer)
