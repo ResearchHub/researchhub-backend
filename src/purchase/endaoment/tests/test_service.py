@@ -451,6 +451,50 @@ class TestEndaomentService(TestCase):
         self.assertEqual(result, [])
         self.mock_client.get_user_funds.assert_called_once_with("new_token")
 
+    def test_transfer_between_funds(self):
+        """
+        Test transfer_between_funds delegates to client with access token.
+        """
+        # Arrange
+        self.service.get_valid_access_token = Mock(return_value="token1")
+        self.mock_client.create_async_entity_transfer.return_value = {"id": "transfer1"}
+
+        # Act
+        result = self.service.transfer_between_funds(
+            user=self.user,
+            origin_fund_id="fund1",
+            destination_fund_id="fund2",
+            amount_cents=1000,
+            purpose="transfer1",
+        )
+
+        # Assert
+        self.assertEqual(result, {"id": "transfer1"})
+        self.mock_client.create_async_entity_transfer.assert_called_once_with(
+            access_token="token1",
+            origin_fund_id="fund1",
+            destination_fund_id="fund2",
+            amount_in_cents=1000,
+            purpose="transfer1",
+        )
+
+    def test_transfer_between_funds_fails_without_connection(self):
+        """
+        Test transfer_between_funds raises when user has no connection.
+        """
+        # Arrange
+        self.service.get_valid_access_token = Mock(return_value=None)
+
+        # Act & Assert
+        with self.assertRaises(EndaomentAccount.DoesNotExist):
+            self.service.transfer_between_funds(
+                user=self.user,
+                origin_fund_id="fund1",
+                destination_fund_id="fund2",
+                amount_cents=1000,
+                purpose="transfer1",
+            )
+
     def test_create_async_grant_fails_without_connection(self):
         """
         Test create_async_grant raises when user has no connection.

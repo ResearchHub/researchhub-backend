@@ -195,6 +195,35 @@ class EndaomentClient:
             },
         )
 
+    def create_async_entity_transfer(
+        self,
+        access_token: str,
+        origin_fund_id: str,
+        destination_fund_id: str,
+        amount_in_cents: int,
+        purpose: str,
+    ) -> dict:
+        """
+        Create an async entity transfer request from a fund (DAF) to another fund.
+
+        See: https://docs.endaoment.org/developers/api/transfer/create-an-async-entity-transfer-request
+        """
+        if not access_token:
+            raise ValueError("access_token is required")
+
+        return self._do_request(
+            "POST",
+            "/v1/transfers/async-entity-transfer",
+            access_token,
+            json={
+                "destinationFundId": destination_fund_id,
+                "idempotencyKey": uuid.uuid4().hex,
+                "originFundId": origin_fund_id,
+                "purpose": purpose,
+                "requestedAmount": str(amount_in_cents),
+            },
+        )
+
     @staticmethod
     def is_valid_redirect_url(url: Optional[str]) -> bool:
         """

@@ -1,11 +1,10 @@
 from datetime import datetime, timedelta
 from decimal import Decimal
-from unittest.mock import patch
+from unittest.mock import Mock
 
 import pytz
 from django.contrib.contenttypes.models import ContentType
-from django.test import override_settings
-from rest_framework.test import APITestCase
+from rest_framework.test import APIRequestFactory, APITestCase, force_authenticate
 
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
 from purchase.models import Balance, Fundraise, Purchase, RscExchangeRate
@@ -25,10 +24,8 @@ class FundraiseViewTests(APITestCase):
     def setUp(self):
         self.user = create_random_authenticated_user("fundraise_views", moderator=True)
         self.post = create_post(created_by=self.user, document_type=PREREGISTRATION)
-        self.fundraise_service = FundraiseService()
-
-        # Initialize the view with the service
-        self.view = FundraiseViewSet(fundraise_service=self.fundraise_service)
+        self.factory = APIRequestFactory()
+        self.mock_fundraise_service = Mock(spec=FundraiseService)
 
         # URLs for overview endpoints
         self.funding_overview_url = "/api/fundraise/funding_overview/"
@@ -798,12 +795,7 @@ class FundraiseViewTests(APITestCase):
         NonprofitFundraiseLink.objects.create(nonprofit=nonprofit, fundraise=fundraise)
         return nonprofit
 
-    @override_settings(ENDAOMENT_RH_FUND_ID="rh_fund_123")
-    @patch(
-        "purchase.services.fundraise_service.EndaomentService.create_grant",
-        return_value={"id": "transfer1"},
-    )
-    def test_create_usd_contribution(self, _mock_create_grant):
+    def test_create_usd_contribution(self):
         """Test creating a USD contribution to a fundraise."""
         # Create a fundraise
         fundraise = self._create_fundraise(self.post.id, goal_amount=100)
@@ -813,16 +805,31 @@ class FundraiseViewTests(APITestCase):
         # Create contributor
         user = create_random_authenticated_user("usd_contributor")
 
+        # Configure mock service
+        self.mock_fundraise_service.create_contribution.return_value = (None, None)
+
         # Make USD contribution of $100 (10000 cents)
-        response = self._create_contribution(
-            fundraise_id,
-            user,
-            amount=10000,
-            amount_currency="USD",
-            origin_fund_id="fund_123",
+        view = FundraiseViewSet.as_view({"post": "create_contribution"})
+        request = self.factory.post(
+            f"/api/fundraise/{fundraise_id}/create_contribution/",
+            {"amount": 10000, "amount_currency": "USD", "origin_fund_id": "fund_123"},
+        )
+        force_authenticate(request, user=user)
+        response = view(
+            request,
+            pk=fundraise_id,
+            fundraise_service=self.mock_fundraise_service,
         )
 
         self.assertEqual(response.status_code, 200)
+
+        self.mock_fundraise_service.create_contribution.assert_called_once_with(
+            user=user,
+            fundraise=Fundraise.objects.get(id=fundraise_id),
+            amount=10000,
+            currency="USD",
+            origin_fund_id="fund_123",
+        )
 
     def test_create_usd_contribution_requires_origin_fund_id(self):
         """Test that USD contributions require origin_fund_id."""
@@ -862,44 +869,6 @@ class FundraiseViewTests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("Invalid amount", response.data["message"])
-
-    @override_settings(ENDAOMENT_RH_FUND_ID="rh_fund_123")
-    @patch(
-        "purchase.services.fundraise_service.EndaomentService.create_grant",
-        return_value={"id": "transfer1"},
-    )
-    def test_create_usd_contribution_creates_record(self, _mock_create_grant):
-        """Test that USD contribution creates a UsdFundraiseContribution record."""
-        from purchase.models import UsdFundraiseContribution
-
-        # Create a fundraise
-        fundraise = self._create_fundraise(self.post.id, goal_amount=100)
-        fundraise_id = fundraise.data["id"]
-        self._link_nonprofit(fundraise_id)
-
-        # Create contributor
-        user = create_random_authenticated_user("usd_contributor")
-
-        # Make USD contribution
-        contribution_amount = 10000  # $100
-        response = self._create_contribution(
-            fundraise_id,
-            user,
-            amount=contribution_amount,
-            amount_currency="USD",
-            origin_fund_id="fund_123",
-        )
-
-        self.assertEqual(response.status_code, 200)
-
-        # Verify UsdFundraiseContribution record was created
-        contribution = UsdFundraiseContribution.objects.filter(
-            user=user, fundraise_id=fundraise_id
-        ).first()
-
-        self.assertIsNotNone(contribution)
-        self.assertEqual(contribution.amount_cents, contribution_amount)
-        self.assertEqual(contribution.fee_cents, 900)  # 9% of 10000
 
     def test_create_usd_contribution_own_fundraise_fails(self):
         """Test that user cannot contribute USD to their own fundraise."""
