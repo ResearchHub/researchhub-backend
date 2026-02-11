@@ -1,7 +1,6 @@
 import logging
 import uuid
 from dataclasses import dataclass
-from typing import Optional
 from urllib.parse import urlparse
 
 import requests
@@ -23,9 +22,9 @@ class TokenResponse:
     """
 
     access_token: str
-    refresh_token: Optional[str]
+    refresh_token: str | None
     expires_in: int
-    id_token: Optional[str] = None
+    id_token: str | None = None
     token_type: str = "Bearer"
 
 
@@ -48,7 +47,7 @@ class EndaomentClient:
         self.http_session.headers["Content-Type"] = "application/json"
 
     def build_authorization_url(
-        self, user_id: int, return_url: Optional[str] = None
+        self, user_id: int, return_url: str | None = None
     ) -> str:
         """
         Build Endaoment OAuth authorization URL with PKCE and signed state.
@@ -142,9 +141,7 @@ class EndaomentClient:
             code_challenge_method="S256",
         )
 
-    def _do_request(
-        self, method: str, path: str, access_token: Optional[str], **kwargs
-    ):
+    def _do_request(self, method: str, path: str, access_token: str | None, **kwargs):
         response = self.http_session.request(
             method,
             f"{self.api_url}{path}",
@@ -225,7 +222,7 @@ class EndaomentClient:
         )
 
     @staticmethod
-    def is_valid_redirect_url(url: Optional[str]) -> bool:
+    def is_valid_redirect_url(url: str | None) -> bool:
         """
         Validate redirect URL against CORS whitelist.
         """
