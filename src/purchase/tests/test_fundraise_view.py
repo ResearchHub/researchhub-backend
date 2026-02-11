@@ -802,7 +802,7 @@ class FundraiseViewTests(APITestCase):
         "purchase.services.fundraise_service.EndaomentService.transfer_between_funds",
         return_value={"id": "transfer1"},
     )
-    def test_create_usd_contribution(self, _mock_transfer_between_funds):
+    def test_create_usd_contribution(self, mock_transfer_between_funds):
         """Test creating a USD contribution to a fundraise."""
         # Create a fundraise
         fundraise = self._create_fundraise(self.post.id, goal_amount=100)
@@ -822,6 +822,14 @@ class FundraiseViewTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 200)
+
+        mock_transfer_between_funds.assert_called_once_with(
+            user=user,
+            origin_fund_id="fund_123",
+            destination_fund_id="rh_fund_123",
+            amount_cents=10900,  # 10000 + 9% fee (900)
+            purpose=f"Fundraise {fundraise_id}",
+        )
 
     def test_create_usd_contribution_requires_origin_fund_id(self):
         """Test that USD contributions require origin_fund_id."""
@@ -867,7 +875,7 @@ class FundraiseViewTests(APITestCase):
         "purchase.services.fundraise_service.EndaomentService.transfer_between_funds",
         return_value={"id": "transfer1"},
     )
-    def test_create_usd_contribution_creates_record(self, _mock_transfer_between_funds):
+    def test_create_usd_contribution_creates_record(self, mock_transfer_between_funds):
         """Test that USD contribution creates a UsdFundraiseContribution record."""
         from purchase.models import UsdFundraiseContribution
 
@@ -890,6 +898,14 @@ class FundraiseViewTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 200)
+
+        mock_transfer_between_funds.assert_called_once_with(
+            user=user,
+            origin_fund_id="fund_123",
+            destination_fund_id="rh_fund_123",
+            amount_cents=10900,  # 10000 + 9% fee (900)
+            purpose=f"Fundraise {fundraise_id}",
+        )
 
         # Verify UsdFundraiseContribution record was created
         contribution = UsdFundraiseContribution.objects.filter(
