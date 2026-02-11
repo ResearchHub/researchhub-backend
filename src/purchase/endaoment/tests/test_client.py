@@ -300,7 +300,7 @@ class TestEndaomentClient(TestCase):
         """
         # Arrange
         uuid_mock.return_value = Mock(hex="abc123")
-        with open(self.FIXTURES_DIR / "async_grant_response.json") as f:
+        with open(self.FIXTURES_DIR / "create_async_grant_response.json") as f:
             mock_grant = json.load(f)
         mock_response = Mock()
         mock_response.json.return_value = mock_grant
