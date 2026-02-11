@@ -163,6 +163,24 @@ class EndaomentClient:
 
         return self._do_request("GET", "/v1/funds/mine", access_token)
 
+    def get_fund_by_id(self, access_token: str, fund_id: str) -> dict | None:
+        """
+        Fetch a specific fund by ID.
+
+        See: https://docs.endaoment.org/developers/api/funds/get-fund-by-id
+        """
+        if not access_token:
+            raise ValueError("access_token is required")
+
+        try:
+            return self._do_request("GET", f"/v1/funds/{fund_id}", access_token)
+        except requests.HTTPError as e:
+            if e.response.status_code == 404:
+                logger.warning(f"Fund with ID {fund_id} not found: {e}")
+                return None
+            else:
+                raise
+
     def create_async_grant(
         self,
         access_token: str,
