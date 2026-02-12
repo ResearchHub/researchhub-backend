@@ -30,8 +30,8 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
     permission_classes = []
     pagination_class = FeedPagination
     filter_backends = [DjangoFilterBackend, FundOrderingFilter]
-    ordering_fields = ['newest', 'best', 'upvotes', 'most_applicants', 'amount_raised']
-    ordering = 'best'  # Default ordering
+    ordering_fields = ["newest", "best", "upvotes", "most_applicants", "amount_raised"]
+    ordering = "best"  # Default ordering
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -45,7 +45,12 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         created_by = request.query_params.get("created_by", None)
         funded_by = request.query_params.get("funded_by", None)
         cache_key = self.get_cache_key(request, "funding")
-        use_cache = page_num < 4 and grant_id is None and created_by is None and funded_by is None
+        use_cache = (
+            page_num < 4
+            and grant_id is None
+            and created_by is None
+            and funded_by is None
+        )
 
         if use_cache:
             cached_response = cache.get(cache_key)
@@ -102,6 +107,8 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
             .prefetch_related(
                 "unified_document__hubs",
                 "unified_document__fundraises",
+                "grant_applications__grant__created_by",
+                "grant_applications__grant__created_by__author_profile",
             )
             .filter(document_type=PREREGISTRATION, unified_document__is_removed=False)
         )

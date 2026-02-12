@@ -2,7 +2,9 @@ from rest_framework import serializers
 
 from purchase.models import Fundraise
 from purchase.related_models.constants.currency import RSC, USD
+from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from purchase.serializers.grant_serializer import DynamicGrantSerializer
 from reputation.serializers.escrow_serializer import DynamicEscrowSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
 from user.serializers import DynamicUserSerializer
@@ -24,6 +26,7 @@ class DynamicFundraiseSerializer(DynamicModelFieldSerializer):
     amount_raised = serializers.SerializerMethodField()
     goal_amount = serializers.SerializerMethodField()
     contributors = serializers.SerializerMethodField()
+    application = serializers.SerializerMethodField()
 
     class Meta:
         model = Fundraise
@@ -110,4 +113,31 @@ class DynamicFundraiseSerializer(DynamicModelFieldSerializer):
         return {
             "total": len(user_data),
             "top": result,  # Keep original key for backward compatibility
+        }
+
+    def get_application(self, fundraise):
+        """Return the grant application associated with this fundraise, if any."""
+        grant_app = (
+            GrantApplication.objects.filter(
+                preregistration_post__unified_document=fundraise.unified_document
+            )
+            .select_related(
+                "grant",
+                "grant__created_by",
+                "grant__created_by__author_profile",
+            )
+            .first()
+        )
+        if not grant_app:
+            return None
+
+        context = self.context
+        _context_fields = context.get("pch_dfs_get_grant", {})
+        grant_serializer = DynamicGrantSerializer(
+            grant_app.grant, context=context, **_context_fields
+        )
+
+        return {
+            "id": grant_app.id,
+            "grant": grant_serializer.data,
         }

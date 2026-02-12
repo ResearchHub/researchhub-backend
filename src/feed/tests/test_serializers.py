@@ -1,6 +1,8 @@
+from datetime import datetime, timedelta
 from decimal import Decimal
 from unittest.mock import PropertyMock, patch
 
+import pytz
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import FileSystemStorage, default_storage
@@ -16,6 +18,7 @@ from feed.serializers import (
     SimpleReviewSerializer,
     SimpleUserSerializer,
 )
+from feed.tests.helpers import create_fundraise_post
 from feed.views.feed_view_mixin import FeedViewMixin
 from hub.models import Hub
 from hub.serializers import SimpleHubSerializer
@@ -1130,6 +1133,55 @@ class PostSerializerTests(AWSMockTestCase):
                 "reference fix failed"
             )
 
+    @patch(
+        "purchase.related_models.rsc_exchange_rate_model" ".RscExchangeRate.usd_to_rsc"
+    )
+    def test_fundraise_post_includes_grant(self, mock_usd_to_rsc):
+        """Test that a preregistration post with a fundraise linked to a
+        grant application includes the grant data in the fundraise."""
+        mock_usd_to_rsc.return_value = 200.0
+
+        grant_unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.GRANT,
+        )
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_unified_doc,
+            amount=Decimal("50000.00"),
+            currency="USD",
+            organization="NSF",
+            description="Research grant",
+            status=Grant.OPEN,
+            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
+        )
+
+        result = create_fundraise_post(created_by=self.user, grant=grant)
+
+        context = FeedViewMixin().get_common_serializer_context()
+        serializer = PostSerializer(result["post"], context=context)
+        data = serializer.data
+
+        fundraise_data = data["fundraise"]
+        app_data = fundraise_data["application"]
+        self.assertEqual(app_data["id"], result["grant_application"].id)
+        self.assertEqual(app_data["grant"]["id"], grant.id)
+
+    def test_fundraise_post_without_grant_returns_null_application(self):
+        """Test that a preregistration post with a fundraise but no grant
+        application returns None for the application field."""
+        RscExchangeRate.objects.create(
+            rate=0.01,
+            real_rate=0.01,
+        )
+
+        result = create_fundraise_post(created_by=self.user)
+
+        context = FeedViewMixin().get_common_serializer_context()
+        serializer = PostSerializer(result["post"], context=context)
+        data = serializer.data
+
+        self.assertIsNone(data["fundraise"]["application"])
+
     def test_grant_post_no_user_recursion(self):
         """Test that grant posts don't cause user serializer recursion"""
         # Create exchange rate for grant
@@ -1942,3 +1994,44 @@ class FundingFeedEntrySerializerTests(AWSMockTestCase):
         self.assertTrue(data["is_nonprofit"])
         data = serializer.data
         self.assertTrue(data["is_nonprofit"])
+
+    @patch(
+        "purchase.related_models.rsc_exchange_rate_model" ".RscExchangeRate.usd_to_rsc"
+    )
+    def test_fundraise_feed_entry_includes_grant(self, mock_usd_to_rsc):
+        """Test that a funding feed entry for a fundraise linked to a
+        grant application includes the grant data."""
+        mock_usd_to_rsc.return_value = 200.0
+
+        grant_unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.GRANT,
+        )
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_unified_doc,
+            amount=Decimal("25000.00"),
+            currency="USD",
+            organization="Test Foundation",
+            description="A research grant",
+            status=Grant.OPEN,
+            end_date=datetime.now(pytz.UTC) + timedelta(days=60),
+        )
+
+        result = create_fundraise_post(created_by=self.user, grant=grant)
+
+        feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=result["post"].id,
+            user=self.user,
+            action="PUBLISH",
+            action_date=result["post"].created_date,
+            unified_document=result["unified_document"],
+        )
+
+        serializer = FundingFeedEntrySerializer(feed_entry)
+        data = serializer.data
+
+        fundraise_data = data["content_object"]["fundraise"]
+        app_data = fundraise_data["application"]
+        self.assertEqual(app_data["id"], result["grant_application"].id)
+        self.assertEqual(app_data["grant"]["id"], grant.id)
