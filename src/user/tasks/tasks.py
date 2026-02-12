@@ -97,14 +97,14 @@ def get_authored_paper_updates(author, latest_actions):
     return updates
 
 
-@app.task(name="user.tasks.execute_editor_daily_payout_task")
+@app.task
 def execute_editor_daily_payout_task():
     result = editor_daily_payout_task()
     logger.info(f"Completed editor_daily_payout_task with result: {str(result)}")
     return result
 
 
-@app.task(name="user.tasks.execute_rsc_exchange_rate_record_tasks")
+@app.task
 def execute_rsc_exchange_rate_record_tasks():
     result = rsc_exchange_rate_record_tasks()
     logger.info(f"Completed rsc_exchange_rate_record_tasks with result: {str(result)}")
