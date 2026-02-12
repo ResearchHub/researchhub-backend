@@ -129,7 +129,7 @@ app.conf.beat_schedule = {
     },
     # User
     "user_execute-editor-daily-payout-task": {
-        "task": "user.tasks.execute_editor_daily_payout_task",
+        "task": "user.tasks.tasks.execute_editor_daily_payout_task",
         "schedule": crontab(hour=23, minute=5),
         "options": {
             "priority": 2,
@@ -137,7 +137,7 @@ app.conf.beat_schedule = {
         },
     },
     "user_execute_rsc_exchange_rate_record_tasks": {
-        "task": "user.tasks.execute_rsc_exchange_rate_record_tasks",
+        "task": "user.tasks.tasks.execute_rsc_exchange_rate_record_tasks",
         "schedule": crontab(hour="*", minute=0),  # every hour
         "options": {
             "priority": 2,
