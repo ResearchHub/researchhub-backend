@@ -220,6 +220,67 @@ class TestEndaomentClient(TestCase):
         with self.assertRaises(ValueError):
             self.client.get_user_funds(access_token="")
 
+    def test_get_fund_by_id(self):
+        """
+        Test fetching a specific fund by ID.
+        """
+        # Arrange
+        with open(self.FIXTURES_DIR / "get_fund_by_id_response.json") as f:
+            mock_fund = json.load(f)
+        mock_response = Mock()
+        mock_response.json.return_value = mock_fund
+        mock_response.raise_for_status = Mock()
+        self.client.http_session.request = Mock(return_value=mock_response)
+
+        # Act
+        result = self.client.get_fund_by_id(
+            access_token="valid_access_token", fund_id="fund-123"
+        )
+
+        # Assert
+        self.assertIsInstance(result, dict)
+        self.assertEqual(result, mock_fund)
+        self.client.http_session.request.assert_called_once_with(
+            "GET",
+            "https://api.dev.endaoment.org/v1/funds/fund-123",
+            headers={"Authorization": "Bearer valid_access_token"},
+            timeout=30,
+        )
+
+    def test_get_fund_by_id_not_found(self):
+        """
+        Test fetching a fund by ID that does not exist returns None.
+        """
+        # Arrange
+        with open(self.FIXTURES_DIR / "get_fund_by_id_not_found_response.json") as f:
+            mock_error_response = json.load(f)
+        mock_response = Mock()
+        mock_response.raise_for_status.side_effect = requests.HTTPError(
+            response=Mock(status_code=404, json=lambda: mock_error_response)
+        )
+        self.client.http_session.request = Mock(return_value=mock_response)
+
+        # Act
+        result = self.client.get_fund_by_id(
+            access_token="valid_access_token", fund_id="nonexistent-fund"
+        )
+
+        # Assert
+        self.assertIsNone(result)
+        self.client.http_session.request.assert_called_once_with(
+            "GET",
+            "https://api.dev.endaoment.org/v1/funds/nonexistent-fund",
+            headers={"Authorization": "Bearer valid_access_token"},
+            timeout=30,
+        )
+
+    def test_get_fund_by_id_fails_without_token(self):
+        """
+        Test fetching a fund by ID fails without access token.
+        """
+        with self.assertRaises(ValueError):
+            self.client.get_fund_by_id(access_token="", fund_id="fund-123")
+
     @patch("purchase.endaoment.client.uuid.uuid4")
     def test_create_async_entity_transfer(self, mock_uuid):
         """
