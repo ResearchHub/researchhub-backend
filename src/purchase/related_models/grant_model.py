@@ -97,11 +97,3 @@ class Grant(DefaultModel):
     def is_active(self):
         """Check if the grant is currently accepting applications"""
         return self.status == self.OPEN and not self.is_expired()
-
-    def get_applied_to_fundraise_ids(self) -> set[int]:
-        """Get fundraise IDs for proposals that applied to this grant."""
-        return set(
-            self.applications.values_list(
-                "preregistration_post__unified_document__fundraises__id", flat=True
-            )
-        )

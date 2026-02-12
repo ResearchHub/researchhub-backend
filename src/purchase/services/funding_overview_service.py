@@ -1,3 +1,4 @@
+"""Service for funding overview dashboard metrics."""
 from datetime import timedelta
 
 from django.contrib.contenttypes.models import ContentType
@@ -5,8 +6,9 @@ from django.db.models import Case, Count, IntegerField, When
 from django.utils import timezone
 
 from purchase.models import Fundraise, Grant, GrantApplication, Purchase
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.usd_fundraise_contribution_model import UsdFundraiseContribution
-from purchase.utils import get_funded_fundraise_ids
+from purchase.utils import get_funded_fundraise_ids, rsc_and_cents_to_usd
 from researchhub_comment.constants.rh_comment_thread_types import AUTHOR_UPDATE
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubPost
@@ -20,21 +22,21 @@ class FundingOverviewService:
 
     def get_funding_overview(self, user: User) -> dict:
         """Return funding overview metrics for a given user."""
-
         user_applications = GrantApplication.objects.for_user_grants(user)
         grant_fundraise_ids = user_applications.fundraise_ids()
         proposal_post_ids = list(user_applications.values_list("preregistration_post_id", flat=True).distinct())
         user_funded_ids = get_funded_fundraise_ids(user.id)
         funded_grant_proposals = list(grant_fundraise_ids & user_funded_ids)
 
-        total_distributed = (
-            Purchase.objects.for_user(user.id).funding_contributions().for_fundraises(grant_fundraise_ids).sum_usd()
-            + UsdFundraiseContribution.objects.for_user(user.id).not_refunded().for_fundraises(grant_fundraise_ids).sum_usd()
-        )
-        matched_funding = (
-            Purchase.objects.funding_contributions().for_fundraises(funded_grant_proposals).exclude_user(user.id).sum_usd()
-            + UsdFundraiseContribution.objects.not_refunded().for_fundraises(funded_grant_proposals).exclude_user(user.id).sum_usd()
-        )
+        exchange_rate = RscExchangeRate.get_latest_exchange_rate()
+
+        user_rsc = float(Purchase.objects.for_user(user.id).funding_contributions().for_fundraises(grant_fundraise_ids).sum())
+        user_cents = UsdFundraiseContribution.objects.for_user(user.id).not_refunded().for_fundraises(grant_fundraise_ids).sum_cents()
+        total_distributed = rsc_and_cents_to_usd(user_rsc, user_cents, exchange_rate)
+
+        matched_rsc = float(Purchase.objects.funding_contributions().for_fundraises(funded_grant_proposals).exclude_user(user.id).sum())
+        matched_cents = UsdFundraiseContribution.objects.not_refunded().for_fundraises(funded_grant_proposals).exclude_user(user.id).sum_cents()
+        matched_funding = rsc_and_cents_to_usd(matched_rsc, matched_cents, exchange_rate)
 
         return {
             "total_distributed_usd": round(total_distributed, 2),

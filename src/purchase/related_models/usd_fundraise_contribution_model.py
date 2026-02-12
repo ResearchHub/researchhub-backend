@@ -20,17 +20,13 @@ class UsdFundraiseContributionQuerySet(models.QuerySet):
         """Filter for non-refunded contributions."""
         return self.filter(is_refunded=False)
 
-    def for_fundraises(self, fundraise_ids):
+    def for_fundraises(self, fundraise_ids: list[int]):
         """Filter by fundraise IDs."""
         return self.filter(fundraise_id__in=fundraise_ids)
 
-    def sum(self) -> int:
+    def sum_cents(self) -> int:
         """Return sum of amount_cents."""
         return self.aggregate(total=Coalesce(Sum("amount_cents"), 0))["total"]
-
-    def sum_usd(self) -> float:
-        """Return sum of amounts in USD (converts cents to dollars)."""
-        return self.sum() / 100
 
 
 class UsdFundraiseContribution(DefaultModel):

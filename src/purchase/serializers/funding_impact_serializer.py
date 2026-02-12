@@ -18,7 +18,7 @@ class FundingTimePointSerializer(serializers.Serializer):
     matched_contributions = serializers.FloatField()
 
 
-class TopicFundingSerializer(serializers.Serializer):
+class HubFundingSerializer(serializers.Serializer):
     name = serializers.CharField()
     amount_usd = serializers.FloatField()
 
@@ -28,19 +28,10 @@ class UpdateFrequencyBucketSerializer(serializers.Serializer):
     count = serializers.IntegerField()
 
 
-class InstitutionFundingSerializer(serializers.Serializer):
-    name = serializers.CharField()
-    ein = serializers.CharField(allow_blank=True)
-    location = serializers.CharField(allow_blank=True, required=False)
-    amount_usd = serializers.FloatField()
-    project_count = serializers.IntegerField()
-
-
 class FundingImpactSerializer(serializers.Serializer):
     """Serializer for funding impact response."""
 
     milestones = MilestonesSerializer()
     funding_over_time = FundingTimePointSerializer(many=True)
-    topic_breakdown = TopicFundingSerializer(many=True)
+    hub_breakdown = HubFundingSerializer(many=True)
     update_frequency = UpdateFrequencyBucketSerializer(many=True)
-    institutions_supported = InstitutionFundingSerializer(many=True)

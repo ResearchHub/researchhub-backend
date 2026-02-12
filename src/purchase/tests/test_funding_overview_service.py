@@ -52,21 +52,23 @@ class TestFundingOverviewService(TestCase):
         # Assert
         self.assertEqual(result, {"active": 1, "total": 3})
 
-    def test_queryset_sum_usd_combines_rsc_and_usd(self):
+    def test_queryset_sum_combines_rsc_and_usd(self):
         # Arrange
         contributor = create_random_authenticated_user("contributor")
         post = create_post(created_by=self.user, document_type=PREREGISTRATION)
         fundraise = Fundraise.objects.create(created_by=self.user, unified_document=post.unified_document, goal_amount=Decimal("1000"), goal_currency="USD")
         Purchase.objects.create(user=contributor, content_type=ContentType.objects.get_for_model(Fundraise), object_id=fundraise.id, purchase_type=Purchase.FUNDRAISE_CONTRIBUTION, amount=100)  # 100 RSC * 0.5 = $50
-        UsdFundraiseContribution.objects.create(user=contributor, fundraise=fundraise, amount_cents=10000, fee_cents=0)  # $100
+        UsdFundraiseContribution.objects.create(user=contributor, fundraise=fundraise, amount_cents=10000, fee_cents=0, origin_fund_id="test-fund", destination_org_id="test-org")  # $100
 
-        # Act
-        rsc_usd = Purchase.objects.funding_contributions().for_fundraises([fundraise.id]).sum_usd()
-        usd = UsdFundraiseContribution.objects.not_refunded().for_fundraises([fundraise.id]).sum_usd()
+        # Act - get raw values and convert in test (matching service pattern)
+        exchange_rate = RscExchangeRate.get_latest_exchange_rate()
+        rsc_sum = float(Purchase.objects.funding_contributions().for_fundraises([fundraise.id]).sum())
+        usd_cents = UsdFundraiseContribution.objects.not_refunded().for_fundraises([fundraise.id]).sum_cents()
+        total_usd = rsc_sum * exchange_rate + usd_cents / 100
 
         # Assert
-        self.assertEqual(round(rsc_usd + usd, 2), 150.0)
-        self.assertEqual(Purchase.objects.funding_contributions().for_fundraises([]).sum_usd(), 0.0)
+        self.assertEqual(round(total_usd, 2), 150.0)
+        self.assertEqual(float(Purchase.objects.funding_contributions().for_fundraises([]).sum()), 0.0)
 
     def test_queryset_filters_and_excludes_users(self):
         # Arrange
@@ -78,10 +80,10 @@ class TestFundingOverviewService(TestCase):
         Purchase.objects.create(user=user1, content_type=fundraise_ct, object_id=fundraise.id, purchase_type=Purchase.FUNDRAISE_CONTRIBUTION, amount=100)
         Purchase.objects.create(user=user2, content_type=fundraise_ct, object_id=fundraise.id, purchase_type=Purchase.FUNDRAISE_CONTRIBUTION, amount=200)
 
-        # Act & Assert - user1 only: 100 * 0.5 = $50
-        self.assertEqual(Purchase.objects.for_user(user1.id).funding_contributions().for_fundraises([fundraise.id]).sum_usd(), 50.0)
-        # exclude user1: 200 * 0.5 = $100
-        self.assertEqual(Purchase.objects.funding_contributions().for_fundraises([fundraise.id]).exclude_user(user1.id).sum_usd(), 100.0)
+        # Act & Assert - user1 only: 100 RSC
+        self.assertEqual(float(Purchase.objects.for_user(user1.id).funding_contributions().for_fundraises([fundraise.id]).sum()), 100.0)
+        # exclude user1: 200 RSC
+        self.assertEqual(float(Purchase.objects.funding_contributions().for_fundraises([fundraise.id]).exclude_user(user1.id).sum()), 200.0)
 
     def test_update_count_filters_by_date(self):
         # Arrange

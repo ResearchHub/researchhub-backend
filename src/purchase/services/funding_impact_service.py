@@ -1,33 +1,31 @@
+"""Service for funding impact dashboard metrics."""
 from collections import defaultdict
 from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Count, DecimalField, QuerySet, Sum
+from django.db.models import Count, QuerySet, Sum
 from django.db.models.functions import Cast, Coalesce, TruncMonth
 from django.utils import timezone
 
 from purchase.models import Fundraise, GrantApplication, Purchase
+from purchase.related_models.purchase_model import DECIMAL_FIELD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.usd_fundraise_contribution_model import UsdFundraiseContribution
-from purchase.utils import get_funded_fundraise_ids
+from purchase.utils import get_funded_fundraise_ids, rsc_and_cents_to_usd
 from researchhub_comment.constants.rh_comment_thread_types import AUTHOR_UPDATE
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubPost
 from user.models import User
 
-MONTHS_TO_SHOW = 6
-UPDATE_FREQUENCY_DAYS = 180
-MAX_TOPICS = 5
-MAX_INSTITUTIONS = 10
-DECIMAL_FIELD = DecimalField(max_digits=19, decimal_places=10)
-
+FUNDING_HISTORY_MONTHS = 6
+AUTHOR_UPDATE_LOOKBACK_DAYS = 180
+MAX_HUBS = 5
 MILESTONES = {
     "funding_contributed": [100, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000],
     "researchers_supported": [1, 3, 5, 10, 25, 50, 100],
     "matched_funding": [500, 2500, 5000, 10000, 25000, 50000, 100000, 250000],
 }
-
 UPDATE_BUCKETS = ["0", "1", "2-3", "4+"]
 
 
@@ -45,8 +43,8 @@ class FundingImpactService:
 
         fundraises = (
             Fundraise.objects.filter(id__in=funded_ids)
-            .select_related("unified_document", "created_by__author_profile")
-            .prefetch_related("created_by__author_profile__institutions__institution")
+            .select_related("unified_document")
+            .prefetch_related("unified_document__hubs")
         )
 
         post_ids = list(
@@ -57,11 +55,10 @@ class FundingImpactService:
         contributions = self._get_contributions_by_fundraise(user, funded_ids, exchange_rate)
 
         return {
-            "milestones": self._get_milestones(user, funded_ids, fundraises),
+            "milestones": self._get_milestones(user, contributions, fundraises, exchange_rate),
             "funding_over_time": self._get_funding_over_time(user, funded_ids, exchange_rate),
-            "topic_breakdown": self._get_topic_breakdown(fundraises, contributions),
+            "hub_breakdown": self._get_hub_breakdown(fundraises, contributions),
             "update_frequency": self._get_update_frequency(post_ids),
-            "institutions_supported": self._get_institutions_supported(fundraises, contributions),
         }
 
     def _empty_response(self) -> dict:
@@ -75,9 +72,8 @@ class FundingImpactService:
                 {"month": m, "user_contributions": 0.0, "matched_contributions": 0.0}
                 for m in past_months
             ],
-            "topic_breakdown": [],
+            "hub_breakdown": [],
             "update_frequency": [{"bucket": b, "count": 0} for b in UPDATE_BUCKETS],
-            "institutions_supported": [],
         }
 
     def _get_past_months(self) -> list[str]:
@@ -85,7 +81,7 @@ class FundingImpactService:
         now = timezone.now()
         return [
             (now.replace(day=1) - timedelta(days=30 * i)).strftime("%Y-%m")
-            for i in range(MONTHS_TO_SHOW - 1, -1, -1)
+            for i in range(FUNDING_HISTORY_MONTHS - 1, -1, -1)
         ]
 
     def _get_milestone(self, current: float, key: str) -> dict:
@@ -94,16 +90,17 @@ class FundingImpactService:
         target = next((t for t in targets if t > current), targets[-1])
         return {"current": current, "target": target}
 
-    def _get_milestones(self, user: User, funded_ids: list[int], fundraises: QuerySet) -> dict:
+    def _get_milestones(
+        self, user: User, contributions: dict[int, float], fundraises: QuerySet, exchange_rate: float
+    ) -> dict:
         """Calculate all milestone metrics."""
-        user_total = (
-            Purchase.objects.for_user(user.id).funding_contributions().for_fundraises(funded_ids).sum_usd()
-            + UsdFundraiseContribution.objects.for_user(user.id).not_refunded().for_fundraises(funded_ids).sum_usd()
-        )
-        matched_total = (
-            Purchase.objects.funding_contributions().for_fundraises(funded_ids).exclude_user(user.id).sum_usd()
-            + UsdFundraiseContribution.objects.not_refunded().for_fundraises(funded_ids).exclude_user(user.id).sum_usd()
-        )
+        funded_ids = list(contributions.keys())
+        user_total = sum(contributions.values())
+
+        matched_rsc = float(Purchase.objects.funding_contributions().for_fundraises(funded_ids).exclude_user(user.id).sum())
+        matched_cents = UsdFundraiseContribution.objects.not_refunded().for_fundraises(funded_ids).exclude_user(user.id).sum_cents()
+        matched_total = rsc_and_cents_to_usd(matched_rsc, matched_cents, exchange_rate)
+
         researcher_count = fundraises.values("created_by_id").distinct().count()
 
         return {
@@ -132,16 +129,16 @@ class FundingImpactService:
         )
 
         return {
-            fid: float(rsc_amounts.get(fid) or 0) * exchange_rate + (usd_amounts.get(fid) or 0) / 100
+            fid: rsc_and_cents_to_usd(float(rsc_amounts.get(fid) or 0), usd_amounts.get(fid) or 0, exchange_rate)
             for fid in fundraise_ids
         }
 
     def _get_funding_over_time(
         self, user: User, fundraise_ids: list[int], exchange_rate: float
     ) -> list[dict]:
-        """Return past 6 months of cumulative funding contributions."""
+        """Return cumulative funding contributions over FUNDING_HISTORY_MONTHS."""
         past_months = self._get_past_months()
-        cutoff = timezone.now() - timedelta(days=MONTHS_TO_SHOW * 30)
+        cutoff = timezone.now() - timedelta(days=FUNDING_HISTORY_MONTHS * 30)
 
         rsc_monthly = (
             Purchase.objects.funding_contributions().for_fundraises(fundraise_ids)
@@ -185,14 +182,24 @@ class FundingImpactService:
             })
         return results
 
-    def _get_topic_breakdown(self, fundraises: QuerySet, contributions: dict[int, float]) -> list[dict]:
-        """Return top funded topics/hubs."""
+    def _get_hub_breakdown(self, fundraises: QuerySet, contributions: dict[int, float]) -> list[dict]:
+        """Return top funded hubs by contribution amount."""
         hub_totals: dict[str, float] = defaultdict(float)
         for fundraise in fundraises:
-            hub = fundraise.unified_document.get_primary_hub(fallback=True)
-            hub_totals[hub.name if hub else "Other"] += contributions.get(fundraise.id, 0)
+            amount = contributions.get(fundraise.id, 0)
+            if not amount:
+                continue
 
-        top_hubs = sorted(hub_totals.items(), key=lambda x: x[1], reverse=True)[:MAX_TOPICS]
+            hubs = list(fundraise.unified_document.get_primary_hubs())
+            if not hubs:
+                hub_totals["Other"] += amount
+                continue
+
+            share = amount / len(hubs)
+            for hub in hubs:
+                hub_totals[hub.name] += share
+
+        top_hubs = sorted(hub_totals.items(), key=lambda x: x[1], reverse=True)[:MAX_HUBS]
         return [{"name": name, "amount_usd": round(amount, 2)} for name, amount in top_hubs]
 
     def _get_update_frequency(self, post_ids: list[int]) -> list[dict]:
@@ -202,7 +209,7 @@ class FundingImpactService:
             return [{"bucket": b, "count": c} for b, c in buckets.items()]
 
         post_ct = ContentType.objects.get_for_model(ResearchhubPost)
-        cutoff = timezone.now() - timedelta(days=UPDATE_FREQUENCY_DAYS)
+        cutoff = timezone.now() - timedelta(days=AUTHOR_UPDATE_LOOKBACK_DAYS)
 
         update_counts = dict(
             RhCommentModel.objects.filter(
@@ -229,43 +236,3 @@ class FundingImpactService:
             buckets[bucket_key] += 1
 
         return [{"bucket": b, "count": c} for b, c in buckets.items()]
-
-    def _get_institutions_supported(
-        self, fundraises: QuerySet, contributions: dict[int, float]
-    ) -> list[dict]:
-        """Return institutions receiving funding through user contributions."""
-        institution_data: dict = defaultdict(lambda: {"amount": 0.0, "projects": set()})
-
-        for fundraise in fundraises:
-            amount = contributions.get(fundraise.id, 0)
-            if not amount:
-                continue
-
-            author_profile = getattr(fundraise.created_by, "author_profile", None)
-            if not author_profile:
-                continue
-
-            author_institutions = list(author_profile.institutions.all())
-            if not author_institutions:
-                continue
-
-            share = amount / len(author_institutions)
-            for author_inst in author_institutions:
-                inst = author_inst.institution
-                institution_data[inst.id]["institution"] = inst
-                institution_data[inst.id]["amount"] += share
-                institution_data[inst.id]["projects"].add(fundraise.id)
-
-        results = []
-        for data in institution_data.values():
-            inst = data["institution"]
-            location = ", ".join(filter(None, [inst.region, inst.country_code]))
-            results.append({
-                "name": inst.display_name,
-                "ein": "",
-                "location": location,
-                "amount_usd": round(data["amount"], 2),
-                "project_count": len(data["projects"]),
-            })
-
-        return sorted(results, key=lambda x: x["amount_usd"], reverse=True)[:MAX_INSTITUTIONS]

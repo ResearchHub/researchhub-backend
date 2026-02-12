@@ -10,6 +10,7 @@ from django.db.models import DecimalField, Sum
 from django.db.models.functions import Cast, Coalesce
 
 from purchase.related_models.aggregate_purchase_model import AggregatePurchase
+from purchase.related_models.fundraise_model import Fundraise
 from utils.models import PaidStatusModelMixin
 
 DECIMAL_FIELD = DecimalField(max_digits=19, decimal_places=10)
@@ -28,13 +29,12 @@ class PurchaseQuerySet(models.QuerySet):
 
     def funding_contributions(self):
         """Filter for fundraise contribution purchases."""
-        from purchase.models import Fundraise, Purchase
         return self.filter(
-            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            purchase_type="FUNDRAISE_CONTRIBUTION",
             content_type=ContentType.objects.get_for_model(Fundraise),
         )
 
-    def for_fundraises(self, fundraise_ids):
+    def for_fundraises(self, fundraise_ids: list[int]):
         """Filter by fundraise IDs."""
         return self.filter(object_id__in=fundraise_ids)
 
@@ -45,11 +45,6 @@ class PurchaseQuerySet(models.QuerySet):
         ).aggregate(
             total=Coalesce(Sum("amt"), Decimal("0"))
         )["total"]
-
-    def sum_usd(self) -> float:
-        """Return sum of amounts converted to USD."""
-        from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-        return RscExchangeRate.rsc_to_usd(float(self.sum()))
 
 
 class Purchase(PaidStatusModelMixin):

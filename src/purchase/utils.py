@@ -44,3 +44,8 @@ def get_funded_fundraise_ids(user_id: int) -> set[int]:
         UsdFundraiseContribution.objects.for_user(user_id).not_refunded().values_list("fundraise_id", flat=True)
     )
     return rsc_funded | usd_funded
+
+
+def rsc_and_cents_to_usd(rsc: float, cents: int, exchange_rate: float) -> float:
+    """Convert RSC amount and cents to USD total."""
+    return rsc * exchange_rate + cents / 100
