@@ -24,6 +24,7 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
     is_expired = serializers.SerializerMethodField()
     is_active = serializers.SerializerMethodField()
     applications = serializers.SerializerMethodField()
+    title = serializers.SerializerMethodField()
 
     class Meta:
         model = Grant
@@ -107,3 +108,10 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
                 )
 
         return application_data
+
+    def get_title(self, grant):
+        """Return the title from the grant's associated post."""
+        post = grant.unified_document.posts.first()
+        if post:
+            return post.title
+        return None

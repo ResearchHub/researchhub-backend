@@ -336,6 +336,7 @@ class PostSerializer(ContentObjectSerializer):
             context["pch_dfs_get_grant"] = {
                 "_include_fields": [
                     "id",
+                    "title",
                     "organization",
                     "amount",
                     "created_by",
