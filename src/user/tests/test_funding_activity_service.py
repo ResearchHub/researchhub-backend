@@ -16,7 +16,9 @@ from reputation.related_models.escrow import Escrow
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from user.management.commands.setup_bank_user import BANK_EMAIL
 from user.related_models.funding_activity_model import FundingActivity
+from user.related_models.user_model import FOUNDATION_EMAIL
 from user.services.funding_activity_service import FundingActivityService
 from user.tests.helpers import create_user
 
@@ -314,3 +316,34 @@ class FundingActivityServiceTests(TestCase):
         qs = FundingActivityService.get_fees()
         self.assertEqual(qs.count(), 1)
         self.assertEqual(qs.first().distribution_type, "BOUNTY_RH_FEE")
+
+    def test_create_funding_activity_stored_when_funder_is_bank(self):
+        """We store FundingActivity when the funder is bank (activity is tracked)."""
+        bank_user = create_user(email=BANK_EMAIL)
+        dist = Distribution.objects.create(
+            giver=bank_user,
+            recipient=None,
+            amount=Decimal("10"),
+            distribution_type="BOUNTY_RH_FEE",
+        )
+        activity = FundingActivityService.create_funding_activity(
+            FundingActivity.FEE, dist
+        )
+        self.assertIsNotNone(activity)
+        self.assertEqual(activity.funder_id, bank_user.id)
+        self.assertEqual(FundingActivity.objects.filter(funder=bank_user).count(), 1)
+
+    def test_create_funding_activity_stored_when_funder_is_foundation(self):
+        """We store FundingActivity when the funder is foundation (activity is tracked)."""
+        foundation_user = create_user(email=FOUNDATION_EMAIL)
+        dist = Distribution.objects.create(
+            giver=foundation_user,
+            recipient=None,
+            amount=Decimal("10"),
+            distribution_type="BOUNTY_RH_FEE",
+        )
+        activity = FundingActivityService.create_funding_activity(
+            FundingActivity.FEE, dist
+        )
+        self.assertIsNotNone(activity)
+        self.assertEqual(activity.funder_id, foundation_user.id)
