@@ -192,6 +192,7 @@ def get_private_key():
 
 
 # EIP-1271 magic value returned by compliant smart wallets
+# See: https://eips.ethereum.org/EIPS/eip-1271
 EIP1271_MAGIC_VALUE = "0x1626ba7e"
 
 EIP1271_ABI = [
