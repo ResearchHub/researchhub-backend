@@ -19,7 +19,7 @@ from purchase.serializers.purchase_serializer import DynamicPurchaseSerializer
 from purchase.services.fundraise_service import FundraiseService
 from purchase.services.funding_impact_service import FundingImpactService
 from purchase.services.funding_overview_service import FundingOverviewService
-from purchase.services.grant_overview_service import GrantOverviewService
+from purchase.services.funding_overview_service import GrantOverviewService
 from referral.services.referral_bonus_service import ReferralBonusService
 from user.permissions import IsModerator
 from user.related_models.follow_model import Follow
