@@ -550,6 +550,101 @@ class TestEndaomentService(TestCase):
         # Assert
         self.assertEqual(result, "rhFund1")
 
+    @override_settings(ENDAOMENT_RH_FUND_IDS={1234: "rhFund1"})
+    def test_transfer_to_researchhub_fund(self):
+        """
+        Test transfer_to_researchhub_fund looks up the origin fund's chain ID,
+        resolves the RH fund, and delegates to create_async_entity_transfer.
+        """
+        # Arrange
+        self.service.get_valid_access_token = Mock(return_value="token1")
+        self.mock_client.get_fund_by_id.return_value = {
+            "id": "fund1",
+            "chainId": 1234,
+        }
+        self.mock_client.create_async_entity_transfer.return_value = {"id": "transfer1"}
+
+        # Act
+        result = self.service.transfer_to_researchhub_fund(
+            user=self.user,
+            origin_fund_id="fund1",
+            amount_cents=5000,
+            purpose="donation",
+        )
+
+        # Assert
+        self.assertEqual(result, {"id": "transfer1"})
+        self.mock_client.get_fund_by_id.assert_called_once_with("token1", "fund1")
+        self.mock_client.create_async_entity_transfer.assert_called_once_with(
+            access_token="token1",
+            origin_fund_id="fund1",
+            destination_fund_id="rhFund1",
+            amount_in_cents=5000,
+            purpose="donation",
+        )
+
+    def test_transfer_to_researchhub_fund_fails_without_connection(self):
+        """
+        Test transfer_to_researchhub_fund raises when user has no connection.
+        """
+        # Arrange
+        self.service.get_valid_access_token = Mock(return_value=None)
+
+        # Act & Assert
+        with self.assertRaises(EndaomentAccount.DoesNotExist):
+            self.service.transfer_to_researchhub_fund(
+                user=self.user,
+                origin_fund_id="fund1",
+                amount_cents=5000,
+                purpose="donation",
+            )
+        self.mock_client.get_fund_by_id.assert_not_called()
+
+    def test_transfer_to_researchhub_fund_origin_fund_not_found(self):
+        """
+        Test transfer_to_researchhub_fund raises ValueError when origin fund
+        is not found.
+        """
+        # Arrange
+        self.service.get_valid_access_token = Mock(return_value="token1")
+        self.mock_client.get_fund_by_id.return_value = None
+
+        # Act & Assert
+        with self.assertRaisesMessage(
+            ValueError, "Origin fund with ID fund1 not found"
+        ):
+            self.service.transfer_to_researchhub_fund(
+                user=self.user,
+                origin_fund_id="fund1",
+                amount_cents=5000,
+                purpose="donation",
+            )
+        self.mock_client.create_async_entity_transfer.assert_not_called()
+
+    def test_transfer_to_researchhub_fund_no_rh_fund_for_chain(self):
+        """
+        Test transfer_to_researchhub_fund raises ValueError when no RH fund
+        is configured for the origin fund's chain ID.
+        """
+        # Arrange
+        self.service.get_valid_access_token = Mock(return_value="token1")
+        self.mock_client.get_fund_by_id.return_value = {
+            "id": "fund1",
+            "chainId": 9999,
+        }
+
+        # Act & Assert
+        with self.assertRaisesMessage(
+            ValueError, "No ResearchHub fund configured for chain ID 9999"
+        ):
+            self.service.transfer_to_researchhub_fund(
+                user=self.user,
+                origin_fund_id="fund1",
+                amount_cents=5000,
+                purpose="donation",
+            )
+        self.mock_client.create_async_entity_transfer.assert_not_called()
+
     def test_get_researchhub_fund_id_no_mapping(self):
         """
         Test get_researchhub_fund_id returns None when no mapping exists.
