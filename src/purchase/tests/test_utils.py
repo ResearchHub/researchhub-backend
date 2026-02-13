@@ -51,7 +51,7 @@ class TestGetFundedFundraiseIds(TestCase):
         result = get_funded_fundraise_ids(other_user.id)
 
         # Assert
-        self.assertEqual(result, [])
+        self.assertEqual(result, set())
 
     def test_returns_rsc_and_usd_contributions_deduplicated(self):
         # Arrange
@@ -63,7 +63,7 @@ class TestGetFundedFundraiseIds(TestCase):
         result = get_funded_fundraise_ids(self.user.id)
 
         # Assert
-        self.assertEqual(result, [fundraise.id])
+        self.assertEqual(result, {fundraise.id})
 
     def test_excludes_refunded_usd_contributions(self):
         # Arrange
@@ -74,5 +74,5 @@ class TestGetFundedFundraiseIds(TestCase):
         result = get_funded_fundraise_ids(self.user.id)
 
         # Assert
-        self.assertEqual(result, [])
+        self.assertEqual(result, set())
 

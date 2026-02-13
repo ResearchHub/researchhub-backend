@@ -1,8 +1,7 @@
 import time
 
-from django.contrib.contenttypes.models import ContentType
-
-from purchase.models import Fundraise, Purchase, UsdFundraiseContribution
+from purchase.models import Purchase
+from purchase.related_models.usd_fundraise_contribution_model import UsdFundraiseContribution
 from reputation.distributions import create_purchase_distribution
 from reputation.distributor import Distributor
 from reputation.models import Escrow
@@ -36,19 +35,17 @@ def store_leftover_paper_support(paper, purchase, leftover_amount):
     )
 
 
-def get_funded_fundraise_ids(user_id: int) -> list[int]:
+def get_funded_fundraise_ids(user_id: int) -> set[int]:
     """Get fundraise IDs that the user has contributed to via RSC or USD."""
     rsc_funded = set(
-        Purchase.objects.filter(
-            user_id=user_id,
-            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
-            content_type=ContentType.objects.get_for_model(Fundraise),
-        ).values_list("object_id", flat=True)
+        Purchase.objects.for_user(user_id).funding_contributions().values_list("object_id", flat=True)
     )
     usd_funded = set(
-        UsdFundraiseContribution.objects.filter(
-            user_id=user_id,
-            is_refunded=False,
-        ).values_list("fundraise_id", flat=True)
+        UsdFundraiseContribution.objects.for_user(user_id).not_refunded().values_list("fundraise_id", flat=True)
     )
-    return list(rsc_funded | usd_funded)
+    return rsc_funded | usd_funded
+
+
+def rsc_and_cents_to_usd(rsc: float, cents: int, exchange_rate: float) -> float:
+    """Convert RSC amount and cents to USD total."""
+    return rsc * exchange_rate + cents / 100

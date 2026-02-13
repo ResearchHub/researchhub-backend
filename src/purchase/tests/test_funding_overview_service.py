@@ -34,7 +34,7 @@ class TestFundingOverviewService(TestCase):
         # Assert
         self.assertEqual(result["total_distributed_usd"], 0.0)
         self.assertEqual(result["matched_funding_usd"], 0.0)
-        self.assertEqual(result["total_applicants"], 0)
+        self.assertEqual(result["total_applicants"], {"total": 0, "active": 0, "previous": 0})
         self.assertEqual(result["proposals_funded"], 0)
         self.assertEqual(result["recent_updates"], 0)
         self.assertEqual(result["active_grants"], {"active": 0, "total": 0})
@@ -52,22 +52,25 @@ class TestFundingOverviewService(TestCase):
         # Assert
         self.assertEqual(result, {"active": 1, "total": 3})
 
-    def test_sum_contributions_combines_rsc_and_usd(self):
+    def test_queryset_sum_combines_rsc_and_usd(self):
         # Arrange
         contributor = create_random_authenticated_user("contributor")
         post = create_post(created_by=self.user, document_type=PREREGISTRATION)
         fundraise = Fundraise.objects.create(created_by=self.user, unified_document=post.unified_document, goal_amount=Decimal("1000"), goal_currency="USD")
         Purchase.objects.create(user=contributor, content_type=ContentType.objects.get_for_model(Fundraise), object_id=fundraise.id, purchase_type=Purchase.FUNDRAISE_CONTRIBUTION, amount=100)  # 100 RSC * 0.5 = $50
-        UsdFundraiseContribution.objects.create(user=contributor, fundraise=fundraise, amount_cents=10000, fee_cents=0)  # $100
+        UsdFundraiseContribution.objects.create(user=contributor, fundraise=fundraise, amount_cents=10000, fee_cents=0, origin_fund_id="test-fund", destination_org_id="test-org")  # $100
 
-        # Act
-        result = self.service._sum_contributions(fundraise_ids=[fundraise.id])
+        # Act - get raw values and convert in test (matching service pattern)
+        exchange_rate = RscExchangeRate.get_latest_exchange_rate()
+        rsc_sum = float(Purchase.objects.funding_contributions().for_fundraises([fundraise.id]).sum())
+        usd_cents = UsdFundraiseContribution.objects.not_refunded().for_fundraises([fundraise.id]).sum_cents()
+        total_usd = rsc_sum * exchange_rate + usd_cents / 100
 
         # Assert
-        self.assertEqual(result, 150.0)
-        self.assertEqual(self.service._sum_contributions(fundraise_ids=[]), 0.0)
+        self.assertEqual(round(total_usd, 2), 150.0)
+        self.assertEqual(float(Purchase.objects.funding_contributions().for_fundraises([]).sum()), 0.0)
 
-    def test_sum_contributions_filters_and_excludes_users(self):
+    def test_queryset_filters_and_excludes_users(self):
         # Arrange
         user1 = create_random_authenticated_user("user1")
         user2 = create_random_authenticated_user("user2")
@@ -77,9 +80,10 @@ class TestFundingOverviewService(TestCase):
         Purchase.objects.create(user=user1, content_type=fundraise_ct, object_id=fundraise.id, purchase_type=Purchase.FUNDRAISE_CONTRIBUTION, amount=100)
         Purchase.objects.create(user=user2, content_type=fundraise_ct, object_id=fundraise.id, purchase_type=Purchase.FUNDRAISE_CONTRIBUTION, amount=200)
 
-        # Act & Assert
-        self.assertEqual(self.service._sum_contributions(user_id=user1.id, fundraise_ids=[fundraise.id]), 50.0)  # user1 only: 100 * 0.5
-        self.assertEqual(self.service._sum_contributions(fundraise_ids=[fundraise.id], exclude_user_id=user1.id), 100.0)  # exclude user1: 200 * 0.5
+        # Act & Assert - user1 only: 100 RSC
+        self.assertEqual(float(Purchase.objects.for_user(user1.id).funding_contributions().for_fundraises([fundraise.id]).sum()), 100.0)
+        # exclude user1: 200 RSC
+        self.assertEqual(float(Purchase.objects.funding_contributions().for_fundraises([fundraise.id]).exclude_user(user1.id).sum()), 200.0)
 
     def test_update_count_filters_by_date(self):
         # Arrange
@@ -95,10 +99,3 @@ class TestFundingOverviewService(TestCase):
         # Assert
         self.assertEqual(result, 1)
         self.assertEqual(self.service._update_count([], 30), 0)
-
-    def test_combine_rsc_usd(self):
-        # Arrange - uses setUp
-
-        # Act & Assert (100 RSC * 0.5 = $50 + 5000 cents = $50 = $100 total)
-        self.assertEqual(self.service._combine_rsc_usd(Decimal("100"), 5000), 100.0)
-        self.assertEqual(self.service._combine_rsc_usd(Decimal("0"), 0), 0.0)

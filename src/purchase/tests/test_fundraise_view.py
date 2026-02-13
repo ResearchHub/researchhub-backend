@@ -29,6 +29,7 @@ class FundraiseViewTests(APITestCase):
 
         # URLs for overview endpoints
         self.funding_overview_url = "/api/fundraise/funding_overview/"
+        self.funding_impact_url = "/api/fundraise/funding_impact/"
         self.grant_overview_url = "/api/fundraise/grant_overview/"
 
         self.rsc_exchange_rate = RscExchangeRate.objects.create(
@@ -951,6 +952,27 @@ class FundraiseViewTests(APITestCase):
 
         # Act
         response = self.client.get(self.funding_overview_url)
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(response.data, dict)
+
+    def test_funding_impact_requires_authentication(self):
+        # Arrange
+        self.client.logout()
+
+        # Act
+        response = self.client.get(self.funding_impact_url)
+
+        # Assert
+        self.assertEqual(response.status_code, 401)
+
+    def test_funding_impact_returns_200(self):
+        # Arrange
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self.client.get(self.funding_impact_url)
 
         # Assert
         self.assertEqual(response.status_code, 200)
