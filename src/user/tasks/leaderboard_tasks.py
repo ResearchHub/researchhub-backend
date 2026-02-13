@@ -6,14 +6,12 @@ from django.db.models import Sum
 from django.utils import timezone
 
 from researchhub.celery import QUEUE_CACHES, app
-from user.management.commands.setup_bank_user import BANK_EMAIL
-from user.models import User
 from user.related_models.funding_activity_model import (
     FundingActivity,
     FundingActivityRecipient,
 )
 from user.related_models.leaderboard_model import Leaderboard
-from user.related_models.user_model import FOUNDATION_EMAIL
+from user.services.funding_activity_service import get_leaderboard_excluded_user_ids
 
 logger = logging.getLogger(__name__)
 
@@ -25,26 +23,28 @@ def _get_period_date_range(period):
     For ALL_TIME, start_date is None (no filter).
     """
     now = timezone.now()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
     if period == Leaderboard.SEVEN_DAYS:
-        return now - timedelta(days=7), now
+        start_date = today_start - timedelta(days=7)
+        end_date = now
+        return start_date, end_date
     elif period == Leaderboard.THIRTY_DAYS:
-        return now - timedelta(days=30), now
+        start_date = today_start - timedelta(days=30)
+        end_date = now
+        return start_date, end_date
     elif period == Leaderboard.SIX_MONTHS:
-        return now - timedelta(days=180), now  # ~6 months
+        start_date = today_start - timedelta(days=180)  # ~6 months
+        end_date = now
+        return start_date, end_date
     elif period == Leaderboard.ONE_YEAR:
-        return now - timedelta(days=365), now
+        start_date = today_start - timedelta(days=365)
+        end_date = now
+        return start_date, end_date
     elif period == Leaderboard.ALL_TIME:
         return None, now
     else:
         raise ValueError(f"Unknown period: {period}")
-
-
-def _get_excluded_user_ids():
-    """Get user IDs to exclude from leaderboards."""
-    excluded_emails = [BANK_EMAIL, FOUNDATION_EMAIL]
-    return list(
-        User.objects.filter(email__in=excluded_emails).values_list("id", flat=True)
-    )
 
 
 @app.task(queue=QUEUE_CACHES, max_retries=3, retry_backoff=True)
@@ -54,7 +54,7 @@ def refresh_leaderboard_task():
     Aggregates FundingActivity and FundingActivityRecipient data,
     calculates ranks, and writes to Leaderboard table.
     """
-    excluded_user_ids = _get_excluded_user_ids()
+    excluded_user_ids = get_leaderboard_excluded_user_ids()
     periods = [
         Leaderboard.SEVEN_DAYS,
         Leaderboard.THIRTY_DAYS,
@@ -125,10 +125,16 @@ def _refresh_earner_leaderboard(period, excluded_user_ids):
     """Refresh earner leaderboard for a given period."""
     start_date, end_date = _get_period_date_range(period)
 
-    # Aggregate FundingActivityRecipient by recipient_user
-    # Join with FundingActivity to filter by activity_date
-    qs = FundingActivityRecipient.objects.select_related("activity").exclude(
-        recipient_user_id__in=excluded_user_ids
+    # Aggregate FundingActivityRecipient by recipient_user (reviewers only: tip + bounty)
+    qs = (
+        FundingActivityRecipient.objects.select_related("activity")
+        .filter(
+            activity__source_type__in=[
+                FundingActivity.TIP_REVIEW,
+                FundingActivity.BOUNTY_PAYOUT,
+            ]
+        )
+        .exclude(recipient_user_id__in=excluded_user_ids)
     )
 
     if start_date:
