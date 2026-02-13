@@ -538,3 +538,24 @@ class TestEndaomentService(TestCase):
             amount_in_cents=1000,
             purpose="fundraise1",
         )
+
+    @override_settings(ENDAOMENT_RH_FUND_IDS={1234: "rhFund1", 5678: "rhFund2"})
+    def test_get_researchhub_fund_id(self):
+        """
+        Test get_researchhub_fund_id returns correct fund ID based on settings.
+        """
+        # Arrange & Act
+        result = self.service._get_researchhub_fund_id(1234)
+
+        # Assert
+        self.assertEqual(result, "rhFund1")
+
+    def test_get_researchhub_fund_id_no_mapping(self):
+        """
+        Test get_researchhub_fund_id returns None when no mapping exists.
+        """
+        # Act & Assert
+        with self.assertRaisesMessage(
+            ValueError, "No ResearchHub fund configured for chain ID 9999"
+        ):
+            self.service._get_researchhub_fund_id(9999)

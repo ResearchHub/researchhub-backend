@@ -173,6 +173,15 @@ class EndaomentService:
             purpose=purpose,
         )
 
+    def _get_researchhub_fund_id(self, chain_id: int) -> str:
+        """
+        Get the ResearchHub fund ID for a given chain ID.
+        """
+        fund_id = settings.ENDAOMENT_RH_FUND_IDS.get(chain_id)
+        if not fund_id:
+            raise ValueError(f"No ResearchHub fund configured for chain ID {chain_id}")
+        return fund_id
+
     def transfer_between_funds(
         self,
         user,
