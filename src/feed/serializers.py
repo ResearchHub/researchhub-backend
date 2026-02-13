@@ -332,25 +332,6 @@ class PostSerializer(ContentObjectSerializer):
                     "author_profile",
                 ]
             }
-            # Context for the nested grant within the application
-            context["pch_dfs_get_grant"] = {
-                "_include_fields": [
-                    "id",
-                    "title",
-                    "organization",
-                    "amount",
-                    "created_by",
-                ]
-            }
-            context["pch_dgs_get_created_by"] = {
-                "_include_fields": [
-                    "id",
-                    "first_name",
-                    "last_name",
-                    "profile_image",
-                    "author_profile",
-                ]
-            }
             serializer = DynamicFundraiseSerializer(
                 fundraise,
                 context=context,
@@ -364,7 +345,6 @@ class PostSerializer(ContentObjectSerializer):
                     "amount_raised",
                     "contributors",
                     "created_by",
-                    "application",
                 ],
             )
             return serializer.data
