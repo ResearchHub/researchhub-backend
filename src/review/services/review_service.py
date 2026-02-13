@@ -23,7 +23,7 @@ def get_review_availability(user: User) -> ReviewAvailability:
     window_duration = timedelta(days=REVIEW_WINDOW_DAYS)
     window_start = timezone.now() - window_duration
 
-    base_query = RhCommentModel.objects.filter(
+    base_query = RhCommentModel.all_objects.filter(
         created_by=user,
         comment_type=COMMUNITY_REVIEW,
         created_date__gte=window_start,
