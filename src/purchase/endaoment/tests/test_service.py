@@ -18,7 +18,7 @@ User = get_user_model()
     ENDAOMENT_AUTH_URL="https://auth.dev.endaoment.org",
     ENDAOMENT_CLIENT_ID="test_client_id",
     ENDAOMENT_CLIENT_SECRET="test_client_secret",
-    ENDAOMENT_REDIRECT_URI="https://researchhub.com/callback",
+    ENDAOMENT_REDIRECT_URL="https://researchhub.com/callback",
     CORS_ORIGIN_WHITELIST=["https://test.com", "https://researchhub.com"],
     BASE_FRONTEND_URL="https://researchhub.com",
     SALT_KEY="test-salt-key",
@@ -326,10 +326,31 @@ class TestEndaomentService(TestCase):
         self.assertEqual(account.access_token, "new_token")
         self.assertEqual(account.refresh_token, "new_refresh")
 
+    def test_get_valid_access_token_expired_no_refresh_token(self):
+        """
+        Test that get_valid_access_token deletes the account and returns None
+        when the access token is expired and no refresh token is available.
+        """
+        # Arrange
+        EndaomentAccount.objects.create(
+            user=self.user,
+            access_token="expired_token",
+            refresh_token=None,
+            token_expires_at=timezone.now() - timedelta(hours=1),
+        )
+
+        # Act
+        result = self.service.get_valid_access_token(self.user)
+
+        # Assert
+        self.assertIsNone(result)
+        self.assertFalse(EndaomentAccount.objects.filter(user=self.user).exists())
+        self.mock_client.refresh_access_token.assert_not_called()
+
     def test_get_valid_access_token_refresh_token_expired(self):
         """
-        Test that get_valid_access_token handles expired refresh tokens
-        by deleting the account.
+        Test that get_valid_access_token returns None and deletes the account
+        when refresh fails with invalid_grant.
         """
         # Arrange
         EndaomentAccount.objects.create(
@@ -342,13 +363,38 @@ class TestEndaomentService(TestCase):
             error="invalid_grant"
         )
 
-        # Act & Assert
-        with self.assertRaises(OAuthError):
-            self.service.get_valid_access_token(self.user)
+        # Act
+        result = self.service.get_valid_access_token(self.user)
 
+        # Assert
+        self.assertIsNone(result)
         self.mock_client.refresh_access_token.assert_called_once_with("expired_refresh")
-        # account should be deleted
         self.assertFalse(EndaomentAccount.objects.filter(user=self.user).exists())
+
+    def test_get_valid_access_token_refresh_oauth_error(self):
+        """
+        Test that get_valid_access_token returns None when refresh fails
+        with an OAuthError, but does not delete the account for non-invalid_grant
+        errors.
+        """
+        # Arrange
+        EndaomentAccount.objects.create(
+            user=self.user,
+            access_token="expired_token",
+            refresh_token="refresh_token",
+            token_expires_at=timezone.now() - timedelta(hours=1),
+        )
+        self.mock_client.refresh_access_token.side_effect = OAuthError(
+            error="server_error"
+        )
+
+        # Act
+        result = self.service.get_valid_access_token(self.user)
+
+        # Assert
+        self.assertIsNone(result)
+        # account should NOT be deleted for non-invalid_grant errors
+        self.assertTrue(EndaomentAccount.objects.filter(user=self.user).exists())
 
     def test_get_user_funds_returns_funds(self):
         """
@@ -404,3 +450,91 @@ class TestEndaomentService(TestCase):
         # Assert
         self.assertEqual(result, [])
         self.mock_client.get_user_funds.assert_called_once_with("new_token")
+
+    def test_transfer_between_funds(self):
+        """
+        Test transfer_between_funds delegates to client with access token.
+        """
+        # Arrange
+        self.service.get_valid_access_token = Mock(return_value="token1")
+        self.mock_client.create_async_entity_transfer.return_value = {"id": "transfer1"}
+
+        # Act
+        result = self.service.transfer_between_funds(
+            user=self.user,
+            origin_fund_id="fund1",
+            destination_fund_id="fund2",
+            amount_cents=1000,
+            purpose="transfer1",
+        )
+
+        # Assert
+        self.assertEqual(result, {"id": "transfer1"})
+        self.mock_client.create_async_entity_transfer.assert_called_once_with(
+            access_token="token1",
+            origin_fund_id="fund1",
+            destination_fund_id="fund2",
+            amount_in_cents=1000,
+            purpose="transfer1",
+        )
+
+    def test_transfer_between_funds_fails_without_connection(self):
+        """
+        Test transfer_between_funds raises when user has no connection.
+        """
+        # Arrange
+        self.service.get_valid_access_token = Mock(return_value=None)
+
+        # Act & Assert
+        with self.assertRaises(EndaomentAccount.DoesNotExist):
+            self.service.transfer_between_funds(
+                user=self.user,
+                origin_fund_id="fund1",
+                destination_fund_id="fund2",
+                amount_cents=1000,
+                purpose="transfer1",
+            )
+
+    def test_create_async_grant_fails_without_connection(self):
+        """
+        Test create_async_grant raises when user has no connection.
+        """
+        # Arrange
+        self.service.get_valid_access_token = Mock(return_value=None)
+
+        # Act & Assert
+        with self.assertRaises(EndaomentAccount.DoesNotExist):
+            self.service.create_grant(
+                user=self.user,
+                origin_fund_id="fund1",
+                destination_org_id="org1",
+                amount_cents=1000,
+                purpose="fundraise1",
+            )
+
+    def test_create_async_grant_success(self):
+        """
+        Test create_async_grant delegates to client with access token.
+        """
+        # Arrange
+        self.service.get_valid_access_token = Mock(return_value="token1")
+        self.mock_client.create_async_grant.return_value = {"id": "transfer1"}
+
+        # Act
+        result = self.service.create_grant(
+            user=self.user,
+            origin_fund_id="fund1",
+            destination_org_id="org1",
+            amount_cents=1000,
+            purpose="fundraise1",
+        )
+
+        # Assert
+        self.assertEqual(result, {"id": "transfer1"})
+        self.mock_client.create_async_grant.assert_called_once_with(
+            access_token="token1",
+            origin_fund_id="fund1",
+            destination_org_id="org1",
+            amount_in_cents=1000,
+            purpose="fundraise1",
+        )

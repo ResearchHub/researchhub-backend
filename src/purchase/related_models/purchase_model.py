@@ -1,13 +1,50 @@
 import hashlib
 import json
 from datetime import datetime
+from decimal import Decimal
 
 from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
+from django.db.models import DecimalField, Sum
+from django.db.models.functions import Cast, Coalesce
 
 from purchase.related_models.aggregate_purchase_model import AggregatePurchase
+from purchase.related_models.fundraise_model import Fundraise
 from utils.models import PaidStatusModelMixin
+
+DECIMAL_FIELD = DecimalField(max_digits=19, decimal_places=10)
+
+
+class PurchaseQuerySet(models.QuerySet):
+    """QuerySet for Purchase with chainable filters."""
+
+    def for_user(self, user_id: int):
+        """Filter purchases by user."""
+        return self.filter(user_id=user_id)
+
+    def exclude_user(self, user_id: int):
+        """Exclude purchases by user."""
+        return self.exclude(user_id=user_id)
+
+    def funding_contributions(self):
+        """Filter for fundraise contribution purchases."""
+        return self.filter(
+            purchase_type="FUNDRAISE_CONTRIBUTION",
+            content_type=ContentType.objects.get_for_model(Fundraise),
+        )
+
+    def for_fundraises(self, fundraise_ids: list[int]):
+        """Filter by fundraise IDs."""
+        return self.filter(object_id__in=fundraise_ids)
+
+    def sum(self) -> Decimal:
+        """Return sum of RSC amounts as Decimal."""
+        return self.annotate(
+            amt=Cast("amount", DECIMAL_FIELD)
+        ).aggregate(
+            total=Coalesce(Sum("amt"), Decimal("0"))
+        )["total"]
 
 
 class Purchase(PaidStatusModelMixin):
@@ -28,6 +65,8 @@ class Purchase(PaidStatusModelMixin):
         (DOI, DOI),
         (FUNDRAISE_CONTRIBUTION, FUNDRAISE_CONTRIBUTION),
     ]
+
+    objects = PurchaseQuerySet.as_manager()
 
     user = models.ForeignKey(
         "user.User", on_delete=models.CASCADE, related_name="purchases"

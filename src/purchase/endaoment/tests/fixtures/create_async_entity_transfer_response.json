@@ -1,0 +1,13 @@
+{
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "type": "entity",
+    "status": "approved",
+    "transactionHash": "0x1234567890abcdef",
+    "netAmount": "1000000",
+    "fee": "10000",
+    "createdAtUtc": "2024-03-20T10:30:00Z",
+    "requestedAmount": "1000000",
+    "updatedAtUtc": "2024-03-20T10:30:00Z",
+    "asyncStatus": "pending",
+    "chainId": 1
+}

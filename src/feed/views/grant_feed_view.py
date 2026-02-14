@@ -5,9 +5,11 @@ and research grant postings.
 """
 
 from django.core.cache import cache
+from django.db.models import Q
+from django.utils import timezone
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
-from django_filters.rest_framework import DjangoFilterBackend
 
 from feed.filters import FundOrderingFilter
 from feed.models import FeedEntry
@@ -43,8 +45,9 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         ordering = request.query_params.get("ordering", "")
         status = request.query_params.get("status", "")
         organization = request.query_params.get("organization", "")
+        created_by = request.query_params.get("created_by", "")
 
-        grant_params = f"-ordering:{ordering}-status:{status}-organization:{organization}"
+        grant_params = f"-ordering:{ordering}-status:{status}-organization:{organization}-created_by:{created_by}"
         return base_key + grant_params
 
     def list(self, request, *args, **kwargs):
@@ -54,7 +57,6 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         use_cache = page_num < 4
 
         if use_cache:
-            # try to get cached response
             cached_response = cache.get(cache_key)
             if cached_response:
                 if request.user.is_authenticated:
@@ -96,6 +98,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
     def get_queryset(self):
         status = self.request.query_params.get("status")
         organization = self.request.query_params.get("organization")
+        created_by = self.request.query_params.get("created_by")
 
         queryset = (
             ResearchhubPost.objects.all()
@@ -114,10 +117,31 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
 
         if status:
             status_upper = status.upper()
-            if status_upper in [Grant.OPEN, Grant.CLOSED, Grant.COMPLETED]:
-                queryset = queryset.filter(unified_document__grants__status=status_upper)
+            now = timezone.now()
+
+            if status_upper == Grant.OPEN:
+                # Matches Grant.is_active(): status=OPEN and not expired
+                queryset = queryset.filter(
+                    Q(unified_document__grants__status=Grant.OPEN),
+                    Q(unified_document__grants__end_date__isnull=True)
+                    | Q(unified_document__grants__end_date__gt=now),
+                )
+            elif status_upper in (Grant.CLOSED, Grant.COMPLETED):
+                # Inactive: explicitly closed/completed, or open but expired
+                queryset = queryset.filter(
+                    Q(unified_document__grants__status__in=[Grant.CLOSED, Grant.COMPLETED])
+                    | Q(
+                        unified_document__grants__status=Grant.OPEN,
+                        unified_document__grants__end_date__lt=now,
+                    )
+                )
 
         if organization:
-            queryset = queryset.filter(unified_document__grants__organization__icontains=organization)
+            queryset = queryset.filter(
+                unified_document__grants__organization__icontains=organization
+            )
+
+        if created_by:
+            queryset = queryset.filter(created_by_id=created_by)
 
         return queryset

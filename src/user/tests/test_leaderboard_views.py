@@ -1,4 +1,5 @@
 from datetime import timedelta
+from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
@@ -17,6 +18,11 @@ from researchhub_comment.models import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
+from user.related_models.funding_activity_model import (
+    FundingActivity,
+    FundingActivityRecipient,
+)
+from user.related_models.leaderboard_model import Leaderboard
 from user.tests.helpers import create_user
 
 
@@ -231,79 +237,138 @@ class LeaderboardApiTests(APITestCase):
             proof_item_object_id=self.regular_review_purchase.id,
         )
 
+        self.now = timezone.now()
+        ud = self.paper.unified_document
+        ct_user = ContentType.objects.get_for_model(type(self.reviewer1))
+        sid = 2000
+
+        def make_activity(funder, source_type, total_amount, **kwargs):
+            nonlocal sid
+            sid += 1
+            fa = FundingActivity.objects.create(
+                funder=funder,
+                source_type=source_type,
+                total_amount=Decimal(str(total_amount)),
+                unified_document=ud,
+                activity_date=self.now,
+                source_content_type=ct_user,
+                source_object_id=sid,
+                **kwargs,
+            )
+            return fa
+
+        # Reviewer1 earnings: bounty 100 + 75, tip 50 + 25
+        for amount in (100, 75):
+            fa = make_activity(self.funder1, FundingActivity.BOUNTY_PAYOUT, amount)
+            FundingActivityRecipient.objects.create(
+                activity=fa, recipient_user=self.reviewer1, amount=Decimal(str(amount))
+            )
+        for amount in (50, 25):
+            fa = make_activity(self.funder1, FundingActivity.TIP_REVIEW, amount)
+            FundingActivityRecipient.objects.create(
+                activity=fa, recipient_user=self.reviewer1, amount=Decimal(str(amount))
+            )
+
+        # Funder1: purchase 200 + 100 + 25, fees 50 * 3 (bounty 100+75 already above)
+        for amount in (200, 100, 25):
+            make_activity(
+                self.funder1,
+                (
+                    FundingActivity.FUNDRAISE_PAYOUT
+                    if amount == 200
+                    else FundingActivity.TIP_DOCUMENT
+                ),
+                amount,
+            )
+        for _ in range(3):
+            make_activity(self.funder1, FundingActivity.FEE, 50)
+
+        # Pre-computed leaderboard entries
+        Leaderboard.objects.create(
+            user=self.reviewer1,
+            leaderboard_type=Leaderboard.EARNER,
+            period=Leaderboard.ALL_TIME,
+            rank=1,
+            total_amount=Decimal("250"),
+        )
+        Leaderboard.objects.create(
+            user=self.funder1,
+            leaderboard_type=Leaderboard.FUNDER,
+            period=Leaderboard.ALL_TIME,
+            rank=1,
+            total_amount=Decimal("650"),
+        )
+        Leaderboard.objects.create(
+            user=self.reviewer1,
+            leaderboard_type=Leaderboard.EARNER,
+            period=Leaderboard.SEVEN_DAYS,
+            rank=1,
+            total_amount=Decimal("250"),
+        )
+        Leaderboard.objects.create(
+            user=self.funder1,
+            leaderboard_type=Leaderboard.FUNDER,
+            period=Leaderboard.THIRTY_DAYS,
+            rank=1,
+            total_amount=Decimal("650"),
+        )
+
     def test_get_reviewers_leaderboard(self):
-        """Test that reviewers endpoint returns correct data and ordering"""
+        """Test that reviewers endpoint returns correct data (from FundingActivity)."""
         url = "/api/leaderboard/reviewers/"
 
-        # Set date range to include our test data
         start_date = (timezone.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-        response = self.client.get(f"{url}?start_date={start_date}")
+        end_date = (timezone.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+        response = self.client.get(
+            f"{url}?start_date={start_date}&end_date={end_date}&page_size=500"
+        )
 
         self.assertEqual(response.status_code, 200)
 
         results = response.data["results"]
         self.assertTrue(len(results) > 0)
 
-        # Check first reviewer (should be reviewer1 with highest earnings)
-        top_reviewer = results[0]
+        reviewer1_entry = next(
+            (r for r in results if r["id"] == self.reviewer1.id), None
+        )
+        self.assertIsNotNone(reviewer1_entry)
+        self.assertEqual(float(reviewer1_entry["earned_rsc"]), 250.0)
+        self.assertIn("is_verified", reviewer1_entry)
+        self.assertIn("rank", reviewer1_entry)
+        self.assertEqual(reviewer1_entry["rank"], 1)
 
-        self.assertEqual(top_reviewer["id"], self.reviewer1.id)
-        self.assertEqual(
-            float(top_reviewer["earned_rsc"]), 250.0
-        )  # 100 + 75 from bounties + 50 + 25 from tips
-        self.assertEqual(float(top_reviewer["bounty_earnings"]), 175.0)  # 100 + 75
-        self.assertEqual(float(top_reviewer["tip_earnings"]), 75.0)  # 50 + 25
-        self.assertIn("is_verified", top_reviewer)
-
-        # Verify ordering
-        if len(results) > 1:
-            self.assertGreater(
-                float(results[0]["earned_rsc"]), float(results[1]["earned_rsc"])
+        for i in range(len(results) - 1):
+            self.assertGreaterEqual(
+                float(results[i]["earned_rsc"]),
+                float(results[i + 1]["earned_rsc"]),
             )
+            self.assertIn("rank", results[i])
+            self.assertIn("rank", results[i + 1])
+            self.assertEqual(results[i]["rank"], i + 1)
+            self.assertEqual(results[i + 1]["rank"], i + 2)
 
     def test_get_funders_leaderboard(self):
-        """
-        Test the funders leaderboard endpoint.
-        Tests all three types of funding:
-        1. Purchase funding (FUNDRAISE_CONTRIBUTION and BOOST)
-        2. Bounty funding (created bounties)
-        3. Distribution funding (DAO fees, RH fees)
-        """
-
+        """Test the funders leaderboard endpoint (total from FundingActivity)."""
         url = "/api/leaderboard/funders/"
 
-        # Set date range to include yesterday
         today = timezone.now().date()
         yesterday_date = (today - timedelta(days=2)).strftime("%Y-%m-%d")
         tomorrow_date = (today + timedelta(days=1)).strftime("%Y-%m-%d")
-
         response = self.client.get(
-            f"{url}?start_date={yesterday_date}&end_date={tomorrow_date}"
+            f"{url}?start_date={yesterday_date}&end_date={tomorrow_date}&page_size=500"
         )
         self.assertEqual(response.status_code, 200)
         results = response.data["results"]
 
-        top_funder = results[0]
-
-        self.assertEqual(top_funder["id"], self.funder1.id)
-        self.assertEqual(float(top_funder["purchase_funding"]), 325.0)  # 200 + 100 + 25
-        self.assertEqual(float(top_funder["bounty_funding"]), 175.0)
-        self.assertEqual(float(top_funder["distribution_funding"]), 150.0)  # 3 * 50
-        self.assertEqual(float(top_funder["total_funding"]), 650.0)
-        self.assertIn("is_verified", top_funder)
+        funder1_entry = next((r for r in results if r["id"] == self.funder1.id), None)
+        self.assertIsNotNone(funder1_entry)
+        self.assertEqual(float(funder1_entry["total_funding"]), 725.0)
+        self.assertIn("is_verified", funder1_entry)
+        self.assertIn("rank", funder1_entry)
+        self.assertEqual(funder1_entry["rank"], 1)
 
     def test_get_leaderboard_overview(self):
-        """Test the leaderboard overview endpoint."""
-
-        Distribution.objects.create(
-            recipient=self.reviewer1,
-            giver=self.funder2,
-            amount=500,
-            distribution_type="PURCHASE",
-            proof_item_content_type=self.purchase_content_type,
-            proof_item_object_id=self.purchase.id,
-        )
-
+        """Test the leaderboard overview endpoint (uses Leaderboard table only)."""
         url = "/api/leaderboard/overview/"
         response = self.client.get(url)
 
@@ -311,39 +376,237 @@ class LeaderboardApiTests(APITestCase):
         self.assertIn("reviewers", response.data)
         self.assertIn("funders", response.data)
 
-        # Get top reviewer and funder
         top_reviewer = response.data["reviewers"][0]
         top_funder = response.data["funders"][0]
 
-        # Verify top reviewer data
         self.assertEqual(top_reviewer["id"], self.reviewer1.id)
-        self.assertEqual(
-            float(top_reviewer["earned_rsc"]), 750.0
-        )  # 175 from bounties + 75 from regular tips + 500 from additional tip
-        self.assertEqual(float(top_reviewer["bounty_earnings"]), 175.0)  # 100 + 75
-        self.assertEqual(float(top_reviewer["tip_earnings"]), 575.0)  # 50 + 25 + 500
+        self.assertEqual(float(top_reviewer["earned_rsc"]), 250.0)
         self.assertIn("is_verified", top_reviewer)
+        self.assertIn("rank", top_reviewer)
+        self.assertEqual(top_reviewer["rank"], 1)
 
-        # Verify top funder data
         self.assertEqual(top_funder["id"], self.funder1.id)
         self.assertEqual(float(top_funder["total_funding"]), 650.0)
-        self.assertEqual(float(top_funder["purchase_funding"]), 325.0)
-        self.assertEqual(float(top_funder["bounty_funding"]), 175.0)
-        self.assertEqual(float(top_funder["distribution_funding"]), 150.0)
         self.assertIn("is_verified", top_funder)
+        self.assertIn("rank", top_funder)
+        self.assertEqual(top_funder["rank"], 1)
 
     def test_date_range_exceeds_max_days_reviewers(self):
-        """Test that date range exceeds max days returns a 400 error"""
+        """Test that date range exceeding 60 days returns 400."""
         url = "/api/leaderboard/reviewers/"
-        response = self.client.get(f"{url}?start_date=2025-03-22&end_date=2025-04-22")
+        response = self.client.get(f"{url}?start_date=2025-01-01&end_date=2025-03-15")
 
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.data["error"], "Date range exceeds 30 days")
+        self.assertEqual(response.data["error"], "Date range exceeds 60 days")
 
     def test_date_range_exceeds_max_days_funders(self):
-        """Test that date range exceeds max days returns a 400 error"""
+        """Test that date range exceeding 60 days returns 400."""
         url = "/api/leaderboard/funders/"
-        response = self.client.get(f"{url}?start_date=2025-03-22&end_date=2025-04-22")
+        response = self.client.get(f"{url}?start_date=2025-01-01&end_date=2025-03-15")
 
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.data["error"], "Date range exceeds 30 days")
+        self.assertEqual(response.data["error"], "Date range exceeds 60 days")
+
+    def test_date_range_funders_excludes_bank(self):
+        """Excluded users (e.g. bank) do not appear in funders leaderboard by date range."""
+        ct_user = ContentType.objects.get_for_model(type(self.reviewer1))
+        FundingActivity.objects.create(
+            funder=self.bank,
+            source_type=FundingActivity.FEE,
+            total_amount=Decimal("999"),
+            unified_document=self.paper.unified_document,
+            activity_date=timezone.now(),
+            source_content_type=ct_user,
+            source_object_id=9999,
+        )
+        start_date = (timezone.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        end_date = (timezone.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+        url = f"/api/leaderboard/funders/?start_date={start_date}&end_date={end_date}"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        user_ids = [r["id"] for r in response.data["results"]]
+        self.assertNotIn(self.bank.id, user_ids)
+        self.assertIn(self.funder1.id, user_ids)
+
+    def test_date_range_reviewers_excludes_bank(self):
+        """Excluded users (e.g. bank) do not appear in reviewers leaderboard by date range."""
+        ct_user = ContentType.objects.get_for_model(type(self.reviewer1))
+        fa = FundingActivity.objects.create(
+            funder=self.funder1,
+            source_type=FundingActivity.TIP_REVIEW,
+            total_amount=Decimal("500"),
+            unified_document=self.paper.unified_document,
+            activity_date=timezone.now(),
+            source_content_type=ct_user,
+            source_object_id=8888,
+        )
+        FundingActivityRecipient.objects.create(
+            activity=fa, recipient_user=self.bank, amount=Decimal("500")
+        )
+        start_date = (timezone.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        end_date = (timezone.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+        url = f"/api/leaderboard/reviewers/?start_date={start_date}&end_date={end_date}"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        user_ids = [r["id"] for r in response.data["results"]]
+        self.assertNotIn(self.bank.id, user_ids)
+        self.assertIn(self.reviewer1.id, user_ids)
+
+    def test_reviewers_leaderboard_includes_rank(self):
+        """Test that reviewers endpoint includes rank field."""
+        url = "/api/leaderboard/reviewers/"
+        start_date = (timezone.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        end_date = (timezone.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+        response = self.client.get(
+            f"{url}?start_date={start_date}&end_date={end_date}&page_size=500"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        results = response.data["results"]
+        self.assertTrue(len(results) > 0)
+
+        for i, entry in enumerate(results):
+            self.assertIn("rank", entry)
+            self.assertEqual(entry["rank"], i + 1)
+
+    def test_funders_leaderboard_includes_rank(self):
+        """Test that funders endpoint includes rank field."""
+        url = "/api/leaderboard/funders/"
+        start_date = (timezone.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        end_date = (timezone.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+        response = self.client.get(
+            f"{url}?start_date={start_date}&end_date={end_date}&page_size=500"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        results = response.data["results"]
+        self.assertTrue(len(results) > 0)
+
+        for i, entry in enumerate(results):
+            self.assertIn("rank", entry)
+            self.assertEqual(entry["rank"], i + 1)
+
+    def test_leaderboard_me_requires_auth(self):
+        """Test that GET /leaderboard/me/ returns 401 when not authenticated."""
+        url = "/api/leaderboard/me/"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 401)
+
+    def test_leaderboard_me_reviewer_date_range(self):
+        """Test /leaderboard/me/ returns current user reviewer data for date range."""
+        url = "/api/leaderboard/me/"
+        start_date = (self.now - timedelta(days=2)).strftime("%Y-%m-%d")
+        end_date = (self.now + timedelta(days=2)).strftime("%Y-%m-%d")
+
+        self.client.force_authenticate(user=self.reviewer1)
+        response = self.client.get(f"{url}?start_date={start_date}&end_date={end_date}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("reviewer", response.data)
+        self.assertIn("funder", response.data)
+        reviewer = response.data["reviewer"]
+        self.assertIsNotNone(reviewer)
+        self.assertEqual(reviewer["id"], self.reviewer1.id)
+        self.assertIn("rank", reviewer)
+        self.assertIn("earned_rsc", reviewer)
+        self.assertEqual(float(reviewer["earned_rsc"]), 250.0)
+        self.assertEqual(reviewer["rank"], 1)
+
+    def test_leaderboard_me_funder_date_range(self):
+        """Test /leaderboard/me/ returns current user funder data for date range."""
+        url = "/api/leaderboard/me/"
+        start_date = (self.now - timedelta(days=2)).strftime("%Y-%m-%d")
+        end_date = (self.now + timedelta(days=2)).strftime("%Y-%m-%d")
+
+        self.client.force_authenticate(user=self.funder1)
+        response = self.client.get(f"{url}?start_date={start_date}&end_date={end_date}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("reviewer", response.data)
+        self.assertIn("funder", response.data)
+        funder = response.data["funder"]
+        self.assertIsNotNone(funder)
+        self.assertEqual(funder["id"], self.funder1.id)
+        self.assertIn("rank", funder)
+        self.assertIn("total_funding", funder)
+        self.assertEqual(float(funder["total_funding"]), 725.0)
+        self.assertEqual(funder["rank"], 1)
+
+    def test_reviewers_leaderboard_precomputed_period_includes_rank(self):
+        """Test that reviewers endpoint with pre-computed period includes rank."""
+        url = "/api/leaderboard/reviewers/"
+        response = self.client.get(f"{url}?period=7_days")
+
+        self.assertEqual(response.status_code, 200)
+        results = response.data["results"]
+        self.assertTrue(len(results) > 0)
+
+        for entry in results:
+            self.assertIn("rank", entry)
+
+        reviewer1_entry = next(
+            (r for r in results if r["id"] == self.reviewer1.id), None
+        )
+        if reviewer1_entry:
+            self.assertEqual(reviewer1_entry["rank"], 1)
+
+    def test_funders_leaderboard_precomputed_period_includes_rank(self):
+        """Test that funders endpoint with pre-computed period includes rank."""
+        url = "/api/leaderboard/funders/"
+        response = self.client.get(f"{url}?period=30_days")
+
+        self.assertEqual(response.status_code, 200)
+        results = response.data["results"]
+        self.assertTrue(len(results) > 0)
+
+        for entry in results:
+            self.assertIn("rank", entry)
+
+        funder1_entry = next((r for r in results if r["id"] == self.funder1.id), None)
+        if funder1_entry:
+            self.assertEqual(funder1_entry["rank"], 1)
+
+    def test_leaderboard_me_reviewer_precomputed_period(self):
+        """Test /leaderboard/me/ with period=7_days returns reviewer data from Leaderboard."""
+        url = "/api/leaderboard/me/"
+        self.client.force_authenticate(user=self.reviewer1)
+        response = self.client.get(f"{url}?period=7_days")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("reviewer", response.data)
+        self.assertIn("funder", response.data)
+        reviewer = response.data["reviewer"]
+        self.assertIsNotNone(reviewer)
+        self.assertEqual(reviewer["id"], self.reviewer1.id)
+        self.assertEqual(reviewer["rank"], 1)
+        self.assertEqual(float(reviewer["earned_rsc"]), 250.0)
+
+    def test_leaderboard_me_funder_precomputed_period(self):
+        """Test /leaderboard/me/ with period=30_days returns funder data from Leaderboard."""
+        url = "/api/leaderboard/me/"
+        self.client.force_authenticate(user=self.funder1)
+        response = self.client.get(f"{url}?period=30_days")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("reviewer", response.data)
+        self.assertIn("funder", response.data)
+        funder = response.data["funder"]
+        self.assertIsNotNone(funder)
+        self.assertEqual(funder["id"], self.funder1.id)
+        self.assertEqual(funder["rank"], 1)
+        self.assertEqual(float(funder["total_funding"]), 650.0)
+
+    def test_leaderboard_me_default_all_time(self):
+        """Test /leaderboard/me/ with no params defaults to all_time (overview-style)."""
+        url = "/api/leaderboard/me/"
+        self.client.force_authenticate(user=self.reviewer1)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("reviewer", response.data)
+        self.assertIn("funder", response.data)
+        reviewer = response.data["reviewer"]
+        self.assertIsNotNone(reviewer)
+        self.assertEqual(reviewer["id"], self.reviewer1.id)
+        self.assertIn("rank", reviewer)
+        self.assertIn("earned_rsc", reviewer)
