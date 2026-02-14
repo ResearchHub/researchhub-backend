@@ -94,8 +94,8 @@ class TestFundingOverviewService(TestCase):
         RhCommentModel.objects.filter(id=old.id).update(created_date=timezone.now() - timedelta(days=60))  # Old
 
         # Act
-        result = self.service._update_count([post.id], 30)
+        result = self.service._recent_update_count([post.id], 30)
 
         # Assert
         self.assertEqual(result, 1)
-        self.assertEqual(self.service._update_count([], 30), 0)
+        self.assertEqual(self.service._recent_update_count([], 30), 0)

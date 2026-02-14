@@ -8,7 +8,11 @@ This is done for three reasons:
 3. Older feed entries are not in the feed table.
 """
 
+from datetime import timedelta
+
+from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
+from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -18,6 +22,9 @@ from feed.models import FeedEntry
 from feed.serializers import FundingFeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
 from purchase.related_models.fundraise_model import Fundraise
+from purchase.services.funding_overview_service import RECENT_UPDATES_DAYS
+from researchhub_comment.constants.rh_comment_thread_types import AUTHOR_UPDATE
+from researchhub_comment.models import RhCommentModel
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 
@@ -44,8 +51,15 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         grant_id = request.query_params.get("grant_id", None)
         created_by = request.query_params.get("created_by", None)
         funded_by = request.query_params.get("funded_by", None)
+        has_recent_updates = request.query_params.get("has_recent_updates", None)
         cache_key = self.get_cache_key(request, "funding")
-        use_cache = page_num < 4 and grant_id is None and created_by is None and funded_by is None
+        use_cache = (
+            page_num < 4
+            and grant_id is None
+            and created_by is None
+            and funded_by is None
+            and has_recent_updates is None
+        )
 
         if use_cache:
             cached_response = cache.get(cache_key)
@@ -91,6 +105,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         grant_id = self.request.query_params.get("grant_id")
         created_by = self.request.query_params.get("created_by")
         funded_by = self.request.query_params.get("funded_by")
+        has_recent_updates = self.request.query_params.get("has_recent_updates")
 
         queryset = (
             ResearchhubPost.objects.select_related(
@@ -126,5 +141,20 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
                 queryset = queryset.filter(
                     unified_document__fundraises__status=Fundraise.COMPLETED
                 )
+
+        if has_recent_updates:
+            post_ct = ContentType.objects.get_for_model(ResearchhubPost)
+            cutoff = timezone.now() - timedelta(days=RECENT_UPDATES_DAYS)
+            updated_post_ids = (
+                RhCommentModel.objects.filter(
+                    comment_type=AUTHOR_UPDATE,
+                    thread__content_type=post_ct,
+                    thread__object_id__in=queryset.values_list("id", flat=True),
+                    created_date__gte=cutoff,
+                )
+                .values_list("thread__object_id", flat=True)
+                .distinct()
+            )
+            queryset = queryset.filter(id__in=updated_post_ids)
 
         return queryset

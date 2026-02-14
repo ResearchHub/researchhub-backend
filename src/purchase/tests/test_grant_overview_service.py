@@ -66,62 +66,63 @@ class TestGrantOverviewService(TestCase):
                 destination_org_id="test-org",
             )
 
-    def test_returns_empty_response_for_nonexistent_grant(self):
-        # Act
-        result = self.service.get_grant_overview(self.grant_creator, 99999)
-
-        # Assert
-        self.assertEqual(result["budget_used_usd"], 0.0)
-        self.assertEqual(result["budget_total_usd"], 0.0)
-        self.assertEqual(result["matched_funding_usd"], 0.0)
-        self.assertEqual(result["updates_received"], 0)
-        self.assertEqual(result["proposals_funded"], 0)
-        self.assertIsNone(result["deadline"])
+    def _create_author_update(self, fundraise):
+        """Create an author update comment on a proposal's post."""
+        post = fundraise.unified_document.posts.first()
+        thread = RhCommentThreadModel.objects.create(
+            thread_type=AUTHOR_UPDATE, content_object=post, created_by=self.researcher
+        )
+        RhCommentModel.objects.create(
+            thread=thread, created_by=self.researcher, comment_content_json={}, comment_type=AUTHOR_UPDATE
+        )
 
     def test_returns_expected_structure(self):
-        # Arrange
         grant = self._create_grant(amount=750000)
 
-        # Act
-        result = self.service.get_grant_overview(self.grant_creator, grant.id)
+        result = self.service.get_grant_overview(self.grant_creator, grant)
 
-        # Assert
-        self.assertIn("budget_used_usd", result)
-        self.assertIn("budget_total_usd", result)
-        self.assertIn("matched_funding_usd", result)
-        self.assertIn("updates_received", result)
-        self.assertIn("proposals_funded", result)
-        self.assertIn("deadline", result)
+        expected_keys = {
+            "budget_used_usd", "budget_total_usd", "matched_funding_usd",
+            "recent_updates", "proposals_with_updates", "total_proposals",
+            "proposals_funded", "deadline",
+        }
+        self.assertEqual(set(result.keys()), expected_keys)
+
+    def test_empty_grant_returns_zeros(self):
+        grant = self._create_grant()
+
+        result = self.service.get_grant_overview(self.grant_creator, grant)
+
+        self.assertEqual(result["budget_used_usd"], 0.0)
+        self.assertEqual(result["budget_total_usd"], 10000.0)
+        self.assertEqual(result["matched_funding_usd"], 0.0)
+        self.assertEqual(result["recent_updates"], 0)
+        self.assertEqual(result["proposals_with_updates"], 0)
+        self.assertEqual(result["total_proposals"], 0)
+        self.assertEqual(result["proposals_funded"], 0)
 
     def test_budget_used_calculates_user_contributions(self):
-        # Arrange
         grant = self._create_grant(amount=10000)
         fundraise = self._create_proposal_for_grant(grant)
         self._contribute(self.grant_creator, fundraise, rsc=200, usd_cents=5000)  # $100 + $50 = $150
 
-        # Act
-        result = self.service.get_grant_overview(self.grant_creator, grant.id)
+        result = self.service.get_grant_overview(self.grant_creator, grant)
 
-        # Assert
         self.assertEqual(result["budget_used_usd"], 150.0)
         self.assertEqual(result["budget_total_usd"], 10000.0)
 
     def test_matched_funding_excludes_user_contributions(self):
-        # Arrange
         grant = self._create_grant()
         fundraise = self._create_proposal_for_grant(grant)
         other_user = create_random_authenticated_user("other")
         self._contribute(self.grant_creator, fundraise, rsc=100)  # $50 - not matched
         self._contribute(other_user, fundraise, rsc=200)  # $100 - matched
 
-        # Act
-        result = self.service.get_grant_overview(self.grant_creator, grant.id)
+        result = self.service.get_grant_overview(self.grant_creator, grant)
 
-        # Assert
         self.assertEqual(result["matched_funding_usd"], 100.0)
 
     def test_proposals_funded_counts_correctly(self):
-        # Arrange
         grant = self._create_grant()
         r1 = create_random_authenticated_user("r1")
         r2 = create_random_authenticated_user("r2")
@@ -132,14 +133,24 @@ class TestGrantOverviewService(TestCase):
         self._contribute(self.grant_creator, f1, rsc=100)
         self._contribute(self.grant_creator, f2, rsc=100)
 
-        # Act
-        result = self.service.get_grant_overview(self.grant_creator, grant.id)
+        result = self.service.get_grant_overview(self.grant_creator, grant)
 
-        # Assert
         self.assertEqual(result["proposals_funded"], 2)
 
-    def test_updates_received_counts_recent_updates(self):
-        # Arrange
+    def test_total_proposals_counts_all_applications(self):
+        grant = self._create_grant()
+        r1 = create_random_authenticated_user("r1")
+        r2 = create_random_authenticated_user("r2")
+        r3 = create_random_authenticated_user("r3")
+        self._create_proposal_for_grant(grant, r1)
+        self._create_proposal_for_grant(grant, r2)
+        self._create_proposal_for_grant(grant, r3)
+
+        result = self.service.get_grant_overview(self.grant_creator, grant)
+
+        self.assertEqual(result["total_proposals"], 3)
+
+    def test_recent_updates_counts_total_updates(self):
         grant = self._create_grant()
         fundraise = self._create_proposal_for_grant(grant)
         self._contribute(self.grant_creator, fundraise, rsc=100)
@@ -154,8 +165,33 @@ class TestGrantOverviewService(TestCase):
             thread=thread, created_by=self.researcher, comment_content_json={}, comment_type=AUTHOR_UPDATE
         )
 
-        # Act
-        result = self.service.get_grant_overview(self.grant_creator, grant.id)
+        result = self.service.get_grant_overview(self.grant_creator, grant)
 
-        # Assert
-        self.assertEqual(result["updates_received"], 2)
+        self.assertEqual(result["recent_updates"], 2)
+
+    def test_proposals_with_updates_counts_unique_posts(self):
+        grant = self._create_grant()
+        r1 = create_random_authenticated_user("r1")
+        r2 = create_random_authenticated_user("r2")
+        r3 = create_random_authenticated_user("r3")
+        f1 = self._create_proposal_for_grant(grant, r1)
+        f2 = self._create_proposal_for_grant(grant, r2)
+        self._create_proposal_for_grant(grant, r3)  # No updates
+
+        # f1 gets 2 updates, f2 gets 1 update, f3 gets none
+        self._create_author_update(f1)
+        self._create_author_update(f1)
+        self._create_author_update(f2)
+
+        result = self.service.get_grant_overview(self.grant_creator, grant)
+
+        self.assertEqual(result["recent_updates"], 3)
+        self.assertEqual(result["proposals_with_updates"], 2)
+
+    def test_deadline_returns_iso_format(self):
+        grant = self._create_grant()
+
+        result = self.service.get_grant_overview(self.grant_creator, grant)
+
+        # Grant created without end_date
+        self.assertIsNone(result["deadline"])
