@@ -1,30 +1,31 @@
 from datetime import datetime, timedelta
 
-from django.contrib.contenttypes.models import ContentType
-from django.db.models import DecimalField, F, OuterRef, Subquery, Sum, Value
-from django.db.models.functions import Cast, Coalesce
+from django.core.cache import cache
+from django.db.models import Sum
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from purchase.models import Purchase
-from reputation.models import Bounty, Distribution
-from reputation.related_models.escrow import Escrow, EscrowRecipients
-from researchhub_comment.constants.rh_comment_thread_types import (
-    COMMUNITY_REVIEW,
-    PEER_REVIEW,
-)
-from researchhub_comment.models import RhCommentModel
-from user.management.commands.setup_bank_user import BANK_EMAIL
 from user.models import User
-from user.related_models.user_model import FOUNDATION_EMAIL
+from user.related_models.funding_activity_model import (
+    FundingActivity,
+    FundingActivityRecipient,
+)
+from user.related_models.leaderboard_model import Leaderboard
 from user.serializers import DynamicUserSerializer
+from user.services.funding_activity_service import get_leaderboard_excluded_user_ids
 from utils.http import RequestMethods
+
+# Maximum allowed date range (in days) when querying leaderboard by start_date/end_date.
+MAX_DATE_RANGE_DAYS = 60
+
+# Cache timeout for /leaderboard/me/ (1 hour).
+LEADERBOARD_ME_CACHE_TIMEOUT = 60 * 60
 
 
 class LeaderboardPagination(PageNumberPagination):
@@ -38,23 +39,9 @@ class LeaderboardPagination(PageNumberPagination):
 
 
 class LeaderboardViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.filter(
-        is_active=True,
-        is_suspended=False,
-        probable_spammer=False,
-    ).exclude(
-        email__in=[
-            BANK_EMAIL,  # Exclude bank user from leaderboards
-            FOUNDATION_EMAIL,  # Exclude foundation account from leaderboards
-        ]
-    )
+    queryset = User.objects.all()
     permission_classes = [AllowAny]
     pagination_class = LeaderboardPagination
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.purchase_content_type = ContentType.objects.get_for_model(Purchase)
-        self.comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
 
     @property
     def user_serializer_config(self):
@@ -96,199 +83,28 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
             user, context=config["context"], _include_fields=config["fields"]
         ).data
 
-    def get_queryset(self):
-        return self.queryset.select_related("author_profile")
-
-    def _get_reviewer_bounty_conditions(self, start_date=None, end_date=None):
-        conditions = {
-            "user_id": OuterRef("pk"),
-            "escrow__status": Escrow.PAID,
-            "escrow__hold_type": Escrow.BOUNTY,
-            "escrow__bounties__bounty_type": Bounty.Type.REVIEW,
-            "escrow__bounties__solutions__rh_comment__comment_type__in": [
-                PEER_REVIEW,
-                COMMUNITY_REVIEW,
-            ],
-        }
-
-        if start_date:
-            conditions["created_date__gte"] = start_date
-        if end_date:
-            conditions["created_date__lte"] = end_date
-
-        return conditions
-
-    def _get_reviewer_tips_conditions(self, start_date=None, end_date=None):
-        conditions = {
-            "recipient_id": OuterRef("pk"),
-            "distribution_type": "PURCHASE",
-            "proof_item_content_type": self.purchase_content_type,
-            "proof_item_object_id__in": Purchase.objects.filter(
-                content_type_id=self.comment_content_type.id,
-                paid_status="PAID",
-                rh_comments__comment_type__in=[PEER_REVIEW, COMMUNITY_REVIEW],
-            ).values("id"),
-        }
-
-        if start_date:
-            conditions["created_date__gte"] = start_date
-        if end_date:
-            conditions["created_date__lte"] = end_date
-
-        return conditions
-
-    def _get_funder_purchase_conditions(self, start_date=None, end_date=None):
-        conditions = {
-            "user_id": OuterRef("pk"),
-            "paid_status": Purchase.PAID,
-            "purchase_type__in": [Purchase.FUNDRAISE_CONTRIBUTION, Purchase.BOOST],
-        }
-
-        if start_date:
-            conditions["created_date__gte"] = start_date
-        if end_date:
-            conditions["created_date__lte"] = end_date
-
-        return conditions
-
-    def _get_funder_bounty_conditions(self, start_date=None, end_date=None):
-        conditions = {
-            "created_by_id": OuterRef("pk"),
-        }
-
-        if start_date:
-            conditions["created_date__gte"] = start_date
-        if end_date:
-            conditions["created_date__lte"] = end_date
-
-        return conditions
-
-    def _get_funder_distribution_conditions(self, start_date=None, end_date=None):
-        conditions = {
-            "giver_id": OuterRef("pk"),
-            "distribution_type__in": [
-                "BOUNTY_DAO_FEE",
-                "BOUNTY_RH_FEE",
-                "SUPPORT_RH_FEE",
-            ],
-        }
-
-        if start_date:
-            conditions["created_date__gte"] = start_date
-        if end_date:
-            conditions["created_date__lte"] = end_date
-
-        return conditions
-
-    def _create_reviewer_earnings_annotation(self, start_date=None, end_date=None):
+    def _map_period_to_leaderboard_period(self, period_str):
         """
-        Creates annotation dictionary for reviewer earnings calculations
-
-        Args:
-            start_date: Optional start date for filtering
-            end_date: Optional end date for filtering
-        Returns:
-            Dictionary of annotations for bounty_earnings, tip_earnings, and earned_rsc
+        Map period query param to Leaderboard period constant.
+        Returns None if period doesn't match a pre-computed period.
         """
-        bounty_conditions = self._get_reviewer_bounty_conditions(start_date, end_date)
-        tips_conditions = self._get_reviewer_tips_conditions(start_date, end_date)
-
-        return {
-            "bounty_earnings": Coalesce(
-                Subquery(
-                    EscrowRecipients.objects.filter(**bounty_conditions)
-                    .values("user_id")
-                    .annotate(total=Sum("amount"))
-                    .values("total"),
-                    output_field=DecimalField(max_digits=19, decimal_places=8),
-                ),
-                Value(0, output_field=DecimalField(max_digits=19, decimal_places=8)),
-            ),
-            "tip_earnings": Coalesce(
-                Subquery(
-                    Distribution.objects.filter(**tips_conditions)
-                    .values("recipient_id")
-                    .annotate(total=Sum("amount"))
-                    .values("total"),
-                    output_field=DecimalField(max_digits=19, decimal_places=8),
-                ),
-                Value(0, output_field=DecimalField(max_digits=19, decimal_places=8)),
-            ),
-            "earned_rsc": F("bounty_earnings") + F("tip_earnings"),
+        period_map = {
+            "7_days": Leaderboard.SEVEN_DAYS,
+            "30_days": Leaderboard.THIRTY_DAYS,
+            "6_months": Leaderboard.SIX_MONTHS,
+            "1_year": Leaderboard.ONE_YEAR,
+            "all_time": Leaderboard.ALL_TIME,
         }
+        return period_map.get(period_str.lower())
 
-    def _create_sum_annotation(
-        self,
-        model,
-        conditions,
-        id_field="user_id",
-        amount_field="amount",
-        needs_cast=False,
-    ):
-        """
-        Generic helper method to create a sum annotation with optional casting
-
-        Args:
-            model: The model to query
-            conditions: Filter conditions
-            id_field: Field to group by (default: user_id)
-            amount_field: Field to sum (default: amount)
-            needs_cast: Whether to cast the amount field to Decimal (default: False)
-        """
-        query = model.objects.filter(**conditions)
-
-        if needs_cast:
-            query = query.annotate(
-                numeric_amount=Cast(
-                    amount_field,
-                    output_field=DecimalField(max_digits=19, decimal_places=8),
-                )
-            )
-            amount_field = "numeric_amount"
-
-        return Coalesce(
-            Subquery(
-                query.values(id_field)
-                .annotate(total=Sum(amount_field))
-                .values("total"),
-                output_field=DecimalField(max_digits=19, decimal_places=8),
-            ),
-            Value(0, output_field=DecimalField(max_digits=19, decimal_places=8)),
-        )
-
-    def _create_funder_earnings_annotation(self, start_date=None, end_date=None):
-        """Creates annotation dictionary for funder earnings calculations"""
-        purchase_conditions = self._get_funder_purchase_conditions(start_date, end_date)
-        bounty_conditions = self._get_funder_bounty_conditions(start_date, end_date)
-        distribution_conditions = self._get_funder_distribution_conditions(
-            start_date, end_date
-        )
-
-        return {
-            "purchase_funding": self._create_sum_annotation(
-                Purchase,
-                purchase_conditions,
-                needs_cast=True,  # Purchase amount needs casting since it's text
-            ),
-            "bounty_funding": self._create_sum_annotation(
-                Bounty, bounty_conditions, id_field="created_by_id"
-            ),
-            "distribution_funding": self._create_sum_annotation(
-                Distribution, distribution_conditions, id_field="giver_id"
-            ),
-            "total_funding": F("purchase_funding")
-            + F("bounty_funding")
-            + F("distribution_funding"),
-        }
-
-    def _validate_date_range(self, start_date, end_date, max_days=30):
+    def _validate_date_range(self, start_date, end_date, max_days=MAX_DATE_RANGE_DAYS):
         """
         Validates that the date range doesn't exceed the maximum allowed days.
 
         Args:
             start_date: Start date string in ISO format
             end_date: End date string in ISO format
-            max_days: Maximum allowed days between dates (default: 30)
+            max_days: Maximum allowed days between dates (default: MAX_DATE_RANGE_DAYS)
 
         Returns:
             tuple: (is_valid, error_response)
@@ -299,12 +115,9 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
             return True, None
 
         try:
-            # Parse date strings directly to date objects (not datetime)
-            # This avoids timezone issues and focuses just on the date part
             start_date_obj = datetime.strptime(start_date, "%Y-%m-%d").date()
             end_date_obj = datetime.strptime(end_date, "%Y-%m-%d").date()
 
-            # Calculate days between dates
             delta_days = (end_date_obj - start_date_obj).days
 
             if delta_days > max_days:
@@ -317,51 +130,282 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
                 status=400,
             )
 
+    def _validate_and_parse_date_range(self, start_date, end_date):
+        """
+        Validate date-range params and parse to datetimes.
+        Returns (error_response, start_dt, end_dt). If invalid, error_response is set.
+        """
+        if not (start_date and end_date):
+            return (
+                Response(
+                    {
+                        "error": "start_date and end_date are required when "
+                        "period is not provided."
+                    },
+                    status=400,
+                ),
+                None,
+                None,
+            )
+        is_valid, error_response = self._validate_date_range(start_date, end_date)
+        if not is_valid:
+            return error_response, None, None
+        start_dt = timezone.make_aware(
+            datetime.strptime(start_date, "%Y-%m-%d").replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+        )
+        end_dt = timezone.make_aware(
+            datetime.strptime(end_date, "%Y-%m-%d").replace(
+                hour=23, minute=59, second=59, microsecond=999999
+            )
+        )
+        return None, start_dt, end_dt
+
+    def _get_current_user_rank_and_data(
+        self, leaderboard_type, period=None, start_dt=None, end_dt=None
+    ):
+        """
+        Get current user's rank and data for leaderboard.
+        Returns None if user is not authenticated or has no activity.
+
+        Args:
+            leaderboard_type: Either Leaderboard.EARNER or Leaderboard.FUNDER
+            period: Pre-computed period constant (e.g., Leaderboard.SEVEN_DAYS) or None
+            start_dt: Start datetime for custom date range (None if using pre-computed period)
+            end_dt: End datetime for custom date range (None if using pre-computed period)
+
+        Returns:
+            dict: Serialized user data with rank and amount, or None
+        """
+        user = self.request.user
+        if not user or not user.is_authenticated:
+            return None
+
+        excluded_ids = get_leaderboard_excluded_user_ids()
+        if user.id in excluded_ids:
+            return None
+
+        if period is not None:
+            try:
+                entry = Leaderboard.objects.get(
+                    user=user,
+                    leaderboard_type=leaderboard_type,
+                    period=period,
+                )
+                amount_label = (
+                    "earned_rsc"
+                    if leaderboard_type == Leaderboard.EARNER
+                    else "total_funding"
+                )
+                return {
+                    **self.serialize_user(user),
+                    amount_label: entry.total_amount,
+                    "rank": entry.rank,
+                }
+            except Leaderboard.DoesNotExist:
+                return None
+
+        if leaderboard_type == Leaderboard.EARNER:
+            earner_source_types = [
+                FundingActivity.TIP_REVIEW,
+                FundingActivity.BOUNTY_PAYOUT,
+            ]
+            user_total_qs = FundingActivityRecipient.objects.filter(
+                recipient_user=user,
+                activity__activity_date__gte=start_dt,
+                activity__activity_date__lte=end_dt,
+                activity__source_type__in=earner_source_types,
+            ).aggregate(total=Sum("amount"))
+            user_total = user_total_qs["total"] or 0
+
+            if user_total == 0:
+                return None
+
+            higher_count = (
+                FundingActivityRecipient.objects.filter(
+                    activity__activity_date__gte=start_dt,
+                    activity__activity_date__lte=end_dt,
+                    activity__source_type__in=earner_source_types,
+                )
+                .exclude(recipient_user_id__in=excluded_ids)
+                .values("recipient_user_id")
+                .annotate(total=Sum("amount"))
+                .filter(total__gt=user_total)
+                .count()
+            )
+            rank = higher_count + 1
+
+            return {
+                **self.serialize_user(user),
+                "earned_rsc": user_total,
+                "rank": rank,
+            }
+        else:  # FUNDER
+            user_total_qs = FundingActivity.objects.filter(
+                funder=user,
+                activity_date__gte=start_dt,
+                activity_date__lte=end_dt,
+            ).aggregate(total=Sum("total_amount"))
+            user_total = user_total_qs["total"] or 0
+
+            if user_total == 0:
+                return None
+
+            higher_count = (
+                FundingActivity.objects.filter(
+                    activity_date__gte=start_dt,
+                    activity_date__lte=end_dt,
+                )
+                .exclude(funder_id__in=excluded_ids)
+                .values("funder_id")
+                .annotate(total=Sum("total_amount"))
+                .filter(total__gt=user_total)
+                .count()
+            )
+            rank = higher_count + 1
+
+            return {
+                **self.serialize_user(user),
+                "total_funding": user_total,
+                "rank": rank,
+            }
+
+    @action(
+        detail=False,
+        methods=[RequestMethods.GET],
+        permission_classes=[IsAuthenticated],
+        url_path="me",
+    )
+    def me(self, request):
+        """
+        Returns the current user's leaderboard rank and data (reviewer and funder).
+        Only for authenticated users. Optional: period (e.g. all_time, 30_days) or
+        start_date & end_date for custom range. Default: all_time. Cached 1h per user.
+        """
+        cache_key = f"leaderboard:me:{request.user.id}:{request.get_full_path()}"
+        data = cache.get(cache_key)
+        if data is not None:
+            return Response(data)
+
+        period_str = request.GET.get("period")
+        start_date = request.GET.get("start_date")
+        end_date = request.GET.get("end_date")
+
+        if period_str:
+            leaderboard_period = self._map_period_to_leaderboard_period(period_str)
+            if leaderboard_period:
+                reviewer = self._get_current_user_rank_and_data(
+                    Leaderboard.EARNER, period=leaderboard_period
+                )
+                funder = self._get_current_user_rank_and_data(
+                    Leaderboard.FUNDER, period=leaderboard_period
+                )
+                data = {"reviewer": reviewer, "funder": funder}
+                cache.set(cache_key, data, LEADERBOARD_ME_CACHE_TIMEOUT)
+                return Response(data)
+
+        if start_date and end_date:
+            error_response, start_dt, end_dt = self._validate_and_parse_date_range(
+                start_date, end_date
+            )
+            if error_response is not None:
+                return error_response
+            reviewer = self._get_current_user_rank_and_data(
+                Leaderboard.EARNER, start_dt=start_dt, end_dt=end_dt
+            )
+            funder = self._get_current_user_rank_and_data(
+                Leaderboard.FUNDER, start_dt=start_dt, end_dt=end_dt
+            )
+            data = {"reviewer": reviewer, "funder": funder}
+            cache.set(cache_key, data, LEADERBOARD_ME_CACHE_TIMEOUT)
+            return Response(data)
+
+        # Default: all_time (e.g. for overview)
+        reviewer = self._get_current_user_rank_and_data(
+            Leaderboard.EARNER, period=Leaderboard.ALL_TIME
+        )
+        funder = self._get_current_user_rank_and_data(
+            Leaderboard.FUNDER, period=Leaderboard.ALL_TIME
+        )
+        data = {"reviewer": reviewer, "funder": funder}
+        cache.set(cache_key, data, LEADERBOARD_ME_CACHE_TIMEOUT)
+        return Response(data)
+
+    def _paginated_aggregated_response(
+        self, aggregated_queryset, user_id_key, amount_label
+    ):
+        """
+        Build paginated response from aggregated queryset (rows with user_id_key and total).
+        amount_label is the key in each output item (e.g. "earned_rsc", "total_funding").
+        """
+        page = self.paginate_queryset(aggregated_queryset)
+        if page is None:
+            return Response([])
+
+        page_number = self.paginator.page.number
+        page_size = self.paginator.page_size
+        starting_rank = (page_number - 1) * page_size + 1
+
+        user_ids = [row[user_id_key] for row in page]
+        users_by_id = {
+            u.id: u
+            for u in User.objects.filter(id__in=user_ids).select_related(
+                "author_profile"
+            )
+        }
+        totals_by_user = {row[user_id_key]: row["total"] for row in page}
+        data = []
+        for index, uid in enumerate(user_ids):
+            user = users_by_id.get(uid)
+            if not user:
+                continue
+            data.append(
+                {
+                    **self.serialize_user(user),
+                    amount_label: totals_by_user[uid],
+                    "rank": starting_rank + index,
+                }
+            )
+        return self.get_paginated_response(data)
+
     @method_decorator(cache_page(60 * 60 * 6))
     @action(detail=False, methods=[RequestMethods.GET])
     def overview(self, request):
-        """Returns top 5 users for each category (reviewers and funders)"""
-        reviewer_start_date = timezone.now() - timedelta(days=7)
-        funder_start_date = timezone.now() - timedelta(days=30)
-
-        top_reviewers = (
-            self.get_queryset()
-            .annotate(
-                **self._create_reviewer_earnings_annotation(
-                    start_date=reviewer_start_date
-                )
+        """Returns top 5 users for each category (reviewers and funders), all-time."""
+        reviewer_entries = (
+            Leaderboard.objects.filter(
+                leaderboard_type=Leaderboard.EARNER, period=Leaderboard.ALL_TIME
             )
-            .order_by("-earned_rsc")[:5]
+            .select_related("user", "user__author_profile")
+            .order_by("rank")[:5]
         )
 
-        top_funders = (
-            self.get_queryset()
-            .annotate(
-                **self._create_funder_earnings_annotation(start_date=funder_start_date)
+        funder_entries = (
+            Leaderboard.objects.filter(
+                leaderboard_type=Leaderboard.FUNDER, period=Leaderboard.ALL_TIME
             )
-            .order_by("-total_funding")[:5]
+            .select_related("user", "user__author_profile")
+            .order_by("rank")[:5]
         )
 
         return Response(
             {
                 "reviewers": [
                     {
-                        **self.serialize_user(reviewer),
-                        "earned_rsc": reviewer.earned_rsc,
-                        "bounty_earnings": reviewer.bounty_earnings,
-                        "tip_earnings": reviewer.tip_earnings,
+                        **self.serialize_user(entry.user),
+                        "earned_rsc": entry.total_amount,
+                        "rank": entry.rank,
                     }
-                    for reviewer in top_reviewers
+                    for entry in reviewer_entries
                 ],
                 "funders": [
                     {
-                        **self.serialize_user(funder),
-                        "total_funding": funder.total_funding,
-                        "purchase_funding": funder.purchase_funding,
-                        "bounty_funding": funder.bounty_funding,
-                        "distribution_funding": funder.distribution_funding,
+                        **self.serialize_user(entry.user),
+                        "total_funding": entry.total_amount,
+                        "rank": entry.rank,
                     }
-                    for funder in top_funders
+                    for entry in funder_entries
                 ],
             }
         )
@@ -370,59 +414,166 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=[RequestMethods.GET])
     def reviewers(self, request):
         """Returns top reviewers for a given time period"""
+        period_str = request.GET.get("period")
         start_date = request.GET.get("start_date")
         end_date = request.GET.get("end_date")
 
-        # Validate date range doesn't exceed 30 days
-        is_valid, error_response = self._validate_date_range(start_date, end_date, 30)
-        if not is_valid:
+        # If period is provided and matches a pre-computed period, use Leaderboard table
+        if period_str:
+            leaderboard_period = self._map_period_to_leaderboard_period(period_str)
+            if leaderboard_period:
+                leaderboard_entries = (
+                    Leaderboard.objects.filter(
+                        leaderboard_type=Leaderboard.EARNER, period=leaderboard_period
+                    )
+                    .select_related("user", "user__author_profile")
+                    .order_by("rank")
+                )
+
+                page = self.paginate_queryset(leaderboard_entries)
+                if page is None:
+                    return Response([])
+
+                data = [
+                    {
+                        **self.serialize_user(entry.user),
+                        "earned_rsc": entry.total_amount,
+                        "rank": entry.rank,
+                    }
+                    for entry in page
+                ]
+                return self.get_paginated_response(data)
+
+        error_response, start_dt, end_dt = self._validate_and_parse_date_range(
+            start_date, end_date
+        )
+        if error_response is not None:
             return error_response
 
-        reviewers = (
-            self.get_queryset()
-            .annotate(**self._create_reviewer_earnings_annotation(start_date, end_date))
-            .order_by("-earned_rsc")
+        excluded_ids = get_leaderboard_excluded_user_ids()
+        aggregated = (
+            FundingActivityRecipient.objects.filter(
+                activity__activity_date__gte=start_dt,
+                activity__activity_date__lte=end_dt,
+                activity__source_type__in=[
+                    FundingActivity.TIP_REVIEW,
+                    FundingActivity.BOUNTY_PAYOUT,
+                ],
+            )
+            .exclude(recipient_user_id__in=excluded_ids)
+            .values("recipient_user_id")
+            .annotate(total=Sum("amount"))
+            .order_by("-total")
         )
 
-        page = self.paginate_queryset(reviewers)
-        data = [
-            {
-                **self.serialize_user(reviewer),
-                "earned_rsc": reviewer.earned_rsc,
-                "bounty_earnings": reviewer.bounty_earnings,
-                "tip_earnings": reviewer.tip_earnings,
-            }
-            for reviewer in page
-        ]
+        page = self.paginate_queryset(aggregated)
+        if page is None:
+            return Response([])
+
+        page_number = self.paginator.page.number
+        page_size = self.paginator.page_size
+        starting_rank = (page_number - 1) * page_size + 1
+
+        user_ids = [row["recipient_user_id"] for row in page]
+        users_by_id = {
+            u.id: u
+            for u in User.objects.filter(id__in=user_ids).select_related(
+                "author_profile"
+            )
+        }
+        totals_by_user = {row["recipient_user_id"]: row["total"] for row in page}
+        data = []
+        for index, uid in enumerate(user_ids):
+            user = users_by_id.get(uid)
+            if not user:
+                continue
+            data.append(
+                {
+                    **self.serialize_user(user),
+                    "earned_rsc": totals_by_user[uid],
+                    "rank": starting_rank + index,
+                }
+            )
         return self.get_paginated_response(data)
 
     @method_decorator(cache_page(60 * 60 * 6))
     @action(detail=False, methods=[RequestMethods.GET])
     def funders(self, request):
         """Returns top funders for a given time period"""
+        period_str = request.GET.get("period")
         start_date = request.GET.get("start_date")
         end_date = request.GET.get("end_date")
 
-        # Validate date range doesn't exceed 30 days
-        is_valid, error_response = self._validate_date_range(start_date, end_date, 30)
-        if not is_valid:
+        # If period is provided and matches a pre-computed period, use Leaderboard table
+        if period_str:
+            leaderboard_period = self._map_period_to_leaderboard_period(period_str)
+            if leaderboard_period:
+                leaderboard_entries = (
+                    Leaderboard.objects.filter(
+                        leaderboard_type=Leaderboard.FUNDER, period=leaderboard_period
+                    )
+                    .select_related("user", "user__author_profile")
+                    .order_by("rank")
+                )
+
+                page = self.paginate_queryset(leaderboard_entries)
+                if page is None:
+                    return Response([])
+
+                data = [
+                    {
+                        **self.serialize_user(entry.user),
+                        "total_funding": entry.total_amount,
+                        "rank": entry.rank,
+                    }
+                    for entry in page
+                ]
+                return self.get_paginated_response(data)
+
+        error_response, start_dt, end_dt = self._validate_and_parse_date_range(
+            start_date, end_date
+        )
+        if error_response is not None:
             return error_response
 
-        top_funders = (
-            self.get_queryset()
-            .annotate(**self._create_funder_earnings_annotation(start_date, end_date))
-            .order_by("-total_funding")
+        excluded_ids = get_leaderboard_excluded_user_ids()
+        aggregated = (
+            FundingActivity.objects.filter(
+                activity_date__gte=start_dt,
+                activity_date__lte=end_dt,
+            )
+            .exclude(funder_id__in=excluded_ids)
+            .values("funder_id")
+            .annotate(total=Sum("total_amount"))
+            .order_by("-total")
         )
 
-        page = self.paginate_queryset(top_funders)
-        data = [
-            {
-                **self.serialize_user(funder),
-                "total_funding": funder.total_funding,
-                "purchase_funding": funder.purchase_funding,
-                "bounty_funding": funder.bounty_funding,
-                "distribution_funding": funder.distribution_funding,
-            }
-            for funder in page
-        ]
+        page = self.paginate_queryset(aggregated)
+        if page is None:
+            return Response([])
+
+        page_number = self.paginator.page.number
+        page_size = self.paginator.page_size
+        starting_rank = (page_number - 1) * page_size + 1
+
+        user_ids = [row["funder_id"] for row in page]
+        users_by_id = {
+            u.id: u
+            for u in User.objects.filter(id__in=user_ids).select_related(
+                "author_profile"
+            )
+        }
+        totals_by_user = {row["funder_id"]: row["total"] for row in page}
+        data = []
+        for index, uid in enumerate(user_ids):
+            user = users_by_id.get(uid)
+            if not user:
+                continue
+            data.append(
+                {
+                    **self.serialize_user(user),
+                    "total_funding": totals_by_user[uid],
+                    "rank": starting_rank + index,
+                }
+            )
         return self.get_paginated_response(data)

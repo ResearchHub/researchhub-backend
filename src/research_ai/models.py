@@ -1,5 +1,3 @@
-import uuid
-
 from django.db import models
 
 from researchhub_document.related_models.researchhub_unified_document_model import (
@@ -14,9 +12,18 @@ class ExpertSearch(DefaultModel):
     Input is either a unified_document (abstract/pdf/post content) or custom query.
     """
 
-    id = models.UUIDField(
-        primary_key=True, default=uuid.uuid4, editable=False
-    )
+    class InputType(models.TextChoices):
+        ABSTRACT = "abstract", "abstract"
+        PDF = "pdf", "pdf"
+        CUSTOM_QUERY = "custom_query", "custom_query"
+        FULL_CONTENT = "full_content", "full_content"
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "pending"
+        PROCESSING = "processing", "processing"
+        COMPLETED = "completed", "completed"
+        FAILED = "failed", "failed"
+
     created_by = models.ForeignKey(
         "user.User",
         on_delete=models.CASCADE,
@@ -28,41 +35,31 @@ class ExpertSearch(DefaultModel):
         null=True,
         blank=True,
         related_name="expert_searches",
-        help_text="Document-based search; null for custom query.",
+        db_comment="Document-based search; null for custom query.",
     )
     query = models.TextField(
-        help_text="Research description or document content used for the search.",
+        db_comment="Research description or document content used for the search.",
     )
     input_type = models.CharField(
         max_length=32,
-        choices=[
-            ("abstract", "abstract"),
-            ("pdf", "pdf"),
-            ("custom_query", "custom_query"),
-            ("full_content", "full_content"),
-        ],
-        default="abstract",
+        choices=InputType.choices,
+        default=InputType.ABSTRACT,
     )
     config = models.JSONField(
         default=dict,
         blank=True,
-        help_text="Expert count, expertise_level, region, state, gender, etc.",
+        db_comment="Expert count, expertise_level, region, state, gender, etc.",
     )
     excluded_expert_names = models.JSONField(
         default=list,
         blank=True,
-        help_text="Expert full names to exclude (multiple runs on same doc).",
+        db_comment="Expert full names to exclude (multiple runs on same doc).",
     )
     llm_model = models.CharField(max_length=128, blank=True)
     status = models.CharField(
         max_length=32,
-        choices=[
-            ("pending", "pending"),
-            ("processing", "processing"),
-            ("completed", "completed"),
-            ("failed", "failed"),
-        ],
-        default="pending",
+        choices=Status.choices,
+        default=Status.PENDING,
         db_index=True,
     )
     progress = models.IntegerField(default=0)  # 0-100
@@ -70,7 +67,7 @@ class ExpertSearch(DefaultModel):
     expert_results = models.JSONField(
         default=list,
         blank=True,
-        help_text="Expert dicts: name, title, affiliation, expertise, email, notes, sources.",
+        db_comment="Expert dicts: name, title, affiliation, expertise, email, notes, sources.",
     )
     expert_count = models.IntegerField(default=0)
     report_pdf_url = models.URLField(max_length=2048, blank=True)
@@ -99,9 +96,6 @@ class GeneratedEmail(DefaultModel):
     Stores generated outreach emails for experts.
     """
 
-    id = models.UUIDField(
-        primary_key=True, default=uuid.uuid4, editable=False
-    )
     created_by = models.ForeignKey(
         "user.User",
         on_delete=models.CASCADE,

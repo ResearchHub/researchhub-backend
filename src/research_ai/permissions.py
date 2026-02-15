@@ -13,10 +13,7 @@ class ResearchAIPermission(AuthorizationBasedPermission):
     message = "Not allowed to use Research AI features."
 
     def has_permission(self, request, view):
-        if not request.user.is_authenticated:
-            return False
-        # Placeholder - always allow for now; add business logic later
-        return self._can_use_research_ai(request.user)
+        return self.is_authorized(request, view, obj=None)
 
     def is_authorized(self, request, view, obj):
         if not request.user.is_authenticated:

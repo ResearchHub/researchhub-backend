@@ -9,8 +9,8 @@ from django.contrib.auth import get_user_model
 from django.core import signing
 from django.utils import timezone
 
-from purchase.endaoment.client import EndaomentClient
-from purchase.related_models.endaoment_account_model import EndaomentAccount
+from purchase.endaoment import EndaomentClient
+from purchase.models import EndaomentAccount
 
 logger = logging.getLogger(__name__)
 
@@ -123,8 +123,15 @@ class EndaomentService:
         if not account:
             return None
 
-        if account.is_token_expired() and account.refresh_token:
-            self._refresh_account_token(account)
+        if account.is_token_expired():
+            if account.refresh_token:
+                try:
+                    self._refresh_account_token(account)
+                except OAuthError:
+                    return None
+            else:
+                account.delete()
+                return None
 
         return account.access_token
 
@@ -140,10 +147,57 @@ class EndaomentService:
         """
         access_token = self.get_valid_access_token(user)
         if not access_token:
-            raise EndaomentAccount.DoesNotExist(
-                "User has no Endaoment connection"
-            )
+            raise EndaomentAccount.DoesNotExist("User has no Endaoment connection")
         return self.client.get_user_funds(access_token)
+
+    def create_grant(
+        self,
+        user,
+        origin_fund_id: str,
+        destination_org_id: str,
+        amount_cents: int,
+        purpose: str,
+    ) -> dict:
+        """
+        Create a grant request from a user's fund (DAF) to an organization.
+        """
+        access_token = self.get_valid_access_token(user)
+        if not access_token:
+            raise EndaomentAccount.DoesNotExist("User has no Endaoment connection")
+
+        return self.client.create_async_grant(
+            access_token=access_token,
+            origin_fund_id=origin_fund_id,
+            destination_org_id=destination_org_id,
+            amount_in_cents=amount_cents,
+            purpose=purpose,
+        )
+
+    def transfer_between_funds(
+        self,
+        user,
+        origin_fund_id: str,
+        destination_fund_id: str,
+        amount_cents: int,
+        purpose: str,
+    ) -> dict:
+        """
+        Create a transfer request from a user's fund (DAF) to another fund.
+        This method is used to transfer funds from a user's DAF to the
+        RH fund which is done for fundraising campaigns that use Endaoment for
+        processing donations.
+        """
+        access_token = self.get_valid_access_token(user)
+        if not access_token:
+            raise EndaomentAccount.DoesNotExist("User has no Endaoment connection")
+
+        return self.client.create_async_entity_transfer(
+            access_token=access_token,
+            origin_fund_id=origin_fund_id,
+            destination_fund_id=destination_fund_id,
+            amount_in_cents=amount_cents,
+            purpose=purpose,
+        )
 
     def _refresh_account_token(self, account: EndaomentAccount) -> None:
         """
