@@ -1,29 +1,29 @@
 import os
 
-# Expertise level descriptions for targeting specific career stages
-EXPERTISE_DESCRIPTIONS = {
-    "PhD/PostDocs": "Early-stage researchers including PhD students in their final years, recent PhD graduates, and current postdoctoral researchers. These individuals typically have 0-3 years of research experience and are building their expertise in specific areas.",
-    "Early Career Researchers": "Researchers with 3-8 years of experience post-PhD, including Assistant Professors, Research Scientists, and Industry Researchers in their early career stages. They have established some independent research but are still developing their reputation.",
-    "Mid-Career Researchers": "Established researchers with 8-15 years of experience, typically Associate Professors, Senior Scientists, or Principal Investigators who have significant publications and recognition in their field.",
-    "Top Expert/World Renowned Expert": "Leading authorities in their field with 15+ years of experience, typically Full Professors, Distinguished Scientists, or Department Heads who are internationally recognized and have made significant contributions to their research areas.",
-    "All Levels": "Include experts from all career stages, providing a diverse mix of perspectives and expertise levels.",
+from research_ai.constants import ExpertiseLevel, Gender, Region
+
+# Descriptions for prompt building; keys are choice values from constants.
+EXPERTISE_DESCRIPTIONS: dict[str, str] = {
+    ExpertiseLevel.PHD_POSTDOCS: "Early-stage researchers including PhD students in their final years, recent PhD graduates, and current postdoctoral researchers. These individuals typically have 0-3 years of research experience and are building their expertise in specific areas.",
+    ExpertiseLevel.EARLY_CAREER: "Researchers with 3-8 years of experience post-PhD, including Assistant Professors, Research Scientists, and Industry Researchers in their early career stages. They have established some independent research but are still developing their reputation.",
+    ExpertiseLevel.MID_CAREER: "Established researchers with 8-15 years of experience, typically Associate Professors, Senior Scientists, or Principal Investigators who have significant publications and recognition in their field.",
+    ExpertiseLevel.TOP_EXPERT: "Leading authorities in their field with 15+ years of experience, typically Full Professors, Distinguished Scientists, or Department Heads who are internationally recognized and have made significant contributions to their research areas.",
+    ExpertiseLevel.ALL_LEVELS: "Include experts from all career stages, providing a diverse mix of perspectives and expertise levels.",
 }
 
-# Geographic region descriptions for location-based filtering
-REGION_DESCRIPTIONS = {
-    "US": "Focus exclusively on experts affiliated with institutions in the United States, including universities, research centers, and organizations based in the US.",
-    "non-US": "Focus exclusively on experts affiliated with institutions outside the United States, including international universities, research centers, and organizations worldwide.",
-    "Europe": "Focus on experts affiliated with institutions in Europe, including countries such as United Kingdom, Germany, France, Italy, Spain, Netherlands, Switzerland, Sweden, Norway, Denmark, Belgium, Austria, Finland, Poland, Czech Republic, Ireland, Portugal, Greece, Russia, Ukraine, Belarus, Estonia, Latvia, Lithuania, and other European Union and non-EU European nations.",
-    "Asia-Pacific": "Focus on experts affiliated with institutions in the Asia-Pacific region, including countries such as China, Japan, South Korea, Australia, New Zealand, Singapore, India, Thailand, Malaysia, Indonesia, Philippines, Vietnam, Kazakhstan, Uzbekistan, Kyrgyzstan, Tajikistan, Turkmenistan, Mongolia, and other Asia-Pacific nations.",
-    "Africa & MENA": "Focus on experts affiliated with institutions in Africa and the Middle East & North Africa (MENA) region, including countries in sub-Saharan Africa, North Africa, and the Middle East such as Egypt, South Africa, Nigeria, Kenya, UAE, Saudi Arabia, Israel, Turkey, Iran, Morocco, Tunisia, etc.",
-    "All Regions": "Include experts from all geographic regions worldwide, ensuring global diversity in recommendations.",
+REGION_DESCRIPTIONS: dict[str, str] = {
+    Region.US: "Focus exclusively on experts affiliated with institutions in the United States, including universities, research centers, and organizations based in the US.",
+    Region.NON_US: "Focus exclusively on experts affiliated with institutions outside the United States, including international universities, research centers, and organizations worldwide.",
+    Region.EUROPE: "Focus on experts affiliated with institutions in Europe, including countries such as United Kingdom, Germany, France, Italy, Spain, Netherlands, Switzerland, Sweden, Norway, Denmark, Belgium, Austria, Finland, Poland, Czech Republic, Ireland, Portugal, Greece, Russia, Ukraine, Belarus, Estonia, Latvia, Lithuania, and other European Union and non-EU European nations.",
+    Region.ASIA_PACIFIC: "Focus on experts affiliated with institutions in the Asia-Pacific region, including countries such as China, Japan, South Korea, Australia, New Zealand, Singapore, India, Thailand, Malaysia, Indonesia, Philippines, Vietnam, Kazakhstan, Uzbekistan, Kyrgyzstan, Tajikistan, Turkmenistan, Mongolia, and other Asia-Pacific nations.",
+    Region.AFRICA_MENA: "Focus on experts affiliated with institutions in Africa and the Middle East & North Africa (MENA) region, including countries in sub-Saharan Africa, North Africa, and the Middle East such as Egypt, South Africa, Nigeria, Kenya, UAE, Saudi Arabia, Israel, Turkey, Iran, Morocco, Tunisia, etc.",
+    Region.ALL_REGIONS: "Include experts from all geographic regions worldwide, ensuring global diversity in recommendations.",
 }
 
-# Gender preference descriptions for gender-based filtering
-GENDER_DESCRIPTIONS = {
-    "Male": "Focus on male-identifying experts and researchers in your recommendations.",
-    "Female": "Focus on female-identifying experts and researchers in your recommendations.",
-    "All Genders": "Include experts and researchers of all genders in your recommendations.",
+GENDER_DESCRIPTIONS: dict[str, str] = {
+    Gender.MALE: "Focus on male-identifying experts and researchers in your recommendations.",
+    Gender.FEMALE: "Focus on female-identifying experts and researchers in your recommendations.",
+    Gender.ALL_GENDERS: "Include experts and researchers of all genders in your recommendations.",
 }
 
 _PROMPTS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -87,21 +87,21 @@ def build_system_prompt(
     Build the complete system prompt with all configuration parameters.
     """
     expertise_instruction = ""
-    if expertise_level != "All Levels":
+    if expertise_level != ExpertiseLevel.ALL_LEVELS:
         expertise_instruction = (
             f"\n\n## Expertise Level Targeting\nFocus specifically on {expertise_level}: "
             f"{EXPERTISE_DESCRIPTIONS.get(expertise_level, expertise_level)}"
         )
 
     region_instruction = ""
-    if region_filter != "All Regions":
+    if region_filter != Region.ALL_REGIONS:
         region_instruction = (
             f"\n\n## Geographic Region Targeting\nFocus specifically on {region_filter}: "
             f"{REGION_DESCRIPTIONS.get(region_filter, region_filter)}"
         )
 
     state_instruction = ""
-    if region_filter == "US" and state_filter != "All States":
+    if region_filter == Region.US and state_filter != "All States":
         state_instruction = (
             f"\n\n## US State-Specific Targeting\n"
             f"Further narrow your search to experts affiliated with institutions "
@@ -109,7 +109,7 @@ def build_system_prompt(
         )
 
     gender_instruction = ""
-    if gender_filter != "All Genders":
+    if gender_filter != Gender.ALL_GENDERS:
         gender_instruction = (
             f"\n\n## Gender Preference Targeting\n"
             f"{GENDER_DESCRIPTIONS.get(gender_filter, gender_filter)}"
@@ -145,7 +145,7 @@ def build_user_prompt(
     Build the user prompt for expert search.
     """
     region_text = (
-        "" if region_filter == "All Regions" else f" from the {region_filter} region"
+        "" if region_filter == Region.ALL_REGIONS else f" from the {region_filter} region"
     )
     if is_pdf:
         template = _load_template("expert_finder_user_pdf.txt")

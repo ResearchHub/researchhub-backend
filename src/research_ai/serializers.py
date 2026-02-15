@@ -1,20 +1,37 @@
 from rest_framework import serializers
 
+from research_ai.constants import ExpertiseLevel, Gender, Region
 from research_ai.models import ExpertSearch, GeneratedEmail
 
 
 class ExpertSearchConfigSerializer(serializers.Serializer):
 
     expert_count = serializers.IntegerField(default=10, min_value=5, max_value=20)
-    expertise_level = serializers.CharField(default="All Levels")
-    region = serializers.CharField(default="All Regions")
+    expertise_level = serializers.ChoiceField(
+        choices=ExpertiseLevel.choices,
+        default=ExpertiseLevel.ALL_LEVELS,
+    )
+    region = serializers.ChoiceField(
+        choices=Region.choices,
+        default=Region.ALL_REGIONS,
+    )
     state = serializers.CharField(default="All States")
-    gender = serializers.CharField(default="All Genders", required=False)
+    gender = serializers.ChoiceField(
+        choices=Gender.choices,
+        default=Gender.ALL_GENDERS,
+        required=False,
+    )
 
     # Frontend compatibility
     expertCount = serializers.IntegerField(required=False, min_value=5, max_value=20)
-    expertiseLevel = serializers.CharField(required=False)
-    genderPreference = serializers.CharField(required=False)
+    expertiseLevel = serializers.ChoiceField(
+        choices=ExpertiseLevel.choices,
+        required=False,
+    )
+    genderPreference = serializers.ChoiceField(
+        choices=Gender.choices,
+        required=False,
+    )
 
     def to_internal_value(self, data):
         # Prefer snake_case from API, fall back to camelCase
@@ -36,12 +53,14 @@ class ExpertSearchConfigSerializer(serializers.Serializer):
         expert_count = attrs.get("expert_count") or attrs.get("expertCount") or 10
         attrs["expert_count"] = expert_count
         attrs["expertise_level"] = (
-            attrs.get("expertise_level") or attrs.get("expertiseLevel") or "All Levels"
+            attrs.get("expertise_level")
+            or attrs.get("expertiseLevel")
+            or ExpertiseLevel.ALL_LEVELS
         )
-        attrs["region"] = attrs.get("region", "All Regions")
+        attrs["region"] = attrs.get("region") or Region.ALL_REGIONS
         attrs["state"] = attrs.get("state", "All States")
         attrs["gender"] = (
-            attrs.get("gender") or attrs.get("genderPreference") or "All Genders"
+            attrs.get("gender") or attrs.get("genderPreference") or Gender.ALL_GENDERS
         )
         return attrs
 

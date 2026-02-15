@@ -7,6 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from research_ai.constants import ExpertiseLevel, Gender, Region
 from research_ai.models import ExpertSearch
 from research_ai.permissions import ResearchAIPermission
 from research_ai.serializers import (
@@ -46,10 +47,10 @@ class ExpertSearchCreateView(APIView):
 
         search_config = {
             "expert_count": config.get("expert_count", 10),
-            "expertise_level": config.get("expertise_level", "All Levels"),
-            "region": config.get("region", "All Regions"),
+            "expertise_level": config.get("expertise_level", ExpertiseLevel.ALL_LEVELS),
+            "region": config.get("region", Region.ALL_REGIONS),
             "state": config.get("state", "All States"),
-            "gender": config.get("gender", "All Genders"),
+            "gender": config.get("gender", Gender.ALL_GENDERS),
         }
 
         if unified_document_id:
