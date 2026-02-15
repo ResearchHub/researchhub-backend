@@ -138,17 +138,22 @@ Each note should be 1-2 sentences explaining:
 - **DO NOT include verification statements** (e.g., "Email and role verified", "Position confirmed", "Email verified via...")
 - **DO NOT document your search or verification process** - no attribution phrases like "verified via Stanford/DatabaseCommons"
 - **DO NOT mention verification, confirmation, or validation** of contact information
-- If including source links/citations, use plain links (e.g., in markdown format) without verbose attribution
 - Focus on WHY the expert is qualified, NOT HOW you verified they are qualified
 - Maintain a professional, objective tone focused on competence and expertise
+
+**SOURCES - Strongly recommended for every expert**:
+- For **every** expert, include at least one source link in the Notes cell using markdown format: [link text](URL).
+- Use **only external, absolute URLs** (must start with https:// or http://): faculty page, lab site, university directory, or external publication profile (e.g. [profile](https://example.edu/faculty/name) or [lab](https://lab.example.edu)).
+- **Do NOT use ResearchHub links, internal site links, or relative paths** (e.g. /paper/... or researchhub.com URLs) as source links—they will not work. Use only third-party verifiable URLs.
+- This is **strongly recommended** for every row; omit only rarely when no suitable external URL can be found. Do not use verbose attribution—the link alone is sufficient.
 
 ## Example Output Format (Plain Text Only)
 
 | Name | Title | Affiliation | Expertise | Email | Notes |
 |------|-------|-------------|-----------|-------|-------|
-| Dr. Sarah Johnson | Associate Professor | Stanford University | Machine Learning, Natural Language Processing | s.johnson@stanford.edu | Recent work on transformer architectures ideal for reviewing NLP methodology. Published 15+ papers on language models in top-tier venues including ACL and EMNLP. |
-| Prof. Michael Chen | Professor | Harvard Medical School | Statistical Analysis, Biomedical Data | m.chen@hms.harvard.edu | Pioneered clinical trial statistical methods directly relevant to this study. 2023 Nature Methods paper addresses the proposed validation approach. |
-| Dr. Teri Klein | Professor (Research) | Stanford University | Pharmacogenomics, Data Integration | teri.klein@stanford.edu | Leads PharmGKB, a major pharmacogenomics knowledge platform with strong expertise in evidence curation and clinical data integration relevant to this work. |
+| Dr. Sarah Johnson | Associate Professor | Stanford University | Machine Learning, Natural Language Processing | s.johnson@stanford.edu | Recent work on transformer architectures ideal for reviewing NLP methodology. See [profile](https://www.cs.stanford.edu/people/sarahj). |
+| Prof. Michael Chen | Professor | Harvard Medical School | Statistical Analysis, Biomedical Data | m.chen@hms.harvard.edu | Pioneered clinical trial statistical methods directly relevant to this study. [Lab site](https://hms.harvard.edu/faculty/chen). |
+| Dr. Teri Klein | Professor (Research) | Stanford University | Pharmacogenomics, Data Integration | teri.klein@stanford.edu | Leads PharmGKB with strong expertise in evidence curation relevant to this work. [PharmGKB](https://www.pharmgkb.org). |
 
 ## Additional Instructions
 - **STRICT EMAIL REQUIREMENT**: If you cannot find explicit contact information for a highly relevant expert, DO NOT include them in the recommendations - quality over quantity is paramount
@@ -165,6 +170,7 @@ Before submitting your table, verify:
 - [ ] Each expertise requirement from the input is addressed
 - [ ] ALL email addresses are explicit, verifiable, and follow proper format - NO exceptions
 - [ ] NO generic contact methods or institutional placeholders are used
+- [ ] **Notes include a source link in markdown format [text](URL) for every expert** (strongly recommended; use only external https/http URLs—no ResearchHub or relative paths)
 - [ ] Recommendations are specific and relevant to the paper
 - [ ] All recommended reviewers are confirmed to NOT be authors or contributors to the analyzed paper
 - [ ] Table is properly formatted and readable without any bold text or special formatting

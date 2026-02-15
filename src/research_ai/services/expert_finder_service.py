@@ -221,7 +221,11 @@ class ExpertFinderService:
         citations = []
         citation_pattern = r"\[([^\]]+)\]\(([^)]*)\)"
         for m in re.finditer(citation_pattern, text):
-            citations.append({"text": m.group(1), "url": self._clean_url(m.group(2))})
+            raw_url = (m.group(2) or "").strip()
+            if not raw_url:
+                continue
+            url = self._clean_url(raw_url)
+            citations.append({"text": m.group(1), "url": url})
         cleaned = re.sub(citation_pattern, "", text)
         cleaned = re.sub(r"\(\)", "", cleaned).strip()
         return cleaned, citations
@@ -300,9 +304,8 @@ class ExpertFinderService:
                     cells[column_map.get("email", 4)] if "email" in column_map else ""
                 ),
                 "notes": notes_cleaned,
+                "sources": citations if citations else [],
             }
-            if citations:
-                expert["sources"] = citations
             email = (expert["email"] or "").strip()
             try:
                 EmailValidator()(email)
