@@ -7,6 +7,7 @@ import fitz
 from django.core.exceptions import ValidationError
 from django.core.validators import EmailValidator
 
+from research_ai.models import ExpertSearch
 from research_ai.prompts.expert_finder_prompts import (
     build_system_prompt,
     build_user_prompt,
@@ -114,15 +115,24 @@ class ExpertFinderService:
         is_pdf: Set True when query text was extracted from a PDF (affects prompt wording).
         """
 
-        def publish(message: str, percent: int, status: str = "processing"):
+        def publish(
+            message: str,
+            percent: int,
+            status: str = ExpertSearch.Status.PROCESSING,
+        ):
+            status_val = status.value if hasattr(status, "value") else status
             self.progress_service.publish_progress_sync(
                 TaskType.EXPERTS,
                 search_id,
                 {
-                    "status": status,
+                    "status": status_val,
                     "progress": percent,
                     "currentStep": message,
-                    "type": "progress" if status == "processing" else status,
+                    "type": (
+                        "progress"
+                        if status_val == ExpertSearch.Status.PROCESSING
+                        else status_val
+                    ),
                 },
             )
             if progress_callback:
@@ -183,7 +193,7 @@ class ExpertFinderService:
 
             result = {
                 "search_id": search_id,
-                "status": "completed",
+                "status": ExpertSearch.Status.COMPLETED,
                 "query": query,
                 "config": config,
                 "experts": experts,
@@ -191,7 +201,9 @@ class ExpertFinderService:
                 "expert_count": len(experts),
                 "llm_model": self.bedrock_llm.model_id,
             }
-            publish("Expert search complete!", 100, status="completed")
+            publish(
+                "Expert search complete!", 100, status=ExpertSearch.Status.COMPLETED
+            )
             if progress_callback:
                 progress_callback(search_id, 100, "Expert search complete!")
             return result
@@ -199,7 +211,7 @@ class ExpertFinderService:
         except Exception as e:
             error_message = f"Expert search processing failed: {str(e)}"
             logger.exception(error_message)
-            publish(error_message, 0, status="failed")
+            publish(error_message, 0, status=ExpertSearch.Status.FAILED)
             if progress_callback:
                 progress_callback(search_id, 0, error_message)
             raise

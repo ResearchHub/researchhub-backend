@@ -1,6 +1,5 @@
 import json
 import logging
-from uuid import UUID
 
 from django.http import StreamingHttpResponse
 from rest_framework import status
@@ -41,7 +40,7 @@ class ExpertSearchCreateView(APIView):
 
         unified_document_id = data.get("unified_document_id")
         query_text = (data.get("query") or "").strip()
-        input_type = data.get("input_type", "abstract")
+        input_type = data.get("input_type", ExpertSearch.InputType.ABSTRACT)
         config = data.get("config") or {}
         excluded_expert_names = data.get("excluded_expert_names") or []
 
@@ -74,9 +73,9 @@ class ExpertSearchCreateView(APIView):
                 )
             query_text = content_text
             effective_input_type = content_type
-            is_pdf = content_type == "pdf"
+            is_pdf = content_type == ExpertSearch.InputType.PDF
         else:
-            effective_input_type = "custom_query"
+            effective_input_type = ExpertSearch.InputType.CUSTOM_QUERY
             is_pdf = False
 
         expert_search = ExpertSearch.objects.create(
@@ -86,14 +85,14 @@ class ExpertSearchCreateView(APIView):
             input_type=effective_input_type,
             config=search_config,
             excluded_expert_names=excluded_expert_names,
-            status="pending",
+            status=ExpertSearch.Status.PENDING,
             progress=0,
             current_step="Queued for processing",
         )
 
-        search_id = str(expert_search.id)
+        search_id = expert_search.id
         process_expert_search_task.delay(
-            search_id=search_id,
+            search_id=str(search_id),
             query=query_text,
             config=search_config,
             excluded_expert_names=(
@@ -102,11 +101,11 @@ class ExpertSearchCreateView(APIView):
             is_pdf=is_pdf,
         )
 
-        sse_url = _get_sse_url(request, search_id)
+        sse_url = _get_sse_url(request, str(search_id))
         return Response(
             {
-                "search_id": expert_search.id,
-                "status": "processing",
+                "search_id": search_id,
+                "status": ExpertSearch.Status.PROCESSING,
                 "message": "Expert search submitted for processing",
                 "sse_url": sse_url,
             },
@@ -119,15 +118,15 @@ class ExpertSearchDetailView(APIView):
 
     def get(self, request, search_id):
         try:
-            uuid_val = UUID(search_id)
-        except ValueError:
+            search_id_int = int(search_id)
+        except (ValueError, TypeError):
             return Response(
                 {"detail": "Invalid search ID."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:
             expert_search = ExpertSearch.objects.get(
-                id=uuid_val, created_by=request.user
+                id=search_id_int, created_by=request.user
             )
         except ExpertSearch.DoesNotExist:
             return Response(
@@ -177,6 +176,11 @@ def _final_progress_payload(search):
 
 def _sse_event_stream(search_id):
     progress_service = ProgressService()
+    try:
+        search_id_int = int(search_id)
+    except (ValueError, TypeError):
+        search_id_int = None
+
     yield "event: connected\n"
     payload = {
         "status": "connected",
@@ -186,19 +190,23 @@ def _sse_event_stream(search_id):
     yield "data: " + json.dumps(payload) + "\n\n"
 
     # If already completed/failed, return current state and close (no stuck)
-    try:
-        search = ExpertSearch.objects.filter(id=UUID(search_id)).first()
-        if search and search.status in ("completed", "failed"):
-            final = _final_progress_payload(search)
-            if search.error_message:
-                final["error"] = search.error_message
-            yield "event: progress\n"
-            yield "data: " + json.dumps(final) + "\n\n"
-            yield "event: complete\n"
-            yield "data: " + json.dumps({"status": "stream_complete"}) + "\n\n"
-            return
-    except (ValueError, Exception):
-        pass
+    if search_id_int is not None:
+        try:
+            search = ExpertSearch.objects.filter(id=search_id_int).first()
+            if search and search.status in (
+                ExpertSearch.Status.COMPLETED,
+                ExpertSearch.Status.FAILED,
+            ):
+                final = _final_progress_payload(search)
+                if search.error_message:
+                    final["error"] = search.error_message
+                yield "event: progress\n"
+                yield "data: " + json.dumps(final) + "\n\n"
+                yield "event: complete\n"
+                yield "data: " + json.dumps({"status": "stream_complete"}) + "\n\n"
+                return
+        except Exception:
+            pass
 
     # Subscribe to Redis; periodically re-check DB so we never wait forever
     none_count = 0
@@ -210,11 +218,14 @@ def _sse_event_stream(search_id):
     ):
         if progress_data is None:
             none_count += 1
-            if none_count >= db_check_interval:
+            if none_count >= db_check_interval and search_id_int is not None:
                 none_count = 0
                 try:
-                    search = ExpertSearch.objects.filter(id=UUID(search_id)).first()
-                    if search and search.status in ("completed", "failed"):
+                    search = ExpertSearch.objects.filter(id=search_id_int).first()
+                    if search and search.status in (
+                        ExpertSearch.Status.COMPLETED,
+                        ExpertSearch.Status.FAILED,
+                    ):
                         final = _final_progress_payload(search)
                         if search.error_message:
                             final["error"] = search.error_message
@@ -233,7 +244,10 @@ def _sse_event_stream(search_id):
         data_json = json.dumps(progress_data)
         yield "event: progress\n"
         yield "data: " + data_json + "\n\n"
-        if progress_data.get("status") in ("completed", "failed"):
+        if progress_data.get("status") in (
+            ExpertSearch.Status.COMPLETED,
+            ExpertSearch.Status.FAILED,
+        ):
             yield "event: complete\n"
             yield "data: " + json.dumps({"status": "stream_complete"}) + "\n\n"
             return
@@ -244,14 +258,14 @@ class ExpertSearchProgressStreamView(APIView):
 
     def get(self, request, search_id):
         try:
-            uuid_val = UUID(search_id)
-        except ValueError:
+            search_id_int = int(search_id)
+        except (ValueError, TypeError):
             return Response(
                 {"detail": "Invalid search ID."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:
-            ExpertSearch.objects.get(id=uuid_val, created_by=request.user)
+            ExpertSearch.objects.get(id=search_id_int, created_by=request.user)
         except ExpertSearch.DoesNotExist:
             return Response(
                 {"detail": "Expert search not found."},

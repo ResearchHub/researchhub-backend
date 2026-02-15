@@ -51,8 +51,8 @@ class ExpertSearchCreateSerializer(serializers.Serializer):
     unified_document_id = serializers.IntegerField(required=False, allow_null=True)
     query = serializers.CharField(required=False, allow_blank=True)
     input_type = serializers.ChoiceField(
-        choices=["abstract", "pdf", "custom_query", "full_content"],
-        default="abstract",
+        choices=ExpertSearch.InputType.choices,
+        default=ExpertSearch.InputType.ABSTRACT,
     )
     config = ExpertSearchConfigSerializer(required=False, default=dict)
     excluded_expert_names = serializers.ListField(
@@ -104,7 +104,7 @@ class ExpertResultSerializer(serializers.Serializer):
 
 class ExpertSearchSerializer(serializers.ModelSerializer):
 
-    search_id = serializers.UUIDField(source="id", read_only=True)
+    search_id = serializers.IntegerField(source="id", read_only=True)
     expert_names = serializers.SerializerMethodField()
     report_urls = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(source="created_date", read_only=True)
@@ -153,7 +153,7 @@ class ExpertSearchSerializer(serializers.ModelSerializer):
 
 class ExpertSearchListItemSerializer(serializers.ModelSerializer):
 
-    search_id = serializers.UUIDField(source="id", read_only=True)
+    search_id = serializers.IntegerField(source="id", read_only=True)
     expert_names = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(source="created_date", read_only=True)
 
@@ -178,7 +178,7 @@ class ExpertSearchListItemSerializer(serializers.ModelSerializer):
 
 class ExpertSearchSubmitResponseSerializer(serializers.Serializer):
 
-    search_id = serializers.UUIDField()
+    search_id = serializers.IntegerField()
     status = serializers.CharField()
     message = serializers.CharField()
     sse_url = serializers.URLField(allow_null=True)

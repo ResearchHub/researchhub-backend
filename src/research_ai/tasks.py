@@ -1,6 +1,5 @@
 import logging
 from datetime import datetime
-from uuid import UUID
 
 from research_ai.models import ExpertSearch
 from research_ai.services.expert_finder_service import ExpertFinderService
@@ -10,12 +9,15 @@ logger = logging.getLogger(__name__)
 
 
 def _update_search_progress(
-    search_id: str, percent: int, message: str, status: str = "processing"
+    search_id: str,
+    percent: int,
+    message: str,
+    status: str = ExpertSearch.Status.PROCESSING,
 ):
     """Update ExpertSearch progress in DB (for use from Celery)."""
 
     try:
-        ExpertSearch.objects.filter(id=UUID(search_id)).update(
+        ExpertSearch.objects.filter(id=int(search_id)).update(
             progress=percent,
             current_step=message[:512],
             status=status,
@@ -38,7 +40,7 @@ def process_expert_search_task(
     Background task to process an expert search.
 
     Args:
-        search_id: ExpertSearch UUID (string).
+        search_id: ExpertSearch id (string of integer).
         query: Research description or document text.
         config: Dict with expert_count, expertise_level, region, state, gender.
         excluded_expert_names: Optional list of expert names to exclude.
@@ -46,7 +48,11 @@ def process_expert_search_task(
     """
 
     def progress_callback(sid: str, percent: int, message: str):
-        status = "completed" if percent == 100 else "processing"
+        status = (
+            ExpertSearch.Status.COMPLETED
+            if percent == 100
+            else ExpertSearch.Status.PROCESSING
+        )
         _update_search_progress(sid, percent, message, status=status)
         try:
             self.update_state(
@@ -58,7 +64,10 @@ def process_expert_search_task(
     try:
         logger.info("Starting expert finder for search_id=%s", search_id)
         _update_search_progress(
-            search_id, 5, "Initializing expert search...", status="processing"
+            search_id,
+            5,
+            "Initializing expert search...",
+            status=ExpertSearch.Status.PROCESSING,
         )
 
         service = ExpertFinderService()
@@ -77,8 +86,8 @@ def process_expert_search_task(
         processing_time = (end_time - start_time).total_seconds()
 
         report_urls = result.get("report_urls", {})
-        ExpertSearch.objects.filter(id=UUID(search_id)).update(
-            status="completed",
+        ExpertSearch.objects.filter(id=int(search_id)).update(
+            status=ExpertSearch.Status.COMPLETED,
             progress=100,
             current_step="Expert search completed!",
             expert_results=result.get("experts", []),
@@ -105,10 +114,10 @@ def process_expert_search_task(
             search_id,
             0,
             f"Processing failed: {error_message}",
-            status="failed",
+            status=ExpertSearch.Status.FAILED,
         )
-        ExpertSearch.objects.filter(id=UUID(search_id)).update(
-            status="failed",
+        ExpertSearch.objects.filter(id=int(search_id)).update(
+            status=ExpertSearch.Status.FAILED,
             error_message=error_message[:10000],
         )
         raise
