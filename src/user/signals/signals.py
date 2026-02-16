@@ -10,7 +10,6 @@ from django.utils.text import slugify
 from discussion.models import Vote
 from mailing_list.lib import base_email_context
 from paper.models import Paper, PaperSubmission
-from purchase.models import Wallet
 from reputation.models import Bounty
 from researchhub_access_group.constants import ADMIN
 from researchhub_access_group.models import Permission
@@ -140,12 +139,11 @@ def get_related_hubs(instance):
 @receiver(models.signals.post_save, sender=User)
 def attach_author_and_email_preference(sender, instance, created, *args, **kwargs):
     if created:
-        author = Author.objects.create(
+        Author.objects.create(
             user=instance,
             first_name=instance.first_name,
             last_name=instance.last_name,
         )
-        Wallet.objects.create(author=author)
 
 
 @receiver(post_save, sender=User, dispatch_uid="user_create_org")
