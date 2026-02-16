@@ -45,12 +45,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         created_by = request.query_params.get("created_by", None)
         funded_by = request.query_params.get("funded_by", None)
         cache_key = self.get_cache_key(request, "funding")
-        use_cache = (
-            page_num < 4
-            and grant_id is None
-            and created_by is None
-            and funded_by is None
-        )
+        use_cache = page_num < 4 and grant_id is None and created_by is None and funded_by is None
 
         if use_cache:
             cached_response = cache.get(cache_key)
