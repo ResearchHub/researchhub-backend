@@ -7,9 +7,7 @@ from hub.models import Hub
 from purchase.models import Fundraise, Grant, GrantApplication, Purchase
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.usd_fundraise_contribution_model import UsdFundraiseContribution
-from purchase.services.funding_impact_service import FundingImpactService, MILESTONES, UPDATE_BUCKETS
-from researchhub_comment.constants.rh_comment_thread_types import AUTHOR_UPDATE
-from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
+from purchase.services.funding_impact_service import FundingImpactService, MILESTONES
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import GRANT as GRANT_DOC_TYPE, PREREGISTRATION
 from user.tests.helpers import create_random_authenticated_user
@@ -52,7 +50,6 @@ class TestFundingImpactService(TestCase):
         self.assertEqual(len(result["funding_over_time"]), 6)
         self.assertTrue(all(m["user_contributions"] == 0 for m in result["funding_over_time"]))
         self.assertEqual(result["hub_breakdown"], [])
-        self.assertEqual(result["update_frequency"], [{"bucket": b, "count": 0} for b in UPDATE_BUCKETS])
 
     def test_milestones_calculate_correctly(self):
         # Arrange
@@ -108,27 +105,3 @@ class TestFundingImpactService(TestCase):
         # Assert
         self.assertEqual(result["hub_breakdown"][0], {"name": "Big", "amount_usd": 200.0})
         self.assertEqual(result["hub_breakdown"][1], {"name": "Small", "amount_usd": 50.0})
-
-    def test_update_frequency_buckets(self):
-        # Arrange - create 4 proposals with 0, 1, 2, and 5 updates to cover all bucket branches
-        grant = self._create_grant()
-        r1, r2, r3, r4 = [create_random_authenticated_user(f"r{i}") for i in range(4)]
-        f0 = self._create_proposal_for_grant(grant, r1)  # 0 updates
-        f1 = self._create_proposal_for_grant(grant, r2)  # 1 update
-        f2 = self._create_proposal_for_grant(grant, r3)  # 2 updates (2-3 bucket)
-        f4 = self._create_proposal_for_grant(grant, r4)  # 5 updates (4+ bucket)
-        for f in [f0, f1, f2, f4]:
-            self._contribute(self.grant_creator, f, rsc=100)
-
-        for f, count in [(f1, 1), (f2, 2), (f4, 5)]:
-            post = f.unified_document.posts.first()
-            thread = RhCommentThreadModel.objects.create(thread_type=AUTHOR_UPDATE, content_object=post, created_by=f.created_by)
-            for _ in range(count):
-                RhCommentModel.objects.create(thread=thread, created_by=f.created_by, comment_content_json={}, comment_type=AUTHOR_UPDATE)
-
-        # Act
-        result = self.service.get_funding_impact_overview(self.grant_creator)
-
-        # Assert - all bucket branches covered
-        buckets = {b["bucket"]: b["count"] for b in result["update_frequency"]}
-        self.assertEqual(buckets, {"0": 1, "1": 1, "2-3": 1, "4+": 1})

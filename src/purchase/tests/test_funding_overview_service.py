@@ -9,8 +9,6 @@ from purchase.models import Fundraise, Grant, Purchase
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.usd_fundraise_contribution_model import UsdFundraiseContribution
 from purchase.services.funding_overview_service import FundingOverviewService
-from researchhub_comment.constants.rh_comment_thread_types import AUTHOR_UPDATE
-from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
     GRANT as GRANT_DOC_TYPE,
@@ -36,7 +34,6 @@ class TestFundingOverviewService(TestCase):
         self.assertEqual(result["matched_funding_usd"], 0.0)
         self.assertEqual(result["total_applicants"], {"total": 0, "active": 0, "previous": 0})
         self.assertEqual(result["proposals_funded"], 0)
-        self.assertEqual(result["recent_updates"], 0)
         self.assertEqual(result["active_grants"], {"active": 0, "total": 0})
 
     def test_active_grants_counts_correctly(self):
@@ -84,18 +81,3 @@ class TestFundingOverviewService(TestCase):
         self.assertEqual(float(Purchase.objects.for_user(user1.id).funding_contributions().for_fundraises([fundraise.id]).sum()), 100.0)
         # exclude user1: 200 RSC
         self.assertEqual(float(Purchase.objects.funding_contributions().for_fundraises([fundraise.id]).exclude_user(user1.id).sum()), 200.0)
-
-    def test_update_count_filters_by_date(self):
-        # Arrange
-        post = create_post(created_by=self.user, document_type=PREREGISTRATION)
-        thread = RhCommentThreadModel.objects.create(thread_type=AUTHOR_UPDATE, content_object=post, created_by=self.user)
-        RhCommentModel.objects.create(thread=thread, created_by=self.user, comment_content_json={}, comment_type=AUTHOR_UPDATE)  # Recent
-        old = RhCommentModel.objects.create(thread=thread, created_by=self.user, comment_content_json={}, comment_type=AUTHOR_UPDATE)
-        RhCommentModel.objects.filter(id=old.id).update(created_date=timezone.now() - timedelta(days=60))  # Old
-
-        # Act
-        result = self.service._recent_update_count([post.id], 30)
-
-        # Assert
-        self.assertEqual(result, 1)
-        self.assertEqual(self.service._recent_update_count([], 30), 0)

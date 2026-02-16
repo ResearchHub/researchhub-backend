@@ -204,9 +204,8 @@ class GrantViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["patch"], permission_classes=[IsAuthenticated])
     def update_deadline(self, request, pk=None, *args, **kwargs):
         """Update the end_date of a grant, looked up by its post ID."""
-        try:
-            grant = Grant.objects.get(unified_document__posts__id=pk)
-        except Grant.DoesNotExist:
+        grant = Grant.objects.filter(unified_document__posts__id=pk).first()
+        if not grant:
             return Response(status=404)
 
         if request.user != grant.created_by and not request.user.is_moderator():
@@ -230,9 +229,8 @@ class GrantViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])
     def overview(self, request, pk=None, *args, **kwargs):
         """Return dashboard metrics for a grant, looked up by its post ID."""
-        try:
-            grant = Grant.objects.get(unified_document__posts__id=pk)
-        except Grant.DoesNotExist:
+        grant = Grant.objects.filter(unified_document__posts__id=pk).first()
+        if not grant:
             return Response(status=404)
         data = self.grant_overview_service.get_grant_overview(request.user, grant)
         serializer = GrantOverviewSerializer(data)

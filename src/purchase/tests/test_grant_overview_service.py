@@ -1,14 +1,14 @@
+from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
+from django.utils import timezone
 
 from purchase.models import Fundraise, Grant, GrantApplication, Purchase
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.usd_fundraise_contribution_model import UsdFundraiseContribution
 from purchase.services.funding_overview_service import GrantOverviewService
-from researchhub_comment.constants.rh_comment_thread_types import AUTHOR_UPDATE
-from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import GRANT as GRANT_DOC_TYPE, PREREGISTRATION
 from user.tests.helpers import create_random_authenticated_user
@@ -22,7 +22,7 @@ class TestGrantOverviewService(TestCase):
         RscExchangeRate.objects.create(rate=0.5, real_rate=0.5, price_source="COIN_GECKO", target_currency="USD")
         self.fundraise_ct = ContentType.objects.get_for_model(Fundraise)
 
-    def _create_grant(self, amount=10000):
+    def _create_grant(self, amount=10000, end_date=None):
         """Create a grant owned by the grant creator."""
         post = create_post(created_by=self.grant_creator, document_type=GRANT_DOC_TYPE)
         return Grant.objects.create(
@@ -30,6 +30,7 @@ class TestGrantOverviewService(TestCase):
             unified_document=post.unified_document,
             amount=Decimal(str(amount)),
             status=Grant.OPEN,
+            end_date=end_date,
         )
 
     def _create_proposal_for_grant(self, grant, created_by=None):
@@ -66,16 +67,6 @@ class TestGrantOverviewService(TestCase):
                 destination_org_id="test-org",
             )
 
-    def _create_author_update(self, fundraise):
-        """Create an author update comment on a proposal's post."""
-        post = fundraise.unified_document.posts.first()
-        thread = RhCommentThreadModel.objects.create(
-            thread_type=AUTHOR_UPDATE, content_object=post, created_by=self.researcher
-        )
-        RhCommentModel.objects.create(
-            thread=thread, created_by=self.researcher, comment_content_json={}, comment_type=AUTHOR_UPDATE
-        )
-
     def test_returns_expected_structure(self):
         grant = self._create_grant(amount=750000)
 
@@ -83,8 +74,7 @@ class TestGrantOverviewService(TestCase):
 
         expected_keys = {
             "budget_used_usd", "budget_total_usd", "matched_funding_usd",
-            "recent_updates", "proposals_with_updates", "total_proposals",
-            "proposals_funded", "deadline",
+            "total_proposals", "proposals_funded", "deadline",
         }
         self.assertEqual(set(result.keys()), expected_keys)
 
@@ -96,8 +86,6 @@ class TestGrantOverviewService(TestCase):
         self.assertEqual(result["budget_used_usd"], 0.0)
         self.assertEqual(result["budget_total_usd"], 10000.0)
         self.assertEqual(result["matched_funding_usd"], 0.0)
-        self.assertEqual(result["recent_updates"], 0)
-        self.assertEqual(result["proposals_with_updates"], 0)
         self.assertEqual(result["total_proposals"], 0)
         self.assertEqual(result["proposals_funded"], 0)
 
@@ -150,48 +138,17 @@ class TestGrantOverviewService(TestCase):
 
         self.assertEqual(result["total_proposals"], 3)
 
-    def test_recent_updates_counts_total_updates(self):
-        grant = self._create_grant()
-        fundraise = self._create_proposal_for_grant(grant)
-        self._contribute(self.grant_creator, fundraise, rsc=100)
-        post = fundraise.unified_document.posts.first()
-        thread = RhCommentThreadModel.objects.create(
-            thread_type=AUTHOR_UPDATE, content_object=post, created_by=self.researcher
-        )
-        RhCommentModel.objects.create(
-            thread=thread, created_by=self.researcher, comment_content_json={}, comment_type=AUTHOR_UPDATE
-        )
-        RhCommentModel.objects.create(
-            thread=thread, created_by=self.researcher, comment_content_json={}, comment_type=AUTHOR_UPDATE
-        )
-
-        result = self.service.get_grant_overview(self.grant_creator, grant)
-
-        self.assertEqual(result["recent_updates"], 2)
-
-    def test_proposals_with_updates_counts_unique_posts(self):
-        grant = self._create_grant()
-        r1 = create_random_authenticated_user("r1")
-        r2 = create_random_authenticated_user("r2")
-        r3 = create_random_authenticated_user("r3")
-        f1 = self._create_proposal_for_grant(grant, r1)
-        f2 = self._create_proposal_for_grant(grant, r2)
-        self._create_proposal_for_grant(grant, r3)  # No updates
-
-        # f1 gets 2 updates, f2 gets 1 update, f3 gets none
-        self._create_author_update(f1)
-        self._create_author_update(f1)
-        self._create_author_update(f2)
-
-        result = self.service.get_grant_overview(self.grant_creator, grant)
-
-        self.assertEqual(result["recent_updates"], 3)
-        self.assertEqual(result["proposals_with_updates"], 2)
-
-    def test_deadline_returns_iso_format(self):
+    def test_deadline_returns_none_when_unset(self):
         grant = self._create_grant()
 
         result = self.service.get_grant_overview(self.grant_creator, grant)
 
-        # Grant created without end_date
         self.assertIsNone(result["deadline"])
+
+    def test_deadline_returns_datetime_when_set(self):
+        end_date = timezone.now() + timedelta(days=30)
+        grant = self._create_grant(end_date=end_date)
+
+        result = self.service.get_grant_overview(self.grant_creator, grant)
+
+        self.assertEqual(result["deadline"], end_date)
