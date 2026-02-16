@@ -37,8 +37,8 @@ class CircleWalletService:
         1. If the wallet already has an address with a Circle wallet_type,
            return it immediately.
         2. If user has a circle_wallet_id but no address (prior creation
-           was initiated but wallet wasn't LIVE yet), poll Circle.
-        3. If user has neither, create a new Circle wallet and poll.
+           was initiated but wallet wasn't LIVE yet), fetch from Circle.
+        3. If user has neither, create a new Circle wallet and fetch.
 
         Args:
             user: The authenticated Django User instance.
@@ -65,9 +65,9 @@ class CircleWalletService:
             if not wallet.circle_wallet_id:
                 self._create_wallet(wallet)
 
-        # Phase 2: Poll for the address outside the transaction so that
+        # Phase 2: Fetch the address outside the transaction so that
         # a CircleWalletNotReadyError does NOT roll back the wallet_id save.
-        return self._poll_and_store_address(wallet)
+        return self._fetch_and_store_address(wallet)
 
     def _create_wallet(self, wallet: Wallet) -> None:
         """Create a new Circle wallet and store the wallet ID."""
@@ -84,8 +84,8 @@ class CircleWalletService:
             wallet_id,
         )
 
-    def _poll_and_store_address(self, wallet: Wallet) -> DepositAddressResult:
-        """Poll Circle for wallet state. Store address if LIVE."""
+    def _fetch_and_store_address(self, wallet: Wallet) -> DepositAddressResult:
+        """Fetch wallet state from Circle. Store address if LIVE."""
         try:
             result = self.client.get_wallet(wallet.circle_wallet_id)
         except CircleWalletNotReadyError:
