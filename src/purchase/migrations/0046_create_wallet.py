@@ -23,9 +23,7 @@ class Migration(migrations.Migration):
                         verbose_name="ID",
                     ),
                 ),
-                ("eth_address", models.CharField(max_length=255, null=True)),
-                ("btc_address", models.CharField(max_length=255, null=True)),
-                ("rsc_address", models.CharField(max_length=255, null=True)),
+                ("address", models.CharField(max_length=255, null=True)),
                 (
                     "circle_wallet_id",
                     models.CharField(

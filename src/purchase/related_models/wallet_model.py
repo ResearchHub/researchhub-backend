@@ -14,9 +14,7 @@ class Wallet(models.Model):
         related_name="wallet",
         on_delete=models.CASCADE,
     )
-    eth_address = models.CharField(max_length=255, null=True)
-    btc_address = models.CharField(max_length=255, null=True)
-    rsc_address = models.CharField(max_length=255, null=True)
+    address = models.CharField(max_length=255, null=True)
 
     # Circle developer-controlled wallet fields
     circle_wallet_id = models.CharField(

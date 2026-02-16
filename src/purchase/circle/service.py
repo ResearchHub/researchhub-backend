@@ -34,9 +34,9 @@ class CircleWalletService:
         Get (or provision) the Circle deposit address for a user.
 
         Flow:
-        1. If the wallet already has an eth_address with a Circle wallet_type,
+        1. If the wallet already has an address with a Circle wallet_type,
            return it immediately.
-        2. If user has a circle_wallet_id but no eth_address (prior creation
+        2. If user has a circle_wallet_id but no address (prior creation
            was initiated but wallet wasn't LIVE yet), poll Circle.
         3. If user has neither, create a new Circle wallet and poll.
 
@@ -58,8 +58,8 @@ class CircleWalletService:
             wallet, _ = Wallet.objects.select_for_update().get_or_create(user=user)
 
             # Already fully provisioned
-            if wallet.circle_wallet_id and wallet.eth_address:
-                return DepositAddressResult(address=wallet.eth_address)
+            if wallet.circle_wallet_id and wallet.address:
+                return DepositAddressResult(address=wallet.address)
 
             # No Circle wallet yet — create one and persist the ID
             if not wallet.circle_wallet_id:
@@ -85,7 +85,7 @@ class CircleWalletService:
         )
 
     def _poll_and_store_address(self, wallet: Wallet) -> DepositAddressResult:
-        """Poll Circle for wallet state. Store eth_address if LIVE."""
+        """Poll Circle for wallet state. Store address if LIVE."""
         try:
             result = self.client.get_wallet(wallet.circle_wallet_id)
         except CircleWalletNotReadyError:
@@ -96,8 +96,8 @@ class CircleWalletService:
             )
             raise
 
-        wallet.eth_address = result.address
-        wallet.save(update_fields=["eth_address"])
+        wallet.address = result.address
+        wallet.save(update_fields=["address"])
 
         logger.info(
             "Circle address stored for wallet pk=%s: %s",
