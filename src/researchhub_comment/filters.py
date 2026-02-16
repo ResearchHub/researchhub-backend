@@ -1,6 +1,17 @@
+import logging
 from functools import reduce
 
-from django.db.models import DecimalField, IntegerField, Q, Sum
+from django.contrib.contenttypes.models import ContentType
+from django.db.models import (
+    DecimalField,
+    Exists,
+    IntegerField,
+    OuterRef,
+    Q,
+    Sum,
+    Case,
+    When,
+)
 from django.db.models.functions import Cast, Coalesce
 from django_filters import DateTimeFilter
 from django_filters import rest_framework as filters
@@ -15,6 +26,8 @@ from researchhub_comment.constants.rh_comment_thread_types import (
     SUMMARY,
 )
 from researchhub_comment.models import RhCommentModel
+
+logger = logging.getLogger(__name__)
 from utils.http import GET
 
 BEST = "BEST"
@@ -101,13 +114,10 @@ class RHCommentFilter(filters.FilterSet):
         fields = ("ordering",)
 
     def __init__(self, *args, request=None, **kwargs):
-        # Privacy type should always be set, even if not passed in
-        # This will ensure private/organization comments will be hidden
-        if request.method == GET:
-            kwargs["data"]._mutable = True
-            if "privacy_type" not in kwargs["data"]:
-                kwargs["data"]["privacy_type"] = PUBLIC
-            kwargs["data"]._mutable = False
+        if request.method == GET and "privacy_type" not in kwargs.get("data", {}):
+            data = kwargs.get("data", {}).copy()
+            data["privacy_type"] = PUBLIC
+            kwargs["data"] = data
         super().__init__(*args, request=request, **kwargs)
 
     def _is_ascending(self):
@@ -143,6 +153,12 @@ class RHCommentFilter(filters.FilterSet):
         )
         return queryset
 
+    def _annotate_academic_score_components(self, qs):
+        return qs.with_academic_scores()
+
+    def _apply_academic_ordering(self, qs):
+        return qs.order_by('-cached_academic_score')
+    
     def _is_on_child_queryset(self):
         # This checks whether we are filtering on the comment's children
         # because we don't want the related filters to be called
@@ -171,6 +187,9 @@ class RHCommentFilter(filters.FilterSet):
         # Start with the base queryset that Django-Filters builds using the
         # declared filters (ordering, privacy, explicit filtering, etc.).
         base_qs = super().qs
+        
+        # Always exclude removed comments
+        base_qs = base_qs.exclude(is_removed=True)
 
         # If we're on a RelatedManager (children queryset) or the caller explicitly
         # requested a filtering, respect that request and return the queryset
@@ -190,33 +209,29 @@ class RHCommentFilter(filters.FilterSet):
 
     def ordering_filter(self, qs, name, value):
         if value == BEST:
-            qs = self._annotate_bounty_sum(
-                qs, annotation_filters=[{"bounties__status": Bounty.OPEN}]
-            )
-            qs = qs.annotate(
-                accepted_answer=Cast("is_accepted_answer", output_field=IntegerField())
-            )
-            keys = self._get_ordering_keys(
-                [
-                    "bounty_sum",
-                    "accepted_answer",
-                    "score",
-                    "created_date",
-                ]
-            )
-            qs = qs.order_by(*keys)
+            qs = self._apply_academic_ordering(qs)
         elif value == TOP:
             keys = self._get_ordering_keys(["score"])
             qs = qs.order_by(*keys)
         elif value == BOUNTY:
-            qs = self._annotate_bounty_sum(qs).filter(bounty_sum__gt=0)
-            keys = self._get_ordering_keys(
-                [
-                    "bounty_sum",
-                    "score",
-                    "created_date",
-                ]
-            )
+            try:
+                qs = self._annotate_bounty_sum(qs).filter(bounty_sum__gt=0)
+                
+                comment_ct = ContentType.objects.get_for_model(RhCommentModel)
+                
+                qs = qs.annotate(
+                    has_open_bounty=Exists(
+                        Bounty.objects.filter(
+                            item_content_type=comment_ct,
+                            item_object_id=OuterRef("id"),
+                            status=Bounty.OPEN,
+                        )
+                    )
+                ).order_by('-has_open_bounty', '-cached_academic_score')
+            except Exception as e:
+                logger.error(f"Failed to apply bounty ordering: {e}")
+                return self._apply_academic_ordering(qs)
+            
         elif value == CREATED_DATE:
             keys = self._get_ordering_keys(["created_date"])
             qs = qs.order_by(*keys)
@@ -286,7 +301,5 @@ class RHCommentFilter(filters.FilterSet):
     def filtering_parent(self, qs, name, value):
         if self._is_on_child_queryset():
             return qs
-
-        # Simply filter by parent__isnull without creating a new queryset
-        # This preserves any ordering that was previously applied
-        return qs.filter(parent__isnull=value)
+            
+        return qs.filter(**{name: value})

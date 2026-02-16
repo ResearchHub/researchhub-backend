@@ -127,6 +127,18 @@ app.conf.beat_schedule = {
             "queue": QUEUE_BOUNTIES,
         },
     },
+    "researchhub_comment_update-stale-academic-scores": {
+        "task": "researchhub_comment.tasks.check_stale_comment_scores",
+        "schedule": crontab(hour="0, 6, 12, 18", minute=30),
+        "options": {
+            "priority": 3,
+            "queue": QUEUE_REPUTATION,
+        },
+        "kwargs": {
+            "hours_old": 24,
+            "batch_size": 1000,
+        }
+    },
     # User
     "user_execute-editor-daily-payout-task": {
         "task": "user.tasks.tasks.execute_editor_daily_payout_task",
