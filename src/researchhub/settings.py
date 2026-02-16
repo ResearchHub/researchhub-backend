@@ -881,8 +881,8 @@ TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", keys.TRANSPOSE_KEY)
 OPENALEX_KEY = os.environ.get("OPENALEX_KEY", keys.OPENALEX_KEY)
 
 # Endaoment API
-ENDAOMENT_API_URL = f"https://api{'' if PRODUCTION else '.dev'}.endaoment.org"
-ENDAOMENT_AUTH_URL = f"https://auth{'' if PRODUCTION else '.dev'}.endaoment.org"
+ENDAOMENT_API_URL = f"https://api{'' if PRODUCTION else '.staging'}.endaoment.org"
+ENDAOMENT_AUTH_URL = f"https://auth{'' if PRODUCTION else '.staging'}.endaoment.org"
 ENDAOMENT_CLIENT_ID = os.environ.get("ENDAOMENT_CLIENT_ID", keys.ENDAOMENT_CLIENT_ID)
 ENDAOMENT_CLIENT_SECRET = os.environ.get(
     "ENDAOMENT_CLIENT_SECRET", keys.ENDAOMENT_CLIENT_SECRET
