@@ -96,6 +96,19 @@ class GeneratedEmail(DefaultModel):
     Stores generated outreach emails for experts.
     """
 
+    class Template(models.TextChoices):
+        COLLABORATION = "collaboration", "collaboration"
+        CONSULTATION = "consultation", "consultation"
+        CONFERENCE = "conference", "conference"
+        PEER_REVIEW = "peer-review", "peer-review"
+        PUBLICATION = "publication", "publication"
+        RFP_OUTREACH = "rfp-outreach", "rfp-outreach"
+        CUSTOM = "custom", "custom"
+
+    class Status(models.TextChoices):
+        DRAFT = "draft", "draft"
+        SENT = "sent", "sent"
+
     created_by = models.ForeignKey(
         "user.User",
         on_delete=models.CASCADE,
@@ -117,24 +130,13 @@ class GeneratedEmail(DefaultModel):
     email_body = models.TextField(blank=True)
     template = models.CharField(
         max_length=32,
-        choices=[
-            ("collaboration", "collaboration"),
-            ("consultation", "consultation"),
-            ("conference", "conference"),
-            ("peer-review", "peer-review"),
-            ("publication", "publication"),
-            ("rfp-outreach", "rfp-outreach"),
-            ("custom", "custom"),
-        ],
-        default="custom",
+        choices=Template.choices,
+        default=Template.CUSTOM,
     )
     status = models.CharField(
         max_length=16,
-        choices=[
-            ("draft", "draft"),
-            ("sent", "sent"),
-        ],
-        default="draft",
+        choices=Status.choices,
+        default=Status.DRAFT,
     )
     notes = models.TextField(blank=True)
 
