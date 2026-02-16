@@ -90,58 +90,7 @@ class NoteSerializer(ModelSerializer):
         if not hasattr(note, "post"):
             return None
 
-        context = {
-            "doc_dps_get_authors": {
-                "_include_fields": [
-                    "id",
-                    "first_name",
-                    "last_name",
-                    "user",
-                ]
-            },
-            "doc_dps_get_hubs": {
-                "_include_fields": [
-                    "id",
-                    "name",
-                ]
-            },
-            "doc_dps_get_unified_document": {"_include_fields": ["fundraise", "grant"]},
-            "doc_duds_get_fundraise": {
-                "_include_fields": [
-                    "id",
-                    "status",
-                    "goal_amount",
-                    "goal_currency",
-                    "start_date",
-                    "end_date",
-                    "amount_raised",
-                    "contributors",
-                ]
-            },
-            "doc_duds_get_grant": {
-                "_include_fields": [
-                    "id",
-                    "status",
-                    "amount",
-                    "currency",
-                    "organization",
-                    "description",
-                    "start_date",
-                    "end_date",
-                    "created_by",
-                    "contacts",
-                    "applications",
-                ]
-            },
-            "pch_dgs_get_created_by": {
-                "_include_fields": [
-                    "id",
-                    "author_profile",
-                    "first_name",
-                    "last_name",
-                ]
-            },
-        }
+        context = _note_post_context()
         serializer = DynamicPostSerializer(
             note.post,
             context=context,
@@ -241,58 +190,7 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
         if not hasattr(note, "post"):
             return None
 
-        context = {
-            "doc_dps_get_authors": {
-                "_include_fields": [
-                    "id",
-                    "first_name",
-                    "last_name",
-                    "user",
-                ]
-            },
-            "doc_dps_get_hubs": {
-                "_include_fields": [
-                    "id",
-                    "name",
-                ]
-            },
-            "doc_dps_get_unified_document": {"_include_fields": ["fundraise", "grant"]},
-            "doc_duds_get_fundraise": {
-                "_include_fields": [
-                    "id",
-                    "status",
-                    "goal_amount",
-                    "goal_currency",
-                    "start_date",
-                    "end_date",
-                    "amount_raised",
-                    "contributors",
-                ]
-            },
-            "doc_duds_get_grant": {
-                "_include_fields": [
-                    "id",
-                    "status",
-                    "amount",
-                    "currency",
-                    "organization",
-                    "description",
-                    "start_date",
-                    "end_date",
-                    "created_by",
-                    "contacts",
-                    "applications",
-                ]
-            },
-            "pch_dgs_get_created_by": {
-                "_include_fields": [
-                    "id",
-                    "author_profile",
-                    "first_name",
-                    "last_name",
-                ]
-            },
-        }
+        context = _note_post_context()
         serializer = DynamicPostSerializer(
             note.post,
             context=context,
@@ -316,3 +214,77 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
             note.unified_document, context=context, **_context_fields
         )
         return serializer.data
+
+
+def _note_post_context():
+    """Shared context for serializing a note's post with fundraise and grant data."""
+    return {
+        "doc_dps_get_authors": {
+            "_include_fields": [
+                "id",
+                "first_name",
+                "last_name",
+                "user",
+            ]
+        },
+        "doc_dps_get_hubs": {
+            "_include_fields": [
+                "id",
+                "name",
+            ]
+        },
+        "doc_dps_get_unified_document": {"_include_fields": ["fundraise", "grant"]},
+        "doc_duds_get_fundraise": {
+            "_include_fields": [
+                "id",
+                "status",
+                "goal_amount",
+                "goal_currency",
+                "start_date",
+                "end_date",
+                "amount_raised",
+                "contributors",
+                "application",
+            ]
+        },
+        "pch_dfs_get_contributors": {
+            "_include_fields": [
+                "id",
+                "first_name",
+                "last_name",
+                "author_profile",
+            ]
+        },
+        "pch_dfs_get_grant": {
+            "_include_fields": [
+                "id",
+                "title",
+                "organization",
+                "amount",
+                "created_by",
+            ]
+        },
+        "doc_duds_get_grant": {
+            "_include_fields": [
+                "id",
+                "status",
+                "amount",
+                "currency",
+                "organization",
+                "description",
+                "start_date",
+                "end_date",
+                "created_by",
+                "contacts",
+                "applications",
+            ]
+        },
+        "pch_dgs_get_created_by": {
+            "_include_fields": [
+                "id",
+                "author_profile",
+                "first_name",
+                "last_name",
+            ]
+        },
+    }

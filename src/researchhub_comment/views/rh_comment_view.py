@@ -23,11 +23,6 @@ from reputation.models import Bounty, Contribution
 from reputation.tasks import create_contribution, find_qualified_users_and_notify
 from reputation.utils import deduct_bounty_fees
 from reputation.views.bounty_view import _create_bounty, _create_bounty_checks
-from review.services.review_service import (
-    MAX_REVIEWS_PER_WINDOW,
-    REVIEW_WINDOW_DAYS,
-    get_review_availability,
-)
 from researchhub.pagination import FasterDjangoPaginator
 from researchhub.permissions import IsObjectOwner, IsObjectOwnerOrModerator
 from researchhub.settings import TESTING
@@ -62,6 +57,11 @@ from researchhub_document.related_models.constants.document_type import (
     SORT_BOUNTY_EXPIRATION_DATE,
     SORT_BOUNTY_TOTAL_AMOUNT,
     SORT_DISCUSSED,
+)
+from review.services.review_service import (
+    MAX_REVIEWS_PER_WINDOW,
+    REVIEW_WINDOW_DAYS,
+    get_review_availability,
 )
 from utils.throttles import THROTTLE_CLASSES
 
@@ -356,6 +356,8 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     "updated_date",
                     "profile_image",
                     "is_verified",
+                    "headline",
+                    "education",
                 )
             },
             "usr_dus_get_editor_of": {"_include_fields": ("source",)},
