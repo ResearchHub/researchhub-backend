@@ -10,6 +10,7 @@ from .related_models.rsc_exchange_rate_model import RscExchangeRate
 from .related_models.rsc_purchase_fee import RscPurchaseFee
 from .related_models.support_model import Support
 from .related_models.usd_fundraise_contribution_model import UsdFundraiseContribution
+from .related_models.wallet_model import Wallet
 
 migratables = (
     AggregatePurchase,
@@ -24,4 +25,5 @@ migratables = (
     RscPurchaseFee,
     Support,
     UsdFundraiseContribution,
+    Wallet,
 )

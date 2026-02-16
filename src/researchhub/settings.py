@@ -890,6 +890,7 @@ ENDAOMENT_CLIENT_SECRET = os.environ.get(
 ENDAOMENT_REDIRECT_URL = os.environ.get(
     "ENDAOMENT_REDIRECT_URL", keys.ENDAOMENT_REDIRECT_URL
 )
+<<<<<<< HEAD
 # ResearchHub's Endaoment fund IDs, indexed by chain ID.
 # Each chain requires its own fund because Endaoment does not support bridging.
 #
@@ -926,6 +927,9 @@ ENDAOMENT_RH_FUND_IDS = {
         keys.ENDAOMENT_RH_FUND_ID_BASE,
     ),
 }
+=======
+ENDAOMENT_RH_FUND_ID = os.environ.get("ENDAOMENT_RH_FUND_ID", keys.ENDAOMENT_RH_FUND_ID)
+>>>>>>> c6f4ca2ae (Implement lazy wallet creation with circle)
 
 # Etherscan API Key
 ETHERSCAN_API_KEY = os.environ.get("ETHERSCAN_API_KEY", keys.ETHERSCAN_API_KEY)
@@ -935,6 +939,14 @@ COIN_GECKO_API_KEY = os.environ.get("COIN_GECKO_API_KEY", keys.COIN_GECKO_API_KE
 
 # Endaoment Account ID
 ENDAOMENT_ACCOUNT_ID = os.environ.get("ENDAOMENT_ACCOUNT_ID", keys.ENDAOMENT_ACCOUNT_ID)
+
+# Circle Developer-Controlled Wallets
+CIRCLE_API_KEY = os.environ.get("CIRCLE_API_KEY", keys.CIRCLE_API_KEY)
+CIRCLE_ENTITY_SECRET = os.environ.get("CIRCLE_ENTITY_SECRET", keys.CIRCLE_ENTITY_SECRET)
+CIRCLE_WALLET_SET_ID = os.environ.get("CIRCLE_WALLET_SET_ID", keys.CIRCLE_WALLET_SET_ID)
+CIRCLE_ENTITY_PUBLIC_KEY = os.environ.get(
+    "CIRCLE_ENTITY_PUBLIC_KEY", keys.CIRCLE_ENTITY_PUBLIC_KEY
+)
 
 # ResearchHub Journal ID
 RESEARCHHUB_JOURNAL_ID = os.environ.get(

@@ -61,6 +61,7 @@ dependencies = [
     "stripe>=11.2.0,<12.0.0",
     "web3[tester]==7.10.0",
     "xdk>=0.4.5",
+    "circle-developer-controlled-wallets>=9.2.0,<10.0.0",
 ]
 
 [dependency-groups]

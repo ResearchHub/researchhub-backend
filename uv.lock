@@ -498,6 +498,45 @@ wheels = [
 ]
 
 [[package]]
+name = "circle-configurations"
+version = "9.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "lazy-imports" },
+    { name = "pycryptodome" },
+    { name = "pydantic" },
+    { name = "python-dateutil" },
+    { name = "typing-extensions" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7f/ae/67172d8233b145a7faa1e8c3f5ddb7bb33e10bcf9f2f82c6f71ea4acb86c/circle_configurations-9.2.0.tar.gz", hash = "sha256:fae45dbf00cdead78e7ddab95b56906c9e337342a82c4ea06908ec7158845d84", size = 36874, upload-time = "2026-01-30T11:23:19.364Z" }
+
+[[package]]
+name = "circle-developer-controlled-wallets"
+version = "9.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "circle-configurations" },
+    { name = "circle-web3-sdk-util" },
+    { name = "lazy-imports" },
+    { name = "pycryptodome" },
+    { name = "pydantic" },
+    { name = "python-dateutil" },
+    { name = "typing-extensions" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/1d/76/5314ce95f009f7bb0892f47eda481251d0d91f9baca42635215fab328211/circle_developer_controlled_wallets-9.2.0.tar.gz", hash = "sha256:d744db8804c36ac5622b34e6353ab272cbc175eda10237276fab65fd9ea8da34", size = 84685, upload-time = "2026-01-30T11:23:22.049Z" }
+
+[[package]]
+name = "circle-web3-sdk-util"
+version = "9.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pycryptodome" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e6/5e/f288a0dfb874cdc99882e7f16c3294229ff69cb8ebd997cbbed413568987/circle_web3_sdk_util-9.2.0.tar.gz", hash = "sha256:c759fe8bd552274e1d56168c8b93479339500bfe960891690f71fd0c63d9d22c", size = 9010, upload-time = "2026-01-30T11:23:16.657Z" }
+
+[[package]]
 name = "ckzg"
 version = "2.1.5"
 source = { registry = "https://pypi.org/simple" }
@@ -1564,6 +1603,15 @@ wheels = [
 ]
 
 [[package]]
+name = "lazy-imports"
+version = "1.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/25/67/04432aae0c1e2729bff14e1841f4a3fb63a9e354318e66622251487760c3/lazy_imports-1.2.0.tar.gz", hash = "sha256:3c546b3c1e7c4bf62a07f897f6179d9feda6118e71ef6ecc47a339cab3d2e2d9", size = 24470, upload-time = "2025-12-28T13:51:51.218Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cd/62/60ed24fa8707f10c1c5aef94791252b820be3dd6bdfc6e2fcdb08bc8912f/lazy_imports-1.2.0-py3-none-any.whl", hash = "sha256:97134d6552e2ba16f1a278e316f05313ab73b360e848e40d593d08a5c2406fdf", size = 18681, upload-time = "2025-12-28T13:51:49.802Z" },
+]
+
+[[package]]
 name = "libipld"
 version = "3.3.2"
 source = { registry = "https://pypi.org/simple" }
@@ -2589,6 +2637,7 @@ dependencies = [
     { name = "celery-redbeat" },
     { name = "channels" },
     { name = "channels-redis" },
+    { name = "circle-developer-controlled-wallets" },
     { name = "cloudscraper" },
     { name = "daphne" },
     { name = "dj-rest-auth", extra = ["with-social"] },
@@ -2657,6 +2706,7 @@ requires-dist = [
     { name = "celery-redbeat", specifier = "==2.3.3" },
     { name = "channels", specifier = ">=4.1.0,<5.0.0" },
     { name = "channels-redis", specifier = ">=4.2.0,<5.0.0" },
+    { name = "circle-developer-controlled-wallets", specifier = ">=9.2.0,<10.0.0" },
     { name = "cloudscraper", specifier = ">=1.2.60,<2.0.0" },
     { name = "daphne", specifier = ">=4.1.2,<5.0.0" },
     { name = "dj-rest-auth", extras = ["with-social"], specifier = ">=7.0.2,<8.0.0" },
