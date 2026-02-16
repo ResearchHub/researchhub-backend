@@ -9,4 +9,3 @@ class GrantOverviewSerializer(serializers.Serializer):
     matched_funding_usd = serializers.FloatField()
     total_proposals = serializers.IntegerField()
     proposals_funded = serializers.IntegerField()
-    deadline = serializers.DateTimeField(allow_null=True)

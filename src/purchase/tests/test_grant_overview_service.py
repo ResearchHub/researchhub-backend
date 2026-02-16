@@ -1,9 +1,7 @@
-from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
-from django.utils import timezone
 
 from purchase.models import Fundraise, Grant, GrantApplication, Purchase
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
@@ -22,7 +20,7 @@ class TestGrantOverviewService(TestCase):
         RscExchangeRate.objects.create(rate=0.5, real_rate=0.5, price_source="COIN_GECKO", target_currency="USD")
         self.fundraise_ct = ContentType.objects.get_for_model(Fundraise)
 
-    def _create_grant(self, amount=10000, end_date=None):
+    def _create_grant(self, amount=10000):
         """Create a grant owned by the grant creator."""
         post = create_post(created_by=self.grant_creator, document_type=GRANT_DOC_TYPE)
         return Grant.objects.create(
@@ -30,7 +28,6 @@ class TestGrantOverviewService(TestCase):
             unified_document=post.unified_document,
             amount=Decimal(str(amount)),
             status=Grant.OPEN,
-            end_date=end_date,
         )
 
     def _create_proposal_for_grant(self, grant, created_by=None):
@@ -74,7 +71,7 @@ class TestGrantOverviewService(TestCase):
 
         expected_keys = {
             "budget_used_usd", "budget_total_usd", "matched_funding_usd",
-            "total_proposals", "proposals_funded", "deadline",
+            "total_proposals", "proposals_funded",
         }
         self.assertEqual(set(result.keys()), expected_keys)
 
@@ -138,17 +135,3 @@ class TestGrantOverviewService(TestCase):
 
         self.assertEqual(result["total_proposals"], 3)
 
-    def test_deadline_returns_none_when_unset(self):
-        grant = self._create_grant()
-
-        result = self.service.get_grant_overview(self.grant_creator, grant)
-
-        self.assertIsNone(result["deadline"])
-
-    def test_deadline_returns_datetime_when_set(self):
-        end_date = timezone.now() + timedelta(days=30)
-        grant = self._create_grant(end_date=end_date)
-
-        result = self.service.get_grant_overview(self.grant_creator, grant)
-
-        self.assertEqual(result["deadline"], end_date)

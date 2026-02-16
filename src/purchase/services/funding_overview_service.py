@@ -153,5 +153,4 @@ class GrantOverviewService(_OverviewMixin):
             ),
             "total_proposals": applications.count(),
             "proposals_funded": len(funded_fundraise_ids),
-            "deadline": grant.end_date,
         }

@@ -1,5 +1,4 @@
 from django.db import transaction
-from django.utils.dateparse import parse_datetime
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -200,31 +199,6 @@ class GrantViewSet(viewsets.ModelViewSet):
             return Response({"message": "Application submitted"}, status=201)
         else:
             return Response({"message": "Already applied"}, status=200)
-
-    @action(detail=True, methods=["patch"], permission_classes=[IsAuthenticated])
-    def update_deadline(self, request, pk=None, *args, **kwargs):
-        """Update the end_date of a grant, looked up by its post ID."""
-        grant = Grant.objects.filter(unified_document__posts__id=pk).first()
-        if not grant:
-            return Response(status=404)
-
-        if request.user != grant.created_by and not request.user.is_moderator():
-            return Response({"message": "Permission denied"}, status=403)
-
-        raw_date = request.data.get("end_date")
-        if not raw_date:
-            return Response({"error": "end_date is required"}, status=400)
-
-        end_date = parse_datetime(raw_date)
-        if not end_date:
-            return Response({"error": "Invalid date format"}, status=400)
-
-        grant.end_date = end_date
-        grant.save(update_fields=["end_date"])
-
-        context = self.get_serializer_context()
-        serializer = self.get_serializer(grant, context=context)
-        return Response(serializer.data)
 
     @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])
     def overview(self, request, pk=None, *args, **kwargs):
