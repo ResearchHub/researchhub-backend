@@ -21,15 +21,15 @@ class TestCircleWalletService(TestCase):
         self.mock_client = Mock()
         self.service = CircleWalletService(client=self.mock_client)
         self.user = User.objects.create_user(username="testUser1")
-        # Wallet is auto-created by user signal
-        self.wallet = Wallet.objects.get(author=self.user.author_profile)
 
-    def test_returns_existing_circle_address(self):
-        """When circle_address is already set, return it without calling Circle."""
-        self.wallet.circle_address = "0xExistingAddress"
-        self.wallet.circle_wallet_id = "existing-id"
-        self.wallet.wallet_type = Wallet.WALLET_TYPE_CIRCLE
-        self.wallet.save()
+    def test_returns_existing_address(self):
+        """When eth_address and circle_wallet_id are set, return without calling Circle."""
+        wallet = Wallet.objects.create(
+            user=self.user,
+            eth_address="0xExistingAddress",
+            circle_wallet_id="existing-id",
+            wallet_type=Wallet.WALLET_TYPE_CIRCLE,
+        )
 
         result = self.service.get_or_create_deposit_address(self.user)
 
@@ -39,10 +39,12 @@ class TestCircleWalletService(TestCase):
         self.mock_client.get_wallet.assert_not_called()
 
     def test_polls_when_wallet_id_exists_but_no_address(self):
-        """When circle_wallet_id exists but no address, poll Circle."""
-        self.wallet.circle_wallet_id = "pending-wallet-id"
-        self.wallet.wallet_type = Wallet.WALLET_TYPE_CIRCLE
-        self.wallet.save()
+        """When circle_wallet_id exists but no eth_address, poll Circle."""
+        wallet = Wallet.objects.create(
+            user=self.user,
+            circle_wallet_id="pending-wallet-id",
+            wallet_type=Wallet.WALLET_TYPE_CIRCLE,
+        )
 
         self.mock_client.get_wallet.return_value = CircleWalletResult(
             wallet_id="pending-wallet-id",
@@ -56,12 +58,11 @@ class TestCircleWalletService(TestCase):
         self.mock_client.create_wallet.assert_not_called()
         self.mock_client.get_wallet.assert_called_once_with("pending-wallet-id")
 
-        # Verify address was persisted
-        self.wallet.refresh_from_db()
-        self.assertEqual(self.wallet.circle_address, "0xNewAddress")
+        wallet.refresh_from_db()
+        self.assertEqual(wallet.eth_address, "0xNewAddress")
 
-    def test_creates_wallet_when_none_exists(self):
-        """When no circle fields are set, create wallet and fetch address."""
+    def test_creates_wallet_record_and_circle_wallet_when_none_exists(self):
+        """When user has no wallet record at all, create both DB and Circle wallet."""
         self.mock_client.create_wallet.return_value = "new-circle-wallet-id"
         self.mock_client.get_wallet.return_value = CircleWalletResult(
             wallet_id="new-circle-wallet-id",
@@ -72,14 +73,36 @@ class TestCircleWalletService(TestCase):
         result = self.service.get_or_create_deposit_address(self.user)
 
         self.assertEqual(result.address, "0xBrandNewAddress")
+
+        wallet = Wallet.objects.get(user=self.user)
         self.mock_client.create_wallet.assert_called_once_with(
-            idempotency_key=f"rh-wallet-{self.wallet.pk}"
+            idempotency_key=f"rh-wallet-{wallet.pk}"
+        )
+        self.assertEqual(wallet.circle_wallet_id, "new-circle-wallet-id")
+        self.assertEqual(wallet.eth_address, "0xBrandNewAddress")
+        self.assertEqual(wallet.wallet_type, Wallet.WALLET_TYPE_CIRCLE)
+
+    def test_creates_circle_wallet_when_empty_wallet_exists(self):
+        """When user has an empty wallet record, create Circle wallet."""
+        wallet = Wallet.objects.create(user=self.user)
+
+        self.mock_client.create_wallet.return_value = "new-id"
+        self.mock_client.get_wallet.return_value = CircleWalletResult(
+            wallet_id="new-id",
+            address="0xAddr",
+            state="LIVE",
         )
 
-        self.wallet.refresh_from_db()
-        self.assertEqual(self.wallet.circle_wallet_id, "new-circle-wallet-id")
-        self.assertEqual(self.wallet.circle_address, "0xBrandNewAddress")
-        self.assertEqual(self.wallet.wallet_type, Wallet.WALLET_TYPE_CIRCLE)
+        result = self.service.get_or_create_deposit_address(self.user)
+
+        self.assertEqual(result.address, "0xAddr")
+        self.mock_client.create_wallet.assert_called_once_with(
+            idempotency_key=f"rh-wallet-{wallet.pk}"
+        )
+
+        wallet.refresh_from_db()
+        self.assertEqual(wallet.circle_wallet_id, "new-id")
+        self.assertEqual(wallet.eth_address, "0xAddr")
 
     def test_raises_not_ready_when_wallet_not_live(self):
         """When wallet is created but not LIVE, raise error. Wallet ID is saved."""
@@ -92,9 +115,9 @@ class TestCircleWalletService(TestCase):
             self.service.get_or_create_deposit_address(self.user)
 
         # Wallet ID should be saved even though address is not
-        self.wallet.refresh_from_db()
-        self.assertEqual(self.wallet.circle_wallet_id, "pending-wallet-id")
-        self.assertIsNone(self.wallet.circle_address)
+        wallet = Wallet.objects.get(user=self.user)
+        self.assertEqual(wallet.circle_wallet_id, "pending-wallet-id")
+        self.assertIsNone(wallet.eth_address)
 
     def test_raises_creation_error_on_api_failure(self):
         """When Circle API fails, raise CircleWalletCreationError."""
@@ -107,9 +130,11 @@ class TestCircleWalletService(TestCase):
 
     def test_polls_not_ready_raises_when_only_wallet_id_exists(self):
         """When wallet_id exists but polling says not LIVE, raise error."""
-        self.wallet.circle_wallet_id = "pending-id"
-        self.wallet.wallet_type = Wallet.WALLET_TYPE_CIRCLE
-        self.wallet.save()
+        wallet = Wallet.objects.create(
+            user=self.user,
+            circle_wallet_id="pending-id",
+            wallet_type=Wallet.WALLET_TYPE_CIRCLE,
+        )
 
         self.mock_client.get_wallet.side_effect = CircleWalletNotReadyError(
             "Still pending"
@@ -118,6 +143,5 @@ class TestCircleWalletService(TestCase):
         with self.assertRaises(CircleWalletNotReadyError):
             self.service.get_or_create_deposit_address(self.user)
 
-        # Address should still be None
-        self.wallet.refresh_from_db()
-        self.assertIsNone(self.wallet.circle_address)
+        wallet.refresh_from_db()
+        self.assertIsNone(wallet.eth_address)
