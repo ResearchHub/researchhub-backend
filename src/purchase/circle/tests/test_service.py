@@ -5,7 +5,7 @@ from django.test import TestCase
 
 from purchase.circle.client import (
     CircleWalletCreationError,
-    CircleWalletNotReadyError,
+    CircleWalletFrozenError,
     CircleWalletResult,
 )
 from purchase.circle.service import CircleWalletService
@@ -104,21 +104,20 @@ class TestCircleWalletService(TestCase):
         self.assertEqual(wallet.circle_wallet_id, "new-id")
         self.assertEqual(wallet.address, "0xAddr")
 
-    def test_raises_not_ready_when_wallet_not_live(self):
-        """When wallet is created but not LIVE, raise error. Wallet ID is saved."""
-        self.mock_client.create_wallet.return_value = "pending-wallet-id"
+    def test_raises_not_live_when_wallet_frozen(self):
+        """When wallet is FROZEN, raise error. Wallet ID is saved."""
+        self.mock_client.create_wallet.return_value = "frozen-wallet-id"
         self.mock_client.get_wallet.return_value = CircleWalletResult(
-            wallet_id="pending-wallet-id",
+            wallet_id="frozen-wallet-id",
             address="",
-            state="PENDING",
+            state="FROZEN",
         )
 
-        with self.assertRaises(CircleWalletNotReadyError):
+        with self.assertRaises(CircleWalletFrozenError):
             self.service.get_or_create_deposit_address(self.user)
 
-        # Wallet ID should be saved even though address is not
         wallet = Wallet.objects.get(user=self.user)
-        self.assertEqual(wallet.circle_wallet_id, "pending-wallet-id")
+        self.assertEqual(wallet.circle_wallet_id, "frozen-wallet-id")
         self.assertIsNone(wallet.address)
 
     def test_raises_creation_error_on_api_failure(self):
@@ -130,21 +129,21 @@ class TestCircleWalletService(TestCase):
         with self.assertRaises(CircleWalletCreationError):
             self.service.get_or_create_deposit_address(self.user)
 
-    def test_polls_not_ready_raises_when_only_wallet_id_exists(self):
-        """When wallet_id exists but polling says not LIVE, raise error."""
+    def test_raises_not_live_when_existing_wallet_frozen(self):
+        """When wallet_id exists but wallet is FROZEN, raise error."""
         wallet = Wallet.objects.create(
             user=self.user,
-            circle_wallet_id="pending-id",
+            circle_wallet_id="frozen-id",
             wallet_type=Wallet.WALLET_TYPE_CIRCLE,
         )
 
         self.mock_client.get_wallet.return_value = CircleWalletResult(
-            wallet_id="pending-id",
+            wallet_id="frozen-id",
             address="",
-            state="PENDING",
+            state="FROZEN",
         )
 
-        with self.assertRaises(CircleWalletNotReadyError):
+        with self.assertRaises(CircleWalletFrozenError):
             self.service.get_or_create_deposit_address(self.user)
 
         wallet.refresh_from_db()

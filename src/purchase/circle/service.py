@@ -4,7 +4,7 @@ from typing import Optional
 
 from django.db import transaction
 
-from purchase.circle.client import CircleWalletClient, CircleWalletNotReadyError
+from purchase.circle.client import CircleWalletClient, CircleWalletFrozenError
 from purchase.models import Wallet
 
 logger = logging.getLogger(__name__)
@@ -36,8 +36,7 @@ class CircleWalletService:
         Flow:
         1. If the wallet already has an address with a Circle wallet_type,
            return it immediately.
-        2. If user has a circle_wallet_id but no address (prior creation
-           was initiated but wallet wasn't LIVE yet), fetch from Circle.
+        2. If user has a circle_wallet_id but no address, fetch from Circle.
         3. If user has neither, create a new Circle wallet and fetch.
 
         Args:
@@ -47,8 +46,7 @@ class CircleWalletService:
             DepositAddressResult with the on-chain address.
 
         Raises:
-            CircleWalletNotReadyError: If the wallet is created but not yet
-                LIVE (caller should retry after a short delay).
+            CircleWalletFrozenError: If the wallet is not in LIVE state.
             CircleWalletCreationError: If Circle API fails.
         """
         # Phase 1: Lock the wallet row and determine what action is needed.
@@ -66,7 +64,7 @@ class CircleWalletService:
                 self._create_wallet(wallet)
 
         # Phase 2: Fetch the address outside the transaction so that
-        # a CircleWalletNotReadyError does NOT roll back the wallet_id save.
+        # a CircleWalletFrozenError does NOT roll back the wallet_id save.
         return self._fetch_and_store_address(wallet)
 
     def _create_wallet(self, wallet: Wallet) -> None:
@@ -89,14 +87,9 @@ class CircleWalletService:
         result = self.client.get_wallet(wallet.circle_wallet_id)
 
         if result.state != "LIVE":
-            logger.info(
-                "Circle wallet %s not yet LIVE for wallet pk=%s",
-                wallet.circle_wallet_id,
-                wallet.pk,
-            )
-            raise CircleWalletNotReadyError(
+            raise CircleWalletFrozenError(
                 f"Wallet {wallet.circle_wallet_id} is in state "
-                f"'{result.state}', not LIVE"
+                f"'{result.state}', expected LIVE"
             )
 
         wallet.address = result.address

@@ -20,8 +20,8 @@ class CircleWalletCreationError(Exception):
     pass
 
 
-class CircleWalletNotReadyError(Exception):
-    """Raised when a Circle wallet exists but is not yet LIVE."""
+class CircleWalletFrozenError(Exception):
+    """Raised when a Circle wallet is in FROZEN state."""
 
     pass
 

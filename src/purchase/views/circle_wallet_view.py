@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from purchase.circle import CircleWalletService
-from purchase.circle.client import CircleWalletCreationError, CircleWalletNotReadyError
+from purchase.circle.client import CircleWalletCreationError, CircleWalletFrozenError
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +20,6 @@ class DepositAddressView(APIView):
 
     Responses:
         200: {"address": "0x...", "provisioning": false}
-        202: {"message": "Wallet is being provisioned. Please retry.",
-              "retry_after": 3}
         500: {"detail": "Failed to provision deposit address"}
     """
 
@@ -40,16 +38,7 @@ class DepositAddressView(APIView):
                     "provisioning": result.provisioning,
                 }
             )
-        except CircleWalletNotReadyError:
-            return Response(
-                {
-                    "message": "Wallet is being provisioned. Please retry.",
-                    "retry_after": 3,
-                },
-                status=status.HTTP_202_ACCEPTED,
-                headers={"Retry-After": "3"},
-            )
-        except CircleWalletCreationError:
+        except (CircleWalletFrozenError, CircleWalletCreationError):
             logger.exception(
                 "Circle wallet creation failed for user %s", request.user.id
             )
