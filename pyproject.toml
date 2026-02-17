@@ -16,6 +16,7 @@ dependencies = [
     "celery-redbeat==2.3.3",
     "channels>=4.1.0,<5.0.0",
     "channels-redis>=4.2.0,<5.0.0",
+    "circle-developer-controlled-wallets>=9.2.0,<10.0.0",
     "cloudscraper>=1.2.60,<2.0.0",
     "daphne>=4.1.2,<5.0.0",
     "dj-rest-auth[with-social]>=7.0.2,<8.0.0",
@@ -61,7 +62,6 @@ dependencies = [
     "stripe>=11.2.0,<12.0.0",
     "web3[tester]==7.10.0",
     "xdk>=0.4.5",
-    "circle-developer-controlled-wallets>=9.2.0,<10.0.0",
 ]
 
 [dependency-groups]
