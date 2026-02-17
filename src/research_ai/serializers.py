@@ -203,7 +203,59 @@ class ExpertSearchSubmitResponseSerializer(serializers.Serializer):
     sse_url = serializers.URLField(allow_null=True)
 
 
+class GenerateEmailRequestSerializer(serializers.Serializer):
+    """Request body for POST /expert-finder/generate-email/ (FE: expertName, etc.)."""
+
+    expert_name = serializers.CharField(required=True, allow_blank=False)
+    expert_title = serializers.CharField(required=False, default="")
+    expert_affiliation = serializers.CharField(required=False, default="")
+    expert_email = serializers.CharField(required=False, default="")
+    expertise = serializers.CharField(required=False, default="")
+    notes = serializers.CharField(required=False, default="")
+    template = serializers.CharField(required=True)
+    expert_search_id = serializers.UUIDField(required=False, allow_null=True)
+
+    # Frontend compatibility (camelCase)
+    expertName = serializers.CharField(required=False)
+    expertTitle = serializers.CharField(required=False)
+    expertAffiliation = serializers.CharField(required=False)
+    expertEmail = serializers.CharField(required=False)
+    expertiseArea = serializers.CharField(required=False)
+    expertSearchId = serializers.UUIDField(required=False, allow_null=True)
+
+    def to_internal_value(self, data):
+        if isinstance(data, dict):
+            data = dict(data)
+            if data.get("expert_name") is None and data.get("expertName") is not None:
+                data["expert_name"] = data["expertName"]
+            if data.get("expert_title") is None and data.get("expertTitle") is not None:
+                data["expert_title"] = data["expertTitle"]
+            if (
+                data.get("expert_affiliation") is None
+                and data.get("expertAffiliation") is not None
+            ):
+                data["expert_affiliation"] = data["expertAffiliation"]
+            if data.get("expert_email") is None and data.get("expertEmail") is not None:
+                data["expert_email"] = data["expertEmail"]
+            if data.get("expertise") is None and data.get("expertiseArea") is not None:
+                data["expertise"] = data["expertiseArea"]
+            if (
+                data.get("expert_search_id") is None
+                and data.get("expertSearchId") is not None
+            ):
+                data["expert_search_id"] = data["expertSearchId"]
+        return super().to_internal_value(data)
+
+    def validate_template(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("template is required")
+        return value.strip()
+
+
 class GeneratedEmailSerializer(serializers.ModelSerializer):
+    created_at = serializers.DateTimeField(source="created_date", read_only=True)
+    updated_at = serializers.DateTimeField(source="updated_date", read_only=True)
+
     class Meta:
         model = GeneratedEmail
         fields = [
@@ -219,7 +271,40 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
             "template",
             "status",
             "notes",
-            "created_date",
-            "updated_date",
+            "created_at",
+            "updated_at",
         ]
-        read_only_fields = ["id", "created_date", "updated_date"]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+
+class GeneratedEmailCreateUpdateSerializer(serializers.ModelSerializer):
+    """Create or update GeneratedEmail (e.g. mark sent, edit body)."""
+
+    class Meta:
+        model = GeneratedEmail
+        fields = [
+            "expert_search",
+            "expert_name",
+            "expert_title",
+            "expert_affiliation",
+            "expert_email",
+            "expertise",
+            "email_subject",
+            "email_body",
+            "template",
+            "status",
+            "notes",
+        ]
+        extra_kwargs = {
+            "expert_search": {"required": False},
+            "expert_name": {"required": False},
+            "expert_title": {"required": False},
+            "expert_affiliation": {"required": False},
+            "expert_email": {"required": False},
+            "expertise": {"required": False},
+            "email_subject": {"required": False},
+            "email_body": {"required": False},
+            "template": {"required": False},
+            "status": {"required": False},
+            "notes": {"required": False},
+        }
