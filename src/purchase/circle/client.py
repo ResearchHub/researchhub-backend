@@ -2,7 +2,6 @@ import logging
 import uuid
 from dataclasses import dataclass
 
-from circle.web3 import developer_controlled_wallets as circle_dcw
 from circle.web3 import utils as circle_utils
 from circle.web3.developer_controlled_wallets.api import WalletsApi
 from circle.web3.developer_controlled_wallets.models import (
