@@ -75,6 +75,7 @@ class EndaomentClient:
             scope="accounts offline_access openid profile transactions",
             state=state,
             code_verifier=code_verifier,
+            prompt="login consent",
         )
         return url
 
