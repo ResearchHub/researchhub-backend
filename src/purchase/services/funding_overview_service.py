@@ -2,58 +2,14 @@
 from django.db.models import Case, Count, IntegerField, When
 from django.utils import timezone
 
-from purchase.models import Fundraise, Grant, GrantApplication, Purchase
+from purchase.models import Fundraise, Grant, GrantApplication
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-from purchase.related_models.usd_fundraise_contribution_model import UsdFundraiseContribution
-from purchase.utils import get_funded_fundraise_ids, rsc_and_cents_to_usd
+from purchase.services.overview_mixin import OverviewMixin
+from purchase.utils import get_funded_fundraise_ids
 from user.models import User
 
 
-class _OverviewMixin:
-    """Shared query helpers for overview services."""
-
-    def _user_contributions_usd(
-        self, user_id: int, fundraise_ids: list[int], exchange_rate: float
-    ) -> float:
-        """Total contributions by a user to the given fundraises, in USD."""
-        if not fundraise_ids:
-            return 0.0
-        rsc = float(
-            Purchase.objects.for_user(user_id)
-            .funding_contributions()
-            .for_fundraises(fundraise_ids)
-            .sum()
-        )
-        cents = (
-            UsdFundraiseContribution.objects.for_user(user_id)
-            .not_refunded()
-            .for_fundraises(fundraise_ids)
-            .sum_cents()
-        )
-        return rsc_and_cents_to_usd(rsc, cents, exchange_rate)
-
-    def _matched_contributions_usd(
-        self, user_id: int, fundraise_ids: list[int], exchange_rate: float
-    ) -> float:
-        """Total contributions from others (excluding user) to the given fundraises, in USD."""
-        if not fundraise_ids:
-            return 0.0
-        rsc = float(
-            Purchase.objects.funding_contributions()
-            .for_fundraises(fundraise_ids)
-            .exclude_user(user_id)
-            .sum()
-        )
-        cents = (
-            UsdFundraiseContribution.objects.not_refunded()
-            .for_fundraises(fundraise_ids)
-            .exclude_user(user_id)
-            .sum_cents()
-        )
-        return rsc_and_cents_to_usd(rsc, cents, exchange_rate)
-
-
-class FundingOverviewService(_OverviewMixin):
+class FundingOverviewService(OverviewMixin):
     """Service for calculating funding portfolio dashboard metrics for grant creators."""
 
     def get_funding_overview(self, user: User) -> dict:
@@ -125,7 +81,7 @@ class FundingOverviewService(_OverviewMixin):
         return {"active": result["active"], "total": result["total"]}
 
 
-class GrantOverviewService(_OverviewMixin):
+class GrantOverviewService(OverviewMixin):
     """Service for calculating grant-specific dashboard metrics."""
 
     def get_grant_overview(self, user: User, grant: Grant) -> dict:
