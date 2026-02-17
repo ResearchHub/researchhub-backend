@@ -21,6 +21,7 @@ from purchase.services.funding_overview_service import FundingOverviewService
 from referral.services.referral_bonus_service import ReferralBonusService
 from user.permissions import IsModerator
 from user.related_models.follow_model import Follow
+from purchase.services.overview_mixin import OverviewMixin
 
 
 class FundraiseViewSet(viewsets.ModelViewSet):
@@ -302,14 +303,20 @@ class FundraiseViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def funding_overview(self, request, *args, **kwargs):
-        """Return funding overview metrics for the authenticated user."""
-        data = self.funding_overview_service.get_funding_overview(request.user)
+        """Return funding overview metrics. Accepts optional ?user_id param."""
+        user = OverviewMixin.resolve_target_user(request)
+        if user is None:
+            return Response({"error": "User not found"}, status=404)
+        data = self.funding_overview_service.get_funding_overview(user)
         serializer = FundingOverviewSerializer(data)
         return Response(serializer.data)
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def funding_impact(self, request, *args, **kwargs):
-        """Return funding impact metrics for the authenticated user."""
-        data = self.funding_impact_service.get_funding_impact_overview(request.user)
+        """Return funding impact metrics. Accepts optional ?user_id param."""
+        user = OverviewMixin.resolve_target_user(request)
+        if user is None:
+            return Response({"error": "User not found"}, status=404)
+        data = self.funding_impact_service.get_funding_impact_overview(user)
         serializer = FundingImpactSerializer(data)
         return Response(serializer.data)

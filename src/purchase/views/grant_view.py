@@ -12,6 +12,7 @@ from purchase.services.funding_overview_service import GrantOverviewService
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.permissions import IsModerator
+from purchase.services.overview_mixin import OverviewMixin
 
 
 class GrantViewSet(viewsets.ModelViewSet):
@@ -202,11 +203,14 @@ class GrantViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])
     def overview(self, request, pk=None, *args, **kwargs):
-        """Return dashboard metrics for a grant, looked up by its post ID."""
+        """Return dashboard metrics for a grant. Accepts optional ?user_id param."""
         grant = Grant.objects.filter(unified_document__posts__id=pk).first()
         if not grant:
             return Response(status=404)
-        data = self.grant_overview_service.get_grant_overview(request.user, grant)
+        user = OverviewMixin.resolve_target_user(request)
+        if user is None:
+            return Response({"error": "User not found"}, status=404)
+        data = self.grant_overview_service.get_grant_overview(user, grant)
         serializer = GrantOverviewSerializer(data)
         return Response(serializer.data)
 
