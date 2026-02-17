@@ -6,7 +6,9 @@ from rest_framework.response import Response
 
 from purchase.models import Grant, GrantApplication
 from purchase.serializers.grant_create_serializer import GrantCreateSerializer
+from purchase.serializers.grant_overview_serializer import GrantOverviewSerializer
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
+from purchase.services.funding_overview_service import GrantOverviewService
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.permissions import IsModerator
@@ -16,6 +18,12 @@ class GrantViewSet(viewsets.ModelViewSet):
     queryset = Grant.objects.all()
     serializer_class = DynamicGrantSerializer
     permission_classes = [IsAuthenticated]
+
+    def dispatch(self, request, *args, **kwargs):
+        self.grant_overview_service = kwargs.pop(
+            "grant_overview_service", GrantOverviewService()
+        )
+        return super().dispatch(request, *args, **kwargs)
 
     def get_permissions(self):
         """
@@ -191,3 +199,14 @@ class GrantViewSet(viewsets.ModelViewSet):
             return Response({"message": "Application submitted"}, status=201)
         else:
             return Response({"message": "Already applied"}, status=200)
+
+    @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])
+    def overview(self, request, pk=None, *args, **kwargs):
+        """Return dashboard metrics for a grant, looked up by its post ID."""
+        grant = Grant.objects.filter(unified_document__posts__id=pk).first()
+        if not grant:
+            return Response(status=404)
+        data = self.grant_overview_service.get_grant_overview(request.user, grant)
+        serializer = GrantOverviewSerializer(data)
+        return Response(serializer.data)
+

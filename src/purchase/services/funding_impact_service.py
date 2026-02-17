@@ -3,8 +3,7 @@ from collections import defaultdict
 from datetime import timedelta
 from decimal import Decimal
 
-from django.contrib.contenttypes.models import ContentType
-from django.db.models import Count, QuerySet, Sum
+from django.db.models import QuerySet, Sum
 from django.db.models.functions import Cast, Coalesce, TruncMonth
 from django.utils import timezone
 
@@ -13,20 +12,15 @@ from purchase.related_models.purchase_model import DECIMAL_FIELD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.usd_fundraise_contribution_model import UsdFundraiseContribution
 from purchase.utils import get_funded_fundraise_ids, rsc_and_cents_to_usd
-from researchhub_comment.constants.rh_comment_thread_types import AUTHOR_UPDATE
-from researchhub_comment.models import RhCommentModel
-from researchhub_document.models import ResearchhubPost
 from user.models import User
 
 FUNDING_HISTORY_MONTHS = 6
-AUTHOR_UPDATE_LOOKBACK_DAYS = 180
 MAX_HUBS = 5
 MILESTONES = {
     "funding_contributed": [100, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000],
     "researchers_supported": [1, 3, 5, 10, 25, 50, 100],
     "matched_funding": [500, 2500, 5000, 10000, 25000, 50000, 100000, 250000],
 }
-UPDATE_BUCKETS = ["0", "1", "2-3", "4+"]
 
 
 class FundingImpactService:
@@ -47,10 +41,6 @@ class FundingImpactService:
             .prefetch_related("unified_document__hubs")
         )
 
-        post_ids = list(
-            fundraises.values_list("unified_document__posts__id", flat=True).distinct()
-        )
-
         exchange_rate = RscExchangeRate.get_latest_exchange_rate()
         contributions = self._get_contributions_by_fundraise(user, funded_ids, exchange_rate)
 
@@ -58,7 +48,6 @@ class FundingImpactService:
             "milestones": self._get_milestones(user, contributions, fundraises, exchange_rate),
             "funding_over_time": self._get_funding_over_time(user, funded_ids, exchange_rate),
             "hub_breakdown": self._get_hub_breakdown(fundraises, contributions),
-            "update_frequency": self._get_update_frequency(post_ids),
         }
 
     def _empty_response(self) -> dict:
@@ -73,7 +62,6 @@ class FundingImpactService:
                 for m in past_months
             ],
             "hub_breakdown": [],
-            "update_frequency": [{"bucket": b, "count": 0} for b in UPDATE_BUCKETS],
         }
 
     def _get_past_months(self) -> list[str]:
@@ -201,38 +189,3 @@ class FundingImpactService:
 
         top_hubs = sorted(hub_totals.items(), key=lambda x: x[1], reverse=True)[:MAX_HUBS]
         return [{"name": name, "amount_usd": round(amount, 2)} for name, amount in top_hubs]
-
-    def _get_update_frequency(self, post_ids: list[int]) -> list[dict]:
-        """Return distribution of author update counts per proposal."""
-        buckets = dict.fromkeys(UPDATE_BUCKETS, 0)
-        if not post_ids:
-            return [{"bucket": b, "count": c} for b, c in buckets.items()]
-
-        post_ct = ContentType.objects.get_for_model(ResearchhubPost)
-        cutoff = timezone.now() - timedelta(days=AUTHOR_UPDATE_LOOKBACK_DAYS)
-
-        update_counts = dict(
-            RhCommentModel.objects.filter(
-                comment_type=AUTHOR_UPDATE,
-                thread__content_type=post_ct,
-                thread__object_id__in=post_ids,
-                created_date__gte=cutoff,
-            )
-            .values("thread__object_id")
-            .annotate(count=Count("id"))
-            .values_list("thread__object_id", "count")
-        )
-
-        for post_id in post_ids:
-            count = update_counts.get(post_id, 0)
-            if count == 0:
-                bucket_key = "0"
-            elif count == 1:
-                bucket_key = "1"
-            elif count <= 3:
-                bucket_key = "2-3"
-            else:
-                bucket_key = "4+"
-            buckets[bucket_key] += 1
-
-        return [{"bucket": b, "count": c} for b, c in buckets.items()]
