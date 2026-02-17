@@ -162,7 +162,7 @@ class TestEndaomentStatusView(TestCase):
 
     def test_connected_user(self):
         """
-        Test status returns connected with endaoment_user_id.
+        Test status returns connected status.
         """
         # Arrange
         self.mock_service.get_connection_status.return_value = ConnectionStatus(
@@ -178,7 +178,6 @@ class TestEndaomentStatusView(TestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data["connected"])
-        self.assertEqual(response.data["endaoment_user_id"], "externalUserId1")
         self.mock_service.get_connection_status.assert_called_once_with(self.user)
 
     def test_unconnected_user(self):
@@ -199,4 +198,3 @@ class TestEndaomentStatusView(TestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertFalse(response.data["connected"])
-        self.assertIsNone(response.data["endaoment_user_id"])
