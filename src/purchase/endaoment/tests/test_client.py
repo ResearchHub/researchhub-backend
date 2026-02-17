@@ -311,7 +311,7 @@ class TestEndaomentClient(TestCase):
         self.assertEqual(result, mock_response_data)
         self.client.http_session.request.assert_called_once_with(
             "POST",
-            "https://api.dev.endaoment.org/v1/transfers/async-entity-transfer",
+            "https://api.dev.endaoment.org/v1/transfers/async-entity-transfers",
             headers={"Authorization": "Bearer valid_access_token"},
             timeout=30,
             json={
