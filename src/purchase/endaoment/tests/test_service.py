@@ -730,3 +730,54 @@ class TestEndaomentService(TestCase):
             ValueError, "No ResearchHub fund configured for chain ID 9999"
         ):
             self.service._get_researchhub_fund_id(9999)
+
+    def test_disconnect(self):
+        """
+        Test disconnect revokes the refresh token and deletes the account.
+        """
+        # Arrange
+        EndaomentAccount.objects.create(
+            user=self.user,
+            access_token="token",
+            refresh_token="refresh_token",
+            token_expires_at=timezone.now() + timedelta(hours=1),
+        )
+
+        # Act
+        result = self.service.disconnect(self.user)
+
+        # Assert
+        self.assertTrue(result)
+        self.assertFalse(EndaomentAccount.objects.filter(user=self.user).exists())
+        self.mock_client.revoke_token.assert_called_once_with("refresh_token")
+
+    def test_disconnect_no_account_returns_false(self):
+        """
+        Test disconnect returns False when user has no account.
+        """
+        # Act
+        result = self.service.disconnect(self.user)
+
+        # Assert
+        self.assertFalse(result)
+        self.mock_client.revoke_token.assert_not_called()
+
+    def test_disconnect_still_deletes_if_revoke_fails(self):
+        """
+        Test that the account is still deleted even if token revocation fails.
+        """
+        # Arrange
+        EndaomentAccount.objects.create(
+            user=self.user,
+            access_token="token",
+            refresh_token="refresh_token",
+            token_expires_at=timezone.now() + timedelta(hours=1),
+        )
+        self.mock_client.revoke_token.side_effect = Exception("Network error")
+
+        # Act
+        result = self.service.disconnect(self.user)
+
+        # Assert
+        self.assertTrue(result)
+        self.assertFalse(EndaomentAccount.objects.filter(user=self.user).exists())
