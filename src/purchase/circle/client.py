@@ -46,11 +46,17 @@ class CircleWalletClient:
     """
 
     def __init__(self):
-        api_client = circle_utils.init_developer_controlled_wallets_client(
-            api_key=settings.CIRCLE_API_KEY,
-            entity_secret=settings.CIRCLE_ENTITY_SECRET,
-        )
-        self.wallets_api = WalletsApi(api_client)
+        self._wallets_api = None
+
+    @property
+    def wallets_api(self):
+        if self._wallets_api is None:
+            api_client = circle_utils.init_developer_controlled_wallets_client(
+                api_key=settings.CIRCLE_API_KEY,
+                entity_secret=settings.CIRCLE_ENTITY_SECRET,
+            )
+            self._wallets_api = WalletsApi(api_client)
+        return self._wallets_api
 
     def create_wallet(self, idempotency_key: str | None = None) -> str:
         """
