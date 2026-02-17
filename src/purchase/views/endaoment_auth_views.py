@@ -78,6 +78,27 @@ class EndaomentCallbackView(APIView):
         return redirect(redirect_url)
 
 
+class EndaomentDisconnectView(APIView):
+    """
+    API endpoint for disconnecting a user's Endaoment account.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def dispatch(self, request, *args, **kwargs):
+        self.service = kwargs.pop("service", None) or EndaomentService()
+        return super().dispatch(request, *args, **kwargs)
+
+    def post(self, request: Request) -> Response:
+        """
+        Disconnect the authenticated user's Endaoment account.
+        """
+        disconnected = self.service.disconnect(request.user)
+        if not disconnected:
+            return Response({"detail": "No Endaoment connection found."}, status=404)
+        return Response(status=204)
+
+
 class EndaomentStatusView(APIView):
     """
     Provides an endpoint to check if user has an Endaoment connection.
