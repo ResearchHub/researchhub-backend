@@ -75,6 +75,7 @@ class EndaomentClient:
             scope="openid accounts transactions profile",
             state=state,
             code_verifier=code_verifier,
+            prompt="login",
         )
         return url
 
