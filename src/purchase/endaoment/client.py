@@ -229,7 +229,7 @@ class EndaomentClient:
 
         return self._do_request(
             "POST",
-            "/v1/transfers/async-entity-transfer",
+            "/v1/transfers/async-entity-transfers",
             access_token,
             json={
                 "destinationFundId": destination_fund_id,
