@@ -514,7 +514,6 @@ class CreateUsdContributionTests(TestCase):
             user=self.user,
             origin_fund_id="fund_abc",
             amount_cents=10900,  # 10000 + 9% fee
-            purpose=f"Fundraise {self.fundraise.id}",
         )
 
     def test_create_usd_contribution_no_origin_fund_id(self):

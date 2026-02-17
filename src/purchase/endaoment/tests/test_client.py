@@ -304,7 +304,6 @@ class TestEndaomentClient(TestCase):
             origin_fund_id="fund-123",
             destination_fund_id="fund-456",
             amount_in_cents=50000,
-            purpose="Support for research project",
         )
 
         # Assert
@@ -319,7 +318,6 @@ class TestEndaomentClient(TestCase):
                 "originFundId": "fund-123",
                 "destinationFundId": "fund-456",
                 "requestedAmount": "50000",
-                "purpose": "Support for research project",
             },
         )
 
@@ -333,7 +331,6 @@ class TestEndaomentClient(TestCase):
                 origin_fund_id="fund-123",
                 destination_fund_id="fund-456",
                 amount_in_cents=50000,
-                purpose="Support for research project",
             )
 
     def test_create_async_entity_transfer_http_error(self):
@@ -352,7 +349,6 @@ class TestEndaomentClient(TestCase):
                 origin_fund_id="fund-123",
                 destination_fund_id="fund-456",
                 amount_in_cents=50000,
-                purpose="Support for research project",
             )
 
     @patch("purchase.endaoment.client.uuid.uuid4")

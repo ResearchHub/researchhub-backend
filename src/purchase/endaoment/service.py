@@ -179,7 +179,6 @@ class EndaomentService:
         user,
         origin_fund_id: str,
         amount_cents: int,
-        purpose: str,
     ) -> dict:
         """
         Create a transfer request from a user's fund (DAF) to the ResearchHub fund.
@@ -203,7 +202,6 @@ class EndaomentService:
             origin_fund_id=origin_fund_id,
             destination_fund_id=destination_fund_id,
             amount_in_cents=amount_cents,
-            purpose=purpose,
         )
 
     def _get_researchhub_fund_id(self, chain_id: int) -> str:
@@ -221,7 +219,6 @@ class EndaomentService:
         origin_fund_id: str,
         destination_fund_id: str,
         amount_cents: int,
-        purpose: str,
     ) -> dict:
         """
         Create a transfer request from a user's fund (DAF) to another fund.
@@ -238,7 +235,6 @@ class EndaomentService:
             origin_fund_id=origin_fund_id,
             destination_fund_id=destination_fund_id,
             amount_in_cents=amount_cents,
-            purpose=purpose,
         )
 
     def _refresh_account_token(self, account: EndaomentAccount) -> None:
