@@ -2,11 +2,7 @@ from unittest.mock import Mock, patch
 
 from django.test import TestCase
 
-from purchase.circle.client import (
-    CircleWalletClient,
-    CircleWalletCreationError,
-    CircleWalletNotReadyError,
-)
+from purchase.circle.client import CircleWalletClient, CircleWalletCreationError
 
 
 class TestCircleWalletClient(TestCase):
@@ -15,7 +11,7 @@ class TestCircleWalletClient(TestCase):
     def _make_client(self, mock_wallets_api):
         """Create a CircleWalletClient with a mocked WalletsApi."""
         client = CircleWalletClient.__new__(CircleWalletClient)
-        client.wallets_api = mock_wallets_api
+        client._wallets_api = mock_wallets_api
         return client
 
     def _make_wallet_instance(self, **kwargs):
@@ -86,7 +82,7 @@ class TestCircleWalletClient(TestCase):
         self.assertEqual(result.address, "0xabc123")
         self.assertEqual(result.state, "LIVE")
 
-    def test_get_wallet_not_live_raises(self):
+    def test_get_wallet_not_live_returns_result_with_state(self):
         mock_api = Mock()
         from circle.web3.developer_controlled_wallets.models import WalletState
 
@@ -100,6 +96,8 @@ class TestCircleWalletClient(TestCase):
         mock_api.get_wallet.return_value = Mock(data=Mock(wallet=wallet_wrapper))
 
         client = self._make_client(mock_api)
+        result = client.get_wallet("wallet-1")
 
-        with self.assertRaises(CircleWalletNotReadyError):
-            client.get_wallet("wallet-1")
+        self.assertEqual(result.wallet_id, "wallet-1")
+        self.assertEqual(result.address, "")
+        self.assertEqual(result.state, "FROZEN")

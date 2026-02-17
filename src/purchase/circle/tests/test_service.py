@@ -107,8 +107,10 @@ class TestCircleWalletService(TestCase):
     def test_raises_not_ready_when_wallet_not_live(self):
         """When wallet is created but not LIVE, raise error. Wallet ID is saved."""
         self.mock_client.create_wallet.return_value = "pending-wallet-id"
-        self.mock_client.get_wallet.side_effect = CircleWalletNotReadyError(
-            "Not LIVE yet"
+        self.mock_client.get_wallet.return_value = CircleWalletResult(
+            wallet_id="pending-wallet-id",
+            address="",
+            state="PENDING",
         )
 
         with self.assertRaises(CircleWalletNotReadyError):
@@ -136,8 +138,10 @@ class TestCircleWalletService(TestCase):
             wallet_type=Wallet.WALLET_TYPE_CIRCLE,
         )
 
-        self.mock_client.get_wallet.side_effect = CircleWalletNotReadyError(
-            "Still pending"
+        self.mock_client.get_wallet.return_value = CircleWalletResult(
+            wallet_id="pending-id",
+            address="",
+            state="PENDING",
         )
 
         with self.assertRaises(CircleWalletNotReadyError):

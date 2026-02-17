@@ -8,7 +8,6 @@ from circle.web3.developer_controlled_wallets.models import (
     AccountType,
     Blockchain,
     CreateWalletRequest,
-    WalletState,
 )
 from django.conf import settings
 
@@ -106,17 +105,9 @@ class CircleWalletClient:
 
         Returns:
             CircleWalletResult with wallet details.
-
-        Raises:
-            CircleWalletNotReadyError: If the wallet is not yet LIVE.
         """
         response = self.wallets_api.get_wallet(wallet_id)
         wallet = response.data.wallet.actual_instance
-
-        if wallet.state != WalletState.LIVE:
-            raise CircleWalletNotReadyError(
-                f"Wallet {wallet_id} is in state '{wallet.state}', not LIVE"
-            )
 
         return CircleWalletResult(
             wallet_id=wallet.id,

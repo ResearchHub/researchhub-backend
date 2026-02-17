@@ -86,15 +86,18 @@ class CircleWalletService:
 
     def _fetch_and_store_address(self, wallet: Wallet) -> DepositAddressResult:
         """Fetch wallet state from Circle. Store address if LIVE."""
-        try:
-            result = self.client.get_wallet(wallet.circle_wallet_id)
-        except CircleWalletNotReadyError:
+        result = self.client.get_wallet(wallet.circle_wallet_id)
+
+        if result.state != "LIVE":
             logger.info(
                 "Circle wallet %s not yet LIVE for wallet pk=%s",
                 wallet.circle_wallet_id,
                 wallet.pk,
             )
-            raise
+            raise CircleWalletNotReadyError(
+                f"Wallet {wallet.circle_wallet_id} is in state "
+                f"'{result.state}', not LIVE"
+            )
 
         wallet.address = result.address
         wallet.save(update_fields=["address"])
