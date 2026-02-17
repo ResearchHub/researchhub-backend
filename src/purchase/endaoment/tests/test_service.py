@@ -164,6 +164,7 @@ class TestEndaomentService(TestCase):
         Test successful callback creates EndaomentAccount.
         """
         # Arrange
+        id_token = self._create_id_token("externalUserId1")
         self.mock_client.validate_state.return_value = {
             "user_id": self.user.id,
             "code_verifier": "verifier123",
@@ -173,6 +174,7 @@ class TestEndaomentService(TestCase):
             access_token="access_token",
             refresh_token="refresh_token",
             expires_in=3600,
+            id_token=id_token,
         )
 
         # Act
@@ -186,6 +188,7 @@ class TestEndaomentService(TestCase):
         account = EndaomentAccount.objects.get(user=self.user)
         self.assertEqual(account.access_token, "access_token")
         self.assertEqual(account.refresh_token, "refresh_token")
+        self.assertEqual(account.endaoment_user_id, "externalUserId1")
 
     def test_process_callback_success_updates_existing_account(self):
         """

@@ -279,7 +279,6 @@ class EndaomentService:
             user: The user to save the account for.
             token_response: Token response from Endaoment.
         """
-
         account, _ = EndaomentAccount.objects.update_or_create(
             user=user,
             defaults={
@@ -287,6 +286,9 @@ class EndaomentService:
                 "refresh_token": token_response.refresh_token,
                 "token_expires_at": timezone.now()
                 + timedelta(seconds=token_response.expires_in),
+                "endaoment_user_id": self._extract_user_id(
+                    token_response.id_token
+                ),
             },
         )
         return account
