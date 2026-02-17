@@ -173,6 +173,47 @@ class EndaomentService:
             purpose=purpose,
         )
 
+    def transfer_to_researchhub_fund(
+        self,
+        user,
+        origin_fund_id: str,
+        amount_cents: int,
+        purpose: str,
+    ) -> dict:
+        """
+        Create a transfer request from a user's fund (DAF) to the ResearchHub fund.
+        This method is used to transfer funds from a user's DAF to the
+        RH fund which is done when contributing to fundraises that use Endaoment for
+        processing donations.
+        """
+        access_token = self.get_valid_access_token(user)
+        if not access_token:
+            raise EndaomentAccount.DoesNotExist("User has no Endaoment connection")
+
+        origin_fund = self.client.get_fund_by_id(access_token, origin_fund_id)
+        if not origin_fund:
+            raise ValueError(f"Origin fund with ID {origin_fund_id} not found")
+
+        chain_id = origin_fund.get("chainId")
+        destination_fund_id = self._get_researchhub_fund_id(chain_id)
+
+        return self.client.create_async_entity_transfer(
+            access_token=access_token,
+            origin_fund_id=origin_fund_id,
+            destination_fund_id=destination_fund_id,
+            amount_in_cents=amount_cents,
+            purpose=purpose,
+        )
+
+    def _get_researchhub_fund_id(self, chain_id: int) -> str:
+        """
+        Get the ResearchHub fund ID for a given chain ID.
+        """
+        fund_id = settings.ENDAOMENT_RH_FUND_IDS.get(chain_id)
+        if not fund_id:
+            raise ValueError(f"No ResearchHub fund configured for chain ID {chain_id}")
+        return fund_id
+
     def transfer_between_funds(
         self,
         user,

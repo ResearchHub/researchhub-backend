@@ -5,6 +5,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from rest_framework.test import APITestCase
 
+from organizations.models import NonprofitFundraiseLink, NonprofitOrg
 from purchase.models import Balance, Fundraise, Purchase
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.usd_fundraise_contribution_model import (
@@ -448,3 +449,163 @@ class CloseFundraiseTests(TestCase):
         # Verify USD contribution was marked as refunded
         contribution.refresh_from_db()
         self.assertTrue(contribution.is_refunded)
+
+
+class CreateUsdContributionTests(TestCase):
+    """
+    Tests for USD contribution functionality.
+    """
+
+    def setUp(self):
+        self.mock_endaoment_service = Mock()
+        self.service = FundraiseService(endaoment_service=self.mock_endaoment_service)
+
+        self.user = create_random_authenticated_user("usd_contributor")
+        self.creator = create_random_authenticated_user("fundraise_creator")
+
+        self.post = create_post(created_by=self.creator, document_type=PREREGISTRATION)
+        self.fundraise = self.service.create_fundraise_with_escrow(
+            user=self.creator,
+            unified_document=self.post.unified_document,
+            goal_amount=100,
+            goal_currency="USD",
+            status=Fundraise.OPEN,
+        )
+
+        # Link a nonprofit org to the fundraise
+        self.nonprofit = NonprofitOrg.objects.create(
+            name="Test Nonprofit",
+            endaoment_org_id="endaoment_org_123",
+        )
+        NonprofitFundraiseLink.objects.create(
+            fundraise=self.fundraise,
+            nonprofit=self.nonprofit,
+        )
+
+    def test_create_usd_contribution(self):
+        """
+        Test successful USD contribution creates record with transfer ID (happy path).
+        """
+        # Arrange
+        self.mock_endaoment_service.transfer_to_researchhub_fund.return_value = {
+            "id": "transfer_123"
+        }
+
+        # Act
+        contribution, error = self.service.create_usd_contribution(
+            user=self.user,
+            fundraise=self.fundraise,
+            amount_cents=10000,
+            origin_fund_id="fund_abc",
+        )
+
+        # Assert
+        self.assertIsNone(error)
+        self.assertIsNotNone(contribution)
+        self.assertEqual(contribution.amount_cents, 10000)
+        self.assertEqual(contribution.fee_cents, 900)  # 9%
+        self.assertEqual(contribution.origin_fund_id, "fund_abc")
+        self.assertEqual(contribution.destination_org_id, "endaoment_org_123")
+        self.assertEqual(contribution.endaoment_transfer_id, "transfer_123")
+        self.assertEqual(contribution.status, UsdFundraiseContribution.Status.SUBMITTED)
+
+        # Verify transfer was called with amount + fee
+        self.mock_endaoment_service.transfer_to_researchhub_fund.assert_called_once_with(
+            user=self.user,
+            origin_fund_id="fund_abc",
+            amount_cents=10900,  # 10000 + 9% fee
+            purpose=f"Fundraise {self.fundraise.id}",
+        )
+
+    def test_create_usd_contribution_no_origin_fund_id(self):
+        """
+        Test that missing origin_fund_id returns error.
+        """
+        # Act
+        contribution, error = self.service.create_usd_contribution(
+            user=self.user,
+            fundraise=self.fundraise,
+            amount_cents=10000,
+            origin_fund_id=None,
+        )
+
+        # Assert
+        self.assertIsNone(contribution)
+        self.assertEqual(error, "origin_fund_id is required for USD contributions")
+        self.mock_endaoment_service.transfer_to_researchhub_fund.assert_not_called()
+
+    def test_create_usd_contribution_no_nonprofit_org(self):
+        """
+        Test that missing nonprofit org returns error.
+        """
+        # Arrange
+
+        # remove the nonprofit link for this test
+        NonprofitFundraiseLink.objects.filter(fundraise=self.fundraise).delete()
+
+        # Act
+        contribution, error = self.service.create_usd_contribution(
+            user=self.user,
+            fundraise=self.fundraise,
+            amount_cents=10000,
+            origin_fund_id="fund_abc",
+        )
+
+        # Assert
+        self.assertIsNone(contribution)
+        self.assertEqual(error, "Fundraise nonprofit org is not set")
+        self.mock_endaoment_service.transfer_to_researchhub_fund.assert_not_called()
+
+    def test_create_usd_contribution_endaoment_not_connected(self):
+        """
+        Test that a missing Endaoment connection returns the expected error.
+        """
+        # Arrange
+        from purchase.models import EndaomentAccount
+
+        self.mock_endaoment_service.transfer_to_researchhub_fund.side_effect = (
+            EndaomentAccount.DoesNotExist("User has no Endaoment connection")
+        )
+
+        # Act
+        contribution, error = self.service.create_usd_contribution(
+            user=self.user,
+            fundraise=self.fundraise,
+            amount_cents=10000,
+            origin_fund_id="fund_abc",
+        )
+
+        # Assert
+        self.assertIsNone(contribution)
+        self.assertEqual(error, "Endaoment account not connected")
+        self.assertFalse(
+            UsdFundraiseContribution.objects.filter(
+                user=self.user, fundraise=self.fundraise
+            ).exists()
+        )
+
+    def test_create_usd_contribution_endaoment_api_error(self):
+        """
+        Test that generic exception from the Endaoment service returns an error.
+        """
+        # Arrange
+        self.mock_endaoment_service.transfer_to_researchhub_fund.side_effect = (
+            Exception("D'oh!")
+        )
+
+        # Act
+        contribution, error = self.service.create_usd_contribution(
+            user=self.user,
+            fundraise=self.fundraise,
+            amount_cents=10000,
+            origin_fund_id="fund_abc",
+        )
+
+        # Assert
+        self.assertIsNone(contribution)
+        self.assertEqual(error, "Failed to submit Endaoment grant")
+        self.assertFalse(
+            UsdFundraiseContribution.objects.filter(
+                user=self.user, fundraise=self.fundraise
+            ).exists()
+        )

@@ -3,7 +3,6 @@ import time
 from decimal import Decimal
 from typing import Optional, Tuple
 
-from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 
@@ -328,17 +327,12 @@ class FundraiseService:
             if not destination_org_id:
                 return None, "Fundraise nonprofit org is not set"
 
-            rh_fund_id = settings.ENDAOMENT_RH_FUND_ID
-            if not rh_fund_id:
-                return None, "Endaoment RH fund is not configured"
-
             try:
-                transfer_result = self.endaoment_service.transfer_between_funds(
+                # Note: The destination fund is ResearchHub's fund.
+                # The actual transfer to the nonprofit org is handled manually.
+                transfer_result = self.endaoment_service.transfer_to_researchhub_fund(
                     user=user,
                     origin_fund_id=origin_fund_id,
-                    # Note: The destination fund is ResearchHub's fund.
-                    # The actual transfer to the nonprofit org is handled manually.
-                    destination_fund_id=rh_fund_id,
                     amount_cents=total_amount_cents,
                     purpose=f"Fundraise {fundraise.id}",
                 )
