@@ -1,6 +1,7 @@
 from datetime import timedelta
 from unittest.mock import Mock
 
+import jwt as pyjwt
 from authlib.integrations.base_client.errors import OAuthError
 from django.contrib.auth import get_user_model
 from django.core import signing
@@ -27,6 +28,13 @@ class TestEndaomentService(TestCase):
     """
     Tests for the `EndaomentService`.
     """
+
+    @staticmethod
+    def _create_id_token(sub: str) -> str:
+        """
+        Create a minimal OIDC token JWT with a 'sub' claim.
+        """
+        return pyjwt.encode({"sub": sub}, "secret", algorithm="HS256")
 
     def setUp(self):
         self.mock_client = Mock()
@@ -538,6 +546,52 @@ class TestEndaomentService(TestCase):
             amount_in_cents=1000,
             purpose="fundraise1",
         )
+
+    def test_extract_user_id_valid_token(self):
+        """
+        Test _extract_user_id returns 'sub' from a valid JWT.
+        """
+        # Arrange
+        id_token = self._create_id_token("user_123")
+
+        # Act
+        actual = EndaomentService._extract_user_id(id_token)
+
+        # Assert
+        self.assertEqual(actual, "user_123")
+
+    def test_extract_user_id_none_token(self):
+        """
+        Test _extract_user_id returns None for None input.
+        """
+        # Act
+        actual = EndaomentService._extract_user_id(None)
+
+        # Assert
+        self.assertIsNone(actual)
+
+    def test_extract_user_id_invalid_token(self):
+        """
+        Test _extract_user_id returns None for malformed JWT.
+        """
+        # Act
+        actual = EndaomentService._extract_user_id("not-a-jwt")
+
+        # Assert
+        self.assertIsNone(actual)
+
+    def test_extract_user_id_no_sub_claim(self):
+        """
+        Test _extract_user_id returns None when JWT has no 'sub' claim.
+        """
+        # Arrange
+        token = pyjwt.encode({"name": "test"}, "secret", algorithm="HS256")
+
+        # Act
+        actual = EndaomentService._extract_user_id(token)
+
+        # Assert
+        self.assertIsNone(actual)
 
     @override_settings(ENDAOMENT_RH_FUND_IDS={1234: "rhFund1", 5678: "rhFund2"})
     def test_get_researchhub_fund_id(self):

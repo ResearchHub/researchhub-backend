@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import Optional
 
+import jwt as pyjwt
 from authlib.integrations.base_client.errors import OAuthError
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -289,6 +290,19 @@ class EndaomentService:
             },
         )
         return account
+
+    @staticmethod
+    def _extract_user_id(id_token: str) -> str | None:
+        """
+        Extract the 'sub' claim (the external Endaoment user ID) from the given
+        OpenID Connect token.
+        """
+        try:
+            claims = pyjwt.decode(id_token, options={"verify_signature": False})
+            return claims.get("sub")
+        except Exception:
+            logger.warning("Failed to extract user ID from Endaoment ID token")
+            return None
 
     @staticmethod
     def build_redirect_url(
