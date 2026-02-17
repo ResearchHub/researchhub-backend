@@ -115,6 +115,28 @@ class EndaomentService:
             return ConnectionStatus(True, account.endaoment_user_id)
         return ConnectionStatus(False)
 
+    def disconnect(self, user) -> bool:
+        """
+        Disconnect a user's Endaoment account.
+
+        Revokes the refresh token at Endaoment and deletes the local account.
+        Returns True if an account was disconnected, False if none existed.
+        """
+        account = EndaomentAccount.objects.filter(user=user).first()
+        if not account:
+            return False
+
+        if account.refresh_token:
+            try:
+                self.client.revoke_token(account.refresh_token)
+            except Exception:
+                logger.warning(
+                    "Failed to revoke Endaoment token for user %s", user.id
+                )
+
+        account.delete()
+        return True
+
     def get_valid_access_token(self, user) -> Optional[str]:
         """
         Get a valid access token for the user, refreshing if necessary.
