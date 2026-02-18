@@ -26,10 +26,11 @@ class FeedPagination(PageNumberPagination):
         Return paginated response without total count.
         Uses has_next to determine if there are more pages.
         """
-        # FIXME: Only include next link if there are results equal to page size
+        # Only include next link if there are results equal to page size
         # to avoid repeated requests for empty pages
         next_link = None
-        if data and len(data) > 0:
+        page_size = self.get_page_size(self.request)
+        if data and len(data) >= page_size:
             next_link = self.get_next_link()
 
         return Response(
