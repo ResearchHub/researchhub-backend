@@ -74,3 +74,7 @@ ENDAOMENT_RH_FUND_ID_BASE = os.environ.get("ENDAOMENT_RH_FUND_ID_BASE", "")
 RESEARCHHUB_JOURNAL_ID = os.environ.get("RESEARCHHUB_JOURNAL_ID", "")
 
 SCRAPER_URL = os.environ.get("SCRAPER_URL", "")
+
+CIRCLE_API_KEY = os.environ.get("CIRCLE_API_KEY", "")
+CIRCLE_ENTITY_SECRET = os.environ.get("CIRCLE_ENTITY_SECRET", "")
+CIRCLE_WALLET_SET_ID = os.environ.get("CIRCLE_WALLET_SET_ID", "")
