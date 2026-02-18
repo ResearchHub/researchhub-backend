@@ -150,6 +150,14 @@ class EndaomentClient:
             timeout=REQUEST_TIMEOUT,
             **kwargs,
         )
+        if not response.ok:
+            logger.error(
+                "Endaoment API error: %s %s returned %s: %s",
+                method,
+                path,
+                response.status_code,
+                response.text,
+            )
         response.raise_for_status()
         return response.json()
 
