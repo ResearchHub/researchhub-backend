@@ -75,9 +75,34 @@ def build_excluded_experts_instruction(excluded_expert_names: list[str]) -> str:
     )
 
 
+def _normalize_expertise_levels(expertise_level: list[str] | str) -> list[str]:
+    """Normalize expertise_level to a flat list of strings (safe for dict lookups)."""
+    if isinstance(expertise_level, str):
+        return [expertise_level] if expertise_level else []
+    if not expertise_level:
+        return []
+    flat = []
+    for x in expertise_level:
+        if isinstance(x, str):
+            flat.append(x)
+        elif isinstance(x, list):
+            flat.extend(y for y in x if isinstance(y, str))
+    return flat
+
+
+def _expertise_levels_display(expertise_level: list[str] | str) -> str:
+    """Normalize expertise_level to list and return display string."""
+    levels = _normalize_expertise_levels(expertise_level)
+    if not levels or (
+        len(levels) == 1 and levels[0] == ExpertiseLevel.ALL_LEVELS
+    ):
+        return ExpertiseLevel.ALL_LEVELS
+    return ", ".join(levels)
+
+
 def build_system_prompt(
     expert_count: int,
-    expertise_level: str,
+    expertise_level: list[str] | str,
     region_filter: str,
     state_filter: str = "All States",
     gender_filter: str = "All Genders",
@@ -85,12 +110,21 @@ def build_system_prompt(
 ) -> str:
     """
     Build the complete system prompt with all configuration parameters.
+    expertise_level: list of expertise level choices, or single string (legacy).
     """
+    levels = _normalize_expertise_levels(expertise_level)
     expertise_instruction = ""
-    if expertise_level != ExpertiseLevel.ALL_LEVELS:
+    if levels and not (
+        len(levels) == 1 and levels[0] == ExpertiseLevel.ALL_LEVELS
+    ):
+        descriptions = []
+        for level in levels:
+            # level is guaranteed str from _normalize_expertise_levels
+            desc = EXPERTISE_DESCRIPTIONS.get(level, level)
+            descriptions.append(f"• {level}: {desc}")
         expertise_instruction = (
-            f"\n\n## Expertise Level Targeting\nFocus specifically on {expertise_level}: "
-            f"{EXPERTISE_DESCRIPTIONS.get(expertise_level, expertise_level)}"
+            "\n\n## Expertise Level Targeting\nFocus specifically on the following "
+            "expertise level(s):\n" + "\n".join(descriptions)
         )
 
     region_instruction = ""
@@ -120,9 +154,10 @@ def build_system_prompt(
     )
 
     template = _load_template("expert_finder_system.txt")
+    expertise_level_display = _expertise_levels_display(expertise_level)
     return template.format(
         expert_count=expert_count,
-        expertise_level=expertise_level,
+        expertise_level=expertise_level_display,
         region_filter=region_filter,
         gender_filter=gender_filter,
         expertise_instruction=expertise_instruction,
@@ -136,14 +171,16 @@ def build_system_prompt(
 def build_user_prompt(
     query: str,
     expert_count: int,
-    expertise_level: str,
+    expertise_level: list[str] | str,
     region_filter: str,
     gender_filter: str = "All Genders",
     is_pdf: bool = False,
 ) -> str:
     """
     Build the user prompt for expert search.
+    expertise_level: list of expertise level choices, or single string (legacy).
     """
+    expertise_level_display = _expertise_levels_display(expertise_level)
     region_text = (
         "" if region_filter == Region.ALL_REGIONS else f" from the {region_filter} region"
     )
@@ -151,13 +188,13 @@ def build_user_prompt(
         template = _load_template("expert_finder_user_pdf.txt")
         return template.format(
             expert_count=expert_count,
-            expertise_level=expertise_level,
+            expertise_level=expertise_level_display,
             region_text=region_text,
         )
     template = _load_template("expert_finder_user_query.txt")
     return template.format(
         query=query,
         expert_count=expert_count,
-        expertise_level=expertise_level,
+        expertise_level=expertise_level_display,
         region_text=region_text,
     )

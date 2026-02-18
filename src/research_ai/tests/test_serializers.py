@@ -18,21 +18,53 @@ class ExpertSearchConfigSerializerTests(TestCase):
         self.assertTrue(ser.is_valid())
         data = ser.validated_data
         self.assertEqual(data["expert_count"], 10)
-        self.assertEqual(data["expertise_level"], ExpertiseLevel.ALL_LEVELS)
+        self.assertEqual(data["expertise_level"], [ExpertiseLevel.ALL_LEVELS])
         self.assertEqual(data["region"], Region.ALL_REGIONS)
         self.assertEqual(data["gender"], Gender.ALL_GENDERS)
+
+    def test_expertise_level_empty_array_defaults_to_all_levels(self):
+        ser = ExpertSearchConfigSerializer(data={"expertise_level": []})
+        self.assertTrue(ser.is_valid())
+        self.assertEqual(ser.validated_data["expertise_level"], [ExpertiseLevel.ALL_LEVELS])
+
+    def test_expertise_level_array(self):
+        ser = ExpertSearchConfigSerializer(
+            data={
+                "expertise_level": [
+                    ExpertiseLevel.EARLY_CAREER,
+                    ExpertiseLevel.MID_CAREER,
+                ]
+            }
+        )
+        self.assertTrue(ser.is_valid())
+        self.assertEqual(
+            ser.validated_data["expertise_level"],
+            [ExpertiseLevel.EARLY_CAREER, ExpertiseLevel.MID_CAREER],
+        )
+
+    def test_expertise_level_single_value_normalized_to_list(self):
+        """Backward compat: single value is normalized to list."""
+        ser = ExpertSearchConfigSerializer(
+            data={"expertise_level": ExpertiseLevel.TOP_EXPERT}
+        )
+        self.assertTrue(ser.is_valid())
+        self.assertEqual(
+            ser.validated_data["expertise_level"], [ExpertiseLevel.TOP_EXPERT]
+        )
 
     def test_camelCase_fallback(self):
         ser = ExpertSearchConfigSerializer(
             data={
                 "expertCount": 15,
-                "expertiseLevel": ExpertiseLevel.EARLY_CAREER,
+                "expertiseLevel": [ExpertiseLevel.EARLY_CAREER],
                 "genderPreference": Gender.FEMALE,
             }
         )
         self.assertTrue(ser.is_valid())
         self.assertEqual(ser.validated_data["expert_count"], 15)
-        self.assertEqual(ser.validated_data["expertise_level"], ExpertiseLevel.EARLY_CAREER)
+        self.assertEqual(
+            ser.validated_data["expertise_level"], [ExpertiseLevel.EARLY_CAREER]
+        )
         self.assertEqual(ser.validated_data["gender"], Gender.FEMALE)
 
     def test_expert_count_bounds(self):

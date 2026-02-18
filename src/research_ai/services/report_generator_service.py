@@ -131,9 +131,13 @@ def generate_pdf_report(
 
         elements.append(Paragraph("<b>Search Configuration:</b>", styles["Heading3"]))
         expert_count = config.get("expert_count", config.get("expertCount", 10))
-        expertise_level = config.get(
-            "expertise_level", config.get("expertiseLevel", "All Levels")
+        expertise_level_raw = config.get(
+            "expertise_level", config.get("expertiseLevel", ["All Levels"])
         )
+        if isinstance(expertise_level_raw, list):
+            expertise_level = ", ".join(expertise_level_raw) if expertise_level_raw else "All Levels"
+        else:
+            expertise_level = expertise_level_raw or "All Levels"
         region = config.get("region", "All Regions")
         state = config.get("state", "All States")
         config_text = (

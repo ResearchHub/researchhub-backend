@@ -7,9 +7,11 @@ from research_ai.models import ExpertSearch, GeneratedEmail
 class ExpertSearchConfigSerializer(serializers.Serializer):
 
     expert_count = serializers.IntegerField(default=10, min_value=5, max_value=20)
-    expertise_level = serializers.ChoiceField(
-        choices=ExpertiseLevel.choices,
-        default=ExpertiseLevel.ALL_LEVELS,
+    expertise_level = serializers.ListField(
+        child=serializers.ChoiceField(choices=ExpertiseLevel.choices),
+        required=False,
+        default=list,
+        allow_empty=True,
     )
     region = serializers.ChoiceField(
         choices=Region.choices,
@@ -24,9 +26,10 @@ class ExpertSearchConfigSerializer(serializers.Serializer):
 
     # Frontend compatibility
     expertCount = serializers.IntegerField(required=False, min_value=5, max_value=20)
-    expertiseLevel = serializers.ChoiceField(
-        choices=ExpertiseLevel.choices,
+    expertiseLevel = serializers.ListField(
+        child=serializers.ChoiceField(choices=ExpertiseLevel.choices),
         required=False,
+        allow_empty=True,
     )
     genderPreference = serializers.ChoiceField(
         choices=Gender.choices,
@@ -35,28 +38,34 @@ class ExpertSearchConfigSerializer(serializers.Serializer):
 
     def to_internal_value(self, data):
         # Prefer snake_case from API, fall back to camelCase
+        data = dict(data)
         if data.get("expert_count") is None and data.get("expertCount") is not None:
-            data = dict(data)
             data["expert_count"] = data["expertCount"]
         if (
             data.get("expertise_level") is None
             and data.get("expertiseLevel") is not None
         ):
-            data = dict(data)
             data["expertise_level"] = data["expertiseLevel"]
+        # Normalize expertise_level to list (accept single value for backward compat)
+        if "expertise_level" in data and data["expertise_level"] is not None:
+            val = data["expertise_level"]
+            if not isinstance(val, list):
+                data["expertise_level"] = [val] if val else []
         if data.get("gender") is None and data.get("genderPreference") is not None:
-            data = dict(data)
             data["gender"] = data["genderPreference"]
         return super().to_internal_value(data)
 
     def validate(self, attrs):
         expert_count = attrs.get("expert_count") or attrs.get("expertCount") or 10
         attrs["expert_count"] = expert_count
-        attrs["expertise_level"] = (
-            attrs.get("expertise_level")
-            or attrs.get("expertiseLevel")
-            or ExpertiseLevel.ALL_LEVELS
-        )
+        expertise_level = attrs.get("expertise_level") or attrs.get("expertiseLevel")
+        if not expertise_level or (
+            len(expertise_level) == 1
+            and expertise_level[0] == ExpertiseLevel.ALL_LEVELS
+        ):
+            attrs["expertise_level"] = [ExpertiseLevel.ALL_LEVELS]
+        else:
+            attrs["expertise_level"] = list(expertise_level)
         attrs["region"] = attrs.get("region") or Region.ALL_REGIONS
         attrs["state"] = attrs.get("state", "All States")
         attrs["gender"] = (

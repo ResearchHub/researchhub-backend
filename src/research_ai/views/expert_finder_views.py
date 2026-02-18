@@ -47,7 +47,9 @@ class ExpertSearchCreateView(APIView):
 
         search_config = {
             "expert_count": config.get("expert_count", 10),
-            "expertise_level": config.get("expertise_level", ExpertiseLevel.ALL_LEVELS),
+            "expertise_level": config.get(
+                "expertise_level", [ExpertiseLevel.ALL_LEVELS]
+            ),
             "region": config.get("region", Region.ALL_REGIONS),
             "state": config.get("state", "All States"),
             "gender": config.get("gender", Gender.ALL_GENDERS),
