@@ -1,7 +1,10 @@
 from rest_framework import serializers
 
+from paper.serializers import PaperSerializer
 from research_ai.constants import ExpertiseLevel, Gender, Region
 from research_ai.models import ExpertSearch, GeneratedEmail
+from researchhub_document.related_models.constants.document_type import PAPER
+from researchhub_document.serializers import ResearchhubPostSerializer
 
 
 class ExpertSearchConfigSerializer(serializers.Serializer):
@@ -78,9 +81,10 @@ class ExpertSearchCreateSerializer(serializers.Serializer):
 
     unified_document_id = serializers.IntegerField(required=False, allow_null=True)
     query = serializers.CharField(required=False, allow_blank=True)
+    name = serializers.CharField(required=False, allow_blank=True, max_length=512)
     input_type = serializers.ChoiceField(
         choices=ExpertSearch.InputType.choices,
-        default=ExpertSearch.InputType.ABSTRACT,
+        default=ExpertSearch.InputType.FULL_CONTENT,
     )
     config = ExpertSearchConfigSerializer(required=False, default=dict)
     excluded_expert_names = serializers.ListField(
@@ -130,11 +134,38 @@ class ExpertResultSerializer(serializers.Serializer):
     sources = serializers.ListField(required=False, allow_null=True)
 
 
+def _resolve_expert_search_work(expert_search, context=None):
+    """
+    Resolve ExpertSearch.unified_document to work payload using paper/post serializers.
+    Returns None if no unified_document or resolution fails.
+    """
+    unified_doc = getattr(expert_search, "unified_document", None)
+    if not unified_doc:
+        return None
+    context = context or {}
+    try:
+        doc = unified_doc.get_document()
+        if doc is None:
+            return None
+        if unified_doc.document_type == PAPER:
+            data = PaperSerializer(doc, context=context).data
+            data["type"] = "paper"
+            data["unified_document_id"] = unified_doc.id
+            return data
+        data = ResearchhubPostSerializer(doc, context=context).data
+        data["type"] = "post"
+        data["unified_document_id"] = unified_doc.id
+        return data
+    except Exception:
+        return None
+
+
 class ExpertSearchSerializer(serializers.ModelSerializer):
 
     search_id = serializers.IntegerField(source="id", read_only=True)
     expert_names = serializers.SerializerMethodField()
     report_urls = serializers.SerializerMethodField()
+    work = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(source="created_date", read_only=True)
     updated_at = serializers.DateTimeField(source="updated_date", read_only=True)
 
@@ -142,7 +173,9 @@ class ExpertSearchSerializer(serializers.ModelSerializer):
         model = ExpertSearch
         fields = [
             "search_id",
+            "name",
             "query",
+            "work",
             "input_type",
             "config",
             "excluded_expert_names",
@@ -163,6 +196,9 @@ class ExpertSearchSerializer(serializers.ModelSerializer):
             "completed_at",
         ]
         read_only_fields = fields
+
+    def get_work(self, obj):
+        return _resolve_expert_search_work(obj, context=self.context)
 
     def get_expert_names(self, obj):
         """List of expert names for FE excluder (SearchHistoryExcluder)."""
@@ -189,6 +225,7 @@ class ExpertSearchListItemSerializer(serializers.ModelSerializer):
         model = ExpertSearch
         fields = [
             "search_id",
+            "name",
             "query",
             "status",
             "expert_count",

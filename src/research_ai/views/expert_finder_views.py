@@ -31,6 +31,21 @@ def _get_sse_url(request, search_id):
     return base + "/api/research_ai/expert-finder/progress/" + search_id + "/"
 
 
+def _get_document_title(unified_doc):
+    """Return a display title for the document (paper or post), max 512 chars."""
+    try:
+        doc = unified_doc.get_document()
+        if doc is None:
+            return ""
+        if hasattr(doc, "display_title"):
+            return (doc.display_title or "")[:512]
+        if hasattr(doc, "title"):
+            return (str(doc.title or ""))[:512]
+        return ""
+    except Exception:
+        return ""
+
+
 class ExpertSearchCreateView(APIView):
     permission_classes = [IsAuthenticated, ResearchAIPermission, IsModerator]
 
@@ -41,7 +56,8 @@ class ExpertSearchCreateView(APIView):
 
         unified_document_id = data.get("unified_document_id")
         query_text = (data.get("query") or "").strip()
-        input_type = data.get("input_type", ExpertSearch.InputType.ABSTRACT)
+        search_name = (data.get("name") or "").strip()
+        input_type = data.get("input_type", ExpertSearch.InputType.FULL_CONTENT)
         config = data.get("config") or {}
         excluded_expert_names = data.get("excluded_expert_names") or []
 
@@ -77,6 +93,8 @@ class ExpertSearchCreateView(APIView):
             query_text = content_text
             effective_input_type = content_type
             is_pdf = content_type == ExpertSearch.InputType.PDF
+            if not search_name:
+                search_name = _get_document_title(unified_doc)
         else:
             effective_input_type = ExpertSearch.InputType.CUSTOM_QUERY
             is_pdf = False
@@ -84,6 +102,7 @@ class ExpertSearchCreateView(APIView):
         expert_search = ExpertSearch.objects.create(
             created_by=request.user,
             unified_document_id=unified_document_id or None,
+            name=search_name,
             query=query_text,
             input_type=effective_input_type,
             config=search_config,
@@ -136,7 +155,9 @@ class ExpertSearchDetailView(APIView):
                 {"detail": "Expert search not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        ser = ExpertSearchSerializer(expert_search)
+        ser = ExpertSearchSerializer(
+            expert_search, context={"request": request}
+        )
         return Response(ser.data)
 
 
