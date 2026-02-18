@@ -72,9 +72,10 @@ class EndaomentClient:
         url, _ = session.create_authorization_url(
             f"{self.auth_url}/auth",
             redirect_uri=self.redirect_url,
-            scope="openid accounts transactions profile",
+            scope="accounts offline_access openid profile transactions",
             state=state,
             code_verifier=code_verifier,
+            prompt="login consent",
         )
         return url
 
@@ -228,7 +229,7 @@ class EndaomentClient:
 
         return self._do_request(
             "POST",
-            "/v1/transfers/async-entity-transfer",
+            "/v1/transfers/async-entity-transfers",
             access_token,
             json={
                 "destinationFundId": destination_fund_id,

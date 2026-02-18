@@ -23,15 +23,9 @@ class HubFundingSerializer(serializers.Serializer):
     amount_usd = serializers.FloatField()
 
 
-class UpdateFrequencyBucketSerializer(serializers.Serializer):
-    bucket = serializers.CharField()
-    count = serializers.IntegerField()
-
-
 class FundingImpactSerializer(serializers.Serializer):
     """Serializer for funding impact response."""
 
     milestones = MilestonesSerializer()
     funding_over_time = FundingTimePointSerializer(many=True)
     hub_breakdown = HubFundingSerializer(many=True)
-    update_frequency = UpdateFrequencyBucketSerializer(many=True)

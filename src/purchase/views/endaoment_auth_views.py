@@ -98,6 +98,5 @@ class EndaomentStatusView(APIView):
         return Response(
             {
                 "connected": connection_status.connected,
-                "endaoment_user_id": connection_status.endaoment_user_id,
             }
         )

@@ -19,5 +19,4 @@ class FundingOverviewSerializer(serializers.Serializer):
     active_grants = ActiveGrantsSerializer()
     total_applicants = ApplicantsSerializer()
     matched_funding_usd = serializers.FloatField()
-    recent_updates = serializers.IntegerField()
     proposals_funded = serializers.IntegerField()

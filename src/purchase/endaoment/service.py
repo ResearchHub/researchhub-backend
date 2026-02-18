@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import Optional
 
+import jwt as pyjwt
 from authlib.integrations.base_client.errors import OAuthError
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -173,6 +174,47 @@ class EndaomentService:
             purpose=purpose,
         )
 
+    def transfer_to_researchhub_fund(
+        self,
+        user,
+        origin_fund_id: str,
+        amount_cents: int,
+        purpose: str,
+    ) -> dict:
+        """
+        Create a transfer request from a user's fund (DAF) to the ResearchHub fund.
+        This method is used to transfer funds from a user's DAF to the
+        RH fund which is done when contributing to fundraises that use Endaoment for
+        processing donations.
+        """
+        access_token = self.get_valid_access_token(user)
+        if not access_token:
+            raise EndaomentAccount.DoesNotExist("User has no Endaoment connection")
+
+        origin_fund = self.client.get_fund_by_id(access_token, origin_fund_id)
+        if not origin_fund:
+            raise ValueError(f"Origin fund with ID {origin_fund_id} not found")
+
+        chain_id = origin_fund.get("chainId")
+        destination_fund_id = self._get_researchhub_fund_id(chain_id)
+
+        return self.client.create_async_entity_transfer(
+            access_token=access_token,
+            origin_fund_id=origin_fund_id,
+            destination_fund_id=destination_fund_id,
+            amount_in_cents=amount_cents,
+            purpose=purpose,
+        )
+
+    def _get_researchhub_fund_id(self, chain_id: int) -> str:
+        """
+        Get the ResearchHub fund ID for a given chain ID.
+        """
+        fund_id = settings.ENDAOMENT_RH_FUND_IDS.get(chain_id)
+        if not fund_id:
+            raise ValueError(f"No ResearchHub fund configured for chain ID {chain_id}")
+        return fund_id
+
     def transfer_between_funds(
         self,
         user,
@@ -237,7 +279,6 @@ class EndaomentService:
             user: The user to save the account for.
             token_response: Token response from Endaoment.
         """
-
         account, _ = EndaomentAccount.objects.update_or_create(
             user=user,
             defaults={
@@ -245,9 +286,25 @@ class EndaomentService:
                 "refresh_token": token_response.refresh_token,
                 "token_expires_at": timezone.now()
                 + timedelta(seconds=token_response.expires_in),
+                "endaoment_user_id": self._extract_user_id(
+                    token_response.id_token
+                ),
             },
         )
         return account
+
+    @staticmethod
+    def _extract_user_id(id_token: str) -> str | None:
+        """
+        Extract the 'sub' claim (the external Endaoment user ID) from the given
+        OpenID Connect token.
+        """
+        try:
+            claims = pyjwt.decode(id_token, options={"verify_signature": False})
+            return claims.get("sub")
+        except Exception:
+            logger.warning("Failed to extract user ID from Endaoment ID token")
+            return None
 
     @staticmethod
     def build_redirect_url(

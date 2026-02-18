@@ -76,6 +76,7 @@ class TestEndaomentClient(TestCase):
         self.assertEqual(state_data["user_id"], 123)
         self.assertEqual(state_data["return_url"], "https://researchhub.com/dashboard")
         self.assertEqual(state_data["code_verifier"], "test_code_verifier")
+        self.assertEqual(call_kwargs["prompt"], "login consent")
 
     def test_build_authorization_url_with_invalid_return_url(self):
         """
@@ -310,7 +311,7 @@ class TestEndaomentClient(TestCase):
         self.assertEqual(result, mock_response_data)
         self.client.http_session.request.assert_called_once_with(
             "POST",
-            "https://api.dev.endaoment.org/v1/transfers/async-entity-transfer",
+            "https://api.dev.endaoment.org/v1/transfers/async-entity-transfers",
             headers={"Authorization": "Bearer valid_access_token"},
             timeout=30,
             json={

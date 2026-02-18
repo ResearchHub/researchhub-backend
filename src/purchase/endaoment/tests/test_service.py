@@ -1,6 +1,7 @@
 from datetime import timedelta
 from unittest.mock import Mock
 
+import jwt as pyjwt
 from authlib.integrations.base_client.errors import OAuthError
 from django.contrib.auth import get_user_model
 from django.core import signing
@@ -27,6 +28,13 @@ class TestEndaomentService(TestCase):
     """
     Tests for the `EndaomentService`.
     """
+
+    @staticmethod
+    def _create_id_token(sub: str) -> str:
+        """
+        Create a minimal OIDC token JWT with a 'sub' claim.
+        """
+        return pyjwt.encode({"sub": sub}, "secret", algorithm="HS256")
 
     def setUp(self):
         self.mock_client = Mock()
@@ -156,6 +164,7 @@ class TestEndaomentService(TestCase):
         Test successful callback creates EndaomentAccount.
         """
         # Arrange
+        id_token = self._create_id_token("externalUserId1")
         self.mock_client.validate_state.return_value = {
             "user_id": self.user.id,
             "code_verifier": "verifier123",
@@ -165,6 +174,7 @@ class TestEndaomentService(TestCase):
             access_token="access_token",
             refresh_token="refresh_token",
             expires_in=3600,
+            id_token=id_token,
         )
 
         # Act
@@ -178,6 +188,7 @@ class TestEndaomentService(TestCase):
         account = EndaomentAccount.objects.get(user=self.user)
         self.assertEqual(account.access_token, "access_token")
         self.assertEqual(account.refresh_token, "refresh_token")
+        self.assertEqual(account.endaoment_user_id, "externalUserId1")
 
     def test_process_callback_success_updates_existing_account(self):
         """
@@ -538,3 +549,165 @@ class TestEndaomentService(TestCase):
             amount_in_cents=1000,
             purpose="fundraise1",
         )
+
+    def test_extract_user_id_valid_token(self):
+        """
+        Test _extract_user_id returns 'sub' from a valid JWT.
+        """
+        # Arrange
+        id_token = self._create_id_token("user_123")
+
+        # Act
+        actual = EndaomentService._extract_user_id(id_token)
+
+        # Assert
+        self.assertEqual(actual, "user_123")
+
+    def test_extract_user_id_none_token(self):
+        """
+        Test _extract_user_id returns None for None input.
+        """
+        # Act
+        actual = EndaomentService._extract_user_id(None)
+
+        # Assert
+        self.assertIsNone(actual)
+
+    def test_extract_user_id_invalid_token(self):
+        """
+        Test _extract_user_id returns None for malformed JWT.
+        """
+        # Act
+        actual = EndaomentService._extract_user_id("not-a-jwt")
+
+        # Assert
+        self.assertIsNone(actual)
+
+    def test_extract_user_id_no_sub_claim(self):
+        """
+        Test _extract_user_id returns None when JWT has no 'sub' claim.
+        """
+        # Arrange
+        token = pyjwt.encode({"name": "test"}, "secret", algorithm="HS256")
+
+        # Act
+        actual = EndaomentService._extract_user_id(token)
+
+        # Assert
+        self.assertIsNone(actual)
+
+    @override_settings(ENDAOMENT_RH_FUND_IDS={1234: "rhFund1", 5678: "rhFund2"})
+    def test_get_researchhub_fund_id(self):
+        """
+        Test get_researchhub_fund_id returns correct fund ID based on settings.
+        """
+        # Arrange & Act
+        result = self.service._get_researchhub_fund_id(1234)
+
+        # Assert
+        self.assertEqual(result, "rhFund1")
+
+    @override_settings(ENDAOMENT_RH_FUND_IDS={1234: "rhFund1"})
+    def test_transfer_to_researchhub_fund(self):
+        """
+        Test transfer_to_researchhub_fund looks up the origin fund's chain ID,
+        resolves the RH fund, and delegates to create_async_entity_transfer.
+        """
+        # Arrange
+        self.service.get_valid_access_token = Mock(return_value="token1")
+        self.mock_client.get_fund_by_id.return_value = {
+            "id": "fund1",
+            "chainId": 1234,
+        }
+        self.mock_client.create_async_entity_transfer.return_value = {"id": "transfer1"}
+
+        # Act
+        result = self.service.transfer_to_researchhub_fund(
+            user=self.user,
+            origin_fund_id="fund1",
+            amount_cents=5000,
+            purpose="donation",
+        )
+
+        # Assert
+        self.assertEqual(result, {"id": "transfer1"})
+        self.mock_client.get_fund_by_id.assert_called_once_with("token1", "fund1")
+        self.mock_client.create_async_entity_transfer.assert_called_once_with(
+            access_token="token1",
+            origin_fund_id="fund1",
+            destination_fund_id="rhFund1",
+            amount_in_cents=5000,
+            purpose="donation",
+        )
+
+    def test_transfer_to_researchhub_fund_fails_without_connection(self):
+        """
+        Test transfer_to_researchhub_fund raises when user has no connection.
+        """
+        # Arrange
+        self.service.get_valid_access_token = Mock(return_value=None)
+
+        # Act & Assert
+        with self.assertRaises(EndaomentAccount.DoesNotExist):
+            self.service.transfer_to_researchhub_fund(
+                user=self.user,
+                origin_fund_id="fund1",
+                amount_cents=5000,
+                purpose="donation",
+            )
+        self.mock_client.get_fund_by_id.assert_not_called()
+
+    def test_transfer_to_researchhub_fund_origin_fund_not_found(self):
+        """
+        Test transfer_to_researchhub_fund raises ValueError when origin fund
+        is not found.
+        """
+        # Arrange
+        self.service.get_valid_access_token = Mock(return_value="token1")
+        self.mock_client.get_fund_by_id.return_value = None
+
+        # Act & Assert
+        with self.assertRaisesMessage(
+            ValueError, "Origin fund with ID fund1 not found"
+        ):
+            self.service.transfer_to_researchhub_fund(
+                user=self.user,
+                origin_fund_id="fund1",
+                amount_cents=5000,
+                purpose="donation",
+            )
+        self.mock_client.create_async_entity_transfer.assert_not_called()
+
+    def test_transfer_to_researchhub_fund_no_rh_fund_for_chain(self):
+        """
+        Test transfer_to_researchhub_fund raises ValueError when no RH fund
+        is configured for the origin fund's chain ID.
+        """
+        # Arrange
+        self.service.get_valid_access_token = Mock(return_value="token1")
+        self.mock_client.get_fund_by_id.return_value = {
+            "id": "fund1",
+            "chainId": 9999,
+        }
+
+        # Act & Assert
+        with self.assertRaisesMessage(
+            ValueError, "No ResearchHub fund configured for chain ID 9999"
+        ):
+            self.service.transfer_to_researchhub_fund(
+                user=self.user,
+                origin_fund_id="fund1",
+                amount_cents=5000,
+                purpose="donation",
+            )
+        self.mock_client.create_async_entity_transfer.assert_not_called()
+
+    def test_get_researchhub_fund_id_no_mapping(self):
+        """
+        Test get_researchhub_fund_id returns None when no mapping exists.
+        """
+        # Act & Assert
+        with self.assertRaisesMessage(
+            ValueError, "No ResearchHub fund configured for chain ID 9999"
+        ):
+            self.service._get_researchhub_fund_id(9999)
