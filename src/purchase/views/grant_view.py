@@ -11,8 +11,19 @@ from purchase.serializers.grant_serializer import DynamicGrantSerializer
 from purchase.services.funding_overview_service import GrantOverviewService
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from user.models import User
 from user.permissions import IsModerator
-from purchase.services.overview_mixin import OverviewMixin
+
+#Temporary function for testing different user data, will be removed before release
+def _resolve_target_user(request) -> User | None:
+    """Return the user specified by ?user_id, falling back to the requester."""
+    user_id = request.query_params.get("user_id")
+    if user_id:
+        try:
+            return User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return None
+    return request.user
 
 
 class GrantViewSet(viewsets.ModelViewSet):
@@ -207,7 +218,7 @@ class GrantViewSet(viewsets.ModelViewSet):
         grant = Grant.objects.filter(unified_document__posts__id=pk).first()
         if not grant:
             return Response(status=404)
-        user = OverviewMixin.resolve_target_user(request)
+        user = _resolve_target_user(request)
         if user is None:
             return Response({"error": "User not found"}, status=404)
         data = self.grant_overview_service.get_grant_overview(user, grant)

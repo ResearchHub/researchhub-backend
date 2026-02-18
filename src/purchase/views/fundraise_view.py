@@ -19,9 +19,20 @@ from purchase.services.fundraise_service import FundraiseService
 from purchase.services.funding_impact_service import FundingImpactService
 from purchase.services.funding_overview_service import FundingOverviewService
 from referral.services.referral_bonus_service import ReferralBonusService
+from user.models import User
 from user.permissions import IsModerator
 from user.related_models.follow_model import Follow
-from purchase.services.overview_mixin import OverviewMixin
+
+#Temporary function for testing different user data, will be removed before release
+def _resolve_target_user(request) -> User | None:
+    """Return the user specified by ?user_id, falling back to the requester."""
+    user_id = request.query_params.get("user_id")
+    if user_id:
+        try:
+            return User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return None
+    return request.user
 
 
 class FundraiseViewSet(viewsets.ModelViewSet):
@@ -304,7 +315,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def funding_overview(self, request, *args, **kwargs):
         """Return funding overview metrics. Accepts optional ?user_id param."""
-        user = OverviewMixin.resolve_target_user(request)
+        user = _resolve_target_user(request)
         if user is None:
             return Response({"error": "User not found"}, status=404)
         data = self.funding_overview_service.get_funding_overview(user)
@@ -314,7 +325,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def funding_impact(self, request, *args, **kwargs):
         """Return funding impact metrics. Accepts optional ?user_id param."""
-        user = OverviewMixin.resolve_target_user(request)
+        user = _resolve_target_user(request)
         if user is None:
             return Response({"error": "User not found"}, status=404)
         data = self.funding_impact_service.get_funding_impact_overview(user)
