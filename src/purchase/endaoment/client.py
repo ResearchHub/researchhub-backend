@@ -212,7 +212,7 @@ class EndaomentClient:
             access_token,
             json={
                 "destinationOrgId": destination_org_id,
-                "idempotencyKey": uuid.uuid4().hex,
+                "idempotencyKey": str(uuid.uuid4()),
                 "originFundId": origin_fund_id,
                 "purpose": purpose,
                 "requestedAmount": str(amount_in_cents),
@@ -240,7 +240,7 @@ class EndaomentClient:
             access_token,
             json={
                 "destinationFundId": destination_fund_id,
-                "idempotencyKey": uuid.uuid4().hex,
+                "idempotencyKey": str(uuid.uuid4()),
                 "originFundId": origin_fund_id,
                 "requestedAmount": str(amount_in_cents),
             },
