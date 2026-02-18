@@ -1,12 +1,14 @@
 import logging
 import re
-import urllib.request
 from typing import Any, Callable
 
 import fitz
 from django.core.exceptions import ValidationError
 from django.core.validators import EmailValidator
 
+from paper.tasks.tasks import create_download_url
+from paper.utils import download_pdf_from_url
+from research_ai.constants import MAX_PDF_SIZE_BYTES
 from research_ai.models import ExpertSearch
 from research_ai.prompts.expert_finder_prompts import (
     build_system_prompt,
@@ -23,18 +25,20 @@ from researchhub_document.related_models.constants.document_type import PAPER
 
 logger = logging.getLogger(__name__)
 
+PDF_TOO_LARGE_MESSAGE = "PDF is too large. Maximum size is 10 MB. Please use another input type (e.g. abstract)."
 
-def get_document_content(unified_doc, input_type: str = "abstract"):
+
+def get_document_content(unified_doc, input_type: str = "full_content"):
     """
     Extract content from UnifiedDocument for expert finder.
 
     Args:
         unified_doc: ResearchhubUnifiedDocument instance.
-        input_type: "abstract" (default), "pdf", "custom_query", or "full_content".
+        input_type: "full_content" (default), "pdf", "custom_query", or "abstract".
 
     Returns:
         tuple: (content_text, content_type) where content_type is one of
-               "abstract", "pdf", "full_content".
+               "full_content", "pdf", "abstract".
 
     Raises:
         ValueError: If requested content is not available.
@@ -42,17 +46,23 @@ def get_document_content(unified_doc, input_type: str = "abstract"):
 
     if unified_doc.document_type == PAPER:
         paper = unified_doc.paper
-        if input_type == "pdf" and paper.pdf_url:
-            text = _extract_text_from_pdf_url(paper.pdf_url)
-            return (text, "pdf")
-        if paper.abstract:
-            return (paper.abstract, "abstract")
-        if paper.pdf_url:
-            text = _extract_text_from_pdf_url(paper.pdf_url)
-            return (text, "pdf")
-        raise ValueError("Paper has no abstract or PDF available")
 
-    # Discussion, Question, Preregistration, Grant, etc. – use post content
+        if input_type == "abstract":
+            if not paper.abstract:
+                raise ValueError("Abstract is not available for this paper.")
+            return (paper.abstract, "abstract")
+
+        if input_type == "pdf":
+            pdf_bytes = _get_paper_pdf_bytes(paper)
+            if not pdf_bytes:
+                raise ValueError("PDF is not available for this paper.")
+            if len(pdf_bytes) > MAX_PDF_SIZE_BYTES:
+                raise ValueError(PDF_TOO_LARGE_MESSAGE)
+            text = _extract_text_from_pdf_bytes(pdf_bytes)
+            return (text, "pdf")
+
+        raise ValueError("Invalid input_type for paper. Use 'pdf' or 'abstract'.")
+
     post = unified_doc.posts.first()
     if not post:
         raise ValueError("Document has no post content")
@@ -67,18 +77,46 @@ def get_document_content(unified_doc, input_type: str = "abstract"):
     raise ValueError("Post has no content available")
 
 
-def _extract_text_from_pdf_url(pdf_url: str) -> str:
-    """Download PDF from URL and extract text using PyMuPDF."""
+def _get_paper_pdf_bytes(paper) -> bytes | None:
+    """
+    Get PDF content for a paper. Prefer paper.file (S3); fall back to pdf_url .
+    """
 
+    # 1) Prefer paper.file (S3)
+    if getattr(paper, "file", None) and getattr(paper.file, "url", None):
+        try:
+            pdf_file = download_pdf_from_url(paper.file.url)
+            return pdf_file.read()
+        except Exception as e:
+            logger.warning(
+                "Failed to get PDF from paper.file for paper %s: %s. Trying pdf_url.",
+                getattr(paper, "id", "?"),
+                e,
+            )
+
+    # 2) Fall back to pdf_url
+    pdf_url = getattr(paper, "pdf_url", None) or getattr(paper, "url", None)
+    if not pdf_url:
+        return None
     try:
-        with urllib.request.urlopen(pdf_url, timeout=60) as resp:
-            pdf_bytes = resp.read()
+        url = create_download_url(pdf_url, getattr(paper, "external_source", "") or "")
+        pdf_file = download_pdf_from_url(url)
+        return pdf_file.read()
     except Exception as e:
-        logger.warning("Failed to download PDF from %s: %s", pdf_url[:80], e)
-        raise ValueError(f"Could not download PDF: {e}") from e
+        logger.warning(
+            "Failed to download PDF from pdf_url for paper %s: %s",
+            getattr(paper, "id", "?"),
+            e,
+            exc_info=True,
+        )
+        return None
 
+
+def _extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
+    """
+    Extract text from PDF bytes using PyMuPDF
+    """
     try:
-
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
         parts = []
         for page in doc:

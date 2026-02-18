@@ -187,6 +187,7 @@ def build_user_prompt(
     if is_pdf:
         template = _load_template("expert_finder_user_pdf.txt")
         return template.format(
+            query=query,
             expert_count=expert_count,
             expertise_level=expertise_level_display,
             region_text=region_text,

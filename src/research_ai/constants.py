@@ -1,7 +1,6 @@
-"""
-Expert finder configuration choices. Single source of truth for API and prompts.
-"""
 from django.db import models
+
+MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024
 
 
 class ExpertiseLevel(models.TextChoices):
