@@ -476,7 +476,6 @@ class TestEndaomentService(TestCase):
             origin_fund_id="fund1",
             destination_fund_id="fund2",
             amount_cents=1000,
-            purpose="transfer1",
         )
 
         # Assert
@@ -486,7 +485,6 @@ class TestEndaomentService(TestCase):
             origin_fund_id="fund1",
             destination_fund_id="fund2",
             amount_in_cents=1000,
-            purpose="transfer1",
         )
 
     def test_transfer_between_funds_fails_without_connection(self):
@@ -503,7 +501,6 @@ class TestEndaomentService(TestCase):
                 origin_fund_id="fund1",
                 destination_fund_id="fund2",
                 amount_cents=1000,
-                purpose="transfer1",
             )
 
     def test_create_async_grant_fails_without_connection(self):
@@ -626,7 +623,6 @@ class TestEndaomentService(TestCase):
             user=self.user,
             origin_fund_id="fund1",
             amount_cents=5000,
-            purpose="donation",
         )
 
         # Assert
@@ -637,7 +633,6 @@ class TestEndaomentService(TestCase):
             origin_fund_id="fund1",
             destination_fund_id="rhFund1",
             amount_in_cents=5000,
-            purpose="donation",
         )
 
     def test_transfer_to_researchhub_fund_fails_without_connection(self):
@@ -653,7 +648,6 @@ class TestEndaomentService(TestCase):
                 user=self.user,
                 origin_fund_id="fund1",
                 amount_cents=5000,
-                purpose="donation",
             )
         self.mock_client.get_fund_by_id.assert_not_called()
 
@@ -674,7 +668,6 @@ class TestEndaomentService(TestCase):
                 user=self.user,
                 origin_fund_id="fund1",
                 amount_cents=5000,
-                purpose="donation",
             )
         self.mock_client.create_async_entity_transfer.assert_not_called()
 
@@ -698,7 +691,6 @@ class TestEndaomentService(TestCase):
                 user=self.user,
                 origin_fund_id="fund1",
                 amount_cents=5000,
-                purpose="donation",
             )
         self.mock_client.create_async_entity_transfer.assert_not_called()
 

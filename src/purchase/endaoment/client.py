@@ -150,6 +150,14 @@ class EndaomentClient:
             timeout=REQUEST_TIMEOUT,
             **kwargs,
         )
+        if not response.ok:
+            logger.error(
+                "Endaoment API error: %s %s returned %s: %s",
+                method,
+                path,
+                response.status_code,
+                response.text,
+            )
         response.raise_for_status()
         return response.json()
 
@@ -204,7 +212,7 @@ class EndaomentClient:
             access_token,
             json={
                 "destinationOrgId": destination_org_id,
-                "idempotencyKey": uuid.uuid4().hex,
+                "idempotencyKey": str(uuid.uuid4()),
                 "originFundId": origin_fund_id,
                 "purpose": purpose,
                 "requestedAmount": str(amount_in_cents),
@@ -217,7 +225,6 @@ class EndaomentClient:
         origin_fund_id: str,
         destination_fund_id: str,
         amount_in_cents: int,
-        purpose: str,
     ) -> dict:
         """
         Create an async entity transfer request from a fund (DAF) to another fund.
@@ -233,9 +240,8 @@ class EndaomentClient:
             access_token,
             json={
                 "destinationFundId": destination_fund_id,
-                "idempotencyKey": uuid.uuid4().hex,
+                "idempotencyKey": str(uuid.uuid4()),
                 "originFundId": origin_fund_id,
-                "purpose": purpose,
                 "requestedAmount": str(amount_in_cents),
             },
         )
