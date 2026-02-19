@@ -85,6 +85,8 @@ class FundOrderingFilter(OrderingFilter):
             return self._apply_most_applicants_sorting(queryset, model_config['model_class'])
         elif ordering == 'amount_raised':
             return self._apply_amount_raised_sorting(queryset, model_config['model_class'])
+        elif ordering == 'leaderboard':
+            return self._apply_leaderboard_sorting(queryset)
         else:
             # For any other ordering field, fall back to DRF's standard ordering
             return super().filter_queryset(request, queryset, view)
@@ -102,7 +104,7 @@ class FundOrderingFilter(OrderingFilter):
             if fields:
                 field = fields[0]
                 field_name = field.lstrip('-') 
-                custom_fields = ['newest', 'best', 'upvotes', 'most_applicants', 'amount_raised']
+                custom_fields = ['newest', 'best', 'upvotes', 'most_applicants', 'amount_raised', 'leaderboard']
                 if field_name in custom_fields:
                     return [field] 
                 ordering_fields = getattr(view, 'ordering_fields', None)
@@ -230,6 +232,39 @@ class FundOrderingFilter(OrderingFilter):
                 )
             ).order_by("-contributor_count", "-created_date")
     
+    LEADERBOARD_SIZE = 5
+
+    def _apply_leaderboard_sorting(self, queryset: QuerySet) -> QuerySet:
+        """Return top OPEN grants sorted by total contributions to their proposals."""
+        now = timezone.now()
+
+        queryset = queryset.filter(
+            Q(unified_document__grants__status=Grant.OPEN),
+            Q(unified_document__grants__end_date__isnull=True)
+            | Q(unified_document__grants__end_date__gt=now),
+        )
+
+        queryset = queryset.annotate(
+            total_funded=Coalesce(
+                Sum(
+                    F("unified_document__grants__applications__preregistration_post__unified_document__fundraises__escrow__amount_holding")
+                    + F("unified_document__grants__applications__preregistration_post__unified_document__fundraises__escrow__amount_paid"),
+                ),
+                Value(0),
+                output_field=DecimalField(max_digits=19, decimal_places=10),
+            ),
+            grant_amount=Coalesce(
+                Sum(
+                    F("unified_document__grants__amount"),
+                    output_field=DecimalField(max_digits=19, decimal_places=2),
+                ),
+                Value(0),
+                output_field=DecimalField(max_digits=19, decimal_places=2),
+            ),
+        )
+
+        return queryset.order_by("-total_funded", "-grant_amount")[:self.LEADERBOARD_SIZE]
+
     def _apply_amount_raised_sorting(self, queryset: QuerySet, model_class: Union[Type[Grant], Type[Fundraise]]) -> QuerySet:
         if model_class == Grant:
             return queryset.annotate(
