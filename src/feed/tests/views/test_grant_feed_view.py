@@ -2,16 +2,21 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 import pytz
+from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from rest_framework.test import APITestCase
 
-from purchase.models import Grant, GrantApplication
+from purchase.models import Fundraise, Grant, GrantApplication
+from reputation.models import Escrow
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from user.tests.helpers import create_random_authenticated_user
 
 
@@ -544,3 +549,42 @@ class GrantFeedViewTests(APITestCase):
 
         # Assert
         self.assertEqual(len(response.data["results"]), 0)
+
+    def test_leaderboard_ordering(self):
+        """Top 5 OPEN grants: funded first, then by budget; closed excluded."""
+        # Arrange — 6 open grants (+ 1 from setUp = 7 open, 2 closed/completed)
+        grants = []
+        for i in range(6):
+            post = create_post(created_by=self.moderator, document_type=GRANT, title=f"Grant {i}")
+            grants.append(Grant.objects.create(
+                created_by=self.moderator, unified_document=post.unified_document,
+                amount=Decimal(str(1000 * (i + 1))), currency="USD",
+                organization="Org", description="", status=Grant.OPEN,
+            ))
+
+        # Fund grants[0] (smallest budget) so it ranks first
+        applicant = create_random_authenticated_user("applicant")
+        doc = ResearchhubUnifiedDocument.objects.create(document_type=PREREGISTRATION)
+        proposal = ResearchhubPost.objects.create(
+            title="P", created_by=applicant, document_type=PREREGISTRATION, unified_document=doc,
+        )
+        GrantApplication.objects.create(grant=grants[0], preregistration_post=proposal, applicant=applicant)
+        escrow = Escrow.objects.create(
+            amount_holding=99999, hold_type=Escrow.FUNDRAISE, created_by=applicant,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument), object_id=doc.id,
+        )
+        Fundraise.objects.create(
+            created_by=applicant, unified_document=doc, escrow=escrow,
+            status=Fundraise.OPEN, goal_amount=100000,
+        )
+
+        # Act
+        self.client.force_authenticate(self.user)
+        response = self.client.get("/api/grant_feed/?ordering=leaderboard")
+        titles = [r["content_object"]["title"] for r in response.data["results"]]
+
+        # Assert — capped at 5, funded grant first, closed/completed excluded
+        self.assertEqual(len(titles), 5)
+        self.assertEqual(titles[0], "Grant 0")
+        self.assertNotIn("Closed Grant", titles)
+        self.assertNotIn("Completed Grant", titles)
