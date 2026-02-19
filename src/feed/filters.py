@@ -243,12 +243,15 @@ class FundOrderingFilter(OrderingFilter):
             | Q(unified_document__grants__end_date__gt=now),
         )
 
+        # Build the ORM path: grant post → grant → applications → proposal → fundraise → escrow
+        grant = "unified_document__grants"
+        proposals = f"{grant}__applications__preregistration_post"
+        fundraises = f"{proposals}__unified_document__fundraises"
+        escrow = f"{fundraises}__escrow"
+
         queryset = queryset.annotate(
             total_funded=Coalesce(
-                Sum(
-                    F("unified_document__grants__applications__preregistration_post__unified_document__fundraises__escrow__amount_holding")
-                    + F("unified_document__grants__applications__preregistration_post__unified_document__fundraises__escrow__amount_paid"),
-                ),
+                Sum(F(f"{escrow}__amount_holding") + F(f"{escrow}__amount_paid")),
                 Value(0),
                 output_field=DecimalField(max_digits=19, decimal_places=10),
             ),
