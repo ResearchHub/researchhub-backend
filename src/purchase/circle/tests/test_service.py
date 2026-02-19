@@ -76,7 +76,7 @@ class TestCircleWalletService(TestCase):
 
         wallet = Wallet.objects.get(user=self.user)
         self.mock_client.create_wallet.assert_called_once_with(
-            idempotency_key=f"rh-wallet-{wallet.pk}"
+            idempotency_key=f"rh-wallet-{wallet.pk}-{self.user.id}"
         )
         self.assertEqual(wallet.circle_wallet_id, "new-circle-wallet-id")
         self.assertEqual(wallet.address, "0xBrandNewAddress")
@@ -97,7 +97,7 @@ class TestCircleWalletService(TestCase):
 
         self.assertEqual(result.address, "0xAddr")
         self.mock_client.create_wallet.assert_called_once_with(
-            idempotency_key=f"rh-wallet-{wallet.pk}"
+            idempotency_key=f"rh-wallet-{wallet.pk}-{self.user.id}"
         )
 
         wallet.refresh_from_db()

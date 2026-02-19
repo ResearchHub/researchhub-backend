@@ -22,8 +22,14 @@ def _fetch_public_key(key_id: str) -> str:
 
     url = f"{CIRCLE_API_BASE}/v2/notifications/publicKey/{key_id}"
     headers = {"Authorization": f"Bearer {settings.CIRCLE_API_KEY}"}
-    response = requests.get(url, headers=headers, timeout=5)
-    response.raise_for_status()
+    try:
+        response = requests.get(url, headers=headers, timeout=5)
+        response.raise_for_status()
+    except requests.exceptions.RequestException:
+        logger.error(
+            "Failed to fetch Circle public key for key_id=%s", key_id, exc_info=True
+        )
+        raise
     data = response.json()
     return data["data"]["publicKey"]
 

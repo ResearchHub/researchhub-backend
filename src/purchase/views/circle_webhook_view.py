@@ -1,6 +1,7 @@
 import json
 import logging
 import time
+from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
 from rest_framework import status
@@ -83,7 +84,9 @@ class CircleWebhookView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
-        if not verify_webhook_signature(request.body, signature, key_id):
+        body = request.body
+
+        if not verify_webhook_signature(body, signature, key_id):
             return Response(
                 {"message": "Invalid signature"},
                 status=status.HTTP_401_UNAUTHORIZED,
@@ -91,7 +94,7 @@ class CircleWebhookView(APIView):
 
         # --- Parse payload ---
         try:
-            payload = json.loads(request.body)
+            payload = json.loads(body)
         except (json.JSONDecodeError, ValueError):
             return Response(
                 {"message": "Invalid payload"},
@@ -139,7 +142,30 @@ class CircleWebhookView(APIView):
         wallet_id = notification["walletId"]
         blockchain = notification.get("blockchain", "")
         amounts = notification.get("amounts", [])
-        deposit_amount = amounts[0] if amounts else "0"
+
+        # Validate deposit amount
+        deposit_amount = amounts[0] if amounts else None
+        if not deposit_amount:
+            logger.error("No amounts in Circle notification %s", notification_id)
+            return
+
+        try:
+            parsed_amount = Decimal(deposit_amount)
+        except InvalidOperation:
+            logger.error(
+                "Invalid deposit amount %r in notification %s",
+                deposit_amount,
+                notification_id,
+            )
+            return
+
+        if parsed_amount <= 0:
+            logger.error(
+                "Non-positive deposit amount %s in notification %s",
+                deposit_amount,
+                notification_id,
+            )
+            return
 
         # Idempotency: skip if we already processed this notification
         if Deposit.objects.filter(circle_notification_id=notification_id).exists():
@@ -164,8 +190,10 @@ class CircleWebhookView(APIView):
 
         if network is None:
             logger.error(
-                "Unknown Circle blockchain %r, notification_id=%s",
+                "Unknown Circle blockchain %r for wallet_id=%s user=%s notification_id=%s",
                 blockchain,
+                wallet_id,
+                user.id,
                 notification_id,
             )
             return
@@ -185,9 +213,10 @@ class CircleWebhookView(APIView):
             distributor.distribute()
 
         logger.info(
-            "Circle deposit credited: user=%s amount=%s network=%s notification_id=%s",
+            "Circle deposit credited: user=%s amount=%s blockchain=%s network=%s notification_id=%s",
             user.id,
             deposit_amount,
+            blockchain,
             network,
             notification_id,
         )

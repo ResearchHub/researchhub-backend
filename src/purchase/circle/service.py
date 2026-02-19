@@ -6,6 +6,7 @@ from django.db import transaction
 
 from purchase.circle.client import CircleWalletClient, CircleWalletFrozenError
 from purchase.models import Wallet
+from user.models import User
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ class CircleWalletService:
     def __init__(self, client: Optional[CircleWalletClient] = None):
         self.client = client or CircleWalletClient()
 
-    def get_or_create_deposit_address(self, user) -> DepositAddressResult:
+    def get_or_create_deposit_address(self, user: User) -> DepositAddressResult:
         """
         Get (or provision) the Circle deposit address for a user.
 
@@ -69,7 +70,7 @@ class CircleWalletService:
 
     def _create_wallet(self, wallet: Wallet) -> None:
         """Create a new Circle wallet and store the wallet ID."""
-        idempotency_key = f"rh-wallet-{wallet.pk}"
+        idempotency_key = f"rh-wallet-{wallet.pk}-{wallet.user_id}"
         wallet_id = self.client.create_wallet(idempotency_key=idempotency_key)
 
         wallet.circle_wallet_id = wallet_id

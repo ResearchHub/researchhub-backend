@@ -180,6 +180,56 @@ class TestCircleWebhookView(TestCase):
         deposit = Deposit.objects.get(circle_notification_id="notif-001")
         self.assertEqual(deposit.network, "ETHEREUM")
 
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    def test_empty_amounts_returns_200_no_deposit(self, _mock_verify):
+        payload = _make_payload(amounts=[])
+        response = self._post(payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(Deposit.objects.exists())
+
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    def test_invalid_amount_returns_200_no_deposit(self, _mock_verify):
+        payload = _make_payload(amounts=["not-a-number"])
+        response = self._post(payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(Deposit.objects.exists())
+
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    def test_zero_amount_returns_200_no_deposit(self, _mock_verify):
+        payload = _make_payload(amounts=["0"])
+        response = self._post(payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(Deposit.objects.exists())
+
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    def test_negative_amount_returns_200_no_deposit(self, _mock_verify):
+        payload = _make_payload(amounts=["-50"])
+        response = self._post(payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(Deposit.objects.exists())
+
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    def test_unknown_blockchain_returns_200_no_deposit(self, _mock_verify):
+        payload = _make_payload(blockchain="SOLANA")
+        response = self._post(payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(Deposit.objects.exists())
+
     def test_head_request_returns_200(self):
         response = self.client.head(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
