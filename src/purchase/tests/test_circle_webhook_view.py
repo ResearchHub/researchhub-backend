@@ -2,11 +2,12 @@ import json
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
-from django.urls import reverse
+from django.test import TestCase, override_settings
+from django.urls import path, reverse
 from rest_framework import status
 
 from purchase.models import Wallet
+from purchase.views.circle_webhook_view import CircleWebhookView
 from reputation.models import Deposit
 
 User = get_user_model()
@@ -44,6 +45,23 @@ def _make_payload(
     }
 
 
+# URL patterns used when this module is the ROOT_URLCONF.
+# IP allowlist disabled for the main functional tests; enabled for IP tests.
+urlpatterns = [
+    path(
+        "webhooks/circle/",
+        CircleWebhookView.as_view(allowed_ips=set()),
+        name="circle_webhook",
+    ),
+    path(
+        "webhooks/circle-with-ips/",
+        CircleWebhookView.as_view(),
+        name="circle_webhook_with_ips",
+    ),
+]
+
+
+@override_settings(ROOT_URLCONF="purchase.tests.test_circle_webhook_view")
 class TestCircleWebhookView(TestCase):
     def setUp(self):
         self.url = reverse("circle_webhook")
@@ -161,3 +179,66 @@ class TestCircleWebhookView(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         deposit = Deposit.objects.get(circle_notification_id="notif-001")
         self.assertEqual(deposit.network, "ETHEREUM")
+
+    def test_head_request_returns_200(self):
+        response = self.client.head(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+@override_settings(ROOT_URLCONF="purchase.tests.test_circle_webhook_view")
+class TestCircleWebhookIPAllowlist(TestCase):
+    def setUp(self):
+        self.url = reverse("circle_webhook_with_ips")
+
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    def test_disallowed_ip_returns_403(self, _mock_verify):
+        payload = _make_payload()
+        response = self.client.post(
+            self.url,
+            data=json.dumps(payload),
+            content_type="application/json",
+            REMOTE_ADDR="1.2.3.4",
+            headers={
+                "X-Circle-Signature": "sig",
+                "X-Circle-Key-Id": "key",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    def test_allowed_ip_passes(self, _mock_verify):
+        payload = _make_payload(notification_type="transactions.outbound")
+        response = self.client.post(
+            self.url,
+            data=json.dumps(payload),
+            content_type="application/json",
+            REMOTE_ADDR="54.243.112.156",
+            headers={
+                "X-Circle-Signature": "sig",
+                "X-Circle-Key-Id": "key",
+            },
+        )
+        # Should pass IP check and hit normal flow (200 for ignored type)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    def test_forwarded_ip_is_respected(self, _mock_verify):
+        payload = _make_payload(notification_type="transactions.outbound")
+        response = self.client.post(
+            self.url,
+            data=json.dumps(payload),
+            content_type="application/json",
+            REMOTE_ADDR="10.0.0.1",
+            HTTP_X_FORWARDED_FOR="54.243.112.156, 10.0.0.1",
+            headers={
+                "X-Circle-Signature": "sig",
+                "X-Circle-Key-Id": "key",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
