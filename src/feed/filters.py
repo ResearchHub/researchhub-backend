@@ -232,10 +232,9 @@ class FundOrderingFilter(OrderingFilter):
                 )
             ).order_by("-contributor_count", "-created_date")
     
-    LEADERBOARD_SIZE = 5
-
     def _apply_leaderboard_sorting(self, queryset: QuerySet) -> QuerySet:
         """Return top OPEN grants sorted by total contributions to their proposals."""
+        leaderboard_size = 5
         now = timezone.now()
 
         queryset = queryset.filter(
@@ -263,7 +262,7 @@ class FundOrderingFilter(OrderingFilter):
             ),
         )
 
-        return queryset.order_by("-total_funded", "-grant_amount")[:self.LEADERBOARD_SIZE]
+        return queryset.order_by("-total_funded", "-grant_amount")[:leaderboard_size]
 
     def _apply_amount_raised_sorting(self, queryset: QuerySet, model_class: Union[Type[Grant], Type[Fundraise]]) -> QuerySet:
         if model_class == Grant:
