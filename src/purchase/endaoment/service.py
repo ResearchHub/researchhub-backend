@@ -4,6 +4,7 @@ from datetime import timedelta
 from typing import Optional
 
 import jwt as pyjwt
+import requests
 from authlib.integrations.base_client.errors import OAuthError
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -255,6 +256,11 @@ class EndaomentService:
                 logger.error(
                     f"Unexpected OAuth error refreshing token for user {account.user.id}: {e}"
                 )
+            raise
+        except requests.RequestException as e:
+            logger.error(
+                f"Failed to refresh Endaoment token for user {account.user.id}: {e}"
+            )
             raise
 
         account.access_token = token_response.access_token

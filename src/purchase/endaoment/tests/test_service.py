@@ -2,6 +2,7 @@ from datetime import timedelta
 from unittest.mock import Mock
 
 import jwt as pyjwt
+import requests
 from authlib.integrations.base_client.errors import OAuthError
 from django.contrib.auth import get_user_model
 from django.core import signing
@@ -405,6 +406,32 @@ class TestEndaomentService(TestCase):
         # Assert
         self.assertIsNone(result)
         # account should NOT be deleted for non-invalid_grant errors
+        self.assertTrue(EndaomentAccount.objects.filter(user=self.user).exists())
+
+    def test_get_valid_access_token_refresh_http_error_propagates(self):
+        """
+        Test that get_valid_access_token lets HTTP errors propagate
+        so callers can distinguish a transient upstream failure from
+        a missing Endaoment connection.
+        """
+        # Arrange
+        EndaomentAccount.objects.create(
+            user=self.user,
+            access_token="expired_token",
+            refresh_token="refresh_token",
+            token_expires_at=timezone.now() - timedelta(hours=1),
+        )
+        response = Mock()
+        response.status_code = 500  # fail with HTTP error
+        self.mock_client.refresh_access_token.side_effect = (
+            requests.exceptions.HTTPError(response=response)
+        )
+
+        # Act & Assert
+        with self.assertRaises(requests.exceptions.HTTPError):
+            self.service.get_valid_access_token(self.user)
+
+        # account should not be deleted
         self.assertTrue(EndaomentAccount.objects.filter(user=self.user).exists())
 
     def test_get_user_funds_returns_funds(self):
