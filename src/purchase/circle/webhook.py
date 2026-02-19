@@ -1,5 +1,6 @@
 import base64
 import logging
+import re
 
 import requests
 from cryptography.hazmat.primitives import hashes
@@ -16,6 +17,9 @@ CIRCLE_API_BASE = "https://api.circle.com"
 
 def _fetch_public_key(key_id: str) -> str:
     """Fetch a Circle notification public key by ID (base64-encoded DER)."""
+    if not getattr(settings, "CIRCLE_API_KEY", None):
+        raise ValueError("CIRCLE_API_KEY is not configured")
+
     url = f"{CIRCLE_API_BASE}/v2/notifications/publicKey/{key_id}"
     headers = {"Authorization": f"Bearer {settings.CIRCLE_API_KEY}"}
     response = requests.get(url, headers=headers, timeout=5)
@@ -24,8 +28,14 @@ def _fetch_public_key(key_id: str) -> str:
     return data["data"]["publicKey"]
 
 
+_KEY_ID_RE = re.compile(r"^[a-f0-9\-]{36}$")
+
+
 def _get_public_key_b64(key_id: str) -> str:
     """Get Circle's public key (base64 DER), using cache to avoid repeated API calls."""
+    if not _KEY_ID_RE.match(key_id):
+        raise ValueError(f"Invalid Circle key_id format: {key_id!r}")
+
     cache_key = f"circle_webhook_pubkey:{key_id}"
     public_key_b64 = cache.get(cache_key)
     if public_key_b64 is None:
