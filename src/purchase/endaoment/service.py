@@ -288,9 +288,7 @@ class EndaomentService:
                 "refresh_token": token_response.refresh_token,
                 "token_expires_at": timezone.now()
                 + timedelta(seconds=token_response.expires_in),
-                "endaoment_user_id": self._extract_user_id(
-                    token_response.id_token
-                ),
+                "endaoment_user_id": self._extract_user_id(token_response.id_token),
             },
         )
         return account
