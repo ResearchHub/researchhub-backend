@@ -2,12 +2,11 @@ import json
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase, override_settings
-from django.urls import path, reverse
+from django.test import TestCase
+from django.urls import reverse
 from rest_framework import status
 
 from purchase.models import Wallet
-from purchase.views.circle_webhook_view import CircleWebhookView
 from reputation.models import Deposit
 
 User = get_user_model()
@@ -45,18 +44,6 @@ def _make_payload(
     }
 
 
-# URL patterns used when this module is the ROOT_URLCONF.
-urlpatterns = [
-    path("webhooks/circle/", CircleWebhookView.as_view(), name="circle_webhook"),
-    path(
-        "webhooks/circle-with-ips/",
-        CircleWebhookView.as_view(),
-        name="circle_webhook_with_ips",
-    ),
-]
-
-
-@override_settings(ROOT_URLCONF="purchase.tests.test_circle_webhook_view")
 class TestCircleWebhookView(TestCase):
     def setUp(self):
         self.url = reverse("circle_webhook")
@@ -249,10 +236,9 @@ class TestCircleWebhookView(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
-@override_settings(ROOT_URLCONF="purchase.tests.test_circle_webhook_view")
 class TestCircleWebhookNoIPFiltering(TestCase):
     def setUp(self):
-        self.url = reverse("circle_webhook_with_ips")
+        self.url = reverse("circle_webhook")
 
     @patch(
         "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
