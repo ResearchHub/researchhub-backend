@@ -550,7 +550,7 @@ class GrantFeedViewTests(APITestCase):
         # Assert
         self.assertEqual(len(response.data["results"]), 0)
 
-    def test_leaderboard_ordering(self):
+    def test_funding_opportunities_ordering(self):
         """Top 5 OPEN grants: funded first, then by budget; closed excluded."""
         # Arrange — 6 open grants (+ 1 from setUp = 7 open, 2 closed/completed)
         grants = []
@@ -580,7 +580,7 @@ class GrantFeedViewTests(APITestCase):
 
         # Act
         self.client.force_authenticate(self.user)
-        response = self.client.get("/api/grant_feed/?ordering=leaderboard")
+        response = self.client.get("/api/grant_feed/?ordering=funding_opportunities")
         titles = [r["content_object"]["title"] for r in response.data["results"]]
 
         # Assert — capped at 5, funded grant first, closed/completed excluded

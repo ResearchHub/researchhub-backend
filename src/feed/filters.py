@@ -85,8 +85,8 @@ class FundOrderingFilter(OrderingFilter):
             return self._apply_most_applicants_sorting(queryset, model_config['model_class'])
         elif ordering == 'amount_raised':
             return self._apply_amount_raised_sorting(queryset, model_config['model_class'])
-        elif ordering == 'leaderboard':
-            return self._apply_leaderboard_sorting(queryset)
+        elif ordering == 'funding_opportunities':
+            return self._apply_funding_opportunities_sorting(queryset)
         else:
             # For any other ordering field, fall back to DRF's standard ordering
             return super().filter_queryset(request, queryset, view)
@@ -104,7 +104,7 @@ class FundOrderingFilter(OrderingFilter):
             if fields:
                 field = fields[0]
                 field_name = field.lstrip('-') 
-                custom_fields = ['newest', 'best', 'upvotes', 'most_applicants', 'amount_raised', 'leaderboard']
+                custom_fields = ['newest', 'best', 'upvotes', 'most_applicants', 'amount_raised', 'funding_opportunities']
                 if field_name in custom_fields:
                     return [field] 
                 ordering_fields = getattr(view, 'ordering_fields', None)
@@ -232,7 +232,7 @@ class FundOrderingFilter(OrderingFilter):
                 )
             ).order_by("-contributor_count", "-created_date")
     
-    def _apply_leaderboard_sorting(self, queryset: QuerySet) -> QuerySet:
+    def _apply_funding_opportunities_sorting(self, queryset: QuerySet) -> QuerySet:
         """Return top OPEN grants sorted by total contributions to their proposals."""
         leaderboard_size = 5
         now = timezone.now()

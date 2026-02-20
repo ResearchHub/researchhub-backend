@@ -29,7 +29,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
     pagination_class = FeedPagination
     filter_backends = [DjangoFilterBackend, FundOrderingFilter]
     is_grant_view = True
-    ordering_fields = ['newest', 'upvotes', 'most_applicants', 'amount_raised', 'leaderboard']
+    ordering_fields = ['newest', 'upvotes', 'most_applicants', 'amount_raised', 'funding_opportunities']
     ordering = 'newest'  # Default ordering
 
     def get_serializer_context(self):
