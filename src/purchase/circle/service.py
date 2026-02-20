@@ -70,7 +70,7 @@ class CircleWalletService:
 
     def _create_wallet(self, wallet: Wallet) -> None:
         """Create a new Circle wallet and store the wallet ID."""
-        idempotency_key = f"rh-wallet-{wallet.pk}-{wallet.user_id}"
+        idempotency_key = f"rh-wallet-{wallet.pk}"
         wallet_id = self.client.create_wallet(idempotency_key=idempotency_key)
 
         wallet.circle_wallet_id = wallet_id
