@@ -14,6 +14,9 @@ logger = logging.getLogger(__name__)
 CIRCLE_PUBLIC_KEY_CACHE_TTL = 60 * 60  # 1 hour
 CIRCLE_TOKEN_CACHE_TTL = 60 * 60  # 1 hour
 
+_KEY_ID_RE = re.compile(r"^[a-f0-9\-]{36}$")
+_TOKEN_ID_RE = re.compile(r"^[a-f0-9\-]{36}$")
+
 
 def _fetch_public_key(key_id: str) -> str:
     """Fetch a Circle notification public key by ID (base64-encoded DER)."""
@@ -33,10 +36,6 @@ def _fetch_public_key(key_id: str) -> str:
         raise
     data = response.json()
     return data["data"]["publicKey"]
-
-
-_KEY_ID_RE = re.compile(r"^[a-f0-9\-]{36}$")
-_TOKEN_ID_RE = re.compile(r"^[a-f0-9\-]{36}$")
 
 
 def _get_public_key_b64(key_id: str) -> str:
