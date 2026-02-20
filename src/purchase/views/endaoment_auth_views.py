@@ -93,7 +93,12 @@ class EndaomentDisconnectView(APIView):
         """
         Disconnect the authenticated user's Endaoment account.
         """
-        disconnected = self.service.disconnect(request.user)
+        try:
+            disconnected = self.service.disconnect(request.user)
+        except Exception as e:
+            logger.warning(f"Failed to disconnect Endaoment account: {e}")
+            raise APIException("Failed to disconnect Endaoment account")
+
         if not disconnected:
             raise NotFound("No Endaoment connection found to disconnect.")
         return Response(status=204)
