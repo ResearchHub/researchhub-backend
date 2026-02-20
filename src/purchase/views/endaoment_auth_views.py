@@ -1,7 +1,7 @@
 import logging
 
 from django.shortcuts import redirect
-from rest_framework.exceptions import APIException
+from rest_framework.exceptions import APIException, NotFound
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -95,7 +95,7 @@ class EndaomentDisconnectView(APIView):
         """
         disconnected = self.service.disconnect(request.user)
         if not disconnected:
-            return Response({"detail": "No Endaoment connection found."}, status=404)
+            raise NotFound("No Endaoment connection found to disconnect.")
         return Response(status=204)
 
 
