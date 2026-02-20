@@ -12,6 +12,7 @@ from django.core.cache import cache
 logger = logging.getLogger(__name__)
 
 CIRCLE_PUBLIC_KEY_CACHE_TTL = 60 * 60  # 1 hour
+CIRCLE_TOKEN_CACHE_TTL = 60 * 60  # 1 hour
 CIRCLE_API_BASE = "https://api.circle.com"
 
 
@@ -35,6 +36,7 @@ def _fetch_public_key(key_id: str) -> str:
 
 
 _KEY_ID_RE = re.compile(r"^[a-f0-9\-]{36}$")
+_TOKEN_ID_RE = re.compile(r"^[a-f0-9\-]{36}$")
 
 
 def _get_public_key_b64(key_id: str) -> str:
@@ -48,6 +50,93 @@ def _get_public_key_b64(key_id: str) -> str:
         public_key_b64 = _fetch_public_key(key_id)
         cache.set(cache_key, public_key_b64, CIRCLE_PUBLIC_KEY_CACHE_TTL)
     return public_key_b64
+
+
+def _fetch_token(token_id: str) -> dict:
+    """Fetch a Circle token object by token ID."""
+    if not getattr(settings, "CIRCLE_API_KEY", None):
+        raise ValueError("CIRCLE_API_KEY is not configured")
+
+    url = f"{CIRCLE_API_BASE}/v1/w3s/tokens/{token_id}"
+    headers = {"Authorization": f"Bearer {settings.CIRCLE_API_KEY}"}
+    try:
+        response = requests.get(url, headers=headers, timeout=5)
+        response.raise_for_status()
+    except requests.exceptions.RequestException:
+        logger.error(
+            "Failed to fetch Circle token for token_id=%s", token_id, exc_info=True
+        )
+        raise
+
+    data = response.json()
+    return data["data"]["token"]
+
+
+def _get_token(token_id: str) -> dict:
+    """Get Circle token details with a short cache TTL."""
+    if not _TOKEN_ID_RE.match(token_id):
+        raise ValueError(f"Invalid Circle token_id format: {token_id!r}")
+
+    cache_key = f"circle_webhook_token:{token_id}"
+    token = cache.get(cache_key)
+    if token is None:
+        token = _fetch_token(token_id)
+        cache.set(cache_key, token, CIRCLE_TOKEN_CACHE_TTL)
+    return token
+
+
+def _blockchain_family(blockchain: str) -> str | None:
+    upper = (blockchain or "").upper()
+    if upper.startswith("BASE"):
+        return "BASE"
+    if upper.startswith("ETH"):
+        return "ETH"
+    return None
+
+
+def _expected_rsc_token_address(blockchain: str) -> str | None:
+    family = _blockchain_family(blockchain)
+    if family == "BASE":
+        return (getattr(settings, "WEB3_BASE_RSC_ADDRESS", "") or "").lower() or None
+    if family == "ETH":
+        return (getattr(settings, "WEB3_RSC_ADDRESS", "") or "").lower() or None
+    return None
+
+
+def is_rsc_token(token_id: str, blockchain: str) -> bool:
+    """
+    Validate that token_id resolves to the configured RSC contract address for
+    the inbound blockchain family.
+    """
+    expected_address = _expected_rsc_token_address(blockchain)
+    if not expected_address:
+        logger.error(
+            "No expected RSC token address configured for blockchain=%s", blockchain
+        )
+        return False
+
+    try:
+        token = _get_token(token_id)
+        token_address = (token.get("tokenAddress") or "").lower()
+        token_blockchain = token.get("blockchain")
+
+        if not token_address:
+            return False
+
+        token_family = _blockchain_family(token_blockchain or "")
+        webhook_family = _blockchain_family(blockchain)
+        if token_family and webhook_family and token_family != webhook_family:
+            return False
+
+        return token_address == expected_address
+    except Exception:
+        logger.warning(
+            "Circle token validation failed for token_id=%s blockchain=%s",
+            token_id,
+            blockchain,
+            exc_info=True,
+        )
+        return False
 
 
 def verify_webhook_signature(request_body: bytes, signature: str, key_id: str) -> bool:

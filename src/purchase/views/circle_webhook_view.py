@@ -9,7 +9,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from purchase.circle.webhook import verify_webhook_signature
+from purchase.circle.webhook import is_rsc_token, verify_webhook_signature
 from purchase.models import Wallet
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
@@ -25,25 +25,6 @@ BLOCKCHAIN_TO_NETWORK = {
     "BASE-SEPOLIA": "BASE",
 }
 
-# Default Circle webhook source IPs.
-# https://developers.circle.com/wallets/webhook-notifications
-CIRCLE_WEBHOOK_IPS = frozenset(
-    {
-        "54.243.112.156",
-        "100.24.191.35",
-        "54.165.52.248",
-        "54.87.106.46",
-    }
-)
-
-
-def _get_client_ip(request):
-    """Return the originating client IP, respecting X-Forwarded-For."""
-    forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-    if forwarded_for:
-        return forwarded_for.split(",")[0].strip()
-    return request.META.get("REMOTE_ADDR")
-
 
 class CircleWebhookView(APIView):
     """
@@ -57,23 +38,12 @@ class CircleWebhookView(APIView):
     """
 
     permission_classes = [AllowAny]
-    allowed_ips = CIRCLE_WEBHOOK_IPS
 
     def head(self, request, *args, **kwargs):
         """Circle requires the webhook endpoint to accept HEAD requests."""
         return Response(status=status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
-        # --- IP allowlist ---
-        if self.allowed_ips:
-            client_ip = _get_client_ip(request)
-            if client_ip not in self.allowed_ips:
-                logger.warning("Circle webhook from disallowed IP: %s", client_ip)
-                return Response(
-                    {"message": "Forbidden"},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
-
         # --- Signature verification ---
         signature = request.headers.get("X-Circle-Signature")
         key_id = request.headers.get("X-Circle-Key-Id")
@@ -141,7 +111,17 @@ class CircleWebhookView(APIView):
         notification_id = payload["notificationId"]
         wallet_id = notification["walletId"]
         blockchain = notification.get("blockchain", "")
+        token_id = notification.get("tokenId")
         amounts = notification.get("amounts", [])
+
+        if not is_rsc_token(token_id, blockchain):
+            logger.error(
+                "Unsupported Circle token_id=%r for blockchain=%r notification_id=%s",
+                token_id,
+                blockchain,
+                notification_id,
+            )
+            return
 
         # Validate deposit amount
         deposit_amount = amounts[0] if amounts else None
@@ -165,11 +145,6 @@ class CircleWebhookView(APIView):
                 deposit_amount,
                 notification_id,
             )
-            return
-
-        # Idempotency: skip if we already processed this notification
-        if Deposit.objects.filter(circle_notification_id=notification_id).exists():
-            logger.info("Duplicate Circle notification %s, skipping", notification_id)
             return
 
         # Look up the wallet (and user) by Circle wallet ID
@@ -199,13 +174,22 @@ class CircleWebhookView(APIView):
             return
 
         with transaction.atomic():
-            deposit = Deposit.objects.create(
-                user=user,
-                amount=deposit_amount,
-                network=network,
-                from_address="",
+            deposit, created = Deposit.objects.get_or_create(
                 circle_notification_id=notification_id,
+                defaults={
+                    "user": user,
+                    "amount": deposit_amount,
+                    "network": network,
+                    "from_address": "",
+                },
             )
+
+            if not created:
+                logger.info(
+                    "Duplicate Circle notification %s, skipping", notification_id
+                )
+                return
+
             deposit.set_paid()
 
             distribution = Dist("DEPOSIT", deposit_amount, give_rep=False)
