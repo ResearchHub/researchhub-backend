@@ -9,7 +9,11 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from purchase.circle.webhook import is_rsc_token, verify_webhook_signature
+from purchase.circle.webhook import (
+    CircleTransientTokenValidationError,
+    is_rsc_token,
+    verify_webhook_signature,
+)
 from purchase.models import Wallet
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
@@ -114,7 +118,17 @@ class CircleWebhookView(APIView):
         token_id = notification.get("tokenId")
         amounts = notification.get("amounts", [])
 
-        if not is_rsc_token(token_id, blockchain):
+        try:
+            is_supported_token = is_rsc_token(token_id, blockchain)
+        except CircleTransientTokenValidationError:
+            # Return non-2xx via outer handler so Circle retries the webhook.
+            logger.warning(
+                "Transient token validation error for Circle notification_id=%s",
+                notification_id,
+            )
+            raise
+
+        if not is_supported_token:
             logger.error(
                 "Unsupported Circle token_id=%r for blockchain=%r notification_id=%s",
                 token_id,

@@ -18,6 +18,12 @@ _KEY_ID_RE = re.compile(r"^[a-f0-9\-]{36}$")
 _TOKEN_ID_RE = re.compile(r"^[a-f0-9\-]{36}$")
 
 
+class CircleTransientTokenValidationError(Exception):
+    """Retryable failure while validating inbound token metadata with Circle."""
+
+    pass
+
+
 def _fetch_public_key(key_id: str) -> str:
     """Fetch a Circle notification public key by ID (base64-encoded DER)."""
     if not getattr(settings, "CIRCLE_API_KEY", None):
@@ -117,26 +123,34 @@ def is_rsc_token(token_id: str, blockchain: str) -> bool:
 
     try:
         token = _get_token(token_id)
-        token_address = (token.get("tokenAddress") or "").lower()
-        token_blockchain = token.get("blockchain")
-
-        if not token_address:
-            return False
-
-        token_family = _blockchain_family(token_blockchain or "")
-        webhook_family = _blockchain_family(blockchain)
-        if token_family and webhook_family and token_family != webhook_family:
-            return False
-
-        return token_address == expected_address
-    except Exception:
+    except ValueError:
+        # Invalid token identifiers are non-retryable and should be ignored.
         logger.warning(
-            "Circle token validation failed for token_id=%s blockchain=%s",
+            "Invalid Circle token_id format during validation: token_id=%r",
+            token_id,
+        )
+        return False
+    except Exception as exc:
+        logger.warning(
+            "Transient Circle token validation failure for token_id=%s blockchain=%s",
             token_id,
             blockchain,
             exc_info=True,
         )
+        raise CircleTransientTokenValidationError from exc
+
+    token_address = (token.get("tokenAddress") or "").lower()
+    token_blockchain = token.get("blockchain")
+
+    if not token_address:
         return False
+
+    token_family = _blockchain_family(token_blockchain or "")
+    webhook_family = _blockchain_family(blockchain)
+    if token_family and webhook_family and token_family != webhook_family:
+        return False
+
+    return token_address == expected_address
 
 
 def verify_webhook_signature(request_body: bytes, signature: str, key_id: str) -> bool:
