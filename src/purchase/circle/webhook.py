@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 
 CIRCLE_PUBLIC_KEY_CACHE_TTL = 60 * 60  # 1 hour
 CIRCLE_TOKEN_CACHE_TTL = 60 * 60  # 1 hour
-CIRCLE_API_BASE = "https://api.circle.com"
 
 
 def _fetch_public_key(key_id: str) -> str:
@@ -21,7 +20,8 @@ def _fetch_public_key(key_id: str) -> str:
     if not getattr(settings, "CIRCLE_API_KEY", None):
         raise ValueError("CIRCLE_API_KEY is not configured")
 
-    url = f"{CIRCLE_API_BASE}/v2/notifications/publicKey/{key_id}"
+    api_base = settings.CIRCLE_API_BASE_URL
+    url = f"{api_base}/v2/notifications/publicKey/{key_id}"
     headers = {"Authorization": f"Bearer {settings.CIRCLE_API_KEY}"}
     try:
         response = requests.get(url, headers=headers, timeout=5)
@@ -57,7 +57,8 @@ def _fetch_token(token_id: str) -> dict:
     if not getattr(settings, "CIRCLE_API_KEY", None):
         raise ValueError("CIRCLE_API_KEY is not configured")
 
-    url = f"{CIRCLE_API_BASE}/v1/w3s/tokens/{token_id}"
+    api_base = settings.CIRCLE_API_BASE_URL
+    url = f"{api_base}/v1/w3s/tokens/{token_id}"
     headers = {"Authorization": f"Bearer {settings.CIRCLE_API_KEY}"}
     try:
         response = requests.get(url, headers=headers, timeout=5)
