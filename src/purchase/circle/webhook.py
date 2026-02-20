@@ -14,8 +14,10 @@ logger = logging.getLogger(__name__)
 CIRCLE_PUBLIC_KEY_CACHE_TTL = 60 * 60  # 1 hour
 CIRCLE_TOKEN_CACHE_TTL = 60 * 60  # 1 hour
 
-_KEY_ID_RE = re.compile(r"^[a-f0-9\-]{36}$")
-_TOKEN_ID_RE = re.compile(r"^[a-f0-9\-]{36}$")
+_UUID_RE = re.compile(
+    r"^[a-f0-9\-]{36}$",
+    re.IGNORECASE,
+)
 
 
 class CircleTransientTokenValidationError(Exception):
@@ -46,7 +48,7 @@ def _fetch_public_key(key_id: str) -> str:
 
 def _get_public_key_b64(key_id: str) -> str:
     """Get Circle's public key (base64 DER), using cache to avoid repeated API calls."""
-    if not _KEY_ID_RE.match(key_id):
+    if not _UUID_RE.match(key_id):
         raise ValueError(f"Invalid Circle key_id format: {key_id!r}")
 
     cache_key = f"circle_webhook_pubkey:{key_id}"
@@ -80,7 +82,7 @@ def _fetch_token(token_id: str) -> dict:
 
 def _get_token(token_id: str) -> dict:
     """Get Circle token details with a short cache TTL."""
-    if not _TOKEN_ID_RE.match(token_id):
+    if not _UUID_RE.match(token_id):
         raise ValueError(f"Invalid Circle token_id format: {token_id!r}")
 
     cache_key = f"circle_webhook_token:{token_id}"
