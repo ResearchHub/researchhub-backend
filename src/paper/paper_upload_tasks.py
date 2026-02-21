@@ -560,6 +560,9 @@ def celery_create_paper(self, celery_data):
                 f"Unable to find article for: {dois}, {paper_submission.url}"
             )
 
+        # Pop openalex data before creating Paper - used for tags later
+        openalex_data = paper_data.pop("open_alex_raw_json", {})
+
         async_paper_updator = getattr(paper_submission, "async_updator", None)
         paper = Paper(**paper_data)
         if async_paper_updator is not None:
@@ -619,11 +622,9 @@ def celery_create_paper(self, celery_data):
         raise e
 
     try:
-        openalex_data = paper_data.get("open_alex_raw_json", {})
         topics = openalex_data.get("topics", [])
         concepts = openalex_data.get("concepts", [])
         create_paper_related_tags(paper, concepts, topics)
-
     except Exception as e:
         sentry.log_error(e, message=f"Failed to create paper tags for paper {paper.id}")
 

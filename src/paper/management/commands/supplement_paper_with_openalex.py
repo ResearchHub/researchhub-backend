@@ -1,6 +1,5 @@
 from dateutil.parser import parse
 from django.core.management.base import BaseCommand
-from django.db.models import Q
 
 from paper.exceptions import DOINotFoundError
 from paper.models import Paper
@@ -45,9 +44,6 @@ class Command(BaseCommand):
                 if data.get("is_open_access") and paper.is_open_access is None:
                     paper.is_open_access = data.get("is_open_access")
                     needs_update = True
-                if data.get("open_alex_raw_json") and not paper.open_alex_raw_json:
-                    paper.open_alex_raw_json = data.get("open_alex_raw_json")
-                    needs_update = True
                 if data.get("paper_publish_date") and not paper.paper_publish_date:
                     paper.paper_publish_date = parse(data.get("paper_publish_date"))
                     needs_update = True
@@ -65,7 +61,6 @@ class Command(BaseCommand):
                             "pdf_license",
                             "oa_status",
                             "is_open_access",
-                            "open_alex_raw_json",
                             "paper_publish_date",
                         ],
                     )
@@ -83,7 +78,6 @@ class Command(BaseCommand):
                     "pdf_license",
                     "oa_status",
                     "is_open_access",
-                    "open_alex_raw_json",
                     "paper_publish_date",
                 ],
             )
