@@ -60,7 +60,19 @@ class CircleWebhookView(APIView):
 
         body = request.body
 
-        if not verify_webhook_signature(body, signature, key_id):
+        try:
+            valid = verify_webhook_signature(body, signature, key_id)
+        except Exception:
+            logger.warning(
+                "Transient failure verifying Circle webhook signature",
+                exc_info=True,
+            )
+            return Response(
+                {"message": "Signature verification temporarily unavailable"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        if not valid:
             return Response(
                 {"message": "Invalid signature"},
                 status=status.HTTP_401_UNAUTHORIZED,

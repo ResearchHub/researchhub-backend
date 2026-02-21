@@ -172,8 +172,21 @@ def verify_webhook_signature(request_body: bytes, signature: str, key_id: str) -
     Returns:
         True if the signature is valid, False otherwise.
     """
+    # Fetch the public key from Circle's API (or cache).  Network errors are
+    # allowed to propagate so the view returns 500 and Circle retries.
     try:
         public_key_b64 = _get_public_key_b64(key_id)
+    except requests.exceptions.RequestException:
+        logger.warning(
+            "Transient error fetching Circle public key for key_id=%s",
+            key_id,
+            exc_info=True,
+        )
+        raise
+
+    # Verify the ECDSA signature.  Cryptographic failures (bad key, bad
+    # signature) are permanent and return False so the view returns 401.
+    try:
         public_key = load_der_public_key(base64.b64decode(public_key_b64))
 
         signature_bytes = base64.b64decode(signature)
