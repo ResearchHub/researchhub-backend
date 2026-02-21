@@ -10,7 +10,6 @@ from django.db import transaction
 from web3 import Web3
 
 import ethereum.lib
-import ethereum.utils
 from ethereum.lib import RSC_CONTRACT_ADDRESS, execute_erc20_transfer, get_private_key
 from mailing_list.lib import base_email_context
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
