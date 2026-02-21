@@ -12,6 +12,8 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+from research_ai.constants import ExpertiseLevel, Region, get_choice_label
+
 logger = logging.getLogger(__name__)
 
 
@@ -131,10 +133,22 @@ def generate_pdf_report(
 
         elements.append(Paragraph("<b>Search Configuration:</b>", styles["Heading3"]))
         expert_count = config.get("expert_count", config.get("expertCount", 10))
-        expertise_level = config.get(
-            "expertise_level", config.get("expertiseLevel", "All Levels")
+        expertise_level_raw = config.get(
+            "expertise_level", config.get("expertiseLevel", [ExpertiseLevel.ALL_LEVELS])
         )
-        region = config.get("region", "All Regions")
+        if isinstance(expertise_level_raw, list):
+            expertise_level = (
+                ", ".join(get_choice_label(v, ExpertiseLevel) for v in expertise_level_raw)
+                if expertise_level_raw
+                else ExpertiseLevel.ALL_LEVELS.label
+            )
+        else:
+            expertise_level = get_choice_label(
+                expertise_level_raw or ExpertiseLevel.ALL_LEVELS,
+                ExpertiseLevel,
+            )
+        region_val = config.get("region", Region.ALL_REGIONS)
+        region = get_choice_label(region_val, Region)
         state = config.get("state", "All States")
         config_text = (
             f"• Expert Count: {expert_count}<br/>"

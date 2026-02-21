@@ -1,6 +1,6 @@
 import os
 
-from research_ai.constants import ExpertiseLevel, Gender, Region
+from research_ai.constants import ExpertiseLevel, Gender, Region, get_choice_label
 
 # Descriptions for prompt building; keys are choice values from constants.
 EXPERTISE_DESCRIPTIONS: dict[str, str] = {
@@ -75,28 +75,62 @@ def build_excluded_experts_instruction(excluded_expert_names: list[str]) -> str:
     )
 
 
+def _normalize_expertise_levels(expertise_level: list[str] | str) -> list[str]:
+    """Normalize expertise_level to a flat list of strings (safe for dict lookups)."""
+    if isinstance(expertise_level, str):
+        return [expertise_level] if expertise_level else []
+    if not expertise_level:
+        return []
+    flat = []
+    for x in expertise_level:
+        if isinstance(x, str):
+            flat.append(x)
+        elif isinstance(x, list):
+            flat.extend(y for y in x if isinstance(y, str))
+    return flat
+
+
+def _expertise_levels_display(expertise_level: list[str] | str) -> str:
+    """Normalize expertise_level to list and return human-readable display string."""
+    levels = _normalize_expertise_levels(expertise_level)
+    if not levels or (
+        len(levels) == 1 and levels[0] == ExpertiseLevel.ALL_LEVELS
+    ):
+        return ExpertiseLevel.ALL_LEVELS.label
+    return ", ".join(get_choice_label(level, ExpertiseLevel) for level in levels)
+
+
 def build_system_prompt(
     expert_count: int,
-    expertise_level: str,
+    expertise_level: list[str] | str,
     region_filter: str,
     state_filter: str = "All States",
-    gender_filter: str = "All Genders",
+    gender_filter: str = "all_genders",
     excluded_expert_names: list[str] | None = None,
 ) -> str:
     """
     Build the complete system prompt with all configuration parameters.
+    expertise_level: list of expertise level choices, or single string (legacy).
     """
+    levels = _normalize_expertise_levels(expertise_level)
     expertise_instruction = ""
-    if expertise_level != ExpertiseLevel.ALL_LEVELS:
+    if levels and not (
+        len(levels) == 1 and levels[0] == ExpertiseLevel.ALL_LEVELS
+    ):
+        descriptions = []
+        for level in levels:
+            desc = EXPERTISE_DESCRIPTIONS.get(level, level)
+            descriptions.append(f"• {get_choice_label(level, ExpertiseLevel)}: {desc}")
         expertise_instruction = (
-            f"\n\n## Expertise Level Targeting\nFocus specifically on {expertise_level}: "
-            f"{EXPERTISE_DESCRIPTIONS.get(expertise_level, expertise_level)}"
+            "\n\n## Expertise Level Targeting\nFocus specifically on the following "
+            "expertise level(s):\n" + "\n".join(descriptions)
         )
 
     region_instruction = ""
     if region_filter != Region.ALL_REGIONS:
+        region_label = get_choice_label(region_filter, Region)
         region_instruction = (
-            f"\n\n## Geographic Region Targeting\nFocus specifically on {region_filter}: "
+            f"\n\n## Geographic Region Targeting\nFocus specifically on {region_label}: "
             f"{REGION_DESCRIPTIONS.get(region_filter, region_filter)}"
         )
 
@@ -110,6 +144,7 @@ def build_system_prompt(
 
     gender_instruction = ""
     if gender_filter != Gender.ALL_GENDERS:
+        gender_label = get_choice_label(gender_filter, Gender)
         gender_instruction = (
             f"\n\n## Gender Preference Targeting\n"
             f"{GENDER_DESCRIPTIONS.get(gender_filter, gender_filter)}"
@@ -120,11 +155,14 @@ def build_system_prompt(
     )
 
     template = _load_template("expert_finder_system.txt")
+    expertise_level_display = _expertise_levels_display(expertise_level)
+    region_label = get_choice_label(region_filter, Region)
+    gender_label = get_choice_label(gender_filter, Gender)
     return template.format(
         expert_count=expert_count,
-        expertise_level=expertise_level,
-        region_filter=region_filter,
-        gender_filter=gender_filter,
+        expertise_level=expertise_level_display,
+        region_filter=region_label,
+        gender_filter=gender_label,
         expertise_instruction=expertise_instruction,
         region_instruction=region_instruction,
         state_instruction=state_instruction,
@@ -136,28 +174,32 @@ def build_system_prompt(
 def build_user_prompt(
     query: str,
     expert_count: int,
-    expertise_level: str,
+    expertise_level: list[str] | str,
     region_filter: str,
-    gender_filter: str = "All Genders",
+    gender_filter: str = "all_genders",
     is_pdf: bool = False,
 ) -> str:
     """
     Build the user prompt for expert search.
+    expertise_level: list of expertise level choices, or single string (legacy).
     """
+    expertise_level_display = _expertise_levels_display(expertise_level)
+    region_label = get_choice_label(region_filter, Region)
     region_text = (
-        "" if region_filter == Region.ALL_REGIONS else f" from the {region_filter} region"
+        "" if region_filter == Region.ALL_REGIONS else f" from the {region_label} region"
     )
     if is_pdf:
         template = _load_template("expert_finder_user_pdf.txt")
         return template.format(
+            query=query,
             expert_count=expert_count,
-            expertise_level=expertise_level,
+            expertise_level=expertise_level_display,
             region_text=region_text,
         )
     template = _load_template("expert_finder_user_query.txt")
     return template.format(
         query=query,
         expert_count=expert_count,
-        expertise_level=expertise_level,
+        expertise_level=expertise_level_display,
         region_text=region_text,
     )

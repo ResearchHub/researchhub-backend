@@ -6,7 +6,7 @@ from research_ai.models import ExpertSearch
 from research_ai.services.expert_finder_service import (
     ExpertFinderService,
     get_document_content,
-    _extract_text_from_pdf_url,
+    _extract_text_from_pdf_bytes,
 )
 
 
@@ -39,7 +39,7 @@ class GetDocumentContentTests(TestCase):
         unified_doc.paper = paper
         with self.assertRaises(ValueError) as ctx:
             get_document_content(unified_doc, "abstract")
-        self.assertIn("no abstract or PDF", str(ctx.exception))
+        self.assertIn("Abstract is not available", str(ctx.exception))
 
     def test_post_with_renderable_text_returns_full_content(self):
         from researchhub_document.related_models.constants.document_type import (
@@ -71,19 +71,15 @@ class GetDocumentContentTests(TestCase):
         self.assertIn("no content", str(ctx.exception))
 
 
-class ExtractTextFromPdfUrlTests(TestCase):
-    @patch("research_ai.services.expert_finder_service.urllib.request.urlopen")
+class ExtractTextFromPdfBytesTests(TestCase):
     @patch("research_ai.services.expert_finder_service.fitz")
-    def test_extract_text_returns_text(self, mock_fitz, mock_urlopen):
-        mock_resp = MagicMock()
-        mock_resp.read.return_value = b"pdf bytes"
-        mock_urlopen.return_value.__enter__.return_value = mock_resp
+    def test_extract_text_returns_text(self, mock_fitz):
         mock_doc = MagicMock()
         mock_page = MagicMock()
         mock_page.get_text.return_value = "Page 1 text"
         mock_doc.__iter__ = lambda self: iter([mock_page])
         mock_fitz.open.return_value = mock_doc
-        text = _extract_text_from_pdf_url("http://example.com/file.pdf")
+        text = _extract_text_from_pdf_bytes(b"pdf bytes")
         self.assertEqual(text, "Page 1 text")
         mock_doc.close.assert_called_once()
 

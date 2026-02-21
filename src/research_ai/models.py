@@ -37,6 +37,11 @@ class ExpertSearch(DefaultModel):
         related_name="expert_searches",
         db_comment="Document-based search; null for custom query.",
     )
+    name = models.CharField(
+        max_length=512,
+        blank=True,
+        db_comment="Optional user-defined search name; auto-filled from document title if not provided.",
+    )
     query = models.TextField(
         db_comment="Research description or document content used for the search.",
     )
