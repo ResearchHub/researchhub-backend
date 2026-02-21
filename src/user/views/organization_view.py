@@ -377,6 +377,12 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             )
         ).distinct()
 
+        status = request.query_params.get("status", "").upper()
+        if status == "DRAFT":
+            notes = notes.filter(post__isnull=True)
+        elif status == "PUBLISHED":
+            notes = notes.filter(post__isnull=False)
+
         notes = notes.prefetch_related(
             "unified_document__permissions",
         )

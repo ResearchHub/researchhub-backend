@@ -1194,6 +1194,103 @@ class NoteTests(APITestCase):
         self.assertIn("applications", grant_data)
         self.assertEqual(grant_data["applications"], [])
 
+    def test_get_organization_notes_status_draft(self):
+        # Create two notes: one draft (no post) and one published (with post)
+        draft_response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Draft note",
+            },
+        )
+        self.assertEqual(draft_response.status_code, 200)
+
+        published_response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Published note",
+            },
+        )
+        self.assertEqual(published_response.status_code, 200)
+        published_note = published_response.data
+
+        # Publish the second note by creating an associated post
+        post_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "DISCUSSION",
+                "created_by": self.user.id,
+                "full_src": "Test post content",
+                "is_public": True,
+                "note_id": published_note["id"],
+                "renderable_text": (
+                    "Test post content that is sufficiently long for validation"
+                ),
+                "title": "Test post title that is sufficiently long",
+                "hubs": [],
+            },
+        )
+        self.assertEqual(post_response.status_code, 200)
+
+        # Fetch only draft notes
+        response = self.client.get(
+            f"/api/organization/{self.org['slug']}/get_organization_notes/?status=DRAFT"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["title"], "Draft note")
+
+    def test_get_organization_notes_status_published(self):
+        # Create two notes: one draft (no post) and one published (with post)
+        self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Draft note",
+            },
+        )
+
+        published_response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Published note",
+            },
+        )
+        self.assertEqual(published_response.status_code, 200)
+        published_note = published_response.data
+
+        # Publish the second note by creating an associated post
+        post_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "DISCUSSION",
+                "created_by": self.user.id,
+                "full_src": "Test post content",
+                "is_public": True,
+                "note_id": published_note["id"],
+                "renderable_text": (
+                    "Test post content that is sufficiently long for validation"
+                ),
+                "title": "Test post title that is sufficiently long",
+                "hubs": [],
+            },
+        )
+        self.assertEqual(post_response.status_code, 200)
+
+        # Fetch only published notes
+        response = self.client.get(
+            f"/api/organization/{self.org['slug']}/get_organization_notes/?status=PUBLISHED"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["title"], "Published note")
+
     def test_note_with_grant_applications_serialization(self):
         # Create applicant user
         applicant = get_user_model().objects.create_user(
