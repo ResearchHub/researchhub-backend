@@ -132,6 +132,19 @@ class EndaomentClient:
             id_token=token.get("id_token"),
         )
 
+    def revoke_token(self, token: str) -> None:
+        """
+        Revoke the given token.
+
+        Also see: https://datatracker.ietf.org/doc/html/rfc7009
+        """
+        session = self._create_session()
+        session.revoke_token(
+            f"{self.auth_url}/token/revocation",
+            token=token,
+            timeout=REQUEST_TIMEOUT,
+        )
+
     def _create_session(self) -> OAuth2Session:
         """
         Create a new OAuth2Session with PKCE support.

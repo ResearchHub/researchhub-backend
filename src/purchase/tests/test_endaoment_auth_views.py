@@ -9,6 +9,7 @@ from purchase.endaoment.service import CallbackResult, ConnectionStatus
 from purchase.views import (
     EndaomentCallbackView,
     EndaomentConnectView,
+    EndaomentDisconnectView,
     EndaomentStatusView,
 )
 
@@ -148,6 +149,64 @@ class TestEndaomentCallbackView(TestCase):
         self.mock_service.build_redirect_url.assert_called_once_with(
             error="cancelled", return_url=None
         )
+
+
+class TestEndaomentDisconnectView(TestCase):
+    """
+    Tests for the `EndaomentDisconnectView`.
+    """
+
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.mock_service = Mock()
+        self.user = User.objects.create_user(username="user1")
+
+    def test_disconnect(self):
+        """
+        Test successful disconnect returns 204.
+        """
+        # Arrange
+        self.mock_service.disconnect.return_value = True
+
+        request = self.factory.post("/api/endaoment/disconnect/")
+        force_authenticate(request, user=self.user)
+
+        # Act
+        response = EndaomentDisconnectView.as_view()(request, service=self.mock_service)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.mock_service.disconnect.assert_called_once_with(self.user)
+
+    def test_disconnect_no_account(self):
+        """
+        Test disconnect returns 404 when user has no account.
+        """
+        # Arrange
+        self.mock_service.disconnect.return_value = False
+
+        request = self.factory.post("/api/endaoment/disconnect/")
+        force_authenticate(request, user=self.user)
+
+        # Act
+        response = EndaomentDisconnectView.as_view()(request, service=self.mock_service)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_disconnect_requires_authentication(self):
+        """
+        Test disconnect rejects unauthenticated requests.
+        """
+        # Arrange
+        request = self.factory.post("/api/endaoment/disconnect/")
+
+        # Act
+        response = EndaomentDisconnectView.as_view()(request, service=self.mock_service)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.mock_service.disconnect.assert_not_called()
 
 
 class TestEndaomentStatusView(TestCase):

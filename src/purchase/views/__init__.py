@@ -5,6 +5,7 @@ from .coinbase_view import CoinbaseViewSet
 from .endaoment_auth_views import (
     EndaomentCallbackView,
     EndaomentConnectView,
+    EndaomentDisconnectView,
     EndaomentStatusView,
 )
 from .endaoment_viewset import EndaomentViewSet
