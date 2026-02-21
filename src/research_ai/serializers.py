@@ -9,7 +9,7 @@ from researchhub_document.serializers import ResearchhubPostSerializer
 
 class ExpertSearchConfigSerializer(serializers.Serializer):
 
-    expert_count = serializers.IntegerField(default=10, min_value=5, max_value=20)
+    expert_count = serializers.IntegerField(default=10, min_value=5, max_value=100)
     expertise_level = serializers.ListField(
         child=serializers.ChoiceField(choices=ExpertiseLevel.choices),
         required=False,
@@ -28,7 +28,7 @@ class ExpertSearchConfigSerializer(serializers.Serializer):
     )
 
     # Frontend compatibility
-    expertCount = serializers.IntegerField(required=False, min_value=5, max_value=20)
+    expertCount = serializers.IntegerField(required=False, min_value=5, max_value=100)
     expertiseLevel = serializers.ListField(
         child=serializers.ChoiceField(choices=ExpertiseLevel.choices),
         required=False,
@@ -134,12 +134,11 @@ class ExpertResultSerializer(serializers.Serializer):
     sources = serializers.ListField(required=False, allow_null=True)
 
 
-def _resolve_expert_search_work(expert_search, context=None):
+def resolve_work_for_unified_document(unified_doc, context=None):
     """
-    Resolve ExpertSearch.unified_document to work payload using paper/post serializers.
-    Returns None if no unified_document or resolution fails.
+    Resolve a unified document to work payload (paper or post) using paper/post serializers.
+    Returns None if resolution fails (no document, unknown type, or serialization error).
     """
-    unified_doc = getattr(expert_search, "unified_document", None)
     if not unified_doc:
         return None
     context = context or {}
@@ -158,6 +157,15 @@ def _resolve_expert_search_work(expert_search, context=None):
         return data
     except Exception:
         return None
+
+
+def _resolve_expert_search_work(expert_search, context=None):
+    """
+    Resolve ExpertSearch.unified_document to work payload using paper/post serializers.
+    Returns None if no unified_document or resolution fails.
+    """
+    unified_doc = getattr(expert_search, "unified_document", None)
+    return resolve_work_for_unified_document(unified_doc, context=context)
 
 
 class ExpertSearchSerializer(serializers.ModelSerializer):

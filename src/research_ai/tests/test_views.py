@@ -132,12 +132,13 @@ class ExpertSearchDetailViewTests(APITestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_get_invalid_search_id_returns_400(self):
+    def test_get_non_integer_search_id_returns_404(self):
+        """Non-integer search_id does not match URL pattern; Django returns 404."""
         self.client.force_authenticate(self.moderator)
         response = self.client.get(
             "/api/research_ai/expert-finder/search/abc/"
         )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
 class ExpertSearchListViewTests(APITestCase):
@@ -185,3 +186,91 @@ class ExpertSearchProgressStreamViewTests(APITestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("text/event-stream", response.get("Content-Type", ""))
+
+
+class ExpertSearchWorkViewTests(APITestCase):
+    def setUp(self):
+        self.moderator = create_random_authenticated_user("mod_work", moderator=True)
+        self.user = create_random_authenticated_user("user_work", moderator=False)
+
+    def test_work_requires_authentication(self):
+        response = self.client.get(
+            "/api/research_ai/expert-finder/work/1/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_work_requires_moderator(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.get(
+            "/api/research_ai/expert-finder/work/1/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_work_unified_document_not_found_returns_404(self):
+        self.client.force_authenticate(self.moderator)
+        response = self.client.get(
+            "/api/research_ai/expert-finder/work/999999/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.json().get("detail"), "Unified document not found.")
+
+    def test_work_returns_paper_when_unified_document_is_paper(self):
+        from paper.tests.helpers import create_paper
+
+        paper = create_paper(
+            title="Work Endpoint Paper",
+            paper_publish_date="2021-01-01",
+        )
+        self.client.force_authenticate(self.moderator)
+        response = self.client.get(
+            "/api/research_ai/expert-finder/work/{}/".format(
+                paper.unified_document_id
+            )
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertIn("work", data)
+        self.assertIsNotNone(data["work"])
+        self.assertEqual(data["work"]["type"], "paper")
+        self.assertEqual(data["work"]["unified_document_id"], paper.unified_document_id)
+        self.assertIn("Work Endpoint Paper", data["work"]["title"])
+
+    def test_work_returns_post_when_unified_document_is_post(self):
+        from researchhub_document.helpers import create_post
+
+        post = create_post(
+            title="Work Endpoint Post",
+            renderable_text="Post body",
+            created_by=self.moderator,
+            document_type="DISCUSSION",
+        )
+        self.client.force_authenticate(self.moderator)
+        response = self.client.get(
+            "/api/research_ai/expert-finder/work/{}/".format(
+                post.unified_document_id
+            )
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertIn("work", data)
+        self.assertIsNotNone(data["work"])
+        self.assertEqual(data["work"]["type"], "post")
+        self.assertEqual(data["work"]["unified_document_id"], post.unified_document_id)
+        self.assertIn("Work Endpoint Post", data["work"]["title"])
+
+    @patch("research_ai.views.expert_finder_views.resolve_work_for_unified_document")
+    def test_work_returns_null_when_resolution_fails(self, mock_resolve):
+        from paper.tests.helpers import create_paper
+
+        paper = create_paper(title="No Work")
+        mock_resolve.return_value = None
+        self.client.force_authenticate(self.moderator)
+        response = self.client.get(
+            "/api/research_ai/expert-finder/work/{}/".format(
+                paper.unified_document_id
+            )
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertIn("work", data)
+        self.assertIsNone(data["work"])

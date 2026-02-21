@@ -179,12 +179,19 @@ class ExpertFinderService:
         try:
             logger.info("Starting Expert Finder for search_id=%s", search_id)
             expert_count = config.get("expert_count", config.get("expertCount", 10))
+            from research_ai.constants import (
+                ExpertiseLevel,
+                Gender,
+                Region,
+            )
+
             expertise_level_raw = config.get(
-                "expertise_level", config.get("expertiseLevel", ["All Levels"])
+                "expertise_level",
+                config.get("expertiseLevel", [ExpertiseLevel.ALL_LEVELS]),
             )
             if isinstance(expertise_level_raw, str):
                 expertise_level = (
-                    [expertise_level_raw] if expertise_level_raw else ["All Levels"]
+                    [expertise_level_raw] if expertise_level_raw else [ExpertiseLevel.ALL_LEVELS]
                 )
             elif expertise_level_raw:
                 # Flatten to list of strings (avoid nested lists from JSON)
@@ -195,11 +202,11 @@ class ExpertFinderService:
                     elif isinstance(x, list):
                         expertise_level.extend(y for y in x if isinstance(y, str))
             else:
-                expertise_level = ["All Levels"]
-            region_filter = config.get("region", "All Regions")
+                expertise_level = [ExpertiseLevel.ALL_LEVELS]
+            region_filter = config.get("region", Region.ALL_REGIONS)
             state_filter = config.get("state", "All States")
             gender_filter = config.get(
-                "gender", config.get("genderPreference", "All Genders")
+                "gender", config.get("genderPreference", Gender.ALL_GENDERS)
             )
             excluded = excluded_expert_names or []
 

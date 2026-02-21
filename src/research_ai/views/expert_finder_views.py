@@ -14,6 +14,7 @@ from research_ai.serializers import (
     ExpertSearchCreateSerializer,
     ExpertSearchListItemSerializer,
     ExpertSearchSerializer,
+    resolve_work_for_unified_document,
 )
 from research_ai.services.expert_finder_service import get_document_content
 from research_ai.services.progress_service import ProgressService, TaskType
@@ -135,20 +136,36 @@ class ExpertSearchCreateView(APIView):
         )
 
 
+class ExpertSearchWorkView(APIView):
+    """
+    GET work (paper or post) for a unified document by ID.
+    Returns {"work": <payload>} or {"work": null} if not resolvable.
+    """
+    permission_classes = [IsAuthenticated, ResearchAIPermission, IsModerator]
+
+    def get(self, request, unified_document_id):
+        try:
+            unified_doc = ResearchhubUnifiedDocument.objects.get(
+                id=unified_document_id
+            )
+        except ResearchhubUnifiedDocument.DoesNotExist:
+            return Response(
+                {"detail": "Unified document not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        work = resolve_work_for_unified_document(
+            unified_doc, context={"request": request}
+        )
+        return Response({"work": work})
+
+
 class ExpertSearchDetailView(APIView):
     permission_classes = [IsAuthenticated, ResearchAIPermission, IsModerator]
 
     def get(self, request, search_id):
         try:
-            search_id_int = int(search_id)
-        except (ValueError, TypeError):
-            return Response(
-                {"detail": "Invalid search ID."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        try:
             expert_search = ExpertSearch.objects.get(
-                id=search_id_int, created_by=request.user
+                id=search_id, created_by=request.user
             )
         except ExpertSearch.DoesNotExist:
             return Response(
@@ -282,21 +299,14 @@ class ExpertSearchProgressStreamView(APIView):
 
     def get(self, request, search_id):
         try:
-            search_id_int = int(search_id)
-        except (ValueError, TypeError):
-            return Response(
-                {"detail": "Invalid search ID."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        try:
-            ExpertSearch.objects.get(id=search_id_int, created_by=request.user)
+            ExpertSearch.objects.get(id=search_id, created_by=request.user)
         except ExpertSearch.DoesNotExist:
             return Response(
                 {"detail": "Expert search not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
         response = StreamingHttpResponse(
-            _sse_event_stream(search_id),
+            _sse_event_stream(str(search_id)),
             content_type="text/event-stream",
         )
         response["Cache-Control"] = "no-cache"

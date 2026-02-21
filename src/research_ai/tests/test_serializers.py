@@ -72,11 +72,11 @@ class ExpertSearchConfigSerializerTests(TestCase):
     def test_expert_count_bounds(self):
         ser = ExpertSearchConfigSerializer(data={"expert_count": 5})
         self.assertTrue(ser.is_valid())
-        ser = ExpertSearchConfigSerializer(data={"expert_count": 20})
+        ser = ExpertSearchConfigSerializer(data={"expert_count": 100})
         self.assertTrue(ser.is_valid())
         ser = ExpertSearchConfigSerializer(data={"expert_count": 4})
         self.assertFalse(ser.is_valid())
-        ser = ExpertSearchConfigSerializer(data={"expert_count": 21})
+        ser = ExpertSearchConfigSerializer(data={"expert_count": 101})
         self.assertFalse(ser.is_valid())
 
 
