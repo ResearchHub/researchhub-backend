@@ -1291,6 +1291,135 @@ class NoteTests(APITestCase):
         self.assertEqual(response.data["count"], 1)
         self.assertEqual(response.data["results"][0]["title"], "Published note")
 
+    def test_create_note_with_document_type_sets_field(self):
+        response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Grant draft",
+                "document_type": "GRANT",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["document_type"], "GRANT")
+
+        note = Note.objects.get(id=response.data["id"])
+        self.assertEqual(note.document_type, "GRANT")
+
+    def test_create_note_without_document_type_leaves_field_null(self):
+        response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Plain note",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.data["document_type"])
+
+        note = Note.objects.get(id=response.data["id"])
+        self.assertIsNone(note.document_type)
+
+    def test_get_organization_notes_filter_by_type(self):
+        # Create notes with different document types
+        self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Grant note",
+                "document_type": "GRANT",
+            },
+        )
+        self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Preregistration note",
+                "document_type": "PREREGISTRATION",
+            },
+        )
+        self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Untyped note",
+            },
+        )
+
+        # Filter by GRANT
+        response = self.client.get(
+            f"/api/organization/{self.org['slug']}/get_organization_notes/?type=GRANT"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["title"], "Grant note")
+        self.assertEqual(response.data["results"][0]["document_type"], "GRANT")
+
+        # Filter by PREREGISTRATION
+        response = self.client.get(
+            f"/api/organization/{self.org['slug']}/get_organization_notes/?type=PREREGISTRATION"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["title"], "Preregistration note")
+
+    def test_get_organization_notes_filter_by_type_and_status(self):
+        # Create a draft GRANT note and a published GRANT note
+        self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Draft grant",
+                "document_type": "GRANT",
+            },
+        )
+
+        published_response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Published grant",
+                "document_type": "GRANT",
+            },
+        )
+        published_note = published_response.data
+
+        self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "GRANT",
+                "created_by": self.user.id,
+                "full_src": "Grant post content",
+                "is_public": True,
+                "note_id": published_note["id"],
+                "renderable_text": (
+                    "Grant post content that is sufficiently long for validation"
+                ),
+                "title": "Grant post title that is sufficiently long",
+                "hubs": [],
+                "grant_amount": 50000,
+                "grant_currency": "USD",
+                "grant_organization": "Test Foundation",
+                "grant_description": "Test grant description",
+            },
+        )
+
+        # Filter for draft GRANTs only
+        response = self.client.get(
+            f"/api/organization/{self.org['slug']}/get_organization_notes/"
+            f"?status=DRAFT&type=GRANT"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["title"], "Draft grant")
+
     def test_note_with_grant_applications_serialization(self):
         # Create applicant user
         applicant = get_user_model().objects.create_user(

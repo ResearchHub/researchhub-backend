@@ -383,6 +383,10 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         elif status == "PUBLISHED":
             notes = notes.filter(post__isnull=False)
 
+        note_type = request.query_params.get("type", "").upper()
+        if note_type:
+            notes = notes.filter(document_type=note_type)
+
         notes = notes.prefetch_related(
             "unified_document__permissions",
         )
@@ -393,6 +397,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             _include_fields=[
                 "access",
                 "created_date",
+                "document_type",
                 "id",
                 "organization",
                 "title",
