@@ -2,6 +2,7 @@ from datetime import timedelta
 from unittest.mock import Mock
 
 import jwt as pyjwt
+import requests
 from authlib.integrations.base_client.errors import OAuthError
 from django.contrib.auth import get_user_model
 from django.core import signing
@@ -407,6 +408,32 @@ class TestEndaomentService(TestCase):
         # account should NOT be deleted for non-invalid_grant errors
         self.assertTrue(EndaomentAccount.objects.filter(user=self.user).exists())
 
+    def test_get_valid_access_token_refresh_http_error_propagates(self):
+        """
+        Test that get_valid_access_token lets HTTP errors propagate
+        so callers can distinguish a transient upstream failure from
+        a missing Endaoment connection.
+        """
+        # Arrange
+        EndaomentAccount.objects.create(
+            user=self.user,
+            access_token="expired_token",
+            refresh_token="refresh_token",
+            token_expires_at=timezone.now() - timedelta(hours=1),
+        )
+        response = Mock()
+        response.status_code = 500  # fail with HTTP error
+        self.mock_client.refresh_access_token.side_effect = (
+            requests.exceptions.HTTPError(response=response)
+        )
+
+        # Act & Assert
+        with self.assertRaises(requests.exceptions.HTTPError):
+            self.service.get_valid_access_token(self.user)
+
+        # account should not be deleted
+        self.assertTrue(EndaomentAccount.objects.filter(user=self.user).exists())
+
     def test_get_user_funds_returns_funds(self):
         """
         Test get_user_funds returns funds from the client.
@@ -476,7 +503,6 @@ class TestEndaomentService(TestCase):
             origin_fund_id="fund1",
             destination_fund_id="fund2",
             amount_cents=1000,
-            purpose="transfer1",
         )
 
         # Assert
@@ -486,7 +512,6 @@ class TestEndaomentService(TestCase):
             origin_fund_id="fund1",
             destination_fund_id="fund2",
             amount_in_cents=1000,
-            purpose="transfer1",
         )
 
     def test_transfer_between_funds_fails_without_connection(self):
@@ -503,7 +528,6 @@ class TestEndaomentService(TestCase):
                 origin_fund_id="fund1",
                 destination_fund_id="fund2",
                 amount_cents=1000,
-                purpose="transfer1",
             )
 
     def test_create_async_grant_fails_without_connection(self):
@@ -626,7 +650,6 @@ class TestEndaomentService(TestCase):
             user=self.user,
             origin_fund_id="fund1",
             amount_cents=5000,
-            purpose="donation",
         )
 
         # Assert
@@ -637,7 +660,6 @@ class TestEndaomentService(TestCase):
             origin_fund_id="fund1",
             destination_fund_id="rhFund1",
             amount_in_cents=5000,
-            purpose="donation",
         )
 
     def test_transfer_to_researchhub_fund_fails_without_connection(self):
@@ -653,7 +675,6 @@ class TestEndaomentService(TestCase):
                 user=self.user,
                 origin_fund_id="fund1",
                 amount_cents=5000,
-                purpose="donation",
             )
         self.mock_client.get_fund_by_id.assert_not_called()
 
@@ -674,7 +695,6 @@ class TestEndaomentService(TestCase):
                 user=self.user,
                 origin_fund_id="fund1",
                 amount_cents=5000,
-                purpose="donation",
             )
         self.mock_client.create_async_entity_transfer.assert_not_called()
 
@@ -698,7 +718,6 @@ class TestEndaomentService(TestCase):
                 user=self.user,
                 origin_fund_id="fund1",
                 amount_cents=5000,
-                purpose="donation",
             )
         self.mock_client.create_async_entity_transfer.assert_not_called()
 
@@ -711,3 +730,54 @@ class TestEndaomentService(TestCase):
             ValueError, "No ResearchHub fund configured for chain ID 9999"
         ):
             self.service._get_researchhub_fund_id(9999)
+
+    def test_disconnect(self):
+        """
+        Test disconnect revokes the refresh token and deletes the account.
+        """
+        # Arrange
+        EndaomentAccount.objects.create(
+            user=self.user,
+            access_token="token",
+            refresh_token="refresh_token",
+            token_expires_at=timezone.now() + timedelta(hours=1),
+        )
+
+        # Act
+        result = self.service.disconnect(self.user)
+
+        # Assert
+        self.assertTrue(result)
+        self.assertFalse(EndaomentAccount.objects.filter(user=self.user).exists())
+        self.mock_client.revoke_token.assert_called_once_with("refresh_token")
+
+    def test_disconnect_no_account_returns_false(self):
+        """
+        Test disconnect returns False when user has no account.
+        """
+        # Act
+        result = self.service.disconnect(self.user)
+
+        # Assert
+        self.assertFalse(result)
+        self.mock_client.revoke_token.assert_not_called()
+
+    def test_disconnect_still_deletes_if_revoke_fails(self):
+        """
+        Test that the account is still deleted even if token revocation fails.
+        """
+        # Arrange
+        EndaomentAccount.objects.create(
+            user=self.user,
+            access_token="token",
+            refresh_token="refresh_token",
+            token_expires_at=timezone.now() + timedelta(hours=1),
+        )
+        self.mock_client.revoke_token.side_effect = Exception("Network error")
+
+        # Act
+        result = self.service.disconnect(self.user)
+
+        # Assert
+        self.assertTrue(result)
+        self.assertFalse(EndaomentAccount.objects.filter(user=self.user).exists())

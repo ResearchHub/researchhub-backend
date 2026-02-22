@@ -4,6 +4,7 @@ from datetime import timedelta
 from typing import Optional
 
 import jwt as pyjwt
+import requests
 from authlib.integrations.base_client.errors import OAuthError
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -114,6 +115,28 @@ class EndaomentService:
             return ConnectionStatus(True, account.endaoment_user_id)
         return ConnectionStatus(False)
 
+    def disconnect(self, user) -> bool:
+        """
+        Disconnect a user's Endaoment account.
+
+        Revokes the refresh token at Endaoment and deletes the local account.
+        Returns True if an account was disconnected, False if none existed.
+        """
+        account = EndaomentAccount.objects.filter(user=user).first()
+        if not account:
+            return False
+
+        if account.refresh_token:
+            try:
+                self.client.revoke_token(account.refresh_token)
+            except Exception:
+                logger.warning(
+                    "Failed to revoke Endaoment token for user %s", user.id
+                )
+
+        account.delete()
+        return True
+
     def get_valid_access_token(self, user) -> Optional[str]:
         """
         Get a valid access token for the user, refreshing if necessary.
@@ -179,7 +202,6 @@ class EndaomentService:
         user,
         origin_fund_id: str,
         amount_cents: int,
-        purpose: str,
     ) -> dict:
         """
         Create a transfer request from a user's fund (DAF) to the ResearchHub fund.
@@ -203,7 +225,6 @@ class EndaomentService:
             origin_fund_id=origin_fund_id,
             destination_fund_id=destination_fund_id,
             amount_in_cents=amount_cents,
-            purpose=purpose,
         )
 
     def _get_researchhub_fund_id(self, chain_id: int) -> str:
@@ -221,7 +242,6 @@ class EndaomentService:
         origin_fund_id: str,
         destination_fund_id: str,
         amount_cents: int,
-        purpose: str,
     ) -> dict:
         """
         Create a transfer request from a user's fund (DAF) to another fund.
@@ -238,7 +258,6 @@ class EndaomentService:
             origin_fund_id=origin_fund_id,
             destination_fund_id=destination_fund_id,
             amount_in_cents=amount_cents,
-            purpose=purpose,
         )
 
     def _refresh_account_token(self, account: EndaomentAccount) -> None:
@@ -259,6 +278,11 @@ class EndaomentService:
                 logger.error(
                     f"Unexpected OAuth error refreshing token for user {account.user.id}: {e}"
                 )
+            raise
+        except requests.RequestException as e:
+            logger.error(
+                f"Failed to refresh Endaoment token for user {account.user.id}: {e}"
+            )
             raise
 
         account.access_token = token_response.access_token
@@ -286,9 +310,7 @@ class EndaomentService:
                 "refresh_token": token_response.refresh_token,
                 "token_expires_at": timezone.now()
                 + timedelta(seconds=token_response.expires_in),
-                "endaoment_user_id": self._extract_user_id(
-                    token_response.id_token
-                ),
+                "endaoment_user_id": self._extract_user_id(token_response.id_token),
             },
         )
         return account

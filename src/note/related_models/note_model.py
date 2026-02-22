@@ -3,6 +3,7 @@ from channels.layers import get_channel_layer
 from django.db import models
 
 from researchhub_document.models import ResearchhubUnifiedDocument
+from researchhub_document.related_models.constants.document_type import DOCUMENT_TYPES
 from user.models import Organization, User
 from utils.models import DefaultModel
 
@@ -10,6 +11,12 @@ from utils.models import DefaultModel
 class Note(DefaultModel):
     created_by = models.ForeignKey(
         User, null=True, related_name="created_notes", on_delete=models.SET_NULL
+    )
+    document_type = models.CharField(
+        choices=DOCUMENT_TYPES,
+        max_length=32,
+        null=True,
+        blank=True,
     )
     latest_version = models.ForeignKey(
         "note.NoteContent", null=True, related_name="source", on_delete=models.CASCADE

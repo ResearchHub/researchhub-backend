@@ -43,8 +43,10 @@ from orcid.views import OrcidCallbackView, OrcidConnectView, OrcidFetchView
 from organizations.views import NonprofitFundraiseLinkViewSet, NonprofitOrgViewSet
 from paper.views import paper_upload_views
 from purchase.views import (
+    DepositAddressView,
     EndaomentCallbackView,
     EndaomentConnectView,
+    EndaomentDisconnectView,
     EndaomentStatusView,
     EndaomentViewSet,
     stripe_webhook_view,
@@ -237,6 +239,11 @@ urlpatterns = [
         name="endaoment_connect",
     ),
     path(
+        "api/endaoment/disconnect/",
+        EndaomentDisconnectView.as_view(),
+        name="endaoment_disconnect",
+    ),
+    path(
         "api/endaoment/callback/",
         EndaomentCallbackView.as_view(),
         name="endaoment_callback",
@@ -361,6 +368,11 @@ urlpatterns = [
         "api/payment/payment-intent/<str:payment_intent_id>/status/",
         purchase.views.PaymentIntentView.as_view(),
         name="payment_intent_status_view",
+    ),
+    path(
+        "api/wallet/deposit-address/",
+        DepositAddressView.as_view(),
+        name="deposit_address",
     ),
     path("user_saved/", UserSavedView.as_view(), name="user_saved"),
     path(
