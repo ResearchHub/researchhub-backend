@@ -3,15 +3,16 @@ Expert finder email generation and CRUD API.
 """
 
 import logging
-from uuid import UUID
 
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from research_ai.constants import VALID_EMAIL_TEMPLATE_KEYS
 from research_ai.models import ExpertSearch, GeneratedEmail
 from research_ai.permissions import ResearchAIPermission
+from research_ai.services.email_template_service import get_template as get_email_template
 from research_ai.serializers import (
     GenerateEmailRequestSerializer,
     GeneratedEmailCreateUpdateSerializer,
@@ -22,23 +23,13 @@ from user.permissions import IsModerator
 
 logger = logging.getLogger(__name__)
 
-VALID_TEMPLATES = {
-    "collaboration",
-    "consultation",
-    "conference",
-    "peer-review",
-    "publication",
-    "rfp-outreach",
-    "custom",
-}
-
 
 def _normalize_template(template: str) -> tuple[str, str | None]:
     """Return (template_key, custom_use_case or None). Supports 'custom: use case'."""
     template = (template or "").strip()
     if template.startswith("custom:"):
         return "custom", template[7:].strip() or None
-    if template in VALID_TEMPLATES:
+    if template in VALID_EMAIL_TEMPLATE_KEYS:
         return template, None
     return "custom", template or None
 
@@ -62,6 +53,23 @@ class GenerateEmailView(APIView):
 
         template_key, custom_use_case = _normalize_template(data.get("template") or "")
 
+        # Resolve outreach_context and template_data (from request or template_id)
+        outreach_context = (data.get("outreach_context") or "").strip() or None
+        template_data = data.get("template_data")
+        template_id = data.get("template_id")
+        if template_id and not template_data:
+            et = get_email_template(request.user, template_id)
+            if et:
+                outreach_context = outreach_context or (et.outreach_context or "").strip() or None
+                template_data = {
+                    "contact_name": et.contact_name or "",
+                    "contact_title": et.contact_title or "",
+                    "contact_institution": et.contact_institution or "",
+                    "contact_email": et.contact_email or "",
+                    "contact_phone": et.contact_phone or "",
+                    "contact_website": et.contact_website or "",
+                }
+
         try:
             subject, body = generate_expert_email(
                 expert_name=expert_name,
@@ -71,6 +79,8 @@ class GenerateEmailView(APIView):
                 notes=data.get("notes") or "",
                 template=template_key,
                 custom_use_case=custom_use_case,
+                outreach_context=outreach_context,
+                template_data=template_data,
             )
         except RuntimeError as e:
             logger.exception("Email generation failed")
@@ -78,6 +88,12 @@ class GenerateEmailView(APIView):
                 {"detail": str(e)},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
+
+        # Optional: generate-only (no save) via query param save=false or action=generate
+        save_param = request.query_params.get("save", "true").lower()
+        action_param = request.query_params.get("action", "").lower()
+        if save_param == "false" or action_param == "generate":
+            return Response({"subject": subject, "body": body})
 
         expert_search_id = data.get("expert_search_id")
         expert_search = None
@@ -151,16 +167,9 @@ class GeneratedEmailDetailView(APIView):
 
     def _get_email(self, request, email_id):
         try:
-            uuid_val = UUID(email_id)
-        except ValueError:
-            return None, Response(
-                {"detail": "Invalid email ID."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        try:
-            email = GeneratedEmail.objects.get(id=uuid_val, created_by=request.user)
+            email = GeneratedEmail.objects.get(id=int(email_id), created_by=request.user)
             return email, None
-        except GeneratedEmail.DoesNotExist:
+        except (ValueError, TypeError, GeneratedEmail.DoesNotExist):
             return None, Response(
                 {"detail": "Generated email not found."},
                 status=status.HTTP_404_NOT_FOUND,

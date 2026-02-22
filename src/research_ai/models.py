@@ -1,5 +1,6 @@
 from django.db import models
 
+from research_ai.constants import EmailTemplateType
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -101,15 +102,6 @@ class GeneratedEmail(DefaultModel):
     Stores generated outreach emails for experts.
     """
 
-    class Template(models.TextChoices):
-        COLLABORATION = "collaboration", "collaboration"
-        CONSULTATION = "consultation", "consultation"
-        CONFERENCE = "conference", "conference"
-        PEER_REVIEW = "peer-review", "peer-review"
-        PUBLICATION = "publication", "publication"
-        RFP_OUTREACH = "rfp-outreach", "rfp-outreach"
-        CUSTOM = "custom", "custom"
-
     class Status(models.TextChoices):
         DRAFT = "draft", "draft"
         SENT = "sent", "sent"
@@ -135,8 +127,8 @@ class GeneratedEmail(DefaultModel):
     email_body = models.TextField(blank=True)
     template = models.CharField(
         max_length=32,
-        choices=Template.choices,
-        default=Template.CUSTOM,
+        choices=EmailTemplateType.choices,
+        default=EmailTemplateType.CUSTOM,
     )
     status = models.CharField(
         max_length=16,
@@ -154,3 +146,52 @@ class GeneratedEmail(DefaultModel):
 
     def __str__(self):
         return f"GeneratedEmail {self.id} ({self.expert_name})"
+
+
+class EmailTemplate(DefaultModel):
+    """
+    User-defined template for outreach emails.
+    Stores name, contact info, and outreach context for placeholder replacement
+    and signature block when generating emails.
+    """
+
+    created_by = models.ForeignKey(
+        "user.User",
+        on_delete=models.CASCADE,
+        related_name="created_research_ai_email_templates",
+    )
+    name = models.CharField(
+        max_length=255,
+        db_comment="User-defined template name.",
+    )
+    contact_name = models.CharField(max_length=255, blank=True)
+    contact_title = models.CharField(max_length=255, blank=True)
+    contact_institution = models.CharField(max_length=512, blank=True)
+    contact_email = models.CharField(max_length=255, blank=True)
+    contact_phone = models.CharField(max_length=64, blank=True)
+    contact_website = models.CharField(max_length=512, blank=True)
+    outreach_context = models.TextField(
+        blank=True,
+        db_comment="Context provided to the LLM when generating emails.",
+    )
+    is_active = models.BooleanField(
+        default=False,
+        db_comment="Only one template per user can be active at a time.",
+    )
+
+    class Meta:
+        db_table = "research_ai_email_template"
+        ordering = ["-updated_date"]
+        indexes = [
+            models.Index(
+                fields=["created_by"],
+                name="research_ai_et_created_by",
+            ),
+            models.Index(
+                fields=["created_by", "is_active"],
+                name="research_ai_et_user_active",
+            ),
+        ]
+
+    def __str__(self):
+        return f"EmailTemplate {self.id} ({self.name})"

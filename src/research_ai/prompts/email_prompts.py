@@ -1,33 +1,18 @@
-"""
-Email generation prompts for expert outreach.
-Ported from expertfinder generate-expert-email route; anti-hallucination preserved.
-"""
+import os
 
-BASE_RULES = """
-CRITICAL RULES - DO NOT VIOLATE:
-1. NEVER mention or reference any specific publications, papers, or studies
-   unless they are explicitly provided in the expertise/notes fields
-2. NEVER use superlatives or overstated language like: "groundbreaking",
-   "seminal", "instrumental", "pioneering", "revolutionary", "world-class"
-3. ONLY reference information that is explicitly provided about the expert
-4. Keep tone conversational and authentic - avoid overly formal or flowery
-5. DO NOT claim the expert has done work they haven't based on your training
-6. If you don't know something from the provided information, don't mention it
-7. Focus on shared interest/expertise rather than praising expert's past work
-""".strip()
+from research_ai.constants import EMAIL_TEMPLATE_PROMPT_FILES
 
-COMMON_INSTRUCTIONS = """
-Generate a professional email (150-200 words max) to contact this expert.
+_PROMPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+_email_template_cache: dict[str, str] = {}
 
-{base_rules}
 
-Format:
-Subject: [subject line]
-
-[Email body - keep it natural and genuine]
-
-[Leave space for sender's signature]
-""".strip()
+def _load_email_template(name: str) -> str:
+    """Load a prompt template from the prompts directory. Results are cached."""
+    if name not in _email_template_cache:
+        path = os.path.join(_PROMPTS_DIR, name)
+        with open(path, encoding="utf-8") as f:
+            _email_template_cache[name] = f.read()
+    return _email_template_cache[name]
 
 
 def build_email_prompt(
@@ -38,110 +23,37 @@ def build_email_prompt(
     notes: str,
     template: str,
     custom_use_case: str | None = None,
+    outreach_context: str | None = None,
 ) -> str:
     """
     Build the full user prompt for email generation.
+    Loads base rules and common instructions from .txt; selects template-specific body.
 
     template: one of collaboration, consultation, conference, peer-review,
               publication, rfp-outreach, or custom (use custom_use_case for custom).
+    outreach_context: optional context from the sender's template (purpose, venue, etc.).
     """
+    base_rules = _load_email_template("email_base_rules.txt").strip()
+    common_raw = _load_email_template("email_common_instructions.txt")
+    common = common_raw.format(base_rules=base_rules)
+
     sender_info = f"""Expert Name: {expert_name or 'N/A'}
 Title: {expert_title or 'N/A'}
 Affiliation: {expert_affiliation or 'N/A'}
 Expertise: {expertise or 'N/A'}
 Additional Context: {notes or 'N/A'}"""
+    if outreach_context and outreach_context.strip():
+        sender_info += f"""
 
-    common = COMMON_INSTRUCTIONS.format(base_rules=BASE_RULES)
+Outreach context / sender's purpose (use this to tailor the email):
+{outreach_context.strip()}"""
 
-    if template == "custom" and custom_use_case:
-        return f"""{sender_info}
+    filename = EMAIL_TEMPLATE_PROMPT_FILES.get(template, "email_default.txt")
+    body_tpl = _load_email_template(filename)
 
-Use Case: {custom_use_case}
-
-{common}
-
-For this custom request, generate an email that authentically conveys the
-stated use case without fabricating details about the expert's work."""
-
-    if template == "collaboration":
-        return f"""{sender_info}
-
-{common}
-
-For a collaboration opportunity:
-- Express genuine interest in their expertise area (based only on what's provided)
-- Briefly describe your research/work without exaggeration
-- Propose a specific collaboration idea
-- Keep it friendly and low-pressure
-- Avoid praising their past work; focus on shared interests"""
-
-    if template == "consultation":
-        return f"""{sender_info}
-
-{common}
-
-For requesting expert consultation:
-- Explain the specific challenge or question you're facing
-- Connect it to their stated expertise area
-- Be humble and specific about what advice you're seeking
-- Avoid flattery or overstating their knowledge
-- Focus on the problem, not on the expert"""
-
-    if template == "conference":
-        return f"""{sender_info}
-
-{common}
-
-For a conference or speaking invitation:
-- Mention the specific event, conference, or symposium
-- Briefly describe why their expertise is relevant
-- Explain what audience would benefit from their participation
-- Keep the invitation clear and specific
-- Avoid phrases about their "renowned" or "celebrated" work"""
-
-    if template == "peer-review":
-        return f"""{sender_info}
-
-{common}
-
-For requesting peer review:
-- Clearly state what needs review (manuscript, proposal, etc.)
-- Explain why their expertise is relevant to evaluate the work
-- Be clear about timeline and expectations
-- Show respect for their time
-- Avoid assuming they have reviewed similar work before"""
-
-    if template == "publication":
-        return f"""{sender_info}
-
-{common}
-
-For inviting a publication contribution:
-- Specify the journal, book, or publication venue
-- Explain the scope/theme of the publication
-- Describe why their expertise fits this publication
-- Be specific about what type of contribution is needed
-- Avoid referencing any specific papers they may have written"""
-
-    if template == "rfp-outreach":
-        return f"""{sender_info}
-
-{common}
-
-For a Request for Proposal (RFP) outreach:
-- Start with: "Dear [Researcher Name], My name is [Name] and I am an editor
-  at [Your Organization/Institution Name]."
-- Clearly mention the RFP topic/focus area and why it matches their expertise
-- Explain why their expertise aligns with the RFP requirements
-- Include placeholders: funding amount [e.g., $XXXXX], deadline [e.g., date]
-- Keep it professional and straightforward
-- Focus on the opportunity fit, not on praising their past achievements
-- End with space for sender's signature and contact details
-- Make it easy for them to show interest or ask questions"""
-
-    # Default: general collaboration-style outreach
-    return f"""{sender_info}
-
-{common}
-
-Generate a general professional outreach email based on this expert's expertise."""
+    kwargs = {
+        "sender_info": sender_info,
+        "common": common,
+        "custom_use_case": custom_use_case or "",
+    }
+    return body_tpl.format(**kwargs)

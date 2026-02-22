@@ -1,5 +1,6 @@
 from django.test import TestCase
 
+from research_ai.constants import EmailTemplateType
 from research_ai.models import ExpertSearch, GeneratedEmail
 from user.tests.helpers import create_random_authenticated_user
 
@@ -61,10 +62,10 @@ class GeneratedEmailModelTests(TestCase):
             expert_search=self.expert_search,
             expert_name="Dr. Jane Doe",
             expert_email="jane@university.edu",
-            template=GeneratedEmail.Template.COLLABORATION,
+            template=EmailTemplateType.COLLABORATION,
         )
         self.assertEqual(email.expert_name, "Dr. Jane Doe")
-        self.assertEqual(email.template, GeneratedEmail.Template.COLLABORATION)
+        self.assertEqual(email.template, EmailTemplateType.COLLABORATION.value)
         self.assertEqual(email.status, GeneratedEmail.Status.DRAFT)
 
     def test_generated_email_str(self):

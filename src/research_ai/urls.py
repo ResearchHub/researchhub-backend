@@ -12,6 +12,7 @@ from research_ai.views.expert_finder_views import (
     ExpertSearchProgressStreamView,
     ExpertSearchWorkView,
 )
+from research_ai.views.template_views import TemplateDetailView, TemplateListView
 
 urlpatterns = [
     path("expert-finder/search/", ExpertSearchCreateView.as_view()),
@@ -34,7 +35,12 @@ urlpatterns = [
         GeneratedEmailListView.as_view(),
     ),
     path(
-        "expert-finder/emails/<str:email_id>/",
+        "expert-finder/emails/<int:email_id>/",
         GeneratedEmailDetailView.as_view(),
+    ),
+    path("expert-finder/templates/", TemplateListView.as_view()),
+    path(
+        "expert-finder/templates/<int:template_id>/",
+        TemplateDetailView.as_view(),
     ),
 ]

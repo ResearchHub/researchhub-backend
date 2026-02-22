@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 from paper.serializers import PaperSerializer
 from research_ai.constants import ExpertiseLevel, Gender, Region
-from research_ai.models import ExpertSearch, GeneratedEmail
+from research_ai.models import EmailTemplate, ExpertSearch, GeneratedEmail
 from researchhub_document.related_models.constants.document_type import PAPER
 from researchhub_document.serializers import ResearchhubPostSerializer
 
@@ -27,41 +27,12 @@ class ExpertSearchConfigSerializer(serializers.Serializer):
         required=False,
     )
 
-    # Frontend compatibility
-    expertCount = serializers.IntegerField(required=False, min_value=5, max_value=100)
-    expertiseLevel = serializers.ListField(
-        child=serializers.ChoiceField(choices=ExpertiseLevel.choices),
-        required=False,
-        allow_empty=True,
-    )
-    genderPreference = serializers.ChoiceField(
-        choices=Gender.choices,
-        required=False,
-    )
-
-    def to_internal_value(self, data):
-        # Prefer snake_case from API, fall back to camelCase
-        data = dict(data)
-        if data.get("expert_count") is None and data.get("expertCount") is not None:
-            data["expert_count"] = data["expertCount"]
-        if (
-            data.get("expertise_level") is None
-            and data.get("expertiseLevel") is not None
-        ):
-            data["expertise_level"] = data["expertiseLevel"]
-        # Normalize expertise_level to list (accept single value for backward compat)
-        if "expertise_level" in data and data["expertise_level"] is not None:
-            val = data["expertise_level"]
-            if not isinstance(val, list):
-                data["expertise_level"] = [val] if val else []
-        if data.get("gender") is None and data.get("genderPreference") is not None:
-            data["gender"] = data["genderPreference"]
-        return super().to_internal_value(data)
-
     def validate(self, attrs):
-        expert_count = attrs.get("expert_count") or attrs.get("expertCount") or 10
+        expert_count = attrs.get("expert_count", 10)
         attrs["expert_count"] = expert_count
-        expertise_level = attrs.get("expertise_level") or attrs.get("expertiseLevel")
+        expertise_level = attrs.get("expertise_level") or []
+        if not isinstance(expertise_level, list):
+            expertise_level = [expertise_level] if expertise_level else []
         if not expertise_level or (
             len(expertise_level) == 1
             and expertise_level[0] == ExpertiseLevel.ALL_LEVELS
@@ -71,9 +42,7 @@ class ExpertSearchConfigSerializer(serializers.Serializer):
             attrs["expertise_level"] = list(expertise_level)
         attrs["region"] = attrs.get("region") or Region.ALL_REGIONS
         attrs["state"] = attrs.get("state", "All States")
-        attrs["gender"] = (
-            attrs.get("gender") or attrs.get("genderPreference") or Gender.ALL_GENDERS
-        )
+        attrs["gender"] = attrs.get("gender") or Gender.ALL_GENDERS
         return attrs
 
 
@@ -92,17 +61,6 @@ class ExpertSearchCreateSerializer(serializers.Serializer):
         required=False,
         default=list,
     )
-    excludedExpertNames = serializers.ListField(
-        child=serializers.CharField(),
-        required=False,
-    )
-
-    def to_internal_value(self, data):
-        if isinstance(data, dict) and data.get("excluded_expert_names") is None:
-            data = dict(data)
-            if data.get("excludedExpertNames") is not None:
-                data["excluded_expert_names"] = data["excludedExpertNames"]
-        return super().to_internal_value(data)
 
     def validate(self, attrs):
         unified_document_id = attrs.get("unified_document_id")
@@ -115,10 +73,7 @@ class ExpertSearchCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 "Provide either unified_document_id or query, not both."
             )
-        excluded = attrs.get("excluded_expert_names") or []
-        if attrs.get("excludedExpertNames"):
-            excluded = list(attrs["excludedExpertNames"])
-        attrs["excluded_expert_names"] = excluded
+        attrs["excluded_expert_names"] = attrs.get("excluded_expert_names") or []
         attrs["config"] = attrs.get("config") or {}
         return attrs
 
@@ -258,7 +213,7 @@ class ExpertSearchSubmitResponseSerializer(serializers.Serializer):
 
 
 class GenerateEmailRequestSerializer(serializers.Serializer):
-    """Request body for POST /expert-finder/generate-email/ (FE: expertName, etc.)."""
+    """Request body for POST /expert-finder/generate-email/."""
 
     expert_name = serializers.CharField(required=True, allow_blank=False)
     expert_title = serializers.CharField(required=False, default="")
@@ -267,38 +222,12 @@ class GenerateEmailRequestSerializer(serializers.Serializer):
     expertise = serializers.CharField(required=False, default="")
     notes = serializers.CharField(required=False, default="")
     template = serializers.CharField(required=True)
-    expert_search_id = serializers.UUIDField(required=False, allow_null=True)
-
-    # Frontend compatibility (camelCase)
-    expertName = serializers.CharField(required=False)
-    expertTitle = serializers.CharField(required=False)
-    expertAffiliation = serializers.CharField(required=False)
-    expertEmail = serializers.CharField(required=False)
-    expertiseArea = serializers.CharField(required=False)
-    expertSearchId = serializers.UUIDField(required=False, allow_null=True)
-
-    def to_internal_value(self, data):
-        if isinstance(data, dict):
-            data = dict(data)
-            if data.get("expert_name") is None and data.get("expertName") is not None:
-                data["expert_name"] = data["expertName"]
-            if data.get("expert_title") is None and data.get("expertTitle") is not None:
-                data["expert_title"] = data["expertTitle"]
-            if (
-                data.get("expert_affiliation") is None
-                and data.get("expertAffiliation") is not None
-            ):
-                data["expert_affiliation"] = data["expertAffiliation"]
-            if data.get("expert_email") is None and data.get("expertEmail") is not None:
-                data["expert_email"] = data["expertEmail"]
-            if data.get("expertise") is None and data.get("expertiseArea") is not None:
-                data["expertise"] = data["expertiseArea"]
-            if (
-                data.get("expert_search_id") is None
-                and data.get("expertSearchId") is not None
-            ):
-                data["expert_search_id"] = data["expertSearchId"]
-        return super().to_internal_value(data)
+    expert_search_id = serializers.IntegerField(required=False, allow_null=True)
+    outreach_context = serializers.CharField(
+        required=False, default="", allow_blank=True
+    )
+    template_data = serializers.DictField(required=False, allow_null=True)
+    template_id = serializers.IntegerField(required=False, allow_null=True)
 
     def validate_template(self, value):
         if not value or not value.strip():
@@ -362,3 +291,69 @@ class GeneratedEmailCreateUpdateSerializer(serializers.ModelSerializer):
             "status": {"required": False},
             "notes": {"required": False},
         }
+
+
+class EmailTemplateSerializer(serializers.ModelSerializer):
+    """List/detail serializer for EmailTemplate."""
+
+    class Meta:
+        model = EmailTemplate
+        fields = [
+            "id",
+            "created_by",
+            "name",
+            "contact_name",
+            "contact_title",
+            "contact_institution",
+            "contact_email",
+            "contact_phone",
+            "contact_website",
+            "outreach_context",
+            "is_active",
+            "created_date",
+            "updated_date",
+        ]
+        read_only_fields = ["id", "created_by", "created_date", "updated_date"]
+
+
+class EmailTemplateCreateSerializer(serializers.Serializer):
+    """Create a new EmailTemplate. name required; rest optional."""
+
+    name = serializers.CharField(max_length=255, allow_blank=False)
+    contact_name = serializers.CharField(max_length=255, required=False, default="")
+    contact_title = serializers.CharField(max_length=255, required=False, default="")
+    contact_institution = serializers.CharField(
+        max_length=512, required=False, default=""
+    )
+    contact_email = serializers.CharField(max_length=255, required=False, default="")
+    contact_phone = serializers.CharField(max_length=64, required=False, default="")
+    contact_website = serializers.CharField(max_length=512, required=False, default="")
+    outreach_context = serializers.CharField(
+        required=False, default="", allow_blank=True
+    )
+
+
+class EmailTemplateUpdateSerializer(serializers.Serializer):
+    """Partial update for EmailTemplate; includes is_active (deactivate others when True)."""
+
+    name = serializers.CharField(max_length=255, required=False, allow_blank=False)
+    contact_name = serializers.CharField(
+        max_length=255, required=False, allow_blank=True
+    )
+    contact_title = serializers.CharField(
+        max_length=255, required=False, allow_blank=True
+    )
+    contact_institution = serializers.CharField(
+        max_length=512, required=False, allow_blank=True
+    )
+    contact_email = serializers.CharField(
+        max_length=255, required=False, allow_blank=True
+    )
+    contact_phone = serializers.CharField(
+        max_length=64, required=False, allow_blank=True
+    )
+    contact_website = serializers.CharField(
+        max_length=512, required=False, allow_blank=True
+    )
+    outreach_context = serializers.CharField(required=False, allow_blank=True)
+    is_active = serializers.BooleanField(required=False)
