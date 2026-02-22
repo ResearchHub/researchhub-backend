@@ -71,6 +71,7 @@ class NoteViewSet(ModelViewSet):
         organization_slug = data.get("organization_slug", None)
         title = data.get("title", "")
         grouping = data.get("grouping", WORKSPACE)
+        document_type = data.get("document_type", None)
 
         if organization_slug:
             organization = Organization.objects.get(slug=organization_slug)
@@ -86,12 +87,17 @@ class NoteViewSet(ModelViewSet):
 
         unified_doc = self._create_unified_doc(request)
         self._create_permission(created_by, organization, unified_doc, grouping)
-        note = Note.objects.create(
-            created_by=created_by,
-            organization=organization,
-            unified_document=unified_doc,
-            title=title,
-        )
+
+        note_kwargs = {
+            "created_by": created_by,
+            "organization": organization,
+            "unified_document": unified_doc,
+            "title": title,
+        }
+        if document_type:
+            note_kwargs["document_type"] = document_type
+
+        note = Note.objects.create(**note_kwargs)
         serializer = self.serializer_class(note)
         data = serializer.data
         note.notify_note_created()
