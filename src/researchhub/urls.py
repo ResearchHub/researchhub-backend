@@ -34,6 +34,7 @@ import search.urls
 import user.views
 from analytics.views import AmplitudeWebhookView
 from feed.views import (
+    ActivityFeedViewSet,
     FeedViewSet,
     FundingFeedViewSet,
     GrantFeedViewSet,
@@ -196,6 +197,8 @@ router.register(
 router.register(r"fundraise", purchase.views.FundraiseViewSet, basename="fundraise")
 
 router.register(r"grant", purchase.views.GrantViewSet, basename="grant")
+
+router.register(r"activity_feed", ActivityFeedViewSet, basename="activity_feed")
 
 router.register(r"feed", FeedViewSet, basename="feed")
 
