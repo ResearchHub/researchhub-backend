@@ -6,7 +6,11 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from feed.models import FeedEntry
-from feed.tasks import create_feed_entry, refresh_feed_entries_for_objects
+from feed.tasks import (
+    create_feed_entry,
+    delete_feed_entry,
+    refresh_feed_entries_for_objects,
+)
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 
 """
@@ -29,11 +33,13 @@ def handle_comment_created_or_removed(sender, instance, created, **kwargs):
     try:
         if created:
             _create_comment_feed_entries(comment)
+        elif comment.is_removed:
+            _delete_comment_feed_entries(comment)
 
         _update_metrics(comment)
     except Exception as e:
         action = "create" if created else "update"
-        logger.error(f"Failed to {action} feed entry for comment {comment.id}: {e}")
+        logger.error(f"Failed to {action} feed entry for comment " f"{comment.id}: {e}")
 
 
 def _update_metrics(comment):
@@ -65,6 +71,25 @@ def _create_comment_feed_entries(comment):
                 FeedEntry.PUBLISH,
                 hub_ids,
                 comment.created_by.id,
+            ),
+            priority=1,
+        )
+    )
+
+
+def _delete_comment_feed_entries(comment):
+    if not getattr(comment, "unified_document", None) or not hasattr(
+        comment.unified_document, "hubs"
+    ):
+        return
+
+    hub_ids = list(comment.unified_document.hubs.values_list("id", flat=True))
+    transaction.on_commit(
+        lambda: delete_feed_entry.apply_async(
+            args=(
+                comment.id,
+                ContentType.objects.get_for_model(comment).id,
+                hub_ids,
             ),
             priority=1,
         )
