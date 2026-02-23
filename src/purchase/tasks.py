@@ -74,6 +74,48 @@ def complete_eligible_fundraises():
 
 
 @app.task(queue=QUEUE_NOTIFICATION)
+def send_monthly_proposal_update_reminders():
+    from notification.models import Notification
+
+    now = datetime.now(pytz.UTC)
+    open_fundraises = Fundraise.objects.filter(
+        status=Fundraise.OPEN,
+    ).select_related("created_by", "unified_document")
+
+    fundraise_ct = ContentType.objects.get_for_model(Fundraise)
+    sent_count = 0
+
+    for fundraise in open_fundraises:
+        already_sent = Notification.objects.filter(
+            notification_type=Notification.PROPOSAL_UPDATE_REMINDER,
+            recipient=fundraise.created_by,
+            content_type=fundraise_ct,
+            object_id=fundraise.id,
+            created_date__year=now.year,
+            created_date__month=now.month,
+        ).exists()
+
+        if already_sent:
+            continue
+
+        try:
+            notification = Notification.objects.create(
+                item=fundraise,
+                action_user=fundraise.created_by,
+                recipient=fundraise.created_by,
+                unified_document=fundraise.unified_document,
+                notification_type=Notification.PROPOSAL_UPDATE_REMINDER,
+            )
+            notification.send_notification()
+            sent_count += 1
+        except Exception as e:
+            log_error(e, message=f"Error sending proposal update reminder for fundraise {fundraise.id}")
+
+    log_info(f"Sent {sent_count} proposal update reminders")
+    return {"sent_count": sent_count}
+
+
+@app.task(queue=QUEUE_NOTIFICATION)
 def send_support_email(
     profile_url,
     sender_name,
