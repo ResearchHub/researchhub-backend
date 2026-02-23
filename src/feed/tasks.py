@@ -53,6 +53,12 @@ def create_feed_entry(
     unified_document = _get_unified_document(item, item_content_type)
 
     content = serialize_feed_item(item, item_content_type)
+    if content is None:
+        logger.warning(
+            f"Unsupported content type for feed entry: {item_content_type.model} "
+            f"(item_id={item_id}). Skipping."
+        )
+        return None
 
     metrics = serialize_feed_metrics(item, item_content_type)
 
@@ -98,6 +104,12 @@ def create_feed_entry(
 
 def refresh_feed_entry(feed_entry, skip_figure_extraction=False):
     content = serialize_feed_item(feed_entry.item, feed_entry.content_type)
+    if content is None:
+        logger.warning(
+            f"Unsupported content type for feed entry refresh: "
+            f"{feed_entry.content_type.model} (feed_entry_id={feed_entry.id}). Skipping."
+        )
+        return
 
     metrics = serialize_feed_metrics(feed_entry.item, feed_entry.content_type)
 
