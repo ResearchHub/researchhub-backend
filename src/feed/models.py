@@ -145,6 +145,10 @@ class FeedEntry(DefaultModel):
                 name="feed_pdf_no_display_idx",
                 condition=models.Q(pdf_copyright_allows_display=False),
             ),
+            models.Index(
+                fields=["content_type", "unified_document"],
+                name="feed_ct_unidoc_idx",
+            ),
         ]
         constraints = [
             # Constraint for entries WITH a user

@@ -1,9 +1,11 @@
 from .balance_view import BalanceViewSet
 from .checkout_view import CheckoutView
+from .circle_wallet_view import DepositAddressView
 from .coinbase_view import CoinbaseViewSet
 from .endaoment_auth_views import (
     EndaomentCallbackView,
     EndaomentConnectView,
+    EndaomentDisconnectView,
     EndaomentStatusView,
 )
 from .endaoment_viewset import EndaomentViewSet

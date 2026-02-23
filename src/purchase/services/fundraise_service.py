@@ -334,7 +334,6 @@ class FundraiseService:
                     user=user,
                     origin_fund_id=origin_fund_id,
                     amount_cents=total_amount_cents,
-                    purpose=f"Fundraise {fundraise.id}",
                 )
                 endaoment_transfer_id = transfer_result.get("id")
             except EndaomentAccount.DoesNotExist:

@@ -122,6 +122,7 @@ class AuthorSerializer(ModelSerializer):
     reputation_list = SerializerMethodField()
     total_score = SerializerMethodField()
     university = UniversitySerializer(required=False)
+    wallet = SerializerMethodField()
     suspended_status = SerializerMethodField()
     is_verified = SerializerMethodField()
 
@@ -142,6 +143,7 @@ class AuthorSerializer(ModelSerializer):
             "suspended_status",
             "total_score",
             "university",
+            "wallet",
             "is_verified",
         ]
         read_only_fields = [
@@ -195,6 +197,19 @@ class AuthorSerializer(ModelSerializer):
     def get_total_score(self, author):
         if author.author_score > 0:
             return author.author_score
+
+    def get_wallet(self, obj):
+        from purchase.serializers import WalletSerializer
+
+        if not self.context.get("include_wallet", False):
+            return
+
+        try:
+            if obj.user is None:
+                return
+            return WalletSerializer(obj.user.wallet).data
+        except Exception:
+            pass
 
     def get_num_posts(self, author):
         user = author.user

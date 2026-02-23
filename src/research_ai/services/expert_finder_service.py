@@ -26,6 +26,7 @@ from researchhub_document.related_models.constants.document_type import PAPER
 logger = logging.getLogger(__name__)
 
 PDF_TOO_LARGE_MESSAGE = "PDF is too large. Maximum size is 10 MB. Please use another input type (e.g. abstract)."
+MAX_ERROR_MESSAGE_LENGTH = 10000
 
 
 def get_document_content(unified_doc, input_type: str = "full_content"):
@@ -179,11 +180,7 @@ class ExpertFinderService:
         try:
             logger.info("Starting Expert Finder for search_id=%s", search_id)
             expert_count = config.get("expert_count", config.get("expertCount", 10))
-            from research_ai.constants import (
-                ExpertiseLevel,
-                Gender,
-                Region,
-            )
+            from research_ai.constants import ExpertiseLevel, Gender, Region
 
             expertise_level_raw = config.get(
                 "expertise_level",
@@ -191,7 +188,9 @@ class ExpertFinderService:
             )
             if isinstance(expertise_level_raw, str):
                 expertise_level = (
-                    [expertise_level_raw] if expertise_level_raw else [ExpertiseLevel.ALL_LEVELS]
+                    [expertise_level_raw]
+                    if expertise_level_raw
+                    else [ExpertiseLevel.ALL_LEVELS]
                 )
             elif expertise_level_raw:
                 # Flatten to list of strings (avoid nested lists from JSON)
@@ -239,6 +238,32 @@ class ExpertFinderService:
             experts = self._parse_markdown_table(llm_response)
             logger.info("Parsed %s experts", len(experts))
 
+            if len(experts) == 0:
+                msg = (
+                    "No expert recommendations table was returned. "
+                    "The model response could not be parsed as a markdown table."
+                )
+                llm_error = (llm_response or "").strip()
+                if llm_error:
+                    display_error = llm_error[:MAX_ERROR_MESSAGE_LENGTH] + (
+                        "..." if len(llm_error) > MAX_ERROR_MESSAGE_LENGTH else ""
+                    )
+                    msg = msg + " Response from model:\n\n" + display_error
+                publish(msg, 0, status=ExpertSearch.Status.FAILED)
+                if progress_callback:
+                    progress_callback(search_id, 0, msg)
+                return {
+                    "search_id": search_id,
+                    "status": ExpertSearch.Status.FAILED,
+                    "query": query,
+                    "config": config,
+                    "experts": [],
+                    "report_urls": {},
+                    "expert_count": 0,
+                    "llm_model": self.bedrock_llm.model_id,
+                    "error_message": (llm_response or "")[:MAX_ERROR_MESSAGE_LENGTH],
+                    "current_step": "No expert recommendations table returned by model",
+                }
             publish("Generating PDF report...", 80)
             pdf_bytes = generate_pdf_report(experts, query, config)
             publish("Generating CSV file...", 88)

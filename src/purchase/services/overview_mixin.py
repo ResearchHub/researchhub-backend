@@ -1,4 +1,3 @@
-"""Shared query helpers for overview services."""
 from purchase.models import Purchase
 from purchase.related_models.usd_fundraise_contribution_model import UsdFundraiseContribution
 from purchase.utils import rsc_and_cents_to_usd
