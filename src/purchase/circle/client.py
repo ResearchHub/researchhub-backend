@@ -8,6 +8,7 @@ from circle.web3.developer_controlled_wallets.models import (
     AccountType,
     Blockchain,
     CreateWalletRequest,
+    WalletMetadata,
 )
 from django.conf import settings
 
@@ -56,7 +57,12 @@ class CircleWalletClient:
             self._wallets_api = WalletsApi(api_client)
         return self._wallets_api
 
-    def create_wallet(self, idempotency_key: str | None = None) -> str:
+    def create_wallet(
+        self,
+        idempotency_key: str | None = None,
+        wallet_name: str | None = None,
+        ref_id: str | None = None,
+    ) -> str:
         """
         Request creation of a new SCA wallet on ETH and BASE.
 
@@ -67,6 +73,9 @@ class CircleWalletClient:
         Args:
             idempotency_key: Key to prevent duplicate wallet creation on
                 retries. Auto-generated if not provided.
+            wallet_name: Human-readable name stored on Circle's side.
+            ref_id: Reference ID (e.g. user ID) to link the wallet on
+                Circle's side.
 
         Returns:
             The Circle wallet ID (UUID string).
@@ -77,12 +86,17 @@ class CircleWalletClient:
         if not idempotency_key:
             idempotency_key = uuid.uuid4().hex
 
+        metadata = None
+        if wallet_name or ref_id:
+            metadata = [WalletMetadata(name=wallet_name, refId=ref_id)]
+
         request = CreateWalletRequest(
             idempotencyKey=idempotency_key,
             blockchains=[Blockchain.ETH, Blockchain.BASE],
             walletSetId=settings.CIRCLE_WALLET_SET_ID,
             accountType=AccountType.SCA,
             count=1,
+            metadata=metadata,
         )
 
         response = self.wallets_api.create_wallet(request)

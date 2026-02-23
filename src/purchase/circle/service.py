@@ -61,16 +61,22 @@ class CircleWalletService:
 
             # No Circle wallet yet — create one and persist the ID
             if not wallet.circle_wallet_id:
-                self._create_wallet(wallet)
+                self._create_wallet(wallet, user)
 
         # Phase 2: Fetch the address outside the transaction so that
         # a CircleWalletFrozenError does NOT roll back the wallet_id save.
         return self._fetch_and_store_address(wallet)
 
-    def _create_wallet(self, wallet: Wallet) -> None:
+    def _create_wallet(self, wallet: Wallet, user: User) -> None:
         """Create a new Circle wallet and store the wallet ID."""
         idempotency_key = f"rh-wallet-{wallet.pk}"
-        wallet_id = self.client.create_wallet(idempotency_key=idempotency_key)
+        full_name = user.get_full_name().strip()
+        wallet_name = f"{full_name}'s wallet" if full_name else None
+        wallet_id = self.client.create_wallet(
+            idempotency_key=idempotency_key,
+            wallet_name=wallet_name,
+            ref_id=str(user.id),
+        )
 
         wallet.circle_wallet_id = wallet_id
         wallet.wallet_type = Wallet.WALLET_TYPE_CIRCLE

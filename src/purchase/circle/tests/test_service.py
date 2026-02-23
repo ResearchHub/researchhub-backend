@@ -75,7 +75,9 @@ class TestCircleWalletService(TestCase):
 
         wallet = Wallet.objects.get(user=self.user)
         self.mock_client.create_wallet.assert_called_once_with(
-            idempotency_key=f"rh-wallet-{wallet.pk}"
+            idempotency_key=f"rh-wallet-{wallet.pk}",
+            wallet_name=None,
+            ref_id=str(self.user.id),
         )
         self.assertEqual(wallet.circle_wallet_id, "new-circle-wallet-id")
         self.assertEqual(wallet.address, "0xBrandNewAddress")
@@ -96,12 +98,36 @@ class TestCircleWalletService(TestCase):
 
         self.assertEqual(result.address, "0xAddr")
         self.mock_client.create_wallet.assert_called_once_with(
-            idempotency_key=f"rh-wallet-{wallet.pk}"
+            idempotency_key=f"rh-wallet-{wallet.pk}",
+            wallet_name=None,
+            ref_id=str(self.user.id),
         )
 
         wallet.refresh_from_db()
         self.assertEqual(wallet.circle_wallet_id, "new-id")
         self.assertEqual(wallet.address, "0xAddr")
+
+    def test_creates_wallet_with_user_name_in_metadata(self):
+        """When user has a full name, pass it as wallet_name to Circle."""
+        self.user.first_name = "John"
+        self.user.last_name = "Doe"
+        self.user.save(update_fields=["first_name", "last_name"])
+
+        self.mock_client.create_wallet.return_value = "named-wallet-id"
+        self.mock_client.get_wallet.return_value = CircleWalletResult(
+            wallet_id="named-wallet-id",
+            address="0xNamedAddr",
+            state="LIVE",
+        )
+
+        self.service.get_or_create_deposit_address(self.user)
+
+        wallet = Wallet.objects.get(user=self.user)
+        self.mock_client.create_wallet.assert_called_once_with(
+            idempotency_key=f"rh-wallet-{wallet.pk}",
+            wallet_name="John Doe's wallet",
+            ref_id=str(self.user.id),
+        )
 
     def test_raises_not_live_when_wallet_frozen(self):
         """When wallet is FROZEN, raise error. Wallet ID is saved."""
