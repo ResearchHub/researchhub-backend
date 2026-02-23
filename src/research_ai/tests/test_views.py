@@ -81,6 +81,36 @@ class ExpertSearchCreateViewTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
+    @patch("research_ai.tasks.ExpertFinderService")
+    def test_when_expert_finder_returns_no_table_search_is_failed_with_error_message(
+        self, mock_service_class
+    ):
+        """When service returns FAILED (no parseable table), task saves status=FAILED and error_message."""
+        mock_instance = mock_service_class.return_value
+        mock_instance.process_expert_search.return_value = {
+            "search_id": "999",
+            "status": ExpertSearch.Status.FAILED,
+            "query": "Placeholder RFP",
+            "config": {},
+            "experts": [],
+            "report_urls": {},
+            "expert_count": 0,
+            "llm_model": "test-model",
+            "error_message": "I cannot proceed. The input contains only placeholder text.",
+            "current_step": "No expert recommendations table returned by model",
+        }
+        self.client.force_authenticate(self.moderator)
+        response = self.client.post(
+            self.url, {"query": "Placeholder RFP"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        search_id = response.json()["search_id"]
+        search = ExpertSearch.objects.get(id=search_id)
+        self.assertEqual(search.status, ExpertSearch.Status.FAILED)
+        self.assertEqual(search.expert_count, 0)
+        self.assertEqual(search.expert_results, [])
+        self.assertIn("placeholder text", search.error_message)
+
 
 class ExpertSearchDetailViewTests(APITestCase):
     def setUp(self):

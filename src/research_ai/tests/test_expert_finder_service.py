@@ -437,6 +437,64 @@ class ExpertFinderServiceParseTests(TestCase):
 
     @patch("research_ai.services.expert_finder_service.BedrockLLMService")
     @patch("research_ai.services.expert_finder_service.ProgressService")
+    def test_process_expert_search_returns_failed_when_no_table_parsed(
+        self, mock_progress, mock_bedrock
+    ):
+        """When LLM returns prose instead of a table, result is FAILED with error_message."""
+        mock_llm = MagicMock()
+        mock_llm.invoke.return_value = (
+            "I cannot proceed. The input contains only placeholder text. "
+            "Please provide the actual research description."
+        )
+        mock_llm.model_id = "test-model"
+        mock_bedrock.return_value = mock_llm
+        publish = MagicMock()
+        mock_progress.return_value.publish_progress_sync = publish
+
+        service = ExpertFinderService()
+        result = service.process_expert_search(
+            search_id="3",
+            query="Placeholder RFP text",
+            config={"expert_count": 5},
+        )
+        self.assertEqual(result["status"], ExpertSearch.Status.FAILED)
+        self.assertEqual(result["expert_count"], 0)
+        self.assertEqual(result["experts"], [])
+        self.assertEqual(result["report_urls"], {})
+        self.assertIn("placeholder text", result["error_message"])
+        self.assertEqual(result["error_message"], mock_llm.invoke.return_value)
+        failed_call = next(
+            c for c in publish.call_args_list
+            if c[0][2].get("status") == ExpertSearch.Status.FAILED
+        )
+        self.assertIsNotNone(failed_call)
+
+    @patch("research_ai.services.expert_finder_service.BedrockLLMService")
+    @patch("research_ai.services.expert_finder_service.ProgressService")
+    def test_process_expert_search_error_message_truncated_when_llm_response_long(
+        self, mock_progress, mock_bedrock
+    ):
+        """When LLM returns non-table response, error_message is truncated to MAX_ERROR_MESSAGE_LENGTH."""
+        from research_ai.services.expert_finder_service import MAX_ERROR_MESSAGE_LENGTH
+
+        long_response = "No table here. " + "x" * (MAX_ERROR_MESSAGE_LENGTH + 1000)
+        mock_llm = MagicMock()
+        mock_llm.invoke.return_value = long_response
+        mock_llm.model_id = "test-model"
+        mock_bedrock.return_value = mock_llm
+        mock_progress.return_value.publish_progress_sync = MagicMock()
+
+        service = ExpertFinderService()
+        result = service.process_expert_search(
+            search_id="3b",
+            query="Q",
+            config={},
+        )
+        self.assertEqual(result["status"], ExpertSearch.Status.FAILED)
+        self.assertEqual(len(result["error_message"]), MAX_ERROR_MESSAGE_LENGTH)
+
+    @patch("research_ai.services.expert_finder_service.BedrockLLMService")
+    @patch("research_ai.services.expert_finder_service.ProgressService")
     def test_process_expert_search_on_exception_publishes_failed_and_reraises(
         self, mock_progress, mock_bedrock
     ):
