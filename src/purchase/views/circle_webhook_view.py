@@ -15,6 +15,7 @@ from purchase.circle.webhook import (
     verify_webhook_signature,
 )
 from purchase.models import Wallet
+from purchase.tasks import sweep_deposit_to_multisig
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.models import Deposit
@@ -230,9 +231,6 @@ class CircleWebhookView(APIView):
             network,
             notification_id,
         )
-
-        # Sweep deposited funds to multisig in the background
-        from purchase.tasks import sweep_deposit_to_multisig
 
         sweep_deposit_to_multisig.delay(
             wallet.circle_wallet_id, deposit_amount, network

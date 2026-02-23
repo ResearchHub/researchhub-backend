@@ -248,7 +248,7 @@ class TestCircleWebhookView(TestCase):
         response = self.client.head(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    @patch("purchase.tasks.sweep_deposit_to_multisig")
+    @patch("purchase.views.circle_webhook_view.sweep_deposit_to_multisig")
     @patch(
         "purchase.views.circle_webhook_view.verify_webhook_signature",
         return_value=True,
@@ -263,7 +263,7 @@ class TestCircleWebhookView(TestCase):
             "circle-wallet-abc", "100", "BASE"
         )
 
-    @patch("purchase.tasks.sweep_deposit_to_multisig")
+    @patch("purchase.views.circle_webhook_view.sweep_deposit_to_multisig")
     @patch(
         "purchase.views.circle_webhook_view.verify_webhook_signature",
         return_value=True,

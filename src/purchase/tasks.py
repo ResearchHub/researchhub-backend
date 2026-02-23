@@ -7,6 +7,8 @@ from django.contrib.contenttypes.models import ContentType
 
 from mailing_list.lib import base_email_context
 from paper.models import Paper
+from purchase.circle.client import CircleTransferError
+from purchase.circle.service import CircleWalletService
 from purchase.models import Fundraise, Purchase, Support
 from purchase.related_models.constants.currency import USD
 from purchase.services.fundraise_service import FundraiseService
@@ -205,9 +207,6 @@ def sweep_deposit_to_multisig(circle_wallet_id, amount, network):
 
     Fired asynchronously after crediting a user's balance on deposit.
     """
-    from purchase.circle.client import CircleTransferError
-    from purchase.circle.service import CircleWalletService
-
     try:
         service = CircleWalletService()
         service.sweep_wallet(circle_wallet_id, amount, network)
