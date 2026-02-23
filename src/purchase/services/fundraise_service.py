@@ -1,3 +1,5 @@
+import csv
+import io
 import logging
 import time
 from decimal import Decimal
@@ -485,3 +487,75 @@ class FundraiseService:
             fundraise.escrow.set_cancelled_status()
 
             return True
+
+    def generate_usd_contributions_csv(self, fundraise: Fundraise) -> str:
+        """
+        Generate CSV content for all USD contributions for a fundraise.
+        Useful for manual payouts and refund processing with Endaoment.
+        """
+        nonprofit_org = fundraise.get_nonprofit_org()
+        nonprofit_name = nonprofit_org.name if nonprofit_org else ""
+
+        document = fundraise.unified_document.get_document()
+        document_title = document.title if document else ""
+
+        contributions = (
+            fundraise.usd_contributions.all()
+            .select_related("user")
+            .order_by("created_date")
+        )
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+
+        writer.writerow(
+            [
+                "fundraise_id",
+                "fundraise_status",
+                "fundraise_goal_amount_usd",
+                "document_title",
+                "nonprofit_name",
+                "contribution_id",
+                "contributor_name",
+                "contributor_email",
+                "amount_usd",
+                "fee_usd",
+                "net_amount_usd",
+                "origin_fund_id",
+                "destination_org_id",
+                "endaoment_transfer_id",
+                "contribution_date",
+                "status",
+                "is_refunded",
+            ]
+        )
+
+        for c in contributions.iterator():
+            amount_usd = c.amount_cents / 100
+            fee_usd = c.fee_cents / 100
+            net_usd = (c.amount_cents - c.fee_cents) / 100
+            contributor_name = f"{c.user.first_name} {c.user.last_name}".strip()
+
+            writer.writerow(
+                [
+                    fundraise.id,
+                    fundraise.status,
+                    fundraise.goal_amount,
+                    document_title,
+                    nonprofit_name,
+                    c.id,
+                    contributor_name,
+                    c.user.email,
+                    f"{amount_usd:.2f}",
+                    f"{fee_usd:.2f}",
+                    f"{net_usd:.2f}",
+                    c.origin_fund_id,
+                    c.destination_org_id,
+                    c.endaoment_transfer_id or "",
+                    c.created_date.strftime("%Y-%m-%d %H:%M:%S"),
+                    c.status,
+                    c.is_refunded,
+                ]
+            )
+
+        return output.getvalue()
