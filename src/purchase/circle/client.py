@@ -121,9 +121,14 @@ class CircleWalletClient:
         if wallet_name or ref_id:
             metadata = [WalletMetadata(name=wallet_name, refId=ref_id)]
 
+        if settings.PRODUCTION:
+            blockchains = [Blockchain.ETH, Blockchain.BASE]
+        else:
+            blockchains = [Blockchain.ETH_MINUS_SEPOLIA, Blockchain.BASE_MINUS_SEPOLIA]
+
         request = CreateWalletRequest(
             idempotencyKey=idempotency_key,
-            blockchains=[Blockchain.ETH, Blockchain.BASE],
+            blockchains=blockchains,
             walletSetId=settings.CIRCLE_WALLET_SET_ID,
             accountType=AccountType.SCA,
             count=1,

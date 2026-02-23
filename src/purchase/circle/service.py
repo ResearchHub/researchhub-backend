@@ -1,4 +1,5 @@
 import logging
+import uuid
 from dataclasses import dataclass
 from typing import Optional
 
@@ -16,10 +17,22 @@ from user.models import User
 logger = logging.getLogger(__name__)
 
 # Map Deposit.network values to Circle blockchain identifiers
-NETWORK_TO_BLOCKCHAIN = {
+NETWORK_TO_BLOCKCHAIN_MAINNET = {
     "ETHEREUM": "ETH",
     "BASE": "BASE",
 }
+
+NETWORK_TO_BLOCKCHAIN_TESTNET = {
+    "ETHEREUM": "ETH-SEPOLIA",
+    "BASE": "BASE-SEPOLIA",
+}
+
+
+def get_network_to_blockchain():
+    if settings.PRODUCTION:
+        return NETWORK_TO_BLOCKCHAIN_MAINNET
+    return NETWORK_TO_BLOCKCHAIN_TESTNET
+
 
 # Map network to the RSC token contract address on that chain
 NETWORK_TO_RSC_ADDRESS = {
@@ -86,7 +99,7 @@ class CircleWalletService:
 
     def _create_wallet(self, wallet: Wallet, user: User) -> None:
         """Create a new Circle wallet and store the wallet ID."""
-        idempotency_key = f"rh-wallet-{wallet.pk}"
+        idempotency_key = str(uuid.uuid5(uuid.NAMESPACE_URL, f"rh-wallet-{wallet.pk}"))
         full_name = user.get_full_name().strip()
         wallet_name = f"{full_name}'s wallet" if full_name else None
         wallet_id = self.client.create_wallet(
@@ -148,7 +161,7 @@ class CircleWalletService:
         if not multisig:
             raise ValueError("RH_MULTISIG_ADDRESS is not configured")
 
-        blockchain = NETWORK_TO_BLOCKCHAIN.get(network)
+        blockchain = get_network_to_blockchain().get(network)
         if not blockchain:
             raise ValueError(f"Unsupported network for sweep: {network}")
 
@@ -157,7 +170,11 @@ class CircleWalletService:
             raise ValueError(f"No RSC token address configured for network: {network}")
         rsc_address = rsc_address_fn()
 
-        idempotency_key = f"rh-sweep-{circle_wallet_id}-{amount}-{network}"
+        idempotency_key = str(
+            uuid.uuid5(
+                uuid.NAMESPACE_URL, f"rh-sweep-{circle_wallet_id}-{amount}-{network}"
+            )
+        )
 
         result = self.client.create_transfer(
             wallet_id=circle_wallet_id,

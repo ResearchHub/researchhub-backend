@@ -1,3 +1,4 @@
+import uuid
 from unittest.mock import Mock
 
 from django.contrib.auth import get_user_model
@@ -10,7 +11,7 @@ from purchase.circle.client import (
     CircleWalletFrozenError,
     CircleWalletResult,
 )
-from purchase.circle.service import CircleWalletService
+from purchase.circle.service import CircleWalletService, get_network_to_blockchain
 from purchase.models import Wallet
 
 User = get_user_model()
@@ -77,7 +78,9 @@ class TestCircleWalletService(TestCase):
 
         wallet = Wallet.objects.get(user=self.user)
         self.mock_client.create_wallet.assert_called_once_with(
-            idempotency_key=f"rh-wallet-{wallet.pk}",
+            idempotency_key=str(
+                uuid.uuid5(uuid.NAMESPACE_URL, f"rh-wallet-{wallet.pk}")
+            ),
             wallet_name=None,
             ref_id=str(self.user.id),
         )
@@ -100,7 +103,9 @@ class TestCircleWalletService(TestCase):
 
         self.assertEqual(result.address, "0xAddr")
         self.mock_client.create_wallet.assert_called_once_with(
-            idempotency_key=f"rh-wallet-{wallet.pk}",
+            idempotency_key=str(
+                uuid.uuid5(uuid.NAMESPACE_URL, f"rh-wallet-{wallet.pk}")
+            ),
             wallet_name=None,
             ref_id=str(self.user.id),
         )
@@ -126,7 +131,9 @@ class TestCircleWalletService(TestCase):
 
         wallet = Wallet.objects.get(user=self.user)
         self.mock_client.create_wallet.assert_called_once_with(
-            idempotency_key=f"rh-wallet-{wallet.pk}",
+            idempotency_key=str(
+                uuid.uuid5(uuid.NAMESPACE_URL, f"rh-wallet-{wallet.pk}")
+            ),
             wallet_name="John Doe's wallet",
             ref_id=str(self.user.id),
         )
@@ -197,15 +204,18 @@ class TestCircleWalletServiceSweep(TestCase):
 
         result = self.service.sweep_wallet("circle-wallet-1", "100.0", "BASE")
 
+        expected_blockchain = get_network_to_blockchain()["BASE"]
         self.assertEqual(result.transfer_id, "tx-1")
         self.assertEqual(result.state, "INITIATED")
         self.mock_client.create_transfer.assert_called_once_with(
             wallet_id="circle-wallet-1",
             destination_address="0xMultisigAddress",
             token_address="0xRSC_BASE",
-            blockchain="BASE",
+            blockchain=expected_blockchain,
             amount="100.0",
-            idempotency_key="rh-sweep-circle-wallet-1-100.0-BASE",
+            idempotency_key=str(
+                uuid.uuid5(uuid.NAMESPACE_URL, "rh-sweep-circle-wallet-1-100.0-BASE")
+            ),
         )
 
     def test_sweep_on_ethereum(self):
@@ -216,14 +226,17 @@ class TestCircleWalletServiceSweep(TestCase):
 
         result = self.service.sweep_wallet("circle-wallet-2", "50.5", "ETHEREUM")
 
+        expected_blockchain = get_network_to_blockchain()["ETHEREUM"]
         self.assertEqual(result.transfer_id, "tx-2")
         self.mock_client.create_transfer.assert_called_once_with(
             wallet_id="circle-wallet-2",
             destination_address="0xMultisigAddress",
             token_address="0xRSC_ETH",
-            blockchain="ETH",
+            blockchain=expected_blockchain,
             amount="50.5",
-            idempotency_key="rh-sweep-circle-wallet-2-50.5-ETHEREUM",
+            idempotency_key=str(
+                uuid.uuid5(uuid.NAMESPACE_URL, "rh-sweep-circle-wallet-2-50.5-ETHEREUM")
+            ),
         )
 
     def test_sweep_raises_when_no_multisig(self):
