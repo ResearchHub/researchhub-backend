@@ -304,7 +304,7 @@ class TestEndaomentClient(TestCase):
             access_token="valid_access_token",
             origin_fund_id="fund-123",
             destination_fund_id="fund-456",
-            amount_in_cents=50000,
+            amount_in_cents=50_000,
         )
 
         # Assert
@@ -318,7 +318,7 @@ class TestEndaomentClient(TestCase):
                 "idempotencyKey": "21996c9d-c8e2-4576-a2a2-f60c9a249fe1",
                 "originFundId": "fund-123",
                 "destinationFundId": "fund-456",
-                "requestedAmount": "50000",
+                "requestedAmount": "500000000",
             },
         )
 
@@ -370,7 +370,7 @@ class TestEndaomentClient(TestCase):
             access_token="valid_token",
             origin_fund_id="fund-1",
             destination_org_id="org-1",
-            amount_in_cents=100000,
+            amount_in_cents=100_000,
             purpose="Research funding",
         )
 
@@ -385,7 +385,7 @@ class TestEndaomentClient(TestCase):
                 "idempotencyKey": "21996c9d-c8e2-4576-a2a2-f60c9a249fe1",
                 "originFundId": "fund-1",
                 "destinationOrgId": "org-1",
-                "requestedAmount": "100000",
+                "requestedAmount": "1000000000",
                 "purpose": "Research funding",
             },
         )

@@ -228,7 +228,7 @@ class EndaomentClient:
                 "idempotencyKey": str(uuid.uuid4()),
                 "originFundId": origin_fund_id,
                 "purpose": purpose,
-                "requestedAmount": str(amount_in_cents),
+                "requestedAmount": str(self.to_micros(amount_in_cents)),
             },
         )
 
@@ -255,7 +255,7 @@ class EndaomentClient:
                 "destinationFundId": destination_fund_id,
                 "idempotencyKey": str(uuid.uuid4()),
                 "originFundId": origin_fund_id,
-                "requestedAmount": str(amount_in_cents),
+                "requestedAmount": str(self.to_micros(amount_in_cents)),
             },
         )
 
@@ -268,3 +268,10 @@ class EndaomentClient:
             return False
         parsed = urlparse(url)
         return f"{parsed.scheme}://{parsed.netloc}" in settings.CORS_ORIGIN_WHITELIST
+
+    @staticmethod
+    def to_micros(amount_in_cents: int) -> int:
+        """
+        Convert amount in cents to micro-dollars for Endaoment API.
+        """
+        return amount_in_cents * 10_000
