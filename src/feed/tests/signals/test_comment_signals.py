@@ -42,6 +42,68 @@ class CommentSignalsTests(AWSMockTestCase):
             thread=self.thread,
         )
 
+    @patch("feed.signals.comment_signals.create_feed_entry")
+    @patch(
+        "feed.signals.comment_signals.transaction.on_commit",
+        side_effect=lambda fn: fn(),
+    )
+    def test_handle_comment_created_signal(
+        self, mock_on_commit, mock_create_feed_entry
+    ):
+        """
+        Test that a feed entry is created when a new comment is created.
+        """
+        mock_create_feed_entry.apply_async = MagicMock()
+
+        new_comment = RhCommentModel.objects.create(
+            comment_content_json={"ops": [{"insert": "new comment"}]},
+            comment_type=GENERIC_COMMENT,
+            created_by=self.user,
+            thread=self.thread,
+        )
+
+        comment_ct = ContentType.objects.get_for_model(RhCommentModel)
+        hub_ids = list(self.paper.unified_document.hubs.values_list("id", flat=True))
+
+        mock_create_feed_entry.apply_async.assert_called_once_with(
+            args=(
+                new_comment.id,
+                comment_ct.id,
+                FeedEntry.PUBLISH,
+                hub_ids,
+                self.user.id,
+            ),
+            priority=1,
+        )
+
+    @patch("feed.signals.comment_signals.delete_feed_entry")
+    @patch(
+        "feed.signals.comment_signals.transaction.on_commit",
+        side_effect=lambda fn: fn(),
+    )
+    def test_handle_comment_removed_signal(
+        self, mock_on_commit, mock_delete_feed_entry
+    ):
+        """
+        Test that a feed entry is deleted when a comment is removed.
+        """
+        mock_delete_feed_entry.apply_async = MagicMock()
+
+        self.comment.is_removed = True
+        self.comment.save()
+
+        comment_ct = ContentType.objects.get_for_model(RhCommentModel)
+        hub_ids = list(self.paper.unified_document.hubs.values_list("id", flat=True))
+
+        mock_delete_feed_entry.apply_async.assert_called_once_with(
+            args=(
+                self.comment.id,
+                comment_ct.id,
+                hub_ids,
+            ),
+            priority=1,
+        )
+
     @patch("feed.signals.comment_signals.refresh_feed_entries_for_objects")
     def test_handle_comment_update_metrics(self, mock_refresh_feed_entries_for_objects):
         """
