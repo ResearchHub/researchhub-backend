@@ -34,7 +34,6 @@ class TestCircleWalletService(TestCase):
         result = self.service.get_or_create_deposit_address(self.user)
 
         self.assertEqual(result.address, "0xExistingAddress")
-        self.assertFalse(result.provisioning)
         self.mock_client.create_wallet.assert_not_called()
         self.mock_client.get_wallet.assert_not_called()
 

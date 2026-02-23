@@ -16,7 +16,6 @@ class DepositAddressResult:
     """Result of requesting a user's deposit address."""
 
     address: str
-    provisioning: bool = False
 
 
 class CircleWalletService:
