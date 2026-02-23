@@ -1,9 +1,11 @@
 from unittest.mock import Mock
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from purchase.circle.client import (
+    CircleTransferError,
+    CircleTransferResult,
     CircleWalletCreationError,
     CircleWalletFrozenError,
     CircleWalletResult,
@@ -173,3 +175,75 @@ class TestCircleWalletService(TestCase):
 
         wallet.refresh_from_db()
         self.assertIsNone(wallet.address)
+
+
+@override_settings(
+    RH_MULTISIG_ADDRESS="0xMultisigAddress",
+    WEB3_RSC_ADDRESS="0xRSC_ETH",
+    WEB3_BASE_RSC_ADDRESS="0xRSC_BASE",
+)
+class TestCircleWalletServiceSweep(TestCase):
+    """Tests for CircleWalletService.sweep_wallet."""
+
+    def setUp(self):
+        self.mock_client = Mock()
+        self.service = CircleWalletService(client=self.mock_client)
+
+    def test_sweep_on_base(self):
+        """Sweep calls create_transfer with correct BASE params."""
+        self.mock_client.create_transfer.return_value = CircleTransferResult(
+            transfer_id="tx-1", state="INITIATED"
+        )
+
+        result = self.service.sweep_wallet("circle-wallet-1", "100.0", "BASE")
+
+        self.assertEqual(result.transfer_id, "tx-1")
+        self.assertEqual(result.state, "INITIATED")
+        self.mock_client.create_transfer.assert_called_once_with(
+            wallet_id="circle-wallet-1",
+            destination_address="0xMultisigAddress",
+            token_address="0xRSC_BASE",
+            blockchain="BASE",
+            amount="100.0",
+            idempotency_key="rh-sweep-circle-wallet-1-100.0-BASE",
+        )
+
+    def test_sweep_on_ethereum(self):
+        """Sweep calls create_transfer with correct ETH params."""
+        self.mock_client.create_transfer.return_value = CircleTransferResult(
+            transfer_id="tx-2", state="INITIATED"
+        )
+
+        result = self.service.sweep_wallet("circle-wallet-2", "50.5", "ETHEREUM")
+
+        self.assertEqual(result.transfer_id, "tx-2")
+        self.mock_client.create_transfer.assert_called_once_with(
+            wallet_id="circle-wallet-2",
+            destination_address="0xMultisigAddress",
+            token_address="0xRSC_ETH",
+            blockchain="ETH",
+            amount="50.5",
+            idempotency_key="rh-sweep-circle-wallet-2-50.5-ETHEREUM",
+        )
+
+    def test_sweep_raises_when_no_multisig(self):
+        """Raise ValueError when RH_MULTISIG_ADDRESS is empty."""
+        with self.settings(RH_MULTISIG_ADDRESS=""):
+            with self.assertRaises(ValueError) as ctx:
+                self.service.sweep_wallet("wallet-1", "10", "BASE")
+            self.assertIn("RH_MULTISIG_ADDRESS", str(ctx.exception))
+
+    def test_sweep_raises_for_unsupported_network(self):
+        """Raise ValueError for an unknown network."""
+        with self.assertRaises(ValueError) as ctx:
+            self.service.sweep_wallet("wallet-1", "10", "SOLANA")
+        self.assertIn("Unsupported network", str(ctx.exception))
+
+    def test_sweep_propagates_transfer_error(self):
+        """CircleTransferError from client propagates."""
+        self.mock_client.create_transfer.side_effect = CircleTransferError(
+            "API failure"
+        )
+
+        with self.assertRaises(CircleTransferError):
+            self.service.sweep_wallet("wallet-1", "10", "BASE")

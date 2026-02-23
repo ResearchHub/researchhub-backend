@@ -230,3 +230,10 @@ class CircleWebhookView(APIView):
             network,
             notification_id,
         )
+
+        # Sweep deposited funds to multisig in the background
+        from purchase.tasks import sweep_deposit_to_multisig
+
+        sweep_deposit_to_multisig.delay(
+            wallet.circle_wallet_id, deposit_amount, network
+        )

@@ -247,3 +247,32 @@ class TestCircleWebhookView(TestCase):
     def test_head_request_returns_200(self):
         response = self.client.head(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @patch("purchase.tasks.sweep_deposit_to_multisig")
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature",
+        return_value=True,
+    )
+    def test_sweep_task_dispatched_after_credit(self, _mock_verify, mock_sweep_task):
+        """After crediting balance, sweep task is fired with correct args."""
+        payload = _make_payload()
+        response = self._post(payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mock_sweep_task.delay.assert_called_once_with(
+            "circle-wallet-abc", "100", "BASE"
+        )
+
+    @patch("purchase.tasks.sweep_deposit_to_multisig")
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature",
+        return_value=True,
+    )
+    def test_sweep_not_dispatched_on_duplicate(self, _mock_verify, mock_sweep_task):
+        """Duplicate notification should not trigger a second sweep."""
+        payload = _make_payload()
+        self._post(payload)
+        mock_sweep_task.delay.reset_mock()
+
+        self._post(payload)
+        mock_sweep_task.delay.assert_not_called()

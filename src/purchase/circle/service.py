@@ -2,13 +2,30 @@ import logging
 from dataclasses import dataclass
 from typing import Optional
 
+from django.conf import settings
 from django.db import transaction
 
-from purchase.circle.client import CircleWalletClient, CircleWalletFrozenError
+from purchase.circle.client import (
+    CircleTransferResult,
+    CircleWalletClient,
+    CircleWalletFrozenError,
+)
 from purchase.models import Wallet
 from user.models import User
 
 logger = logging.getLogger(__name__)
+
+# Map Deposit.network values to Circle blockchain identifiers
+NETWORK_TO_BLOCKCHAIN = {
+    "ETHEREUM": "ETH",
+    "BASE": "BASE",
+}
+
+# Map network to the RSC token contract address on that chain
+NETWORK_TO_RSC_ADDRESS = {
+    "ETHEREUM": lambda: settings.WEB3_RSC_ADDRESS,
+    "BASE": lambda: settings.WEB3_BASE_RSC_ADDRESS,
+}
 
 
 @dataclass
@@ -108,3 +125,57 @@ class CircleWalletService:
         )
 
         return DepositAddressResult(address=result.address)
+
+    def sweep_wallet(
+        self, circle_wallet_id: str, amount: str, network: str
+    ) -> CircleTransferResult:
+        """
+        Sweep deposited RSC from a user's Circle wallet to the RH multisig.
+
+        Args:
+            circle_wallet_id: The Circle wallet UUID to sweep from.
+            amount: Amount of RSC to sweep as a decimal string.
+            network: Deposit network ("ETHEREUM" or "BASE").
+
+        Returns:
+            CircleTransferResult with transfer_id and state.
+
+        Raises:
+            ValueError: If the network is unsupported or multisig is not configured.
+            CircleTransferError: If the Circle API call fails.
+        """
+        multisig = getattr(settings, "RH_MULTISIG_ADDRESS", None)
+        if not multisig:
+            raise ValueError("RH_MULTISIG_ADDRESS is not configured")
+
+        blockchain = NETWORK_TO_BLOCKCHAIN.get(network)
+        if not blockchain:
+            raise ValueError(f"Unsupported network for sweep: {network}")
+
+        rsc_address_fn = NETWORK_TO_RSC_ADDRESS.get(network)
+        if not rsc_address_fn:
+            raise ValueError(f"No RSC token address configured for network: {network}")
+        rsc_address = rsc_address_fn()
+
+        idempotency_key = f"rh-sweep-{circle_wallet_id}-{amount}-{network}"
+
+        result = self.client.create_transfer(
+            wallet_id=circle_wallet_id,
+            destination_address=multisig,
+            token_address=rsc_address,
+            blockchain=blockchain,
+            amount=amount,
+            idempotency_key=idempotency_key,
+        )
+
+        logger.info(
+            "Sweep initiated: circle_wallet_id=%s amount=%s network=%s "
+            "transfer_id=%s state=%s",
+            circle_wallet_id,
+            amount,
+            network,
+            result.transfer_id,
+            result.state,
+        )
+
+        return result
