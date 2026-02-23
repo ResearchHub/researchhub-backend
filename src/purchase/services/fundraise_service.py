@@ -1,5 +1,3 @@
-import csv
-import io
 import logging
 import time
 from decimal import Decimal
@@ -34,6 +32,26 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
     ResearchhubUnifiedDocument,
 )
 from user.models import User
+
+USD_CONTRIBUTION_CSV_HEADERS = [
+    "fundraise_id",
+    "fundraise_status",
+    "fundraise_goal_amount_usd",
+    "document_title",
+    "nonprofit_name",
+    "contribution_id",
+    "contributor_name",
+    "contributor_email",
+    "amount_usd",
+    "fee_usd",
+    "net_amount_usd",
+    "origin_fund_id",
+    "destination_org_id",
+    "endaoment_transfer_id",
+    "contribution_date",
+    "status",
+    "is_refunded",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -488,10 +506,10 @@ class FundraiseService:
 
             return True
 
-    def generate_usd_contributions_csv(self, fundraise: Fundraise) -> str:
+    def export_usd_contributions(self, fundraise: Fundraise) -> list[list]:
         """
-        Generate CSV content for all USD contributions for a fundraise.
-        Useful for manual payouts and refund processing with Endaoment.
+        Return all USD contributions for a given fundraise as rows for CSV export.
+        Note: CSV headers are available in `USD_CONTRIBUTION_CSV_HEADERS`.
         """
         nonprofit_org = fundraise.get_nonprofit_org()
         nonprofit_name = nonprofit_org.name if nonprofit_org else ""
@@ -505,38 +523,14 @@ class FundraiseService:
             .order_by("created_date")
         )
 
-        output = io.StringIO()
-        writer = csv.writer(output)
-
-        writer.writerow(
-            [
-                "fundraise_id",
-                "fundraise_status",
-                "fundraise_goal_amount_usd",
-                "document_title",
-                "nonprofit_name",
-                "contribution_id",
-                "contributor_name",
-                "contributor_email",
-                "amount_usd",
-                "fee_usd",
-                "net_amount_usd",
-                "origin_fund_id",
-                "destination_org_id",
-                "endaoment_transfer_id",
-                "contribution_date",
-                "status",
-                "is_refunded",
-            ]
-        )
-
+        rows = []
         for c in contributions.iterator():
             amount_usd = c.amount_cents / 100
             fee_usd = c.fee_cents / 100
             net_usd = (c.amount_cents - c.fee_cents) / 100
             contributor_name = f"{c.user.first_name} {c.user.last_name}".strip()
 
-            writer.writerow(
+            rows.append(
                 [
                     fundraise.id,
                     fundraise.status,
@@ -558,4 +552,4 @@ class FundraiseService:
                 ]
             )
 
-        return output.getvalue()
+        return rows
