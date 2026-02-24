@@ -197,11 +197,12 @@ def send_support_email(
 
 
 @app.task(
+    bind=True,
     queue=QUEUE_PURCHASES,
     max_retries=3,
     default_retry_delay=60,
 )
-def sweep_deposit_to_multisig(circle_wallet_id, amount, network):
+def sweep_deposit_to_multisig(self, circle_wallet_id, amount, network, sweep_reference):
     """
     Sweep deposited RSC from a user's Circle wallet to the RH multisig.
 
@@ -209,12 +210,29 @@ def sweep_deposit_to_multisig(circle_wallet_id, amount, network):
     """
     try:
         service = CircleWalletService()
-        service.sweep_wallet(circle_wallet_id, amount, network)
-    except (CircleTransferError, ValueError):
+        service.sweep_wallet(
+            circle_wallet_id=circle_wallet_id,
+            amount=amount,
+            network=network,
+            sweep_reference=sweep_reference,
+        )
+    except CircleTransferError as exc:
         logger.exception(
-            "Sweep failed: circle_wallet_id=%s amount=%s network=%s",
+            "Sweep failed (retrying): circle_wallet_id=%s amount=%s "
+            "network=%s sweep_reference=%s",
             circle_wallet_id,
             amount,
             network,
+            sweep_reference,
+        )
+        raise self.retry(exc=exc)
+    except ValueError:
+        logger.exception(
+            "Sweep failed (not retryable): circle_wallet_id=%s amount=%s "
+            "network=%s sweep_reference=%s",
+            circle_wallet_id,
+            amount,
+            network,
+            sweep_reference,
         )
         raise

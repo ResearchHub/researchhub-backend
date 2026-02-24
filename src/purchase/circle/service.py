@@ -140,7 +140,11 @@ class CircleWalletService:
         return DepositAddressResult(address=result.address)
 
     def sweep_wallet(
-        self, circle_wallet_id: str, amount: str, network: str
+        self,
+        circle_wallet_id: str,
+        amount: str,
+        network: str,
+        sweep_reference: str,
     ) -> CircleTransferResult:
         """
         Sweep deposited RSC from a user's Circle wallet to the RH multisig.
@@ -149,6 +153,8 @@ class CircleWalletService:
             circle_wallet_id: The Circle wallet UUID to sweep from.
             amount: Amount of RSC to sweep as a decimal string.
             network: Deposit network ("ETHEREUM" or "BASE").
+            sweep_reference: Unique per-deposit reference used for idempotency
+                (for example, Circle notification ID).
 
         Returns:
             CircleTransferResult with transfer_id and state.
@@ -171,9 +177,7 @@ class CircleWalletService:
         rsc_address = rsc_address_fn()
 
         idempotency_key = str(
-            uuid.uuid5(
-                uuid.NAMESPACE_URL, f"rh-sweep-{circle_wallet_id}-{amount}-{network}"
-            )
+            uuid.uuid5(uuid.NAMESPACE_URL, f"rh-sweep-{sweep_reference}")
         )
 
         result = self.client.create_transfer(
@@ -187,10 +191,11 @@ class CircleWalletService:
 
         logger.info(
             "Sweep initiated: circle_wallet_id=%s amount=%s network=%s "
-            "transfer_id=%s state=%s",
+            "sweep_reference=%s transfer_id=%s state=%s",
             circle_wallet_id,
             amount,
             network,
+            sweep_reference,
             result.transfer_id,
             result.state,
         )

@@ -256,11 +256,12 @@ class TestCircleWebhookView(TestCase):
     def test_sweep_task_dispatched_after_credit(self, _mock_verify, mock_sweep_task):
         """After crediting balance, sweep task is fired with correct args."""
         payload = _make_payload()
-        response = self._post(payload)
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self._post(payload)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         mock_sweep_task.delay.assert_called_once_with(
-            "circle-wallet-abc", "100", "BASE"
+            "circle-wallet-abc", "100", "BASE", "notif-001"
         )
 
     @patch("purchase.views.circle_webhook_view.sweep_deposit_to_multisig")
@@ -268,11 +269,46 @@ class TestCircleWebhookView(TestCase):
         "purchase.views.circle_webhook_view.verify_webhook_signature",
         return_value=True,
     )
-    def test_sweep_not_dispatched_on_duplicate(self, _mock_verify, mock_sweep_task):
-        """Duplicate notification should not trigger a second sweep."""
+    def test_sweep_dispatched_on_duplicate(self, _mock_verify, mock_sweep_task):
+        """Duplicate notification should re-dispatch sweep for recovery."""
         payload = _make_payload()
-        self._post(payload)
+        with self.captureOnCommitCallbacks(execute=True):
+            self._post(payload)
         mock_sweep_task.delay.reset_mock()
 
-        self._post(payload)
-        mock_sweep_task.delay.assert_not_called()
+        with self.captureOnCommitCallbacks(execute=True):
+            self._post(payload)
+        mock_sweep_task.delay.assert_called_once_with(
+            "circle-wallet-abc", "100", "BASE", "notif-001"
+        )
+
+    @patch("purchase.views.circle_webhook_view.sweep_deposit_to_multisig")
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature",
+        return_value=True,
+    )
+    def test_duplicate_retries_sweep_after_initial_enqueue_failure(
+        self, _mock_verify, mock_sweep_task
+    ):
+        """A duplicate webhook re-dispatches sweep after an enqueue failure."""
+        mock_sweep_task.delay.side_effect = [RuntimeError("broker down"), None]
+        payload = _make_payload()
+
+        with self.captureOnCommitCallbacks(execute=False) as callbacks:
+            response1 = self._post(payload)
+        self.assertEqual(response1.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(callbacks), 1)
+
+        # In Django TestCase, on_commit executes outside request handling.
+        with self.assertRaises(RuntimeError):
+            callbacks[0]()
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response2 = self._post(payload)
+
+        self.assertEqual(response2.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            Deposit.objects.filter(circle_notification_id="notif-001").count(),
+            1,
+        )
+        self.assertEqual(mock_sweep_task.delay.call_count, 2)

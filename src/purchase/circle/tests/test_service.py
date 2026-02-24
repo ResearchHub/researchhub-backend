@@ -202,7 +202,9 @@ class TestCircleWalletServiceSweep(TestCase):
             transfer_id="tx-1", state="INITIATED"
         )
 
-        result = self.service.sweep_wallet("circle-wallet-1", "100.0", "BASE")
+        result = self.service.sweep_wallet(
+            "circle-wallet-1", "100.0", "BASE", "notif-1"
+        )
 
         expected_blockchain = get_network_to_blockchain()["BASE"]
         self.assertEqual(result.transfer_id, "tx-1")
@@ -213,9 +215,7 @@ class TestCircleWalletServiceSweep(TestCase):
             token_address="0xRSC_BASE",
             blockchain=expected_blockchain,
             amount="100.0",
-            idempotency_key=str(
-                uuid.uuid5(uuid.NAMESPACE_URL, "rh-sweep-circle-wallet-1-100.0-BASE")
-            ),
+            idempotency_key=str(uuid.uuid5(uuid.NAMESPACE_URL, "rh-sweep-notif-1")),
         )
 
     def test_sweep_on_ethereum(self):
@@ -224,7 +224,9 @@ class TestCircleWalletServiceSweep(TestCase):
             transfer_id="tx-2", state="INITIATED"
         )
 
-        result = self.service.sweep_wallet("circle-wallet-2", "50.5", "ETHEREUM")
+        result = self.service.sweep_wallet(
+            "circle-wallet-2", "50.5", "ETHEREUM", "notif-2"
+        )
 
         expected_blockchain = get_network_to_blockchain()["ETHEREUM"]
         self.assertEqual(result.transfer_id, "tx-2")
@@ -234,22 +236,20 @@ class TestCircleWalletServiceSweep(TestCase):
             token_address="0xRSC_ETH",
             blockchain=expected_blockchain,
             amount="50.5",
-            idempotency_key=str(
-                uuid.uuid5(uuid.NAMESPACE_URL, "rh-sweep-circle-wallet-2-50.5-ETHEREUM")
-            ),
+            idempotency_key=str(uuid.uuid5(uuid.NAMESPACE_URL, "rh-sweep-notif-2")),
         )
 
     def test_sweep_raises_when_no_multisig(self):
         """Raise ValueError when RH_MULTISIG_ADDRESS is empty."""
         with self.settings(RH_MULTISIG_ADDRESS=""):
             with self.assertRaises(ValueError) as ctx:
-                self.service.sweep_wallet("wallet-1", "10", "BASE")
+                self.service.sweep_wallet("wallet-1", "10", "BASE", "notif-0")
             self.assertIn("RH_MULTISIG_ADDRESS", str(ctx.exception))
 
     def test_sweep_raises_for_unsupported_network(self):
         """Raise ValueError for an unknown network."""
         with self.assertRaises(ValueError) as ctx:
-            self.service.sweep_wallet("wallet-1", "10", "SOLANA")
+            self.service.sweep_wallet("wallet-1", "10", "SOLANA", "notif-3")
         self.assertIn("Unsupported network", str(ctx.exception))
 
     def test_sweep_propagates_transfer_error(self):
@@ -259,4 +259,4 @@ class TestCircleWalletServiceSweep(TestCase):
         )
 
         with self.assertRaises(CircleTransferError):
-            self.service.sweep_wallet("wallet-1", "10", "BASE")
+            self.service.sweep_wallet("wallet-1", "10", "BASE", "notif-4")
