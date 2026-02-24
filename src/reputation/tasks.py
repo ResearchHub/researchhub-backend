@@ -236,9 +236,11 @@ def _check_deposits(max_age=None):
     # Sort by created date to ensure a malicious user doesn't attempt to take
     # credit for a deposit made by another user. This is a temporary solution
     # until we add signed messages to validate users own wallets.
-    deposits = Deposit.objects.filter(
-        Q(paid_status=None) | Q(paid_status="PENDING")
-    ).order_by("created_date")
+    deposits = (
+        Deposit.objects.filter(Q(paid_status=None) | Q(paid_status="PENDING"))
+        .exclude(circle_notification_id__isnull=False)
+        .order_by("created_date")
+    )
 
     for deposit in deposits.iterator():
         with transaction.atomic():
