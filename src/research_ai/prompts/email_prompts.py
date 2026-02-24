@@ -27,7 +27,6 @@ def build_email_prompt(
 ) -> str:
     """
     Build the full user prompt for email generation.
-    Loads base rules and common instructions from .txt; selects template-specific body.
 
     template: one of collaboration, consultation, conference, peer-review,
               publication, rfp-outreach, or custom (use custom_use_case for custom).

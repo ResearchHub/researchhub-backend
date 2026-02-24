@@ -1,9 +1,3 @@
-"""
-Generate expert outreach emails via Bedrock.
-Ported from expertfinder generate-expert-email route; uses Bedrock instead of Vercel AI.
-Post-processing: strip markdown, strip signature, replace placeholders, append signature.
-"""
-
 import logging
 import re
 

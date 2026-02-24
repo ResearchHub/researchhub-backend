@@ -1,8 +1,4 @@
-"""
-Service layer for EmailTemplate CRUD.
-Keeps views thin and testable; enforces "one active template per user" on update.
-Uses integer PKs (BigAutoField) like the rest of research_ai.
-"""
+from django.db import transaction
 
 from research_ai.models import EmailTemplate
 
@@ -30,8 +26,14 @@ def create_template(user, **data):
     Returns the created instance.
     """
     allowed = {
-        "name", "contact_name", "contact_title", "contact_institution",
-        "contact_email", "contact_phone", "contact_website", "outreach_context",
+        "name",
+        "contact_name",
+        "contact_title",
+        "contact_institution",
+        "contact_email",
+        "contact_phone",
+        "contact_website",
+        "outreach_context",
     }
     kwargs = {k: (v or "") for k, v in data.items() if k in allowed}
     kwargs["created_by"] = user
@@ -39,6 +41,7 @@ def create_template(user, **data):
     return EmailTemplate.objects.create(**kwargs)
 
 
+@transaction.atomic
 def update_template(user, template_id, **data):
     """
     Update an EmailTemplate owned by the user. If is_active is True,

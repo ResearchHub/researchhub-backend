@@ -1,7 +1,3 @@
-"""
-Expert finder email generation and CRUD API.
-"""
-
 import logging
 
 from rest_framework import status
@@ -12,13 +8,15 @@ from rest_framework.views import APIView
 from research_ai.constants import VALID_EMAIL_TEMPLATE_KEYS
 from research_ai.models import ExpertSearch, GeneratedEmail
 from research_ai.permissions import ResearchAIPermission
-from research_ai.services.email_template_service import get_template as get_email_template
 from research_ai.serializers import (
-    GenerateEmailRequestSerializer,
     GeneratedEmailCreateUpdateSerializer,
     GeneratedEmailSerializer,
+    GenerateEmailRequestSerializer,
 )
 from research_ai.services.email_generator_service import generate_expert_email
+from research_ai.services.email_template_service import (
+    get_template as get_email_template,
+)
 from user.permissions import IsModerator
 
 logger = logging.getLogger(__name__)
@@ -60,7 +58,9 @@ class GenerateEmailView(APIView):
         if template_id and not template_data:
             et = get_email_template(request.user, template_id)
             if et:
-                outreach_context = outreach_context or (et.outreach_context or "").strip() or None
+                outreach_context = (
+                    outreach_context or (et.outreach_context or "").strip() or None
+                )
                 template_data = {
                     "contact_name": et.contact_name or "",
                     "contact_title": et.contact_title or "",
@@ -167,7 +167,9 @@ class GeneratedEmailDetailView(APIView):
 
     def _get_email(self, request, email_id):
         try:
-            email = GeneratedEmail.objects.get(id=int(email_id), created_by=request.user)
+            email = GeneratedEmail.objects.get(
+                id=int(email_id), created_by=request.user
+            )
             return email, None
         except (ValueError, TypeError, GeneratedEmail.DoesNotExist):
             return None, Response(
@@ -200,5 +202,3 @@ class GeneratedEmailDetailView(APIView):
             return err
         email.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
-
-

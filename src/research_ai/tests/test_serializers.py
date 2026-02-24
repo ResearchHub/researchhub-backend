@@ -44,22 +44,23 @@ class ExpertSearchConfigSerializerTests(TestCase):
             [ExpertiseLevel.EARLY_CAREER, ExpertiseLevel.MID_CAREER],
         )
 
-    def test_expertise_level_single_value_normalized_to_list(self):
-        """Backward compat: single value is normalized to list."""
+    def test_expertise_level_list(self):
+        """expertise_level accepts a list of choices."""
         ser = ExpertSearchConfigSerializer(
-            data={"expertise_level": ExpertiseLevel.TOP_EXPERT}
+            data={"expertise_level": [ExpertiseLevel.TOP_EXPERT]}
         )
         self.assertTrue(ser.is_valid())
         self.assertEqual(
             ser.validated_data["expertise_level"], [ExpertiseLevel.TOP_EXPERT]
         )
 
-    def test_camelCase_fallback(self):
+    def test_config_snake_case(self):
+        """API uses snake_case only (expert_count, expertise_level, gender)."""
         ser = ExpertSearchConfigSerializer(
             data={
-                "expertCount": 15,
-                "expertiseLevel": [ExpertiseLevel.EARLY_CAREER],
-                "genderPreference": Gender.FEMALE,
+                "expert_count": 15,
+                "expertise_level": [ExpertiseLevel.EARLY_CAREER],
+                "gender": Gender.FEMALE,
             }
         )
         self.assertTrue(ser.is_valid())
@@ -106,9 +107,9 @@ class ExpertSearchCreateSerializerTests(TestCase):
         )
         self.assertFalse(ser.is_valid())
 
-    def test_excluded_expert_names_camelCase(self):
+    def test_excluded_expert_names(self):
         ser = ExpertSearchCreateSerializer(
-            data={"query": "Bar", "excludedExpertNames": ["Alice", "Bob"]}
+            data={"query": "Bar", "excluded_expert_names": ["Alice", "Bob"]}
         )
         self.assertTrue(ser.is_valid())
         self.assertEqual(ser.validated_data["excluded_expert_names"], ["Alice", "Bob"])
