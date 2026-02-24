@@ -31,13 +31,19 @@ BLOCKCHAIN_TO_NETWORK = {
 }
 
 
+COMPLETED_STATES = {"COMPLETED", "COMPLETE", "CONFIRMED"}
+FAILED_STATES = {"FAILED", "CANCELLED", "DENIED"}
+
+
 class CircleWebhookView(APIView):
     """
-    Receives webhook notifications from Circle for inbound transfers.
+    Receives webhook notifications from Circle for transfers.
 
-    When a user deposits RSC to their Circle wallet, Circle sends a
-    ``transactions.inbound`` notification here. We verify the signature,
-    credit the user's in-app balance, and record a Deposit.
+    Handles two notification types:
+    - ``transactions.inbound``: User deposited RSC to their Circle wallet.
+      We credit the user's in-app balance and record a Deposit.
+    - ``transactions.outbound``: A sweep transfer we initiated has settled
+      (or failed). We update the Deposit's sweep_status accordingly.
 
     POST /webhooks/circle/
     """
@@ -89,19 +95,24 @@ class CircleWebhookView(APIView):
             )
 
         notification_type = payload.get("notificationType")
-        if notification_type != "transactions.inbound":
+        notification = payload.get("notification", {})
+
+        if notification_type == "transactions.inbound":
+            return self._handle_inbound(payload, notification)
+        elif notification_type == "transactions.outbound":
+            return self._handle_outbound(payload, notification)
+        else:
             logger.info("Ignoring Circle notification type: %s", notification_type)
             return Response(status=status.HTTP_200_OK)
 
-        notification = payload.get("notification", {})
-
+    def _handle_inbound(self, payload, notification):
         # Only process completed transfers.
         # Circle uses "COMPLETED" for inbound and "COMPLETE" for outbound;
         # accept both defensively.
         state = notification.get("state")
-        if state not in ("COMPLETED", "COMPLETE"):
+        if state not in COMPLETED_STATES:
             logger.info(
-                "Ignoring Circle transfer in state: %s (id=%s)",
+                "Ignoring Circle inbound transfer in state: %s (id=%s)",
                 state,
                 notification.get("id"),
             )
@@ -123,6 +134,62 @@ class CircleWebhookView(APIView):
             {"message": "Webhook successfully processed"},
             status=status.HTTP_200_OK,
         )
+
+    def _handle_outbound(self, payload, notification):
+        state = notification.get("state", "")
+        transaction_id = notification.get("id")
+
+        if not transaction_id:
+            logger.warning(
+                "Outbound notification missing transaction id, notification_id=%s",
+                payload.get("notificationId"),
+            )
+            return Response(status=status.HTTP_200_OK)
+
+        if state in COMPLETED_STATES:
+            updated = (
+                Deposit.objects.filter(
+                    sweep_transfer_id=transaction_id,
+                )
+                .exclude(
+                    sweep_status=Deposit.SWEEP_COMPLETE,
+                )
+                .update(sweep_status=Deposit.SWEEP_COMPLETE)
+            )
+
+            if updated:
+                logger.info(
+                    "Sweep marked COMPLETE: transfer_id=%s notification_id=%s",
+                    transaction_id,
+                    payload.get("notificationId"),
+                )
+        elif state in FAILED_STATES:
+            updated = (
+                Deposit.objects.filter(
+                    sweep_transfer_id=transaction_id,
+                )
+                .exclude(
+                    sweep_status=Deposit.SWEEP_FAILED,
+                )
+                .update(sweep_status=Deposit.SWEEP_FAILED)
+            )
+
+            if updated:
+                logger.warning(
+                    "Sweep marked FAILED via outbound webhook: transfer_id=%s "
+                    "state=%s notification_id=%s",
+                    transaction_id,
+                    state,
+                    payload.get("notificationId"),
+                )
+        else:
+            logger.info(
+                "Ignoring Circle outbound transfer in state: %s (id=%s)",
+                state,
+                transaction_id,
+            )
+
+        return Response(status=status.HTTP_200_OK)
 
     def _process_inbound_transfer(self, payload, notification):
         notification_id = payload["notificationId"]
@@ -208,6 +275,7 @@ class CircleWebhookView(APIView):
                     "amount": deposit_amount,
                     "network": network,
                     "from_address": "",
+                    "sweep_status": Deposit.SWEEP_PENDING,
                 },
             )
 

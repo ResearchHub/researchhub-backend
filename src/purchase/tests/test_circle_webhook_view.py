@@ -90,6 +90,7 @@ class TestCircleWebhookView(TestCase):
         self.assertEqual(deposit.amount, "100")
         self.assertEqual(deposit.network, "BASE")
         self.assertEqual(deposit.paid_status, "PAID")
+        self.assertEqual(deposit.sweep_status, Deposit.SWEEP_PENDING)
 
         # Balance was credited (via Distributor)
         from purchase.models import Balance
@@ -141,8 +142,8 @@ class TestCircleWebhookView(TestCase):
     @patch(
         "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
     )
-    def test_non_inbound_type_returns_200_ignored(self, _mock_verify):
-        payload = _make_payload(notification_type="transactions.outbound")
+    def test_unknown_notification_type_returns_200_ignored(self, _mock_verify):
+        payload = _make_payload(notification_type="transactions.unknown")
         response = self._post(payload)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -312,3 +313,186 @@ class TestCircleWebhookView(TestCase):
             1,
         )
         self.assertEqual(mock_sweep_task.delay.call_count, 2)
+
+
+def _make_outbound_payload(
+    notification_id="notif-out-001",
+    transaction_id="sweep-tx-001",
+    state="COMPLETE",
+    wallet_id="circle-wallet-abc",
+):
+    """Build a Circle outbound transaction webhook payload."""
+    return {
+        "subscriptionId": "sub-001",
+        "notificationId": notification_id,
+        "notificationType": "transactions.outbound",
+        "notification": {
+            "id": transaction_id,
+            "blockchain": "BASE",
+            "walletId": wallet_id,
+            "state": state,
+            "transactionType": "OUTBOUND",
+            "createDate": "2026-01-01T00:00:00Z",
+            "updateDate": "2026-01-01T00:01:00Z",
+        },
+        "timestamp": "2026-01-01T00:01:00.000Z",
+        "version": 2,
+    }
+
+
+class TestCircleOutboundWebhook(TestCase):
+    def setUp(self):
+        self.url = reverse("circle_webhook")
+        self.user = User.objects.create_user(username="sweeper")
+        self.wallet = Wallet.objects.create(
+            user=self.user,
+            circle_wallet_id="circle-wallet-abc",
+            wallet_type=Wallet.WALLET_TYPE_CIRCLE,
+            address="0xUserAddress",
+        )
+
+    def _post(self, payload, sig="valid-sig", key_id="key-001"):
+        return self.client.post(
+            self.url,
+            data=json.dumps(payload),
+            content_type="application/json",
+            headers={
+                "X-Circle-Signature": sig,
+                "X-Circle-Key-Id": key_id,
+            },
+        )
+
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    def test_outbound_complete_marks_sweep_complete(self, _mock_verify):
+        deposit = Deposit.objects.create(
+            user=self.user,
+            amount="100",
+            network="BASE",
+            from_address="",
+            circle_notification_id="notif-inbound",
+            sweep_status=Deposit.SWEEP_INITIATED,
+            sweep_transfer_id="sweep-tx-001",
+        )
+
+        payload = _make_outbound_payload(state="COMPLETE")
+        response = self._post(payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        deposit.refresh_from_db()
+        self.assertEqual(deposit.sweep_status, Deposit.SWEEP_COMPLETE)
+
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    def test_outbound_confirmed_marks_sweep_complete(self, _mock_verify):
+        deposit = Deposit.objects.create(
+            user=self.user,
+            amount="100",
+            network="BASE",
+            from_address="",
+            circle_notification_id="notif-inbound",
+            sweep_status=Deposit.SWEEP_INITIATED,
+            sweep_transfer_id="sweep-tx-001",
+        )
+
+        payload = _make_outbound_payload(state="CONFIRMED")
+        response = self._post(payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        deposit.refresh_from_db()
+        self.assertEqual(deposit.sweep_status, Deposit.SWEEP_COMPLETE)
+
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    def test_outbound_failed_marks_sweep_failed(self, _mock_verify):
+        deposit = Deposit.objects.create(
+            user=self.user,
+            amount="100",
+            network="BASE",
+            from_address="",
+            circle_notification_id="notif-inbound",
+            sweep_status=Deposit.SWEEP_INITIATED,
+            sweep_transfer_id="sweep-tx-001",
+        )
+
+        payload = _make_outbound_payload(state="FAILED")
+        response = self._post(payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        deposit.refresh_from_db()
+        self.assertEqual(deposit.sweep_status, Deposit.SWEEP_FAILED)
+
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    def test_outbound_cancelled_marks_sweep_failed(self, _mock_verify):
+        deposit = Deposit.objects.create(
+            user=self.user,
+            amount="100",
+            network="BASE",
+            from_address="",
+            circle_notification_id="notif-inbound",
+            sweep_status=Deposit.SWEEP_INITIATED,
+            sweep_transfer_id="sweep-tx-001",
+        )
+
+        payload = _make_outbound_payload(state="CANCELLED")
+        response = self._post(payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        deposit.refresh_from_db()
+        self.assertEqual(deposit.sweep_status, Deposit.SWEEP_FAILED)
+
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    def test_outbound_pending_state_ignored(self, _mock_verify):
+        deposit = Deposit.objects.create(
+            user=self.user,
+            amount="100",
+            network="BASE",
+            from_address="",
+            circle_notification_id="notif-inbound",
+            sweep_status=Deposit.SWEEP_INITIATED,
+            sweep_transfer_id="sweep-tx-001",
+        )
+
+        payload = _make_outbound_payload(state="SENT")
+        response = self._post(payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        deposit.refresh_from_db()
+        self.assertEqual(deposit.sweep_status, Deposit.SWEEP_INITIATED)
+
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    def test_outbound_unknown_transfer_id_returns_200(self, _mock_verify):
+        """Outbound notification for a transfer we don't track is silently ignored."""
+        payload = _make_outbound_payload(transaction_id="unknown-tx")
+        response = self._post(payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    def test_outbound_idempotent_on_already_complete(self, _mock_verify):
+        """Duplicate outbound COMPLETE notification doesn't error."""
+        Deposit.objects.create(
+            user=self.user,
+            amount="100",
+            network="BASE",
+            from_address="",
+            circle_notification_id="notif-inbound",
+            sweep_status=Deposit.SWEEP_COMPLETE,
+            sweep_transfer_id="sweep-tx-001",
+        )
+
+        payload = _make_outbound_payload(state="COMPLETE")
+        response = self._post(payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
