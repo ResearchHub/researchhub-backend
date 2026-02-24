@@ -6,7 +6,11 @@ from django.test import TestCase
 
 from purchase.models import Fundraise
 from purchase.services.fundraise_service import FundraiseService
-from purchase.tasks import complete_eligible_fundraises
+from notification.models import Notification
+from purchase.tasks import (
+    complete_eligible_fundraises,
+    send_monthly_proposal_update_reminders,
+)
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from user.tests.helpers import create_random_authenticated_user, create_user
@@ -147,3 +151,63 @@ class FundraiseTasksTest(TestCase):
         self.assertEqual(fundraise.status, Fundraise.OPEN)
         self.assertEqual(fundraise.escrow.amount_holding, Decimal("200.00"))
         self.assertEqual(fundraise.escrow.amount_paid, Decimal("0.00"))
+
+
+class ProposalUpdateReminderTest(TestCase):
+    def setUp(self):
+        self.user = create_random_authenticated_user("reminder_test", moderator=True)
+        self.post = create_post(created_by=self.user, document_type=PREREGISTRATION)
+        self.future = datetime.now(pytz.UTC) + timedelta(days=30)
+        self.past = datetime.now(pytz.UTC) - timedelta(days=1)
+        self.notif_qs = Notification.objects.filter(
+            notification_type=Notification.PROPOSAL_UPDATE_REMINDER,
+            recipient=self.user,
+        )
+
+    def _create_fundraise(self, status=Fundraise.OPEN, end_date=None):
+        f = Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=self.post.unified_document,
+            goal_amount=Decimal("100.00"),
+            goal_currency="USD",
+            status=status,
+        )
+        if end_date is not None:
+            Fundraise.objects.filter(id=f.id).update(end_date=end_date)
+        return f
+
+    def test_sends_for_active_proposal(self):
+        # Arrange
+        self._create_fundraise(end_date=self.future)
+        # Act
+        result = send_monthly_proposal_update_reminders()
+        # Assert
+        self.assertEqual(result["sent_count"], 1)
+        self.assertTrue(self.notif_qs.exists())
+
+    def test_skips_closed_and_completed(self):
+        # Arrange
+        self._create_fundraise(status=Fundraise.CLOSED)
+        self._create_fundraise(status=Fundraise.COMPLETED)
+        # Act
+        result = send_monthly_proposal_update_reminders()
+        # Assert
+        self.assertEqual(result["sent_count"], 0)
+
+    def test_skips_expired_proposal(self):
+        # Arrange
+        self._create_fundraise(end_date=self.past)
+        # Act
+        result = send_monthly_proposal_update_reminders()
+        # Assert
+        self.assertEqual(result["sent_count"], 0)
+
+    def test_deduplicates_within_same_month(self):
+        # Arrange
+        self._create_fundraise(end_date=self.future)
+        send_monthly_proposal_update_reminders()
+        # Act
+        result = send_monthly_proposal_update_reminders()
+        # Assert
+        self.assertEqual(result["sent_count"], 0)
+        self.assertEqual(self.notif_qs.count(), 1)
