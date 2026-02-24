@@ -609,7 +609,4 @@ class Notification(models.Model):
                 "link": base_url,
                 "extra": '["link"]',
             },
-            {"type": "text", "value": " and earn "},
-            {"type": "text", "value": "$50", "extra": '["bold"]'},
-            {"type": "text", "value": "."},
         ], base_url

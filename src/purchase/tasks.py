@@ -80,6 +80,8 @@ def send_monthly_proposal_update_reminders():
     now = datetime.now(pytz.UTC)
     open_fundraises = Fundraise.objects.filter(
         status=Fundraise.OPEN,
+    ).exclude(
+        end_date__lte=now,
     ).select_related("created_by", "unified_document")
 
     fundraise_ct = ContentType.objects.get_for_model(Fundraise)
