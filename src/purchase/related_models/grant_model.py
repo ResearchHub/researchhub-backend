@@ -59,6 +59,12 @@ class Grant(DefaultModel):
         null=True,
         help_text="Name of the granting organization",
     )
+    short_title = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Short display title for the grant",
+    )
     description = models.TextField(
         help_text="Grant description, requirements, and application details"
     )
