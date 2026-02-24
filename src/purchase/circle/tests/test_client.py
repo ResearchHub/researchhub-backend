@@ -129,12 +129,14 @@ class TestCircleWalletClient(TestCase):
             token_address="0xRSC",
             blockchain="BASE",
             amount="100.5",
-            idempotency_key="test-sweep-key",
         )
 
         self.assertEqual(result.transfer_id, "transfer-uuid-1")
         self.assertEqual(result.state, "INITIATED")
         mock_tx_api.create_developer_transaction_transfer.assert_called_once()
+        call_args = mock_tx_api.create_developer_transaction_transfer.call_args
+        request = call_args[0][0]
+        self.assertIsNotNone(request.idempotency_key)
 
     def test_create_transfer_no_data_raises(self):
         mock_tx_api = Mock()
@@ -196,30 +198,3 @@ class TestCircleWalletClient(TestCase):
                 blockchain="BASE",
                 amount="50",
             )
-
-    def test_create_transfer_generates_idempotency_key(self):
-        mock_tx_api = Mock()
-        tx_instance = Mock()
-        tx_instance.id = "transfer-uuid-2"
-        tx_instance.state = Mock(value="INITIATED")
-
-        mock_data = Mock()
-        mock_data.actual_instance = tx_instance
-        mock_tx_api.create_developer_transaction_transfer.return_value = Mock(
-            data=mock_data
-        )
-
-        client = self._make_client(
-            mock_transactions_api=mock_tx_api,
-        )
-        client.create_transfer(
-            wallet_id="wallet-1",
-            destination_address="0xMultisig",
-            token_address="0xRSC",
-            blockchain="ETH",
-            amount="10",
-        )
-
-        call_args = mock_tx_api.create_developer_transaction_transfer.call_args
-        request = call_args[0][0]
-        self.assertIsNotNone(request.idempotency_key)

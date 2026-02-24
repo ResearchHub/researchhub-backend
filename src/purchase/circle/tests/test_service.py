@@ -65,6 +65,10 @@ class TestCircleWalletService(TestCase):
 
     def test_creates_wallet_record_and_circle_wallet_when_none_exists(self):
         """When user has no wallet record at all, create both DB and Circle wallet."""
+        self.user.first_name = "John"
+        self.user.last_name = "Doe"
+        self.user.save(update_fields=["first_name", "last_name"])
+
         self.mock_client.create_wallet.return_value = "new-circle-wallet-id"
         self.mock_client.get_wallet.return_value = CircleWalletResult(
             wallet_id="new-circle-wallet-id",
@@ -81,7 +85,7 @@ class TestCircleWalletService(TestCase):
             idempotency_key=str(
                 uuid.uuid5(uuid.NAMESPACE_URL, f"rh-wallet-{wallet.pk}")
             ),
-            wallet_name=None,
+            wallet_name="John Doe's wallet",
             ref_id=str(self.user.id),
         )
         self.assertEqual(wallet.circle_wallet_id, "new-circle-wallet-id")
@@ -113,30 +117,6 @@ class TestCircleWalletService(TestCase):
         wallet.refresh_from_db()
         self.assertEqual(wallet.circle_wallet_id, "new-id")
         self.assertEqual(wallet.address, "0xAddr")
-
-    def test_creates_wallet_with_user_name_in_metadata(self):
-        """When user has a full name, pass it as wallet_name to Circle."""
-        self.user.first_name = "John"
-        self.user.last_name = "Doe"
-        self.user.save(update_fields=["first_name", "last_name"])
-
-        self.mock_client.create_wallet.return_value = "named-wallet-id"
-        self.mock_client.get_wallet.return_value = CircleWalletResult(
-            wallet_id="named-wallet-id",
-            address="0xNamedAddr",
-            state="LIVE",
-        )
-
-        self.service.get_or_create_deposit_address(self.user)
-
-        wallet = Wallet.objects.get(user=self.user)
-        self.mock_client.create_wallet.assert_called_once_with(
-            idempotency_key=str(
-                uuid.uuid5(uuid.NAMESPACE_URL, f"rh-wallet-{wallet.pk}")
-            ),
-            wallet_name="John Doe's wallet",
-            ref_id=str(self.user.id),
-        )
 
     def test_raises_not_live_when_wallet_frozen(self):
         """When wallet is FROZEN, raise error. Wallet ID is saved."""
