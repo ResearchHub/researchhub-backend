@@ -315,6 +315,17 @@ class GrantViewTests(APITestCase):
         self.assertIn("is_expired", response.data)
         self.assertIn("is_active", response.data)
 
+    def test_short_title_returned_in_serializer(self):
+        """Test that short_title is included in the grant serializer response"""
+        self.grant.short_title = "AI Healthcare Grant"
+        self.grant.save()
+
+        self.client.force_authenticate(self.regular_user)
+        response = self.client.get(f"/api/grant/{self.grant.id}/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["short_title"], "AI Healthcare Grant")
+
     def test_apply_to_grant_success(self):
         """Test successfully applying to a grant with a preregistration post"""
         self.client.force_authenticate(self.regular_user)
