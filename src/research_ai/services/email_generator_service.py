@@ -41,7 +41,7 @@ def _strip_existing_signature(text: str, template_data: dict | None) -> str:
     sep_match = re.search(r"\n\s*[-—]{2,}\s*\n", result)
     if sep_match and sep_match.start() > len(result) * 0.4:
         result = result[: sep_match.start()].strip()
-    # 2. Cut at common closing phrases
+    # 2. Find last closing phrase (signature is always at the end)
     closing_phrases = [
         "Best regards,",
         "Best,",
@@ -54,16 +54,26 @@ def _strip_existing_signature(text: str, template_data: dict | None) -> str:
         "Cheers,",
         "Looking forward",
     ]
+    closing_idx = -1
     for phrase in closing_phrases:
         idx = result.rfind(phrase)
-        if idx != -1:
-            result = result[:idx].strip()
-            break
-    # 3. Strip trailing placeholder lines
-    result = re.sub(r"\[Your Name\][\s\S]*$", "", result)
-    result = re.sub(r"\[Name\][\s\S]*$", "", result)
-    result = re.sub(r"\[Institution\][\s\S]*$", "", result)
-    result = re.sub(r"\[Organization\][\s\S]*$", "", result)
+        if idx != -1 and (closing_idx < 0 or idx > closing_idx):
+            closing_idx = idx
+    if closing_idx != -1:
+        body_part = result[:closing_idx].strip()
+        signature_part = result[closing_idx:]
+        # 3. Strip placeholders only in the signature block (after closing phrase)
+        signature_part = re.sub(r"\[Your Name\][\s\S]*$", "", signature_part)
+        signature_part = re.sub(r"\[Name\][\s\S]*$", "", signature_part)
+        signature_part = re.sub(r"\[Institution\][\s\S]*$", "", signature_part)
+        signature_part = re.sub(r"\[Organization\][\s\S]*$", "", signature_part)
+        signature_part = re.sub(
+            r"\[Your Organization/Institution Name\][\s\S]*$", "", signature_part
+        )
+
+        # Keep body only; discard signature (we add our own later)
+        result = body_part
+    # else: do nothing, keep result as is
     # 4. Strip trailing lines that match template_data values
     if template_data:
         known = [

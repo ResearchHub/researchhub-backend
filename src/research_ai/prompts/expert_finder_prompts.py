@@ -31,7 +31,6 @@ _template_cache: dict[str, str] = {}
 
 
 def _load_template(name: str) -> str:
-    """Load a prompt template from the prompts directory. Results are cached."""
     if name not in _template_cache:
         path = os.path.join(_PROMPTS_DIR, name)
         with open(path, encoding="utf-8") as f:
@@ -93,9 +92,7 @@ def _normalize_expertise_levels(expertise_level: list[str] | str) -> list[str]:
 def _expertise_levels_display(expertise_level: list[str] | str) -> str:
     """Normalize expertise_level to list and return human-readable display string."""
     levels = _normalize_expertise_levels(expertise_level)
-    if not levels or (
-        len(levels) == 1 and levels[0] == ExpertiseLevel.ALL_LEVELS
-    ):
+    if not levels or (len(levels) == 1 and levels[0] == ExpertiseLevel.ALL_LEVELS):
         return ExpertiseLevel.ALL_LEVELS.label
     return ", ".join(get_choice_label(level, ExpertiseLevel) for level in levels)
 
@@ -114,9 +111,7 @@ def build_system_prompt(
     """
     levels = _normalize_expertise_levels(expertise_level)
     expertise_instruction = ""
-    if levels and not (
-        len(levels) == 1 and levels[0] == ExpertiseLevel.ALL_LEVELS
-    ):
+    if levels and not (len(levels) == 1 and levels[0] == ExpertiseLevel.ALL_LEVELS):
         descriptions = []
         for level in levels:
             desc = EXPERTISE_DESCRIPTIONS.get(level, level)
@@ -186,7 +181,9 @@ def build_user_prompt(
     expertise_level_display = _expertise_levels_display(expertise_level)
     region_label = get_choice_label(region_filter, Region)
     region_text = (
-        "" if region_filter == Region.ALL_REGIONS else f" from the {region_label} region"
+        ""
+        if region_filter == Region.ALL_REGIONS
+        else f" from the {region_label} region"
     )
     if is_pdf:
         template = _load_template("expert_finder_user_pdf.txt")
