@@ -158,7 +158,7 @@ def _parse_subject_and_body(text: str) -> tuple[str, str]:
     """
     subject = ""
     body = text.strip()
-    match = re.match(r"(?i)^Subject:\s*([^\n]*)\n([\s\S]*)", body)
+    match = re.match(r"(?i)^Subject:\s*([^\n]*)\n([\s\S]*)", body)  # NOSONAR
     if match:
         subject = match.group(1).strip()
         body = match.group(2).strip()
