@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
 
@@ -6,6 +7,7 @@ from django.contrib.contenttypes.models import ContentType
 
 from mailing_list.lib import base_email_context
 from paper.models import Paper
+from purchase.circle.service import CircleWalletService
 from purchase.models import Fundraise, Purchase, Support
 from purchase.related_models.constants.currency import USD
 from purchase.services.fundraise_service import FundraiseService
@@ -14,6 +16,8 @@ from researchhub.settings import BASE_FRONTEND_URL
 from researchhub_document.models import ResearchhubPost
 from utils.message import send_email_message
 from utils.sentry import log_error, log_info
+
+logger = logging.getLogger(__name__)
 
 
 @app.task
@@ -189,3 +193,45 @@ def send_support_email(
             context,
             html_template="support_receipt.html",
         )
+
+
+@app.task(
+    bind=True,
+    queue=QUEUE_PURCHASES,
+    max_retries=3,
+    default_retry_delay=60,
+)
+def sweep_deposit_to_multisig(self, circle_wallet_id, amount, network, sweep_reference):
+    """
+    Sweep deposited RSC from a user's Circle wallet to the RH multisig.
+
+    Fired asynchronously after crediting a user's balance on deposit.
+    """
+    try:
+        service = CircleWalletService()
+        service.sweep_wallet(
+            circle_wallet_id=circle_wallet_id,
+            amount=amount,
+            network=network,
+            sweep_reference=sweep_reference,
+        )
+    except ValueError:
+        logger.exception(
+            "Sweep failed (not retryable): circle_wallet_id=%s amount=%s "
+            "network=%s sweep_reference=%s",
+            circle_wallet_id,
+            amount,
+            network,
+            sweep_reference,
+        )
+        raise
+    except Exception as exc:
+        logger.exception(
+            "Sweep failed (retrying): circle_wallet_id=%s amount=%s "
+            "network=%s sweep_reference=%s",
+            circle_wallet_id,
+            amount,
+            network,
+            sweep_reference,
+        )
+        raise self.retry(exc=exc)

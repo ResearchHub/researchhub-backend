@@ -33,7 +33,6 @@ class TestDepositAddressView(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["address"], "0xABC123")
-        self.assertFalse(response.data["provisioning"])
 
     def test_returns_500_when_wallet_frozen(self):
         """Test 500 when wallet is frozen."""

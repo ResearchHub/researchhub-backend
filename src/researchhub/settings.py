@@ -947,6 +947,9 @@ CIRCLE_WALLET_SET_ID = os.environ.get("CIRCLE_WALLET_SET_ID", keys.CIRCLE_WALLET
 CIRCLE_API_BASE_URL = (
     "https://api.circle.com" if PRODUCTION else "https://api-sandbox.circle.com"
 )
+RH_MULTISIG_ADDRESS = os.environ.get(
+    "RH_MULTISIG_ADDRESS", getattr(keys, "RH_MULTISIG_ADDRESS", "")
+)
 
 # ResearchHub Journal ID
 RESEARCHHUB_JOURNAL_ID = os.environ.get(

@@ -1,12 +1,14 @@
 from datetime import datetime, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 import pytz
 from django.test import TestCase
 
+from purchase.circle.client import CircleTransferError
 from purchase.models import Fundraise
 from purchase.services.fundraise_service import FundraiseService
-from purchase.tasks import complete_eligible_fundraises
+from purchase.tasks import complete_eligible_fundraises, sweep_deposit_to_multisig
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from user.tests.helpers import create_random_authenticated_user, create_user
@@ -147,3 +149,56 @@ class FundraiseTasksTest(TestCase):
         self.assertEqual(fundraise.status, Fundraise.OPEN)
         self.assertEqual(fundraise.escrow.amount_holding, Decimal("200.00"))
         self.assertEqual(fundraise.escrow.amount_paid, Decimal("0.00"))
+
+
+class SweepDepositTaskTest(TestCase):
+    @patch("purchase.tasks.CircleWalletService")
+    def test_sweep_task_calls_service_with_reference(self, mock_service_class):
+        sweep_deposit_to_multisig.run("wallet-1", "100", "BASE", "notif-1")
+
+        mock_service_class.return_value.sweep_wallet.assert_called_once_with(
+            circle_wallet_id="wallet-1",
+            amount="100",
+            network="BASE",
+            sweep_reference="notif-1",
+        )
+
+    @patch.object(sweep_deposit_to_multisig, "retry", side_effect=RuntimeError("retry"))
+    @patch("purchase.tasks.CircleWalletService")
+    def test_sweep_task_retries_on_transfer_error(self, mock_service_class, mock_retry):
+        mock_service_class.return_value.sweep_wallet.side_effect = CircleTransferError(
+            "circle failed"
+        )
+
+        with self.assertRaises(RuntimeError):
+            sweep_deposit_to_multisig.run("wallet-1", "100", "BASE", "notif-1")
+
+        mock_retry.assert_called_once()
+
+    @patch.object(sweep_deposit_to_multisig, "retry", side_effect=RuntimeError("retry"))
+    @patch("purchase.tasks.CircleWalletService")
+    def test_sweep_task_retries_on_unexpected_error(
+        self, mock_service_class, mock_retry
+    ):
+        mock_service_class.return_value.sweep_wallet.side_effect = RuntimeError(
+            "transport failed"
+        )
+
+        with self.assertRaises(RuntimeError):
+            sweep_deposit_to_multisig.run("wallet-1", "100", "BASE", "notif-1")
+
+        mock_retry.assert_called_once()
+
+    @patch.object(sweep_deposit_to_multisig, "retry")
+    @patch("purchase.tasks.CircleWalletService")
+    def test_sweep_task_does_not_retry_on_value_error(
+        self, mock_service_class, mock_retry
+    ):
+        mock_service_class.return_value.sweep_wallet.side_effect = ValueError(
+            "bad network"
+        )
+
+        with self.assertRaises(ValueError):
+            sweep_deposit_to_multisig.run("wallet-1", "100", "BASE", "notif-1")
+
+        mock_retry.assert_not_called()
