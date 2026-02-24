@@ -78,7 +78,7 @@ def complete_eligible_fundraises():
 
 
 @app.task(queue=QUEUE_NOTIFICATION)
-def send_monthly_proposal_update_reminders():
+def send_monthly_preregistration_update_reminders():
     from notification.models import Notification
 
     now = datetime.now(pytz.UTC)
@@ -93,7 +93,7 @@ def send_monthly_proposal_update_reminders():
 
     for fundraise in open_fundraises:
         already_sent = Notification.objects.filter(
-            notification_type=Notification.PROPOSAL_UPDATE_REMINDER,
+            notification_type=Notification.PREREGISTRATION_UPDATE_REMINDER,
             recipient=fundraise.created_by,
             content_type=fundraise_ct,
             object_id=fundraise.id,
@@ -110,14 +110,14 @@ def send_monthly_proposal_update_reminders():
                 action_user=fundraise.created_by,
                 recipient=fundraise.created_by,
                 unified_document=fundraise.unified_document,
-                notification_type=Notification.PROPOSAL_UPDATE_REMINDER,
+                notification_type=Notification.PREREGISTRATION_UPDATE_REMINDER,
             )
             notification.send_notification()
             sent_count += 1
         except Exception as e:
-            log_error(e, message=f"Error sending proposal update reminder for fundraise {fundraise.id}")
+            log_error(e, message=f"Error sending preregistration update reminder for fundraise {fundraise.id}")
 
-    log_info(f"Sent {sent_count} proposal update reminders")
+    log_info(f"Sent {sent_count} preregistration update reminders")
     return {"sent_count": sent_count}
 
 

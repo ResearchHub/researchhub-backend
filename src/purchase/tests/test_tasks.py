@@ -11,7 +11,7 @@ from purchase.services.fundraise_service import FundraiseService
 from notification.models import Notification
 from purchase.tasks import (
     complete_eligible_fundraises,
-    send_monthly_proposal_update_reminders,
+    send_monthly_preregistration_update_reminders,
     sweep_deposit_to_multisig
 )
 from researchhub_document.helpers import create_post
@@ -208,14 +208,14 @@ class SweepDepositTaskTest(TestCase):
 
         mock_retry.assert_not_called()
 
-class ProposalUpdateReminderTest(TestCase):
+class PreregistrationUpdateReminderTest(TestCase):
     def setUp(self):
         self.user = create_random_authenticated_user("reminder_test", moderator=True)
         self.post = create_post(created_by=self.user, document_type=PREREGISTRATION)
         self.future = datetime.now(pytz.UTC) + timedelta(days=30)
         self.past = datetime.now(pytz.UTC) - timedelta(days=1)
         self.notif_qs = Notification.objects.filter(
-            notification_type=Notification.PROPOSAL_UPDATE_REMINDER,
+            notification_type=Notification.PREREGISTRATION_UPDATE_REMINDER,
             recipient=self.user,
         )
 
@@ -231,11 +231,11 @@ class ProposalUpdateReminderTest(TestCase):
             Fundraise.objects.filter(id=f.id).update(end_date=end_date)
         return f
 
-    def test_sends_for_active_proposal(self):
+    def test_sends_for_active_preregistration(self):
         # Arrange
         self._create_fundraise(end_date=self.future)
         # Act
-        result = send_monthly_proposal_update_reminders()
+        result = send_monthly_preregistration_update_reminders()
         # Assert
         self.assertEqual(result["sent_count"], 1)
         self.assertTrue(self.notif_qs.exists())
@@ -245,24 +245,24 @@ class ProposalUpdateReminderTest(TestCase):
         self._create_fundraise(status=Fundraise.CLOSED)
         self._create_fundraise(status=Fundraise.COMPLETED)
         # Act
-        result = send_monthly_proposal_update_reminders()
+        result = send_monthly_preregistration_update_reminders()
         # Assert
         self.assertEqual(result["sent_count"], 0)
 
-    def test_skips_expired_proposal(self):
+    def test_skips_expired_preregistration(self):
         # Arrange
         self._create_fundraise(end_date=self.past)
         # Act
-        result = send_monthly_proposal_update_reminders()
+        result = send_monthly_preregistration_update_reminders()
         # Assert
         self.assertEqual(result["sent_count"], 0)
 
     def test_deduplicates_within_same_month(self):
         # Arrange
         self._create_fundraise(end_date=self.future)
-        send_monthly_proposal_update_reminders()
+        send_monthly_preregistration_update_reminders()
         # Act
-        result = send_monthly_proposal_update_reminders()
+        result = send_monthly_preregistration_update_reminders()
         # Assert
         self.assertEqual(result["sent_count"], 0)
         self.assertEqual(self.notif_qs.count(), 1)

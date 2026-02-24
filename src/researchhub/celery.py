@@ -78,8 +78,8 @@ app.conf.beat_schedule = {
             "queue": QUEUE_PURCHASES,
         },
     },
-    "purchase_send-monthly-proposal-update-reminders": {
-        "task": "purchase.tasks.send_monthly_proposal_update_reminders",
+    "purchase_send-monthly-preregistration-update-reminders": {
+        "task": "purchase.tasks.send_monthly_preregistration_update_reminders",
         "schedule": crontab(day_of_month=1, hour=16, minute=0),
         "options": {
             "priority": 3,
