@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from circle.web3 import utils as circle_utils
 from circle.web3.developer_controlled_wallets.api import TransactionsApi, WalletsApi
+from circle.web3.developer_controlled_wallets.exceptions import OpenApiException
 from circle.web3.developer_controlled_wallets.models import (
     AccountType,
     Blockchain,
@@ -17,6 +18,16 @@ from circle.web3.developer_controlled_wallets.models import (
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
+
+# Transfer states that indicate Circle accepted or finalized the transfer.
+ACCEPTED_TRANSFER_STATES = {
+    "INITIATED",
+    "QUEUED",
+    "SENT",
+    "COMPLETE",
+    "CONFIRMED",
+    "CLEARED",
+}
 
 
 class CircleWalletCreationError(Exception):
@@ -189,7 +200,8 @@ class CircleWalletClient:
             CircleTransferResult with transfer ID and state.
 
         Raises:
-            CircleTransferError: If the API returns no transaction data.
+            CircleTransferError: If the API request fails, returns no
+                transaction data, or returns a terminal/unknown state.
         """
         if not idempotency_key:
             idempotency_key = uuid.uuid4().hex
@@ -206,7 +218,18 @@ class CircleWalletClient:
             fee_level=FeeLevel.MEDIUM,
         )
 
-        response = self.transactions_api.create_developer_transaction_transfer(request)
+        try:
+            response = self.transactions_api.create_developer_transaction_transfer(
+                request
+            )
+        except OpenApiException as exc:
+            raise CircleTransferError(
+                f"Circle API error creating transfer: {exc}"
+            ) from exc
+        except Exception as exc:
+            raise CircleTransferError(
+                f"Unexpected error creating Circle transfer: {exc}"
+            ) from exc
 
         tx = response.data
         if tx is None:
@@ -215,11 +238,16 @@ class CircleWalletClient:
             )
 
         actual = tx.actual_instance if hasattr(tx, "actual_instance") else tx
+        state = (
+            actual.state.value if hasattr(actual.state, "value") else str(actual.state)
+        )
+        if state not in ACCEPTED_TRANSFER_STATES:
+            raise CircleTransferError(
+                "Circle transfer returned terminal/unknown state "
+                f"'{state}' for transfer_id={actual.id}"
+            )
+
         return CircleTransferResult(
             transfer_id=actual.id,
-            state=(
-                actual.state.value
-                if hasattr(actual.state, "value")
-                else str(actual.state)
-            ),
+            state=state,
         )

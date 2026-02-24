@@ -7,7 +7,6 @@ from django.contrib.contenttypes.models import ContentType
 
 from mailing_list.lib import base_email_context
 from paper.models import Paper
-from purchase.circle.client import CircleTransferError
 from purchase.circle.service import CircleWalletService
 from purchase.models import Fundraise, Purchase, Support
 from purchase.related_models.constants.currency import USD
@@ -216,16 +215,6 @@ def sweep_deposit_to_multisig(self, circle_wallet_id, amount, network, sweep_ref
             network=network,
             sweep_reference=sweep_reference,
         )
-    except CircleTransferError as exc:
-        logger.exception(
-            "Sweep failed (retrying): circle_wallet_id=%s amount=%s "
-            "network=%s sweep_reference=%s",
-            circle_wallet_id,
-            amount,
-            network,
-            sweep_reference,
-        )
-        raise self.retry(exc=exc)
     except ValueError:
         logger.exception(
             "Sweep failed (not retryable): circle_wallet_id=%s amount=%s "
@@ -236,3 +225,13 @@ def sweep_deposit_to_multisig(self, circle_wallet_id, amount, network, sweep_ref
             sweep_reference,
         )
         raise
+    except Exception as exc:
+        logger.exception(
+            "Sweep failed (retrying): circle_wallet_id=%s amount=%s "
+            "network=%s sweep_reference=%s",
+            circle_wallet_id,
+            amount,
+            network,
+            sweep_reference,
+        )
+        raise self.retry(exc=exc)

@@ -153,6 +153,50 @@ class TestCircleWalletClient(TestCase):
                 amount="50",
             )
 
+    def test_create_transfer_sdk_error_raises(self):
+        mock_tx_api = Mock()
+        mock_tx_api.create_developer_transaction_transfer.side_effect = RuntimeError(
+            "network down"
+        )
+
+        client = self._make_client(
+            mock_transactions_api=mock_tx_api,
+        )
+
+        with self.assertRaises(CircleTransferError):
+            client.create_transfer(
+                wallet_id="wallet-1",
+                destination_address="0xMultisig",
+                token_address="0xRSC",
+                blockchain="BASE",
+                amount="50",
+            )
+
+    def test_create_transfer_failed_state_raises(self):
+        mock_tx_api = Mock()
+        tx_instance = Mock()
+        tx_instance.id = "transfer-uuid-3"
+        tx_instance.state = Mock(value="FAILED")
+
+        mock_data = Mock()
+        mock_data.actual_instance = tx_instance
+        mock_tx_api.create_developer_transaction_transfer.return_value = Mock(
+            data=mock_data
+        )
+
+        client = self._make_client(
+            mock_transactions_api=mock_tx_api,
+        )
+
+        with self.assertRaises(CircleTransferError):
+            client.create_transfer(
+                wallet_id="wallet-1",
+                destination_address="0xMultisig",
+                token_address="0xRSC",
+                blockchain="BASE",
+                amount="50",
+            )
+
     def test_create_transfer_generates_idempotency_key(self):
         mock_tx_api = Mock()
         tx_instance = Mock()
