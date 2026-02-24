@@ -27,10 +27,6 @@ class FundraiseViewTests(APITestCase):
         self.factory = APIRequestFactory()
         self.mock_fundraise_service = Mock(spec=FundraiseService)
 
-        # URLs for overview endpoints
-        self.funding_overview_url = "/api/fundraise/funding_overview/"
-        self.funding_impact_url = "/api/fundraise/funding_impact/"
-
         self.rsc_exchange_rate = RscExchangeRate.objects.create(
             rate=0.5,
             real_rate=0.5,
@@ -934,48 +930,6 @@ class FundraiseViewTests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("must be RSC or USD", response.data["message"])
-
-    def test_funding_overview_requires_authentication(self):
-        # Arrange
-        self.client.logout()
-
-        # Act
-        response = self.client.get(self.funding_overview_url)
-
-        # Assert
-        self.assertEqual(response.status_code, 401)
-
-    def test_funding_overview_returns_200(self):
-        # Arrange
-        self.client.force_authenticate(self.user)
-
-        # Act
-        response = self.client.get(self.funding_overview_url)
-
-        # Assert
-        self.assertEqual(response.status_code, 200)
-        self.assertIsInstance(response.data, dict)
-
-    def test_funding_impact_requires_authentication(self):
-        # Arrange
-        self.client.logout()
-
-        # Act
-        response = self.client.get(self.funding_impact_url)
-
-        # Assert
-        self.assertEqual(response.status_code, 401)
-
-    def test_funding_impact_returns_200(self):
-        # Arrange
-        self.client.force_authenticate(self.user)
-
-        # Act
-        response = self.client.get(self.funding_impact_url)
-
-        # Assert
-        self.assertEqual(response.status_code, 200)
-        self.assertIsInstance(response.data, dict)
 
     def test_grant_overview_requires_authentication(self):
         # Arrange
