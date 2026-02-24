@@ -2,16 +2,22 @@ from unittest.mock import Mock, patch
 
 from django.test import TestCase
 
-from purchase.circle.client import CircleWalletClient, CircleWalletCreationError
+from purchase.circle.client import (
+    CircleTransferError,
+    CircleWalletClient,
+    CircleWalletCreationError,
+)
 
 
 class TestCircleWalletClient(TestCase):
     """Tests for CircleWalletClient."""
 
-    def _make_client(self, mock_wallets_api):
-        """Create a CircleWalletClient with a mocked WalletsApi."""
+    def _make_client(self, mock_wallets_api=None, mock_transactions_api=None):
+        """Create a CircleWalletClient with mocked APIs."""
         client = CircleWalletClient.__new__(CircleWalletClient)
+        client._api_client = Mock()
         client._wallets_api = mock_wallets_api
+        client._transactions_api = mock_transactions_api
         return client
 
     def _make_wallet_instance(self, **kwargs):
@@ -101,3 +107,94 @@ class TestCircleWalletClient(TestCase):
         self.assertEqual(result.wallet_id, "wallet-1")
         self.assertEqual(result.address, "")
         self.assertEqual(result.state, "FROZEN")
+
+    def test_create_transfer_returns_result(self):
+        mock_tx_api = Mock()
+        tx_instance = Mock()
+        tx_instance.id = "transfer-uuid-1"
+        tx_instance.state = Mock(value="INITIATED")
+
+        mock_data = Mock()
+        mock_data.actual_instance = tx_instance
+        mock_tx_api.create_developer_transaction_transfer.return_value = Mock(
+            data=mock_data
+        )
+
+        client = self._make_client(
+            mock_transactions_api=mock_tx_api,
+        )
+        result = client.create_transfer(
+            wallet_id="wallet-1",
+            destination_address="0xMultisig",
+            token_address="0xRSC",
+            blockchain="BASE",
+            amount="100.5",
+        )
+
+        self.assertEqual(result.transfer_id, "transfer-uuid-1")
+        self.assertEqual(result.state, "INITIATED")
+        mock_tx_api.create_developer_transaction_transfer.assert_called_once()
+        call_args = mock_tx_api.create_developer_transaction_transfer.call_args
+        request = call_args[0][0]
+        self.assertIsNotNone(request.idempotency_key)
+
+    def test_create_transfer_no_data_raises(self):
+        mock_tx_api = Mock()
+        mock_tx_api.create_developer_transaction_transfer.return_value = Mock(data=None)
+
+        client = self._make_client(
+            mock_transactions_api=mock_tx_api,
+        )
+
+        with self.assertRaises(CircleTransferError):
+            client.create_transfer(
+                wallet_id="wallet-1",
+                destination_address="0xMultisig",
+                token_address="0xRSC",
+                blockchain="BASE",
+                amount="50",
+            )
+
+    def test_create_transfer_sdk_error_raises(self):
+        mock_tx_api = Mock()
+        mock_tx_api.create_developer_transaction_transfer.side_effect = RuntimeError(
+            "network down"
+        )
+
+        client = self._make_client(
+            mock_transactions_api=mock_tx_api,
+        )
+
+        with self.assertRaises(CircleTransferError):
+            client.create_transfer(
+                wallet_id="wallet-1",
+                destination_address="0xMultisig",
+                token_address="0xRSC",
+                blockchain="BASE",
+                amount="50",
+            )
+
+    def test_create_transfer_failed_state_raises(self):
+        mock_tx_api = Mock()
+        tx_instance = Mock()
+        tx_instance.id = "transfer-uuid-3"
+        tx_instance.state = Mock(value="FAILED")
+
+        mock_data = Mock()
+        mock_data.actual_instance = tx_instance
+        mock_tx_api.create_developer_transaction_transfer.return_value = Mock(
+            data=mock_data
+        )
+
+        client = self._make_client(
+            mock_transactions_api=mock_tx_api,
+        )
+
+        with self.assertRaises(CircleTransferError):
+            client.create_transfer(
+                wallet_id="wallet-1",
+                destination_address="0xMultisig",
+                token_address="0xRSC",
+                blockchain="BASE",
+                amount="50",
+            )

@@ -19,7 +19,7 @@ class DepositAddressView(APIView):
     GET /api/wallet/deposit-address/
 
     Responses:
-        200: {"address": "0x...", "provisioning": false}
+        200: {"address": "0x..."}
         500: {"detail": "Failed to provision deposit address"}
     """
 
@@ -35,7 +35,6 @@ class DepositAddressView(APIView):
             return Response(
                 {
                     "address": result.address,
-                    "provisioning": result.provisioning,
                 }
             )
         except (CircleWalletFrozenError, CircleWalletCreationError):

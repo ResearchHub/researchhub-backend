@@ -15,6 +15,7 @@ from purchase.circle.webhook import (
     verify_webhook_signature,
 )
 from purchase.models import Wallet
+from purchase.tasks import sweep_deposit_to_multisig
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.models import Deposit
@@ -212,21 +213,30 @@ class CircleWebhookView(APIView):
 
             if not created:
                 logger.info(
-                    "Duplicate Circle notification %s, skipping", notification_id
+                    "Duplicate Circle notification %s, skipping credit",
+                    notification_id,
                 )
-                return
+            else:
+                deposit.set_paid()
 
-            deposit.set_paid()
+                distribution = Dist("DEPOSIT", deposit_amount, give_rep=False)
+                distributor = Distributor(
+                    distribution, user, deposit, time.time(), user
+                )
+                distributor.distribute()
 
-            distribution = Dist("DEPOSIT", deposit_amount, give_rep=False)
-            distributor = Distributor(distribution, user, deposit, time.time(), user)
-            distributor.distribute()
+        if created:
+            logger.info(
+                "Circle deposit credited: user=%s amount=%s blockchain=%s network=%s notification_id=%s",
+                user.id,
+                deposit_amount,
+                blockchain,
+                network,
+                notification_id,
+            )
 
-        logger.info(
-            "Circle deposit credited: user=%s amount=%s blockchain=%s network=%s notification_id=%s",
-            user.id,
-            deposit_amount,
-            blockchain,
-            network,
-            notification_id,
+        transaction.on_commit(
+            lambda circle_wallet_id=wallet.circle_wallet_id, amount=deposit_amount, deposit_network=network, ref=notification_id: sweep_deposit_to_multisig.delay(
+                circle_wallet_id, amount, deposit_network, ref
+            )
         )
