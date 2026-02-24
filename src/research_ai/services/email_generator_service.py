@@ -148,16 +148,10 @@ def _parse_subject_and_body(text: str) -> tuple[str, str]:
     """
     subject = ""
     body = text.strip()
-    subject_match = re.match(r"(?i)^Subject:\s*(.+?)(?:\n\n|\n\s*\n)", body, re.DOTALL)
-    if subject_match:
-        subject = subject_match.group(1).strip()
-        body = body[subject_match.end() :].strip()
-    else:
-        # Try single line Subject: ...
-        subject_match = re.match(r"(?i)^Subject:\s*(.+)$", body, re.MULTILINE)
-        if subject_match:
-            subject = subject_match.group(1).strip()
-            body = re.sub(r"(?i)^Subject:\s*.+$", "", body, count=1).strip()
+    match = re.match(r"(?i)^Subject:\s*(.+)\n([\s\S]*)", body)
+    if match:
+        subject = match.group(1).strip()
+        body = match.group(2).strip()
     return subject, body
 
 
