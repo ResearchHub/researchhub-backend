@@ -6,6 +6,7 @@ import pytz
 from django.contrib.contenttypes.models import ContentType
 
 from mailing_list.lib import base_email_context
+from notification.models import Notification
 from paper.models import Paper
 from purchase.circle.service import CircleWalletService
 from purchase.models import Fundraise, Purchase, Support
@@ -79,8 +80,6 @@ def complete_eligible_fundraises():
 
 @app.task(queue=QUEUE_NOTIFICATION)
 def send_monthly_preregistration_update_reminders():
-    from notification.models import Notification
-
     now = datetime.now(pytz.UTC)
     open_fundraises = Fundraise.objects.filter(
         status=Fundraise.OPEN,
