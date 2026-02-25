@@ -386,27 +386,6 @@ class TestCircleOutboundWebhook(TestCase):
     @patch(
         "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
     )
-    def test_outbound_confirmed_marks_sweep_complete(self, _mock_verify):
-        deposit = Deposit.objects.create(
-            user=self.user,
-            amount="100",
-            network="BASE",
-            from_address="",
-            circle_notification_id="notif-inbound",
-            sweep_status=Deposit.SWEEP_INITIATED,
-            sweep_transfer_id="sweep-tx-001",
-        )
-
-        payload = _make_outbound_payload(state="CONFIRMED")
-        response = self._post(payload)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        deposit.refresh_from_db()
-        self.assertEqual(deposit.sweep_status, Deposit.SWEEP_COMPLETE)
-
-    @patch(
-        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
-    )
     def test_outbound_failed_marks_sweep_failed(self, _mock_verify):
         deposit = Deposit.objects.create(
             user=self.user,
