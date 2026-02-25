@@ -1,8 +1,11 @@
+from decimal import Decimal
 from unittest.mock import Mock, patch
 
+from circle.web3.developer_controlled_wallets.exceptions import OpenApiException
 from django.test import TestCase
 
 from purchase.circle.client import (
+    CircleBalanceError,
     CircleTransferError,
     CircleWalletClient,
     CircleWalletCreationError,
@@ -248,3 +251,57 @@ class TestCircleWalletClient(TestCase):
                 blockchain="BASE",
                 amount="50",
             )
+
+    # ── get_wallet_balance ──
+
+    def test_get_wallet_balance_returns_amount(self):
+        mock_api = Mock()
+        balance_item = Mock()
+        balance_item.amount = "1234.567"
+        mock_api.list_wallet_balance.return_value = Mock(
+            data=Mock(token_balances=[balance_item])
+        )
+
+        client = self._make_client(mock_api)
+        result = client.get_wallet_balance("wallet-1", "0xRSC")
+
+        self.assertEqual(result, Decimal("1234.567"))
+        mock_api.list_wallet_balance.assert_called_once_with(
+            id="wallet-1", token_address="0xRSC"
+        )
+
+    def test_get_wallet_balance_empty_list_returns_zero(self):
+        mock_api = Mock()
+        mock_api.list_wallet_balance.return_value = Mock(data=Mock(token_balances=[]))
+
+        client = self._make_client(mock_api)
+        result = client.get_wallet_balance("wallet-1", "0xRSC")
+
+        self.assertEqual(result, Decimal(0))
+
+    def test_get_wallet_balance_none_list_returns_zero(self):
+        mock_api = Mock()
+        mock_api.list_wallet_balance.return_value = Mock(data=Mock(token_balances=None))
+
+        client = self._make_client(mock_api)
+        result = client.get_wallet_balance("wallet-1", "0xRSC")
+
+        self.assertEqual(result, Decimal(0))
+
+    def test_get_wallet_balance_sdk_error_raises(self):
+        mock_api = Mock()
+        mock_api.list_wallet_balance.side_effect = OpenApiException("api down")
+
+        client = self._make_client(mock_api)
+
+        with self.assertRaises(CircleBalanceError):
+            client.get_wallet_balance("wallet-1", "0xRSC")
+
+    def test_get_wallet_balance_unexpected_error_raises(self):
+        mock_api = Mock()
+        mock_api.list_wallet_balance.side_effect = RuntimeError("unexpected")
+
+        client = self._make_client(mock_api)
+
+        with self.assertRaises(CircleBalanceError):
+            client.get_wallet_balance("wallet-1", "0xRSC")

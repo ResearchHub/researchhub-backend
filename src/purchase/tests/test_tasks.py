@@ -8,6 +8,7 @@ from django.test import TestCase
 
 from notification.models import Notification
 from purchase.circle.client import CircleTransferError, CircleTransferResult
+from purchase.circle.service import CircleZeroBalanceError
 from purchase.models import Fundraise, Wallet
 from purchase.services.fundraise_service import FundraiseService
 from purchase.tasks import (
@@ -253,6 +254,31 @@ class SweepDepositTaskTest(TestCase):
         )
 
         with self.assertRaises(ValueError):
+            sweep_deposit_to_multisig.run("wallet-1", "100", "BASE", "notif-1")
+
+        self.deposit.refresh_from_db()
+        self.assertEqual(self.deposit.sweep_status, Deposit.SWEEP_FAILED)
+
+    @patch.object(sweep_deposit_to_multisig, "retry")
+    @patch("purchase.tasks.CircleWalletService")
+    def test_sweep_zero_balance_does_not_retry(self, mock_service_class, mock_retry):
+        mock_service_class.return_value.sweep_wallet.side_effect = (
+            CircleZeroBalanceError("zero balance")
+        )
+
+        with self.assertRaises(CircleZeroBalanceError):
+            sweep_deposit_to_multisig.run("wallet-1", "100", "BASE", "notif-1")
+
+        mock_retry.assert_not_called()
+
+    @patch.object(sweep_deposit_to_multisig, "retry")
+    @patch("purchase.tasks.CircleWalletService")
+    def test_sweep_zero_balance_sets_failed(self, mock_service_class, mock_retry):
+        mock_service_class.return_value.sweep_wallet.side_effect = (
+            CircleZeroBalanceError("zero balance")
+        )
+
+        with self.assertRaises(CircleZeroBalanceError):
             sweep_deposit_to_multisig.run("wallet-1", "100", "BASE", "notif-1")
 
         self.deposit.refresh_from_db()

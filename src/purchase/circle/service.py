@@ -1,6 +1,7 @@
 import logging
 import uuid
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Optional
 
 from django.conf import settings
@@ -48,6 +49,12 @@ NETWORK_TO_RSC_ADDRESS = {
     "ETHEREUM": lambda: settings.WEB3_RSC_ADDRESS,
     "BASE": lambda: settings.WEB3_BASE_RSC_ADDRESS,
 }
+
+
+class CircleZeroBalanceError(Exception):
+    """Raised when a sweep is attempted on a wallet with zero balance."""
+
+    pass
 
 
 @dataclass
@@ -183,14 +190,15 @@ class CircleWalletService:
         sweep_reference: str,
     ) -> CircleTransferResult:
         """
-        Sweep deposited RSC from a user's Circle wallet.
+        Sweep the full RSC balance from a user's Circle wallet.
 
+        Reads the wallet's actual token balance and sweeps the entire amount.
         Amounts worth >= $10,000 USD are sent to the multisig wallet;
         smaller amounts are sent to the hot wallet.
 
         Args:
             circle_wallet_id: The Circle wallet UUID to sweep from.
-            amount: Amount of RSC to sweep as a decimal string.
+            amount: Original deposit amount (used for logging comparison only).
             network: Deposit network ("ETHEREUM" or "BASE").
             sweep_reference: Unique per-deposit reference used for idempotency
                 (for example, Circle notification ID).
@@ -201,10 +209,10 @@ class CircleWalletService:
         Raises:
             ValueError: If the network is unsupported or destination wallet
                 is not configured.
+            CircleZeroBalanceError: If the wallet has zero balance.
+            CircleBalanceError: If the balance fetch fails.
             CircleTransferError: If the Circle API call fails.
         """
-        destination = self._get_sweep_destination(amount)
-
         blockchain = get_network_to_blockchain().get(network)
         if not blockchain:
             raise ValueError(f"Unsupported network for sweep: {network}")
@@ -213,6 +221,39 @@ class CircleWalletService:
         if not rsc_address_fn:
             raise ValueError(f"No RSC token address configured for network: {network}")
         rsc_address = rsc_address_fn()
+
+        # Fetch actual wallet balance instead of using the deposit amount.
+        wallet_balance = self.client.get_wallet_balance(
+            wallet_id=circle_wallet_id,
+            token_address=rsc_address,
+        )
+
+        logger.info(
+            "sweep_balance_fetched: circle_wallet_id=%s wallet_balance=%s "
+            "original_deposit_amount=%s network=%s sweep_reference=%s",
+            circle_wallet_id,
+            wallet_balance,
+            amount,
+            network,
+            sweep_reference,
+        )
+
+        if wallet_balance == Decimal(0):
+            logger.error(
+                "sweep_zero_balance: circle_wallet_id=%s "
+                "original_deposit_amount=%s network=%s sweep_reference=%s",
+                circle_wallet_id,
+                amount,
+                network,
+                sweep_reference,
+            )
+            raise CircleZeroBalanceError(
+                f"Wallet {circle_wallet_id} has zero RSC balance "
+                f"(expected ~{amount}). sweep_reference={sweep_reference}"
+            )
+
+        sweep_amount = str(wallet_balance)
+        destination = self._get_sweep_destination(sweep_amount)
 
         idempotency_key = str(
             uuid.uuid5(uuid.NAMESPACE_URL, f"rh-sweep-{sweep_reference}")
@@ -223,14 +264,16 @@ class CircleWalletService:
             destination_address=destination,
             token_address=rsc_address,
             blockchain=blockchain,
-            amount=amount,
+            amount=sweep_amount,
             idempotency_key=idempotency_key,
         )
 
         logger.info(
-            "Sweep initiated: circle_wallet_id=%s amount=%s network=%s "
+            "Sweep initiated: circle_wallet_id=%s sweep_amount=%s "
+            "original_deposit_amount=%s network=%s "
             "destination=%s sweep_reference=%s transfer_id=%s state=%s",
             circle_wallet_id,
+            sweep_amount,
             amount,
             network,
             destination,
