@@ -1,7 +1,10 @@
+import csv
 from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
 from rest_framework import serializers, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -10,14 +13,17 @@ from rest_framework.response import Response
 from analytics.amplitude import track_event
 from purchase.models import Fundraise
 from purchase.related_models.constants.currency import RSC, USD
-from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
 from purchase.serializers.funding_impact_serializer import FundingImpactSerializer
 from purchase.serializers.funding_overview_serializer import FundingOverviewSerializer
+from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.purchase_serializer import DynamicPurchaseSerializer
-from purchase.services.fundraise_service import FundraiseService
 from purchase.services.funding_impact_service import FundingImpactService
 from purchase.services.funding_overview_service import FundingOverviewService
+from purchase.services.fundraise_service import (
+    USD_CONTRIBUTION_CSV_HEADERS,
+    FundraiseService,
+)
 from referral.services.referral_bonus_service import ReferralBonusService
 from user.models import User
 from user.permissions import IsModerator
@@ -311,6 +317,35 @@ class FundraiseViewSet(viewsets.ModelViewSet):
                 },
                 status=400,
             )
+
+    @action(
+        methods=["GET"],
+        detail=True,
+        permission_classes=[IsModerator],
+        url_path="usd_contributions.csv",
+    )
+    def usd_contributions_csv(self, request, *args, **kwargs):
+        """
+        Export a CSV of USD contributions for a fundraise.
+        Used for manual USD contribution payout/refund processing.
+        """
+        fundraise = get_object_or_404(
+            Fundraise.objects.select_related("unified_document", "escrow"),
+            id=kwargs.get("pk"),
+        )
+
+        rows = self.fundraise_service.export_usd_contributions(fundraise)
+
+        filename = f"fundraise_{fundraise.id}_usd_contributions.csv"
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+        writer = csv.writer(response)
+        writer.writerow(USD_CONTRIBUTION_CSV_HEADERS)
+        for row in rows:
+            writer.writerow(row)
+
+        return response
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def funding_overview(self, request, *args, **kwargs):

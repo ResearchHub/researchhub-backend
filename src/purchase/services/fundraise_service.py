@@ -33,6 +33,26 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 )
 from user.models import User
 
+USD_CONTRIBUTION_CSV_HEADERS = [
+    "fundraise_id",
+    "fundraise_status",
+    "fundraise_goal_amount_usd",
+    "document_title",
+    "nonprofit_name",
+    "contribution_id",
+    "contributor_name",
+    "contributor_email",
+    "amount_usd",
+    "fee_usd",
+    "net_amount_usd",
+    "origin_fund_id",
+    "destination_org_id",
+    "endaoment_transfer_id",
+    "contribution_date",
+    "status",
+    "is_refunded",
+]
+
 logger = logging.getLogger(__name__)
 
 
@@ -485,3 +505,51 @@ class FundraiseService:
             fundraise.escrow.set_cancelled_status()
 
             return True
+
+    def export_usd_contributions(self, fundraise: Fundraise) -> list[list]:
+        """
+        Return all USD contributions for a given fundraise as rows for CSV export.
+        Note: CSV headers are available in `USD_CONTRIBUTION_CSV_HEADERS`.
+        """
+        nonprofit_org = fundraise.get_nonprofit_org()
+        nonprofit_name = nonprofit_org.name if nonprofit_org else ""
+
+        document = fundraise.unified_document.get_document()
+        document_title = document.title if document else ""
+
+        contributions = (
+            fundraise.usd_contributions.all()
+            .select_related("user")
+            .order_by("created_date")
+        )
+
+        rows = []
+        for c in contributions.iterator():
+            amount_usd = c.amount_cents / 100
+            fee_usd = c.fee_cents / 100
+            net_usd = (c.amount_cents - c.fee_cents) / 100
+            contributor_name = f"{c.user.first_name} {c.user.last_name}".strip()
+
+            rows.append(
+                [
+                    fundraise.id,
+                    fundraise.status,
+                    fundraise.goal_amount,
+                    document_title,
+                    nonprofit_name,
+                    c.id,
+                    contributor_name,
+                    c.user.email,
+                    f"{amount_usd:.2f}",
+                    f"{fee_usd:.2f}",
+                    f"{net_usd:.2f}",
+                    c.origin_fund_id,
+                    c.destination_org_id,
+                    c.endaoment_transfer_id or "",
+                    c.created_date.strftime("%Y-%m-%d %H:%M:%S"),
+                    c.status,
+                    c.is_refunded,
+                ]
+            )
+
+        return rows
