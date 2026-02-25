@@ -250,5 +250,5 @@ class GrantViewSet(viewsets.ModelViewSet):
             "available_funding_in_rsc": round(total_rsc, 2),
             "available_funding_in_usd": round(total_usd, 2),
         }
-        cache.set(cache_key, data, timeout=60 * 5)
+        cache.set(cache_key, data, timeout=60 * 60 * 12)
         return Response(data)
