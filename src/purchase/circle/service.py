@@ -12,6 +12,7 @@ from purchase.circle.client import (
     CircleWalletFrozenError,
 )
 from purchase.models import Wallet
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from user.models import User
 
 logger = logging.getLogger(__name__)
@@ -150,7 +151,6 @@ class CircleWalletService:
         Amounts worth >= SWEEP_MULTISIG_THRESHOLD_USD go to the multisig;
         smaller amounts go to the hot wallet.
         """
-        from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 
         multisig = getattr(settings, "RH_MULTISIG_ADDRESS", None)
         hot_wallet = getattr(settings, "WEB3_WALLET_ADDRESS", None)
