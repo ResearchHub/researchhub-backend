@@ -241,11 +241,19 @@ class CircleWebhookView(APIView):
             )
             return
 
-        # Look up the wallet (and user) by Circle wallet ID
-        try:
-            wallet = Wallet.objects.select_related("user").get(
-                circle_wallet_id=wallet_id
+        network = BLOCKCHAIN_TO_NETWORK.get(blockchain)
+        if network is None:
+            logger.error(
+                "Unknown Circle blockchain %r for wallet_id=%s notification_id=%s",
+                blockchain,
+                wallet_id,
+                notification_id,
             )
+            return
+
+        # Look up the wallet (and user) by the chain-specific wallet ID.
+        try:
+            wallet = Wallet.get_by_circle_wallet_id(wallet_id, network=network)
         except Wallet.DoesNotExist:
             logger.warning(
                 "Circle webhook for unknown wallet_id=%s, notification_id=%s",
@@ -255,17 +263,6 @@ class CircleWebhookView(APIView):
             return
 
         user = wallet.user
-        network = BLOCKCHAIN_TO_NETWORK.get(blockchain)
-
-        if network is None:
-            logger.error(
-                "Unknown Circle blockchain %r for wallet_id=%s user=%s notification_id=%s",
-                blockchain,
-                wallet_id,
-                user.id,
-                notification_id,
-            )
-            return
 
         with transaction.atomic():
             deposit, created = Deposit.objects.get_or_create(
@@ -303,8 +300,23 @@ class CircleWebhookView(APIView):
                 notification_id,
             )
 
-        transaction.on_commit(
-            lambda circle_wallet_id=wallet.circle_wallet_id, amount=deposit_amount, deposit_network=network, ref=notification_id: sweep_deposit_to_multisig.delay(
-                circle_wallet_id, amount, deposit_network, ref
+        sweep_wallet_id = wallet.get_circle_wallet_id_for_network(network)
+        if not sweep_wallet_id:
+            logger.error(
+                "No Circle wallet ID for network=%s wallet_pk=%s "
+                "notification_id=%s — skipping sweep",
+                network,
+                wallet.pk,
+                notification_id,
             )
-        )
+            return
+
+        def _dispatch_sweep(
+            cw=sweep_wallet_id,
+            amt=deposit_amount,
+            net=network,
+            ref=notification_id,
+        ):
+            sweep_deposit_to_multisig.delay(cw, amt, net, ref)
+
+        transaction.on_commit(_dispatch_sweep)

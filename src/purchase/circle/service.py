@@ -103,24 +103,29 @@ class CircleWalletService:
         return self._fetch_and_store_address(wallet)
 
     def _create_wallet(self, wallet: Wallet, user: User) -> None:
-        """Create a new Circle wallet and store the wallet ID."""
+        """Create new Circle wallets (ETH + Base) and store both wallet IDs."""
         idempotency_key = str(uuid.uuid5(uuid.NAMESPACE_URL, f"rh-wallet-{wallet.pk}"))
         full_name = user.get_full_name().strip()
         wallet_name = f"{full_name}'s wallet" if full_name else None
-        wallet_id = self.client.create_wallet(
+        result = self.client.create_wallet(
             idempotency_key=idempotency_key,
             wallet_name=wallet_name,
             ref_id=str(user.id),
         )
 
-        wallet.circle_wallet_id = wallet_id
+        wallet.circle_wallet_id = result.eth_wallet_id
+        wallet.circle_base_wallet_id = result.base_wallet_id
         wallet.wallet_type = Wallet.WALLET_TYPE_CIRCLE
-        wallet.save(update_fields=["circle_wallet_id", "wallet_type"])
+        wallet.save(
+            update_fields=["circle_wallet_id", "circle_base_wallet_id", "wallet_type"]
+        )
 
         logger.info(
-            "Circle wallet created for wallet pk=%s, circle_wallet_id=%s",
+            "Circle wallets created for wallet pk=%s, "
+            "eth_wallet_id=%s, base_wallet_id=%s",
             wallet.pk,
-            wallet_id,
+            result.eth_wallet_id,
+            result.base_wallet_id,
         )
 
     def _fetch_and_store_address(self, wallet: Wallet) -> DepositAddressResult:

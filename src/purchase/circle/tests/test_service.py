@@ -8,6 +8,7 @@ from purchase.circle.client import (
     CircleTransferError,
     CircleTransferResult,
     CircleWalletCreationError,
+    CircleWalletCreationResult,
     CircleWalletFrozenError,
     CircleWalletResult,
 )
@@ -69,9 +70,12 @@ class TestCircleWalletService(TestCase):
         self.user.last_name = "Doe"
         self.user.save(update_fields=["first_name", "last_name"])
 
-        self.mock_client.create_wallet.return_value = "new-circle-wallet-id"
+        self.mock_client.create_wallet.return_value = CircleWalletCreationResult(
+            eth_wallet_id="new-eth-wallet-id",
+            base_wallet_id="new-base-wallet-id",
+        )
         self.mock_client.get_wallet.return_value = CircleWalletResult(
-            wallet_id="new-circle-wallet-id",
+            wallet_id="new-eth-wallet-id",
             address="0xBrandNewAddress",
             state="LIVE",
         )
@@ -88,7 +92,8 @@ class TestCircleWalletService(TestCase):
             wallet_name="John Doe's wallet",
             ref_id=str(self.user.id),
         )
-        self.assertEqual(wallet.circle_wallet_id, "new-circle-wallet-id")
+        self.assertEqual(wallet.circle_wallet_id, "new-eth-wallet-id")
+        self.assertEqual(wallet.circle_base_wallet_id, "new-base-wallet-id")
         self.assertEqual(wallet.address, "0xBrandNewAddress")
         self.assertEqual(wallet.wallet_type, Wallet.WALLET_TYPE_CIRCLE)
 
@@ -96,9 +101,12 @@ class TestCircleWalletService(TestCase):
         """When user has an empty wallet record, create Circle wallet."""
         wallet = Wallet.objects.create(user=self.user)
 
-        self.mock_client.create_wallet.return_value = "new-id"
+        self.mock_client.create_wallet.return_value = CircleWalletCreationResult(
+            eth_wallet_id="new-eth-id",
+            base_wallet_id="new-base-id",
+        )
         self.mock_client.get_wallet.return_value = CircleWalletResult(
-            wallet_id="new-id",
+            wallet_id="new-eth-id",
             address="0xAddr",
             state="LIVE",
         )
@@ -115,12 +123,16 @@ class TestCircleWalletService(TestCase):
         )
 
         wallet.refresh_from_db()
-        self.assertEqual(wallet.circle_wallet_id, "new-id")
+        self.assertEqual(wallet.circle_wallet_id, "new-eth-id")
+        self.assertEqual(wallet.circle_base_wallet_id, "new-base-id")
         self.assertEqual(wallet.address, "0xAddr")
 
     def test_raises_not_live_when_wallet_frozen(self):
         """When wallet is FROZEN, raise error. Wallet ID is saved."""
-        self.mock_client.create_wallet.return_value = "frozen-wallet-id"
+        self.mock_client.create_wallet.return_value = CircleWalletCreationResult(
+            eth_wallet_id="frozen-wallet-id",
+            base_wallet_id="frozen-base-id",
+        )
         self.mock_client.get_wallet.return_value = CircleWalletResult(
             wallet_id="frozen-wallet-id",
             address="",

@@ -165,6 +165,7 @@ class SweepDepositTaskTest(TestCase):
         self.wallet = Wallet.objects.create(
             user=self.user,
             circle_wallet_id="wallet-1",
+            circle_base_wallet_id="wallet-1-base",
             wallet_type=Wallet.WALLET_TYPE_CIRCLE,
             address="0xSweepAddress",
         )
@@ -262,6 +263,7 @@ class RetryFailedSweepsTaskTest(TestCase):
         self.wallet = Wallet.objects.create(
             user=self.user,
             circle_wallet_id="wallet-retry",
+            circle_base_wallet_id="wallet-retry-base",
             wallet_type=Wallet.WALLET_TYPE_CIRCLE,
             address="0xRetryAddress",
         )
@@ -336,7 +338,7 @@ class RetryFailedSweepsTaskTest(TestCase):
         deposit.refresh_from_db()
         self.assertEqual(deposit.sweep_status, Deposit.SWEEP_PENDING)
         mock_sweep_task.delay.assert_called_once_with(
-            circle_wallet_id="wallet-retry",
+            circle_wallet_id="wallet-retry-base",
             amount="150",
             network="BASE",
             sweep_reference="notif-stale",
@@ -399,3 +401,12 @@ class RetryFailedSweepsTaskTest(TestCase):
 
         self.assertEqual(result, 2)
         self.assertEqual(mock_sweep_task.delay.call_count, 2)
+
+        # Verify correct wallet IDs are used per network
+        call_kwargs_list = [
+            call.kwargs for call in mock_sweep_task.delay.call_args_list
+        ]
+        base_call = next(c for c in call_kwargs_list if c["network"] == "BASE")
+        eth_call = next(c for c in call_kwargs_list if c["network"] == "ETHEREUM")
+        self.assertEqual(base_call["circle_wallet_id"], "wallet-retry-base")
+        self.assertEqual(eth_call["circle_wallet_id"], "wallet-retry")

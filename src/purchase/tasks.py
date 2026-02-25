@@ -289,10 +289,20 @@ def retry_failed_sweeps():
     retried = 0
     for deposit in retryable_deposits:
         wallet = getattr(deposit.user, "wallet", None)
-        if not wallet or not wallet.circle_wallet_id:
+        if not wallet:
             logger.warning(
-                "Cannot retry sweep for deposit %s — no Circle wallet",
+                "Cannot retry sweep for deposit %s — no wallet",
                 deposit.id,
+            )
+            continue
+
+        circle_wallet_id = wallet.get_circle_wallet_id_for_network(deposit.network)
+        if not circle_wallet_id:
+            logger.warning(
+                "Cannot retry sweep for deposit %s "
+                "— no Circle wallet ID for network %s",
+                deposit.id,
+                deposit.network,
             )
             continue
 
@@ -300,7 +310,7 @@ def retry_failed_sweeps():
         deposit.save(update_fields=["sweep_status"])
 
         sweep_deposit_to_multisig.delay(
-            circle_wallet_id=wallet.circle_wallet_id,
+            circle_wallet_id=circle_wallet_id,
             amount=deposit.amount,
             network=deposit.network,
             sweep_reference=deposit.circle_notification_id,
