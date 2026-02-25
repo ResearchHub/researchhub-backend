@@ -8,6 +8,7 @@ from django.test import TestCase
 
 from purchase.circle.client import CircleTransferError, CircleTransferResult
 from purchase.models import Fundraise, Wallet
+from reputation.related_models.deposit import Deposit
 from purchase.services.fundraise_service import FundraiseService
 from notification.models import Notification
 from purchase.tasks import (
