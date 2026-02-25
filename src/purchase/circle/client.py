@@ -1,6 +1,7 @@
 import logging
 import uuid
 from dataclasses import dataclass
+from decimal import Decimal
 
 from circle.web3 import utils as circle_utils
 from circle.web3.configurations.api.webhook_subscriptions_api import (
@@ -47,6 +48,12 @@ class CircleWalletFrozenError(Exception):
 
 class CircleTransferError(Exception):
     """Raised when Circle fails to create a transfer."""
+
+    pass
+
+
+class CircleBalanceError(Exception):
+    """Raised when Circle fails to fetch a wallet balance."""
 
     pass
 
@@ -234,6 +241,43 @@ class CircleWalletClient:
             address=wallet.address,
             state=wallet.state.value,
         )
+
+    def get_wallet_balance(
+        self,
+        wallet_id: str,
+        token_address: str,
+    ) -> Decimal:
+        """
+        Fetch the balance of a specific token in a Circle wallet.
+
+        Args:
+            wallet_id: The Circle wallet UUID.
+            token_address: Contract address of the token to look up.
+
+        Returns:
+            The token balance as a Decimal (zero if the token is not found).
+
+        Raises:
+            CircleBalanceError: If the API request fails.
+        """
+        try:
+            response = self.wallets_api.list_wallet_balance(
+                id=wallet_id,
+                token_address=token_address,
+            )
+        except OpenApiException as exc:
+            raise CircleBalanceError(
+                f"Circle API error fetching balance for wallet {wallet_id}: {exc}"
+            ) from exc
+        except Exception as exc:
+            raise CircleBalanceError(
+                f"Unexpected error fetching balance for wallet {wallet_id}: {exc}"
+            ) from exc
+
+        for balance in response.data.token_balances or []:
+            return Decimal(balance.amount)
+
+        return Decimal(0)
 
     def create_transfer(
         self,

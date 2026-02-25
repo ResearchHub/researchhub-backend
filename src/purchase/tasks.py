@@ -9,7 +9,11 @@ from django.db import models
 from mailing_list.lib import base_email_context
 from notification.models import Notification
 from paper.models import Paper
-from purchase.circle.service import COMPLETED_STATES, CircleWalletService
+from purchase.circle.service import (
+    COMPLETED_STATES,
+    CircleWalletService,
+    CircleZeroBalanceError,
+)
 from purchase.models import Fundraise, Purchase, Support
 from purchase.related_models.constants.currency import USD
 from purchase.services.fundraise_service import FundraiseService
@@ -282,7 +286,7 @@ def sweep_deposit_to_multisig(self, circle_wallet_id, amount, network, sweep_ref
                 deposit.sweep_status = Deposit.SWEEP_INITIATED
             deposit.sweep_transfer_id = result.transfer_id
             deposit.save(update_fields=["sweep_status", "sweep_transfer_id"])
-    except ValueError:
+    except (ValueError, CircleZeroBalanceError):
         logger.exception(
             "Sweep failed (not retryable): circle_wallet_id=%s amount=%s "
             "network=%s sweep_reference=%s",
