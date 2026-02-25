@@ -203,7 +203,10 @@ def send_support_email(
 )
 def sweep_deposit_to_multisig(self, circle_wallet_id, amount, network, sweep_reference):
     """
-    Sweep deposited RSC from a user's Circle wallet to the RH multisig.
+    Sweep deposited RSC from a user's Circle wallet.
+
+    Amounts worth >= $10,000 USD are sent to the multisig wallet;
+    smaller amounts are sent to the hot wallet.
 
     Fired asynchronously after crediting a user's balance on deposit.
     """

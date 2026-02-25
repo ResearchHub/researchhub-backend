@@ -2,7 +2,6 @@ import base64
 import logging
 import re
 
-import requests
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import load_der_public_key
@@ -28,22 +27,16 @@ class CircleTransientTokenValidationError(Exception):
 
 def _fetch_public_key(key_id: str) -> str:
     """Fetch a Circle notification public key by ID (base64-encoded DER)."""
-    if not getattr(settings, "CIRCLE_API_KEY", None):
-        raise ValueError("CIRCLE_API_KEY is not configured")
+    from purchase.circle.client import CircleWalletClient
 
-    api_base = settings.CIRCLE_API_BASE_URL
-    url = f"{api_base}/v2/notifications/publicKey/{key_id}"
-    headers = {"Authorization": f"Bearer {settings.CIRCLE_API_KEY}"}
+    client = CircleWalletClient()
     try:
-        response = requests.get(url, headers=headers, timeout=5)
-        response.raise_for_status()
-    except requests.exceptions.RequestException:
+        return client.get_notification_public_key(key_id)
+    except Exception:
         logger.error(
             "Failed to fetch Circle public key for key_id=%s", key_id, exc_info=True
         )
         raise
-    data = response.json()
-    return data["data"]["publicKey"]
 
 
 def _get_public_key_b64(key_id: str) -> str:
@@ -61,23 +54,16 @@ def _get_public_key_b64(key_id: str) -> str:
 
 def _fetch_token(token_id: str) -> dict:
     """Fetch a Circle token object by token ID."""
-    if not getattr(settings, "CIRCLE_API_KEY", None):
-        raise ValueError("CIRCLE_API_KEY is not configured")
+    from purchase.circle.client import CircleWalletClient
 
-    api_base = settings.CIRCLE_API_BASE_URL
-    url = f"{api_base}/v1/w3s/tokens/{token_id}"
-    headers = {"Authorization": f"Bearer {settings.CIRCLE_API_KEY}"}
+    client = CircleWalletClient()
     try:
-        response = requests.get(url, headers=headers, timeout=5)
-        response.raise_for_status()
-    except requests.exceptions.RequestException:
+        return client.get_token(token_id)
+    except Exception:
         logger.error(
             "Failed to fetch Circle token for token_id=%s", token_id, exc_info=True
         )
         raise
-
-    data = response.json()
-    return data["data"]["token"]
 
 
 def _get_token(token_id: str) -> dict:
@@ -176,7 +162,10 @@ def verify_webhook_signature(request_body: bytes, signature: str, key_id: str) -
     # allowed to propagate so the view returns 500 and Circle retries.
     try:
         public_key_b64 = _get_public_key_b64(key_id)
-    except requests.exceptions.RequestException:
+    except ValueError:
+        logger.warning("Invalid Circle key_id format: key_id=%s", key_id, exc_info=True)
+        return False
+    except Exception:
         logger.warning(
             "Transient error fetching Circle public key for key_id=%s",
             key_id,

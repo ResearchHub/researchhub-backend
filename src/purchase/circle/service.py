@@ -12,9 +12,14 @@ from purchase.circle.client import (
     CircleWalletFrozenError,
 )
 from purchase.models import Wallet
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from user.models import User
 
 logger = logging.getLogger(__name__)
+
+# Sweeps worth this amount or more (in USD) go to the multisig;
+# smaller sweeps go to the hot wallet.
+SWEEP_MULTISIG_THRESHOLD_USD = 10_000
 
 # Map Deposit.network values to Circle blockchain identifiers
 NETWORK_TO_BLOCKCHAIN_MAINNET = {
@@ -139,6 +144,28 @@ class CircleWalletService:
 
         return DepositAddressResult(address=result.address)
 
+    def _get_sweep_destination(self, amount: str) -> str:
+        """
+        Return the destination address for a sweep based on USD value.
+
+        Amounts worth >= SWEEP_MULTISIG_THRESHOLD_USD go to the multisig;
+        smaller amounts go to the hot wallet.
+        """
+
+        multisig = getattr(settings, "RH_MULTISIG_ADDRESS", None)
+        hot_wallet = getattr(settings, "WEB3_WALLET_ADDRESS", None)
+
+        usd_value = RscExchangeRate.rsc_to_usd(float(amount))
+
+        if usd_value >= SWEEP_MULTISIG_THRESHOLD_USD:
+            if not multisig:
+                raise ValueError("RH_MULTISIG_ADDRESS is not configured")
+            return multisig
+        else:
+            if not hot_wallet:
+                raise ValueError("WEB3_WALLET_ADDRESS is not configured")
+            return hot_wallet
+
     def sweep_wallet(
         self,
         circle_wallet_id: str,
@@ -147,7 +174,10 @@ class CircleWalletService:
         sweep_reference: str,
     ) -> CircleTransferResult:
         """
-        Sweep deposited RSC from a user's Circle wallet to the RH multisig.
+        Sweep deposited RSC from a user's Circle wallet.
+
+        Amounts worth >= $10,000 USD are sent to the multisig wallet;
+        smaller amounts are sent to the hot wallet.
 
         Args:
             circle_wallet_id: The Circle wallet UUID to sweep from.
@@ -160,12 +190,11 @@ class CircleWalletService:
             CircleTransferResult with transfer_id and state.
 
         Raises:
-            ValueError: If the network is unsupported or multisig is not configured.
+            ValueError: If the network is unsupported or destination wallet
+                is not configured.
             CircleTransferError: If the Circle API call fails.
         """
-        multisig = getattr(settings, "RH_MULTISIG_ADDRESS", None)
-        if not multisig:
-            raise ValueError("RH_MULTISIG_ADDRESS is not configured")
+        destination = self._get_sweep_destination(amount)
 
         blockchain = get_network_to_blockchain().get(network)
         if not blockchain:
@@ -182,7 +211,7 @@ class CircleWalletService:
 
         result = self.client.create_transfer(
             wallet_id=circle_wallet_id,
-            destination_address=multisig,
+            destination_address=destination,
             token_address=rsc_address,
             blockchain=blockchain,
             amount=amount,
@@ -191,10 +220,11 @@ class CircleWalletService:
 
         logger.info(
             "Sweep initiated: circle_wallet_id=%s amount=%s network=%s "
-            "sweep_reference=%s transfer_id=%s state=%s",
+            "destination=%s sweep_reference=%s transfer_id=%s state=%s",
             circle_wallet_id,
             amount,
             network,
+            destination,
             sweep_reference,
             result.transfer_id,
             result.state,
