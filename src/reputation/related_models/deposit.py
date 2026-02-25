@@ -29,7 +29,7 @@ class Deposit(SoftDeletableModel, PaidStatusModelMixin):
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
     transaction_hash = models.CharField(default="", blank=True, max_length=255)
-    circle_notification_id = models.CharField(
+    circle_transaction_id = models.CharField(
         max_length=255,
         null=True,
         blank=True,

@@ -9,6 +9,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from purchase.circle.service import COMPLETED_STATES, FAILED_STATES
 from purchase.circle.webhook import (
     CircleTransientTokenValidationError,
     is_rsc_token,
@@ -29,10 +30,6 @@ BLOCKCHAIN_TO_NETWORK = {
     "BASE": "BASE",
     "BASE-SEPOLIA": "BASE",
 }
-
-
-COMPLETED_STATES = {"COMPLETED", "COMPLETE"}
-FAILED_STATES = {"FAILED", "CANCELLED", "DENIED"}
 
 
 class CircleWebhookView(APIView):
@@ -193,6 +190,7 @@ class CircleWebhookView(APIView):
 
     def _process_inbound_transfer(self, payload, notification):
         notification_id = payload["notificationId"]
+        circle_transaction_id = notification["id"]
         wallet_id = notification["walletId"]
         blockchain = notification.get("blockchain", "")
         token_id = notification.get("tokenId")
@@ -266,7 +264,7 @@ class CircleWebhookView(APIView):
 
         with transaction.atomic():
             deposit, created = Deposit.objects.get_or_create(
-                circle_notification_id=notification_id,
+                circle_transaction_id=circle_transaction_id,
                 defaults={
                     "user": user,
                     "amount": deposit_amount,
@@ -278,7 +276,8 @@ class CircleWebhookView(APIView):
 
             if not created:
                 logger.info(
-                    "Duplicate Circle notification %s, skipping credit",
+                    "Duplicate Circle transaction %s (notification_id=%s), skipping credit",
+                    circle_transaction_id,
                     notification_id,
                 )
             else:
@@ -292,11 +291,13 @@ class CircleWebhookView(APIView):
 
         if created:
             logger.info(
-                "Circle deposit credited: user=%s amount=%s blockchain=%s network=%s notification_id=%s",
+                "Circle deposit credited: user=%s amount=%s blockchain=%s "
+                "network=%s circle_transaction_id=%s notification_id=%s",
                 user.id,
                 deposit_amount,
                 blockchain,
                 network,
+                circle_transaction_id,
                 notification_id,
             )
 
@@ -304,10 +305,10 @@ class CircleWebhookView(APIView):
         if not sweep_wallet_id:
             logger.error(
                 "No Circle wallet ID for network=%s wallet_pk=%s "
-                "notification_id=%s — skipping sweep",
+                "circle_transaction_id=%s — skipping sweep",
                 network,
                 wallet.pk,
-                notification_id,
+                circle_transaction_id,
             )
             return
 
@@ -315,7 +316,7 @@ class CircleWebhookView(APIView):
             cw=sweep_wallet_id,
             amt=deposit_amount,
             net=network,
-            ref=notification_id,
+            ref=circle_transaction_id,
         ):
             sweep_deposit_to_multisig.delay(cw, amt, net, ref)
 

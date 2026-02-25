@@ -6,17 +6,17 @@ import pytz
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
+from notification.models import Notification
 from purchase.circle.client import CircleTransferError, CircleTransferResult
 from purchase.models import Fundraise, Wallet
-from reputation.related_models.deposit import Deposit
 from purchase.services.fundraise_service import FundraiseService
-from notification.models import Notification
 from purchase.tasks import (
     complete_eligible_fundraises,
+    retry_failed_sweeps,
     send_monthly_preregistration_update_reminders,
     sweep_deposit_to_multisig,
-    retry_failed_sweeps,
 )
+from reputation.related_models.deposit import Deposit
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from user.tests.helpers import create_random_authenticated_user, create_user
@@ -176,7 +176,7 @@ class SweepDepositTaskTest(TestCase):
             amount="100",
             network="BASE",
             from_address="",
-            circle_notification_id="notif-1",
+            circle_transaction_id="notif-1",
             sweep_status=Deposit.SWEEP_PENDING,
         )
 
@@ -257,7 +257,8 @@ class SweepDepositTaskTest(TestCase):
 
         self.deposit.refresh_from_db()
         self.assertEqual(self.deposit.sweep_status, Deposit.SWEEP_FAILED)
-        
+
+
 class PreregistrationUpdateReminderTest(TestCase):
     def setUp(self):
         self.user = create_random_authenticated_user("reminder_test", moderator=True)
@@ -317,6 +318,7 @@ class PreregistrationUpdateReminderTest(TestCase):
         self.assertEqual(result["sent_count"], 0)
         self.assertEqual(self.notif_qs.count(), 1)
 
+
 class RetryFailedSweepsTaskTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="retryuser")
@@ -335,7 +337,7 @@ class RetryFailedSweepsTaskTest(TestCase):
             amount="250",
             network="ETHEREUM",
             from_address="",
-            circle_notification_id="notif-retry-1",
+            circle_transaction_id="notif-retry-1",
             sweep_status=Deposit.SWEEP_FAILED,
         )
 
@@ -359,7 +361,7 @@ class RetryFailedSweepsTaskTest(TestCase):
             amount="100",
             network="BASE",
             from_address="",
-            circle_notification_id="notif-initiated",
+            circle_transaction_id="notif-initiated",
             sweep_status=Deposit.SWEEP_INITIATED,
         )
         Deposit.objects.create(
@@ -367,7 +369,7 @@ class RetryFailedSweepsTaskTest(TestCase):
             amount="200",
             network="BASE",
             from_address="",
-            circle_notification_id="notif-pending",
+            circle_transaction_id="notif-pending",
             sweep_status=Deposit.SWEEP_PENDING,
         )
 
@@ -384,7 +386,7 @@ class RetryFailedSweepsTaskTest(TestCase):
             amount="150",
             network="BASE",
             from_address="",
-            circle_notification_id="notif-stale",
+            circle_transaction_id="notif-stale",
             sweep_status=Deposit.SWEEP_INITIATED,
             sweep_transfer_id="tx-stale",
         )
@@ -406,7 +408,7 @@ class RetryFailedSweepsTaskTest(TestCase):
 
     @patch("purchase.tasks.sweep_deposit_to_multisig")
     def test_skips_non_circle_deposits(self, mock_sweep_task):
-        # Legacy deposit without circle_notification_id
+        # Legacy deposit without circle_transaction_id
         Deposit.objects.create(
             user=self.user,
             amount="100",
@@ -429,7 +431,7 @@ class RetryFailedSweepsTaskTest(TestCase):
             amount="100",
             network="BASE",
             from_address="",
-            circle_notification_id="notif-no-wallet",
+            circle_transaction_id="notif-no-wallet",
             sweep_status=Deposit.SWEEP_FAILED,
         )
 
@@ -445,7 +447,7 @@ class RetryFailedSweepsTaskTest(TestCase):
             amount="100",
             network="BASE",
             from_address="",
-            circle_notification_id="notif-fail-1",
+            circle_transaction_id="notif-fail-1",
             sweep_status=Deposit.SWEEP_FAILED,
         )
         Deposit.objects.create(
@@ -453,7 +455,7 @@ class RetryFailedSweepsTaskTest(TestCase):
             amount="200",
             network="ETHEREUM",
             from_address="",
-            circle_notification_id="notif-fail-2",
+            circle_transaction_id="notif-fail-2",
             sweep_status=Deposit.SWEEP_FAILED,
         )
 
