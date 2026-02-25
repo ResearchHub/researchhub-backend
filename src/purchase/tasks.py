@@ -9,7 +9,7 @@ from django.db import models
 from mailing_list.lib import base_email_context
 from notification.models import Notification
 from paper.models import Paper
-from purchase.circle.service import CircleWalletService
+from purchase.circle.service import COMPLETED_STATES, CircleWalletService
 from purchase.models import Fundraise, Purchase, Support
 from purchase.related_models.constants.currency import USD
 from purchase.services.fundraise_service import FundraiseService
@@ -83,11 +83,15 @@ def complete_eligible_fundraises():
 @app.task(queue=QUEUE_NOTIFICATION)
 def send_monthly_preregistration_update_reminders():
     now = datetime.now(pytz.UTC)
-    open_fundraises = Fundraise.objects.filter(
-        status=Fundraise.OPEN,
-    ).exclude(
-        end_date__lte=now,
-    ).select_related("created_by", "unified_document")
+    open_fundraises = (
+        Fundraise.objects.filter(
+            status=Fundraise.OPEN,
+        )
+        .exclude(
+            end_date__lte=now,
+        )
+        .select_related("created_by", "unified_document")
+    )
 
     fundraise_ct = ContentType.objects.get_for_model(Fundraise)
     sent_count = 0
@@ -116,7 +120,10 @@ def send_monthly_preregistration_update_reminders():
             notification.send_notification()
             sent_count += 1
         except Exception as e:
-            log_error(e, message=f"Error sending preregistration update reminder for fundraise {fundraise.id}")
+            log_error(
+                e,
+                message=f"Error sending preregistration update reminder for fundraise {fundraise.id}",
+            )
 
     log_info(f"Sent {sent_count} preregistration update reminders")
     return {"sent_count": sent_count}
@@ -256,7 +263,7 @@ def sweep_deposit_to_multisig(self, circle_wallet_id, amount, network, sweep_ref
     Fired asynchronously after crediting a user's balance on deposit.
     Updates Deposit.sweep_status to track the outcome.
     """
-    deposit = Deposit.objects.filter(circle_notification_id=sweep_reference).first()
+    deposit = Deposit.objects.filter(circle_transaction_id=sweep_reference).first()
 
     try:
         service = CircleWalletService()
@@ -267,7 +274,12 @@ def sweep_deposit_to_multisig(self, circle_wallet_id, amount, network, sweep_ref
             sweep_reference=sweep_reference,
         )
         if deposit:
-            deposit.sweep_status = Deposit.SWEEP_INITIATED
+            # If the idempotent transfer is already finalized (e.g. duplicate
+            # webhook replay), record COMPLETE instead of downgrading.
+            if result.state in COMPLETED_STATES:
+                deposit.sweep_status = Deposit.SWEEP_COMPLETE
+            else:
+                deposit.sweep_status = Deposit.SWEEP_INITIATED
             deposit.sweep_transfer_id = result.transfer_id
             deposit.save(update_fields=["sweep_status", "sweep_transfer_id"])
     except ValueError:
@@ -317,7 +329,7 @@ def retry_failed_sweeps():
 
     retryable_deposits = (
         Deposit.objects.filter(
-            circle_notification_id__isnull=False,
+            circle_transaction_id__isnull=False,
         )
         .filter(
             models.Q(sweep_status=Deposit.SWEEP_FAILED)
@@ -349,15 +361,19 @@ def retry_failed_sweeps():
             )
             continue
 
+        try:
+            sweep_deposit_to_multisig.delay(
+                circle_wallet_id=circle_wallet_id,
+                amount=deposit.amount,
+                network=deposit.network,
+                sweep_reference=deposit.circle_transaction_id,
+            )
+        except Exception:
+            logger.exception("Failed to enqueue sweep retry for deposit %s", deposit.id)
+            continue
+
         deposit.sweep_status = Deposit.SWEEP_PENDING
         deposit.save(update_fields=["sweep_status"])
-
-        sweep_deposit_to_multisig.delay(
-            circle_wallet_id=circle_wallet_id,
-            amount=deposit.amount,
-            network=deposit.network,
-            sweep_reference=deposit.circle_notification_id,
-        )
         retried += 1
 
     logger.info("retry_failed_sweeps: re-dispatched %d sweeps", retried)

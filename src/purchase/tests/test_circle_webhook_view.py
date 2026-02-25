@@ -15,6 +15,7 @@ User = get_user_model()
 
 def _make_payload(
     notification_id="notif-001",
+    transaction_id="tx-001",
     wallet_id="circle-wallet-base-abc",
     notification_type="transactions.inbound",
     state="COMPLETED",
@@ -29,7 +30,7 @@ def _make_payload(
         "notificationId": notification_id,
         "notificationType": notification_type,
         "notification": {
-            "id": "tx-001",
+            "id": transaction_id,
             "blockchain": blockchain,
             "walletId": wallet_id,
             "tokenId": "token-rsc",
@@ -86,7 +87,7 @@ class TestCircleWebhookView(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Deposit record created
-        deposit = Deposit.objects.get(circle_notification_id="notif-001")
+        deposit = Deposit.objects.get(circle_transaction_id="tx-001")
         self.assertEqual(deposit.user, self.user)
         self.assertEqual(deposit.amount, "100")
         self.assertEqual(deposit.network, "BASE")
@@ -137,7 +138,7 @@ class TestCircleWebhookView(TestCase):
 
         # Only one deposit created
         self.assertEqual(
-            Deposit.objects.filter(circle_notification_id="notif-001").count(), 1
+            Deposit.objects.filter(circle_transaction_id="tx-001").count(), 1
         )
 
     @patch(
@@ -168,7 +169,7 @@ class TestCircleWebhookView(TestCase):
         response = self._post(payload)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        deposit = Deposit.objects.get(circle_notification_id="notif-001")
+        deposit = Deposit.objects.get(circle_transaction_id="tx-001")
         self.assertEqual(deposit.network, "ETHEREUM")
 
     @patch(
@@ -263,7 +264,7 @@ class TestCircleWebhookView(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         mock_sweep_task.delay.assert_called_once_with(
-            "circle-wallet-base-abc", "100", "BASE", "notif-001"
+            "circle-wallet-base-abc", "100", "BASE", "tx-001"
         )
 
     @patch("purchase.views.circle_webhook_view.sweep_deposit_to_multisig")
@@ -281,7 +282,7 @@ class TestCircleWebhookView(TestCase):
         with self.captureOnCommitCallbacks(execute=True):
             self._post(payload)
         mock_sweep_task.delay.assert_called_once_with(
-            "circle-wallet-base-abc", "100", "BASE", "notif-001"
+            "circle-wallet-base-abc", "100", "BASE", "tx-001"
         )
 
     @patch("purchase.views.circle_webhook_view.sweep_deposit_to_multisig")
@@ -299,7 +300,7 @@ class TestCircleWebhookView(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         mock_sweep_task.delay.assert_called_once_with(
-            "circle-wallet-abc", "100", "ETHEREUM", "notif-001"
+            "circle-wallet-abc", "100", "ETHEREUM", "tx-001"
         )
 
     @patch("purchase.views.circle_webhook_view.sweep_deposit_to_multisig")
@@ -314,10 +315,10 @@ class TestCircleWebhookView(TestCase):
             response = self._post(payload)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        deposit = Deposit.objects.get(circle_notification_id="notif-001")
+        deposit = Deposit.objects.get(circle_transaction_id="tx-001")
         self.assertEqual(deposit.network, "BASE")
         mock_sweep_task.delay.assert_called_once_with(
-            "circle-wallet-base-abc", "100", "BASE", "notif-001"
+            "circle-wallet-base-abc", "100", "BASE", "tx-001"
         )
 
     @patch("purchase.views.circle_webhook_view.sweep_deposit_to_multisig")
@@ -346,7 +347,7 @@ class TestCircleWebhookView(TestCase):
 
         self.assertEqual(response2.status_code, status.HTTP_200_OK)
         self.assertEqual(
-            Deposit.objects.filter(circle_notification_id="notif-001").count(),
+            Deposit.objects.filter(circle_transaction_id="tx-001").count(),
             1,
         )
         self.assertEqual(mock_sweep_task.delay.call_count, 2)
@@ -409,7 +410,7 @@ class TestCircleOutboundWebhook(TestCase):
             amount="100",
             network="BASE",
             from_address="",
-            circle_notification_id="notif-inbound",
+            circle_transaction_id="notif-inbound",
             sweep_status=Deposit.SWEEP_INITIATED,
             sweep_transfer_id="sweep-tx-001",
         )
@@ -430,7 +431,7 @@ class TestCircleOutboundWebhook(TestCase):
             amount="100",
             network="BASE",
             from_address="",
-            circle_notification_id="notif-inbound",
+            circle_transaction_id="notif-inbound",
             sweep_status=Deposit.SWEEP_INITIATED,
             sweep_transfer_id="sweep-tx-001",
         )
@@ -451,7 +452,7 @@ class TestCircleOutboundWebhook(TestCase):
             amount="100",
             network="BASE",
             from_address="",
-            circle_notification_id="notif-inbound",
+            circle_transaction_id="notif-inbound",
             sweep_status=Deposit.SWEEP_INITIATED,
             sweep_transfer_id="sweep-tx-001",
         )
@@ -472,7 +473,7 @@ class TestCircleOutboundWebhook(TestCase):
             amount="100",
             network="BASE",
             from_address="",
-            circle_notification_id="notif-inbound",
+            circle_transaction_id="notif-inbound",
             sweep_status=Deposit.SWEEP_INITIATED,
             sweep_transfer_id="sweep-tx-001",
         )
@@ -504,7 +505,7 @@ class TestCircleOutboundWebhook(TestCase):
             amount="100",
             network="BASE",
             from_address="",
-            circle_notification_id="notif-inbound",
+            circle_transaction_id="notif-inbound",
             sweep_status=Deposit.SWEEP_COMPLETE,
             sweep_transfer_id="sweep-tx-001",
         )

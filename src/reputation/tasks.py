@@ -238,7 +238,7 @@ def _check_deposits(max_age=None):
     # until we add signed messages to validate users own wallets.
     deposits = (
         Deposit.objects.filter(Q(paid_status=None) | Q(paid_status="PENDING"))
-        .exclude(circle_notification_id__isnull=False)
+        .exclude(circle_transaction_id__isnull=False)
         .order_by("created_date")
     )
 

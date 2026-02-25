@@ -17,6 +17,10 @@ from user.models import User
 
 logger = logging.getLogger(__name__)
 
+# Circle terminal states used across webhook handling and sweep tracking.
+COMPLETED_STATES = {"COMPLETED", "COMPLETE"}
+FAILED_STATES = {"FAILED", "CANCELLED", "DENIED"}
+
 # Sweeps worth this amount or more (in USD) go to the multisig;
 # smaller sweeps go to the hot wallet.
 SWEEP_MULTISIG_THRESHOLD_USD = 10_000
