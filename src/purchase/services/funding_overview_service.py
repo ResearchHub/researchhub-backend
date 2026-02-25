@@ -1,4 +1,5 @@
 """Services for funding and grant overview dashboard metrics."""
+
 from django.db.models import Case, Count, IntegerField, When
 from django.utils import timezone
 
@@ -10,7 +11,7 @@ from user.models import User
 
 
 class FundingOverviewService(OverviewMixin):
-    """Service for calculating funding portfolio dashboard metrics for grant creators."""
+    """Funding portfolio dashboard metrics for grant creators."""
 
     def get_funding_overview(self, user: User) -> dict:
         """Return funding overview metrics for a given user."""
@@ -90,9 +91,11 @@ class GrantOverviewService(OverviewMixin):
         fundraise_ids = list(
             applications.exclude(
                 preregistration_post__unified_document__fundraises__id__isnull=True
-            ).values_list(
+            )
+            .values_list(
                 "preregistration_post__unified_document__fundraises__id", flat=True
-            ).distinct()
+            )
+            .distinct()
         )
         user_funded_ids = get_funded_fundraise_ids(user.id)
         funded_fundraise_ids = list(set(fundraise_ids) & user_funded_ids)
@@ -105,7 +108,10 @@ class GrantOverviewService(OverviewMixin):
             ),
             "budget_total_usd": float(grant.amount),
             "matched_funding_usd": round(
-                self._matched_contributions_usd(user.id, funded_fundraise_ids, exchange_rate), 2
+                self._matched_contributions_usd(
+                    user.id, funded_fundraise_ids, exchange_rate
+                ),
+                2,
             ),
             "total_proposals": applications.count(),
             "proposals_funded": len(funded_fundraise_ids),
