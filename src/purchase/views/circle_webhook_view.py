@@ -189,6 +189,8 @@ class CircleWebhookView(APIView):
         circle_transaction_id = notification["id"]
         wallet_id = notification["walletId"]
         blockchain = notification.get("blockchain", "")
+        source_address = notification.get("sourceAddress", "")
+        tx_hash = notification.get("txHash", "")
         token_id = notification.get("tokenId")
         amounts = notification.get("amounts", [])
 
@@ -255,7 +257,8 @@ class CircleWebhookView(APIView):
                     "user": user,
                     "amount": deposit_amount,
                     "network": network,
-                    "from_address": "",
+                    "from_address": source_address,
+                    "transaction_hash": tx_hash,
                     "sweep_status": Deposit.SWEEP_PENDING,
                 },
             )
