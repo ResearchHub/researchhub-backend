@@ -15,7 +15,7 @@ User = get_user_model()
 
 def _make_payload(
     notification_id="notif-001",
-    wallet_id="circle-wallet-abc",
+    wallet_id="circle-wallet-base-abc",
     notification_type="transactions.inbound",
     state="COMPLETED",
     blockchain="BASE",
@@ -52,6 +52,7 @@ class TestCircleWebhookView(TestCase):
         self.wallet = Wallet.objects.create(
             user=self.user,
             circle_wallet_id="circle-wallet-abc",
+            circle_base_wallet_id="circle-wallet-base-abc",
             wallet_type=Wallet.WALLET_TYPE_CIRCLE,
             address="0xUserAddress",
         )
@@ -163,7 +164,7 @@ class TestCircleWebhookView(TestCase):
         "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
     )
     def test_eth_blockchain_maps_to_ethereum_network(self, _mock_verify):
-        payload = _make_payload(blockchain="ETH")
+        payload = _make_payload(wallet_id="circle-wallet-abc", blockchain="ETH")
         response = self._post(payload)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -262,7 +263,7 @@ class TestCircleWebhookView(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         mock_sweep_task.delay.assert_called_once_with(
-            "circle-wallet-abc", "100", "BASE", "notif-001"
+            "circle-wallet-base-abc", "100", "BASE", "notif-001"
         )
 
     @patch("purchase.views.circle_webhook_view.sweep_deposit_to_multisig")
@@ -280,7 +281,43 @@ class TestCircleWebhookView(TestCase):
         with self.captureOnCommitCallbacks(execute=True):
             self._post(payload)
         mock_sweep_task.delay.assert_called_once_with(
-            "circle-wallet-abc", "100", "BASE", "notif-001"
+            "circle-wallet-base-abc", "100", "BASE", "notif-001"
+        )
+
+    @patch("purchase.views.circle_webhook_view.sweep_deposit_to_multisig")
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature",
+        return_value=True,
+    )
+    def test_sweep_uses_eth_wallet_id_for_eth_deposit(
+        self, _mock_verify, mock_sweep_task
+    ):
+        """ETH deposit uses circle_wallet_id (ETH) for sweep."""
+        payload = _make_payload(wallet_id="circle-wallet-abc", blockchain="ETH")
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self._post(payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mock_sweep_task.delay.assert_called_once_with(
+            "circle-wallet-abc", "100", "ETHEREUM", "notif-001"
+        )
+
+    @patch("purchase.views.circle_webhook_view.sweep_deposit_to_multisig")
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature",
+        return_value=True,
+    )
+    def test_base_deposit_found_by_base_wallet_id(self, _mock_verify, mock_sweep_task):
+        """Base chain deposit is found via circle_base_wallet_id."""
+        payload = _make_payload(wallet_id="circle-wallet-base-abc", blockchain="BASE")
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self._post(payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        deposit = Deposit.objects.get(circle_notification_id="notif-001")
+        self.assertEqual(deposit.network, "BASE")
+        mock_sweep_task.delay.assert_called_once_with(
+            "circle-wallet-base-abc", "100", "BASE", "notif-001"
         )
 
     @patch("purchase.views.circle_webhook_view.sweep_deposit_to_multisig")
@@ -347,6 +384,7 @@ class TestCircleOutboundWebhook(TestCase):
         self.wallet = Wallet.objects.create(
             user=self.user,
             circle_wallet_id="circle-wallet-abc",
+            circle_base_wallet_id="circle-wallet-base-abc",
             wallet_type=Wallet.WALLET_TYPE_CIRCLE,
             address="0xUserAddress",
         )

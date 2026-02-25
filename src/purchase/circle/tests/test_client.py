@@ -6,6 +6,7 @@ from purchase.circle.client import (
     CircleTransferError,
     CircleWalletClient,
     CircleWalletCreationError,
+    CircleWalletCreationResult,
 )
 
 
@@ -26,21 +27,57 @@ class TestCircleWalletClient(TestCase):
         wallet.id = kwargs.get("id", "wallet-uuid-1")
         wallet.address = kwargs.get("address", "0xABC123")
         wallet.state = kwargs.get("state", Mock(value="LIVE"))
+        wallet.blockchain = kwargs.get("blockchain", Mock(value="ETH"))
         return wallet
 
-    def test_create_wallet_returns_wallet_id(self):
-        mock_api = Mock()
-        wallet_instance = self._make_wallet_instance(id="circle-wallet-uuid-1")
-        wallet_wrapper = Mock()
-        wallet_wrapper.actual_instance = wallet_instance
+    def _make_wallet_pair(self, eth_id="eth-wallet-1", base_id="base-wallet-1"):
+        """Create a pair of mock wallet wrappers (ETH + BASE)."""
+        eth_wallet = self._make_wallet_instance(id=eth_id, blockchain=Mock(value="ETH"))
+        base_wallet = self._make_wallet_instance(
+            id=base_id, blockchain=Mock(value="BASE")
+        )
+        eth_wrapper = Mock()
+        eth_wrapper.actual_instance = eth_wallet
+        base_wrapper = Mock()
+        base_wrapper.actual_instance = base_wallet
+        return [eth_wrapper, base_wrapper]
 
-        mock_api.create_wallet.return_value = Mock(data=Mock(wallets=[wallet_wrapper]))
+    def test_create_wallet_returns_both_wallet_ids(self):
+        mock_api = Mock()
+        wallets = self._make_wallet_pair(eth_id="eth-uuid-1", base_id="base-uuid-1")
+        mock_api.create_wallet.return_value = Mock(data=Mock(wallets=wallets))
 
         client = self._make_client(mock_api)
-        wallet_id = client.create_wallet(idempotency_key="test-key-1")
+        result = client.create_wallet(idempotency_key="test-key-1")
 
-        self.assertEqual(wallet_id, "circle-wallet-uuid-1")
+        self.assertIsInstance(result, CircleWalletCreationResult)
+        self.assertEqual(result.eth_wallet_id, "eth-uuid-1")
+        self.assertEqual(result.base_wallet_id, "base-uuid-1")
         mock_api.create_wallet.assert_called_once()
+
+    def test_create_wallet_handles_reversed_order(self):
+        """Wallet IDs are mapped by blockchain, not by array position."""
+        mock_api = Mock()
+        # Return BASE first, then ETH
+        base_wallet = self._make_wallet_instance(
+            id="base-first", blockchain=Mock(value="BASE")
+        )
+        eth_wallet = self._make_wallet_instance(
+            id="eth-second", blockchain=Mock(value="ETH")
+        )
+        base_wrapper = Mock()
+        base_wrapper.actual_instance = base_wallet
+        eth_wrapper = Mock()
+        eth_wrapper.actual_instance = eth_wallet
+        mock_api.create_wallet.return_value = Mock(
+            data=Mock(wallets=[base_wrapper, eth_wrapper])
+        )
+
+        client = self._make_client(mock_api)
+        result = client.create_wallet()
+
+        self.assertEqual(result.eth_wallet_id, "eth-second")
+        self.assertEqual(result.base_wallet_id, "base-first")
 
     def test_create_wallet_empty_response_raises(self):
         mock_api = Mock()
@@ -51,12 +88,25 @@ class TestCircleWalletClient(TestCase):
         with self.assertRaises(CircleWalletCreationError):
             client.create_wallet()
 
+    def test_create_wallet_missing_one_chain_raises(self):
+        """If Circle only returns one chain's wallet, raise an error."""
+        mock_api = Mock()
+        eth_only = self._make_wallet_instance(
+            id="eth-only", blockchain=Mock(value="ETH")
+        )
+        wrapper = Mock()
+        wrapper.actual_instance = eth_only
+        mock_api.create_wallet.return_value = Mock(data=Mock(wallets=[wrapper]))
+
+        client = self._make_client(mock_api)
+
+        with self.assertRaises(CircleWalletCreationError):
+            client.create_wallet()
+
     def test_create_wallet_generates_idempotency_key_when_none(self):
         mock_api = Mock()
-        wallet_instance = self._make_wallet_instance()
-        wallet_wrapper = Mock()
-        wallet_wrapper.actual_instance = wallet_instance
-        mock_api.create_wallet.return_value = Mock(data=Mock(wallets=[wallet_wrapper]))
+        wallets = self._make_wallet_pair()
+        mock_api.create_wallet.return_value = Mock(data=Mock(wallets=wallets))
 
         client = self._make_client(mock_api)
         client.create_wallet()

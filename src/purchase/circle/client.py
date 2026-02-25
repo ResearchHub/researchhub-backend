@@ -56,6 +56,14 @@ class CircleTransferError(Exception):
 
 
 @dataclass
+class CircleWalletCreationResult:
+    """Result of creating Circle wallets (one per chain)."""
+
+    eth_wallet_id: str
+    base_wallet_id: str
+
+
+@dataclass
 class CircleWalletResult:
     """Result of fetching a Circle wallet."""
 
@@ -134,18 +142,27 @@ class CircleWalletClient:
         response = self.token_lookup_api.get_token_id(id=token_id)
         return response.data.token.to_dict()
 
+    @staticmethod
+    def _blockchain_family(blockchain_value: str) -> str | None:
+        """Normalize a Circle blockchain identifier to 'ETH' or 'BASE'."""
+        upper = (blockchain_value or "").upper()
+        if upper.startswith("BASE"):
+            return "BASE"
+        if upper.startswith("ETH"):
+            return "ETH"
+        return None
+
     def create_wallet(
         self,
         idempotency_key: str | None = None,
         wallet_name: str | None = None,
         ref_id: str | None = None,
-    ) -> str:
+    ) -> CircleWalletCreationResult:
         """
         Request creation of a new SCA wallet on ETH and BASE.
 
-        Circle wallet creation may be asynchronous. This method returns the
-        wallet ID; the caller should use `get_wallet()` to check if the
-        wallet is LIVE and retrieve the on-chain address.
+        Circle creates one wallet per blockchain. Both wallets share the
+        same on-chain address but have distinct wallet IDs.
 
         Args:
             idempotency_key: Key to prevent duplicate wallet creation on
@@ -155,10 +172,11 @@ class CircleWalletClient:
                 Circle's side.
 
         Returns:
-            The Circle wallet ID (UUID string).
+            CircleWalletCreationResult with wallet IDs for each chain.
 
         Raises:
-            CircleWalletCreationError: If the API returns no wallets.
+            CircleWalletCreationError: If the API returns no wallets or
+                a wallet for either chain is missing.
         """
         if not idempotency_key:
             idempotency_key = uuid.uuid4().hex
@@ -189,8 +207,29 @@ class CircleWalletClient:
                 "Circle API returned no wallets in creation response"
             )
 
-        wallet = wallets[0].actual_instance
-        return wallet.id
+        # Map each wallet to its chain family (ETH or BASE).
+        wallet_ids_by_chain: dict[str, str] = {}
+        for wrapper in wallets:
+            w = wrapper.actual_instance
+            blockchain_str = (
+                w.blockchain.value
+                if hasattr(w.blockchain, "value")
+                else str(w.blockchain)
+            )
+            family = self._blockchain_family(blockchain_str)
+            if family:
+                wallet_ids_by_chain[family] = w.id
+
+        eth_id = wallet_ids_by_chain.get("ETH")
+        base_id = wallet_ids_by_chain.get("BASE")
+
+        if not eth_id or not base_id:
+            raise CircleWalletCreationError(
+                "Circle API did not return wallets for both chains. "
+                f"Got: {wallet_ids_by_chain}"
+            )
+
+        return CircleWalletCreationResult(eth_wallet_id=eth_id, base_wallet_id=base_id)
 
     def get_wallet(self, wallet_id: str) -> CircleWalletResult:
         """
