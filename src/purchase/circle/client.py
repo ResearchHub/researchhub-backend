@@ -3,7 +3,14 @@ import uuid
 from dataclasses import dataclass
 
 from circle.web3 import utils as circle_utils
-from circle.web3.developer_controlled_wallets.api import TransactionsApi, WalletsApi
+from circle.web3.configurations.api.webhook_subscriptions_api import (
+    WebhookSubscriptionsApi,
+)
+from circle.web3.developer_controlled_wallets.api import (
+    TokenLookupApi,
+    TransactionsApi,
+    WalletsApi,
+)
 from circle.web3.developer_controlled_wallets.exceptions import OpenApiException
 from circle.web3.developer_controlled_wallets.models import (
     AccountType,
@@ -77,6 +84,8 @@ class CircleWalletClient:
         self._api_client = None
         self._wallets_api = None
         self._transactions_api = None
+        self._token_lookup_api = None
+        self._webhook_subscriptions_api = None
 
     @property
     def api_client(self):
@@ -98,6 +107,32 @@ class CircleWalletClient:
         if self._transactions_api is None:
             self._transactions_api = TransactionsApi(self.api_client)
         return self._transactions_api
+
+    @property
+    def token_lookup_api(self):
+        if self._token_lookup_api is None:
+            self._token_lookup_api = TokenLookupApi(self.api_client)
+        return self._token_lookup_api
+
+    @property
+    def webhook_subscriptions_api(self):
+        if self._webhook_subscriptions_api is None:
+            # Ensure the SDK is initialized (sets up circle_utils.CONF_CLIENT)
+            self.api_client
+            self._webhook_subscriptions_api = WebhookSubscriptionsApi(
+                circle_utils.CONF_CLIENT
+            )
+        return self._webhook_subscriptions_api
+
+    def get_notification_public_key(self, key_id: str) -> str:
+        """Fetch a Circle notification public key by ID (base64-encoded DER)."""
+        response = self.webhook_subscriptions_api.get_notification_signature(id=key_id)
+        return response.data.public_key
+
+    def get_token(self, token_id: str) -> dict:
+        """Fetch a Circle token by ID and return it as a dict."""
+        response = self.token_lookup_api.get_token_id(id=token_id)
+        return response.data.token.to_dict()
 
     def create_wallet(
         self,
