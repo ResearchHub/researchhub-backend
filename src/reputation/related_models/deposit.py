@@ -45,4 +45,5 @@ class Deposit(SoftDeletableModel, PaidStatusModelMixin):
         max_length=255,
         null=True,
         blank=True,
+        db_index=True,
     )
