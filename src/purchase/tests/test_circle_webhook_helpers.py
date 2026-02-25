@@ -19,22 +19,18 @@ class TestCircleWebhookHelpers(TestCase):
         self.assertEqual(public_key, "Zm9v")
         mock_fetch_public_key.assert_called_once_with(key_id)
 
-    @patch(
-        "purchase.circle.webhook._fetch_token",
-        return_value={"tokenAddress": "0xabc", "blockchain": "BASE"},
-    )
-    def test_get_token_accepts_uppercase_uuid(self, mock_fetch_token):
-        token_id = "38F2AD29-A77B-5A44-BE05-8D03923878A2"
-
-        token = webhook._get_token(token_id)
-
-        self.assertEqual(token["tokenAddress"], "0xabc")
-        mock_fetch_token.assert_called_once_with(token_id)
-
     def test_get_public_key_rejects_non_uuid(self):
         with self.assertRaises(ValueError):
             webhook._get_public_key_b64("NOT-A-UUID")
 
-    def test_get_token_rejects_non_uuid(self):
-        with self.assertRaises(ValueError):
-            webhook._get_token("token-rsc")
+    def test_is_rsc_token_recognises_known_ids(self):
+        for blockchain, token_id in webhook._RSC_TOKEN_ID_BY_BLOCKCHAIN.items():
+            self.assertTrue(webhook.is_rsc_token(token_id, blockchain))
+
+    def test_is_rsc_token_rejects_unknown_id(self):
+        self.assertFalse(webhook.is_rsc_token("unknown-token-id", "BASE"))
+
+    def test_is_rsc_token_rejects_wrong_blockchain(self):
+        """A valid token ID on the wrong blockchain should be rejected."""
+        token_id = webhook._RSC_TOKEN_ID_BY_BLOCKCHAIN["BASE"]
+        self.assertFalse(webhook.is_rsc_token(token_id, "ETH"))
