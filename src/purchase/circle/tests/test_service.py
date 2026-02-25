@@ -1,5 +1,5 @@
 import uuid
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
@@ -166,6 +166,7 @@ class TestCircleWalletService(TestCase):
 
 @override_settings(
     RH_MULTISIG_ADDRESS="0xMultisigAddress",
+    WEB3_WALLET_ADDRESS="0xHotWalletAddress",
     WEB3_RSC_ADDRESS="0xRSC_ETH",
     WEB3_BASE_RSC_ADDRESS="0xRSC_BASE",
 )
@@ -176,8 +177,12 @@ class TestCircleWalletServiceSweep(TestCase):
         self.mock_client = Mock()
         self.service = CircleWalletService(client=self.mock_client)
 
-    def test_sweep_on_base(self):
-        """Sweep calls create_transfer with correct BASE params."""
+    @patch(
+        "purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.rsc_to_usd",
+        return_value=500.0,  # Below $10k threshold
+    )
+    def test_sweep_small_amount_goes_to_hot_wallet(self, mock_rsc_to_usd):
+        """Amounts below $10k USD are swept to the hot wallet."""
         self.mock_client.create_transfer.return_value = CircleTransferResult(
             transfer_id="tx-1", state="INITIATED"
         )
@@ -191,21 +196,25 @@ class TestCircleWalletServiceSweep(TestCase):
         self.assertEqual(result.state, "INITIATED")
         self.mock_client.create_transfer.assert_called_once_with(
             wallet_id="circle-wallet-1",
-            destination_address="0xMultisigAddress",
+            destination_address="0xHotWalletAddress",
             token_address="0xRSC_BASE",
             blockchain=expected_blockchain,
             amount="100.0",
             idempotency_key=str(uuid.uuid5(uuid.NAMESPACE_URL, "rh-sweep-notif-1")),
         )
 
-    def test_sweep_on_ethereum(self):
-        """Sweep calls create_transfer with correct ETH params."""
+    @patch(
+        "purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.rsc_to_usd",
+        return_value=15_000.0,  # Above $10k threshold
+    )
+    def test_sweep_large_amount_goes_to_multisig(self, mock_rsc_to_usd):
+        """Amounts >= $10k USD are swept to the multisig."""
         self.mock_client.create_transfer.return_value = CircleTransferResult(
             transfer_id="tx-2", state="INITIATED"
         )
 
         result = self.service.sweep_wallet(
-            "circle-wallet-2", "50.5", "ETHEREUM", "notif-2"
+            "circle-wallet-2", "50000.0", "ETHEREUM", "notif-2"
         )
 
         expected_blockchain = get_network_to_blockchain()["ETHEREUM"]
@@ -215,24 +224,65 @@ class TestCircleWalletServiceSweep(TestCase):
             destination_address="0xMultisigAddress",
             token_address="0xRSC_ETH",
             blockchain=expected_blockchain,
-            amount="50.5",
+            amount="50000.0",
             idempotency_key=str(uuid.uuid5(uuid.NAMESPACE_URL, "rh-sweep-notif-2")),
         )
 
-    def test_sweep_raises_when_no_multisig(self):
-        """Raise ValueError when RH_MULTISIG_ADDRESS is empty."""
+    @patch(
+        "purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.rsc_to_usd",
+        return_value=10_000.0,  # Exactly at threshold
+    )
+    def test_sweep_at_threshold_goes_to_multisig(self, mock_rsc_to_usd):
+        """Amounts exactly at $10k USD go to the multisig."""
+        self.mock_client.create_transfer.return_value = CircleTransferResult(
+            transfer_id="tx-3", state="INITIATED"
+        )
+
+        result = self.service.sweep_wallet(
+            "circle-wallet-3", "20000.0", "BASE", "notif-3"
+        )
+
+        self.mock_client.create_transfer.assert_called_once()
+        call_kwargs = self.mock_client.create_transfer.call_args[1]
+        self.assertEqual(call_kwargs["destination_address"], "0xMultisigAddress")
+
+    @patch(
+        "purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.rsc_to_usd",
+        return_value=15_000.0,
+    )
+    def test_sweep_raises_when_no_multisig(self, mock_rsc_to_usd):
+        """Raise ValueError when large amount and RH_MULTISIG_ADDRESS is empty."""
         with self.settings(RH_MULTISIG_ADDRESS=""):
             with self.assertRaises(ValueError) as ctx:
-                self.service.sweep_wallet("wallet-1", "10", "BASE", "notif-0")
+                self.service.sweep_wallet("wallet-1", "50000", "BASE", "notif-0")
             self.assertIn("RH_MULTISIG_ADDRESS", str(ctx.exception))
 
-    def test_sweep_raises_for_unsupported_network(self):
+    @patch(
+        "purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.rsc_to_usd",
+        return_value=500.0,
+    )
+    def test_sweep_raises_when_no_hot_wallet(self, mock_rsc_to_usd):
+        """Raise ValueError when small amount and WEB3_WALLET_ADDRESS is empty."""
+        with self.settings(WEB3_WALLET_ADDRESS=""):
+            with self.assertRaises(ValueError) as ctx:
+                self.service.sweep_wallet("wallet-1", "10", "BASE", "notif-0")
+            self.assertIn("WEB3_WALLET_ADDRESS", str(ctx.exception))
+
+    @patch(
+        "purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.rsc_to_usd",
+        return_value=500.0,
+    )
+    def test_sweep_raises_for_unsupported_network(self, mock_rsc_to_usd):
         """Raise ValueError for an unknown network."""
         with self.assertRaises(ValueError) as ctx:
             self.service.sweep_wallet("wallet-1", "10", "SOLANA", "notif-3")
         self.assertIn("Unsupported network", str(ctx.exception))
 
-    def test_sweep_propagates_transfer_error(self):
+    @patch(
+        "purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.rsc_to_usd",
+        return_value=500.0,
+    )
+    def test_sweep_propagates_transfer_error(self, mock_rsc_to_usd):
         """CircleTransferError from client propagates."""
         self.mock_client.create_transfer.side_effect = CircleTransferError(
             "API failure"
