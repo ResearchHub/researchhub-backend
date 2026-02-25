@@ -75,46 +75,62 @@ class TestFundingOverviewService(TestCase):
             )
 
     def test_returns_expected_structure_with_zeros_for_new_user(self):
+        # Arrange - uses setUp
+
+        # Act
         result = self.service.get_funding_overview(self.user)
 
+        # Assert
         self.assertEqual(result["matched_funds"], {"rsc": 0.0, "usd": 0.0})
         self.assertEqual(result["distributed_funds"], {"rsc": 0.0, "usd": 0.0})
         self.assertEqual(result["supported_proposals"], [])
 
     def test_distributed_funds_tracks_funder_contributions(self):
+        # Arrange
         _, _, fundraise, _ = self._create_grant_with_proposal()
         self._contribute(self.user, fundraise, rsc=100, usd_cents=5000)
 
+        # Act
         result = self.service.get_funding_overview(self.user)
 
+        # Assert
         self.assertEqual(result["distributed_funds"]["rsc"], 100.0)
         self.assertEqual(result["distributed_funds"]["usd"], 50.0)
 
     def test_matched_funds_tracks_others_contributions(self):
+        # Arrange
         _, _, fundraise, _ = self._create_grant_with_proposal()
         other_user = create_random_authenticated_user("other")
         self._contribute(other_user, fundraise, rsc=200, usd_cents=10000)
 
+        # Act
         result = self.service.get_funding_overview(self.user)
 
+        # Assert
         self.assertEqual(result["matched_funds"]["rsc"], 200.0)
         self.assertEqual(result["matched_funds"]["usd"], 100.0)
 
     def test_matched_funds_excludes_funder_contributions(self):
+        # Arrange
         _, _, fundraise, _ = self._create_grant_with_proposal()
         self._contribute(self.user, fundraise, rsc=100)
 
+        # Act
         result = self.service.get_funding_overview(self.user)
 
+        # Assert
         self.assertEqual(result["matched_funds"]["rsc"], 0.0)
         self.assertEqual(result["matched_funds"]["usd"], 0.0)
 
     def test_supported_proposals_returns_funded_proposals(self):
+        # Arrange
         _, proposal_post, fundraise, applicant = self._create_grant_with_proposal()
         self._contribute(self.user, fundraise, rsc=100)
 
+        # Act
         result = self.service.get_funding_overview(self.user)
 
+        # Assert
         self.assertEqual(len(result["supported_proposals"]), 1)
         proposal = result["supported_proposals"][0]
         self.assertEqual(proposal["id"], proposal_post.id)
@@ -122,15 +138,23 @@ class TestFundingOverviewService(TestCase):
         self.assertEqual(proposal["unified_document"]["title"], proposal_post.title)
         self.assertEqual(proposal["unified_document"]["slug"], proposal_post.slug)
         self.assertEqual(proposal["created_by"]["id"], applicant.id)
+        author = applicant.author_profile
+        self.assertEqual(proposal["created_by"]["author_profile"]["id"], author.id)
+        self.assertEqual(proposal["created_by"]["author_profile"]["first_name"], author.first_name)
+        self.assertEqual(proposal["created_by"]["author_profile"]["last_name"], author.last_name)
 
     def test_supported_proposals_empty_when_not_funded(self):
+        # Arrange
         self._create_grant_with_proposal()
 
+        # Act
         result = self.service.get_funding_overview(self.user)
 
+        # Assert
         self.assertEqual(result["supported_proposals"], [])
 
     def test_supported_proposals_deduplicates_by_post(self):
+        # Arrange
         applicant = create_random_authenticated_user("applicant")
 
         grant_post1 = create_post(created_by=self.user, document_type=GRANT_DOC_TYPE)
@@ -165,6 +189,8 @@ class TestFundingOverviewService(TestCase):
 
         self._contribute(self.user, fundraise, rsc=100)
 
+        # Act
         result = self.service.get_funding_overview(self.user)
 
+        # Assert
         self.assertEqual(len(result["supported_proposals"]), 1)
