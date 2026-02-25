@@ -4,6 +4,7 @@ from decimal import Decimal
 
 import pytz
 from django.contrib.contenttypes.models import ContentType
+from django.db import models
 
 from mailing_list.lib import base_email_context
 from paper.models import Paper
@@ -11,6 +12,7 @@ from purchase.circle.service import CircleWalletService
 from purchase.models import Fundraise, Purchase, Support
 from purchase.related_models.constants.currency import USD
 from purchase.services.fundraise_service import FundraiseService
+from reputation.models import Deposit
 from researchhub.celery import QUEUE_NOTIFICATION, QUEUE_PURCHASES, app
 from researchhub.settings import BASE_FRONTEND_URL
 from researchhub_document.models import ResearchhubPost
@@ -209,15 +211,22 @@ def sweep_deposit_to_multisig(self, circle_wallet_id, amount, network, sweep_ref
     smaller amounts are sent to the hot wallet.
 
     Fired asynchronously after crediting a user's balance on deposit.
+    Updates Deposit.sweep_status to track the outcome.
     """
+    deposit = Deposit.objects.filter(circle_notification_id=sweep_reference).first()
+
     try:
         service = CircleWalletService()
-        service.sweep_wallet(
+        result = service.sweep_wallet(
             circle_wallet_id=circle_wallet_id,
             amount=amount,
             network=network,
             sweep_reference=sweep_reference,
         )
+        if deposit:
+            deposit.sweep_status = Deposit.SWEEP_INITIATED
+            deposit.sweep_transfer_id = result.transfer_id
+            deposit.save(update_fields=["sweep_status", "sweep_transfer_id"])
     except ValueError:
         logger.exception(
             "Sweep failed (not retryable): circle_wallet_id=%s amount=%s "
@@ -227,6 +236,9 @@ def sweep_deposit_to_multisig(self, circle_wallet_id, amount, network, sweep_ref
             network,
             sweep_reference,
         )
+        if deposit:
+            deposit.sweep_status = Deposit.SWEEP_FAILED
+            deposit.save(update_fields=["sweep_status"])
         raise
     except Exception as exc:
         logger.exception(
@@ -237,4 +249,63 @@ def sweep_deposit_to_multisig(self, circle_wallet_id, amount, network, sweep_ref
             network,
             sweep_reference,
         )
+        if deposit and self.request.retries >= self.max_retries:
+            deposit.sweep_status = Deposit.SWEEP_FAILED
+            deposit.save(update_fields=["sweep_status"])
         raise self.retry(exc=exc)
+
+
+STALE_SWEEP_SECONDS = 60 * 60  # 1 hour
+
+
+@app.task(queue=QUEUE_PURCHASES)
+def retry_failed_sweeps():
+    """
+    Hourly task to retry sweeps that failed or appear stuck.
+
+    Picks up Circle deposits where:
+    - sweep_status=FAILED (exhausted Celery retries or Circle reported failure)
+    - sweep_status=INITIATED and updated_date is older than STALE_SWEEP_SECONDS
+      (sweep was accepted by Circle but never confirmed via outbound webhook)
+
+    For each, resets to PENDING and re-dispatches sweep_deposit_to_multisig.
+    """
+    stale_cutoff = datetime.now(pytz.UTC) - timedelta(seconds=STALE_SWEEP_SECONDS)
+
+    retryable_deposits = (
+        Deposit.objects.filter(
+            circle_notification_id__isnull=False,
+        )
+        .filter(
+            models.Q(sweep_status=Deposit.SWEEP_FAILED)
+            | models.Q(
+                sweep_status=Deposit.SWEEP_INITIATED,
+                updated_date__lt=stale_cutoff,
+            )
+        )
+        .select_related("user__wallet")
+    )
+
+    retried = 0
+    for deposit in retryable_deposits:
+        wallet = getattr(deposit.user, "wallet", None)
+        if not wallet or not wallet.circle_wallet_id:
+            logger.warning(
+                "Cannot retry sweep for deposit %s — no Circle wallet",
+                deposit.id,
+            )
+            continue
+
+        deposit.sweep_status = Deposit.SWEEP_PENDING
+        deposit.save(update_fields=["sweep_status"])
+
+        sweep_deposit_to_multisig.delay(
+            circle_wallet_id=wallet.circle_wallet_id,
+            amount=deposit.amount,
+            network=deposit.network,
+            sweep_reference=deposit.circle_notification_id,
+        )
+        retried += 1
+
+    logger.info("retry_failed_sweeps: re-dispatched %d sweeps", retried)
+    return retried
