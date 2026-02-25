@@ -92,8 +92,8 @@ app.conf.beat_schedule = {
         "options": {
             "priority": 2,
             "queue": QUEUE_PURCHASES,
-        }, 
-    },  
+        },
+    },
     # Reputation
     "reputation_check-deposits": {
         "task": "reputation.tasks.check_deposits",
