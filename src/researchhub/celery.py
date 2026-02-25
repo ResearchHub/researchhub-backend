@@ -78,6 +78,14 @@ app.conf.beat_schedule = {
             "queue": QUEUE_PURCHASES,
         },
     },
+    "purchase_retry-failed-sweeps": {
+        "task": "purchase.tasks.retry_failed_sweeps",
+        "schedule": crontab(minute=0),  # Every hour, on the hour
+        "options": {
+            "priority": 2,
+            "queue": QUEUE_PURCHASES,
+        },
+    },
     # Reputation
     "reputation_check-deposits": {
         "task": "reputation.tasks.check_deposits",
