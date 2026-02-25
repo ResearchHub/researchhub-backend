@@ -3,10 +3,15 @@ from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from purchase.models import Grant
 from purchase.serializers.funding_impact_serializer import FundingImpactSerializer
 from purchase.serializers.funding_overview_serializer import FundingOverviewSerializer
+from purchase.serializers.grant_overview_serializer import GrantOverviewSerializer
 from purchase.services.funding_impact_service import FundingImpactService
-from purchase.services.funding_overview_service import FundingOverviewService
+from purchase.services.funding_overview_service import (
+    FundingOverviewService,
+    GrantOverviewService,
+)
 from user.models import User
 
 
@@ -32,6 +37,9 @@ class FunderViewSet(viewsets.ViewSet):
         self.funding_impact_service = kwargs.pop(
             "funding_impact_service", FundingImpactService()
         )
+        self.grant_overview_service = kwargs.pop(
+            "grant_overview_service", GrantOverviewService()
+        )
         return super().dispatch(request, *args, **kwargs)
 
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
@@ -52,4 +60,14 @@ class FunderViewSet(viewsets.ViewSet):
             return Response({"error": "User not found"}, status=404)
         data = self.funding_impact_service.get_funding_impact_overview(user)
         serializer = FundingImpactSerializer(data)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])
+    def grant_overview(self, request, pk=None, *args, **kwargs):
+        """Return dashboard metrics for a grant."""
+        grant = Grant.objects.filter(unified_document__posts__id=pk).first()
+        if not grant:
+            return Response(status=404)
+        data = self.grant_overview_service.get_grant_overview(grant.created_by, grant)
+        serializer = GrantOverviewSerializer(data)
         return Response(serializer.data)
