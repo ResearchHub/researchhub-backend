@@ -10,6 +10,7 @@ from .endaoment_auth_views import (
     EndaomentStatusView,
 )
 from .endaoment_viewset import EndaomentViewSet
+from .funder_view import FunderViewSet
 from .fundraise_view import FundraiseViewSet
 from .grant_view import GrantViewSet
 from .payment_intent_view import PaymentIntentView
