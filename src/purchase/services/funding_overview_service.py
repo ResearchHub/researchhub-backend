@@ -14,20 +14,16 @@ class FundingOverviewService(OverviewMixin):
     def get_funding_overview(self, user: User) -> dict:
         """Return funding overview metrics for a given user."""
         grant_fundraise_ids = self._grant_fundraise_ids(user)
-        funded_fundraise_ids = list(
-            set(grant_fundraise_ids) & get_funded_fundraise_ids(user.id)
-        )
+        all_funded_ids = list(get_funded_fundraise_ids(user.id))
 
         return {
             "matched_funds": self._matched_contributions_breakdown(
                 user.id, grant_fundraise_ids
             ),
             "distributed_funds": self._user_contributions_breakdown(
-                user.id, grant_fundraise_ids
+                user.id, all_funded_ids
             ),
-            "supported_proposals": self._supported_proposals(
-                user, funded_fundraise_ids
-            ),
+            "supported_proposals": self._supported_proposals(all_funded_ids),
         }
 
     def _grant_fundraise_ids(self, user: User) -> list[int]:
@@ -44,16 +40,13 @@ class FundingOverviewService(OverviewMixin):
             .distinct()
         )
 
-    def _supported_proposals(
-        self, user: User, funded_fundraise_ids: list[int]
-    ) -> list[dict]:
+    def _supported_proposals(self, funded_fundraise_ids: list[int]) -> list[dict]:
         """Proposals (preregistration posts) the funder contributed to."""
         if not funded_fundraise_ids:
             return []
 
         posts = (
             ResearchhubPost.objects.filter(
-                grant_applications__grant__created_by=user,
                 unified_document__fundraises__id__in=funded_fundraise_ids,
             )
             .select_related("unified_document", "created_by__author_profile")
