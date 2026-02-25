@@ -6,7 +6,6 @@ from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 
-from purchase.circle.webhook import CircleTransientTokenValidationError
 from purchase.models import Wallet
 from reputation.models import Deposit
 
@@ -233,18 +232,6 @@ class TestCircleWebhookView(TestCase):
         response = self._post(payload)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertFalse(Deposit.objects.exists())
-
-    @patch(
-        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
-    )
-    def test_transient_token_validation_failure_returns_500(self, _mock_verify):
-        self.mock_is_rsc_token.side_effect = CircleTransientTokenValidationError()
-
-        payload = _make_payload()
-        response = self._post(payload)
-
-        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
         self.assertFalse(Deposit.objects.exists())
 
     def test_head_request_returns_200(self):

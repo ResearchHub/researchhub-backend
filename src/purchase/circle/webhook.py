@@ -5,24 +5,26 @@ import re
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import load_der_public_key
-from django.conf import settings
 from django.core.cache import cache
 
 logger = logging.getLogger(__name__)
 
 CIRCLE_PUBLIC_KEY_CACHE_TTL = 60 * 60  # 1 hour
-CIRCLE_TOKEN_CACHE_TTL = 60 * 60  # 1 hour
-
 _UUID_RE = re.compile(
     r"^[a-f0-9\-]{36}$",
     re.IGNORECASE,
 )
 
-
-class CircleTransientTokenValidationError(Exception):
-    """Retryable failure while validating inbound token metadata with Circle."""
-
-    pass
+# Known Circle token IDs for the RSC token, keyed by Circle blockchain identifier.
+# These are stable identifiers assigned by Circle and do not change.
+_RSC_TOKEN_ID_BY_BLOCKCHAIN = {
+    # Testnet
+    "BASE-SEPOLIA": "e7233cf0-a48c-5265-a9ad-6d125af58e71",
+    "ETH-SEPOLIA": "979869da-9115-5f7d-917d-12d434e56ae7",
+    # Production
+    "BASE": "fe81326a-572d-5c31-9dde-31ef96a1220f",
+    "ETH": "fa1e82a2-fd87-5030-aa61-e9447ce24570",
+}
 
 
 def _fetch_public_key(key_id: str) -> str:
@@ -52,93 +54,10 @@ def _get_public_key_b64(key_id: str) -> str:
     return public_key_b64
 
 
-def _fetch_token(token_id: str) -> dict:
-    """Fetch a Circle token object by token ID."""
-    from purchase.circle.client import CircleWalletClient
-
-    client = CircleWalletClient()
-    try:
-        return client.get_token(token_id)
-    except Exception:
-        logger.error(
-            "Failed to fetch Circle token for token_id=%s", token_id, exc_info=True
-        )
-        raise
-
-
-def _get_token(token_id: str) -> dict:
-    """Get Circle token details with a short cache TTL."""
-    if not _UUID_RE.match(token_id):
-        raise ValueError(f"Invalid Circle token_id format: {token_id!r}")
-
-    cache_key = f"circle_webhook_token:{token_id}"
-    token = cache.get(cache_key)
-    if token is None:
-        token = _fetch_token(token_id)
-        cache.set(cache_key, token, CIRCLE_TOKEN_CACHE_TTL)
-    return token
-
-
-def _blockchain_family(blockchain: str) -> str | None:
-    upper = (blockchain or "").upper()
-    if upper.startswith("BASE"):
-        return "BASE"
-    if upper.startswith("ETH"):
-        return "ETH"
-    return None
-
-
-def _expected_rsc_token_address(blockchain: str) -> str | None:
-    family = _blockchain_family(blockchain)
-    if family == "BASE":
-        return (getattr(settings, "WEB3_BASE_RSC_ADDRESS", "") or "").lower() or None
-    if family == "ETH":
-        return (getattr(settings, "WEB3_RSC_ADDRESS", "") or "").lower() or None
-    return None
-
-
 def is_rsc_token(token_id: str, blockchain: str) -> bool:
-    """
-    Validate that token_id resolves to the configured RSC contract address for
-    the inbound blockchain family.
-    """
-    expected_address = _expected_rsc_token_address(blockchain)
-    if not expected_address:
-        logger.error(
-            "No expected RSC token address configured for blockchain=%s", blockchain
-        )
-        return False
-
-    try:
-        token = _get_token(token_id)
-    except ValueError:
-        # Invalid token identifiers are non-retryable and should be ignored.
-        logger.warning(
-            "Invalid Circle token_id format during validation: token_id=%r",
-            token_id,
-        )
-        return False
-    except Exception as exc:
-        logger.warning(
-            "Transient Circle token validation failure for token_id=%s blockchain=%s",
-            token_id,
-            blockchain,
-            exc_info=True,
-        )
-        raise CircleTransientTokenValidationError from exc
-
-    token_address = (token.get("tokenAddress") or "").lower()
-    token_blockchain = token.get("blockchain")
-
-    if not token_address:
-        return False
-
-    token_family = _blockchain_family(token_blockchain or "")
-    webhook_family = _blockchain_family(blockchain)
-    if token_family and webhook_family and token_family != webhook_family:
-        return False
-
-    return token_address == expected_address
+    """Check whether *token_id* is the known RSC token for *blockchain*."""
+    expected = _RSC_TOKEN_ID_BY_BLOCKCHAIN.get(blockchain)
+    return expected is not None and token_id == expected
 
 
 def verify_webhook_signature(request_body: bytes, signature: str, key_id: str) -> bool:
