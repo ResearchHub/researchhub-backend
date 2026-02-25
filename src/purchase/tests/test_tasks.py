@@ -8,13 +8,15 @@ from django.test import TestCase
 
 from purchase.circle.client import CircleTransferError, CircleTransferResult
 from purchase.models import Fundraise, Wallet
+from reputation.related_models.deposit import Deposit
 from purchase.services.fundraise_service import FundraiseService
+from notification.models import Notification
 from purchase.tasks import (
     complete_eligible_fundraises,
-    retry_failed_sweeps,
+    send_monthly_preregistration_update_reminders,
     sweep_deposit_to_multisig,
+    retry_failed_sweeps,
 )
-from reputation.models import Deposit
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from user.tests.helpers import create_random_authenticated_user, create_user
@@ -254,7 +256,65 @@ class SweepDepositTaskTest(TestCase):
 
         self.deposit.refresh_from_db()
         self.assertEqual(self.deposit.sweep_status, Deposit.SWEEP_FAILED)
+        
+class PreregistrationUpdateReminderTest(TestCase):
+    def setUp(self):
+        self.user = create_random_authenticated_user("reminder_test", moderator=True)
+        self.post = create_post(created_by=self.user, document_type=PREREGISTRATION)
+        self.future = datetime.now(pytz.UTC) + timedelta(days=30)
+        self.past = datetime.now(pytz.UTC) - timedelta(days=1)
+        self.notif_qs = Notification.objects.filter(
+            notification_type=Notification.PREREGISTRATION_UPDATE_REMINDER,
+            recipient=self.user,
+        )
 
+    def _create_fundraise(self, status=Fundraise.OPEN, end_date=None):
+        f = Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=self.post.unified_document,
+            goal_amount=Decimal("100.00"),
+            goal_currency="USD",
+            status=status,
+        )
+        if end_date is not None:
+            Fundraise.objects.filter(id=f.id).update(end_date=end_date)
+        return f
+
+    def test_sends_for_active_preregistration(self):
+        # Arrange
+        self._create_fundraise(end_date=self.future)
+        # Act
+        result = send_monthly_preregistration_update_reminders()
+        # Assert
+        self.assertEqual(result["sent_count"], 1)
+        self.assertTrue(self.notif_qs.exists())
+
+    def test_skips_closed_and_completed(self):
+        # Arrange
+        self._create_fundraise(status=Fundraise.CLOSED)
+        self._create_fundraise(status=Fundraise.COMPLETED)
+        # Act
+        result = send_monthly_preregistration_update_reminders()
+        # Assert
+        self.assertEqual(result["sent_count"], 0)
+
+    def test_skips_expired_preregistration(self):
+        # Arrange
+        self._create_fundraise(end_date=self.past)
+        # Act
+        result = send_monthly_preregistration_update_reminders()
+        # Assert
+        self.assertEqual(result["sent_count"], 0)
+
+    def test_deduplicates_within_same_month(self):
+        # Arrange
+        self._create_fundraise(end_date=self.future)
+        send_monthly_preregistration_update_reminders()
+        # Act
+        result = send_monthly_preregistration_update_reminders()
+        # Assert
+        self.assertEqual(result["sent_count"], 0)
+        self.assertEqual(self.notif_qs.count(), 1)
 
 class RetryFailedSweepsTaskTest(TestCase):
     def setUp(self):

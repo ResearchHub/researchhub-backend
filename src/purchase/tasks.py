@@ -7,6 +7,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 from mailing_list.lib import base_email_context
+from notification.models import Notification
 from paper.models import Paper
 from purchase.circle.service import CircleWalletService
 from purchase.models import Fundraise, Purchase, Support
@@ -77,6 +78,48 @@ def complete_eligible_fundraises():
         "error_count": error_count,
         "processed_total": completed_count + error_count,
     }
+
+
+@app.task(queue=QUEUE_NOTIFICATION)
+def send_monthly_preregistration_update_reminders():
+    now = datetime.now(pytz.UTC)
+    open_fundraises = Fundraise.objects.filter(
+        status=Fundraise.OPEN,
+    ).exclude(
+        end_date__lte=now,
+    ).select_related("created_by", "unified_document")
+
+    fundraise_ct = ContentType.objects.get_for_model(Fundraise)
+    sent_count = 0
+
+    for fundraise in open_fundraises:
+        already_sent = Notification.objects.filter(
+            notification_type=Notification.PREREGISTRATION_UPDATE_REMINDER,
+            recipient=fundraise.created_by,
+            content_type=fundraise_ct,
+            object_id=fundraise.id,
+            created_date__year=now.year,
+            created_date__month=now.month,
+        ).exists()
+
+        if already_sent:
+            continue
+
+        try:
+            notification = Notification.objects.create(
+                item=fundraise,
+                action_user=fundraise.created_by,
+                recipient=fundraise.created_by,
+                unified_document=fundraise.unified_document,
+                notification_type=Notification.PREREGISTRATION_UPDATE_REMINDER,
+            )
+            notification.send_notification()
+            sent_count += 1
+        except Exception as e:
+            log_error(e, message=f"Error sending preregistration update reminder for fundraise {fundraise.id}")
+
+    log_info(f"Sent {sent_count} preregistration update reminders")
+    return {"sent_count": sent_count}
 
 
 @app.task(queue=QUEUE_NOTIFICATION)
