@@ -162,6 +162,9 @@ def verify_webhook_signature(request_body: bytes, signature: str, key_id: str) -
     # allowed to propagate so the view returns 500 and Circle retries.
     try:
         public_key_b64 = _get_public_key_b64(key_id)
+    except ValueError:
+        logger.warning("Invalid Circle key_id format: key_id=%s", key_id, exc_info=True)
+        return False
     except Exception:
         logger.warning(
             "Transient error fetching Circle public key for key_id=%s",
