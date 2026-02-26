@@ -407,7 +407,7 @@ class TestCircleOutboundWebhook(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         deposit.refresh_from_db()
-        self.assertEqual(deposit.sweep_status, Deposit.SWEEP_COMPLETE)
+        self.assertEqual(deposit.sweep_status, Deposit.SWEEP_COMPLETED)
 
     @patch(
         "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
@@ -493,7 +493,7 @@ class TestCircleOutboundWebhook(TestCase):
             network="BASE",
             from_address="",
             circle_transaction_id="notif-inbound",
-            sweep_status=Deposit.SWEEP_COMPLETE,
+            sweep_status=Deposit.SWEEP_COMPLETED,
             sweep_transfer_id="sweep-tx-001",
         )
 
