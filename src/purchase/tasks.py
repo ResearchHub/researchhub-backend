@@ -1,10 +1,8 @@
 import logging
 from datetime import datetime, timedelta
-from decimal import Decimal
 
 import pytz
 from django.contrib.contenttypes.models import ContentType
-from django.db import models
 
 from mailing_list.lib import base_email_context
 from notification.models import Notification
@@ -324,73 +322,3 @@ def sweep_deposit_to_multisig(self, circle_wallet_id, amount, network, sweep_ref
             deposit.sweep_status = Deposit.SWEEP_FAILED
             deposit.save(update_fields=["sweep_status"])
         raise self.retry(exc=exc)
-
-
-STALE_SWEEP_SECONDS = 60 * 60  # 1 hour
-
-
-@app.task(queue=QUEUE_PURCHASES)
-def retry_failed_sweeps():
-    """
-    Hourly task to retry sweeps that failed or appear stuck.
-
-    Picks up Circle deposits where:
-    - sweep_status=FAILED (exhausted Celery retries or Circle reported failure)
-    - sweep_status=INITIATED and updated_date is older than STALE_SWEEP_SECONDS
-      (sweep was accepted by Circle but never confirmed via outbound webhook)
-
-    For each, resets to PENDING and re-dispatches sweep_deposit_to_multisig.
-    """
-    stale_cutoff = datetime.now(pytz.UTC) - timedelta(seconds=STALE_SWEEP_SECONDS)
-
-    retryable_deposits = (
-        Deposit.objects.filter(
-            circle_transaction_id__isnull=False,
-        )
-        .filter(
-            models.Q(sweep_status=Deposit.SWEEP_FAILED)
-            | models.Q(
-                sweep_status=Deposit.SWEEP_INITIATED,
-                updated_date__lt=stale_cutoff,
-            )
-        )
-        .select_related("user__wallet")
-    )
-
-    retried = 0
-    for deposit in retryable_deposits:
-        wallet = getattr(deposit.user, "wallet", None)
-        if not wallet:
-            logger.warning(
-                "Cannot retry sweep for deposit %s — no wallet",
-                deposit.id,
-            )
-            continue
-
-        circle_wallet_id = wallet.get_circle_wallet_id_for_network(deposit.network)
-        if not circle_wallet_id:
-            logger.warning(
-                "Cannot retry sweep for deposit %s "
-                "— no Circle wallet ID for network %s",
-                deposit.id,
-                deposit.network,
-            )
-            continue
-
-        try:
-            sweep_deposit_to_multisig.delay(
-                circle_wallet_id=circle_wallet_id,
-                amount=deposit.amount,
-                network=deposit.network,
-                sweep_reference=deposit.circle_transaction_id,
-            )
-        except Exception:
-            logger.exception("Failed to enqueue sweep retry for deposit %s", deposit.id)
-            continue
-
-        deposit.sweep_status = Deposit.SWEEP_PENDING
-        deposit.save(update_fields=["sweep_status"])
-        retried += 1
-
-    logger.info("retry_failed_sweeps: re-dispatched %d sweeps", retried)
-    return retried
