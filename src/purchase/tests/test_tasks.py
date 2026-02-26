@@ -13,7 +13,6 @@ from purchase.models import Fundraise, Wallet
 from purchase.services.fundraise_service import FundraiseService
 from purchase.tasks import (
     complete_eligible_fundraises,
-    retry_failed_sweeps,
     send_monthly_preregistration_update_reminders,
     sweep_deposit_to_multisig,
 )
@@ -261,28 +260,16 @@ class SweepDepositTaskTest(TestCase):
 
     @patch.object(sweep_deposit_to_multisig, "retry")
     @patch("purchase.tasks.CircleWalletService")
-    def test_sweep_zero_balance_does_not_retry(self, mock_service_class, mock_retry):
+    def test_sweep_zero_balance_marks_completed(self, mock_service_class, mock_retry):
         mock_service_class.return_value.sweep_wallet.side_effect = (
             CircleZeroBalanceError("zero balance")
         )
 
-        with self.assertRaises(CircleZeroBalanceError):
-            sweep_deposit_to_multisig.run("wallet-1", "100", "BASE", "notif-1")
+        sweep_deposit_to_multisig.run("wallet-1", "100", "BASE", "notif-1")
 
         mock_retry.assert_not_called()
-
-    @patch.object(sweep_deposit_to_multisig, "retry")
-    @patch("purchase.tasks.CircleWalletService")
-    def test_sweep_zero_balance_sets_failed(self, mock_service_class, mock_retry):
-        mock_service_class.return_value.sweep_wallet.side_effect = (
-            CircleZeroBalanceError("zero balance")
-        )
-
-        with self.assertRaises(CircleZeroBalanceError):
-            sweep_deposit_to_multisig.run("wallet-1", "100", "BASE", "notif-1")
-
         self.deposit.refresh_from_db()
-        self.assertEqual(self.deposit.sweep_status, Deposit.SWEEP_FAILED)
+        self.assertEqual(self.deposit.sweep_status, Deposit.SWEEP_COMPLETED)
 
 
 class PreregistrationUpdateReminderTest(TestCase):
@@ -343,158 +330,3 @@ class PreregistrationUpdateReminderTest(TestCase):
         # Assert
         self.assertEqual(result["sent_count"], 0)
         self.assertEqual(self.notif_qs.count(), 1)
-
-
-class RetryFailedSweepsTaskTest(TestCase):
-    def setUp(self):
-        self.user = User.objects.create_user(username="retryuser")
-        self.wallet = Wallet.objects.create(
-            user=self.user,
-            circle_wallet_id="wallet-retry",
-            circle_base_wallet_id="wallet-retry-base",
-            wallet_type=Wallet.WALLET_TYPE_CIRCLE,
-            address="0xRetryAddress",
-        )
-
-    @patch("purchase.tasks.sweep_deposit_to_multisig")
-    def test_retries_failed_sweeps(self, mock_sweep_task):
-        deposit = Deposit.objects.create(
-            user=self.user,
-            amount="250",
-            network="ETHEREUM",
-            from_address="",
-            circle_transaction_id="notif-retry-1",
-            sweep_status=Deposit.SWEEP_FAILED,
-        )
-
-        result = retry_failed_sweeps()
-
-        self.assertEqual(result, 1)
-        deposit.refresh_from_db()
-        self.assertEqual(deposit.sweep_status, Deposit.SWEEP_PENDING)
-        mock_sweep_task.delay.assert_called_once_with(
-            circle_wallet_id="wallet-retry",
-            amount="250",
-            network="ETHEREUM",
-            sweep_reference="notif-retry-1",
-        )
-
-    @patch("purchase.tasks.sweep_deposit_to_multisig")
-    def test_skips_recent_initiated_deposits(self, mock_sweep_task):
-        """INITIATED deposits that are recent (< 1 hour) should NOT be retried."""
-        Deposit.objects.create(
-            user=self.user,
-            amount="100",
-            network="BASE",
-            from_address="",
-            circle_transaction_id="notif-initiated",
-            sweep_status=Deposit.SWEEP_INITIATED,
-        )
-        Deposit.objects.create(
-            user=self.user,
-            amount="200",
-            network="BASE",
-            from_address="",
-            circle_transaction_id="notif-pending",
-            sweep_status=Deposit.SWEEP_PENDING,
-        )
-
-        result = retry_failed_sweeps()
-
-        self.assertEqual(result, 0)
-        mock_sweep_task.delay.assert_not_called()
-
-    @patch("purchase.tasks.sweep_deposit_to_multisig")
-    def test_retries_stale_initiated_sweeps(self, mock_sweep_task):
-        """INITIATED deposits older than 1 hour should be retried."""
-        deposit = Deposit.objects.create(
-            user=self.user,
-            amount="150",
-            network="BASE",
-            from_address="",
-            circle_transaction_id="notif-stale",
-            sweep_status=Deposit.SWEEP_INITIATED,
-            sweep_transfer_id="tx-stale",
-        )
-        # Manually backdate updated_date to simulate a stale sweep
-        stale_time = datetime.now(pytz.UTC) - timedelta(hours=2)
-        Deposit.objects.filter(pk=deposit.pk).update(updated_date=stale_time)
-
-        result = retry_failed_sweeps()
-
-        self.assertEqual(result, 1)
-        deposit.refresh_from_db()
-        self.assertEqual(deposit.sweep_status, Deposit.SWEEP_PENDING)
-        mock_sweep_task.delay.assert_called_once_with(
-            circle_wallet_id="wallet-retry-base",
-            amount="150",
-            network="BASE",
-            sweep_reference="notif-stale",
-        )
-
-    @patch("purchase.tasks.sweep_deposit_to_multisig")
-    def test_skips_non_circle_deposits(self, mock_sweep_task):
-        # Legacy deposit without circle_transaction_id
-        Deposit.objects.create(
-            user=self.user,
-            amount="100",
-            network="BASE",
-            from_address="0xSender",
-            transaction_hash="0xhash",
-            sweep_status=Deposit.SWEEP_FAILED,
-        )
-
-        result = retry_failed_sweeps()
-
-        self.assertEqual(result, 0)
-        mock_sweep_task.delay.assert_not_called()
-
-    @patch("purchase.tasks.sweep_deposit_to_multisig")
-    def test_skips_user_without_circle_wallet(self, mock_sweep_task):
-        user_no_wallet = User.objects.create_user(username="nowallet")
-        Deposit.objects.create(
-            user=user_no_wallet,
-            amount="100",
-            network="BASE",
-            from_address="",
-            circle_transaction_id="notif-no-wallet",
-            sweep_status=Deposit.SWEEP_FAILED,
-        )
-
-        result = retry_failed_sweeps()
-
-        self.assertEqual(result, 0)
-        mock_sweep_task.delay.assert_not_called()
-
-    @patch("purchase.tasks.sweep_deposit_to_multisig")
-    def test_retries_multiple_failed_deposits(self, mock_sweep_task):
-        Deposit.objects.create(
-            user=self.user,
-            amount="100",
-            network="BASE",
-            from_address="",
-            circle_transaction_id="notif-fail-1",
-            sweep_status=Deposit.SWEEP_FAILED,
-        )
-        Deposit.objects.create(
-            user=self.user,
-            amount="200",
-            network="ETHEREUM",
-            from_address="",
-            circle_transaction_id="notif-fail-2",
-            sweep_status=Deposit.SWEEP_FAILED,
-        )
-
-        result = retry_failed_sweeps()
-
-        self.assertEqual(result, 2)
-        self.assertEqual(mock_sweep_task.delay.call_count, 2)
-
-        # Verify correct wallet IDs are used per network
-        call_kwargs_list = [
-            call.kwargs for call in mock_sweep_task.delay.call_args_list
-        ]
-        base_call = next(c for c in call_kwargs_list if c["network"] == "BASE")
-        eth_call = next(c for c in call_kwargs_list if c["network"] == "ETHEREUM")
-        self.assertEqual(base_call["circle_wallet_id"], "wallet-retry-base")
-        self.assertEqual(eth_call["circle_wallet_id"], "wallet-retry")

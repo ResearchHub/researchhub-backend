@@ -145,9 +145,9 @@ class CircleWebhookView(APIView):
                     sweep_transfer_id=transaction_id,
                 )
                 .exclude(
-                    sweep_status=Deposit.SWEEP_COMPLETE,
+                    sweep_status=Deposit.SWEEP_COMPLETED,
                 )
-                .update(sweep_status=Deposit.SWEEP_COMPLETE)
+                .update(sweep_status=Deposit.SWEEP_COMPLETED)
             )
 
             if updated:

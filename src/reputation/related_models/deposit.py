@@ -7,12 +7,12 @@ from utils.models import SoftDeletableModel
 class Deposit(SoftDeletableModel, PaidStatusModelMixin):
     SWEEP_PENDING = "PENDING"
     SWEEP_INITIATED = "INITIATED"
-    SWEEP_COMPLETE = "COMPLETE"
+    SWEEP_COMPLETED = "COMPLETED"
     SWEEP_FAILED = "FAILED"
     SWEEP_STATUS_CHOICES = [
         (SWEEP_PENDING, "Pending"),
         (SWEEP_INITIATED, "Initiated"),
-        (SWEEP_COMPLETE, "Complete"),
+        (SWEEP_COMPLETED, "Completed"),
         (SWEEP_FAILED, "Failed"),
     ]
 
