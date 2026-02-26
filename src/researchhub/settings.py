@@ -944,9 +944,6 @@ ENDAOMENT_ACCOUNT_ID = os.environ.get("ENDAOMENT_ACCOUNT_ID", keys.ENDAOMENT_ACC
 CIRCLE_API_KEY = os.environ.get("CIRCLE_API_KEY", keys.CIRCLE_API_KEY)
 CIRCLE_ENTITY_SECRET = os.environ.get("CIRCLE_ENTITY_SECRET", keys.CIRCLE_ENTITY_SECRET)
 CIRCLE_WALLET_SET_ID = os.environ.get("CIRCLE_WALLET_SET_ID", keys.CIRCLE_WALLET_SET_ID)
-CIRCLE_API_BASE_URL = (
-    "https://api.circle.com" if PRODUCTION else "https://api-sandbox.circle.com"
-)
 RH_MULTISIG_ADDRESS = os.environ.get(
     "RH_MULTISIG_ADDRESS", getattr(keys, "RH_MULTISIG_ADDRESS", "")
 )
