@@ -390,6 +390,7 @@ class PostSerializer(ContentObjectSerializer):
                     "amount",
                     "currency",
                     "organization",
+                    "short_title",
                     "description",
                     "start_date",
                     "end_date",

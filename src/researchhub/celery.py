@@ -78,6 +78,22 @@ app.conf.beat_schedule = {
             "queue": QUEUE_PURCHASES,
         },
     },
+    "purchase_send-monthly-preregistration-update-reminders": {
+        "task": "purchase.tasks.send_monthly_preregistration_update_reminders",
+        "schedule": crontab(day_of_month=1, hour=16, minute=0),
+        "options": {
+            "priority": 3,
+            "queue": QUEUE_NOTIFICATION,
+        },
+    },
+    "purchase_retry-failed-sweeps": {
+        "task": "purchase.tasks.retry_failed_sweeps",
+        "schedule": crontab(minute=0),  # Every hour, on the hour
+        "options": {
+            "priority": 2,
+            "queue": QUEUE_PURCHASES,
+        },
+    },
     # Reputation
     "reputation_check-deposits": {
         "task": "reputation.tasks.check_deposits",

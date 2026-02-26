@@ -65,6 +65,26 @@ class FeedTasksTest(AWSMockTestCase):
         self.assertEqual(feed_entry.hubs.first(), self.hub)
         self.assertEqual(feed_entry.unified_document, self.paper.unified_document)
 
+    def test_create_feed_entry_skips_unsupported_content_type(self):
+        """Test that creating a feed entry with an unsupported content type
+        returns None and does not create a FeedEntry."""
+        hub_content_type = ContentType.objects.get_for_model(Hub)
+
+        result = create_feed_entry(
+            item_id=self.hub.id,
+            item_content_type_id=hub_content_type.id,
+            action=FeedEntry.PUBLISH,
+            hub_ids=[self.hub.id],
+            user_id=self.user.id,
+        )
+
+        self.assertIsNone(result)
+        self.assertFalse(
+            FeedEntry.objects.filter(
+                object_id=self.hub.id, content_type=hub_content_type
+            ).exists()
+        )
+
     def test_create_feed_entry_twice(self):
         """Test that attempting to create the same feed entry twice
         doesn't raise an error.
