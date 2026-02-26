@@ -1,4 +1,5 @@
 import json
+import uuid
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -14,7 +15,7 @@ from purchase.endaoment.client import EndaomentClient, TokenResponse
     ENDAOMENT_AUTH_URL="https://auth.dev.endaoment.org",
     ENDAOMENT_CLIENT_ID="test_client_id",
     ENDAOMENT_CLIENT_SECRET="test_client_secret",
-    ENDAOMENT_REDIRECT_URI="https://researchhub.com/callback",
+    ENDAOMENT_REDIRECT_URL="https://researchhub.com/callback",
     CORS_ORIGIN_WHITELIST=["https://test.com", "https://researchhub.com"],
 )
 class TestEndaomentClient(TestCase):
@@ -76,6 +77,7 @@ class TestEndaomentClient(TestCase):
         self.assertEqual(state_data["user_id"], 123)
         self.assertEqual(state_data["return_url"], "https://researchhub.com/dashboard")
         self.assertEqual(state_data["code_verifier"], "test_code_verifier")
+        self.assertEqual(call_kwargs["prompt"], "login consent")
 
     def test_build_authorization_url_with_invalid_return_url(self):
         """
@@ -220,14 +222,144 @@ class TestEndaomentClient(TestCase):
         with self.assertRaises(ValueError):
             self.client.get_user_funds(access_token="")
 
+    def test_get_fund_by_id(self):
+        """
+        Test fetching a specific fund by ID.
+        """
+        # Arrange
+        with open(self.FIXTURES_DIR / "get_fund_by_id_response.json") as f:
+            mock_fund = json.load(f)
+        mock_response = Mock()
+        mock_response.json.return_value = mock_fund
+        mock_response.raise_for_status = Mock()
+        self.client.http_session.request = Mock(return_value=mock_response)
+
+        # Act
+        result = self.client.get_fund_by_id(
+            access_token="valid_access_token", fund_id="fund-123"
+        )
+
+        # Assert
+        self.assertIsInstance(result, dict)
+        self.assertEqual(result, mock_fund)
+        self.client.http_session.request.assert_called_once_with(
+            "GET",
+            "https://api.dev.endaoment.org/v1/funds/fund-123",
+            headers={"Authorization": "Bearer valid_access_token"},
+            timeout=30,
+        )
+
+    def test_get_fund_by_id_not_found(self):
+        """
+        Test fetching a fund by ID that does not exist returns None.
+        """
+        # Arrange
+        with open(self.FIXTURES_DIR / "get_fund_by_id_not_found_response.json") as f:
+            mock_error_response = json.load(f)
+        mock_response = Mock()
+        mock_response.raise_for_status.side_effect = requests.HTTPError(
+            response=Mock(status_code=404, json=lambda: mock_error_response)
+        )
+        self.client.http_session.request = Mock(return_value=mock_response)
+
+        # Act
+        result = self.client.get_fund_by_id(
+            access_token="valid_access_token", fund_id="nonexistent-fund"
+        )
+
+        # Assert
+        self.assertIsNone(result)
+        self.client.http_session.request.assert_called_once_with(
+            "GET",
+            "https://api.dev.endaoment.org/v1/funds/nonexistent-fund",
+            headers={"Authorization": "Bearer valid_access_token"},
+            timeout=30,
+        )
+
+    def test_get_fund_by_id_fails_without_token(self):
+        """
+        Test fetching a fund by ID fails without access token.
+        """
+        with self.assertRaises(ValueError):
+            self.client.get_fund_by_id(access_token="", fund_id="fund-123")
+
+    @patch("purchase.endaoment.client.uuid.uuid4")
+    def test_create_async_entity_transfer(self, mock_uuid):
+        """
+        Test creating an async entity transfer (grant).
+        """
+        # Arrange
+        mock_uuid.return_value = uuid.UUID("21996c9d-c8e2-4576-a2a2-f60c9a249fe1")
+        with open(
+            self.FIXTURES_DIR / "create_async_entity_transfer_response.json"
+        ) as f:
+            mock_response_data = json.load(f)
+        mock_response = Mock()
+        mock_response.json.return_value = mock_response_data
+        mock_response.raise_for_status = Mock()
+        self.client.http_session.request = Mock(return_value=mock_response)
+
+        # Act
+        result = self.client.create_async_entity_transfer(
+            access_token="valid_access_token",
+            origin_fund_id="fund-123",
+            destination_fund_id="fund-456",
+            amount_in_cents=50_000,
+        )
+
+        # Assert
+        self.assertEqual(result, mock_response_data)
+        self.client.http_session.request.assert_called_once_with(
+            "POST",
+            "https://api.dev.endaoment.org/v1/transfers/async-entity-transfers",
+            headers={"Authorization": "Bearer valid_access_token"},
+            timeout=30,
+            json={
+                "idempotencyKey": "21996c9d-c8e2-4576-a2a2-f60c9a249fe1",
+                "originFundId": "fund-123",
+                "destinationFundId": "fund-456",
+                "requestedAmount": "500000000",
+            },
+        )
+
+    def test_create_async_entity_transfer_fails_without_token(self):
+        """
+        Test creating an async entity transfer fails without access token.
+        """
+        with self.assertRaises(ValueError):
+            self.client.create_async_entity_transfer(
+                access_token="",
+                origin_fund_id="fund-123",
+                destination_fund_id="fund-456",
+                amount_in_cents=50000,
+            )
+
+    def test_create_async_entity_transfer_http_error(self):
+        """
+        Test that HTTP errors from the API are propagated when creating an async entity transfer.
+        """
+        mock_response = Mock()
+        mock_response.raise_for_status.side_effect = requests.HTTPError(
+            response=Mock(status_code=403)
+        )
+        self.client.http_session.request = Mock(return_value=mock_response)
+
+        with self.assertRaises(requests.HTTPError):
+            self.client.create_async_entity_transfer(
+                access_token="valid_access_token",
+                origin_fund_id="fund-123",
+                destination_fund_id="fund-456",
+                amount_in_cents=50000,
+            )
+
     @patch("purchase.endaoment.client.uuid.uuid4")
     def test_create_async_grant(self, uuid_mock):
         """
         Test creating an async grant request.
         """
         # Arrange
-        uuid_mock.return_value = Mock(hex="abc123")
-        with open(self.FIXTURES_DIR / "async_grant_response.json") as f:
+        uuid_mock.return_value = uuid.UUID("21996c9d-c8e2-4576-a2a2-f60c9a249fe1")
+        with open(self.FIXTURES_DIR / "create_async_grant_response.json") as f:
             mock_grant = json.load(f)
         mock_response = Mock()
         mock_response.json.return_value = mock_grant
@@ -238,7 +370,7 @@ class TestEndaomentClient(TestCase):
             access_token="valid_token",
             origin_fund_id="fund-1",
             destination_org_id="org-1",
-            amount_in_cents=100000,
+            amount_in_cents=100_000,
             purpose="Research funding",
         )
 
@@ -250,10 +382,10 @@ class TestEndaomentClient(TestCase):
             headers={"Authorization": "Bearer valid_token"},
             timeout=30,
             json={
-                "idempotencyKey": "abc123",
+                "idempotencyKey": "21996c9d-c8e2-4576-a2a2-f60c9a249fe1",
                 "originFundId": "fund-1",
                 "destinationOrgId": "org-1",
-                "requestedAmount": "100000",
+                "requestedAmount": "1000000000",
                 "purpose": "Research funding",
             },
         )
@@ -292,3 +424,17 @@ class TestEndaomentClient(TestCase):
                 amount_in_cents=100000,
                 purpose="Research funding",
             )
+
+    def test_cents_to_micros(self):
+        cases = [
+            # (amount_in_cents, expected_micros, description)
+            (0, 0, "0 cents"),
+            (1, 10_000, "1 cent"),
+            (100, 1_000_000, "1 dollar"),
+            (50_000, 500_000_000, "500 dollars"),
+            (100_000, 1_000_000_000, "1,000 dollars"),
+        ]
+        for amount_in_cents, expected, description in cases:
+            with self.subTest(description):
+                result = EndaomentClient.cents_to_micros(amount_in_cents)
+                self.assertEqual(result, expected)

@@ -40,6 +40,7 @@ from assistant.views import (
     SessionListView,
 )
 from feed.views import (
+    ActivityFeedViewSet,
     FeedViewSet,
     FundingFeedViewSet,
     GrantFeedViewSet,
@@ -49,8 +50,11 @@ from orcid.views import OrcidCallbackView, OrcidConnectView, OrcidFetchView
 from organizations.views import NonprofitFundraiseLinkViewSet, NonprofitOrgViewSet
 from paper.views import paper_upload_views
 from purchase.views import (
+    CircleWebhookView,
+    DepositAddressView,
     EndaomentCallbackView,
     EndaomentConnectView,
+    EndaomentDisconnectView,
     EndaomentStatusView,
     EndaomentViewSet,
     stripe_webhook_view,
@@ -199,7 +203,11 @@ router.register(
 
 router.register(r"fundraise", purchase.views.FundraiseViewSet, basename="fundraise")
 
+router.register(r"funder", purchase.views.FunderViewSet, basename="funder")
+
 router.register(r"grant", purchase.views.GrantViewSet, basename="grant")
+
+router.register(r"activity_feed", ActivityFeedViewSet, basename="activity_feed")
 
 router.register(r"feed", FeedViewSet, basename="feed")
 
@@ -243,6 +251,11 @@ urlpatterns = [
         name="endaoment_connect",
     ),
     path(
+        "api/endaoment/disconnect/",
+        EndaomentDisconnectView.as_view(),
+        name="endaoment_disconnect",
+    ),
+    path(
         "api/endaoment/callback/",
         EndaomentCallbackView.as_view(),
         name="endaoment_callback",
@@ -264,6 +277,7 @@ urlpatterns = [
     ),
     path("api/permissions/", researchhub.views.permissions, name="permissions"),
     path("api/search/", include(search.urls)),
+    path("api/research_ai/", include("research_ai.urls")),
     # Referral endpoints
     path("api/referral/", include("referral.urls")),
     # Organization endpoints
@@ -353,6 +367,11 @@ urlpatterns = [
         name="stripe_webhook",
     ),
     path(
+        "webhooks/circle/",
+        CircleWebhookView.as_view(),
+        name="circle_webhook",
+    ),
+    path(
         "api/payment/checkout-session/",
         purchase.views.CheckoutView.as_view(),
         name="payment_view",
@@ -366,6 +385,11 @@ urlpatterns = [
         "api/payment/payment-intent/<str:payment_intent_id>/status/",
         purchase.views.PaymentIntentView.as_view(),
         name="payment_intent_status_view",
+    ),
+    path(
+        "api/wallet/deposit-address/",
+        DepositAddressView.as_view(),
+        name="deposit_address",
     ),
     path("user_saved/", UserSavedView.as_view(), name="user_saved"),
     path(

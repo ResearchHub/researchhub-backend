@@ -1,19 +1,28 @@
+import logging
 from datetime import datetime, timedelta
-from decimal import Decimal
 
 import pytz
 from django.contrib.contenttypes.models import ContentType
 
 from mailing_list.lib import base_email_context
+from notification.models import Notification
 from paper.models import Paper
+from purchase.circle.service import (
+    COMPLETED_STATES,
+    CircleWalletService,
+    CircleZeroBalanceError,
+)
 from purchase.models import Fundraise, Purchase, Support
 from purchase.related_models.constants.currency import USD
 from purchase.services.fundraise_service import FundraiseService
+from reputation.models import Deposit
 from researchhub.celery import QUEUE_NOTIFICATION, QUEUE_PURCHASES, app
 from researchhub.settings import BASE_FRONTEND_URL
 from researchhub_document.models import ResearchhubPost
 from utils.message import send_email_message
 from utils.sentry import log_error, log_info
+
+logger = logging.getLogger(__name__)
 
 
 @app.task
@@ -71,6 +80,55 @@ def complete_eligible_fundraises():
         "error_count": error_count,
         "processed_total": completed_count + error_count,
     }
+
+
+@app.task(queue=QUEUE_NOTIFICATION)
+def send_monthly_preregistration_update_reminders():
+    now = datetime.now(pytz.UTC)
+    open_fundraises = (
+        Fundraise.objects.filter(
+            status=Fundraise.OPEN,
+        )
+        .exclude(
+            end_date__lte=now,
+        )
+        .select_related("created_by", "unified_document")
+    )
+
+    fundraise_ct = ContentType.objects.get_for_model(Fundraise)
+    sent_count = 0
+
+    for fundraise in open_fundraises:
+        already_sent = Notification.objects.filter(
+            notification_type=Notification.PREREGISTRATION_UPDATE_REMINDER,
+            recipient=fundraise.created_by,
+            content_type=fundraise_ct,
+            object_id=fundraise.id,
+            created_date__year=now.year,
+            created_date__month=now.month,
+        ).exists()
+
+        if already_sent:
+            continue
+
+        try:
+            notification = Notification.objects.create(
+                item=fundraise,
+                action_user=fundraise.created_by,
+                recipient=fundraise.created_by,
+                unified_document=fundraise.unified_document,
+                notification_type=Notification.PREREGISTRATION_UPDATE_REMINDER,
+            )
+            notification.send_notification()
+            sent_count += 1
+        except Exception as e:
+            log_error(
+                e,
+                message=f"Error sending preregistration update reminder for fundraise {fundraise.id}",
+            )
+
+    log_info(f"Sent {sent_count} preregistration update reminders")
+    return {"sent_count": sent_count}
 
 
 @app.task(queue=QUEUE_NOTIFICATION)
@@ -189,3 +247,78 @@ def send_support_email(
             context,
             html_template="support_receipt.html",
         )
+
+
+@app.task(
+    bind=True,
+    queue=QUEUE_PURCHASES,
+    max_retries=3,
+    default_retry_delay=60,
+)
+def sweep_deposit_to_multisig(self, circle_wallet_id, amount, network, sweep_reference):
+    """
+    Sweep deposited RSC from a user's Circle wallet.
+
+    Amounts worth >= $10,000 USD are sent to the multisig wallet;
+    smaller amounts are sent to the hot wallet.
+
+    Fired asynchronously after crediting a user's balance on deposit.
+    Updates Deposit.sweep_status to track the outcome.
+    """
+    deposit = Deposit.objects.filter(circle_transaction_id=sweep_reference).first()
+
+    try:
+        service = CircleWalletService()
+        result = service.sweep_wallet(
+            circle_wallet_id=circle_wallet_id,
+            amount=amount,
+            network=network,
+            sweep_reference=sweep_reference,
+        )
+        if deposit:
+            # If the idempotent transfer is already finalized (e.g. duplicate
+            # webhook replay), record COMPLETED instead of downgrading.
+            if result.state in COMPLETED_STATES:
+                deposit.sweep_status = Deposit.SWEEP_COMPLETED
+            else:
+                deposit.sweep_status = Deposit.SWEEP_INITIATED
+            deposit.sweep_transfer_id = result.transfer_id
+            deposit.save(update_fields=["sweep_status", "sweep_transfer_id"])
+    except CircleZeroBalanceError:
+        # Zero balance means another job already swept the funds.
+        # Mark as COMPLETED to avoid infinite retry loops.
+        logger.info(
+            "Sweep wallet has zero balance (already swept): "
+            "circle_wallet_id=%s sweep_reference=%s",
+            circle_wallet_id,
+            sweep_reference,
+        )
+        if deposit:
+            deposit.sweep_status = Deposit.SWEEP_COMPLETED
+            deposit.save(update_fields=["sweep_status"])
+    except ValueError:
+        logger.exception(
+            "Sweep failed (not retryable): circle_wallet_id=%s amount=%s "
+            "network=%s sweep_reference=%s",
+            circle_wallet_id,
+            amount,
+            network,
+            sweep_reference,
+        )
+        if deposit:
+            deposit.sweep_status = Deposit.SWEEP_FAILED
+            deposit.save(update_fields=["sweep_status"])
+        raise
+    except Exception as exc:
+        logger.exception(
+            "Sweep failed (retrying): circle_wallet_id=%s amount=%s "
+            "network=%s sweep_reference=%s",
+            circle_wallet_id,
+            amount,
+            network,
+            sweep_reference,
+        )
+        if deposit and self.request.retries >= self.max_retries:
+            deposit.sweep_status = Deposit.SWEEP_FAILED
+            deposit.save(update_fields=["sweep_status"])
+        raise self.retry(exc=exc)

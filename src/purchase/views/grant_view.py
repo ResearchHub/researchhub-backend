@@ -1,16 +1,19 @@
+from django.core.cache import cache
 from django.db import transaction
+from django.db.models import Q, Sum
+from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from purchase.models import Grant, GrantApplication
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.serializers.grant_create_serializer import GrantCreateSerializer
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.permissions import IsModerator
-
 
 class GrantViewSet(viewsets.ModelViewSet):
     queryset = Grant.objects.all()
@@ -191,3 +194,27 @@ class GrantViewSet(viewsets.ModelViewSet):
             return Response({"message": "Application submitted"}, status=201)
         else:
             return Response({"message": "Already applied"}, status=200)
+
+
+    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
+    def available_funding(self, request, *args, **kwargs):
+        cache_key = "grant_available_funding"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached)
+
+        now = timezone.now()
+        active_filter = Q(status=Grant.OPEN) & (
+            Q(end_date__isnull=True) | Q(end_date__gt=now)
+        )
+        total_usd = float(
+            Grant.objects.filter(active_filter).aggregate(total=Sum("amount"))["total"]
+            or 0
+        )
+        total_rsc = float(RscExchangeRate.usd_to_rsc(total_usd))
+        data = {
+            "available_funding_in_rsc": round(total_rsc, 2),
+            "available_funding_in_usd": round(total_usd, 2),
+        }
+        cache.set(cache_key, data, timeout=60 * 60 * 12)
+        return Response(data)

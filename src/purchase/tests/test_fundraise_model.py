@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 from django.test import TestCase
 
+from organizations.models import NonprofitFundraiseLink, NonprofitOrg
 from purchase.models import Fundraise
 from purchase.related_models.constants.currency import ETHER, RSC, USD
 from purchase.related_models.usd_fundraise_contribution_model import (
@@ -202,3 +203,38 @@ class GetAmountRaisedTests(TestCase):
 
         # Should be 0 after all contributions are refunded
         self.assertEqual(amount_after, 0.0)
+
+
+class FundraiseNonprofitOrgTests(TestCase):
+    def setUp(self):
+        self.user = create_random_authenticated_user(
+            "fundraise_nonprofit", moderator=True
+        )
+        self.post = create_post(created_by=self.user, document_type=PREREGISTRATION)
+        self.fundraise_service = FundraiseService()
+        self.fundraise = self.fundraise_service.create_fundraise_with_escrow(
+            user=self.user,
+            unified_document=self.post.unified_document,
+            goal_amount=1000,
+            goal_currency="USD",
+            status=Fundraise.OPEN,
+        )
+        self.nonprofit = NonprofitOrg.objects.create(
+            name="Test Nonprofit", endaoment_org_id="12345"
+        )
+
+    def test_get_nonprofit_org_no_link(self):
+        # Act
+        nonprofit = self.fundraise.get_nonprofit_org()
+        # Assert
+        self.assertIsNone(nonprofit)
+
+    def test_get_nonprofit_org_with_link(self):
+        # Act
+        NonprofitFundraiseLink.objects.create(
+            nonprofit=self.nonprofit, fundraise=self.fundraise
+        )
+
+        # Assert
+        nonprofit = self.fundraise.get_nonprofit_org()
+        self.assertEqual(nonprofit, self.nonprofit)

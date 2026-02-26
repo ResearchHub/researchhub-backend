@@ -2,7 +2,7 @@ from django.conf import settings
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from django.db.models import Avg, Count, DecimalField, Q, Sum
+from django.db.models import Avg, Count, DecimalField, Q, QuerySet, Sum
 from django.db.models.functions import Cast
 from django.utils.functional import cached_property
 
@@ -189,6 +189,10 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
             return self.hubs.first()
 
         return None
+
+    def get_primary_hubs(self) -> QuerySet:
+        """Return all hubs with namespace='subcategory' associated with this document."""
+        return self.hubs.filter(namespace=Hub.Namespace.SUBCATEGORY)
 
     def get_journal(self):
         """

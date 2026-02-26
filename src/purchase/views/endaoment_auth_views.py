@@ -1,7 +1,7 @@
 import logging
 
 from django.shortcuts import redirect
-from rest_framework.exceptions import APIException
+from rest_framework.exceptions import APIException, NotFound
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -79,6 +79,32 @@ class EndaomentCallbackView(APIView):
         return redirect(redirect_url)
 
 
+class EndaomentDisconnectView(APIView):
+    """
+    API endpoint for disconnecting a user's Endaoment account.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def dispatch(self, request, *args, **kwargs):
+        self.service = kwargs.pop("service", None) or EndaomentService()
+        return super().dispatch(request, *args, **kwargs)
+
+    def post(self, request: Request) -> Response:
+        """
+        Disconnect the authenticated user's Endaoment account.
+        """
+        try:
+            disconnected = self.service.disconnect(request.user)
+        except Exception as e:
+            logger.warning(f"Failed to disconnect Endaoment account: {e}")
+            raise APIException("Failed to disconnect Endaoment account")
+
+        if not disconnected:
+            raise NotFound("No Endaoment connection found to disconnect.")
+        return Response(status=204)
+
+
 class EndaomentStatusView(APIView):
     """
     Provides an endpoint to check if user has an Endaoment connection.
@@ -99,6 +125,5 @@ class EndaomentStatusView(APIView):
         return Response(
             {
                 "connected": connection_status.connected,
-                "endaoment_user_id": connection_status.endaoment_user_id,
             }
         )

@@ -198,9 +198,6 @@ class UserBalancesSerializerTests(TestCase):
         )
         distributor.distribute()
 
-        # Give user some USD balance (500 cents = $5)
-        self.user.increase_usd_balance(500)
-
     def test_user_serializer_balances_returns_for_own_user(self):
         """UserSerializer should return balances when user views own profile"""
         serializer = UserSerializer(
@@ -215,11 +212,9 @@ class UserBalancesSerializerTests(TestCase):
         self.assertIsNotNone(balances)
         self.assertEqual(balances["rsc"], 1000)
         self.assertEqual(balances["rsc_locked"], 0)
-        self.assertEqual(balances["usd_cents"], 500)
-        # total_rsc = 1000 RSC + (500 cents / 100 = $5 / 0.5 rate = 10 RSC) = 1010
-        self.assertEqual(balances["total_rsc"], 1010)
-        # total_usd_cents = 500 + (1000 RSC * 0.5 rate * 100) = 500 + 50000 = 50500
-        self.assertEqual(balances["total_usd_cents"], 50500)
+        self.assertEqual(balances["total_rsc"], 1000)
+        # total_usd_cents = 1000 RSC * 0.5 rate * 100 = 50000
+        self.assertEqual(balances["total_usd_cents"], 50000)
 
     def test_user_serializer_balances_returns_none_for_other_user(self):
         """UserSerializer should return None for balances when viewing another user"""
@@ -253,9 +248,8 @@ class UserBalancesSerializerTests(TestCase):
         self.assertIsNotNone(balances)
         self.assertEqual(balances["rsc"], 1000)
         self.assertEqual(balances["rsc_locked"], 0)
-        self.assertEqual(balances["usd_cents"], 500)
-        self.assertEqual(balances["total_rsc"], 1010)
-        self.assertEqual(balances["total_usd_cents"], 50500)
+        self.assertEqual(balances["total_rsc"], 1000)
+        self.assertEqual(balances["total_usd_cents"], 50000)
 
     def test_user_editable_serializer_balances_returns_none_for_other_user(self):
         """UserEditableSerializer should return None for balances when viewing another user"""
@@ -288,9 +282,8 @@ class UserBalancesSerializerTests(TestCase):
         self.assertIsNotNone(balances)
         self.assertEqual(balances["rsc"], 1000)
         self.assertEqual(balances["rsc_locked"], 0)
-        self.assertEqual(balances["usd_cents"], 500)
-        self.assertEqual(balances["total_rsc"], 1010)
-        self.assertEqual(balances["total_usd_cents"], 50500)
+        self.assertEqual(balances["total_rsc"], 1000)
+        self.assertEqual(balances["total_usd_cents"], 50000)
 
     def test_dynamic_user_serializer_balances_returns_none_for_other_user(self):
         """DynamicUserSerializer should return None for balances when viewing another user"""
@@ -323,10 +316,10 @@ class UserBalancesSerializerTests(TestCase):
 
         self.assertEqual(balances["rsc"], 1000)
         self.assertEqual(balances["rsc_locked"], 200)
-        # total_rsc = 1200 RSC + ($5 / 0.5 = 10 RSC) = 1210
-        self.assertEqual(balances["total_rsc"], 1210)
-        # total_usd_cents = 500 + (1200 RSC * 0.5 * 100) = 500 + 60000 = 60500
-        self.assertEqual(balances["total_usd_cents"], 60500)
+        # total_rsc = 1200 RSC
+        self.assertEqual(balances["total_rsc"], 1200)
+        # total_usd_cents = 1200 RSC * 0.5 * 100 = 60000
+        self.assertEqual(balances["total_usd_cents"], 60000)
 
     def test_balances_with_zero_balances(self):
         """Balances should work correctly with zero balances"""
@@ -342,6 +335,5 @@ class UserBalancesSerializerTests(TestCase):
         self.assertIsNotNone(balances)
         self.assertEqual(balances["rsc"], 0)
         self.assertEqual(balances["rsc_locked"], 0)
-        self.assertEqual(balances["usd_cents"], 0)
         self.assertEqual(balances["total_rsc"], 0)
         self.assertEqual(balances["total_usd_cents"], 0)

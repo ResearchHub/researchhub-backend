@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import Optional
 
+import jwt as pyjwt
+import requests
 from authlib.integrations.base_client.errors import OAuthError
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -113,6 +115,28 @@ class EndaomentService:
             return ConnectionStatus(True, account.endaoment_user_id)
         return ConnectionStatus(False)
 
+    def disconnect(self, user) -> bool:
+        """
+        Disconnect a user's Endaoment account.
+
+        Revokes the refresh token at Endaoment and deletes the local account.
+        Returns True if an account was disconnected, False if none existed.
+        """
+        account = EndaomentAccount.objects.filter(user=user).first()
+        if not account:
+            return False
+
+        if account.refresh_token:
+            try:
+                self.client.revoke_token(account.refresh_token)
+            except Exception:
+                logger.warning(
+                    "Failed to revoke Endaoment token for user %s", user.id
+                )
+
+        account.delete()
+        return True
+
     def get_valid_access_token(self, user) -> Optional[str]:
         """
         Get a valid access token for the user, refreshing if necessary.
@@ -173,6 +197,69 @@ class EndaomentService:
             purpose=purpose,
         )
 
+    def transfer_to_researchhub_fund(
+        self,
+        user,
+        origin_fund_id: str,
+        amount_cents: int,
+    ) -> dict:
+        """
+        Create a transfer request from a user's fund (DAF) to the ResearchHub fund.
+        This method is used to transfer funds from a user's DAF to the
+        RH fund which is done when contributing to fundraises that use Endaoment for
+        processing donations.
+        """
+        access_token = self.get_valid_access_token(user)
+        if not access_token:
+            raise EndaomentAccount.DoesNotExist("User has no Endaoment connection")
+
+        origin_fund = self.client.get_fund_by_id(access_token, origin_fund_id)
+        if not origin_fund:
+            raise ValueError(f"Origin fund with ID {origin_fund_id} not found")
+
+        chain_id = origin_fund.get("chainId")
+        destination_fund_id = self._get_researchhub_fund_id(chain_id)
+
+        return self.client.create_async_entity_transfer(
+            access_token=access_token,
+            origin_fund_id=origin_fund_id,
+            destination_fund_id=destination_fund_id,
+            amount_in_cents=amount_cents,
+        )
+
+    def _get_researchhub_fund_id(self, chain_id: int) -> str:
+        """
+        Get the ResearchHub fund ID for a given chain ID.
+        """
+        fund_id = settings.ENDAOMENT_RH_FUND_IDS.get(chain_id)
+        if not fund_id:
+            raise ValueError(f"No ResearchHub fund configured for chain ID {chain_id}")
+        return fund_id
+
+    def transfer_between_funds(
+        self,
+        user,
+        origin_fund_id: str,
+        destination_fund_id: str,
+        amount_cents: int,
+    ) -> dict:
+        """
+        Create a transfer request from a user's fund (DAF) to another fund.
+        This method is used to transfer funds from a user's DAF to the
+        RH fund which is done for fundraising campaigns that use Endaoment for
+        processing donations.
+        """
+        access_token = self.get_valid_access_token(user)
+        if not access_token:
+            raise EndaomentAccount.DoesNotExist("User has no Endaoment connection")
+
+        return self.client.create_async_entity_transfer(
+            access_token=access_token,
+            origin_fund_id=origin_fund_id,
+            destination_fund_id=destination_fund_id,
+            amount_in_cents=amount_cents,
+        )
+
     def _refresh_account_token(self, account: EndaomentAccount) -> None:
         """
         Refresh the access token for an account.
@@ -191,6 +278,11 @@ class EndaomentService:
                 logger.error(
                     f"Unexpected OAuth error refreshing token for user {account.user.id}: {e}"
                 )
+            raise
+        except requests.RequestException as e:
+            logger.error(
+                f"Failed to refresh Endaoment token for user {account.user.id}: {e}"
+            )
             raise
 
         account.access_token = token_response.access_token
@@ -211,7 +303,6 @@ class EndaomentService:
             user: The user to save the account for.
             token_response: Token response from Endaoment.
         """
-
         account, _ = EndaomentAccount.objects.update_or_create(
             user=user,
             defaults={
@@ -219,9 +310,23 @@ class EndaomentService:
                 "refresh_token": token_response.refresh_token,
                 "token_expires_at": timezone.now()
                 + timedelta(seconds=token_response.expires_in),
+                "endaoment_user_id": self._extract_user_id(token_response.id_token),
             },
         )
         return account
+
+    @staticmethod
+    def _extract_user_id(id_token: str) -> str | None:
+        """
+        Extract the 'sub' claim (the external Endaoment user ID) from the given
+        OpenID Connect token.
+        """
+        try:
+            claims = pyjwt.decode(id_token, options={"verify_signature": False})
+            return claims.get("sub")
+        except Exception:
+            logger.warning("Failed to extract user ID from Endaoment ID token")
+            return None
 
     @staticmethod
     def build_redirect_url(

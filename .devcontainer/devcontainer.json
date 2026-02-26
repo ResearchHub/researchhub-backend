@@ -51,6 +51,9 @@
 				"black-formatter.args": [
 					"--line-length=88"
 				],
+				"files.exclude": {
+					"**/__pycache__": true
+				},
 				"flake8.args": [
 					"--max-line-length=88"
 				],

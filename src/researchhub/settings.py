@@ -280,6 +280,7 @@ INSTALLED_APPS = [
     "user_saved",
     "user_lists",
     "assistant",
+    "research_ai",
     # Health checks
     "health_check",
     "health_check.db",
@@ -540,7 +541,11 @@ AWS_REGION_NAME = os.environ.get("AWS_REGION_NAME", keys.AWS_REGION_NAME)
 
 # AWS Bedrock Configuration
 BEDROCK_PROCESSING_ENABLED = (
-    os.environ.get("BEDROCK_PROCESSING_ENABLED", "false").lower() == "true"
+    os.environ.get(
+        "BEDROCK_PROCESSING_ENABLED",
+        getattr(keys, "BEDROCK_PROCESSING_ENABLED", "false"),
+    ).lower()
+    == "true"
 )
 
 # Assistant Configuration
@@ -897,6 +902,42 @@ ENDAOMENT_CLIENT_SECRET = os.environ.get(
 ENDAOMENT_REDIRECT_URL = os.environ.get(
     "ENDAOMENT_REDIRECT_URL", keys.ENDAOMENT_REDIRECT_URL
 )
+# ResearchHub's Endaoment fund IDs, indexed by chain ID.
+# Each chain requires its own fund because Endaoment does not support bridging.
+#
+# Also see: https://chainid.network/
+ENDAOMENT_RH_FUND_IDS = {
+    # Ethereum
+    1: os.environ.get(
+        "ENDAOMENT_RH_FUND_ID_ETHEREUM",
+        keys.ENDAOMENT_RH_FUND_ID_ETHEREUM,
+    ),
+    # Ethereum Sepolia Testnet
+    11155111: os.environ.get(
+        "ENDAOMENT_RH_FUND_ID_ETHEREUM",
+        keys.ENDAOMENT_RH_FUND_ID_ETHEREUM,
+    ),
+    # Optimism
+    10: os.environ.get(
+        "ENDAOMENT_RH_FUND_ID_OPTIMISM",
+        keys.ENDAOMENT_RH_FUND_ID_OPTIMISM,
+    ),
+    # Optimism Sepolia Testnet
+    11155420: os.environ.get(
+        "ENDAOMENT_RH_FUND_ID_OPTIMISM",
+        keys.ENDAOMENT_RH_FUND_ID_OPTIMISM,
+    ),
+    # Base
+    8453: os.environ.get(
+        "ENDAOMENT_RH_FUND_ID_BASE",
+        keys.ENDAOMENT_RH_FUND_ID_BASE,
+    ),
+    # Base Sepolia Testnet
+    84532: os.environ.get(
+        "ENDAOMENT_RH_FUND_ID_BASE",
+        keys.ENDAOMENT_RH_FUND_ID_BASE,
+    ),
+}
 
 # Etherscan API Key
 ETHERSCAN_API_KEY = os.environ.get("ETHERSCAN_API_KEY", keys.ETHERSCAN_API_KEY)
@@ -906,6 +947,14 @@ COIN_GECKO_API_KEY = os.environ.get("COIN_GECKO_API_KEY", keys.COIN_GECKO_API_KE
 
 # Endaoment Account ID
 ENDAOMENT_ACCOUNT_ID = os.environ.get("ENDAOMENT_ACCOUNT_ID", keys.ENDAOMENT_ACCOUNT_ID)
+
+# Circle Developer-Controlled Wallets
+CIRCLE_API_KEY = os.environ.get("CIRCLE_API_KEY", keys.CIRCLE_API_KEY)
+CIRCLE_ENTITY_SECRET = os.environ.get("CIRCLE_ENTITY_SECRET", keys.CIRCLE_ENTITY_SECRET)
+CIRCLE_WALLET_SET_ID = os.environ.get("CIRCLE_WALLET_SET_ID", keys.CIRCLE_WALLET_SET_ID)
+RH_MULTISIG_ADDRESS = os.environ.get(
+    "RH_MULTISIG_ADDRESS", getattr(keys, "RH_MULTISIG_ADDRESS", "")
+)
 
 # ResearchHub Journal ID
 RESEARCHHUB_JOURNAL_ID = os.environ.get(

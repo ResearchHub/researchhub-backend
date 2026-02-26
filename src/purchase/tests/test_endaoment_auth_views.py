@@ -9,6 +9,7 @@ from purchase.endaoment.service import CallbackResult, ConnectionStatus
 from purchase.views import (
     EndaomentCallbackView,
     EndaomentConnectView,
+    EndaomentDisconnectView,
     EndaomentStatusView,
 )
 
@@ -150,6 +151,64 @@ class TestEndaomentCallbackView(TestCase):
         )
 
 
+class TestEndaomentDisconnectView(TestCase):
+    """
+    Tests for the `EndaomentDisconnectView`.
+    """
+
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.mock_service = Mock()
+        self.user = User.objects.create_user(username="user1")
+
+    def test_disconnect(self):
+        """
+        Test successful disconnect returns 204.
+        """
+        # Arrange
+        self.mock_service.disconnect.return_value = True
+
+        request = self.factory.post("/api/endaoment/disconnect/")
+        force_authenticate(request, user=self.user)
+
+        # Act
+        response = EndaomentDisconnectView.as_view()(request, service=self.mock_service)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.mock_service.disconnect.assert_called_once_with(self.user)
+
+    def test_disconnect_no_account(self):
+        """
+        Test disconnect returns 404 when user has no account.
+        """
+        # Arrange
+        self.mock_service.disconnect.return_value = False
+
+        request = self.factory.post("/api/endaoment/disconnect/")
+        force_authenticate(request, user=self.user)
+
+        # Act
+        response = EndaomentDisconnectView.as_view()(request, service=self.mock_service)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_disconnect_requires_authentication(self):
+        """
+        Test disconnect rejects unauthenticated requests.
+        """
+        # Arrange
+        request = self.factory.post("/api/endaoment/disconnect/")
+
+        # Act
+        response = EndaomentDisconnectView.as_view()(request, service=self.mock_service)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.mock_service.disconnect.assert_not_called()
+
+
 class TestEndaomentStatusView(TestCase):
     """
     Tests for the `EndaomentStatusView`.
@@ -162,7 +221,7 @@ class TestEndaomentStatusView(TestCase):
 
     def test_connected_user(self):
         """
-        Test status returns connected with endaoment_user_id.
+        Test status returns connected status.
         """
         # Arrange
         self.mock_service.get_connection_status.return_value = ConnectionStatus(
@@ -178,7 +237,6 @@ class TestEndaomentStatusView(TestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data["connected"])
-        self.assertEqual(response.data["endaoment_user_id"], "externalUserId1")
         self.mock_service.get_connection_status.assert_called_once_with(self.user)
 
     def test_unconnected_user(self):
@@ -199,4 +257,3 @@ class TestEndaomentStatusView(TestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertFalse(response.data["connected"])
-        self.assertIsNone(response.data["endaoment_user_id"])

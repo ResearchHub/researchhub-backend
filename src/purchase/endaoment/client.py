@@ -1,7 +1,6 @@
 import logging
 import uuid
 from dataclasses import dataclass
-from typing import Optional
 from urllib.parse import urlparse
 
 import requests
@@ -23,9 +22,9 @@ class TokenResponse:
     """
 
     access_token: str
-    refresh_token: Optional[str]
+    refresh_token: str | None
     expires_in: int
-    id_token: Optional[str] = None
+    id_token: str | None = None
     token_type: str = "Bearer"
 
 
@@ -42,13 +41,13 @@ class EndaomentClient:
         self.auth_url = settings.ENDAOMENT_AUTH_URL
         self.client_id = settings.ENDAOMENT_CLIENT_ID
         self.client_secret = settings.ENDAOMENT_CLIENT_SECRET
-        self.redirect_uri = settings.ENDAOMENT_REDIRECT_URL
+        self.redirect_url = settings.ENDAOMENT_REDIRECT_URL
 
         self.http_session = requests.Session()
         self.http_session.headers["Content-Type"] = "application/json"
 
     def build_authorization_url(
-        self, user_id: int, return_url: Optional[str] = None
+        self, user_id: int, return_url: str | None = None
     ) -> str:
         """
         Build Endaoment OAuth authorization URL with PKCE and signed state.
@@ -72,10 +71,11 @@ class EndaomentClient:
 
         url, _ = session.create_authorization_url(
             f"{self.auth_url}/auth",
-            redirect_uri=self.redirect_uri,
-            scope="openid accounts transactions profile",
+            redirect_uri=self.redirect_url,
+            scope="accounts offline_access openid profile transactions",
             state=state,
             code_verifier=code_verifier,
+            prompt="login consent",
         )
         return url
 
@@ -103,7 +103,7 @@ class EndaomentClient:
             f"{self.auth_url}/token",
             grant_type="authorization_code",
             code=code,
-            redirect_uri=self.redirect_uri,
+            redirect_uri=self.redirect_url,
             code_verifier=code_verifier,
             timeout=REQUEST_TIMEOUT,
         )
@@ -132,6 +132,19 @@ class EndaomentClient:
             id_token=token.get("id_token"),
         )
 
+    def revoke_token(self, token: str) -> None:
+        """
+        Revoke the given token.
+
+        Also see: https://datatracker.ietf.org/doc/html/rfc7009
+        """
+        session = self._create_session()
+        session.revoke_token(
+            f"{self.auth_url}/token/revocation",
+            token=token,
+            timeout=REQUEST_TIMEOUT,
+        )
+
     def _create_session(self) -> OAuth2Session:
         """
         Create a new OAuth2Session with PKCE support.
@@ -142,9 +155,7 @@ class EndaomentClient:
             code_challenge_method="S256",
         )
 
-    def _do_request(
-        self, method: str, path: str, access_token: Optional[str], **kwargs
-    ):
+    def _do_request(self, method: str, path: str, access_token: str | None, **kwargs):
         response = self.http_session.request(
             method,
             f"{self.api_url}{path}",
@@ -152,6 +163,14 @@ class EndaomentClient:
             timeout=REQUEST_TIMEOUT,
             **kwargs,
         )
+        if not response.ok:
+            logger.error(
+                "Endaoment API error: %s %s returned %s: %s",
+                method,
+                path,
+                response.status_code,
+                response.text,
+            )
         response.raise_for_status()
         return response.json()
 
@@ -165,6 +184,24 @@ class EndaomentClient:
             raise ValueError("access_token is required")
 
         return self._do_request("GET", "/v1/funds/mine", access_token)
+
+    def get_fund_by_id(self, access_token: str, fund_id: str) -> dict | None:
+        """
+        Fetch a specific fund by ID.
+
+        See: https://docs.endaoment.org/developers/api/funds/get-fund-by-id
+        """
+        if not access_token:
+            raise ValueError("access_token is required")
+
+        try:
+            return self._do_request("GET", f"/v1/funds/{fund_id}", access_token)
+        except requests.HTTPError as e:
+            if e.response.status_code == 404:
+                logger.warning(f"Fund with ID {fund_id} not found: {e}")
+                return None
+            else:
+                raise
 
     def create_async_grant(
         self,
@@ -188,15 +225,42 @@ class EndaomentClient:
             access_token,
             json={
                 "destinationOrgId": destination_org_id,
-                "idempotencyKey": uuid.uuid4().hex,
+                "idempotencyKey": str(uuid.uuid4()),
                 "originFundId": origin_fund_id,
                 "purpose": purpose,
-                "requestedAmount": str(amount_in_cents),
+                "requestedAmount": str(self.cents_to_micros(amount_in_cents)),
+            },
+        )
+
+    def create_async_entity_transfer(
+        self,
+        access_token: str,
+        origin_fund_id: str,
+        destination_fund_id: str,
+        amount_in_cents: int,
+    ) -> dict:
+        """
+        Create an async entity transfer request from a fund (DAF) to another fund.
+
+        See: https://docs.endaoment.org/developers/api/transfer/create-an-async-entity-transfer-request
+        """
+        if not access_token:
+            raise ValueError("access_token is required")
+
+        return self._do_request(
+            "POST",
+            "/v1/transfers/async-entity-transfers",
+            access_token,
+            json={
+                "destinationFundId": destination_fund_id,
+                "idempotencyKey": str(uuid.uuid4()),
+                "originFundId": origin_fund_id,
+                "requestedAmount": str(self.cents_to_micros(amount_in_cents)),
             },
         )
 
     @staticmethod
-    def is_valid_redirect_url(url: Optional[str]) -> bool:
+    def is_valid_redirect_url(url: str | None) -> bool:
         """
         Validate redirect URL against CORS whitelist.
         """
@@ -204,3 +268,10 @@ class EndaomentClient:
             return False
         parsed = urlparse(url)
         return f"{parsed.scheme}://{parsed.netloc}" in settings.CORS_ORIGIN_WHITELIST
+
+    @staticmethod
+    def cents_to_micros(amount_in_cents: int) -> int:
+        """
+        Convert amount in cents to micro-dollars for Endaoment API.
+        """
+        return amount_in_cents * 10_000

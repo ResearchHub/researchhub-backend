@@ -14,7 +14,6 @@ from paper.models import Paper
 from paper.openalex_util import process_openalex_works
 from paper.related_models.authorship_model import Authorship
 from user.related_models.author_model import Author
-from purchase.models import Wallet
 from utils.openalex import OpenAlex
 
 User = get_user_model()
@@ -22,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 class OrcidFetchService:
-    """Syncs papers and edu emails from ORCID to ResearchHub.""" 
+    """Syncs papers and edu emails from ORCID to ResearchHub."""
 
     def __init__(
         self,
@@ -86,7 +85,9 @@ class OrcidFetchService:
         if not token:
             return
 
-        verified_edu = self.email_service.fetch_verified_edu_emails(orcid_id, token.token)
+        verified_edu = self.email_service.fetch_verified_edu_emails(
+            orcid_id, token.token
+        )
 
         extra_data = social_account.extra_data or {}
         extra_data["verified_edu_emails"] = verified_edu
@@ -106,7 +107,9 @@ class OrcidFetchService:
             author.h_index = merged_author.h_index
             author.i10_index = merged_author.i10_index
             author.two_year_mean_citedness = merged_author.two_year_mean_citedness
-            author.save(update_fields=["h_index", "i10_index", "two_year_mean_citedness"])
+            author.save(
+                update_fields=["h_index", "i10_index", "two_year_mean_citedness"]
+            )
 
     def _extract_orcid_id(self, orcid_url: Optional[str]) -> str:
         """Extract bare ORCID ID from full URL (e.g., '0000-0001-2345-6789')."""
@@ -143,14 +146,19 @@ class OrcidFetchService:
     def _sanitize_works(self, works: list[dict]) -> list[dict]:
         """Remove authorships without author IDs to prevent processing errors."""
         return [
-            {**w, "authorships": [a for a in w.get("authorships", []) if a.get("author", {}).get("id")]}
+            {
+                **w,
+                "authorships": [
+                    a for a in w.get("authorships", []) if a.get("author", {}).get("id")
+                ],
+            }
             for w in works
         ]
 
     def _fix_user_author_authorships(self, works: list[dict]) -> None:
         """
         Fix authorships incorrectly created with user-connected authors.
-        
+
         Creates paper-specific authors linked via merged_with_author to preserve
         the paper's author name while maintaining the user connection.
         """
@@ -166,11 +174,15 @@ class OrcidFetchService:
                     display_name = openalex_author.get("display_name", "")
 
                     # Find authorship created with a user-connected author
-                    user_authorship = Authorship.objects.filter(
-                        paper=paper,
-                        author__openalex_ids__contains=[openalex_author_id],
-                        author__user__isnull=False,
-                    ).select_related("author").first()
+                    user_authorship = (
+                        Authorship.objects.filter(
+                            paper=paper,
+                            author__openalex_ids__contains=[openalex_author_id],
+                            author__user__isnull=False,
+                        )
+                        .select_related("author")
+                        .first()
+                    )
 
                     if not user_authorship:
                         continue
@@ -184,7 +196,11 @@ class OrcidFetchService:
                     ).first()
 
                     if not paper_author:
-                        name_parts = display_name.split() if display_name and display_name.strip() else ["Unknown"]
+                        name_parts = (
+                            display_name.split()
+                            if display_name and display_name.strip()
+                            else ["Unknown"]
+                        )
                         paper_author = Author.objects.create(
                             first_name=name_parts[0],
                             last_name=name_parts[-1] if len(name_parts) > 1 else "",
@@ -192,7 +208,6 @@ class OrcidFetchService:
                             merged_with_author=user_author,
                             created_source=Author.SOURCE_OPENALEX,
                         )
-                        Wallet.objects.create(author=paper_author)
                     elif not paper_author.merged_with_author:
                         paper_author.merged_with_author = user_author
                         paper_author.save(update_fields=["merged_with_author"])
@@ -200,13 +215,19 @@ class OrcidFetchService:
                     # Update authorship to use paper-specific author
                     user_authorship.author = paper_author
                     user_authorship.raw_author_name = display_name
-                    user_authorship.author_position = openalex_authorship.get("author_position", "middle")
-                    user_authorship.is_corresponding = openalex_authorship.get("is_corresponding") or False
+                    user_authorship.author_position = openalex_authorship.get(
+                        "author_position", "middle"
+                    )
+                    user_authorship.is_corresponding = (
+                        openalex_authorship.get("is_corresponding") or False
+                    )
                     user_authorship.save()
 
                     logger.debug(
                         "Fixed authorship: paper=%d, author=%d, user=%d",
-                        paper.id, paper_author.id, user_author.id,
+                        paper.id,
+                        paper_author.id,
+                        user_author.id,
                     )
 
     def _link_papers_to_author(
@@ -261,7 +282,7 @@ class OrcidFetchService:
     ) -> Optional[int]:
         """
         Link the user's authorship on this paper.
-        
+
         Returns the paper author's id if linked, None otherwise.
         """
         orcid_id = self._extract_orcid_id(author.orcid_id)

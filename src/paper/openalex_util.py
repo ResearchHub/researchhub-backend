@@ -309,7 +309,6 @@ def build_oa_authors_by_work_id_dict(
 
 
 def create_authors(openalex_works) -> List["Author"]:
-    from purchase.models import Wallet
     from user.related_models.author_model import Author
 
     # Get all authorships from the works
@@ -348,11 +347,7 @@ def create_authors(openalex_works) -> List["Author"]:
         )
 
     # Bulk create authors
-    created_authors = Author.objects.bulk_create(authors_to_create.values())
-
-    # Create wallets for new authors
-    wallets_to_create = [Wallet(author=author) for author in created_authors]
-    Wallet.objects.bulk_create(wallets_to_create)
+    Author.objects.bulk_create(authors_to_create.values())
 
     return Author.objects.filter(openalex_ids__overlap=all_openalex_author_ids)
 

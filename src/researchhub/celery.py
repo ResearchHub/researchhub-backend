@@ -78,6 +78,14 @@ app.conf.beat_schedule = {
             "queue": QUEUE_PURCHASES,
         },
     },
+    "purchase_send-monthly-preregistration-update-reminders": {
+        "task": "purchase.tasks.send_monthly_preregistration_update_reminders",
+        "schedule": crontab(day_of_month=1, hour=16, minute=0),
+        "options": {
+            "priority": 3,
+            "queue": QUEUE_NOTIFICATION,
+        },
+    },
     # Reputation
     "reputation_check-deposits": {
         "task": "reputation.tasks.check_deposits",
@@ -129,7 +137,7 @@ app.conf.beat_schedule = {
     },
     # User
     "user_execute-editor-daily-payout-task": {
-        "task": "user.tasks.execute_editor_daily_payout_task",
+        "task": "user.tasks.tasks.execute_editor_daily_payout_task",
         "schedule": crontab(hour=23, minute=5),
         "options": {
             "priority": 2,
@@ -137,12 +145,17 @@ app.conf.beat_schedule = {
         },
     },
     "user_execute_rsc_exchange_rate_record_tasks": {
-        "task": "user.tasks.execute_rsc_exchange_rate_record_tasks",
+        "task": "user.tasks.tasks.execute_rsc_exchange_rate_record_tasks",
         "schedule": crontab(hour="*", minute=0),  # every hour
         "options": {
             "priority": 2,
             "queue": QUEUE_PURCHASES,
         },
+    },
+    "leaderboard-refresh": {
+        "task": "user.tasks.leaderboard_tasks.refresh_leaderboard_task",
+        "schedule": crontab(hour="*/6", minute=0),
+        "options": {"priority": 3, "queue": QUEUE_CACHES},
     },
     # Weekly RSC Burning
     "reputation_burn-revenue-rsc": {
