@@ -279,9 +279,9 @@ def sweep_deposit_to_multisig(self, circle_wallet_id, amount, network, sweep_ref
         )
         if deposit:
             # If the idempotent transfer is already finalized (e.g. duplicate
-            # webhook replay), record COMPLETE instead of downgrading.
+            # webhook replay), record COMPLETED instead of downgrading.
             if result.state in COMPLETED_STATES:
-                deposit.sweep_status = Deposit.SWEEP_COMPLETE
+                deposit.sweep_status = Deposit.SWEEP_COMPLETED
             else:
                 deposit.sweep_status = Deposit.SWEEP_INITIATED
             deposit.sweep_transfer_id = result.transfer_id
