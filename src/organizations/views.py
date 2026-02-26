@@ -91,6 +91,11 @@ class NonprofitFundraiseLinkViewSet(viewsets.ViewSet):
 
     permission_classes = [IsAuthenticated]
 
+    def get_permissions(self):
+        if self.action == "get_by_fundraise":
+            return [AllowAny()]
+        return super().get_permissions()
+
     @action(detail=False, methods=["get"])
     def get_by_fundraise(self, request):
         """

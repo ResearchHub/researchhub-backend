@@ -1,22 +1,38 @@
 from rest_framework import serializers
 
 
-class ActiveGrantsSerializer(serializers.Serializer):
-    active = serializers.IntegerField()
-    total = serializers.IntegerField()
+class CurrencyBreakdownSerializer(serializers.Serializer):
+    rsc = serializers.FloatField()
+    usd = serializers.FloatField()
 
 
-class ApplicantsSerializer(serializers.Serializer):
-    total = serializers.IntegerField()
-    active = serializers.IntegerField()
-    previous = serializers.IntegerField()
+class UnifiedDocumentMinimalSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    title = serializers.CharField()
+    slug = serializers.CharField()
+
+
+class AuthorProfileMinimalSerializer(serializers.Serializer):
+    id = serializers.IntegerField(allow_null=True)
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+    profile_image = serializers.CharField(allow_blank=True)
+
+
+class ProposalCreatorSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    author_profile = AuthorProfileMinimalSerializer()
+
+
+class SupportedProposalSerializer(serializers.Serializer):
+    unified_document = UnifiedDocumentMinimalSerializer()
+    id = serializers.IntegerField()
+    created_by = ProposalCreatorSerializer(allow_null=True)
 
 
 class FundingOverviewSerializer(serializers.Serializer):
     """Serializer for funding overview response."""
 
-    total_distributed_usd = serializers.FloatField()
-    active_grants = ActiveGrantsSerializer()
-    total_applicants = ApplicantsSerializer()
-    matched_funding_usd = serializers.FloatField()
-    proposals_funded = serializers.IntegerField()
+    matched_funds = CurrencyBreakdownSerializer()
+    distributed_funds = CurrencyBreakdownSerializer()
+    supported_proposals = SupportedProposalSerializer(many=True)

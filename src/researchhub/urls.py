@@ -44,6 +44,7 @@ from orcid.views import OrcidCallbackView, OrcidConnectView, OrcidFetchView
 from organizations.views import NonprofitFundraiseLinkViewSet, NonprofitOrgViewSet
 from paper.views import paper_upload_views
 from purchase.views import (
+    CircleWebhookView,
     DepositAddressView,
     EndaomentCallbackView,
     EndaomentConnectView,
@@ -195,6 +196,8 @@ router.register(
 )
 
 router.register(r"fundraise", purchase.views.FundraiseViewSet, basename="fundraise")
+
+router.register(r"funder", purchase.views.FunderViewSet, basename="funder")
 
 router.register(r"grant", purchase.views.GrantViewSet, basename="grant")
 
@@ -356,6 +359,11 @@ urlpatterns = [
         "webhooks/stripe/",
         stripe_webhook_view.StripeWebhookView.as_view(),
         name="stripe_webhook",
+    ),
+    path(
+        "webhooks/circle/",
+        CircleWebhookView.as_view(),
+        name="circle_webhook",
     ),
     path(
         "api/payment/checkout-session/",
