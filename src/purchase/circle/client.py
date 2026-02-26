@@ -103,7 +103,6 @@ class CircleWalletClient:
             self._api_client = circle_utils.init_developer_controlled_wallets_client(
                 api_key=settings.CIRCLE_API_KEY,
                 entity_secret=settings.CIRCLE_ENTITY_SECRET,
-                host=settings.CIRCLE_API_BASE_URL,
             )
         return self._api_client
 
