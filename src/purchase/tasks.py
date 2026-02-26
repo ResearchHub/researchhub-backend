@@ -286,7 +286,19 @@ def sweep_deposit_to_multisig(self, circle_wallet_id, amount, network, sweep_ref
                 deposit.sweep_status = Deposit.SWEEP_INITIATED
             deposit.sweep_transfer_id = result.transfer_id
             deposit.save(update_fields=["sweep_status", "sweep_transfer_id"])
-    except (ValueError, CircleZeroBalanceError):
+    except CircleZeroBalanceError:
+        # Zero balance means another job already swept the funds.
+        # Mark as COMPLETED to avoid infinite retry loops.
+        logger.info(
+            "Sweep wallet has zero balance (already swept): "
+            "circle_wallet_id=%s sweep_reference=%s",
+            circle_wallet_id,
+            sweep_reference,
+        )
+        if deposit:
+            deposit.sweep_status = Deposit.SWEEP_COMPLETED
+            deposit.save(update_fields=["sweep_status"])
+    except ValueError:
         logger.exception(
             "Sweep failed (not retryable): circle_wallet_id=%s amount=%s "
             "network=%s sweep_reference=%s",
