@@ -2306,3 +2306,123 @@ class FundingFeedEntrySerializerTests(AWSMockTestCase):
         self.assertTrue(data["is_nonprofit"])
         data = serializer.data
         self.assertTrue(data["is_nonprofit"])
+
+    def test_non_fundraise_feed_entry_has_no_associated_grants(self):
+        """A discussion post feed entry should have an empty associated_grants list."""
+        unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.DISCUSSION,
+        )
+        post = ResearchhubPost.objects.create(
+            title="Discussion Post",
+            created_by=self.user,
+            document_type=document_type.DISCUSSION,
+            renderable_text="Not a preregistration",
+            unified_document=unified_doc,
+        )
+
+        feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=post.id,
+            user=self.user,
+            action="PUBLISH",
+            action_date=post.created_date,
+            unified_document=unified_doc,
+        )
+
+        serializer = FundingFeedEntrySerializer(feed_entry)
+        self.assertEqual(serializer.data["associated_grants"], [])
+
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
+    def test_fundraise_with_application_has_associated_grants(self, mock_usd_to_rsc):
+        """Preregistration with a grant application should list the grant."""
+        mock_usd_to_rsc.return_value = 200.0
+
+        unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION,
+        )
+        post = ResearchhubPost.objects.create(
+            title="Funded Preregistration",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            renderable_text="Has a grant application",
+            unified_document=unified_doc,
+        )
+        Fundraise.objects.create(
+            unified_document=unified_doc,
+            created_by=self.user,
+            goal_amount=Decimal("500.00"),
+            goal_currency=USD,
+            status=Fundraise.OPEN,
+        )
+
+        grant_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_doc,
+            amount=Decimal("10000.00"),
+            currency=USD,
+            organization="Test Foundation",
+            short_title="Test Grant",
+            description="A test grant",
+            status=Grant.OPEN,
+        )
+        GrantApplication.objects.create(
+            grant=grant, preregistration_post=post, applicant=self.user
+        )
+
+        feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=post.id,
+            user=self.user,
+            action="PUBLISH",
+            action_date=post.created_date,
+            unified_document=unified_doc,
+        )
+
+        serializer = FundingFeedEntrySerializer(feed_entry)
+        grants = serializer.data["associated_grants"]
+
+        self.assertEqual(len(grants), 1)
+        self.assertEqual(grants[0]["id"], grant.id)
+        self.assertEqual(grants[0]["organization"], "Test Foundation")
+        self.assertEqual(grants[0]["short_title"], "Test Grant")
+        self.assertEqual(grants[0]["amount"], "10000.00")
+        self.assertEqual(grants[0]["currency"], USD)
+        self.assertEqual(grants[0]["status"], Grant.OPEN)
+
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
+    def test_fundraise_without_application_has_no_associated_grants(
+        self, mock_usd_to_rsc
+    ):
+        """A preregistration with a fundraise but no grant application returns empty."""
+        mock_usd_to_rsc.return_value = 200.0
+
+        unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION,
+        )
+        post = ResearchhubPost.objects.create(
+            title="Unfunded Preregistration",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            renderable_text="No grant application",
+            unified_document=unified_doc,
+        )
+        Fundraise.objects.create(
+            unified_document=unified_doc,
+            created_by=self.user,
+            goal_amount=Decimal("500.00"),
+            goal_currency=USD,
+            status=Fundraise.OPEN,
+        )
+
+        feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=post.id,
+            user=self.user,
+            action="PUBLISH",
+            action_date=post.created_date,
+            unified_document=unified_doc,
+        )
+
+        serializer = FundingFeedEntrySerializer(feed_entry)
+        self.assertEqual(serializer.data["associated_grants"], [])

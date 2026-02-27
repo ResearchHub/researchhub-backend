@@ -812,10 +812,14 @@ class FundingFeedEntrySerializer(FeedEntrySerializer):
     """Serializer for funding feed entries"""
 
     is_nonprofit = serializers.SerializerMethodField()
+    associated_grants = serializers.SerializerMethodField()
 
     class Meta:
         model = FeedEntry
-        fields = FeedEntrySerializer.Meta.fields + ["is_nonprofit"]
+        fields = FeedEntrySerializer.Meta.fields + [
+            "is_nonprofit",
+            "associated_grants",
+        ]
 
     def get_is_nonprofit(self, obj):
         if (
@@ -825,6 +829,26 @@ class FundingFeedEntrySerializer(FeedEntrySerializer):
         ):
             return obj.unified_document.fundraises.first().nonprofit_links.exists()
         return None
+
+    def get_associated_grants(self, obj):
+        if not obj.item or not hasattr(obj.item, "grant_applications"):
+            return []
+
+        applications = obj.item.grant_applications.all()
+        if not applications:
+            return []
+
+        return [
+            {
+                "id": app.grant.id,
+                "organization": app.grant.organization,
+                "short_title": app.grant.short_title,
+                "amount": str(app.grant.amount),
+                "currency": app.grant.currency,
+                "status": app.grant.status,
+            }
+            for app in applications
+        ]
 
 
 class GrantFeedEntrySerializer(FeedEntrySerializer):
