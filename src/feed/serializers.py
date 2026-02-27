@@ -834,10 +834,6 @@ class FundingFeedEntrySerializer(FeedEntrySerializer):
         if not obj.item or not hasattr(obj.item, "grant_applications"):
             return []
 
-        applications = obj.item.grant_applications.all()
-        if not applications:
-            return []
-
         return [
             {
                 "id": app.grant.id,
