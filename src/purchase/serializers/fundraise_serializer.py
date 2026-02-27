@@ -61,30 +61,44 @@ class DynamicFundraiseSerializer(DynamicModelFieldSerializer):
         }
 
     def get_contributors(self, fundraise):
-        # Get all contributions in a single query with prefetched user data
-        contributions = fundraise.purchases.select_related("user").order_by(
+        # Get all RSC contributions
+        rsc_contributions = fundraise.purchases.select_related("user").order_by(
             "-created_date"
         )
 
-        # Process all contributions to build user data
-        user_data = {}
-        for contribution in contributions:
-            user_id = contribution.user_id
-            amount = float(contribution.amount)
+        # Get all USD contributions
+        usd_contributions = (
+            fundraise.usd_contributions.select_related("user")
+            .filter(is_refunded=False)
+            .order_by("-created_date")
+        )
 
+        # Build user data lookup from all contributions
+        user_data = {}
+        for contribution in list(rsc_contributions) + list(usd_contributions):
+            user_id = contribution.user_id
             if user_id not in user_data:
                 user_data[user_id] = {
                     "user": contribution.user,
-                    "total": 0,
+                    "total_rsc": 0,
+                    "total_usd": 0,
                     "contributions": [],
                 }
 
-            # Add to running total
-            user_data[user_id]["total"] += amount
+        # Process RSC contributions
+        for contribution in rsc_contributions:
+            amount = float(contribution.amount)
+            user_data[contribution.user_id]["total_rsc"] += amount
+            user_data[contribution.user_id]["contributions"].append(
+                {"amount": amount, "currency": RSC, "date": contribution.created_date}
+            )
 
-            # Add contribution details
-            user_data[user_id]["contributions"].append(
-                {"amount": amount, "date": contribution.created_date}
+        # Process USD contributions
+        for contribution in usd_contributions:
+            amount = contribution.amount_cents / 100.0
+            user_data[contribution.user_id]["total_usd"] += amount
+            user_data[contribution.user_id]["contributions"].append(
+                {"amount": amount, "currency": USD, "date": contribution.created_date}
             )
 
         # Serialize users
@@ -93,19 +107,27 @@ class DynamicFundraiseSerializer(DynamicModelFieldSerializer):
 
         result = []
         for user_id, data in user_data.items():
-            # Serialize the user
             serializer = DynamicUserSerializer(
                 data["user"], context=context, **_context_fields
             )
             user_result = serializer.data
-
-            # Add contribution data
-            user_result["total_contribution"] = data["total"]
-            user_result["contributions"] = data["contributions"]
+            user_result["total_contribution"] = {
+                "rsc": data["total_rsc"],
+                "usd": data["total_usd"],
+            }
+            # Sort contributions by date descending
+            user_result["contributions"] = sorted(
+                data["contributions"], key=lambda x: x["date"], reverse=True
+            )
             result.append(user_result)
 
-        # Sort by total contribution (descending)
-        result = sorted(result, key=lambda x: x["total_contribution"], reverse=True)
+        # Sort by total USD equivalent (descending)
+        result = sorted(
+            result,
+            key=lambda x: x["total_contribution"]["usd"]
+            + RscExchangeRate.rsc_to_usd(x["total_contribution"]["rsc"]),
+            reverse=True,
+        )
 
         return {
             "total": len(user_data),
