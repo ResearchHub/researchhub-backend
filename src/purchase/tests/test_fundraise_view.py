@@ -303,17 +303,20 @@ class FundraiseViewTests(APITestCase):
 
         # User2 should be first (200 RSC)
         self.assertEqual(top_contributors[0]["id"], user2.id)
-        self.assertEqual(top_contributors[0]["total_contribution"], 200.0)
+        self.assertEqual(top_contributors[0]["total_contribution"]["rsc"], 200.0)
+        self.assertEqual(top_contributors[0]["total_contribution"]["usd"], 0)
         self.assertEqual(len(top_contributors[0]["contributions"]), 1)
 
         # User1 should be second (150 RSC total)
         self.assertEqual(top_contributors[1]["id"], user1.id)
-        self.assertEqual(top_contributors[1]["total_contribution"], 150.0)
+        self.assertEqual(top_contributors[1]["total_contribution"]["rsc"], 150.0)
+        self.assertEqual(top_contributors[1]["total_contribution"]["usd"], 0)
         self.assertEqual(len(top_contributors[1]["contributions"]), 2)
 
         # User3 should be third (75 RSC)
         self.assertEqual(top_contributors[2]["id"], user3.id)
-        self.assertEqual(top_contributors[2]["total_contribution"], 75.0)
+        self.assertEqual(top_contributors[2]["total_contribution"]["rsc"], 75.0)
+        self.assertEqual(top_contributors[2]["total_contribution"]["usd"], 0)
         self.assertEqual(len(top_contributors[2]["contributions"]), 1)
 
         # Verify individual contributions for user1 (who made multiple contributions)
