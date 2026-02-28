@@ -448,6 +448,13 @@ def create_automated_bounty(item):
                 False,
                 rh_fee=rh_fee,
             )
+
+            from reputation.tasks import find_qualified_users_and_notify
+
+            find_qualified_users_and_notify.apply_async(
+                (bounty.id, [], [user.id]), priority=2, countdown=10
+            )
+
             unified_document = bounty.unified_document
             unified_document.update_filters(
                 (
