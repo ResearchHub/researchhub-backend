@@ -834,8 +834,6 @@ class FundingFeedEntrySerializer(FeedEntrySerializer):
         if not obj.item or not hasattr(obj.item, "grant_applications"):
             return []
 
-        applications = obj.item.grant_applications.all()
-
         return [
             {
                 "id": app.grant.id,
@@ -843,10 +841,20 @@ class FundingFeedEntrySerializer(FeedEntrySerializer):
                 "short_title": app.grant.short_title,
                 "amount": str(app.grant.amount),
                 "currency": app.grant.currency,
+                "description": app.grant.description,
                 "status": app.grant.status,
+                "image": self._get_grant_image(app.grant),
+                "num_applicants": app.grant.applications.count(),
             }
-            for app in applications
+            for app in obj.item.grant_applications.all()
         ]
+
+    @staticmethod
+    def _get_grant_image(grant):
+        post = grant.unified_document.posts.first()
+        if post and post.image:
+            return default_storage.url(post.image)
+        return None
 
 
 class GrantFeedEntrySerializer(FeedEntrySerializer):
