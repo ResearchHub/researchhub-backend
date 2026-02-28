@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from feed.serializers import SimpleAuthorSerializer
 from paper.serializers import PaperSerializer
 from research_ai.constants import ExpertiseLevel, Gender, Region
 from research_ai.models import EmailTemplate, ExpertSearch, GeneratedEmail
@@ -202,6 +203,25 @@ class ExpertSearchListItemSerializer(serializers.ModelSerializer):
         if not obj.expert_results:
             return []
         return [e.get("name") or "" for e in obj.expert_results if e.get("name")]
+
+
+class InvitedExpertSerializer(serializers.Serializer):
+
+    author = serializers.SerializerMethodField()
+    expert_search_id = serializers.SerializerMethodField()
+    generated_email_id = serializers.SerializerMethodField()
+
+    def get_author(self, obj):
+        author = getattr(obj.user, "author_profile", None)
+        if author is None:
+            return None
+        return SimpleAuthorSerializer(author).data
+
+    def get_expert_search_id(self, obj):
+        return obj.expert_search_id
+
+    def get_generated_email_id(self, obj):
+        return obj.generated_email_id
 
 
 class ExpertSearchSubmitResponseSerializer(serializers.Serializer):

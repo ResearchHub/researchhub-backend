@@ -2,7 +2,7 @@ from unittest.mock import patch
 from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
-from research_ai.models import ExpertSearch
+from research_ai.models import DocumentInvitedExpert, ExpertSearch
 from user.tests.helpers import create_random_authenticated_user
 
 
@@ -304,3 +304,86 @@ class ExpertSearchWorkViewTests(APITestCase):
         data = response.json()
         self.assertIn("work", data)
         self.assertIsNone(data["work"])
+
+
+class InvitedExpertsDocumentViewTests(APITestCase):
+    def setUp(self):
+        self.moderator = create_random_authenticated_user("mod_inv", moderator=True)
+        self.user = create_random_authenticated_user("user_inv", moderator=False)
+
+    def test_invited_requires_authentication(self):
+        response = self.client.get(
+            "/api/research_ai/expert-finder/documents/1/invited/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_invited_requires_moderator(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.get(
+            "/api/research_ai/expert-finder/documents/1/invited/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_invited_nonexistent_document_returns_404(self):
+        self.client.force_authenticate(self.moderator)
+        response = self.client.get(
+            "/api/research_ai/expert-finder/documents/999999/invited/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(
+            response.json().get("detail"),
+            "Unified document not found.",
+        )
+
+    def test_invited_valid_document_returns_200_and_structure(self):
+        from paper.tests.helpers import create_paper
+
+        paper = create_paper(
+            title="Invited endpoint paper",
+            paper_publish_date="2021-01-01",
+        )
+        self.client.force_authenticate(self.moderator)
+        response = self.client.get(
+            "/api/research_ai/expert-finder/documents/{}/invited/".format(
+                paper.unified_document_id
+            )
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertIn("unified_document_id", data)
+        self.assertEqual(data["unified_document_id"], paper.unified_document_id)
+        self.assertIn("invited", data)
+        self.assertIsInstance(data["invited"], list)
+        self.assertIn("total_count", data)
+        self.assertEqual(data["total_count"], 0)
+        self.assertEqual(len(data["invited"]), 0)
+
+    def test_invited_returns_invited_with_author_and_chain_ids(self):
+        from paper.tests.helpers import create_paper
+        from researchhub_document.models import ResearchhubUnifiedDocument
+
+        paper = create_paper(
+            title="Invited with data",
+            paper_publish_date="2021-01-01",
+        )
+        ud = ResearchhubUnifiedDocument.objects.get(id=paper.unified_document_id)
+        DocumentInvitedExpert.objects.create(
+            unified_document=ud,
+            user=self.moderator,
+            expert_search_id=None,
+            generated_email_id=None,
+        )
+        self.client.force_authenticate(self.moderator)
+        response = self.client.get(
+            "/api/research_ai/expert-finder/documents/{}/invited/".format(
+                paper.unified_document_id
+            )
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertEqual(data["total_count"], 1)
+        self.assertEqual(len(data["invited"]), 1)
+        item = data["invited"][0]
+        self.assertIn("author", item)
+        self.assertIn("expert_search_id", item)
+        self.assertIn("generated_email_id", item)
