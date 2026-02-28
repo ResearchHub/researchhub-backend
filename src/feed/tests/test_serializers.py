@@ -2389,6 +2389,8 @@ class FundingFeedEntrySerializerTests(AWSMockTestCase):
         self.assertEqual(grants[0]["amount"], "10000.00")
         self.assertEqual(grants[0]["currency"], USD)
         self.assertEqual(grants[0]["status"], Grant.OPEN)
+        self.assertIsNone(grants[0]["image"])
+        self.assertEqual(grants[0]["num_applicants"], 1)
 
     @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
     def test_fundraise_without_application_has_no_associated_grants(
