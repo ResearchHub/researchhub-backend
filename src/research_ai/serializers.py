@@ -210,6 +210,7 @@ class InvitedExpertSerializer(serializers.Serializer):
     author = serializers.SerializerMethodField()
     expert_search_id = serializers.SerializerMethodField()
     generated_email_id = serializers.SerializerMethodField()
+    invited_at = serializers.DateTimeField(source="created_date", read_only=True)
 
     def get_author(self, obj):
         author = getattr(obj.user, "author_profile", None)
