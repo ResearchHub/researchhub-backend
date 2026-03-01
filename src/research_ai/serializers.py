@@ -330,7 +330,6 @@ class EmailTemplateSerializer(serializers.ModelSerializer):
             "contact_phone",
             "contact_website",
             "outreach_context",
-            "is_active",
             "created_date",
             "updated_date",
         ]
@@ -355,7 +354,7 @@ class EmailTemplateCreateSerializer(serializers.Serializer):
 
 
 class EmailTemplateUpdateSerializer(serializers.Serializer):
-    """Partial update for EmailTemplate; includes is_active (deactivate others when True)."""
+    """Partial update for EmailTemplate."""
 
     name = serializers.CharField(max_length=255, required=False, allow_blank=False)
     contact_name = serializers.CharField(
@@ -377,4 +376,3 @@ class EmailTemplateUpdateSerializer(serializers.Serializer):
         max_length=512, required=False, allow_blank=True
     )
     outreach_context = serializers.CharField(required=False, allow_blank=True)
-    is_active = serializers.BooleanField(required=False)

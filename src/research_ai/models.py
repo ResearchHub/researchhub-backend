@@ -232,10 +232,6 @@ class EmailTemplate(DefaultModel):
         blank=True,
         db_comment="Context provided to the LLM when generating emails.",
     )
-    is_active = models.BooleanField(
-        default=False,
-        db_comment="Only one template per user can be active at a time.",
-    )
 
     class Meta:
         db_table = "research_ai_email_template"
@@ -244,10 +240,6 @@ class EmailTemplate(DefaultModel):
             models.Index(
                 fields=["created_by"],
                 name="research_ai_et_created_by",
-            ),
-            models.Index(
-                fields=["created_by", "is_active"],
-                name="research_ai_et_user_active",
             ),
         ]
 

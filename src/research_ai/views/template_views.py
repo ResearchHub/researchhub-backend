@@ -111,14 +111,10 @@ class TemplateDetailView(APIView):
             "contact_phone",
             "contact_website",
             "outreach_context",
-            "is_active",
         ):
             if field in data:
                 val = data[field]
-                if field == "is_active":
-                    update_data[field] = bool(val)
-                else:
-                    update_data[field] = (val or "").strip() if val is not None else ""
+                update_data[field] = (val or "").strip() if val is not None else ""
         template, not_found = update_template(request.user, template_id, **update_data)
         if not_found:
             return Response(

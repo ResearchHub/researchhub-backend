@@ -22,7 +22,7 @@ def get_template(user, template_id):
 
 def create_template(user, **data):
     """
-    Create a new EmailTemplate for the user. is_active defaults to False.
+    Create a new EmailTemplate for the user.
     Returns the created instance.
     """
     allowed = {
@@ -37,25 +37,18 @@ def create_template(user, **data):
     }
     kwargs = {k: (v or "") for k, v in data.items() if k in allowed}
     kwargs["created_by"] = user
-    kwargs["is_active"] = False
     return EmailTemplate.objects.create(**kwargs)
 
 
 @transaction.atomic
 def update_template(user, template_id, **data):
     """
-    Update an EmailTemplate owned by the user. If is_active is True,
-    deactivate all other templates for this user first.
+    Update an EmailTemplate owned by the user.
     Returns (template, None) on success, (None, error_message) on not found.
     """
     template = get_template(user, template_id)
     if not template:
         return None, "Template not found."
-
-    if data.get("is_active") is True:
-        EmailTemplate.objects.filter(created_by=user).exclude(id=template.id).update(
-            is_active=False
-        )
 
     for key, value in data.items():
         if key != "created_by" and hasattr(template, key):
