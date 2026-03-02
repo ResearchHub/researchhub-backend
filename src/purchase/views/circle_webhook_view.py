@@ -1,6 +1,5 @@
 import json
 import logging
-import time
 from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
@@ -9,23 +8,19 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from purchase.circle.service import COMPLETED_STATES, FAILED_STATES
-from purchase.circle.webhook import is_rsc_token, verify_webhook_signature
+from purchase.circle.service import (
+    BLOCKCHAIN_TO_NETWORK,
+    COMPLETED_STATES,
+    FAILED_STATES,
+    is_rsc_token,
+    process_circle_deposit,
+)
+from purchase.circle.webhook import verify_webhook_signature
 from purchase.models import Wallet
 from purchase.tasks import sweep_deposit_to_multisig
-from reputation.distributions import Distribution as Dist
-from reputation.distributor import Distributor
 from reputation.models import Deposit
 
 logger = logging.getLogger(__name__)
-
-# Map Circle blockchain identifiers to our Deposit.network choices
-BLOCKCHAIN_TO_NETWORK = {
-    "ETH": "ETHEREUM",
-    "ETH-SEPOLIA": "ETHEREUM",
-    "BASE": "BASE",
-    "BASE-SEPOLIA": "BASE",
-}
 
 
 class CircleWebhookView(APIView):
@@ -248,50 +243,24 @@ class CircleWebhookView(APIView):
             )
             return
 
-        user = wallet.user
+        process_circle_deposit(
+            circle_transaction_id=circle_transaction_id,
+            wallet=wallet,
+            amount=deposit_amount,
+            network=network,
+            from_address=source_address,
+            transaction_hash=tx_hash,
+        )
 
-        with transaction.atomic():
-            deposit, created = Deposit.objects.get_or_create(
-                circle_transaction_id=circle_transaction_id,
-                defaults={
-                    "user": user,
-                    "amount": deposit_amount,
-                    "network": network,
-                    "from_address": source_address,
-                    "transaction_hash": tx_hash,
-                    "sweep_status": Deposit.SWEEP_PENDING,
-                },
-            )
-
-            if not created:
-                logger.info(
-                    "Duplicate Circle transaction %s (notification_id=%s), skipping credit",
-                    circle_transaction_id,
-                    notification_id,
-                )
-            else:
-                deposit.set_paid()
-
-                distribution = Dist("DEPOSIT", deposit_amount, give_rep=False)
-                distributor = Distributor(
-                    distribution, user, deposit, time.time(), user
-                )
-                distributor.distribute()
-
-        if created:
-            logger.info(
-                "Circle deposit credited: user=%s amount=%s blockchain=%s "
-                "network=%s circle_transaction_id=%s notification_id=%s",
-                user.id,
-                deposit_amount,
-                blockchain,
-                network,
-                circle_transaction_id,
-                notification_id,
-            )
-
+        # Dispatch sweep after the deposit transaction commits.
         sweep_wallet_id = wallet.get_circle_wallet_id_for_network(network)
-        if not sweep_wallet_id:
+        if sweep_wallet_id:
+            transaction.on_commit(
+                lambda cw=sweep_wallet_id, amt=deposit_amount, net=network, ref=circle_transaction_id: sweep_deposit_to_multisig.delay(
+                    cw, amt, net, ref
+                )
+            )
+        else:
             logger.error(
                 "No Circle wallet ID for network=%s wallet_pk=%s "
                 "circle_transaction_id=%s — skipping sweep",
@@ -299,14 +268,3 @@ class CircleWebhookView(APIView):
                 wallet.pk,
                 circle_transaction_id,
             )
-            return
-
-        def _dispatch_sweep(
-            cw=sweep_wallet_id,
-            amt=deposit_amount,
-            net=network,
-            ref=circle_transaction_id,
-        ):
-            sweep_deposit_to_multisig.delay(cw, amt, net, ref)
-
-        transaction.on_commit(_dispatch_sweep)

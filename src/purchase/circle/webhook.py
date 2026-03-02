@@ -15,17 +15,6 @@ _UUID_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Known Circle token IDs for the RSC token, keyed by Circle blockchain identifier.
-# These are stable identifiers assigned by Circle and do not change.
-_RSC_TOKEN_ID_BY_BLOCKCHAIN = {
-    # Testnet
-    "BASE-SEPOLIA": "e7233cf0-a48c-5265-a9ad-6d125af58e71",
-    "ETH-SEPOLIA": "979869da-9115-5f7d-917d-12d434e56ae7",
-    # Production
-    "BASE": "fe81326a-572d-5c31-9dde-31ef96a1220f",
-    "ETH": "fa1e82a2-fd87-5030-aa61-e9447ce24570",
-}
-
 
 def _fetch_public_key(key_id: str) -> str:
     """Fetch a Circle notification public key by ID (base64-encoded DER)."""
@@ -52,12 +41,6 @@ def _get_public_key_b64(key_id: str) -> str:
         public_key_b64 = _fetch_public_key(key_id)
         cache.set(cache_key, public_key_b64, CIRCLE_PUBLIC_KEY_CACHE_TTL)
     return public_key_b64
-
-
-def is_rsc_token(token_id: str, blockchain: str) -> bool:
-    """Check whether *token_id* is the known RSC token for *blockchain*."""
-    expected = _RSC_TOKEN_ID_BY_BLOCKCHAIN.get(blockchain)
-    return expected is not None and token_id == expected
 
 
 def verify_webhook_signature(request_body: bytes, signature: str, key_id: str) -> bool:

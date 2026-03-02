@@ -1,4 +1,5 @@
 import logging
+import time
 import uuid
 from dataclasses import dataclass
 from decimal import Decimal
@@ -14,6 +15,9 @@ from purchase.circle.client import (
 )
 from purchase.models import Wallet
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from reputation.distributions import Distribution as Dist
+from reputation.distributor import Distributor
+from reputation.models import Deposit
 from user.models import User
 
 logger = logging.getLogger(__name__)
@@ -21,6 +25,94 @@ logger = logging.getLogger(__name__)
 # Circle terminal states used across webhook handling and sweep tracking.
 COMPLETED_STATES = {"COMPLETED", "COMPLETE"}
 FAILED_STATES = {"FAILED", "CANCELLED", "DENIED"}
+
+# Map Circle blockchain identifiers to our Deposit.network choices.
+BLOCKCHAIN_TO_NETWORK = {
+    "ETH": "ETHEREUM",
+    "ETH-SEPOLIA": "ETHEREUM",
+    "BASE": "BASE",
+    "BASE-SEPOLIA": "BASE",
+}
+
+# Known Circle token IDs for the RSC token, keyed by Circle blockchain identifier.
+# These are stable identifiers assigned by Circle and do not change.
+_RSC_TOKEN_ID_BY_BLOCKCHAIN = {
+    # Testnet
+    "BASE-SEPOLIA": "e7233cf0-a48c-5265-a9ad-6d125af58e71",
+    "ETH-SEPOLIA": "979869da-9115-5f7d-917d-12d434e56ae7",
+    # Production
+    "BASE": "fe81326a-572d-5c31-9dde-31ef96a1220f",
+    "ETH": "fa1e82a2-fd87-5030-aa61-e9447ce24570",
+}
+
+
+def is_rsc_token(token_id: str, blockchain: str) -> bool:
+    """Check whether *token_id* is the known RSC token for *blockchain*."""
+    expected = _RSC_TOKEN_ID_BY_BLOCKCHAIN.get(blockchain)
+    return expected is not None and token_id == expected
+
+
+def process_circle_deposit(
+    circle_transaction_id: str,
+    wallet: Wallet,
+    amount: str,
+    network: str,
+    from_address: str = "",
+    transaction_hash: str = "",
+) -> tuple[Deposit, bool]:
+    """
+    Idempotently record a Circle deposit and credit the user.
+
+    If a Deposit with the given ``circle_transaction_id`` already exists the
+    user is *not* credited again.
+
+    Callers are responsible for dispatching the sweep task after this returns.
+
+    Args:
+        circle_transaction_id: Circle's unique transaction identifier.
+        wallet: The user's ``Wallet`` instance (must have ``user`` loaded).
+        amount: Deposit amount as a decimal string.
+        network: ``"ETHEREUM"`` or ``"BASE"``.
+        from_address: On-chain source address.
+        transaction_hash: On-chain tx hash.
+
+    Returns:
+        A ``(deposit, created)`` tuple.
+    """
+    user = wallet.user
+
+    with transaction.atomic():
+        deposit, created = Deposit.objects.get_or_create(
+            circle_transaction_id=circle_transaction_id,
+            defaults={
+                "user": user,
+                "amount": amount,
+                "network": network,
+                "from_address": from_address,
+                "transaction_hash": transaction_hash,
+                "sweep_status": Deposit.SWEEP_PENDING,
+            },
+        )
+
+        if created:
+            deposit.set_paid()
+
+            distribution = Dist("DEPOSIT", amount, give_rep=False)
+            distributor = Distributor(distribution, user, deposit, time.time(), user)
+            distributor.distribute()
+
+    if created:
+        logger.info(
+            "Circle deposit credited: user=%s amount=%s network=%s "
+            "circle_transaction_id=%s",
+            user.id,
+            amount,
+            network,
+            circle_transaction_id,
+        )
+
+    return deposit, created
+
 
 # Sweeps worth this amount or more (in USD) go to the multisig;
 # smaller sweeps go to the hot wallet.

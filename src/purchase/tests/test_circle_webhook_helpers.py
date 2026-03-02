@@ -3,7 +3,7 @@ from unittest.mock import patch
 from django.core.cache import cache
 from django.test import TestCase
 
-from purchase.circle import webhook
+from purchase.circle import service, webhook
 
 
 class TestCircleWebhookHelpers(TestCase):
@@ -24,13 +24,13 @@ class TestCircleWebhookHelpers(TestCase):
             webhook._get_public_key_b64("NOT-A-UUID")
 
     def test_is_rsc_token_recognises_known_ids(self):
-        for blockchain, token_id in webhook._RSC_TOKEN_ID_BY_BLOCKCHAIN.items():
-            self.assertTrue(webhook.is_rsc_token(token_id, blockchain))
+        for blockchain, token_id in service._RSC_TOKEN_ID_BY_BLOCKCHAIN.items():
+            self.assertTrue(service.is_rsc_token(token_id, blockchain))
 
     def test_is_rsc_token_rejects_unknown_id(self):
-        self.assertFalse(webhook.is_rsc_token("unknown-token-id", "BASE"))
+        self.assertFalse(service.is_rsc_token("unknown-token-id", "BASE"))
 
     def test_is_rsc_token_rejects_wrong_blockchain(self):
         """A valid token ID on the wrong blockchain should be rejected."""
-        token_id = webhook._RSC_TOKEN_ID_BY_BLOCKCHAIN["BASE"]
-        self.assertFalse(webhook.is_rsc_token(token_id, "ETH"))
+        token_id = service._RSC_TOKEN_ID_BY_BLOCKCHAIN["BASE"]
+        self.assertFalse(service.is_rsc_token(token_id, "ETH"))
