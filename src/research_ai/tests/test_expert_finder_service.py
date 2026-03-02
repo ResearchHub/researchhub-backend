@@ -548,7 +548,7 @@ class ExpertFinderServiceParseTests(TestCase):
         result = service.process_expert_search(
             search_id="4",
             query="Q",
-            config={"expertCount": 5},
+            config={"expert_count": 5},
         )
         self.assertEqual(result["status"], ExpertSearch.Status.COMPLETED)
 

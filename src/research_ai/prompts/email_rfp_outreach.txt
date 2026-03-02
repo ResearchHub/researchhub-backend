@@ -1,0 +1,14 @@
+{sender_info}
+
+{common}
+
+For a Request for Proposal (RFP) outreach:
+- Start with: "Dear [Researcher Name], My name is [Name] and I am an editor
+  at [Your Organization/Institution Name]."
+- Clearly mention the RFP topic/focus area and why it matches their expertise
+- Explain why their expertise aligns with the RFP requirements
+- Include placeholders: funding amount [e.g., $XXXXX], deadline [e.g., date]
+- Keep it professional and straightforward
+- Focus on the opportunity fit, not on praising their past achievements
+- End with space for sender's signature and contact details
+- Make it easy for them to show interest or ask questions
