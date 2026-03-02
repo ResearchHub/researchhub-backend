@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from feed.serializers import SimpleAuthorSerializer
 from paper.serializers import PaperSerializer
 from research_ai.constants import ExpertiseLevel, Gender, Region
 from research_ai.models import EmailTemplate, ExpertSearch, GeneratedEmail
@@ -204,6 +205,26 @@ class ExpertSearchListItemSerializer(serializers.ModelSerializer):
         return [e.get("name") or "" for e in obj.expert_results if e.get("name")]
 
 
+class InvitedExpertSerializer(serializers.Serializer):
+
+    author = serializers.SerializerMethodField()
+    expert_search_id = serializers.SerializerMethodField()
+    generated_email_id = serializers.SerializerMethodField()
+    invited_at = serializers.DateTimeField(source="created_date", read_only=True)
+
+    def get_author(self, obj):
+        author = getattr(obj.user, "author_profile", None)
+        if author is None:
+            return None
+        return SimpleAuthorSerializer(author).data
+
+    def get_expert_search_id(self, obj):
+        return obj.expert_search_id
+
+    def get_generated_email_id(self, obj):
+        return obj.generated_email_id
+
+
 class ExpertSearchSubmitResponseSerializer(serializers.Serializer):
 
     search_id = serializers.IntegerField()
@@ -309,7 +330,6 @@ class EmailTemplateSerializer(serializers.ModelSerializer):
             "contact_phone",
             "contact_website",
             "outreach_context",
-            "is_active",
             "created_date",
             "updated_date",
         ]
@@ -334,7 +354,7 @@ class EmailTemplateCreateSerializer(serializers.Serializer):
 
 
 class EmailTemplateUpdateSerializer(serializers.Serializer):
-    """Partial update for EmailTemplate; includes is_active (deactivate others when True)."""
+    """Partial update for EmailTemplate."""
 
     name = serializers.CharField(max_length=255, required=False, allow_blank=False)
     contact_name = serializers.CharField(
@@ -356,4 +376,3 @@ class EmailTemplateUpdateSerializer(serializers.Serializer):
         max_length=512, required=False, allow_blank=True
     )
     outreach_context = serializers.CharField(required=False, allow_blank=True)
-    is_active = serializers.BooleanField(required=False)

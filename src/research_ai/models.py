@@ -148,6 +148,64 @@ class GeneratedEmail(DefaultModel):
         return f"GeneratedEmail {self.id} ({self.expert_name})"
 
 
+class DocumentInvitedExpert(DefaultModel):
+    """
+    Materialized "invited" experts per unified document.
+    """
+
+    unified_document = models.ForeignKey(
+        ResearchhubUnifiedDocument,
+        on_delete=models.CASCADE,
+        related_name="document_invited_experts",
+    )
+    user = models.ForeignKey(
+        "user.User",
+        on_delete=models.CASCADE,
+        related_name="document_invited_expert_records",
+    )
+    expert_search = models.ForeignKey(
+        ExpertSearch,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="document_invited_experts",
+        db_comment="Search that surfaced this expert for this document.",
+    )
+    generated_email = models.ForeignKey(
+        GeneratedEmail,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="document_invited_experts",
+        db_comment="Generated email if invite tied to one; null if only in expert_results.",
+    )
+
+    class Meta:
+        db_table = "research_ai_document_invited_expert"
+        ordering = ["-created_date"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["unified_document", "user"],
+                name="research_ai_die_doc_user_unique",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["unified_document"],
+                name="research_ai_die_unified_doc",
+            ),
+            models.Index(
+                fields=["expert_search"],
+                name="research_ai_die_expert_search",
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f"DocumentInvitedExpert doc={self.unified_document_id} user={self.user_id}"
+        )
+
+
 class EmailTemplate(DefaultModel):
     """
     User-defined template for outreach emails.
@@ -174,10 +232,6 @@ class EmailTemplate(DefaultModel):
         blank=True,
         db_comment="Context provided to the LLM when generating emails.",
     )
-    is_active = models.BooleanField(
-        default=False,
-        db_comment="Only one template per user can be active at a time.",
-    )
 
     class Meta:
         db_table = "research_ai_email_template"
@@ -186,10 +240,6 @@ class EmailTemplate(DefaultModel):
             models.Index(
                 fields=["created_by"],
                 name="research_ai_et_created_by",
-            ),
-            models.Index(
-                fields=["created_by", "is_active"],
-                name="research_ai_et_user_active",
             ),
         ]
 

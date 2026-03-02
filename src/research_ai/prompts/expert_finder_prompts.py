@@ -66,11 +66,13 @@ def build_excluded_experts_instruction(excluded_expert_names: list[str]) -> str:
         return ""
     names = "\n".join(f"- {name}" for name in excluded_expert_names)
     return (
-        "\n\n## Exclude These Experts\n"
-        "IMPORTANT: Please exclude the following experts from your search results, "
-        "as they have been suggested in previous searches:\n"
+        "\n\n## Exclude These Experts - CRITICAL\n"
+        "The following experts have already been suggested in previous searches. "
+        "You MUST recommend a completely DIFFERENT set of experts.\n"
         f"{names}\n"
-        "Do NOT include any of the above names in your recommendations table."
+        "Your recommendations table must contain ONLY new experts who are NOT in the list above. "
+        "Do NOT list the excluded experts in your table. "
+        "Search for and recommend other qualified experts in the same field who are not listed above."
     )
 
 
