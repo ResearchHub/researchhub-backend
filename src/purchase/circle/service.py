@@ -61,12 +61,10 @@ def process_circle_deposit(
     transaction_hash: str = "",
 ) -> tuple[Deposit, bool]:
     """
-    Idempotently record a Circle deposit and credit the user.
+    Idempotently record a Circle deposit, credit the user, and dispatch a sweep.
 
     If a Deposit with the given ``circle_transaction_id`` already exists the
-    user is *not* credited again.
-
-    Callers are responsible for dispatching the sweep task after this returns.
+    user is *not* credited again and no sweep is dispatched.
 
     Args:
         circle_transaction_id: Circle's unique transaction identifier.
@@ -110,6 +108,7 @@ def process_circle_deposit(
             network,
             circle_transaction_id,
         )
+        _dispatch_sweep(wallet, amount, network, circle_transaction_id)
     else:
         logger.info(
             "Duplicate Circle transaction %s, skipping credit",
@@ -117,6 +116,27 @@ def process_circle_deposit(
         )
 
     return deposit, created
+
+
+def _dispatch_sweep(wallet, amount, network, circle_transaction_id):
+    """Schedule the sweep task to run after the current transaction commits."""
+    from purchase.tasks import sweep_deposit_to_multisig
+
+    sweep_wallet_id = wallet.get_circle_wallet_id_for_network(network)
+    if sweep_wallet_id:
+        transaction.on_commit(
+            lambda: sweep_deposit_to_multisig.delay(
+                sweep_wallet_id, amount, network, circle_transaction_id
+            )
+        )
+    else:
+        logger.error(
+            "No Circle wallet ID for network=%s wallet_pk=%s "
+            "circle_transaction_id=%s — skipping sweep",
+            network,
+            wallet.pk,
+            circle_transaction_id,
+        )
 
 
 # Sweeps worth this amount or more (in USD) go to the multisig;

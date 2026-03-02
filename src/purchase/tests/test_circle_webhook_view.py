@@ -238,7 +238,7 @@ class TestCircleWebhookView(TestCase):
         response = self.client.head(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    @patch("purchase.views.circle_webhook_view.sweep_deposit_to_multisig")
+    @patch("purchase.tasks.sweep_deposit_to_multisig")
     @patch(
         "purchase.views.circle_webhook_view.verify_webhook_signature",
         return_value=True,
@@ -254,7 +254,7 @@ class TestCircleWebhookView(TestCase):
             "circle-wallet-base-abc", "100", "BASE", "tx-001"
         )
 
-    @patch("purchase.views.circle_webhook_view.sweep_deposit_to_multisig")
+    @patch("purchase.tasks.sweep_deposit_to_multisig")
     @patch(
         "purchase.views.circle_webhook_view.verify_webhook_signature",
         return_value=True,
@@ -270,7 +270,7 @@ class TestCircleWebhookView(TestCase):
             self._post(payload)
         mock_sweep_task.delay.assert_not_called()
 
-    @patch("purchase.views.circle_webhook_view.sweep_deposit_to_multisig")
+    @patch("purchase.tasks.sweep_deposit_to_multisig")
     @patch(
         "purchase.views.circle_webhook_view.verify_webhook_signature",
         return_value=True,
@@ -288,7 +288,7 @@ class TestCircleWebhookView(TestCase):
             "circle-wallet-abc", "100", "ETHEREUM", "tx-001"
         )
 
-    @patch("purchase.views.circle_webhook_view.sweep_deposit_to_multisig")
+    @patch("purchase.tasks.sweep_deposit_to_multisig")
     @patch(
         "purchase.views.circle_webhook_view.verify_webhook_signature",
         return_value=True,
