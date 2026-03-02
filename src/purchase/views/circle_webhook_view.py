@@ -2,7 +2,6 @@ import json
 import logging
 from decimal import Decimal, InvalidOperation
 
-from django.db import transaction
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -17,7 +16,6 @@ from purchase.circle.service import (
 )
 from purchase.circle.webhook import verify_webhook_signature
 from purchase.models import Wallet
-from purchase.tasks import sweep_deposit_to_multisig
 from reputation.models import Deposit
 
 logger = logging.getLogger(__name__)
@@ -243,37 +241,11 @@ class CircleWebhookView(APIView):
             )
             return
 
-        _deposit, created = process_circle_deposit(
+        process_circle_deposit(
             circle_transaction_id=circle_transaction_id,
             wallet=wallet,
             amount=deposit_amount,
             network=network,
             from_address=source_address,
             transaction_hash=tx_hash,
-        )
-
-        if not created:
-            return
-
-        # Dispatch sweep after the deposit transaction commits.
-        sweep_wallet_id = wallet.get_circle_wallet_id_for_network(network)
-        if sweep_wallet_id:
-            self._dispatch_sweep(
-                sweep_wallet_id, deposit_amount, network, circle_transaction_id
-            )
-        else:
-            logger.error(
-                "No Circle wallet ID for network=%s wallet_pk=%s "
-                "circle_transaction_id=%s — skipping sweep",
-                network,
-                wallet.pk,
-                circle_transaction_id,
-            )
-
-    def _dispatch_sweep(self, circle_wallet_id, amount, network, circle_transaction_id):
-        """Schedule the sweep task to run after the current transaction commits."""
-        transaction.on_commit(
-            lambda: sweep_deposit_to_multisig.delay(
-                circle_wallet_id, amount, network, circle_transaction_id
-            )
         )
