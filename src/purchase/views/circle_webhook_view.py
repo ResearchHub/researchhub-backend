@@ -243,7 +243,7 @@ class CircleWebhookView(APIView):
             )
             return
 
-        process_circle_deposit(
+        _deposit, created = process_circle_deposit(
             circle_transaction_id=circle_transaction_id,
             wallet=wallet,
             amount=deposit_amount,
@@ -252,13 +252,14 @@ class CircleWebhookView(APIView):
             transaction_hash=tx_hash,
         )
 
+        if not created:
+            return
+
         # Dispatch sweep after the deposit transaction commits.
         sweep_wallet_id = wallet.get_circle_wallet_id_for_network(network)
         if sweep_wallet_id:
-            transaction.on_commit(
-                lambda cw=sweep_wallet_id, amt=deposit_amount, net=network, ref=circle_transaction_id: sweep_deposit_to_multisig.delay(
-                    cw, amt, net, ref
-                )
+            self._dispatch_sweep(
+                sweep_wallet_id, deposit_amount, network, circle_transaction_id
             )
         else:
             logger.error(
@@ -268,3 +269,11 @@ class CircleWebhookView(APIView):
                 wallet.pk,
                 circle_transaction_id,
             )
+
+    def _dispatch_sweep(self, circle_wallet_id, amount, network, circle_transaction_id):
+        """Schedule the sweep task to run after the current transaction commits."""
+        transaction.on_commit(
+            lambda: sweep_deposit_to_multisig.delay(
+                circle_wallet_id, amount, network, circle_transaction_id
+            )
+        )

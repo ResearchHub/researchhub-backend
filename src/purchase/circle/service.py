@@ -110,6 +110,11 @@ def process_circle_deposit(
             network,
             circle_transaction_id,
         )
+    else:
+        logger.info(
+            "Duplicate Circle transaction %s, skipping credit",
+            circle_transaction_id,
+        )
 
     return deposit, created
 
