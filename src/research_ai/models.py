@@ -121,7 +121,7 @@ class GeneratedEmail(DefaultModel):
     expert_name = models.CharField(max_length=255, blank=True)
     expert_title = models.CharField(max_length=255, blank=True)
     expert_affiliation = models.CharField(max_length=512, blank=True)
-    expert_email = models.CharField(max_length=255, blank=True)
+    expert_email = models.EmailField(blank=True)
     expertise = models.CharField(max_length=512, blank=True)
     email_subject = models.TextField(blank=True)
     email_body = models.TextField(blank=True)

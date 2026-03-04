@@ -239,7 +239,7 @@ class GenerateEmailRequestSerializer(serializers.Serializer):
     expert_name = serializers.CharField(required=True, allow_blank=False)
     expert_title = serializers.CharField(required=False, default="")
     expert_affiliation = serializers.CharField(required=False, default="")
-    expert_email = serializers.CharField(required=False, default="")
+    expert_email = serializers.EmailField(required=False, default="", allow_blank=True)
     expertise = serializers.CharField(required=False, default="")
     notes = serializers.CharField(required=False, default="")
     template = serializers.CharField(required=True)
