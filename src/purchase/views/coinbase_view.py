@@ -30,14 +30,10 @@ class CoinbaseViewSet(viewsets.ViewSet):
         """
         Generate a Coinbase Onramp URL for the authenticated user.
 
+        The destination address is resolved from the user's Circle wallet.
+
         Expected request body:
         {
-            "addresses": [
-                {
-                    "address": "0x123...",
-                    "blockchains": ["base", "ethereum"]
-                }
-            ],
             "assets": ["ETH", "USDC"],  # optional
             "default_network": "base",  # optional
             "preset_fiat_amount": 100,  # optional
@@ -59,7 +55,7 @@ class CoinbaseViewSet(viewsets.ViewSet):
 
         try:
             onramp_url = self.coinbase_service.generate_onramp_url(
-                addresses=data["addresses"],
+                user=request.user,
                 assets=data.get("assets"),
                 default_network=data.get("default_network"),
                 preset_fiat_amount=data.get("preset_fiat_amount"),

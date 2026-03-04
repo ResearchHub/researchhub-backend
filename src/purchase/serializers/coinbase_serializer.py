@@ -1,29 +1,8 @@
 from rest_framework import serializers
 
 
-class AddressEntrySerializer(serializers.Serializer):
-    """Serializer for wallet address entries."""
-
-    address = serializers.CharField(
-        required=True,
-        help_text="Wallet address (e.g., 0x123... for Ethereum/Base, bc1... for Bitcoin)",
-    )
-    blockchains = serializers.ListField(
-        child=serializers.CharField(),
-        required=True,
-        help_text="List of blockchain networks (e.g., ['ethereum', 'base', 'bitcoin'])",
-    )
-
-
 class CoinbaseSerializer(serializers.Serializer):
     """Serializer for Coinbase URL generation requests."""
-
-    addresses = serializers.ListField(
-        child=AddressEntrySerializer(),
-        required=True,
-        min_length=1,
-        help_text="List of wallet addresses with their supported blockchains",
-    )
 
     assets = serializers.ListField(
         child=serializers.CharField(),
