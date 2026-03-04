@@ -812,10 +812,14 @@ class FundingFeedEntrySerializer(FeedEntrySerializer):
     """Serializer for funding feed entries"""
 
     is_nonprofit = serializers.SerializerMethodField()
+    associated_grants = serializers.SerializerMethodField()
 
     class Meta:
         model = FeedEntry
-        fields = FeedEntrySerializer.Meta.fields + ["is_nonprofit"]
+        fields = FeedEntrySerializer.Meta.fields + [
+            "is_nonprofit",
+            "associated_grants",
+        ]
 
     def get_is_nonprofit(self, obj):
         if (
@@ -824,6 +828,32 @@ class FundingFeedEntrySerializer(FeedEntrySerializer):
             and obj.unified_document.fundraises.exists()
         ):
             return obj.unified_document.fundraises.first().nonprofit_links.exists()
+        return None
+
+    def get_associated_grants(self, obj):
+        if not obj.item or not hasattr(obj.item, "grant_applications"):
+            return []
+
+        return [
+            {
+                "id": app.grant.id,
+                "organization": app.grant.organization,
+                "short_title": app.grant.short_title,
+                "amount": str(app.grant.amount),
+                "currency": app.grant.currency,
+                "description": app.grant.description,
+                "status": app.grant.status,
+                "image": self._get_grant_image(app.grant),
+                "num_applicants": app.grant.applications.count(),
+            }
+            for app in obj.item.grant_applications.all()
+        ]
+
+    @staticmethod
+    def _get_grant_image(grant):
+        post = grant.unified_document.posts.first()
+        if post and post.image:
+            return default_storage.url(post.image)
         return None
 
 
