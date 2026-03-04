@@ -357,17 +357,27 @@ class ExpertFinderService:
     def _expert_name_matches_excluded(
         self, expert_name: str, excluded_names: list[str]
     ) -> bool:
-        """Return True if expert_name should be excluded (matches any excluded name)."""
+        """Return True if expert_name should be excluded (matches any excluded name).
+
+        Matching is by whole tokens (words), not substrings, so e.g. excluding "Li"
+        does not match "Oliver" (no token "li" in expert name).
+        """
         if not excluded_names or not expert_name:
             return False
         expert_norm = self._normalize_name_for_exclusion(expert_name)
         if not expert_norm:
             return False
+        expert_tokens = set(expert_norm.split())
         for excluded in excluded_names:
             excluded_norm = self._normalize_name_for_exclusion(excluded)
             if not excluded_norm:
                 continue
-            if excluded_norm in expert_norm or expert_norm in excluded_norm:
+            excluded_tokens = excluded_norm.split()
+            if not excluded_tokens:
+                continue
+            if expert_norm == excluded_norm:
+                return True
+            if all(token in expert_tokens for token in excluded_tokens):
                 return True
         return False
 

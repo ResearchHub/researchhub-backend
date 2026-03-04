@@ -295,6 +295,19 @@ class ExpertFinderServiceParseTests(TestCase):
         url = "https://example.com/page"
         self.assertEqual(service._clean_url(url), url)
 
+    def test_expert_name_matches_excluded_by_tokens_not_substring(self):
+        """Excluding 'Li' must not match 'Oliver' (substring 'li' in 'oliver')."""
+        service = ExpertFinderService()
+        self.assertFalse(
+            service._expert_name_matches_excluded("Oliver", ["Li"])
+        )
+        self.assertTrue(
+            service._expert_name_matches_excluded("John Li", ["Li"])
+        )
+        self.assertTrue(
+            service._expert_name_matches_excluded("Jane Doe", ["Jane"])
+        )
+
     def test_extract_citations_skips_empty_url(self):
         service = ExpertFinderService()
         text = "See [empty]() and [real](https://x.com) here."
