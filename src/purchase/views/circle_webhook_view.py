@@ -181,17 +181,18 @@ class CircleWebhookView(APIView):
 
         return Response(status=status.HTTP_200_OK)
 
-    def _create_pending_deposit(self, payload, notification):
-        """Create or update a pending deposit for an in-progress Circle transaction."""
+    def _validate_inbound_notification(self, payload, notification):
+        """
+        Validate and extract fields from an inbound Circle notification.
+
+        Returns a dict with validated fields, or ``None`` if the notification
+        is invalid and should be silently dropped.
+        """
         notification_id = payload["notificationId"]
-        circle_transaction_id = notification["id"]
         wallet_id = notification["walletId"]
         blockchain = notification.get("blockchain", "")
-        source_address = notification.get("sourceAddress", "")
-        tx_hash = notification.get("txHash", "")
         token_id = notification.get("tokenId")
         amounts = notification.get("amounts", [])
-        circle_status = notification.get("state")
 
         if not is_rsc_token(token_id, blockchain):
             logger.error(
@@ -200,12 +201,12 @@ class CircleWebhookView(APIView):
                 blockchain,
                 notification_id,
             )
-            return
+            return None
 
         deposit_amount = amounts[0] if amounts else None
         if not deposit_amount:
             logger.error("No amounts in Circle notification %s", notification_id)
-            return
+            return None
 
         try:
             parsed_amount = Decimal(deposit_amount)
@@ -215,7 +216,7 @@ class CircleWebhookView(APIView):
                 deposit_amount,
                 notification_id,
             )
-            return
+            return None
 
         if parsed_amount <= 0:
             logger.error(
@@ -223,7 +224,7 @@ class CircleWebhookView(APIView):
                 deposit_amount,
                 notification_id,
             )
-            return
+            return None
 
         network = BLOCKCHAIN_TO_NETWORK.get(blockchain)
         if network is None:
@@ -233,7 +234,7 @@ class CircleWebhookView(APIView):
                 wallet_id,
                 notification_id,
             )
-            return
+            return None
 
         try:
             wallet = Wallet.get_by_circle_wallet_id(wallet_id, network=network)
@@ -243,87 +244,31 @@ class CircleWebhookView(APIView):
                 wallet_id,
                 notification_id,
             )
+            return None
+
+        return {
+            "circle_transaction_id": notification["id"],
+            "wallet": wallet,
+            "amount": deposit_amount,
+            "network": network,
+            "from_address": notification.get("sourceAddress", ""),
+            "transaction_hash": notification.get("txHash", ""),
+        }
+
+    def _create_pending_deposit(self, payload, notification):
+        """Create or update a pending deposit for an in-progress Circle transaction."""
+        validated = self._validate_inbound_notification(payload, notification)
+        if validated is None:
             return
 
         upsert_pending_circle_deposit(
-            circle_transaction_id=circle_transaction_id,
-            wallet=wallet,
-            amount=deposit_amount,
-            network=network,
-            circle_status=circle_status,
-            from_address=source_address,
-            transaction_hash=tx_hash,
+            circle_status=notification["state"],
+            **validated,
         )
 
     def _process_inbound_transfer(self, payload, notification):
-        notification_id = payload["notificationId"]
-        circle_transaction_id = notification["id"]
-        wallet_id = notification["walletId"]
-        blockchain = notification.get("blockchain", "")
-        source_address = notification.get("sourceAddress", "")
-        tx_hash = notification.get("txHash", "")
-        token_id = notification.get("tokenId")
-        amounts = notification.get("amounts", [])
-
-        if not is_rsc_token(token_id, blockchain):
-            logger.error(
-                "Unsupported Circle token_id=%r for blockchain=%r notification_id=%s",
-                token_id,
-                blockchain,
-                notification_id,
-            )
+        validated = self._validate_inbound_notification(payload, notification)
+        if validated is None:
             return
 
-        # Validate deposit amount
-        deposit_amount = amounts[0] if amounts else None
-        if not deposit_amount:
-            logger.error("No amounts in Circle notification %s", notification_id)
-            return
-
-        try:
-            parsed_amount = Decimal(deposit_amount)
-        except InvalidOperation:
-            logger.error(
-                "Invalid deposit amount %r in notification %s",
-                deposit_amount,
-                notification_id,
-            )
-            return
-
-        if parsed_amount <= 0:
-            logger.error(
-                "Non-positive deposit amount %s in notification %s",
-                deposit_amount,
-                notification_id,
-            )
-            return
-
-        network = BLOCKCHAIN_TO_NETWORK.get(blockchain)
-        if network is None:
-            logger.error(
-                "Unknown Circle blockchain %r for wallet_id=%s notification_id=%s",
-                blockchain,
-                wallet_id,
-                notification_id,
-            )
-            return
-
-        # Look up the wallet (and user) by the chain-specific wallet ID.
-        try:
-            wallet = Wallet.get_by_circle_wallet_id(wallet_id, network=network)
-        except Wallet.DoesNotExist:
-            logger.warning(
-                "Circle webhook for unknown wallet_id=%s, notification_id=%s",
-                wallet_id,
-                notification_id,
-            )
-            return
-
-        process_circle_deposit(
-            circle_transaction_id=circle_transaction_id,
-            wallet=wallet,
-            amount=deposit_amount,
-            network=network,
-            from_address=source_address,
-            transaction_hash=tx_hash,
-        )
+        process_circle_deposit(**validated)
