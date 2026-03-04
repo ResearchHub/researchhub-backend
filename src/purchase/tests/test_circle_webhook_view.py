@@ -91,6 +91,7 @@ class TestCircleWebhookView(TestCase):
         self.assertEqual(deposit.amount, "100")
         self.assertEqual(deposit.network, "BASE")
         self.assertEqual(deposit.paid_status, "PAID")
+        self.assertEqual(deposit.circle_status, Deposit.CIRCLE_COMPLETE)
         self.assertEqual(deposit.sweep_status, Deposit.SWEEP_PENDING)
 
         # Balance was credited (via Distributor)
@@ -305,6 +306,125 @@ class TestCircleWebhookView(TestCase):
         mock_sweep_task.delay.assert_called_once_with(
             "circle-wallet-base-abc", "100", "BASE", "tx-001"
         )
+
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    def test_initiated_state_creates_pending_deposit(self, _mock_verify):
+        """INITIATED webhook creates a deposit with pending paid_status."""
+        payload = _make_payload(state="INITIATED")
+        response = self._post(payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        deposit = Deposit.objects.get(circle_transaction_id="tx-001")
+        self.assertEqual(deposit.user, self.user)
+        self.assertEqual(deposit.amount, "100")
+        self.assertEqual(deposit.network, "BASE")
+        self.assertEqual(deposit.paid_status, "PENDING")
+        self.assertEqual(deposit.circle_status, Deposit.CIRCLE_INITIATED)
+        self.assertIsNone(deposit.sweep_status)
+
+        # No balance credited yet
+        from purchase.models import Balance
+
+        self.assertFalse(Balance.objects.filter(user=self.user).exists())
+
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    def test_confirmed_state_creates_pending_deposit(self, _mock_verify):
+        """CONFIRMED webhook creates a deposit with pending paid_status."""
+        payload = _make_payload(state="CONFIRMED")
+        response = self._post(payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        deposit = Deposit.objects.get(circle_transaction_id="tx-001")
+        self.assertEqual(deposit.paid_status, "PENDING")
+        self.assertEqual(deposit.circle_status, Deposit.CIRCLE_CONFIRMED)
+
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    def test_initiated_then_confirmed_advances_circle_status(self, _mock_verify):
+        """CONFIRMED webhook advances an existing INITIATED deposit."""
+        self._post(_make_payload(state="INITIATED"))
+        self._post(_make_payload(state="CONFIRMED"))
+
+        deposit = Deposit.objects.get(circle_transaction_id="tx-001")
+        self.assertEqual(deposit.circle_status, Deposit.CIRCLE_CONFIRMED)
+        self.assertEqual(deposit.paid_status, "PENDING")
+
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    def test_confirmed_does_not_regress_to_initiated(self, _mock_verify):
+        """INITIATED webhook does not regress an already-CONFIRMED deposit."""
+        self._post(_make_payload(state="CONFIRMED"))
+        self._post(_make_payload(state="INITIATED"))
+
+        deposit = Deposit.objects.get(circle_transaction_id="tx-001")
+        self.assertEqual(deposit.circle_status, Deposit.CIRCLE_CONFIRMED)
+
+    @patch("purchase.tasks.sweep_deposit_to_multisig")
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    def test_pending_deposit_promoted_to_paid_on_completed(
+        self, _mock_verify, mock_sweep_task
+    ):
+        """COMPLETED webhook promotes a pending deposit to PAID and credits user."""
+        # First, create pending deposit via INITIATED webhook
+        self._post(_make_payload(state="INITIATED"))
+
+        deposit = Deposit.objects.get(circle_transaction_id="tx-001")
+        self.assertEqual(deposit.paid_status, "PENDING")
+
+        # Then, COMPLETED webhook should credit the user
+        with self.captureOnCommitCallbacks(execute=True):
+            self._post(_make_payload(state="COMPLETED"))
+
+        deposit.refresh_from_db()
+        self.assertEqual(deposit.paid_status, "PAID")
+        self.assertEqual(deposit.circle_status, Deposit.CIRCLE_COMPLETE)
+        self.assertEqual(deposit.sweep_status, Deposit.SWEEP_PENDING)
+        self.assertIsNotNone(deposit.paid_date)
+
+        # Balance was credited
+        from purchase.models import Balance
+
+        balance = Balance.objects.filter(user=self.user).first()
+        self.assertIsNotNone(balance)
+        self.assertEqual(balance.amount, "100")
+
+        # Sweep was dispatched
+        mock_sweep_task.delay.assert_called_once()
+
+    @patch("purchase.tasks.sweep_deposit_to_multisig")
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    def test_full_lifecycle_initiated_confirmed_completed(
+        self, _mock_verify, mock_sweep_task
+    ):
+        """Full lifecycle: INITIATED -> CONFIRMED -> COMPLETED credits user once."""
+        self._post(_make_payload(state="INITIATED"))
+        self._post(_make_payload(state="CONFIRMED"))
+
+        with self.captureOnCommitCallbacks(execute=True):
+            self._post(_make_payload(state="COMPLETED"))
+
+        deposit = Deposit.objects.get(circle_transaction_id="tx-001")
+        self.assertEqual(deposit.paid_status, "PAID")
+        self.assertEqual(deposit.circle_status, Deposit.CIRCLE_COMPLETE)
+
+        # Only one deposit and one balance entry
+        self.assertEqual(Deposit.objects.count(), 1)
+
+        from purchase.models import Balance
+
+        self.assertEqual(Balance.objects.filter(user=self.user).count(), 1)
 
 
 def _make_outbound_payload(
