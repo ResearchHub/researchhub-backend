@@ -1,0 +1,10 @@
+{sender_info}
+
+{common}
+
+For inviting a publication contribution:
+- Specify the journal, book, or publication venue
+- Explain the scope/theme of the publication
+- Describe why their expertise fits this publication
+- Be specific about what type of contribution is needed
+- Avoid referencing any specific papers they may have written

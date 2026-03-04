@@ -1,0 +1,10 @@
+{sender_info}
+
+{common}
+
+For requesting peer review:
+- Clearly state what needs review (manuscript, proposal, etc.)
+- Explain why their expertise is relevant to evaluate the work
+- Be clear about timeline and expectations
+- Show respect for their time
+- Avoid assuming they have reviewed similar work before

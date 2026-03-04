@@ -179,13 +179,10 @@ class ExpertFinderService:
 
         try:
             logger.info("Starting Expert Finder for search_id=%s", search_id)
-            expert_count = config.get("expert_count", config.get("expertCount", 10))
+            expert_count = config.get("expert_count", 10)
             from research_ai.constants import ExpertiseLevel, Gender, Region
 
-            expertise_level_raw = config.get(
-                "expertise_level",
-                config.get("expertiseLevel", [ExpertiseLevel.ALL_LEVELS]),
-            )
+            expertise_level_raw = config.get("expertise_level", [ExpertiseLevel.ALL_LEVELS])
             if isinstance(expertise_level_raw, str):
                 expertise_level = (
                     [expertise_level_raw]
@@ -204,9 +201,7 @@ class ExpertFinderService:
                 expertise_level = [ExpertiseLevel.ALL_LEVELS]
             region_filter = config.get("region", Region.ALL_REGIONS)
             state_filter = config.get("state", "All States")
-            gender_filter = config.get(
-                "gender", config.get("genderPreference", Gender.ALL_GENDERS)
-            )
+            gender_filter = config.get("gender", Gender.ALL_GENDERS)
             excluded = excluded_expert_names or []
 
             publish("Preparing expert search prompt...", 20)
@@ -238,17 +233,40 @@ class ExpertFinderService:
             experts = self._parse_markdown_table(llm_response)
             logger.info("Parsed %s experts", len(experts))
 
-            if len(experts) == 0:
-                msg = (
-                    "No expert recommendations table was returned. "
-                    "The model response could not be parsed as a markdown table."
-                )
-                llm_error = (llm_response or "").strip()
-                if llm_error:
-                    display_error = llm_error[:MAX_ERROR_MESSAGE_LENGTH] + (
-                        "..." if len(llm_error) > MAX_ERROR_MESSAGE_LENGTH else ""
+            all_filtered_out = False
+            if excluded:
+                before_count = len(experts)
+                experts = [
+                    e
+                    for e in experts
+                    if not self._expert_name_matches_excluded(
+                        e.get("name") or "", excluded
                     )
-                    msg = msg + " Response from model:\n\n" + display_error
+                ]
+                if before_count > 0 and len(experts) == 0:
+                    all_filtered_out = True
+
+            if len(experts) == 0:
+                if all_filtered_out:
+                    msg = (
+                        "All recommended experts were in the exclusion list. "
+                        "The model did not suggest new names; try broadening your criteria."
+                    )
+                    current_step = "All experts excluded; no new recommendations"
+                    error_message = msg[:MAX_ERROR_MESSAGE_LENGTH]
+                else:
+                    msg = (
+                        "No expert recommendations table was returned. "
+                        "The model response could not be parsed as a markdown table."
+                    )
+                    llm_error = (llm_response or "").strip()
+                    if llm_error:
+                        display_error = llm_error[:MAX_ERROR_MESSAGE_LENGTH] + (
+                            "..." if len(llm_error) > MAX_ERROR_MESSAGE_LENGTH else ""
+                        )
+                        msg = msg + " Response from model:\n\n" + display_error
+                    current_step = "No expert recommendations table returned by model"
+                    error_message = (llm_response or "")[:MAX_ERROR_MESSAGE_LENGTH]
                 publish(msg, 0, status=ExpertSearch.Status.FAILED)
                 if progress_callback:
                     progress_callback(search_id, 0, msg)
@@ -261,8 +279,8 @@ class ExpertFinderService:
                     "report_urls": {},
                     "expert_count": 0,
                     "llm_model": self.bedrock_llm.model_id,
-                    "error_message": (llm_response or "")[:MAX_ERROR_MESSAGE_LENGTH],
-                    "current_step": "No expert recommendations table returned by model",
+                    "error_message": error_message,
+                    "current_step": current_step,
                 }
             publish("Generating PDF report...", 80)
             pdf_bytes = generate_pdf_report(experts, query, config)
@@ -321,6 +339,37 @@ class ExpertFinderService:
         base, qs = url.split("?", 1)
         params = [p for p in qs.split("&") if not p.startswith("utm_")]
         return f"{base}?{'&'.join(params)}" if params else base
+
+    @staticmethod
+    def _normalize_name_for_exclusion(name: str) -> str:
+        """Normalize expert name for exclusion matching: lowercase, strip, collapse spaces."""
+        if not name or not isinstance(name, str):
+            return ""
+        s = name.strip().lower()
+        for prefix in ("dr.", "prof.", "professor ", "mr.", "mrs.", "ms."):
+            if s.startswith(prefix):
+                s = s[len(prefix) :].strip()
+        for suffix in (", phd", ", md", ", jr.", ", sr.", " phd", " md"):
+            if s.endswith(suffix):
+                s = s[: -len(suffix)].strip()
+        return " ".join(s.split())
+
+    def _expert_name_matches_excluded(
+        self, expert_name: str, excluded_names: list[str]
+    ) -> bool:
+        """Return True if expert_name should be excluded (matches any excluded name)."""
+        if not excluded_names or not expert_name:
+            return False
+        expert_norm = self._normalize_name_for_exclusion(expert_name)
+        if not expert_norm:
+            return False
+        for excluded in excluded_names:
+            excluded_norm = self._normalize_name_for_exclusion(excluded)
+            if not excluded_norm:
+                continue
+            if excluded_norm in expert_norm or expert_norm in excluded_norm:
+                return True
+        return False
 
     def _parse_markdown_table(self, markdown_text: str) -> list[dict[str, Any]]:
         """Parse markdown table from LLM response into list of expert dicts."""

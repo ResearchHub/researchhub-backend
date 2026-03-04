@@ -132,15 +132,17 @@ def generate_pdf_report(
         elements.append(Spacer(1, 0.2 * inch))
 
         elements.append(Paragraph("<b>Search Configuration:</b>", styles["Heading3"]))
-        expert_count = config.get("expert_count", config.get("expertCount", 10))
+        expert_count = config.get("expert_count", 10)
         expertise_level_raw = config.get(
-            "expertise_level", config.get("expertiseLevel", [ExpertiseLevel.ALL_LEVELS])
+            "expertise_level", [ExpertiseLevel.ALL_LEVELS]
         )
         if isinstance(expertise_level_raw, list):
+            labels = [
+                get_choice_label(v, ExpertiseLevel)
+                for v in expertise_level_raw
+            ]
             expertise_level = (
-                ", ".join(get_choice_label(v, ExpertiseLevel) for v in expertise_level_raw)
-                if expertise_level_raw
-                else ExpertiseLevel.ALL_LEVELS.label
+                ", ".join(labels) if labels else ExpertiseLevel.ALL_LEVELS.label
             )
         else:
             expertise_level = get_choice_label(
