@@ -29,13 +29,13 @@ PDF_TOO_LARGE_MESSAGE = "PDF is too large. Maximum size is 10 MB. Please use ano
 MAX_ERROR_MESSAGE_LENGTH = 10000
 
 
-def get_document_content(unified_doc, input_type: str = "full_content"):
+def get_document_content(unified_doc, input_type: str):
     """
     Extract content from UnifiedDocument for expert finder.
 
     Args:
         unified_doc: ResearchhubUnifiedDocument instance.
-        input_type: "full_content" (default), "pdf", "custom_query", or "abstract".
+        input_type: "full_content", "pdf", "custom_query", or "abstract" (required).
 
     Returns:
         tuple: (content_text, content_type) where content_type is one of

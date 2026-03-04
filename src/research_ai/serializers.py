@@ -54,7 +54,7 @@ class ExpertSearchCreateSerializer(serializers.Serializer):
     name = serializers.CharField(required=False, allow_blank=True, max_length=512)
     input_type = serializers.ChoiceField(
         choices=ExpertSearch.InputType.choices,
-        default=ExpertSearch.InputType.FULL_CONTENT,
+        required=False,
     )
     config = ExpertSearchConfigSerializer(required=False, default=dict)
     excluded_expert_names = serializers.ListField(
@@ -73,6 +73,10 @@ class ExpertSearchCreateSerializer(serializers.Serializer):
         if unified_document_id and query.strip():
             raise serializers.ValidationError(
                 "Provide either unified_document_id or query, not both."
+            )
+        if unified_document_id is not None and attrs.get("input_type") is None:
+            raise serializers.ValidationError(
+                {"input_type": "This field is required when using a document."}
             )
         attrs["excluded_expert_names"] = attrs.get("excluded_expert_names") or []
         attrs["config"] = attrs.get("config") or {}

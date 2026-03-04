@@ -50,7 +50,10 @@ class ExpertSearchCreateViewTests(APITestCase):
         self.client.force_authenticate(self.moderator)
         response = self.client.post(
             self.url,
-            {"unified_document_id": paper.unified_document_id},
+            {
+                "unified_document_id": paper.unified_document_id,
+                "input_type": "abstract",
+            },
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -74,10 +77,29 @@ class ExpertSearchCreateViewTests(APITestCase):
         response = self.client.post(self.url, {}, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_create_with_unified_document_requires_input_type(self):
+        """Creating a search with a document requires input_type (e.g. abstract or pdf)."""
+        from paper.tests.helpers import create_paper
+
+        paper = create_paper(
+            title="Paper",
+            paper_publish_date="2021-06-01",
+        )
+        self.client.force_authenticate(self.moderator)
+        response = self.client.post(
+            self.url,
+            {"unified_document_id": paper.unified_document_id},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("input_type", response.json())
+
     def test_create_unified_document_not_found_returns_404(self):
         self.client.force_authenticate(self.moderator)
         response = self.client.post(
-            self.url, {"unified_document_id": 999999}, format="json"
+            self.url,
+            {"unified_document_id": 999999, "input_type": "abstract"},
+            format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 

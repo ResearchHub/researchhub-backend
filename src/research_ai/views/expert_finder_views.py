@@ -61,7 +61,7 @@ class ExpertSearchCreateView(APIView):
         unified_document_id = data.get("unified_document_id")
         query_text = (data.get("query") or "").strip()
         search_name = (data.get("name") or "").strip()
-        input_type = data.get("input_type", ExpertSearch.InputType.FULL_CONTENT)
+        input_type = data.get("input_type")
         config = data.get("config") or {}
         excluded_expert_names = data.get("excluded_expert_names") or []
 

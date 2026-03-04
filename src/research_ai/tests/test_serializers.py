@@ -86,14 +86,15 @@ class ExpertSearchCreateSerializerTests(TestCase):
         ser = ExpertSearchCreateSerializer(data={"query": "Machine learning"})
         self.assertTrue(ser.is_valid())
         self.assertEqual(ser.validated_data["query"], "Machine learning")
-        self.assertEqual(
-            ser.validated_data["input_type"], ExpertSearch.InputType.FULL_CONTENT
-        )
+        # input_type is optional when using custom query (no document)
 
     def test_unified_document_id_only_valid(self):
-        ser = ExpertSearchCreateSerializer(data={"unified_document_id": 123})
+        ser = ExpertSearchCreateSerializer(
+            data={"unified_document_id": 123, "input_type": "abstract"}
+        )
         self.assertTrue(ser.is_valid())
         self.assertEqual(ser.validated_data["unified_document_id"], 123)
+        self.assertEqual(ser.validated_data["input_type"], "abstract")
 
     def test_neither_query_nor_document_invalid(self):
         ser = ExpertSearchCreateSerializer(data={})
