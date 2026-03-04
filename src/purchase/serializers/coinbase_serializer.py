@@ -33,3 +33,13 @@ class CoinbaseSerializer(serializers.Serializer):
         allow_blank=True,
         help_text="Default asset to preselect (e.g., 'ETH', 'USDC')",
     )
+
+
+class CoinbaseSessionTokenSerializer(serializers.Serializer):
+    """Serializer for Coinbase session token requests."""
+
+    assets = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        help_text="Optional list of asset tickers to restrict (e.g., ['ETH', 'USDC'])",
+    )

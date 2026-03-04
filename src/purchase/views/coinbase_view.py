@@ -6,7 +6,10 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from purchase.serializers.coinbase_serializer import CoinbaseSerializer
+from purchase.serializers.coinbase_serializer import (
+    CoinbaseSerializer,
+    CoinbaseSessionTokenSerializer,
+)
 from purchase.services.coinbase_service import CoinbaseService
 from utils.http import get_client_ip
 
@@ -81,5 +84,61 @@ class CoinbaseViewSet(viewsets.ViewSet):
             logger.error(f"Error generating onramp URL: {e}")
             return Response(
                 {"error": "Failed to generate onramp URL"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @action(detail=False, methods=["post", "options"], url_path="create-session-token")
+    @CoinbaseService.secure_coinbase_cors
+    def create_session_token(self, request):
+        """
+        Create a Coinbase Onramp session token for the authenticated user.
+
+        The destination address is resolved from the user's Circle wallet.
+
+        Expected request body:
+        {
+            "assets": ["ETH", "USDC"]  # optional
+        }
+        """
+        serializer = CoinbaseSessionTokenSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        data = serializer.validated_data
+        client_ip = get_client_ip(request)
+
+        if not client_ip:
+            logger.error(
+                "Unable to determine client IP for Coinbase session token request"
+            )
+            return Response(
+                {"error": "Unable to determine client IP for security verification"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            token_response = self.coinbase_service.create_session_token(
+                user=request.user,
+                assets=data.get("assets"),
+                client_ip=client_ip,
+            )
+
+            return Response(
+                {
+                    "token": token_response.get("token"),
+                    "channel_id": token_response.get("channel_id"),
+                    "expires_in_seconds": 300,
+                },
+                status=status.HTTP_200_OK,
+            )
+        except ValueError as e:
+            logger.error(f"Validation error creating session token: {e}")
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as e:
+            logger.error(f"Error creating session token: {e}")
+            return Response(
+                {"error": "Failed to create session token"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
