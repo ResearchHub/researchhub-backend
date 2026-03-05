@@ -1,5 +1,6 @@
 from django.db import models
 
+from research_ai.constants import EmailTemplateType
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -36,6 +37,11 @@ class ExpertSearch(DefaultModel):
         blank=True,
         related_name="expert_searches",
         db_comment="Document-based search; null for custom query.",
+    )
+    name = models.CharField(
+        max_length=512,
+        blank=True,
+        db_comment="Optional user-defined search name; auto-filled from document title if not provided.",
     )
     query = models.TextField(
         db_comment="Research description or document content used for the search.",
@@ -96,15 +102,6 @@ class GeneratedEmail(DefaultModel):
     Stores generated outreach emails for experts.
     """
 
-    class Template(models.TextChoices):
-        COLLABORATION = "collaboration", "collaboration"
-        CONSULTATION = "consultation", "consultation"
-        CONFERENCE = "conference", "conference"
-        PEER_REVIEW = "peer-review", "peer-review"
-        PUBLICATION = "publication", "publication"
-        RFP_OUTREACH = "rfp-outreach", "rfp-outreach"
-        CUSTOM = "custom", "custom"
-
     class Status(models.TextChoices):
         DRAFT = "draft", "draft"
         SENT = "sent", "sent"
@@ -124,14 +121,14 @@ class GeneratedEmail(DefaultModel):
     expert_name = models.CharField(max_length=255, blank=True)
     expert_title = models.CharField(max_length=255, blank=True)
     expert_affiliation = models.CharField(max_length=512, blank=True)
-    expert_email = models.CharField(max_length=255, blank=True)
+    expert_email = models.EmailField(blank=True)
     expertise = models.CharField(max_length=512, blank=True)
     email_subject = models.TextField(blank=True)
     email_body = models.TextField(blank=True)
     template = models.CharField(
         max_length=32,
-        choices=Template.choices,
-        default=Template.CUSTOM,
+        choices=EmailTemplateType.choices,
+        default=EmailTemplateType.CUSTOM,
     )
     status = models.CharField(
         max_length=16,
@@ -149,3 +146,102 @@ class GeneratedEmail(DefaultModel):
 
     def __str__(self):
         return f"GeneratedEmail {self.id} ({self.expert_name})"
+
+
+class DocumentInvitedExpert(DefaultModel):
+    """
+    Materialized "invited" experts per unified document.
+    """
+
+    unified_document = models.ForeignKey(
+        ResearchhubUnifiedDocument,
+        on_delete=models.CASCADE,
+        related_name="document_invited_experts",
+    )
+    user = models.ForeignKey(
+        "user.User",
+        on_delete=models.CASCADE,
+        related_name="document_invited_expert_records",
+    )
+    expert_search = models.ForeignKey(
+        ExpertSearch,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="document_invited_experts",
+        db_comment="Search that surfaced this expert for this document.",
+    )
+    generated_email = models.ForeignKey(
+        GeneratedEmail,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="document_invited_experts",
+        db_comment="Generated email if invite tied to one; null if only in expert_results.",
+    )
+
+    class Meta:
+        db_table = "research_ai_document_invited_expert"
+        ordering = ["-created_date"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["unified_document", "user"],
+                name="research_ai_die_doc_user_unique",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["unified_document"],
+                name="research_ai_die_unified_doc",
+            ),
+            models.Index(
+                fields=["expert_search"],
+                name="research_ai_die_expert_search",
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f"DocumentInvitedExpert doc={self.unified_document_id} user={self.user_id}"
+        )
+
+
+class EmailTemplate(DefaultModel):
+    """
+    User-defined template for outreach emails.
+    Stores name, contact info, and outreach context for placeholder replacement
+    and signature block when generating emails.
+    """
+
+    created_by = models.ForeignKey(
+        "user.User",
+        on_delete=models.CASCADE,
+        related_name="created_research_ai_email_templates",
+    )
+    name = models.CharField(
+        max_length=255,
+        db_comment="User-defined template name.",
+    )
+    contact_name = models.CharField(max_length=255, blank=True)
+    contact_title = models.CharField(max_length=255, blank=True)
+    contact_institution = models.CharField(max_length=512, blank=True)
+    contact_email = models.CharField(max_length=255, blank=True)
+    contact_phone = models.CharField(max_length=64, blank=True)
+    contact_website = models.CharField(max_length=512, blank=True)
+    outreach_context = models.TextField(
+        blank=True,
+        db_comment="Context provided to the LLM when generating emails.",
+    )
+
+    class Meta:
+        db_table = "research_ai_email_template"
+        ordering = ["-updated_date"]
+        indexes = [
+            models.Index(
+                fields=["created_by"],
+                name="research_ai_et_created_by",
+            ),
+        ]
+
+    def __str__(self):
+        return f"EmailTemplate {self.id} ({self.name})"

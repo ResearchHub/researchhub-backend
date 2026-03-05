@@ -18,11 +18,7 @@ BEDROCK_MODEL_ID = getattr(
 class BedrockLLMService:
 
     def __init__(self):
-        self.enabled = getattr(settings, "BEDROCK_PROCESSING_ENABLED", False)
-        if self.enabled:
-            self.bedrock_client = create_client("bedrock-runtime")
-        else:
-            self.bedrock_client = None
+        self.bedrock_client = create_client("bedrock-runtime")
         self.model_id = BEDROCK_MODEL_ID
 
     def invoke(
@@ -46,11 +42,8 @@ class BedrockLLMService:
             Generated text from the model.
 
         Raises:
-            RuntimeError: If Bedrock is disabled or invocation fails.
+            RuntimeError: If invocation fails.
         """
-        if not self.enabled or not self.bedrock_client:
-            raise RuntimeError("Bedrock processing is disabled")
-
         try:
             response = self.bedrock_client.converse(
                 modelId=self.model_id,

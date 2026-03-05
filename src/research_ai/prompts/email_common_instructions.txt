@@ -1,0 +1,10 @@
+Generate a professional email (150-200 words max) to contact this expert.
+
+{base_rules}
+
+Format:
+Subject: [subject line]
+
+[Email body - keep it natural and genuine]
+
+[Leave space for sender's signature]
