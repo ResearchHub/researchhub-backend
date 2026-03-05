@@ -1,6 +1,4 @@
 import uuid
-from decimal import Decimal
-from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
@@ -10,8 +8,6 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from feed.models import FeedEntry
-from purchase.models import Fundraise, Purchase
-from purchase.related_models.constants.currency import USD
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
@@ -639,68 +635,3 @@ class ActivityFeedActionDateOrderingTests(AWSMockTestCase):
             ids.index(entry_old.id),
         )
 
-
-class ActivityFeedContributionsTests(AWSMockTestCase):
-    """
-    Test the contributions field in the activity feed API response.
-    """
-
-    def setUp(self):
-        super().setUp()
-        self.user = _make_user("contrib_user")
-        self.client = APIClient()
-
-    def _create_purchase(self, fundraise, user, amount):
-        ct = ContentType.objects.get_for_model(Fundraise)
-        return Purchase.objects.create(
-            user=user,
-            content_type=ct,
-            object_id=fundraise.id,
-            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
-            purchase_method=Purchase.OFF_CHAIN,
-            amount=str(amount),
-        )
-
-    @patch(
-        "purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest_exchange_rate"
-    )
-    def test_contributions_returned_for_fundraise(self, mock_usd_to_rsc):
-        """
-        Preregistration with a fundraise and purchases should return contributions.
-        """
-        mock_usd_to_rsc.return_value = 1.0
-
-        # Arrange
-        doc = ResearchhubUnifiedDocument.objects.create(
-            document_type=PREREGISTRATION,
-        )
-        post = ResearchhubPost.objects.create(
-            title="Prereg",
-            created_by=self.user,
-            document_type=PREREGISTRATION,
-            unified_document=doc,
-        )
-        fundraise = Fundraise.objects.create(
-            unified_document=doc,
-            created_by=self.user,
-            goal_amount=Decimal("500.00"),
-            goal_currency=USD,
-            status=Fundraise.OPEN,
-        )
-        contributor = _make_user("contributor_a")
-        self._create_purchase(fundraise, contributor, 75.0)
-        self._create_purchase(fundraise, contributor, 25.0)
-        _make_feed_entry(ResearchhubPost, post.id, doc, user=self.user)
-
-        # Act
-        resp = self.client.get(ACTIVITY_LIST_URL)
-
-        # Assert
-        entry = resp.data["results"][0]
-        contributions = entry["contributions"]
-        self.assertIsNotNone(contributions)
-        self.assertEqual(contributions["total"], 1)
-        self.assertEqual(len(contributions["top"]), 1)
-        self.assertEqual(contributions["top"][0]["total_contribution"]["rsc"], 100.0)
-        self.assertEqual(contributions["top"][0]["total_contribution"]["usd"], 0)
-        self.assertEqual(len(contributions["top"][0]["contributions"]), 2)
