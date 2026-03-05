@@ -1,4 +1,6 @@
+from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import TYPE_CHECKING
 
 import pytz
 from django.conf import settings
@@ -11,6 +13,44 @@ from django.db.models.functions import Coalesce
 from purchase.related_models.constants.currency import ETHER, RSC, USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from utils.models import DefaultModel
+
+if TYPE_CHECKING:
+    from user.models import User
+
+
+@dataclass
+class FundraiseContributionEvent:
+    """
+    Represents a single contribution to a fundraise, including the amount,
+    currency, and date of the contribution.
+    """
+
+    amount: float
+    currency: str
+    date: datetime
+
+
+@dataclass
+class FundraiseContributorSummary:
+    """
+    Summary of a single contributor to a fundraise, including USD and RSC totals
+    and a list of individual contributions.
+    """
+
+    user: User
+    total_rsc: float
+    total_usd: float
+    contributions: list[FundraiseContributionEvent]
+
+
+@dataclass
+class FundraiseContributorsSummary:
+    """
+    Summary of contributors to a fundraise, including the total number of contributors.
+    """
+
+    total: int
+    top: list[FundraiseContributorSummary]
 
 
 def get_default_expiration_date():
@@ -79,6 +119,88 @@ class Fundraise(DefaultModel):
     def get_usd_contributors(self):
         """Returns USD contributions with user data."""
         return self.usd_contributions.select_related("user")
+
+    def get_contributors_summary(
+        self,
+        rsc_contributions=None,
+        usd_contributions=None,
+    ) -> FundraiseContributorsSummary:
+        """
+        Aggregate contributor totals across both RSC and USD contributions
+        which can be used for serialization, for example.
+        """
+        if rsc_contributions is None:
+            rsc_contributions = self.purchases.select_related("user").order_by(
+                "-created_date"
+            )
+        if usd_contributions is None:
+            usd_contributions = (
+                self.usd_contributions.select_related("user")
+                .filter(is_refunded=False)
+                .order_by("-created_date")
+            )
+
+        rsc_contributions = list(rsc_contributions)
+        usd_contributions = list(usd_contributions)
+
+        user_data = {}
+        for contribution in rsc_contributions + usd_contributions:
+            user_id = contribution.user_id
+            if user_id not in user_data:
+                user_data[user_id] = {
+                    "user": contribution.user,
+                    "total_rsc": 0,
+                    "total_usd": 0,
+                    "contributions": [],
+                }
+
+        for contribution in rsc_contributions:
+            amount = float(contribution.amount)
+            user_data[contribution.user_id]["total_rsc"] += amount
+            user_data[contribution.user_id]["contributions"].append(
+                FundraiseContributionEvent(
+                    amount=amount,
+                    currency=RSC,
+                    date=contribution.created_date,
+                )
+            )
+
+        for contribution in usd_contributions:
+            amount = contribution.amount_cents / 100.0
+            user_data[contribution.user_id]["total_usd"] += amount
+            user_data[contribution.user_id]["contributions"].append(
+                FundraiseContributionEvent(
+                    amount=amount,
+                    currency=USD,
+                    date=contribution.created_date,
+                )
+            )
+
+        result = []
+        for _, data in user_data.items():
+            result.append(
+                FundraiseContributorSummary(
+                    user=data["user"],
+                    total_rsc=data["total_rsc"],
+                    total_usd=data["total_usd"],
+                    contributions=sorted(
+                        data["contributions"],
+                        key=lambda x: x.date,
+                        reverse=True,
+                    ),
+                )
+            )
+
+        result = sorted(
+            result,
+            key=lambda x: x.total_usd + RscExchangeRate.rsc_to_usd(x.total_rsc),
+            reverse=True,
+        )
+
+        return FundraiseContributorsSummary(
+            total=len(user_data),
+            top=result,
+        )
 
     def get_amount_raised(self, currency=USD):
         """
