@@ -179,7 +179,7 @@ class Fundraise(DefaultModel):
             )
 
         result = []
-        for _, data in user_data.items():
+        for data in user_data.values():
             result.append(
                 FundraiseContributorSummary(
                     user=data["user"],
