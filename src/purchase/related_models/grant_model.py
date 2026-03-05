@@ -2,7 +2,7 @@ from datetime import datetime
 
 import pytz
 from django.db import models
-from django.db.models import CASCADE
+from django.db.models import CASCADE, SET_NULL
 
 from purchase.related_models.constants.currency import USD
 from utils.models import DefaultModel
@@ -16,14 +16,18 @@ class Grant(DefaultModel):
     """
 
     # Status choices
+    PENDING = "PENDING"
     OPEN = "OPEN"
     CLOSED = "CLOSED"
     COMPLETED = "COMPLETED"
+    DECLINED = "DECLINED"
 
     STATUS_CHOICES = (
+        (PENDING, "Pending"),
         (OPEN, "Open"),
         (CLOSED, "Closed"),
         (COMPLETED, "Completed"),
+        (DECLINED, "Declined"),
     )
 
     # Foreign key relationships
@@ -70,9 +74,29 @@ class Grant(DefaultModel):
     )
     status = models.CharField(
         choices=STATUS_CHOICES,
-        default=OPEN,
+        default=PENDING,
         max_length=32,
         help_text="Current status of the grant",
+    )
+
+    # Moderation fields
+    reviewed_by = models.ForeignKey(
+        "user.User",
+        on_delete=SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_grants",
+        help_text="Moderator who approved or declined this grant",
+    )
+    reviewed_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the moderation decision was made",
+    )
+    decline_reason = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Reason provided by moderator for declining the grant",
     )
 
     # Time fields

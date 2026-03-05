@@ -37,6 +37,10 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         context.update(self.get_common_serializer_context())
         return context
 
+    def _is_moderator(self):
+        user = self.request.user
+        return user.is_authenticated and user.moderator
+
     def get_cache_key(self, request, feed_type=""):
         """Override to include grant-specific query parameters in cache key"""
         base_key = super().get_cache_key(request, feed_type)
@@ -47,7 +51,14 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         organization = request.query_params.get("organization", "")
         created_by = request.query_params.get("created_by", "")
 
-        grant_params = f"-ordering:{ordering}-status:{status}-organization:{organization}-created_by:{created_by}"
+        if self._is_moderator():
+            user_segment = "mod"
+        elif request.user.is_authenticated:
+            user_segment = f"u:{request.user.id}"
+        else:
+            user_segment = "anon"
+
+        grant_params = f"-ordering:{ordering}-status:{status}-organization:{organization}-created_by:{created_by}-{user_segment}"
         return base_key + grant_params
 
     def list(self, request, *args, **kwargs):
@@ -114,6 +125,30 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             )
             .filter(document_type=GRANT, unified_document__is_removed=False)
         )
+
+        # Moderators see all PENDING grants (sorted to top via filter).
+        # Regular users only see their own PENDING grants.
+        # DECLINED grants are hidden from everyone.
+        user = self.request.user
+        if self._is_moderator():
+            queryset = queryset.exclude(
+                unified_document__grants__status=Grant.DECLINED
+            )
+        elif user.is_authenticated:
+            queryset = queryset.exclude(
+                Q(unified_document__grants__status=Grant.DECLINED)
+                | (
+                    Q(unified_document__grants__status=Grant.PENDING)
+                    & ~Q(created_by=user)
+                )
+            )
+        else:
+            queryset = queryset.exclude(
+                unified_document__grants__status__in=[
+                    Grant.PENDING,
+                    Grant.DECLINED,
+                ]
+            )
 
         if status:
             status_upper = status.upper()

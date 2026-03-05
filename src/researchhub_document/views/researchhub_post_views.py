@@ -23,6 +23,7 @@ from researchhub_document.permissions import HasDocumentEditingPermission
 from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_OPEN,
     FILTER_HAS_BOUNTY,
+    GRANT,
     RESEARCHHUB_POST_DOCUMENT_TYPES,
     SORT_BOUNTY_EXPIRATION_DATE,
     SORT_BOUNTY_TOTAL_AMOUNT,
@@ -139,7 +140,8 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             with transaction.atomic():
                 created_by = request.user
                 created_by_author = created_by.author_profile
-                doi = DOI() if assign_doi else None
+                is_grant = document_type == GRANT
+                doi = DOI() if (assign_doi and not is_grant) else None
 
                 # logical ordering & not using signals to avoid race-conditions
                 access_group = self.create_access_group(request)
@@ -236,7 +238,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     else:
                         rh_post.eln_src.save(file_name, full_src_file)
 
-                if assign_doi:
+                if doi:
                     crossref_response = doi.register_doi_for_post(
                         [created_by_author], title, rh_post
                     )
@@ -337,7 +339,8 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             renderable_text = data.get("renderable_text", "")
             title = data.get("title", "")
             assign_doi = data.get("assign_doi", False)
-            doi = DOI() if assign_doi else None
+            is_grant = rh_post.document_type == GRANT
+            doi = DOI() if (assign_doi and not is_grant) else None
 
             if type(title) is not str or len(title) < MIN_POST_TITLE_LENGTH:
                 return Response(
@@ -387,7 +390,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 unified_doc = post.unified_document
                 unified_doc.hubs.set(hubs)
 
-            if assign_doi:
+            if doi:
                 crossref_response = doi.register_doi_for_post(
                     [created_by_author], title, rh_post
                 )
