@@ -900,12 +900,7 @@ class ActivityFeedEntrySerializer(FeedEntrySerializer):
             return None
 
         fundraise = fundraises[0]
-        rsc_purchases = getattr(fundraise, "prefetched_purchases", None)
-        usd_contributions = getattr(fundraise, "prefetched_usd_contributions", None)
-        aggregated = fundraise.get_contributors_summary(
-            rsc_contributions=rsc_purchases,
-            usd_contributions=usd_contributions,
-        )
+        aggregated = fundraise.get_contributors_summary()
 
         result = []
         for entry in aggregated.top:

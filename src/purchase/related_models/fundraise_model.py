@@ -122,19 +122,18 @@ class Fundraise(DefaultModel):
         """Returns USD contributions with user data."""
         return self.usd_contributions.select_related("user")
 
-    def get_contributors_summary(
-        self,
-        rsc_contributions=None,
-        usd_contributions=None,
-    ) -> FundraiseContributorsSummary:
+    def get_contributors_summary(self) -> FundraiseContributorsSummary:
         """
         Aggregate contributor totals across both RSC and USD contributions
         which can be used for serialization, for example.
         """
+        rsc_contributions = getattr(self, "prefetched_purchases", None)
         if rsc_contributions is None:
             rsc_contributions = self.purchases.select_related("user").order_by(
                 "-created_date"
             )
+
+        usd_contributions = getattr(self, "prefetched_usd_contributions", None)
         if usd_contributions is None:
             usd_contributions = (
                 self.usd_contributions.select_related("user")
