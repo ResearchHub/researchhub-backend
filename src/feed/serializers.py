@@ -7,6 +7,8 @@ from rest_framework import serializers
 
 from hub.models import Hub
 from paper.models import Paper
+from purchase.related_models.constants.currency import RSC, USD
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.serializers import DynamicPurchaseSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
@@ -869,6 +871,106 @@ class FundingFeedEntrySerializer(FeedEntrySerializer):
         if post and post.image:
             return default_storage.url(post.image)
         return None
+
+
+class ActivityFeedEntrySerializer(FeedEntrySerializer):
+    """
+    Serializer for activity feed entries that includes fundraise contributions.
+    """
+
+    contributions = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FeedEntry
+        fields = FeedEntrySerializer.Meta.fields + [
+            "contributions",
+        ]
+
+    def get_contributions(self, obj):
+        """
+        Return fundraise contributors for entries whose unified document has a
+        fundraise.
+        """
+        if not obj.unified_document:
+            return None
+
+        fundraises = getattr(obj.unified_document, "prefetched_fundraises", None)
+        if fundraises is None:
+            fundraises = list(obj.unified_document.fundraises.all())
+
+        if not fundraises:
+            return None
+
+        fundraise = fundraises[0]
+
+        # Get all RSC contributions
+        rsc_purchases = getattr(fundraise, "prefetched_purchases", None)
+        if rsc_purchases is None:
+            rsc_purchases = fundraise.purchases.select_related("user").order_by(
+                "-created_date"
+            )
+
+        # Get all USD contributions
+        usd_contributions = getattr(fundraise, "prefetched_usd_contributions", None)
+        if usd_contributions is None:
+            usd_contributions = (
+                fundraise.usd_contributions.select_related("user")
+                .filter(is_refunded=False)
+                .order_by("-created_date")
+            )
+
+        # Build user data lookup from all contributions
+        user_data = {}
+        for contribution in list(rsc_purchases) + list(usd_contributions):
+            uid = contribution.user_id
+            if uid not in user_data:
+                user_data[uid] = {
+                    "user": contribution.user,
+                    "total_rsc": 0,
+                    "total_usd": 0,
+                    "contributions": [],
+                }
+
+        # Process RSC contributions
+        for contribution in rsc_purchases:
+            amount = float(contribution.amount)
+            user_data[contribution.user_id]["total_rsc"] += amount
+            user_data[contribution.user_id]["contributions"].append(
+                {"amount": amount, "currency": RSC, "date": contribution.created_date}
+            )
+
+        # Process USD contributions
+        for contribution in usd_contributions:
+            amount = contribution.amount_cents / 100.0
+            user_data[contribution.user_id]["total_usd"] += amount
+            user_data[contribution.user_id]["contributions"].append(
+                {"amount": amount, "currency": USD, "date": contribution.created_date}
+            )
+
+        result = []
+        for _, data in user_data.items():
+            serializer = SimpleUserSerializer(data["user"])
+            user_result = serializer.data
+            user_result["total_contribution"] = {
+                "rsc": data["total_rsc"],
+                "usd": data["total_usd"],
+            }
+            user_result["contributions"] = sorted(
+                data["contributions"], key=lambda x: x["date"], reverse=True
+            )
+            result.append(user_result)
+
+        result = sorted(
+            result,
+            key=lambda x: x["total_contribution"]["usd"]
+            + RscExchangeRate.rsc_to_usd(x["total_contribution"]["rsc"]),
+            reverse=True,
+        )
+
+        return {
+            "total": len(user_data),
+            "top": result,
+        }
 
 
 class GrantFeedEntrySerializer(FeedEntrySerializer):
