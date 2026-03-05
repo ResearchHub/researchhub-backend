@@ -8,6 +8,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 
 from feed.models import FeedEntry
 from feed.serializers import (
+    ActivityFeedEntrySerializer,
     CommentSerializer,
     ContentObjectSerializer,
     FeedEntrySerializer,
@@ -24,7 +25,13 @@ from hub.tests.helpers import create_hub
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
 from paper.models import Figure, Paper
 from paper.tests.helpers import create_paper
-from purchase.models import Fundraise, Grant, GrantApplication, Purchase
+from purchase.models import (
+    Fundraise,
+    Grant,
+    GrantApplication,
+    Purchase,
+    UsdFundraiseContribution,
+)
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import Bounty, Escrow
@@ -2432,3 +2439,201 @@ class FundingFeedEntrySerializerTests(AWSMockTestCase):
 
         serializer = FundingFeedEntrySerializer(feed_entry)
         self.assertEqual(serializer.data["associated_grants"], [])
+
+
+class ActivityFeedEntrySerializerTests(AWSMockTestCase):
+    """
+    Test cases for the ActivityFeedEntrySerializer.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.user = create_random_default_user("activity_feed_user")
+
+    def _create_feed_entry(self, unified_doc, post):
+        return FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=post.id,
+            user=self.user,
+            action="PUBLISH",
+            action_date=post.created_date,
+            unified_document=unified_doc,
+        )
+
+    def _create_fundraise_post(self):
+        unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.PREREGISTRATION,
+        )
+        post = ResearchhubPost.objects.create(
+            title="Prereg Post",
+            created_by=self.user,
+            document_type=document_type.PREREGISTRATION,
+            renderable_text="A preregistration post",
+            unified_document=unified_doc,
+        )
+        return unified_doc, post
+
+    def _create_purchase(self, fundraise, user, amount):
+        ct = ContentType.objects.get_for_model(Fundraise)
+        return Purchase.objects.create(
+            user=user,
+            content_type=ct,
+            object_id=fundraise.id,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            purchase_method=Purchase.OFF_CHAIN,
+            amount=str(amount),
+        )
+
+    def _create_usd_contribution(self, fundraise, user, amount_cents):
+        return UsdFundraiseContribution.objects.create(
+            user=user,
+            fundraise=fundraise,
+            amount_cents=amount_cents,
+            fee_cents=int(amount_cents * 0.09),
+            origin_fund_id="test-origin",
+            destination_org_id="test-destination",
+        )
+
+    def test_contributions_none_without_fundraise(self):
+        """Feed entry on a regular post should have contributions=None."""
+        # Arrange
+        unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.DISCUSSION,
+        )
+        post = ResearchhubPost.objects.create(
+            title="Discussion Post",
+            created_by=self.user,
+            document_type=document_type.DISCUSSION,
+            renderable_text="Just a discussion",
+            unified_document=unified_doc,
+        )
+        feed_entry = self._create_feed_entry(unified_doc, post)
+
+        # Act
+        serializer = ActivityFeedEntrySerializer(feed_entry)
+
+        # Assert
+        self.assertIsNone(serializer.data["contributions"])
+
+    @patch(
+        "purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest_exchange_rate"
+    )
+    def test_contributions_empty_with_fundraise_no_purchases(self, mock_usd_to_rsc):
+        """Fundraise with no purchases should return total=0, top=[]."""
+        mock_usd_to_rsc.return_value = 1.0
+
+        # Arrange
+        unified_doc, post = self._create_fundraise_post()
+        Fundraise.objects.create(
+            unified_document=unified_doc,
+            created_by=self.user,
+            goal_amount=Decimal("100.00"),
+            goal_currency=USD,
+            status=Fundraise.OPEN,
+        )
+        feed_entry = self._create_feed_entry(unified_doc, post)
+
+        # Act
+        serializer = ActivityFeedEntrySerializer(feed_entry)
+        contributions = serializer.data["contributions"]
+
+        # Assert
+        self.assertEqual(contributions["total"], 0)
+        self.assertEqual(contributions["top"], [])
+
+    @patch(
+        "purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest_exchange_rate"
+    )
+    def test_contributions_single_contributor(self, mock_usd_to_rsc):
+        """Single purchase should produce one contributor entry."""
+        mock_usd_to_rsc.return_value = 1.0
+
+        # Arrange
+        unified_doc, post = self._create_fundraise_post()
+        fundraise = Fundraise.objects.create(
+            unified_document=unified_doc,
+            created_by=self.user,
+            goal_amount=Decimal("500.00"),
+            goal_currency=USD,
+            status=Fundraise.OPEN,
+        )
+        self._create_purchase(fundraise, self.user, 50.0)
+        feed_entry = self._create_feed_entry(unified_doc, post)
+
+        # Act
+        serializer = ActivityFeedEntrySerializer(feed_entry)
+        contributions = serializer.data["contributions"]
+
+        # Assert
+        self.assertEqual(contributions["total"], 1)
+        self.assertEqual(len(contributions["top"]), 1)
+        top_entry = contributions["top"][0]
+        self.assertEqual(top_entry["total_contribution"]["rsc"], 50.0)
+        self.assertEqual(top_entry["total_contribution"]["usd"], 0)
+        self.assertEqual(len(top_entry["contributions"]), 1)
+        self.assertEqual(top_entry["contributions"][0]["amount"], 50.0)
+        self.assertEqual(top_entry["contributions"][0]["currency"], "RSC")
+
+    @patch(
+        "purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest_exchange_rate"
+    )
+    def test_contributions_multiple_purchases_aggregated(self, mock_usd_to_rsc):
+        """Multiple purchases by the same user should be aggregated."""
+        mock_usd_to_rsc.return_value = 1.0
+
+        # Arrange
+        unified_doc, post = self._create_fundraise_post()
+        fundraise = Fundraise.objects.create(
+            unified_document=unified_doc,
+            created_by=self.user,
+            goal_amount=Decimal("1000.00"),
+            goal_currency=USD,
+            status=Fundraise.OPEN,
+        )
+        self._create_purchase(fundraise, self.user, 30.0)
+        self._create_purchase(fundraise, self.user, 70.0)
+        feed_entry = self._create_feed_entry(unified_doc, post)
+
+        # Act
+        serializer = ActivityFeedEntrySerializer(feed_entry)
+        contributions = serializer.data["contributions"]
+
+        # Assert
+        self.assertEqual(contributions["total"], 1)
+        top_entry = contributions["top"][0]
+        self.assertEqual(top_entry["total_contribution"]["rsc"], 100.0)
+        self.assertEqual(top_entry["total_contribution"]["usd"], 0)
+        self.assertEqual(len(top_entry["contributions"]), 2)
+
+    @patch(
+        "purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest_exchange_rate"
+    )
+    def test_contributions_include_usd_contributions(self, mock_usd_to_rsc):
+        """RSC and USD contributions from the same user should both appear."""
+        mock_usd_to_rsc.return_value = 1.0
+
+        # Arrange
+        unified_doc, post = self._create_fundraise_post()
+        fundraise = Fundraise.objects.create(
+            unified_document=unified_doc,
+            created_by=self.user,
+            goal_amount=Decimal("500.00"),
+            goal_currency=USD,
+            status=Fundraise.OPEN,
+        )
+        contributor = create_random_default_user("mixed_contributor")
+        self._create_purchase(fundraise, contributor, 10.0)
+        self._create_usd_contribution(fundraise, contributor, 2500)
+        feed_entry = self._create_feed_entry(unified_doc, post)
+
+        # Act
+        serializer = ActivityFeedEntrySerializer(feed_entry)
+        contributions = serializer.data["contributions"]
+        top_entry = contributions["top"][0]
+
+        # Assert
+        self.assertEqual(top_entry["total_contribution"]["rsc"], 10.0)
+        self.assertEqual(top_entry["total_contribution"]["usd"], 25.0)
+        self.assertEqual(len(top_entry["contributions"]), 2)
+        currencies = {c["currency"] for c in top_entry["contributions"]}
+        self.assertEqual(currencies, {"RSC", "USD"})
