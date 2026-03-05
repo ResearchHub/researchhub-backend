@@ -2287,25 +2287,29 @@ class FundingFeedEntrySerializerTests(AWSMockTestCase):
         self.assertIn("content_type", data)
         self.assertEqual(data["content_type"], "RESEARCHHUBPOST")
 
-        # Verify is_nonprofit field is present and False (no nonprofit links)
+        # Verify is_nonprofit is False and nonprofit is None (no nonprofit links)
         self.assertIn("is_nonprofit", data)
         self.assertFalse(data["is_nonprofit"])
+        self.assertIn("nonprofit", data)
+        self.assertIsNone(data["nonprofit"])
 
         # Create a nonprofit organization and link it to the fundraise
-        nonprofit = NonprofitOrg.objects.create(name="Test Nonprofit")
-
-        # Create the nonprofit link - variable not directly used but needed for test
-        # Creating the link is necessary for the test though the variable isn't used
+        nonprofit = NonprofitOrg.objects.create(
+            name="Test Nonprofit",
+            ein="12-3456789",
+            endaoment_org_id="endaoment-123",
+        )
         NonprofitFundraiseLink.objects.create(fundraise=fundraise, nonprofit=nonprofit)
 
-        # Re-serialize and verify is_nonprofit is now True
+        # Re-serialize and verify is_nonprofit is True and nonprofit object is returned
         serializer = FundingFeedEntrySerializer(feed_entry)
         data = serializer.data
         self.assertTrue(data["is_nonprofit"])
-        data = serializer.data
-        self.assertTrue(data["is_nonprofit"])
-        data = serializer.data
-        self.assertTrue(data["is_nonprofit"])
+        self.assertIsNotNone(data["nonprofit"])
+        self.assertEqual(data["nonprofit"]["id"], nonprofit.id)
+        self.assertEqual(data["nonprofit"]["name"], "Test Nonprofit")
+        self.assertEqual(data["nonprofit"]["ein"], "12-3456789")
+        self.assertEqual(data["nonprofit"]["endaoment_org_id"], "endaoment-123")
 
     def test_non_fundraise_feed_entry_has_no_associated_grants(self):
         """A discussion post feed entry should have an empty associated_grants list."""
