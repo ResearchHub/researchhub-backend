@@ -61,75 +61,33 @@ class DynamicFundraiseSerializer(DynamicModelFieldSerializer):
         }
 
     def get_contributors(self, fundraise):
-        # Get all RSC contributions
-        rsc_contributions = fundraise.purchases.select_related("user").order_by(
-            "-created_date"
-        )
-
-        # Get all USD contributions
-        usd_contributions = (
-            fundraise.usd_contributions.select_related("user")
-            .filter(is_refunded=False)
-            .order_by("-created_date")
-        )
-
-        # Build user data lookup from all contributions
-        user_data = {}
-        for contribution in list(rsc_contributions) + list(usd_contributions):
-            user_id = contribution.user_id
-            if user_id not in user_data:
-                user_data[user_id] = {
-                    "user": contribution.user,
-                    "total_rsc": 0,
-                    "total_usd": 0,
-                    "contributions": [],
-                }
-
-        # Process RSC contributions
-        for contribution in rsc_contributions:
-            amount = float(contribution.amount)
-            user_data[contribution.user_id]["total_rsc"] += amount
-            user_data[contribution.user_id]["contributions"].append(
-                {"amount": amount, "currency": RSC, "date": contribution.created_date}
-            )
-
-        # Process USD contributions
-        for contribution in usd_contributions:
-            amount = contribution.amount_cents / 100.0
-            user_data[contribution.user_id]["total_usd"] += amount
-            user_data[contribution.user_id]["contributions"].append(
-                {"amount": amount, "currency": USD, "date": contribution.created_date}
-            )
+        aggregated = fundraise.get_contributors_summary()
 
         # Serialize users
         context = self.context
         _context_fields = context.get("pch_dfs_get_contributors", {})
 
         result = []
-        for user_id, data in user_data.items():
+        for entry in aggregated.top:
             serializer = DynamicUserSerializer(
-                data["user"], context=context, **_context_fields
+                entry.user, context=context, **_context_fields
             )
             user_result = serializer.data
             user_result["total_contribution"] = {
-                "rsc": data["total_rsc"],
-                "usd": data["total_usd"],
+                "rsc": entry.total_rsc,
+                "usd": entry.total_usd,
             }
-            # Sort contributions by date descending
-            user_result["contributions"] = sorted(
-                data["contributions"], key=lambda x: x["date"], reverse=True
-            )
+            user_result["contributions"] = [
+                {
+                    "amount": contribution.amount,
+                    "currency": contribution.currency,
+                    "date": contribution.date,
+                }
+                for contribution in entry.contributions
+            ]
             result.append(user_result)
 
-        # Sort by total USD equivalent (descending)
-        result = sorted(
-            result,
-            key=lambda x: x["total_contribution"]["usd"]
-            + RscExchangeRate.rsc_to_usd(x["total_contribution"]["rsc"]),
-            reverse=True,
-        )
-
         return {
-            "total": len(user_data),
+            "total": aggregated.total,
             "top": result,  # Keep original key for backward compatibility
         }
