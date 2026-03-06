@@ -401,6 +401,85 @@ class TestCircleWebhookView(TestCase):
         # Sweep was dispatched
         mock_sweep_task.delay.assert_called_once()
 
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    def test_failed_state_marks_pending_deposit_failed(self, _mock_verify):
+        """FAILED webhook marks a pending deposit as failed."""
+        self._post(_make_payload(state="INITIATED"))
+
+        deposit = Deposit.objects.get(circle_transaction_id="tx-001")
+        self.assertEqual(deposit.paid_status, "PENDING")
+
+        response = self._post(_make_payload(state="FAILED"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        deposit.refresh_from_db()
+        self.assertEqual(deposit.paid_status, "FAILED")
+        self.assertEqual(deposit.circle_status, Deposit.CIRCLE_FAILED)
+
+        # No balance credited
+        from purchase.models import Balance
+
+        self.assertFalse(Balance.objects.filter(user=self.user).exists())
+
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    def test_cancelled_state_marks_pending_deposit_failed(self, _mock_verify):
+        """CANCELLED webhook marks a pending deposit as failed."""
+        self._post(_make_payload(state="CONFIRMED"))
+
+        response = self._post(_make_payload(state="CANCELLED"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        deposit = Deposit.objects.get(circle_transaction_id="tx-001")
+        self.assertEqual(deposit.paid_status, "FAILED")
+        self.assertEqual(deposit.circle_status, Deposit.CIRCLE_FAILED)
+
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    def test_denied_state_marks_pending_deposit_failed(self, _mock_verify):
+        """DENIED webhook marks a pending deposit as failed."""
+        self._post(_make_payload(state="INITIATED"))
+
+        response = self._post(_make_payload(state="DENIED"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        deposit = Deposit.objects.get(circle_transaction_id="tx-001")
+        self.assertEqual(deposit.paid_status, "FAILED")
+        self.assertEqual(deposit.circle_status, Deposit.CIRCLE_FAILED)
+
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    def test_failed_state_does_not_revert_paid_deposit(self, _mock_verify):
+        """FAILED webhook does not revert an already-paid deposit."""
+        # Create a paid deposit
+        self._post(_make_payload(state="COMPLETED"))
+
+        deposit = Deposit.objects.get(circle_transaction_id="tx-001")
+        self.assertEqual(deposit.paid_status, "PAID")
+
+        # Late FAILED webhook should not affect it
+        response = self._post(_make_payload(state="FAILED"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        deposit.refresh_from_db()
+        self.assertEqual(deposit.paid_status, "PAID")
+        self.assertEqual(deposit.circle_status, Deposit.CIRCLE_COMPLETED)
+
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    def test_failed_state_no_existing_deposit_returns_200(self, _mock_verify):
+        """FAILED webhook with no existing deposit returns 200 gracefully."""
+        response = self._post(_make_payload(state="FAILED"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(Deposit.objects.exists())
+
     @patch("purchase.tasks.sweep_deposit_to_multisig")
     @patch(
         "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True

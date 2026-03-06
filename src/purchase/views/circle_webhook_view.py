@@ -100,6 +100,8 @@ class CircleWebhookView(APIView):
             handler = self._process_inbound_transfer
         elif state in PENDING_DEPOSIT_STATES:
             handler = self._create_pending_deposit
+        elif state in FAILED_STATES:
+            handler = self._fail_deposit
         else:
             logger.info(
                 "Ignoring Circle inbound transfer in state: %s (id=%s)",
@@ -265,6 +267,41 @@ class CircleWebhookView(APIView):
             circle_status=notification["state"],
             **validated,
         )
+
+    def _fail_deposit(self, payload, notification):
+        """Mark an existing pending deposit as failed."""
+        circle_transaction_id = notification.get("id")
+        if not circle_transaction_id:
+            return
+
+        updated = (
+            Deposit.objects.filter(
+                circle_transaction_id=circle_transaction_id,
+            )
+            .exclude(
+                paid_status=Deposit.PAID,
+            )
+            .update(
+                circle_status=Deposit.CIRCLE_FAILED,
+                paid_status=Deposit.FAILED,
+            )
+        )
+
+        if updated:
+            logger.warning(
+                "Deposit marked FAILED via inbound webhook: "
+                "circle_transaction_id=%s state=%s notification_id=%s",
+                circle_transaction_id,
+                notification.get("state"),
+                payload.get("notificationId"),
+            )
+        else:
+            logger.info(
+                "No pending deposit found to fail: circle_transaction_id=%s "
+                "notification_id=%s",
+                circle_transaction_id,
+                payload.get("notificationId"),
+            )
 
     def _process_inbound_transfer(self, payload, notification):
         validated = self._validate_inbound_notification(payload, notification)
