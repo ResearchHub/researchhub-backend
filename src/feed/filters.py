@@ -91,7 +91,7 @@ class FundOrderingFilter(OrderingFilter):
             queryset = super().filter_queryset(request, queryset, view)
 
         return self._prepend_pending_sorting(queryset, view)
-            
+
     def get_ordering(self, request: Request, queryset: QuerySet, view: Any):
         """Get ordering from request with DRF-compatible signature."""
         ordering_param = request.query_params.get(self.ordering_param, '')
@@ -259,9 +259,7 @@ class FundOrderingFilter(OrderingFilter):
             ).order_by("-amount_raised", "-created_date")
 
     def _prepend_pending_sorting(self, queryset: QuerySet, view: Any) -> QuerySet:
-        """For authenticated users viewing grants, sort PENDING items to the top.
-        Moderators see all pending grants; regular users only see their own.
-        """
+        """For authenticated users viewing grants, sort PENDING items to the top."""
         is_grant_view = getattr(view, 'is_grant_view', False)
         if not is_grant_view:
             return queryset

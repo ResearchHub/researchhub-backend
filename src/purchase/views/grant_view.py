@@ -32,8 +32,8 @@ class GrantViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         """
-        Only moderators can create, update, or delete grants.
-        Anyone authenticated can view grants.
+        Only moderators can update or delete grants.
+        Any authenticated user can create or view grants.
         """
         if self.action in ["update", "partial_update", "destroy"]:
             return [IsModerator()]
