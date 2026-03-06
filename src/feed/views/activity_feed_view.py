@@ -55,14 +55,14 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
             "user__userverification",
         ).order_by("-action_date")
 
-        scope = self.request.query_params.get("scope")
+        scope = self.request.query_params.get("scope", "").lower()
         grant_id = self.request.query_params.get("grant_id")
 
         if grant_id:
             queryset = self._filter_by_grant(queryset, grant_id)
-        elif scope and scope.lower() == "grants":
+        elif scope == "grants":
             queryset = self._filter_all_grants(queryset)
-        elif scope and scope.lower() == "peer_reviews":
+        elif scope == "peer_reviews":
             queryset = self._filter_peer_reviews(queryset)
         else:
             document_type = self.request.query_params.get("document_type")
