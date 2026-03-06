@@ -85,6 +85,27 @@ def process_expert_search_task(
         end_time = datetime.utcnow()
         processing_time = (end_time - start_time).total_seconds()
 
+        if result.get("status") == ExpertSearch.Status.FAILED:
+            error_message = (result.get("error_message") or "")[:10000]
+            ExpertSearch.objects.filter(id=int(search_id)).update(
+                status=ExpertSearch.Status.FAILED,
+                progress=0,
+                current_step=(result.get("current_step") or "No expert table returned")[:512],
+                expert_results=[],
+                expert_count=0,
+                report_pdf_url="",
+                report_csv_url="",
+                processing_time=processing_time,
+                completed_at=end_time,
+                llm_model=result.get("llm_model", ""),
+                error_message=error_message,
+            )
+            logger.warning(
+                "Expert finder failed for search_id=%s (no table parsed): %s",
+                search_id,
+                error_message[:200] + "..." if len(error_message) > 200 else error_message,
+            )
+            return result
         report_urls = result.get("report_urls", {})
         ExpertSearch.objects.filter(id=int(search_id)).update(
             status=ExpertSearch.Status.COMPLETED,

@@ -46,7 +46,7 @@ class ExpertSearchCreateViewTests(APITestCase):
         self.client.force_authenticate(self.moderator)
         response = self.client.post(
             self.url,
-            {"unified_document_id": 999999},
+            {"unified_document_id": 999999, "input_type": "abstract"},
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

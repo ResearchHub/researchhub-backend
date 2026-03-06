@@ -898,19 +898,6 @@ wheels = [
 ]
 
 [[package]]
-name = "django-contrib-comments"
-version = "1.9.2"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "django" },
-    { name = "six" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/97/2a/07a3afd1fd75362c2a9175a12052f4d78ddfd238d54903d3426737e9e76c/django-contrib-comments-1.9.2.tar.gz", hash = "sha256:d1232bade3094de07dcc205fc833204384e71ba9d30caadcb5bb2882ce8e8d31", size = 848588, upload-time = "2019-12-03T16:42:07.408Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/95/df/e6f3f465d12db886262644c5fdf5cc998800232a164b981d418e9a78742c/django_contrib_comments-1.9.2-py2.py3-none-any.whl", hash = "sha256:b83320a86081a76bc0570e6cc0f924c0ced40b46ae9f5dd783ab2c745b449529", size = 403867, upload-time = "2019-12-03T16:42:00.371Z" },
-]
-
-[[package]]
 name = "django-cors-headers"
 version = "3.5.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2644,7 +2631,6 @@ dependencies = [
     { name = "django" },
     { name = "django-allauth" },
     { name = "django-celery-results" },
-    { name = "django-contrib-comments" },
     { name = "django-cors-headers" },
     { name = "django-dbbackup" },
     { name = "django-debug-toolbar" },
@@ -2713,7 +2699,6 @@ requires-dist = [
     { name = "django", specifier = "==5.2.11" },
     { name = "django-allauth", specifier = ">=65.13.0,<66.0.0" },
     { name = "django-celery-results", specifier = "==2.6.0" },
-    { name = "django-contrib-comments", specifier = "==1.9.2" },
     { name = "django-cors-headers", specifier = "==3.5.0" },
     { name = "django-dbbackup", specifier = "==4.0.2" },
     { name = "django-debug-toolbar", specifier = "==4.2" },

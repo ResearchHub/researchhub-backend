@@ -1,12 +1,14 @@
 import logging
 import re
-import urllib.request
 from typing import Any, Callable
 
 import fitz
 from django.core.exceptions import ValidationError
 from django.core.validators import EmailValidator
 
+from paper.tasks.tasks import create_download_url
+from paper.utils import download_pdf_from_url
+from research_ai.constants import MAX_PDF_SIZE_BYTES
 from research_ai.models import ExpertSearch
 from research_ai.prompts.expert_finder_prompts import (
     build_system_prompt,
@@ -23,18 +25,21 @@ from researchhub_document.related_models.constants.document_type import PAPER
 
 logger = logging.getLogger(__name__)
 
+PDF_TOO_LARGE_MESSAGE = "PDF is too large. Maximum size is 10 MB. Please use another input type (e.g. abstract)."
+MAX_ERROR_MESSAGE_LENGTH = 10000
 
-def get_document_content(unified_doc, input_type: str = "abstract"):
+
+def get_document_content(unified_doc, input_type: str):
     """
     Extract content from UnifiedDocument for expert finder.
 
     Args:
         unified_doc: ResearchhubUnifiedDocument instance.
-        input_type: "abstract" (default), "pdf", "custom_query", or "full_content".
+        input_type: "full_content", "pdf", "custom_query", or "abstract" (required).
 
     Returns:
         tuple: (content_text, content_type) where content_type is one of
-               "abstract", "pdf", "full_content".
+               "full_content", "pdf", "abstract".
 
     Raises:
         ValueError: If requested content is not available.
@@ -42,17 +47,23 @@ def get_document_content(unified_doc, input_type: str = "abstract"):
 
     if unified_doc.document_type == PAPER:
         paper = unified_doc.paper
-        if input_type == "pdf" and paper.pdf_url:
-            text = _extract_text_from_pdf_url(paper.pdf_url)
-            return (text, "pdf")
-        if paper.abstract:
-            return (paper.abstract, "abstract")
-        if paper.pdf_url:
-            text = _extract_text_from_pdf_url(paper.pdf_url)
-            return (text, "pdf")
-        raise ValueError("Paper has no abstract or PDF available")
 
-    # Discussion, Question, Preregistration, Grant, etc. – use post content
+        if input_type == "abstract":
+            if not paper.abstract:
+                raise ValueError("Abstract is not available for this paper.")
+            return (paper.abstract, "abstract")
+
+        if input_type == "pdf":
+            pdf_bytes = _get_paper_pdf_bytes(paper)
+            if not pdf_bytes:
+                raise ValueError("PDF is not available for this paper.")
+            if len(pdf_bytes) > MAX_PDF_SIZE_BYTES:
+                raise ValueError(PDF_TOO_LARGE_MESSAGE)
+            text = _extract_text_from_pdf_bytes(pdf_bytes)
+            return (text, "pdf")
+
+        raise ValueError("Invalid input_type for paper. Use 'pdf' or 'abstract'.")
+
     post = unified_doc.posts.first()
     if not post:
         raise ValueError("Document has no post content")
@@ -67,18 +78,46 @@ def get_document_content(unified_doc, input_type: str = "abstract"):
     raise ValueError("Post has no content available")
 
 
-def _extract_text_from_pdf_url(pdf_url: str) -> str:
-    """Download PDF from URL and extract text using PyMuPDF."""
+def _get_paper_pdf_bytes(paper) -> bytes | None:
+    """
+    Get PDF content for a paper. Prefer paper.file (S3); fall back to pdf_url .
+    """
 
+    # 1) Prefer paper.file (S3)
+    if getattr(paper, "file", None) and getattr(paper.file, "url", None):
+        try:
+            pdf_file = download_pdf_from_url(paper.file.url)
+            return pdf_file.read()
+        except Exception as e:
+            logger.warning(
+                "Failed to get PDF from paper.file for paper %s: %s. Trying pdf_url.",
+                getattr(paper, "id", "?"),
+                e,
+            )
+
+    # 2) Fall back to pdf_url
+    pdf_url = getattr(paper, "pdf_url", None) or getattr(paper, "url", None)
+    if not pdf_url:
+        return None
     try:
-        with urllib.request.urlopen(pdf_url, timeout=60) as resp:
-            pdf_bytes = resp.read()
+        url = create_download_url(pdf_url, getattr(paper, "external_source", "") or "")
+        pdf_file = download_pdf_from_url(url)
+        return pdf_file.read()
     except Exception as e:
-        logger.warning("Failed to download PDF from %s: %s", pdf_url[:80], e)
-        raise ValueError(f"Could not download PDF: {e}") from e
+        logger.warning(
+            "Failed to download PDF from pdf_url for paper %s: %s",
+            getattr(paper, "id", "?"),
+            e,
+            exc_info=True,
+        )
+        return None
 
+
+def _extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
+    """
+    Extract text from PDF bytes using PyMuPDF
+    """
     try:
-
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
         parts = []
         for page in doc:
@@ -140,15 +179,29 @@ class ExpertFinderService:
 
         try:
             logger.info("Starting Expert Finder for search_id=%s", search_id)
-            expert_count = config.get("expert_count", config.get("expertCount", 10))
-            expertise_level = config.get(
-                "expertise_level", config.get("expertiseLevel", "All Levels")
-            )
-            region_filter = config.get("region", "All Regions")
+            expert_count = config.get("expert_count", 10)
+            from research_ai.constants import ExpertiseLevel, Gender, Region
+
+            expertise_level_raw = config.get("expertise_level", [ExpertiseLevel.ALL_LEVELS])
+            if isinstance(expertise_level_raw, str):
+                expertise_level = (
+                    [expertise_level_raw]
+                    if expertise_level_raw
+                    else [ExpertiseLevel.ALL_LEVELS]
+                )
+            elif expertise_level_raw:
+                # Flatten to list of strings (avoid nested lists from JSON)
+                expertise_level = []
+                for x in expertise_level_raw:
+                    if isinstance(x, str):
+                        expertise_level.append(x)
+                    elif isinstance(x, list):
+                        expertise_level.extend(y for y in x if isinstance(y, str))
+            else:
+                expertise_level = [ExpertiseLevel.ALL_LEVELS]
+            region_filter = config.get("region", Region.ALL_REGIONS)
             state_filter = config.get("state", "All States")
-            gender_filter = config.get(
-                "gender", config.get("genderPreference", "All Genders")
-            )
+            gender_filter = config.get("gender", Gender.ALL_GENDERS)
             excluded = excluded_expert_names or []
 
             publish("Preparing expert search prompt...", 20)
@@ -180,6 +233,55 @@ class ExpertFinderService:
             experts = self._parse_markdown_table(llm_response)
             logger.info("Parsed %s experts", len(experts))
 
+            all_filtered_out = False
+            if excluded:
+                before_count = len(experts)
+                experts = [
+                    e
+                    for e in experts
+                    if not self._expert_name_matches_excluded(
+                        e.get("name") or "", excluded
+                    )
+                ]
+                if before_count > 0 and len(experts) == 0:
+                    all_filtered_out = True
+
+            if len(experts) == 0:
+                if all_filtered_out:
+                    msg = (
+                        "All recommended experts were in the exclusion list. "
+                        "The model did not suggest new names; try broadening your criteria."
+                    )
+                    current_step = "All experts excluded; no new recommendations"
+                    error_message = msg[:MAX_ERROR_MESSAGE_LENGTH]
+                else:
+                    msg = (
+                        "No expert recommendations table was returned. "
+                        "The model response could not be parsed as a markdown table."
+                    )
+                    llm_error = (llm_response or "").strip()
+                    if llm_error:
+                        display_error = llm_error[:MAX_ERROR_MESSAGE_LENGTH] + (
+                            "..." if len(llm_error) > MAX_ERROR_MESSAGE_LENGTH else ""
+                        )
+                        msg = msg + " Response from model:\n\n" + display_error
+                    current_step = "No expert recommendations table returned by model"
+                    error_message = (llm_response or "")[:MAX_ERROR_MESSAGE_LENGTH]
+                publish(msg, 0, status=ExpertSearch.Status.FAILED)
+                if progress_callback:
+                    progress_callback(search_id, 0, msg)
+                return {
+                    "search_id": search_id,
+                    "status": ExpertSearch.Status.FAILED,
+                    "query": query,
+                    "config": config,
+                    "experts": [],
+                    "report_urls": {},
+                    "expert_count": 0,
+                    "llm_model": self.bedrock_llm.model_id,
+                    "error_message": error_message,
+                    "current_step": current_step,
+                }
             publish("Generating PDF report...", 80)
             pdf_bytes = generate_pdf_report(experts, query, config)
             publish("Generating CSV file...", 88)
@@ -237,6 +339,47 @@ class ExpertFinderService:
         base, qs = url.split("?", 1)
         params = [p for p in qs.split("&") if not p.startswith("utm_")]
         return f"{base}?{'&'.join(params)}" if params else base
+
+    @staticmethod
+    def _normalize_name_for_exclusion(name: str) -> str:
+        """Normalize expert name for exclusion matching: lowercase, strip, collapse spaces."""
+        if not name or not isinstance(name, str):
+            return ""
+        s = name.strip().lower()
+        for prefix in ("dr.", "prof.", "professor ", "mr.", "mrs.", "ms."):
+            if s.startswith(prefix):
+                s = s[len(prefix) :].strip()
+        for suffix in (", phd", ", md", ", jr.", ", sr.", " phd", " md"):
+            if s.endswith(suffix):
+                s = s[: -len(suffix)].strip()
+        return " ".join(s.split())
+
+    def _expert_name_matches_excluded(
+        self, expert_name: str, excluded_names: list[str]
+    ) -> bool:
+        """Return True if expert_name should be excluded (matches any excluded name).
+
+        Matching is by whole tokens (words), not substrings, so e.g. excluding "Li"
+        does not match "Oliver" (no token "li" in expert name).
+        """
+        if not excluded_names or not expert_name:
+            return False
+        expert_norm = self._normalize_name_for_exclusion(expert_name)
+        if not expert_norm:
+            return False
+        expert_tokens = set(expert_norm.split())
+        for excluded in excluded_names:
+            excluded_norm = self._normalize_name_for_exclusion(excluded)
+            if not excluded_norm:
+                continue
+            excluded_tokens = excluded_norm.split()
+            if not excluded_tokens:
+                continue
+            if expert_norm == excluded_norm:
+                return True
+            if all(token in expert_tokens for token in excluded_tokens):
+                return True
+        return False
 
     def _parse_markdown_table(self, markdown_text: str) -> list[dict[str, Any]]:
         """Parse markdown table from LLM response into list of expert dicts."""

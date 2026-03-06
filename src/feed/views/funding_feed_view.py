@@ -106,6 +106,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
             .prefetch_related(
                 "unified_document__hubs",
                 "unified_document__fundraises",
+                "unified_document__fundraises__nonprofit_links__nonprofit",
                 "grant_applications__grant__unified_document__posts",
                 "grant_applications__grant__applications",
             )
