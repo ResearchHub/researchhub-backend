@@ -20,7 +20,9 @@ class GrantSerializer(serializers.ModelSerializer):
 class DynamicGrantSerializer(DynamicModelFieldSerializer):
     created_by = serializers.SerializerMethodField()
     contacts = serializers.SerializerMethodField()
+    reviewed_by = serializers.SerializerMethodField()
     amount = serializers.SerializerMethodField()
+    post_id = serializers.SerializerMethodField()
     is_expired = serializers.SerializerMethodField()
     is_active = serializers.SerializerMethodField()
     applications = serializers.SerializerMethodField()
@@ -44,6 +46,20 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
             grant.contacts.all(), context=context, many=True, **_context_fields
         )
         return serializer.data
+
+    def get_reviewed_by(self, grant):
+        if not grant.reviewed_by:
+            return None
+        context = self.context
+        _context_fields = context.get("pch_dgs_get_reviewed_by", {})
+        serializer = DynamicUserSerializer(
+            grant.reviewed_by, context=context, **_context_fields
+        )
+        return serializer.data
+
+    def get_post_id(self, grant):
+        posts = grant.unified_document.posts.all()
+        return posts[0].id if posts else None
 
     def get_amount(self, grant):
         """

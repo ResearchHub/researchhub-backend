@@ -90,7 +90,7 @@ class FundOrderingFilter(OrderingFilter):
             # For any other ordering field, fall back to DRF's standard ordering
             queryset = super().filter_queryset(request, queryset, view)
 
-        return queryset
+        return self._prepend_pending_sorting(queryset, view)
 
     def get_ordering(self, request: Request, queryset: QuerySet, view: Any):
         """Get ordering from request with DRF-compatible signature."""
@@ -257,4 +257,24 @@ class FundOrderingFilter(OrderingFilter):
                     output_field=DecimalField(max_digits=19, decimal_places=10)
                 )
             ).order_by("-amount_raised", "-created_date")
+
+    def _prepend_pending_sorting(self, queryset: QuerySet, view: Any) -> QuerySet:
+        """For authenticated users viewing grants, sort PENDING items to the top."""
+        is_grant_view = getattr(view, 'is_grant_view', False)
+        if not is_grant_view:
+            return queryset
+
+        request = getattr(view, 'request', None)
+        if not request or not request.user.is_authenticated:
+            return queryset
+
+        current_ordering = queryset.query.order_by
+        queryset = queryset.annotate(
+            _is_pending=Case(
+                When(unified_document__grants__status=Grant.PENDING, then=Value(0)),
+                default=Value(1),
+                output_field=IntegerField(),
+            ),
+        )
+        return queryset.order_by("_is_pending", *current_ordering)
 
