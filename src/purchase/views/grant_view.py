@@ -11,7 +11,6 @@ from purchase.models import Grant, GrantApplication
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.serializers.grant_create_serializer import GrantCreateSerializer
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
-from purchase.services.grant_service import GrantService
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.permissions import IsModerator
@@ -21,10 +20,6 @@ class GrantViewSet(viewsets.ModelViewSet):
     queryset = Grant.objects.all()
     serializer_class = DynamicGrantSerializer
     permission_classes = [IsAuthenticated]
-
-    def dispatch(self, request, *args, **kwargs):
-        self.grant_service = kwargs.pop("grant_service", GrantService())
-        return super().dispatch(request, *args, **kwargs)
 
     def get_permissions(self):
         """Moderators only for update/delete; any authenticated user can create/view."""
@@ -43,14 +38,6 @@ class GrantViewSet(viewsets.ModelViewSet):
             )
         }
         context["pch_dgs_get_contacts"] = {
-            "_include_fields": (
-                "id",
-                "author_profile",
-                "first_name",
-                "last_name",
-            )
-        }
-        context["pch_dgs_get_reviewed_by"] = {
             "_include_fields": (
                 "id",
                 "author_profile",
@@ -108,68 +95,6 @@ class GrantViewSet(viewsets.ModelViewSet):
             return Response({"message": "Permission denied"}, status=403)
 
         return super().partial_update(request, *args, **kwargs)
-
-    @action(
-        methods=["POST"],
-        detail=True,
-        permission_classes=[IsModerator],
-    )
-    def approve(self, request, *args, **kwargs):
-        grant = self.get_object()
-
-        try:
-            self.grant_service.approve_grant(grant, request.user)
-        except ValueError as e:
-            return Response({"message": str(e)}, status=400)
-
-        return Response(self.get_serializer(grant).data)
-
-    @action(
-        methods=["POST"],
-        detail=True,
-        permission_classes=[IsModerator],
-    )
-    def decline(self, request, *args, **kwargs):
-        grant = self.get_object()
-        reason = request.data.get("reason", "")
-
-        try:
-            self.grant_service.decline_grant(grant, request.user, reason)
-        except ValueError as e:
-            return Response({"message": str(e)}, status=400)
-
-        return Response(self.get_serializer(grant).data)
-
-    @action(
-        methods=["GET"],
-        detail=False,
-        permission_classes=[IsModerator],
-    )
-    def pending(self, request, *args, **kwargs):
-        queryset = (
-            Grant.objects.filter(status=Grant.PENDING)
-            .select_related(
-                "created_by", "created_by__author_profile", "unified_document"
-            )
-            .prefetch_related("unified_document__posts")
-            .order_by("-created_date")
-        )
-
-        organization = request.query_params.get("organization")
-        if organization:
-            queryset = queryset.filter(organization__icontains=organization)
-
-        created_by = request.query_params.get("created_by")
-        if created_by:
-            queryset = queryset.filter(created_by_id=created_by)
-
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            return self.get_paginated_response(
-                self.get_serializer(page, many=True).data
-            )
-
-        return Response(self.get_serializer(queryset, many=True).data)
 
     @action(
         methods=["POST"],
