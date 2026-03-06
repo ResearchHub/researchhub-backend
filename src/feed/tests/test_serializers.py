@@ -2520,9 +2520,9 @@ class ActivityFeedEntrySerializerTests(AWSMockTestCase):
     )
     def test_contributions_empty_with_fundraise_no_purchases(self, mock_usd_to_rsc):
         """Fundraise with no purchases should return total=0, top=[]."""
+        # Arrange
         mock_usd_to_rsc.return_value = 1.0
 
-        # Arrange
         unified_doc, post = self._create_fundraise_post()
         Fundraise.objects.create(
             unified_document=unified_doc,
@@ -2546,9 +2546,9 @@ class ActivityFeedEntrySerializerTests(AWSMockTestCase):
     )
     def test_contributions_single_contributor(self, mock_usd_to_rsc):
         """Single purchase should produce one contributor entry."""
+        # Arrange
         mock_usd_to_rsc.return_value = 1.0
 
-        # Arrange
         unified_doc, post = self._create_fundraise_post()
         fundraise = Fundraise.objects.create(
             unified_document=unified_doc,
@@ -2579,9 +2579,9 @@ class ActivityFeedEntrySerializerTests(AWSMockTestCase):
     )
     def test_contributions_multiple_purchases_aggregated(self, mock_usd_to_rsc):
         """Multiple purchases by the same user should be aggregated."""
+        # Arrange
         mock_usd_to_rsc.return_value = 1.0
 
-        # Arrange
         unified_doc, post = self._create_fundraise_post()
         fundraise = Fundraise.objects.create(
             unified_document=unified_doc,
@@ -2610,9 +2610,9 @@ class ActivityFeedEntrySerializerTests(AWSMockTestCase):
     )
     def test_contributions_include_usd_contributions(self, mock_usd_to_rsc):
         """RSC and USD contributions from the same user should both appear."""
+        # Arrange
         mock_usd_to_rsc.return_value = 1.0
 
-        # Arrange
         unified_doc, post = self._create_fundraise_post()
         fundraise = Fundraise.objects.create(
             unified_document=unified_doc,

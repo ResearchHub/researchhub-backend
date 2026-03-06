@@ -634,4 +634,3 @@ class ActivityFeedActionDateOrderingTests(AWSMockTestCase):
             ids.index(entry_new.id),
             ids.index(entry_old.id),
         )
-
