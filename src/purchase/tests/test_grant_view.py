@@ -8,6 +8,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from notification.models import Notification
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_document.helpers import create_post
@@ -99,11 +100,12 @@ class GrantViewTests(APITestCase):
         self.assertEqual(grant.amount, Decimal("25000.00"))
 
     def test_create_grant_as_regular_user(self):
-        """Test that regular users cannot create grants"""
+        """Test that regular users can create grants (they start as PENDING)"""
         self.client.force_authenticate(self.regular_user)
 
+        new_post = create_post(created_by=self.regular_user, document_type=GRANT)
         grant_data = {
-            "unified_document_id": self.post.unified_document.id,
+            "unified_document_id": new_post.unified_document.id,
             "amount": "25000.00",
             "currency": "USD",
             "organization": "Test Foundation",
@@ -111,7 +113,8 @@ class GrantViewTests(APITestCase):
         }
 
         response = self.client.post("/api/grant/", grant_data)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["status"], Grant.PENDING)
 
     def test_create_grant_with_end_date(self):
         """Test creating a grant with an end date"""
@@ -683,3 +686,128 @@ class AvailableFundingTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("available_funding_in_usd", response.data)
         self.assertIn("available_funding_in_rsc", response.data)
+
+
+class GrantModerationTests(APITestCase):
+    def setUp(self):
+        self.moderator = create_random_authenticated_user("mod_test", moderator=True)
+        self.user = create_random_authenticated_user("regular_test")
+        self.author = create_random_authenticated_user("author_test")
+
+        self.post = create_post(created_by=self.author, document_type=GRANT)
+        self.grant = Grant.objects.create(
+            created_by=self.author,
+            unified_document=self.post.unified_document,
+            amount=Decimal("50000.00"),
+            currency="USD",
+            organization="Test Foundation",
+            description="Pending grant for testing",
+        )
+
+    def test_regular_user_can_create_pending_grant(self):
+        # Arrange
+        self.client.force_authenticate(self.user)
+        post = create_post(created_by=self.user, document_type=GRANT)
+
+        # Act
+        response = self.client.post("/api/grant/", {
+            "unified_document_id": post.unified_document.id,
+            "amount": "10000.00",
+            "currency": "USD",
+            "organization": "User Foundation",
+            "description": "User-submitted grant",
+        })
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["status"], Grant.PENDING)
+
+    def test_approve_grant(self):
+        # Arrange
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self.client.post(f"/api/grant/{self.grant.id}/approve/")
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.grant.refresh_from_db()
+        self.assertEqual(self.grant.status, Grant.OPEN)
+        self.assertEqual(self.grant.reviewed_by, self.moderator)
+        self.assertIsNotNone(self.grant.reviewed_date)
+        self.assertTrue(
+            Notification.objects.filter(
+                notification_type=Notification.GRANT_APPROVED,
+                recipient=self.author,
+            ).exists()
+        )
+
+    def test_decline_grant(self):
+        # Arrange
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self.client.post(
+            f"/api/grant/{self.grant.id}/decline/",
+            {"reason": "Does not meet guidelines"},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.grant.refresh_from_db()
+        self.assertEqual(self.grant.status, Grant.DECLINED)
+        self.assertEqual(self.grant.reviewed_by, self.moderator)
+        self.assertEqual(self.grant.decline_reason, "Does not meet guidelines")
+        self.post.unified_document.refresh_from_db()
+        self.assertTrue(self.post.unified_document.is_removed)
+        self.assertTrue(
+            Notification.objects.filter(
+                notification_type=Notification.GRANT_DECLINED,
+                recipient=self.author,
+            ).exists()
+        )
+
+    def test_approve_and_decline_reject_non_pending(self):
+        # Arrange
+        self.grant.status = Grant.OPEN
+        self.grant.save()
+        self.client.force_authenticate(self.moderator)
+
+        # Act / Assert
+        for action in ["approve", "decline"]:
+            response = self.client.post(f"/api/grant/{self.grant.id}/{action}/")
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_moderation_actions_require_moderator(self):
+        # Arrange
+        self.client.force_authenticate(self.user)
+
+        # Act / Assert
+        for url in [
+            f"/api/grant/{self.grant.id}/approve/",
+            f"/api/grant/{self.grant.id}/decline/",
+            "/api/grant/pending/",
+        ]:
+            response = self.client.post(url)
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_pending_list(self):
+        # Arrange
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self.client.get("/api/grant/pending/")
+
+        # Assert — returns pending grants with post_id
+        results = response.data["results"]
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["id"], self.grant.id)
+        self.assertEqual(results[0]["post_id"], self.post.id)
+
+        # Act — excludes non-pending
+        self.grant.status = Grant.OPEN
+        self.grant.save()
+        response = self.client.get("/api/grant/pending/")
+
+        # Assert
+        self.assertEqual(len(response.data["results"]), 0)
