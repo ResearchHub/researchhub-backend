@@ -12,6 +12,7 @@ from rest_framework.response import Response
 
 from feed.models import FeedEntry
 from feed.tasks import create_feed_entry
+from feed.views.grant_feed_view import GRANT_FEED_CACHE_VERSION_KEY
 from notification.models import Notification
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
@@ -138,6 +139,7 @@ class GrantViewSet(viewsets.ModelViewSet):
         grant.save(update_fields=["status", "reviewed_by", "reviewed_date"])
 
         cache.delete("grant_available_funding")
+        cache.set(GRANT_FEED_CACHE_VERSION_KEY, int(timezone.now().timestamp()))
 
         post = grant.unified_document.posts.first()
         self._assign_doi_to_post(post)
@@ -177,6 +179,8 @@ class GrantViewSet(viewsets.ModelViewSet):
         unified_document = grant.unified_document
         unified_document.is_removed = True
         unified_document.save(update_fields=["is_removed"])
+
+        cache.set(GRANT_FEED_CACHE_VERSION_KEY, int(timezone.now().timestamp()))
 
         self._send_moderation_notification(
             grant, request.user, Notification.GRANT_DECLINED
