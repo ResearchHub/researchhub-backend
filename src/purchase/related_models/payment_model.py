@@ -17,6 +17,26 @@ class PaymentPurpose(models.TextChoices):
 
     APC = "APC", _("Article Processing Charge")
     RSC_PURCHASE = "RSC_PURCHASE", _("RSC Purchase")
+    FUNDING_CREDITS = "FUNDING_CREDITS", _("Funding Credits")
+
+
+class PaymentMethodType(models.TextChoices):
+    """
+    The payment method used for the transaction.
+    """
+
+    CARD = "CARD", _("Card")
+    ACH = "ACH", _("ACH Bank Transfer")
+
+
+class PaymentStatus(models.TextChoices):
+    """
+    Status of the payment.
+    """
+
+    FAILED = "FAILED", _("Failed")
+    PROCESSING = "PROCESSING", _("Processing")
+    SUCCEEDED = "SUCCEEDED", _("Succeeded")
 
 
 class Payment(DefaultModel):
@@ -46,3 +66,10 @@ class Payment(DefaultModel):
         null=True,
         blank=True,
     )
+    payment_method_type = models.TextField(
+        choices=PaymentMethodType.choices,
+    )
+    status = models.TextField(
+        choices=PaymentStatus.choices,
+    )
+    failure_reason = models.TextField(null=True, blank=True)
