@@ -8,6 +8,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from feed.views.grant_feed_view import GRANT_FEED_CACHE_VERSION_KEY
 from notification.models import Notification
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
@@ -725,6 +726,7 @@ class GrantModerationTests(APITestCase):
     def test_approve_grant(self):
         # Arrange
         self.client.force_authenticate(self.moderator)
+        old_version = cache.get(GRANT_FEED_CACHE_VERSION_KEY)
 
         # Act
         response = self.client.post(f"/api/grant/{self.grant.id}/approve/")
@@ -735,6 +737,7 @@ class GrantModerationTests(APITestCase):
         self.assertEqual(self.grant.status, Grant.OPEN)
         self.assertEqual(self.grant.reviewed_by, self.moderator)
         self.assertIsNotNone(self.grant.reviewed_date)
+        self.assertNotEqual(cache.get(GRANT_FEED_CACHE_VERSION_KEY), old_version)
         self.assertTrue(
             Notification.objects.filter(
                 notification_type=Notification.GRANT_APPROVED,
@@ -745,6 +748,7 @@ class GrantModerationTests(APITestCase):
     def test_decline_grant(self):
         # Arrange
         self.client.force_authenticate(self.moderator)
+        old_version = cache.get(GRANT_FEED_CACHE_VERSION_KEY)
 
         # Act
         response = self.client.post(
@@ -760,6 +764,7 @@ class GrantModerationTests(APITestCase):
         self.assertEqual(self.grant.decline_reason, "Does not meet guidelines")
         self.post.unified_document.refresh_from_db()
         self.assertTrue(self.post.unified_document.is_removed)
+        self.assertNotEqual(cache.get(GRANT_FEED_CACHE_VERSION_KEY), old_version)
         self.assertTrue(
             Notification.objects.filter(
                 notification_type=Notification.GRANT_DECLINED,
