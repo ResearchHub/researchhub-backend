@@ -85,12 +85,9 @@ def complete_eligible_fundraises():
 @app.task(queue=QUEUE_NOTIFICATION)
 def send_monthly_preregistration_update_reminders():
     now = datetime.now(pytz.UTC)
-    open_fundraises = (
+    completed_fundraises = (
         Fundraise.objects.filter(
-            status=Fundraise.OPEN,
-        )
-        .exclude(
-            end_date__lte=now,
+            status=Fundraise.COMPLETED,
         )
         .select_related("created_by", "unified_document")
     )
@@ -98,7 +95,7 @@ def send_monthly_preregistration_update_reminders():
     fundraise_ct = ContentType.objects.get_for_model(Fundraise)
     sent_count = 0
 
-    for fundraise in open_fundraises:
+    for fundraise in completed_fundraises:
         already_sent = Notification.objects.filter(
             notification_type=Notification.PREREGISTRATION_UPDATE_REMINDER,
             recipient=fundraise.created_by,

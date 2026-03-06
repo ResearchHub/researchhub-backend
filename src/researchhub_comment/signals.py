@@ -1,10 +1,18 @@
+import time
+from datetime import datetime
 from logging import Logger
 
+import pytz
 from django.contrib.contenttypes.models import ContentType
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from notification.models import Notification
+from purchase.related_models.fundraise_model import Fundraise
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from reputation.distributions import create_preregistration_update_reward_distribution
+from reputation.distributor import Distributor
+from reputation.related_models.distribution import Distribution as DistributionModel
 from researchhub_comment.constants.rh_comment_thread_types import AUTHOR_UPDATE
 from researchhub_comment.models import RhCommentModel
 from researchhub_comment.tasks import send_author_update_email_notifications
@@ -13,6 +21,8 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from user.related_models.follow_model import Follow
 
 logger = Logger(__name__)
+
+PREREGISTRATION_UPDATE_REWARD_AMOUNT_USD = 50
 
 
 @receiver(
@@ -88,3 +98,84 @@ def _create_author_update_notification(comment: RhCommentModel):
 
     if follower_user_ids:
         send_author_update_email_notifications.delay(comment.id, follower_user_ids)
+
+
+@receiver(
+    post_save, sender=RhCommentModel, dispatch_uid="reward_preregistration_update"
+)
+def reward_preregistration_update(sender, instance, created, **kwargs):
+    """
+    Reward preregistration authors with $50 USD in RSC when they post an
+    author update on a preregistration with a COMPLETED fundraise, provided
+    they received a monthly reminder this calendar month and haven't already
+    been rewarded this month for that fundraise.
+    """
+    if not created:
+        return
+
+    if instance.thread.thread_type != AUTHOR_UPDATE:
+        return
+
+    try:
+        _reward_preregistration_update(instance)
+    except Exception as e:
+        logger.error(f"Failed to reward preregistration update: {e}")
+
+
+def _reward_preregistration_update(comment: RhCommentModel):
+    document = comment.unified_document.get_document()
+
+    if not (
+        isinstance(document, ResearchhubPost)
+        and document.document_type == PREREGISTRATION
+    ):
+        return
+
+    author = comment.created_by
+    unified_document = comment.unified_document
+    now = datetime.now(pytz.UTC)
+
+    completed_fundraises = Fundraise.objects.filter(
+        unified_document=unified_document,
+        created_by=author,
+        status=Fundraise.COMPLETED,
+    )
+
+    fundraise_ct = ContentType.objects.get_for_model(Fundraise)
+
+    for fundraise in completed_fundraises:
+        reminder_sent = Notification.objects.filter(
+            notification_type=Notification.PREREGISTRATION_UPDATE_REMINDER,
+            recipient=author,
+            content_type=fundraise_ct,
+            object_id=fundraise.id,
+            created_date__year=now.year,
+            created_date__month=now.month,
+        ).exists()
+
+        if not reminder_sent:
+            continue
+
+        already_rewarded = DistributionModel.objects.filter(
+            recipient=author,
+            distribution_type="PREREGISTRATION_UPDATE_REWARD",
+            proof_item_content_type=fundraise_ct,
+            proof_item_object_id=fundraise.id,
+            created_date__year=now.year,
+            created_date__month=now.month,
+        ).exists()
+
+        if already_rewarded:
+            continue
+
+        rsc_amount = RscExchangeRate.usd_to_rsc(
+            PREREGISTRATION_UPDATE_REWARD_AMOUNT_USD
+        )
+        distribution = create_preregistration_update_reward_distribution(rsc_amount)
+        distributor = Distributor(
+            distribution=distribution,
+            recipient=author,
+            db_record=fundraise,
+            timestamp=time.time(),
+        )
+        distributor.distribute()
