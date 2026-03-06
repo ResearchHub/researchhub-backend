@@ -26,6 +26,10 @@ logger = logging.getLogger(__name__)
 COMPLETED_STATES = {"COMPLETED", "COMPLETE"}
 FAILED_STATES = {"FAILED", "CANCELLED", "DENIED"}
 
+# Circle inbound transaction states that indicate the deposit is in progress
+# but not yet finalized (i.e. not yet safe to credit the user).
+PENDING_DEPOSIT_STATES = {"INITIATED", "CONFIRMED"}
+
 # Map Circle blockchain identifiers to our Deposit.network choices.
 BLOCKCHAIN_TO_NETWORK = {
     "ETH": "ETHEREUM",
@@ -52,6 +56,88 @@ def is_rsc_token(token_id: str, blockchain: str) -> bool:
     return expected is not None and token_id == expected
 
 
+def upsert_pending_circle_deposit(
+    circle_transaction_id: str,
+    wallet: Wallet,
+    amount: str,
+    network: str,
+    circle_status: str,
+    from_address: str = "",
+    transaction_hash: str = "",
+) -> Deposit:
+    """
+    Create or update a pending Deposit for an in-progress Circle transaction.
+
+    Called when Circle sends an inbound webhook with a non-terminal state
+    (e.g. INITIATED or CONFIRMED). The user is NOT credited at this stage.
+
+    If a Deposit with the given ``circle_transaction_id`` already exists, its
+    ``circle_status`` is advanced (INITIATED -> CONFIRMED) but never moved
+    backwards.
+
+    Args:
+        circle_transaction_id: Circle's unique transaction identifier.
+        wallet: The user's ``Wallet`` instance (must have ``user`` loaded).
+        amount: Deposit amount as a decimal string.
+        network: ``"ETHEREUM"`` or ``"BASE"``.
+        circle_status: The Circle transaction state (e.g. "INITIATED", "CONFIRMED").
+        from_address: On-chain source address.
+        transaction_hash: On-chain tx hash.
+
+    Returns:
+        The Deposit instance.
+    """
+    user = wallet.user
+
+    # Define ordering so we only advance forward.
+    _CIRCLE_STATUS_ORDER = {
+        Deposit.CIRCLE_INITIATED: 0,
+        Deposit.CIRCLE_CONFIRMED: 1,
+        Deposit.CIRCLE_COMPLETED: 2,
+    }
+
+    with transaction.atomic():
+        deposit, created = Deposit.objects.get_or_create(
+            circle_transaction_id=circle_transaction_id,
+            defaults={
+                "user": user,
+                "amount": amount,
+                "network": network,
+                "from_address": from_address,
+                "transaction_hash": transaction_hash,
+                "paid_status": Deposit.PENDING,
+                "circle_status": circle_status,
+            },
+        )
+
+        if not created:
+            # Only advance circle_status forward, never backwards.
+            current_order = _CIRCLE_STATUS_ORDER.get(deposit.circle_status, -1)
+            new_order = _CIRCLE_STATUS_ORDER.get(circle_status, -1)
+            if new_order > current_order:
+                deposit.circle_status = circle_status
+                deposit.save(update_fields=["circle_status"])
+
+    if created:
+        logger.info(
+            "Pending Circle deposit created: user=%s amount=%s network=%s "
+            "circle_status=%s circle_transaction_id=%s",
+            user.id,
+            amount,
+            network,
+            circle_status,
+            circle_transaction_id,
+        )
+    else:
+        logger.info(
+            "Circle deposit updated: circle_transaction_id=%s circle_status=%s",
+            circle_transaction_id,
+            circle_status,
+        )
+
+    return deposit
+
+
 def process_circle_deposit(
     circle_transaction_id: str,
     wallet: Wallet,
@@ -63,8 +149,12 @@ def process_circle_deposit(
     """
     Idempotently record a Circle deposit, credit the user, and dispatch a sweep.
 
-    If a Deposit with the given ``circle_transaction_id`` already exists the
-    user is *not* credited again and no sweep is dispatched.
+    If a pending Deposit already exists (created by an earlier INITIATED or
+    CONFIRMED webhook), it is promoted to PAID. If no Deposit exists, one is
+    created and immediately marked PAID.
+
+    If the Deposit is already PAID, the user is *not* credited again and no
+    sweep is dispatched.
 
     Args:
         circle_transaction_id: Circle's unique transaction identifier.
@@ -75,9 +165,11 @@ def process_circle_deposit(
         transaction_hash: On-chain tx hash.
 
     Returns:
-        A ``(deposit, created)`` tuple.
+        A ``(deposit, credited)`` tuple where *credited* is True if the user's
+        balance was credited during this call.
     """
     user = wallet.user
+    credited = False
 
     with transaction.atomic():
         deposit, created = Deposit.objects.get_or_create(
@@ -89,17 +181,27 @@ def process_circle_deposit(
                 "from_address": from_address,
                 "transaction_hash": transaction_hash,
                 "sweep_status": Deposit.SWEEP_PENDING,
+                "circle_status": Deposit.CIRCLE_COMPLETED,
             },
         )
 
         if created:
+            # Brand-new deposit (no prior INITIATED/CONFIRMED webhook).
             deposit.set_paid()
+            credited = True
+        elif deposit.paid_status != Deposit.PAID:
+            # Existing pending deposit from an earlier webhook — promote it.
+            deposit.circle_status = Deposit.CIRCLE_COMPLETED
+            deposit.sweep_status = Deposit.SWEEP_PENDING
+            deposit.set_paid()  # sets paid_status=PAID, paid_date=now(), saves
+            credited = True
 
+        if credited:
             distribution = Dist("DEPOSIT", amount, give_rep=False)
             distributor = Distributor(distribution, user, deposit, time.time(), user)
             distributor.distribute()
 
-    if created:
+    if credited:
         logger.info(
             "Circle deposit credited: user=%s amount=%s network=%s "
             "circle_transaction_id=%s",
@@ -115,7 +217,7 @@ def process_circle_deposit(
             circle_transaction_id,
         )
 
-    return deposit, created
+    return deposit, credited
 
 
 def _dispatch_sweep(wallet, amount, network, circle_transaction_id):
