@@ -15,9 +15,15 @@ class DepositViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.is_staff:
-            return Deposit.objects.all()
+            qs = Deposit.objects.all()
         else:
-            return Deposit.objects.filter(user=user)
+            qs = Deposit.objects.filter(user=user)
+
+        paid_status = self.request.query_params.get("paid_status")
+        if paid_status:
+            qs = qs.filter(paid_status=paid_status)
+
+        return qs
 
     @action(
         detail=False,
