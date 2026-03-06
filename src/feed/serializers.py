@@ -871,6 +871,61 @@ class FundingFeedEntrySerializer(FeedEntrySerializer):
         return None
 
 
+class ActivityFeedEntrySerializer(FeedEntrySerializer):
+    """
+    Serializer for activity feed entries that includes fundraise contributions.
+    """
+
+    contributions = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FeedEntry
+        fields = FeedEntrySerializer.Meta.fields + [
+            "contributions",
+        ]
+
+    def get_contributions(self, obj):
+        """
+        Return fundraise contributors for entries whose unified document has a
+        fundraise.
+        """
+        if not obj.unified_document:
+            return None
+
+        fundraises = getattr(obj.unified_document, "prefetched_fundraises", None)
+        if fundraises is None:
+            fundraises = list(obj.unified_document.fundraises.all())
+
+        if not fundraises:
+            return None
+
+        fundraise = fundraises[0]
+        aggregated = fundraise.get_contributors_summary()
+
+        result = []
+        for entry in aggregated.top:
+            serializer = SimpleUserSerializer(entry.user)
+            user_result = serializer.data
+            user_result["total_contribution"] = {
+                "rsc": entry.total_rsc,
+                "usd": entry.total_usd,
+            }
+            user_result["contributions"] = [
+                {
+                    "amount": contribution.amount,
+                    "currency": contribution.currency,
+                    "date": contribution.date,
+                }
+                for contribution in entry.contributions
+            ]
+            result.append(user_result)
+
+        return {
+            "total": aggregated.total,
+            "top": result,
+        }
+
+
 class GrantFeedEntrySerializer(FeedEntrySerializer):
     """Serializer for grant feed entries"""
 
