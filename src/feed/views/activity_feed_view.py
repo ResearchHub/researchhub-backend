@@ -10,6 +10,8 @@ from purchase.models import Fundraise, UsdFundraiseContribution
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
 from purchase.related_models.purchase_model import Purchase
+from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
+from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 
 
 class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
@@ -20,6 +22,7 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
     Supports filtering by:
       - scope: "grants" returns all activity across every grant and
         every preregistration that applied to any grant.
+        "peer_reviews" returns only peer review comments.
       - document_type: PREREGISTRATION, GRANT, etc.
       - grant_id: all activity on a grant and its applied preregistrations
       - content_type: RHCOMMENTMODEL, RESEARCHHUBPOST, PAPER, etc.
@@ -86,13 +89,15 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
             .order_by("-action_date")
         )
 
-        scope = self.request.query_params.get("scope")
+        scope = self.request.query_params.get("scope", "").lower()
         grant_id = self.request.query_params.get("grant_id")
 
         if grant_id:
             queryset = self._filter_by_grant(queryset, grant_id)
-        elif scope and scope.lower() == "grants":
+        elif scope == "grants":
             queryset = self._filter_all_grants(queryset)
+        elif scope == "peer_reviews":
+            queryset = self._filter_peer_reviews(queryset)
         else:
             document_type = self.request.query_params.get("document_type")
             if document_type:
@@ -145,6 +150,20 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         )
         all_ud_ids = set(grant_ud_ids) | set(prereg_ud_ids)
         return queryset.filter(unified_document_id__in=all_ud_ids)
+
+    @staticmethod
+    def _filter_peer_reviews(queryset):
+        """
+        Return feed entries that are peer review comments.
+        """
+        comment_type = ContentType.objects.get_for_model(RhCommentModel)
+        peer_review_ids = RhCommentModel.objects.filter(
+            comment_type=PEER_REVIEW,
+        ).values_list("id", flat=True)
+        return queryset.filter(
+            content_type=comment_type,
+            object_id__in=peer_review_ids,
+        )
 
     @staticmethod
     def _filter_by_content_type(queryset, content_type_name):
