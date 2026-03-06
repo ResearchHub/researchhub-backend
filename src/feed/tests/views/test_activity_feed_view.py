@@ -2,6 +2,7 @@ import uuid
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -10,7 +11,14 @@ from rest_framework.test import APIClient
 from feed.models import FeedEntry
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
+from researchhub_comment.constants.rh_comment_thread_types import (
+    GENERIC_COMMENT,
+    PEER_REVIEW,
+)
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
+from researchhub_comment.related_models.rh_comment_thread_model import (
+    RhCommentThreadModel,
+)
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
@@ -634,3 +642,97 @@ class ActivityFeedActionDateOrderingTests(AWSMockTestCase):
             ids.index(entry_new.id),
             ids.index(entry_old.id),
         )
+
+
+@override_settings(CELERY_TASK_ALWAYS_EAGER=False)
+class ActivityFeedPeerReviewFilterTests(AWSMockTestCase):
+    """
+    Test that `peer_reviews` scope returns only peer review comment entries.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.user = _make_user()
+        self.client = APIClient()
+
+        self.doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION,
+        )
+        self.post = ResearchhubPost.objects.create(
+            title="Test Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=self.doc,
+        )
+
+        post_ct = ContentType.objects.get_for_model(ResearchhubPost)
+        thread = RhCommentThreadModel.objects.create(
+            thread_type=PEER_REVIEW,
+            content_type=post_ct,
+            object_id=self.post.id,
+            created_by=self.user,
+        )
+
+        self.peer_review_comment = RhCommentModel.objects.create(
+            comment_content_json={"ops": [{"insert": "peer review"}]},
+            comment_type=PEER_REVIEW,
+            created_by=self.user,
+            thread=thread,
+        )
+        self.generic_comment = RhCommentModel.objects.create(
+            comment_content_json={"ops": [{"insert": "generic comment"}]},
+            comment_type=GENERIC_COMMENT,
+            created_by=self.user,
+            thread=thread,
+        )
+
+        # Manually create feed entries (bypassing signals)
+        comment_ct = ContentType.objects.get_for_model(RhCommentModel)
+        self.peer_review_entry = FeedEntry.objects.create(
+            content_type=comment_ct,
+            object_id=self.peer_review_comment.id,
+            unified_document=self.doc,
+            user=self.user,
+            action="PUBLISH",
+            action_date=timezone.now(),
+            content={},
+            metrics={},
+        )
+        self.generic_comment_entry = FeedEntry.objects.create(
+            content_type=comment_ct,
+            object_id=self.generic_comment.id,
+            unified_document=self.doc,
+            user=self.user,
+            action="PUBLISH",
+            action_date=timezone.now(),
+            content={},
+            metrics={},
+        )
+        self.post_entry = _make_feed_entry(
+            ResearchhubPost,
+            self.post.id,
+            self.doc,
+            user=self.user,
+        )
+
+    def test_scope_peer_reviews_returns_only_peer_review_comments(self):
+        # Act
+        resp = self.client.get(ACTIVITY_LIST_URL, {"scope": "peer_reviews"})
+
+        # Assert
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        ids = {e["id"] for e in resp.data["results"]}
+        self.assertIn(self.peer_review_entry.id, ids)
+        self.assertNotIn(self.generic_comment_entry.id, ids)
+        self.assertNotIn(self.post_entry.id, ids)
+
+    def test_scope_peer_reviews_empty_when_none_exist(self):
+        # Arrange
+        FeedEntry.objects.all().delete()
+
+        # Act
+        resp = self.client.get(ACTIVITY_LIST_URL, {"scope": "peer_reviews"})
+
+        # Assert
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data["results"]), 0)
