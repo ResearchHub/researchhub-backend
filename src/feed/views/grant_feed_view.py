@@ -129,9 +129,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             .filter(document_type=GRANT, unified_document__is_removed=False)
         )
 
-        # Moderators see all PENDING grants (sorted to top via filter).
-        # Regular users only see their own PENDING grants.
-        # DECLINED grants are hidden from everyone.
+        # DECLINED: hidden from everyone. PENDING: visible to moderators and authors only.
         user = self.request.user
         if self._is_moderator():
             queryset = queryset.exclude(

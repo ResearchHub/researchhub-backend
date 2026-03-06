@@ -19,8 +19,7 @@ when posts are created and deleted, respectively.
 A post is created after hubs are added to the unified document that the post is associated with
 so we need to create a feed entry for the post when it is created instead.
 
-GRANT posts are excluded because they start in PENDING status and only get
-feed entries when a moderator approves them (handled in GrantViewSet.approve).
+Grant posts skip feed entry creation here; they get entries upon moderator approval.
 """
 
 logger = logging.getLogger(__name__)
@@ -28,11 +27,7 @@ logger = logging.getLogger(__name__)
 
 @receiver(post_save, sender=ResearchhubPost, dispatch_uid="post_create_feed_entry")
 def handle_post_create_feed_entry(sender, instance, **kwargs):
-    """
-    When a post is created, create feed entries for all hubs associated with the
-    researchhub document that the post is associated with.
-    Skips GRANT posts since they require moderator approval first.
-    """
+    """Create feed entries for a new post. Skips Grants (deferred to approval)."""
     if instance.document_type == GRANT:
         return
 

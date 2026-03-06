@@ -27,10 +27,7 @@ class GrantViewSet(viewsets.ModelViewSet):
         return super().dispatch(request, *args, **kwargs)
 
     def get_permissions(self):
-        """
-        Only moderators can update or delete grants.
-        Any authenticated user can create or view grants.
-        """
+        """Moderators only for update/delete; any authenticated user can create/view."""
         if self.action in ["update", "partial_update", "destroy"]:
             return [IsModerator()]
         return super().get_permissions()
@@ -75,10 +72,7 @@ class GrantViewSet(viewsets.ModelViewSet):
         return context
 
     def create(self, request, *args, **kwargs):
-        """
-        Create a new grant. The grant starts in PENDING status and
-        requires moderator approval to become OPEN.
-        """
+        """Create a new grant in PENDING status awaiting moderator approval."""
         serializer = GrantCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 

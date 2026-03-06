@@ -19,12 +19,7 @@ class GrantService:
     """Service for managing grant moderation operations."""
 
     def approve_grant(self, grant, reviewer):
-        """
-        Approve a pending grant: set status to OPEN, assign DOI,
-        create feed entry, and notify the author.
-
-        Raises ValueError if the grant is not in PENDING status.
-        """
+        """Approve a pending grant and publish it to the feed."""
         if grant.status != Grant.PENDING:
             raise ValueError("Only pending grants can be approved")
 
@@ -46,12 +41,7 @@ class GrantService:
         return grant
 
     def decline_grant(self, grant, reviewer, reason=""):
-        """
-        Decline a pending grant: set status to DECLINED, soft-delete the
-        unified document, and notify the author.
-
-        Raises ValueError if the grant is not in PENDING status.
-        """
+        """Decline a pending grant and soft-delete its unified document."""
         if grant.status != Grant.PENDING:
             raise ValueError("Only pending grants can be declined")
 
