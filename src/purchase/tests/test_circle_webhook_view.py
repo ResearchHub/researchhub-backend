@@ -91,7 +91,7 @@ class TestCircleWebhookView(TestCase):
         self.assertEqual(deposit.amount, "100")
         self.assertEqual(deposit.network, "BASE")
         self.assertEqual(deposit.paid_status, "PAID")
-        self.assertEqual(deposit.circle_status, Deposit.CIRCLE_COMPLETE)
+        self.assertEqual(deposit.circle_status, Deposit.CIRCLE_COMPLETED)
         self.assertEqual(deposit.sweep_status, Deposit.SWEEP_PENDING)
 
         # Balance was credited (via Distributor)
@@ -387,7 +387,7 @@ class TestCircleWebhookView(TestCase):
 
         deposit.refresh_from_db()
         self.assertEqual(deposit.paid_status, "PAID")
-        self.assertEqual(deposit.circle_status, Deposit.CIRCLE_COMPLETE)
+        self.assertEqual(deposit.circle_status, Deposit.CIRCLE_COMPLETED)
         self.assertEqual(deposit.sweep_status, Deposit.SWEEP_PENDING)
         self.assertIsNotNone(deposit.paid_date)
 
@@ -417,7 +417,7 @@ class TestCircleWebhookView(TestCase):
 
         deposit = Deposit.objects.get(circle_transaction_id="tx-001")
         self.assertEqual(deposit.paid_status, "PAID")
-        self.assertEqual(deposit.circle_status, Deposit.CIRCLE_COMPLETE)
+        self.assertEqual(deposit.circle_status, Deposit.CIRCLE_COMPLETED)
 
         # Only one deposit and one balance entry
         self.assertEqual(Deposit.objects.count(), 1)

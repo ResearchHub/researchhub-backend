@@ -18,12 +18,12 @@ class Deposit(SoftDeletableModel, PaidStatusModelMixin):
 
     CIRCLE_INITIATED = "INITIATED"
     CIRCLE_CONFIRMED = "CONFIRMED"
-    CIRCLE_COMPLETE = "COMPLETE"
+    CIRCLE_COMPLETED = "COMPLETED"
     CIRCLE_FAILED = "FAILED"
     CIRCLE_STATUS_CHOICES = [
         (CIRCLE_INITIATED, "Initiated"),
         (CIRCLE_CONFIRMED, "Confirmed"),
-        (CIRCLE_COMPLETE, "Complete"),
+        (CIRCLE_COMPLETED, "Completed"),
         (CIRCLE_FAILED, "Failed"),
     ]
 
@@ -64,3 +64,8 @@ class Deposit(SoftDeletableModel, PaidStatusModelMixin):
         null=True,
         blank=True,
     )
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["user", "paid_status"]),
+        ]

@@ -93,7 +93,7 @@ def upsert_pending_circle_deposit(
     _CIRCLE_STATUS_ORDER = {
         Deposit.CIRCLE_INITIATED: 0,
         Deposit.CIRCLE_CONFIRMED: 1,
-        Deposit.CIRCLE_COMPLETE: 2,
+        Deposit.CIRCLE_COMPLETED: 2,
     }
 
     with transaction.atomic():
@@ -181,7 +181,7 @@ def process_circle_deposit(
                 "from_address": from_address,
                 "transaction_hash": transaction_hash,
                 "sweep_status": Deposit.SWEEP_PENDING,
-                "circle_status": Deposit.CIRCLE_COMPLETE,
+                "circle_status": Deposit.CIRCLE_COMPLETED,
             },
         )
 
@@ -191,7 +191,7 @@ def process_circle_deposit(
             credited = True
         elif deposit.paid_status != Deposit.PAID:
             # Existing pending deposit from an earlier webhook — promote it.
-            deposit.circle_status = Deposit.CIRCLE_COMPLETE
+            deposit.circle_status = Deposit.CIRCLE_COMPLETED
             deposit.sweep_status = Deposit.SWEEP_PENDING
             deposit.set_paid()  # sets paid_status=PAID, paid_date=now(), saves
             credited = True
