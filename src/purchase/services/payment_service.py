@@ -120,10 +120,13 @@ class PaymentService:
             Created Payment instance
         """
         # Create payment record
+        external_payment_id = (
+            checkout_session["payment_intent"] or checkout_session["id"]
+        )
         payment = Payment.objects.create(
             amount=checkout_session["amount_total"],
             currency=checkout_session["currency"].upper(),
-            external_payment_id=checkout_session["payment_intent"],
+            external_payment_id=external_payment_id,
             payment_processor=PaymentProcessor.STRIPE,
             purpose=PaymentPurpose.RSC_PURCHASE,
             user_id=user_id,
@@ -183,10 +186,14 @@ class PaymentService:
 
             paper_id = checkout_session["metadata"]["paper_id"]
 
+            external_payment_id = (
+                checkout_session["payment_intent"] or checkout_session["id"]
+            )
+
             return Payment.objects.create(
                 amount=checkout_session["amount_total"],
                 currency=checkout_session["currency"].upper(),
-                external_payment_id=checkout_session["payment_intent"],
+                external_payment_id=external_payment_id,
                 payment_processor=PaymentProcessor.STRIPE,
                 purpose=purpose,
                 object_id=paper_id,
