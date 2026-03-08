@@ -2,6 +2,7 @@ from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
 
+from research_ai.models import EmailTemplate
 from research_ai.services.email_generator_service import (
     _build_signature_block,
     _normalize_template_data,
@@ -193,8 +194,7 @@ class GenerateExpertEmailTests(TestCase):
         mock_bedrock_class.return_value = mock_llm
 
         subject, body = generate_expert_email(
-            expert_name="Dr. Smith",
-            expert_title="Professor",
+            resolved_expert={"name": "Dr. Smith", "title": "Professor"},
             template_data=None,
         )
 
@@ -219,7 +219,7 @@ class GenerateExpertEmailTests(TestCase):
         mock_bedrock_class.return_value = mock_llm
 
         subject, body = generate_expert_email(
-            expert_name="Expert",
+            resolved_expert={"name": "Expert"},
             template_data={
                 "contact_name": "Jane Doe",
                 "contact_institution": "MIT",
@@ -231,3 +231,95 @@ class GenerateExpertEmailTests(TestCase):
         self.assertTrue(body.strip().endswith("MIT"))
         self.assertNotIn("[Your Name]", body)
         self.assertNotIn("[Institution]", body)
+
+    @patch("research_ai.services.email_generator_service.get_email_template")
+    @patch("research_ai.services.email_generator_service.build_rfp_context")
+    @patch("research_ai.services.email_generator_service.resolve_grant")
+    def test_generate_expert_email_fixed_template_with_rfp_uses_variable_substitution(
+        self, mock_resolve_grant, mock_build_rfp_context, mock_get_template
+    ):
+        rfp_context = {
+            "amount": "$10K",
+            "deadline": "March 1",
+            "title": "Test RFP",
+            "url": "https://x.com/g",
+            "blurb": "RFP description",
+        }
+        mock_build_rfp_context.return_value = rfp_context
+        mock_resolve_grant.return_value = MagicMock()
+        expert_search = MagicMock()
+        user = MagicMock()
+        et = MagicMock(spec=EmailTemplate)
+        et.template_type = EmailTemplate.TemplateType.FIXED
+        et.email_subject = "Subject: {{rfp.title}}"
+        et.email_body = "Hi {{expert.name}}, see {{rfp.amount}} and {{rfp.deadline}}."
+        mock_get_template.return_value = et
+        subject, body = generate_expert_email(
+            resolved_expert={"name": "Dr. X"},
+            template="rfp-outreach",
+            expert_search=expert_search,
+            template_id=1,
+            user=user,
+        )
+        mock_get_template.assert_called_once_with(user, 1)
+        self.assertEqual(subject, "Subject: Test RFP")
+        self.assertIn("Dr. X", body)
+        self.assertIn("$10K", body)
+        self.assertIn("March 1", body)
+
+    @patch("research_ai.services.email_generator_service.get_email_template")
+    @patch("research_ai.services.email_generator_service.build_rfp_context")
+    @patch("research_ai.services.email_generator_service.resolve_grant")
+    def test_generate_expert_email_fixed_template_uses_user_context_for_signature(
+        self, mock_resolve_grant, mock_build_rfp_context, mock_get_template
+    ):
+        rfp_context = {
+            "amount": "$10K",
+            "deadline": "March 1",
+            "title": "Test RFP",
+            "url": "https://x.com/g",
+            "blurb": "Desc",
+        }
+        mock_build_rfp_context.return_value = rfp_context
+        mock_resolve_grant.return_value = MagicMock()
+        expert_search = MagicMock()
+        expert_search.created_by.first_name = "Ada"
+        expert_search.created_by.last_name = "Lovelace"
+        expert_search.created_by.author_profile.headline = "Research Scientist"
+        user = MagicMock()
+        et = MagicMock(spec=EmailTemplate)
+        et.template_type = EmailTemplate.TemplateType.FIXED
+        et.email_subject = "{{rfp.title}}"
+        et.email_body = "Body with {{user.full_name}}."
+        mock_get_template.return_value = et
+        subject, body = generate_expert_email(
+            resolved_expert={"name": "Dr. X"},
+            template="rfp-outreach",
+            expert_search=expert_search,
+            template_id=1,
+            user=user,
+            template_data={
+                "contact_name": "Ada Lovelace",
+                "contact_title": "Research Scientist",
+                "contact_institution": "",
+                "contact_email": "",
+                "contact_phone": "",
+                "contact_website": "",
+            },
+        )
+        self.assertIn("Body with Ada Lovelace.", body)
+        self.assertTrue(
+            body.strip().endswith("Research Scientist") or "Ada Lovelace" in body
+        )
+
+    @patch("research_ai.services.email_generator_service.BedrockLLMService")
+    def test_generate_expert_email_without_template_uses_llm(self, mock_bedrock_class):
+        mock_llm = MagicMock()
+        mock_llm.invoke.return_value = "Subject: Hello\n\nBody text here."
+        mock_bedrock_class.return_value = mock_llm
+        subject, body = generate_expert_email(
+            resolved_expert={"name": "Dr. Y"},
+            template="collaboration",
+        )
+        self.assertEqual(mock_llm.invoke.call_count, 1)
+        self.assertIn("Body text", body or subject or "")

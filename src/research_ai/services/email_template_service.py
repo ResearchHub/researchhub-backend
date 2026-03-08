@@ -34,8 +34,15 @@ def create_template(user, **data):
         "contact_phone",
         "contact_website",
         "outreach_context",
+        "template_type",
+        "email_subject",
+        "email_body",
     }
-    kwargs = {k: (v or "") for k, v in data.items() if k in allowed}
+    kwargs = {}
+    for k, v in data.items():
+        if k not in allowed:
+            continue
+        kwargs[k] = v or ""
     kwargs["created_by"] = user
     return EmailTemplate.objects.create(**kwargs)
 
@@ -51,7 +58,7 @@ def update_template(user, template_id, **data):
         return None, "Template not found."
 
     for key, value in data.items():
-        if key != "created_by" and hasattr(template, key):
+        if hasattr(template, key):
             setattr(template, key, value)
     template.save()
     return template, None

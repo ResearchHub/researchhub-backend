@@ -1,11 +1,27 @@
 import logging
 import re
 
+from django.conf import settings
+
 from research_ai.constants import DEFAULT_EMAIL_TEMPLATE_KEY
+from research_ai.models import EmailTemplate
 from research_ai.prompts.email_prompts import build_email_prompt
 from research_ai.services.bedrock_llm_service import BedrockLLMService
+from research_ai.services.email_template_service import (
+    get_template as get_email_template,
+)
+from research_ai.services.email_template_variables import (
+    build_replacement_context,
+    replace_template_variables,
+)
+from research_ai.services.rfp_email_context import build_rfp_context, resolve_grant
 
 logger = logging.getLogger(__name__)
+
+_BASE_FRONTEND_URL = getattr(
+    settings, "BASE_FRONTEND_URL", "https://www.researchhub.com"
+)
+OTHER_GRANTS_URL = f"{_BASE_FRONTEND_URL}/fund/grants"
 
 
 def _normalize_template_data(data: dict | None) -> dict:
@@ -20,6 +36,41 @@ def _normalize_template_data(data: dict | None) -> dict:
         "phone": (data.get("contact_phone") or "").strip(),
         "website": (data.get("contact_website") or "").strip(),
     }
+
+
+def _apply_sender_fallbacks(template_data: dict | None, expert_search) -> dict:
+    """
+    Fill missing sender name/title from the current user on the expert search.
+
+    This is mainly used by the no-LLM RFP renderer when the user has not set up an
+    email template yet.
+    """
+    normalized = _normalize_template_data(template_data)
+    created_by = getattr(expert_search, "created_by", None)
+    if not created_by:
+        return normalized
+
+    if not normalized.get("name"):
+        full_name = " ".join(
+            part.strip()
+            for part in [
+                getattr(created_by, "first_name", "") or "",
+                getattr(created_by, "last_name", "") or "",
+            ]
+            if part and part.strip()
+        )
+        if full_name:
+            normalized["name"] = full_name
+
+    if not normalized.get("title"):
+        author_profile = getattr(created_by, "author_profile", None)
+        headline = ""
+        if author_profile:
+            headline = (getattr(author_profile, "headline", "") or "").strip()
+        if headline:
+            normalized["title"] = headline
+
+    return normalized
 
 
 def _strip_markdown(text: str) -> str:
@@ -166,28 +217,103 @@ def _parse_subject_and_body(text: str) -> tuple[str, str]:
 
 
 def generate_expert_email(
-    expert_name: str,
-    expert_title: str = "",
-    expert_affiliation: str = "",
-    expertise: str = "",
-    notes: str = "",
+    resolved_expert: dict,
     template: str = DEFAULT_EMAIL_TEMPLATE_KEY,
     custom_use_case: str | None = None,
-    outreach_context: str | None = None,
     template_data: dict | None = None,
+    expert_search=None,
+    template_id: int | None = None,
+    user=None,
 ) -> tuple[str, str]:
     """
-    Generate subject and body for an expert outreach email using Bedrock.
+    Generate subject and body for an expert outreach email.
+
+    resolved_expert: dict with name, title, affiliation, expertise, email, notes
+                     (e.g. from resolve_expert_from_search or from GeneratedEmail fields).
+
+    Behavior is driven by template type when a template is provided:
+    - If template (loaded by template_id + user) has template_type ``fixed-template``
+      and context type is supported (e.g. RFP), subject/body are built from the
+      template's email_subject/email_body with {{entity.field}} variable substitution;
+      no LLM is used.
+    - Otherwise (no template, or template_type ``prompt-context``): uses Bedrock LLM;
+      template_data and outreach_context are derived from the template when present.
 
     template: one of collaboration, consultation, conference, peer-review,
               publication, rfp-outreach, custom. For custom, pass custom_use_case.
-    outreach_context: optional context from sender's template (included in prompt).
-    template_data: optional dict (contact_name, contact_title, etc.)
-                   for placeholder replacement and signature block.
+    template_data: optional override; else derived from template when loaded.
+    expert_search: optional ExpertSearch used to derive RFP context for rfp-outreach.
+    template_id: optional; with user, loads EmailTemplate.
+    user: optional User; required with template_id to load template.
 
     Returns:
         (email_subject, email_body)
     """
+    # Normalize expert fields from resolved_expert (view/task pass this dict only)
+    expert_name = (resolved_expert.get("name") or "").strip()
+    expert_title = resolved_expert.get("title") or ""
+    expert_affiliation = resolved_expert.get("affiliation") or ""
+    expertise = resolved_expert.get("expertise") or ""
+    notes = resolved_expert.get("notes") or ""
+    expert_email = (resolved_expert.get("email") or "").strip()
+
+    # Load template by id when provided (view and task pass template_id + user only)
+    et = None
+    if template_id is not None and user is not None:
+        et = get_email_template(user, template_id)
+
+    # Fixed-template path: template exists and is fixed; for now only rfp-outreach is supported
+    if (
+        et is not None
+        and getattr(et, "template_type", None) == EmailTemplate.TemplateType.FIXED
+        and template == "rfp-outreach"
+        and expert_search is not None
+    ):
+        grant = resolve_grant(expert_search=expert_search)
+        rfp_context_dict = build_rfp_context(grant) if grant else None
+        if rfp_context_dict:
+            expert_for_context = {
+                "name": expert_name,
+                "title": expert_title,
+                "affiliation": expert_affiliation,
+                "email": expert_email,
+                "expertise": expertise,
+            }
+            request_user = getattr(expert_search, "created_by", None) or user
+            context = build_replacement_context(
+                user=request_user,
+                expert_search=expert_search,
+                resolved_expert=expert_for_context,
+                rfp_context_dict=rfp_context_dict,
+            )
+            subject = replace_template_variables(
+                (et.email_subject or "").strip(), context
+            )
+            body = replace_template_variables((et.email_body or "").strip(), context)
+            return subject, body
+        # Fixed template but unsupported context or missing RFP data: fall back to LLM
+
+    # LLM path: no template, or prompt-context template, or fixed template without RFP context
+    # Derive outreach_context and template_data from template only when needed for AI generation
+    outreach_context = None
+    if et is not None:
+        outreach_context = getattr(et, "outreach_context", "").strip() or None
+        template_data = template_data or _normalize_template_data(
+            {
+                "contact_name": getattr(et, "contact_name", None) or "",
+                "contact_title": getattr(et, "contact_title", None) or "",
+                "contact_institution": getattr(et, "contact_institution", None) or "",
+                "contact_email": getattr(et, "contact_email", None) or "",
+                "contact_phone": getattr(et, "contact_phone", None) or "",
+                "contact_website": getattr(et, "contact_website", None) or "",
+            }
+        )
+
+    rfp_context = None
+    if template == "rfp-outreach" and expert_search is not None:
+        grant = resolve_grant(expert_search=expert_search)
+        rfp_context = build_rfp_context(grant) if grant else None
+
     prompt = build_email_prompt(
         expert_name=expert_name or "",
         expert_title=expert_title or "",
@@ -197,6 +323,7 @@ def generate_expert_email(
         template=template,
         custom_use_case=custom_use_case,
         outreach_context=outreach_context,
+        rfp_context=rfp_context,
     )
     service = BedrockLLMService()
     raw = service.invoke(

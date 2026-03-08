@@ -1,5 +1,8 @@
 import logging
 
+from django.conf import settings
+from django.core.mail import EmailMultiAlternatives, send_mail
+from django.utils.html import strip_tags
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -9,14 +12,16 @@ from research_ai.constants import VALID_EMAIL_TEMPLATE_KEYS
 from research_ai.models import ExpertSearch, GeneratedEmail
 from research_ai.permissions import ResearchAIPermission
 from research_ai.serializers import (
+    BulkGenerateEmailRequestSerializer,
     GeneratedEmailCreateUpdateSerializer,
     GeneratedEmailSerializer,
     GenerateEmailRequestSerializer,
+    PreviewEmailRequestSerializer,
+    SendEmailRequestSerializer,
 )
 from research_ai.services.email_generator_service import generate_expert_email
-from research_ai.services.email_template_service import (
-    get_template as get_email_template,
-)
+from research_ai.services.rfp_email_context import resolve_expert_from_search
+from research_ai.tasks import process_bulk_generate_emails_task
 from user.permissions import IsModerator
 
 logger = logging.getLogger(__name__)
@@ -42,45 +47,34 @@ class GenerateEmailView(APIView):
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
 
-        expert_name = (data.get("expert_name") or "").strip()
-        if not expert_name:
+        try:
+            expert_search = ExpertSearch.objects.get(
+                id=data["expert_search_id"], created_by=request.user
+            )
+        except ExpertSearch.DoesNotExist:
             return Response(
-                {"detail": "expert_name is required."},
+                {"detail": "Expert search not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        resolved = resolve_expert_from_search(expert_search, data["expert_email"])
+        if not resolved:
+            return Response(
+                {"detail": "Expert not found in search results for this email."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         template_key, custom_use_case = _normalize_template(data.get("template") or "")
-
-        # Resolve outreach_context and template_data (from request or template_id)
-        outreach_context = (data.get("outreach_context") or "").strip() or None
-        template_data = data.get("template_data")
         template_id = data.get("template_id")
-        if template_id and not template_data:
-            et = get_email_template(request.user, template_id)
-            if et:
-                outreach_context = (
-                    outreach_context or (et.outreach_context or "").strip() or None
-                )
-                template_data = {
-                    "contact_name": et.contact_name or "",
-                    "contact_title": et.contact_title or "",
-                    "contact_institution": et.contact_institution or "",
-                    "contact_email": et.contact_email or "",
-                    "contact_phone": et.contact_phone or "",
-                    "contact_website": et.contact_website or "",
-                }
 
         try:
             subject, body = generate_expert_email(
-                expert_name=expert_name,
-                expert_title=data.get("expert_title") or "",
-                expert_affiliation=data.get("expert_affiliation") or "",
-                expertise=data.get("expertise") or "",
-                notes=data.get("notes") or "",
+                resolved_expert=resolved,
                 template=template_key,
                 custom_use_case=custom_use_case,
-                outreach_context=outreach_context,
-                template_data=template_data,
+                expert_search=expert_search,
+                template_id=template_id,
+                user=request.user,
             )
         except RuntimeError as e:
             logger.exception("Email generation failed")
@@ -95,33 +89,211 @@ class GenerateEmailView(APIView):
         if save_param == "false" or action_param == "generate":
             return Response({"subject": subject, "body": body})
 
-        expert_search_id = data.get("expert_search_id")
-        expert_search = None
-        if expert_search_id:
-            try:
-                expert_search = ExpertSearch.objects.get(
-                    id=expert_search_id, created_by=request.user
-                )
-            except ExpertSearch.DoesNotExist:
-                pass
-
         email_record = GeneratedEmail.objects.create(
             created_by=request.user,
             expert_search=expert_search,
-            expert_name=expert_name,
-            expert_title=data.get("expert_title") or "",
-            expert_affiliation=data.get("expert_affiliation") or "",
-            expert_email=data.get("expert_email") or "",
-            expertise=data.get("expertise") or "",
+            expert_name=(resolved.get("name") or "").strip(),
+            expert_title=resolved.get("title") or "",
+            expert_affiliation=resolved.get("affiliation") or "",
+            expert_email=(resolved.get("email") or "").strip(),
+            expertise=resolved.get("expertise") or "",
             email_subject=subject,
             email_body=body,
             template=template_key,
             status="draft",
-            notes=data.get("notes") or "",
+            notes=resolved.get("notes") or "",
         )
 
         out = GeneratedEmailSerializer(email_record)
         return Response(out.data, status=status.HTTP_201_CREATED)
+
+
+class BulkGenerateEmailView(APIView):
+    """POST /api/research_ai/expert-finder/generate-emails-bulk/ - Create placeholders and enqueue Celery task."""
+
+    permission_classes = [IsAuthenticated, ResearchAIPermission, IsModerator]
+
+    def post(self, request):
+        ser = BulkGenerateEmailRequestSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+
+        try:
+            expert_search = ExpertSearch.objects.get(
+                id=data["expert_search_id"], created_by=request.user
+            )
+        except ExpertSearch.DoesNotExist:
+            return Response(
+                {"detail": "Expert search not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        template_key, _ = _normalize_template(data.get("template") or "")
+        placeholders = []
+        for item in data["experts"]:
+            resolved = resolve_expert_from_search(expert_search, item["expert_email"])
+            if not resolved:
+                return Response(
+                    {
+                        "detail": f"Expert not found in search results: {item['expert_email']}."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            email_record = GeneratedEmail.objects.create(
+                created_by=request.user,
+                expert_search=expert_search,
+                expert_name=(resolved.get("name") or "").strip(),
+                expert_title=resolved.get("title") or "",
+                expert_affiliation=resolved.get("affiliation") or "",
+                expert_email=(resolved.get("email") or "").strip(),
+                expertise=resolved.get("expertise") or "",
+                email_subject="",
+                email_body="",
+                template=template_key,
+                status=GeneratedEmail.Status.PROCESSING,
+                notes=resolved.get("notes") or "",
+            )
+            placeholders.append(email_record)
+
+        ids = [p.id for p in placeholders]
+        process_bulk_generate_emails_task.delay(
+            ids,
+            template_id=data.get("template_id"),
+            created_by_id=request.user.id,
+        )
+
+        out = GeneratedEmailSerializer(placeholders, many=True)
+        return Response(
+            {"emails": out.data, "ids": ids},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+
+def _send_plain_email(to_emails, subject, body, reply_to=None, cc=None):
+    """Send email via Django (SES backend). Body is sent as HTML with a plain-text fallback."""
+    subject = (subject or "").replace("\n", "").replace("\r", "")
+    if not settings.PRODUCTION:
+        subject = "[Staging] " + subject
+    from_email = f"ResearchHub <{settings.DEFAULT_FROM_EMAIL}>"
+    to_list = to_emails if isinstance(to_emails, list) else [to_emails]
+    html_body = body or ""
+    plain_body = strip_tags(html_body).strip() or "(No content)"
+
+    if reply_to or cc:
+        msg = EmailMultiAlternatives(
+            subject=subject,
+            body=plain_body,
+            from_email=from_email,
+            to=to_list,
+            reply_to=[reply_to] if reply_to else None,
+            cc=cc or None,
+        )
+        msg.attach_alternative(html_body, "text/html")
+        msg.send(fail_silently=False)
+    else:
+        for to in to_list:
+            try:
+                send_mail(
+                    subject,
+                    plain_body,
+                    from_email,
+                    [to],
+                    fail_silently=False,
+                    html_message=html_body,
+                )
+            except Exception as e:
+                logger.exception("Send email failed to %s: %s", to, e)
+                raise
+
+
+class PreviewEmailView(APIView):
+    """POST /api/research_ai/expert-finder/emails/preview/ - Send generated email(s) to current user."""
+
+    permission_classes = [IsAuthenticated, ResearchAIPermission, IsModerator]
+
+    def post(self, request):
+        ser = PreviewEmailRequestSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+
+        recipient = getattr(request.user, "email", None) or (
+            request.user.username if hasattr(request.user, "username") else None
+        )
+        if not recipient:
+            return Response(
+                {"detail": "User has no email address for preview."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        ids = data["generated_email_ids"]
+        qs = GeneratedEmail.objects.filter(
+            id__in=ids,
+            created_by=request.user,
+        ).exclude(status=GeneratedEmail.Status.PROCESSING)
+        sent = 0
+        for rec in qs:
+            try:
+                _send_plain_email(
+                    [recipient],
+                    rec.email_subject,
+                    rec.email_body,
+                )
+                sent += 1
+            except Exception as e:
+                logger.exception("Preview send failed for email id=%s: %s", rec.id, e)
+                return Response(
+                    {"detail": str(e)},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
+        return Response({"sent": sent})
+
+
+class SendEmailView(APIView):
+    """POST /api/research_ai/expert-finder/emails/send/ - Send generated emails to experts via SES."""
+
+    permission_classes = [IsAuthenticated, ResearchAIPermission, IsModerator]
+
+    def post(self, request):
+        if not settings.PRODUCTION and not settings.TESTING:
+            return Response(
+                {"detail": "Sending emails to experts is disabled in non-production."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        ser = SendEmailRequestSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+
+        reply_to = (data.get("reply_to") or "").strip() or None
+        cc_list = list(data.get("cc") or [])
+        ids = data["generated_email_ids"]
+
+        qs = GeneratedEmail.objects.filter(
+            id__in=ids,
+            created_by=request.user,
+            status=GeneratedEmail.Status.DRAFT,
+        )
+        sent = 0
+        for rec in qs:
+            if not rec.expert_email:
+                continue
+            try:
+                _send_plain_email(
+                    [rec.expert_email],
+                    rec.email_subject,
+                    rec.email_body,
+                    reply_to=reply_to,
+                    cc=cc_list if cc_list else None,
+                )
+                rec.status = GeneratedEmail.Status.SENT
+                rec.save(update_fields=["status", "updated_date"])
+                sent += 1
+            except Exception as e:
+                logger.exception("Send to expert failed id=%s: %s", rec.id, e)
+                return Response(
+                    {"detail": str(e), "sent": sent},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
+        return Response({"sent": sent})
 
 
 class GeneratedEmailListView(APIView):

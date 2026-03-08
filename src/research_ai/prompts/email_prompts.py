@@ -24,13 +24,15 @@ def build_email_prompt(
     template: str,
     custom_use_case: str | None = None,
     outreach_context: str | None = None,
+    rfp_context: dict | None = None,
 ) -> str:
     """
     Build the full user prompt for email generation.
 
     template: one of collaboration, consultation, conference, peer-review,
               publication, rfp-outreach, or custom (use custom_use_case for custom).
-    outreach_context: optional context from the sender's template (purpose, venue, etc.).
+    outreach_context: optional context from the sender's template (purpose, venue).
+    rfp_context: optional dict (amount, deadline, title, url, description_snippet).
     """
     base_rules = _load_email_template("email_base_rules.txt").strip()
     common_raw = _load_email_template("email_common_instructions.txt")
@@ -46,6 +48,17 @@ Additional Context: {notes or 'N/A'}"""
 
 Outreach context / sender's purpose (use this to tailor the email):
 {outreach_context.strip()}"""
+    if rfp_context and template == "rfp-outreach":
+        sender_info += """
+
+RFP details (use these in the email):
+- Funding amount: """ + (rfp_context.get("amount") or "N/A") + """
+- Deadline: """ + (rfp_context.get("deadline") or "N/A") + """
+- Title / topic: """ + (rfp_context.get("title") or "N/A") + """
+- RFP URL: """ + (rfp_context.get("url") or "N/A")
+        if rfp_context.get("description_snippet"):
+            sender_info += """
+- Description snippet: """ + (rfp_context["description_snippet"][:800] or "")
 
     filename = EMAIL_TEMPLATE_PROMPT_FILES.get(template, "email_default.txt")
     body_tpl = _load_email_template(filename)

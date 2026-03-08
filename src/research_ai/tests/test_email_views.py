@@ -25,11 +25,25 @@ class NormalizeTemplateTests(APITestCase):
         self.assertEqual(_normalize_template(""), ("custom", None))
 
     def test_strips_whitespace(self):
-        self.assertEqual(_normalize_template("  collaboration  "), ("collaboration", None))
+        self.assertEqual(
+            _normalize_template("  collaboration  "), ("collaboration", None)
+        )
         self.assertEqual(
             _normalize_template("  custom:  my case  "),
             ("custom", "my case"),
         )
+
+
+def _make_expert_search(created_by, expert_results=None):
+    return ExpertSearch.objects.create(
+        created_by=created_by,
+        name="Test Search",
+        query="ML",
+        input_type=ExpertSearch.InputType.CUSTOM_QUERY,
+        status=ExpertSearch.Status.COMPLETED,
+        progress=100,
+        expert_results=expert_results or [],
+    )
 
 
 class GenerateEmailViewTests(APITestCase):
@@ -37,11 +51,28 @@ class GenerateEmailViewTests(APITestCase):
         self.moderator = create_random_authenticated_user("mod", moderator=True)
         self.user = create_random_authenticated_user("user", moderator=False)
         self.url = "/api/research_ai/expert-finder/generate-email/"
+        self.expert_search = _make_expert_search(
+            self.moderator,
+            expert_results=[
+                {
+                    "name": "Dr. Jane Smith",
+                    "email": "jane@example.com",
+                    "title": "Professor",
+                    "affiliation": "MIT",
+                    "expertise": "ML",
+                    "notes": "",
+                },
+            ],
+        )
 
     def test_post_requires_authentication(self):
         response = self.client.post(
             self.url,
-            {"expert_name": "Dr. Smith", "template": "collaboration"},
+            {
+                "expert_search_id": self.expert_search.id,
+                "expert_email": "jane@example.com",
+                "template": "collaboration",
+            },
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
@@ -50,24 +81,23 @@ class GenerateEmailViewTests(APITestCase):
         self.client.force_authenticate(self.user)
         response = self.client.post(
             self.url,
-            {"expert_name": "Dr. Smith", "template": "collaboration"},
+            {
+                "expert_search_id": self.expert_search.id,
+                "expert_email": "jane@example.com",
+                "template": "collaboration",
+            },
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_post_expert_name_required(self):
+    def test_post_expert_search_id_and_email_required(self):
         self.client.force_authenticate(self.moderator)
         response = self.client.post(
             self.url,
-            {"expert_name": "", "template": "collaboration"},
+            {"template": "collaboration"},
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        data = response.json()
-        self.assertTrue(
-            "expert_name" in data or "expert_name" in data.get("detail", ""),
-            "Response should indicate expert_name error",
-        )
 
     @patch("research_ai.views.email_views.generate_expert_email")
     def test_post_success_creates_record_and_returns_201(self, mock_generate):
@@ -76,9 +106,9 @@ class GenerateEmailViewTests(APITestCase):
         response = self.client.post(
             self.url,
             {
-                "expert_name": "Dr. Jane Smith",
+                "expert_search_id": self.expert_search.id,
+                "expert_email": "jane@example.com",
                 "template": "collaboration",
-                "expert_title": "Professor",
             },
             format="json",
         )
@@ -98,7 +128,11 @@ class GenerateEmailViewTests(APITestCase):
         self.client.force_authenticate(self.moderator)
         response = self.client.post(
             self.url + "?save=false",
-            {"expert_name": "Dr. X", "template": "collaboration"},
+            {
+                "expert_search_id": self.expert_search.id,
+                "expert_email": "jane@example.com",
+                "template": "collaboration",
+            },
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -113,7 +147,11 @@ class GenerateEmailViewTests(APITestCase):
         self.client.force_authenticate(self.moderator)
         response = self.client.post(
             self.url + "?action=generate",
-            {"expert_name": "Dr. Y", "template": "consultation"},
+            {
+                "expert_search_id": self.expert_search.id,
+                "expert_email": "jane@example.com",
+                "template": "consultation",
+            },
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -126,7 +164,11 @@ class GenerateEmailViewTests(APITestCase):
         self.client.force_authenticate(self.moderator)
         response = self.client.post(
             self.url,
-            {"expert_name": "Dr. Z", "template": "collaboration"},
+            {
+                "expert_search_id": self.expert_search.id,
+                "expert_email": "jane@example.com",
+                "template": "collaboration",
+            },
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
@@ -135,21 +177,26 @@ class GenerateEmailViewTests(APITestCase):
     @patch("research_ai.views.email_views.generate_expert_email")
     def test_post_with_expert_search_id_links_record(self, mock_generate):
         mock_generate.return_value = ("S", "B")
-        search = ExpertSearch.objects.create(
-            created_by=self.moderator,
-            name="Test Search",
-            query="ML",
-            input_type=ExpertSearch.InputType.CUSTOM_QUERY,
-            status=ExpertSearch.Status.COMPLETED,
-            progress=100,
+        search = _make_expert_search(
+            self.moderator,
+            expert_results=[
+                {
+                    "name": "Dr. A",
+                    "email": "a@example.com",
+                    "title": "",
+                    "affiliation": "",
+                    "expertise": "",
+                    "notes": "",
+                },
+            ],
         )
         self.client.force_authenticate(self.moderator)
         response = self.client.post(
             self.url,
             {
-                "expert_name": "Dr. A",
-                "template": "collaboration",
                 "expert_search_id": search.id,
+                "expert_email": "a@example.com",
+                "template": "collaboration",
             },
             format="json",
         )
@@ -157,55 +204,53 @@ class GenerateEmailViewTests(APITestCase):
         rec = GeneratedEmail.objects.get()
         self.assertEqual(rec.expert_search_id, search.id)
 
-    @patch("research_ai.views.email_views.get_email_template")
     @patch("research_ai.views.email_views.generate_expert_email")
-    def test_post_with_template_id_uses_template_data(
-        self, mock_generate, mock_get_template
-    ):
+    def test_post_with_template_id_passes_template_id_and_user(self, mock_generate):
         mock_generate.return_value = ("S", "B")
-        mock_et = type("ET", (), {
-            "contact_name": "Jane",
-            "contact_title": "Prof",
-            "contact_institution": "MIT",
-            "contact_email": "j@mit.edu",
-            "contact_phone": "",
-            "contact_website": "",
-            "outreach_context": "Conference invite",
-        })()
-        mock_get_template.return_value = mock_et
         self.client.force_authenticate(self.moderator)
         response = self.client.post(
             self.url,
             {
-                "expert_name": "Dr. T",
+                "expert_search_id": self.expert_search.id,
+                "expert_email": "jane@example.com",
                 "template": "collaboration",
                 "template_id": 1,
             },
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        mock_get_template.assert_called_once_with(self.moderator, 1)
         call_kw = mock_generate.call_args[1]
-        self.assertEqual(call_kw["template_data"]["contact_name"], "Jane")
-        self.assertEqual(call_kw["template_data"]["contact_institution"], "MIT")
-        self.assertEqual(call_kw["outreach_context"], "Conference invite")
+        self.assertEqual(call_kw["template_id"], 1)
+        self.assertEqual(call_kw["user"], self.moderator)
+        self.assertNotIn("use_llm", call_kw)
 
-    @patch("research_ai.views.email_views.generate_expert_email")
-    def test_post_with_invalid_expert_search_id_still_creates_email(self, mock_generate):
-        mock_generate.return_value = ("S", "B")
+    def test_post_with_invalid_expert_search_id_returns_404(self):
         self.client.force_authenticate(self.moderator)
         response = self.client.post(
             self.url,
             {
-                "expert_name": "Dr. B",
-                "template": "collaboration",
                 "expert_search_id": 999999,
+                "expert_email": "jane@example.com",
+                "template": "collaboration",
             },
             format="json",
         )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        rec = GeneratedEmail.objects.get()
-        self.assertIsNone(rec.expert_search_id)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertIn("not found", response.json().get("detail", "").lower())
+
+    def test_post_expert_not_in_search_results_returns_400(self):
+        self.client.force_authenticate(self.moderator)
+        response = self.client.post(
+            self.url,
+            {
+                "expert_search_id": self.expert_search.id,
+                "expert_email": "unknown@example.com",
+                "template": "collaboration",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Expert not found", response.json().get("detail", ""))
 
 
 class GeneratedEmailListViewTests(APITestCase):
@@ -382,3 +427,116 @@ class GeneratedEmailDetailViewTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertTrue(GeneratedEmail.objects.filter(pk=email.id).exists())
+
+
+class BulkGenerateEmailViewTests(APITestCase):
+    def setUp(self):
+        self.moderator = create_random_authenticated_user("mod", moderator=True)
+        self.url = "/api/research_ai/expert-finder/generate-emails-bulk/"
+        self.expert_search = _make_expert_search(
+            self.moderator,
+            expert_results=[
+                {
+                    "name": "Dr. A",
+                    "email": "a@x.com",
+                    "title": "",
+                    "affiliation": "",
+                    "expertise": "",
+                    "notes": "",
+                },
+                {
+                    "name": "Dr. B",
+                    "email": "b@x.com",
+                    "title": "",
+                    "affiliation": "",
+                    "expertise": "",
+                    "notes": "",
+                },
+            ],
+        )
+
+    def test_post_requires_authentication(self):
+        response = self.client.post(
+            self.url,
+            {
+                "expert_search_id": self.expert_search.id,
+                "experts": [{"expert_email": "a@x.com"}],
+                "template": "rfp-outreach",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @patch("research_ai.views.email_views.process_bulk_generate_emails_task")
+    def test_post_creates_placeholders_and_returns_202(self, mock_task):
+        mock_task.delay.return_value = None
+        self.client.force_authenticate(self.moderator)
+        response = self.client.post(
+            self.url,
+            {
+                "expert_search_id": self.expert_search.id,
+                "experts": [{"expert_email": "a@x.com"}, {"expert_email": "b@x.com"}],
+                "template": "rfp-outreach",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        data = response.json()
+        self.assertIn("emails", data)
+        self.assertIn("ids", data)
+        self.assertEqual(len(data["emails"]), 2)
+        self.assertEqual(len(data["ids"]), 2)
+        self.assertEqual(GeneratedEmail.objects.filter(status="processing").count(), 2)
+        mock_task.delay.assert_called_once()
+
+
+class PreviewEmailViewTests(APITestCase):
+    def setUp(self):
+        self.moderator = create_random_authenticated_user("mod", moderator=True)
+        self.url = "/api/research_ai/expert-finder/emails/preview/"
+
+    @patch("research_ai.views.email_views._send_plain_email")
+    def test_preview_by_ids_sends_to_current_user(self, mock_send):
+        email_rec = GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_name="Dr. X",
+            email_subject="Subj",
+            email_body="Body text",
+        )
+        self.client.force_authenticate(self.moderator)
+        response = self.client.post(
+            self.url,
+            {"generated_email_ids": [email_rec.id]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json().get("sent"), 1)
+        mock_send.assert_called_once()
+
+
+class SendEmailViewTests(APITestCase):
+    def setUp(self):
+        self.moderator = create_random_authenticated_user("mod", moderator=True)
+        self.url = "/api/research_ai/expert-finder/emails/send/"
+
+    @patch("research_ai.views.email_views._send_plain_email")
+    def test_send_updates_status_to_sent(self, mock_send):
+        email_rec = GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_name="Dr. Y",
+            expert_email="expert@example.com",
+            email_subject="Subj",
+            email_body="Body",
+            status="draft",
+        )
+        self.client.force_authenticate(self.moderator)
+        response = self.client.post(
+            self.url,
+            {"generated_email_ids": [email_rec.id]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json().get("sent"), 1)
+        email_rec.refresh_from_db()
+        self.assertEqual(email_rec.status, "sent")
+        mock_send.assert_called_once()
