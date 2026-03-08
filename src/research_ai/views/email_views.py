@@ -21,7 +21,7 @@ from research_ai.serializers import (
 )
 from research_ai.services.email_generator_service import generate_expert_email
 from research_ai.services.rfp_email_context import resolve_expert_from_search
-from research_ai.tasks import process_bulk_generate_emails_task
+from research_ai.tasks import process_bulk_generate_emails_task, send_queued_emails_task
 from user.permissions import IsModerator
 
 logger = logging.getLogger(__name__)
@@ -272,28 +272,17 @@ class SendEmailView(APIView):
             created_by=request.user,
             status=GeneratedEmail.Status.DRAFT,
         )
-        sent = 0
-        for rec in qs:
-            if not rec.expert_email:
-                continue
-            try:
-                _send_plain_email(
-                    [rec.expert_email],
-                    rec.email_subject,
-                    rec.email_body,
-                    reply_to=reply_to,
-                    cc=cc_list if cc_list else None,
-                )
-                rec.status = GeneratedEmail.Status.SENT
-                rec.save(update_fields=["status", "updated_date"])
-                sent += 1
-            except Exception as e:
-                logger.exception("Send to expert failed id=%s: %s", rec.id, e)
-                return Response(
-                    {"detail": str(e), "sent": sent},
-                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
-                )
-        return Response({"sent": sent})
+        queued_ids = list(qs.values_list("id", flat=True))
+        if queued_ids:
+            GeneratedEmail.objects.filter(id__in=queued_ids).update(
+                status=GeneratedEmail.Status.SENDING
+            )
+            send_queued_emails_task.delay(
+                generated_email_ids=queued_ids,
+                reply_to=reply_to,
+                cc=cc_list,
+            )
+        return Response({"sent": len(queued_ids)})
 
 
 class GeneratedEmailListView(APIView):
@@ -310,6 +299,12 @@ class GeneratedEmailListView(APIView):
         limit = max(1, min(100, int(request.query_params.get("limit", 20))))
         offset = max(0, int(request.query_params.get("offset", 0)))
         qs = self.get_queryset()
+        search_id = request.query_params.get("search_id")
+        if search_id is not None:
+            try:
+                qs = qs.filter(expert_search_id=int(search_id))
+            except (ValueError, TypeError):
+                qs = qs.none()
         total = qs.count()
         items = list(qs[offset : offset + limit])
         ser = GeneratedEmailSerializer(items, many=True)

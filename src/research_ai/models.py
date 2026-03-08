@@ -107,6 +107,8 @@ class GeneratedEmail(DefaultModel):
         SENT = "sent", "sent"
         PROCESSING = "processing", "processing"
         FAILED = "failed", "failed"
+        SENDING = "sending", "sending"
+        SEND_FAILED = "send_failed", "send_failed"
 
     created_by = models.ForeignKey(
         "user.User",

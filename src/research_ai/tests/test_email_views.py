@@ -304,6 +304,53 @@ class GeneratedEmailListViewTests(APITestCase):
         self.assertEqual(data["offset"], 1)
         self.assertEqual(len(data["emails"]), 2)
 
+    def test_get_filter_by_search_id(self):
+        search_a = _make_expert_search(self.moderator)
+        search_b = _make_expert_search(self.moderator)
+        GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_search=search_a,
+            expert_name="Dr. A",
+            email_subject="",
+            email_body="",
+        )
+        GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_search=search_a,
+            expert_name="Dr. A2",
+            email_subject="",
+            email_body="",
+        )
+        GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_search=search_b,
+            expert_name="Dr. B",
+            email_subject="",
+            email_body="",
+        )
+        self.client.force_authenticate(self.moderator)
+        response = self.client.get(self.url + f"?search_id={search_a.id}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertEqual(data["total"], 2)
+        self.assertEqual(len(data["emails"]), 2)
+        names = {e["expert_name"] for e in data["emails"]}
+        self.assertEqual(names, {"Dr. A", "Dr. A2"})
+
+    def test_get_filter_by_search_id_invalid_returns_empty(self):
+        GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_name="Dr. One",
+            email_subject="",
+            email_body="",
+        )
+        self.client.force_authenticate(self.moderator)
+        response = self.client.get(self.url + "?search_id=notanint")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertEqual(data["total"], 0)
+        self.assertEqual(len(data["emails"]), 0)
+
     def test_post_requires_authentication(self):
         response = self.client.post(
             self.url,
@@ -519,8 +566,8 @@ class SendEmailViewTests(APITestCase):
         self.moderator = create_random_authenticated_user("mod", moderator=True)
         self.url = "/api/research_ai/expert-finder/emails/send/"
 
-    @patch("research_ai.views.email_views._send_plain_email")
-    def test_send_updates_status_to_sent(self, mock_send):
+    @patch("research_ai.views.email_views.send_queued_emails_task")
+    def test_send_queues_emails_and_returns_immediately(self, mock_task):
         email_rec = GeneratedEmail.objects.create(
             created_by=self.moderator,
             expert_name="Dr. Y",
@@ -537,6 +584,33 @@ class SendEmailViewTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.json().get("sent"), 1)
+        email_rec.refresh_from_db()
+        self.assertEqual(email_rec.status, "sending")
+        mock_task.delay.assert_called_once()
+        call_kw = mock_task.delay.call_args[1]
+        self.assertEqual(call_kw["generated_email_ids"], [email_rec.id])
+
+    @patch("research_ai.views.email_views._send_plain_email")
+    def test_send_queued_emails_task_sends_and_updates_status(self, mock_send):
+        from research_ai.tasks import send_queued_emails_task
+
+        email_rec = GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_name="Dr. Y",
+            expert_email="expert@example.com",
+            email_subject="Subj",
+            email_body="Body",
+            status=GeneratedEmail.Status.SENDING,
+        )
+        result = send_queued_emails_task.apply(
+            kwargs={
+                "generated_email_ids": [email_rec.id],
+                "reply_to": None,
+                "cc": None,
+            }
+        ).get()
+        self.assertEqual(result["sent"], 1)
+        self.assertEqual(result["failed"], 0)
         email_rec.refresh_from_db()
         self.assertEqual(email_rec.status, "sent")
         mock_send.assert_called_once()

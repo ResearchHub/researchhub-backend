@@ -3,6 +3,7 @@ from copy import deepcopy
 from datetime import datetime
 
 from django.conf import settings
+from django.utils import timezone
 
 from research_ai.constants import VALID_EMAIL_TEMPLATE_KEYS
 from research_ai.models import ExpertSearch, GeneratedEmail
@@ -303,3 +304,54 @@ def process_bulk_generate_emails_task(
             except Exception:
                 pass
         raise
+
+
+@app.task(bind=True)
+def send_queued_emails_task(
+    self,
+    generated_email_ids: list[int],
+    reply_to: str | None = None,
+    cc: list[str] | None = None,
+):
+    """
+    Send generated emails that are in SENDING status. Updates each to SENT on
+    success or SEND_FAILED on failure. Skips records without expert_email
+    (marks as SEND_FAILED).
+    """
+    from research_ai.views.email_views import _send_plain_email
+
+    cc_list = list(cc or [])
+    reply_to_stripped = (reply_to or "").strip() or None
+    qs = GeneratedEmail.objects.filter(
+        id__in=generated_email_ids,
+        status=GeneratedEmail.Status.SENDING,
+    ).order_by("id")
+    sent = 0
+    failed = 0
+    for rec in qs:
+        if not (rec.expert_email or "").strip():
+            rec.status = GeneratedEmail.Status.SEND_FAILED
+            rec.save(update_fields=["status", "updated_date"])
+            failed += 1
+            continue
+        try:
+            _send_plain_email(
+                [rec.expert_email],
+                rec.email_subject,
+                rec.email_body,
+                reply_to=reply_to_stripped,
+                cc=cc_list if cc_list else None,
+            )
+            GeneratedEmail.objects.filter(id=rec.id).update(
+                status=GeneratedEmail.Status.SENT,
+                updated_date=timezone.now(),
+            )
+            sent += 1
+        except Exception as e:
+            logger.exception("Send to expert failed id=%s: %s", rec.id, e)
+            GeneratedEmail.objects.filter(id=rec.id).update(
+                status=GeneratedEmail.Status.SEND_FAILED,
+                updated_date=timezone.now(),
+            )
+            failed += 1
+    return {"sent": sent, "failed": failed}
