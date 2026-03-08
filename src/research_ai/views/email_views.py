@@ -169,12 +169,13 @@ class BulkGenerateEmailView(APIView):
         )
 
 
-def _send_plain_email(to_emails, subject, body, reply_to=None, cc=None):
+def _send_plain_email(to_emails, subject, body, reply_to=None, cc=None, from_email=None):
     """Send email via Django (SES backend). Body is sent as HTML with a plain-text fallback."""
     subject = (subject or "").replace("\n", "").replace("\r", "")
     if not settings.PRODUCTION:
         subject = "[Staging] " + subject
-    from_email = f"ResearchHub <{settings.DEFAULT_FROM_EMAIL}>"
+    if from_email is None:
+        from_email = f"ResearchHub <{settings.DEFAULT_FROM_EMAIL}>"
     to_list = to_emails if isinstance(to_emails, list) else [to_emails]
     html_body = body or ""
     plain_body = strip_tags(html_body).strip() or "(No content)"
@@ -265,7 +266,24 @@ class SendEmailView(APIView):
 
         reply_to = (data.get("reply_to") or "").strip() or None
         cc_list = list(data.get("cc") or [])
+        use_noreply = data.get("use_noreply", False)
         ids = data["generated_email_ids"]
+
+        if use_noreply:
+            from_email = f"ResearchHub <{settings.DEFAULT_FROM_EMAIL}>"
+        else:
+            user_email = getattr(request.user, "email", None) or ""
+            if not (user_email and "@" in user_email):
+                return Response(
+                    {
+                        "detail": "User has no email address. Use use_noreply to send from ResearchHub."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            display_name = (
+                getattr(request.user, "get_full_name", lambda: "")() or ""
+            ).strip() or "ResearchHub"
+            from_email = f"{display_name} <{user_email}>"
 
         qs = GeneratedEmail.objects.filter(
             id__in=ids,
@@ -281,6 +299,7 @@ class SendEmailView(APIView):
                 generated_email_ids=queued_ids,
                 reply_to=reply_to,
                 cc=cc_list,
+                from_email=from_email,
             )
         return Response({"sent": len(queued_ids)})
 

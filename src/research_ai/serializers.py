@@ -300,6 +300,7 @@ class SendEmailRequestSerializer(serializers.Serializer):
         required=False,
         default=list,
     )
+    use_noreply = serializers.BooleanField(required=False, default=False)
 
 
 class GeneratedEmailSerializer(serializers.ModelSerializer):

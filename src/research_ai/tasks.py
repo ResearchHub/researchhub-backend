@@ -312,6 +312,7 @@ def send_queued_emails_task(
     generated_email_ids: list[int],
     reply_to: str | None = None,
     cc: list[str] | None = None,
+    from_email: str | None = None,
 ):
     """
     Send generated emails that are in SENDING status. Updates each to SENT on
@@ -341,6 +342,7 @@ def send_queued_emails_task(
                 rec.email_body,
                 reply_to=reply_to_stripped,
                 cc=cc_list if cc_list else None,
+                from_email=from_email,
             )
             GeneratedEmail.objects.filter(id=rec.id).update(
                 status=GeneratedEmail.Status.SENT,
