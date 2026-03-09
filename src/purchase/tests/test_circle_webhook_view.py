@@ -323,7 +323,7 @@ class TestCircleWebhookView(TestCase):
         self.assertEqual(deposit.network, "BASE")
         self.assertEqual(deposit.paid_status, "PENDING")
         self.assertEqual(deposit.circle_status, Deposit.CIRCLE_INITIATED)
-        self.assertIsNone(deposit.sweep_status)
+        self.assertEqual(deposit.sweep_status, "")
 
         # No balance credited yet
         from purchase.models import Balance
