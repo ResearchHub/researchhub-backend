@@ -1,5 +1,5 @@
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Q
 from rest_framework.viewsets import ModelViewSet
 
 from feed.models import FeedEntry
@@ -155,6 +155,8 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
     def _filter_peer_reviews(queryset):
         """
         Return feed entries for documents that have peer review comments.
+        Includes document entries and peer review comments, but excludes
+        non-peer-review comments.
         """
         comment_type = ContentType.objects.get_for_model(RhCommentModel)
         peer_review_ids = RhCommentModel.objects.filter(
@@ -170,7 +172,11 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
             .distinct()
         )
 
-        return queryset.filter(unified_document_id__in=document_ids)
+        return queryset.filter(
+            unified_document_id__in=document_ids,
+        ).filter(
+            ~Q(content_type=comment_type) | Q(object_id__in=peer_review_ids),
+        )
 
     @staticmethod
     def _filter_by_content_type(queryset, content_type_name):
