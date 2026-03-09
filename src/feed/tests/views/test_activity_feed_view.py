@@ -647,7 +647,8 @@ class ActivityFeedActionDateOrderingTests(AWSMockTestCase):
 @override_settings(CELERY_TASK_ALWAYS_EAGER=False)
 class ActivityFeedPeerReviewFilterTests(AWSMockTestCase):
     """
-    Test that `peer_reviews` scope returns only peer review comment entries.
+    Test that `peer_reviews` scope returns all feed entries for documents
+    that have peer review comments.
     """
 
     def setUp(self):
@@ -715,7 +716,27 @@ class ActivityFeedPeerReviewFilterTests(AWSMockTestCase):
             user=self.user,
         )
 
-    def test_scope_peer_reviews_returns_only_peer_review_comments(self):
+        # Unrelated document with NO peer reviews (should be excluded)
+        self.unrelated_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="DISCUSSION",
+        )
+        self.unrelated_post = ResearchhubPost.objects.create(
+            title="Unrelated Post",
+            created_by=self.user,
+            document_type="DISCUSSION",
+            unified_document=self.unrelated_doc,
+        )
+        self.unrelated_entry = _make_feed_entry(
+            ResearchhubPost,
+            self.unrelated_post.id,
+            self.unrelated_doc,
+            user=self.user,
+        )
+
+    def test_scope_peer_reviews_returns_all_entries_for_reviewed_documents(self):
+        """
+        All feed entries for a document with peer reviews should be included.
+        """
         # Act
         resp = self.client.get(ACTIVITY_LIST_URL, {"scope": "peer_reviews"})
 
@@ -723,8 +744,19 @@ class ActivityFeedPeerReviewFilterTests(AWSMockTestCase):
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         ids = {e["id"] for e in resp.data["results"]}
         self.assertIn(self.peer_review_entry.id, ids)
-        self.assertNotIn(self.generic_comment_entry.id, ids)
-        self.assertNotIn(self.post_entry.id, ids)
+        self.assertIn(self.generic_comment_entry.id, ids)
+        self.assertIn(self.post_entry.id, ids)
+
+    def test_scope_peer_reviews_excludes_unrelated_documents(self):
+        """
+        Documents without peer reviews should not appear.
+        """
+        # Act
+        resp = self.client.get(ACTIVITY_LIST_URL, {"scope": "peer_reviews"})
+
+        # Assert
+        ids = {e["id"] for e in resp.data["results"]}
+        self.assertNotIn(self.unrelated_entry.id, ids)
 
     def test_scope_peer_reviews_empty_when_none_exist(self):
         # Arrange
