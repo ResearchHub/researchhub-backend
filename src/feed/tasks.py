@@ -194,6 +194,19 @@ def _get_unified_document(
             doc = item.unified_document
         case "rhcommentmodel":
             doc = item.thread.unified_document
+        case "purchase":
+            # Fundraise contribution - object_id points to Fundraise
+            from purchase.models import Fundraise
+
+            try:
+                fundraise = Fundraise.objects.select_related(
+                    "unified_document"
+                ).get(id=item.object_id)
+                doc = fundraise.unified_document
+            except Fundraise.DoesNotExist:
+                doc = None
+        case "usdfundraisecontribution":
+            doc = item.fundraise.unified_document
         case _:
             doc = None
 
@@ -223,6 +236,14 @@ def _get_authors_for_item(item: Any, item_content_type: ContentType) -> list[Aut
                 and item.created_by.author_profile
             ):
                 authors = [item.created_by.author_profile]
+        case "purchase" | "usdfundraisecontribution":
+            if (
+                hasattr(item, "user")
+                and item.user
+                and hasattr(item.user, "author_profile")
+                and item.user.author_profile
+            ):
+                authors = [item.user.author_profile]
 
     return authors
 
