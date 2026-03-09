@@ -37,6 +37,7 @@ class CircleWebhookView(APIView):
     """
 
     permission_classes = [AllowAny]
+    throttle_classes = []
 
     def head(self, request, *args, **kwargs):
         """Circle requires the webhook endpoint to accept HEAD requests."""
