@@ -367,6 +367,29 @@ class TestCircleWebhookView(TestCase):
         deposit = Deposit.objects.get(circle_transaction_id="tx-001")
         self.assertEqual(deposit.circle_status, Deposit.CIRCLE_CONFIRMED)
 
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    def test_failed_deposit_not_regressed_by_pending_webhook(self, _mock_verify):
+        """INITIATED/CONFIRMED webhook does not regress a FAILED deposit."""
+        self._post(_make_payload(state="INITIATED"))
+        self._post(_make_payload(state="FAILED"))
+
+        deposit = Deposit.objects.get(circle_transaction_id="tx-001")
+        self.assertEqual(deposit.circle_status, Deposit.CIRCLE_FAILED)
+
+        # Late INITIATED webhook should not overwrite FAILED
+        self._post(_make_payload(state="INITIATED"))
+        deposit.refresh_from_db()
+        self.assertEqual(deposit.circle_status, Deposit.CIRCLE_FAILED)
+        self.assertEqual(deposit.paid_status, "FAILED")
+
+        # Late CONFIRMED webhook should not overwrite FAILED either
+        self._post(_make_payload(state="CONFIRMED"))
+        deposit.refresh_from_db()
+        self.assertEqual(deposit.circle_status, Deposit.CIRCLE_FAILED)
+        self.assertEqual(deposit.paid_status, "FAILED")
+
     @patch("purchase.tasks.sweep_deposit_to_multisig")
     @patch(
         "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True

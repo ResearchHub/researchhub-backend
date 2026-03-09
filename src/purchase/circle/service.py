@@ -94,6 +94,7 @@ def upsert_pending_circle_deposit(
         Deposit.CIRCLE_INITIATED: 0,
         Deposit.CIRCLE_CONFIRMED: 1,
         Deposit.CIRCLE_COMPLETED: 2,
+        Deposit.CIRCLE_FAILED: 2,
     }
 
     with transaction.atomic():
