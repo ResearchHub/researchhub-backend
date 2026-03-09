@@ -16,6 +16,17 @@ class Deposit(SoftDeletableModel, PaidStatusModelMixin):
         (SWEEP_FAILED, "Failed"),
     ]
 
+    CIRCLE_INITIATED = "INITIATED"
+    CIRCLE_CONFIRMED = "CONFIRMED"
+    CIRCLE_COMPLETED = "COMPLETED"
+    CIRCLE_FAILED = "FAILED"
+    CIRCLE_STATUS_CHOICES = [
+        (CIRCLE_INITIATED, "Initiated"),
+        (CIRCLE_CONFIRMED, "Confirmed"),
+        (CIRCLE_COMPLETED, "Completed"),
+        (CIRCLE_FAILED, "Failed"),
+    ]
+
     user = models.ForeignKey(
         "user.User", related_name="deposits", on_delete=models.SET_NULL, null=True
     )
@@ -38,12 +49,23 @@ class Deposit(SoftDeletableModel, PaidStatusModelMixin):
     sweep_status = models.CharField(
         max_length=20,
         choices=SWEEP_STATUS_CHOICES,
-        null=True,
         blank=True,
+        default="",
     )
     sweep_transfer_id = models.CharField(
         max_length=255,
-        null=True,
         blank=True,
+        default="",
         db_index=True,
     )
+    circle_status = models.CharField(
+        max_length=20,
+        choices=CIRCLE_STATUS_CHOICES,
+        blank=True,
+        default="",
+    )
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["user", "paid_status"]),
+        ]
