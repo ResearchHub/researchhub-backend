@@ -7,17 +7,21 @@ from research_ai.models import ExpertSearch
 
 def get_grant_frontend_url(grant) -> str | None:
     """
-    Build frontend URL for a Grant using post id and slug.
-    Format: https://www.researchhub.com/grant/{post.id}/{post.slug}
+    Build frontend URL for a Grant using the linked post's id and slug.
+    Grant pages are routed by post: https://www.researchhub.com/grant/{post.id}/{post.slug}
     """
     if not grant or not grant.unified_document_id:
         return None
     try:
-        doc = grant.unified_document.get_document()
-        if doc is None or not hasattr(doc, "id") or not hasattr(doc, "slug"):
+        post = grant.unified_document.posts.first()
+        if not post:
+            return None
+        post_id = getattr(post, "id", None)
+        post_slug = getattr(post, "slug", None)
+        if not post_id or not post_slug:
             return None
         base = BASE_FRONTEND_URL
-        return f"{base}/grant/{doc.id}/{doc.slug}"
+        return f"{base}/grant/{post_id}/{post_slug}"
     except Exception:
         return None
 

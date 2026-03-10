@@ -268,6 +268,7 @@ def process_bulk_generate_emails_task(
                     logger.warning(
                         "Bulk generate failed for email id=%s: %s", email_id, e
                     )
+                    sentry.log_error(e, message=f"Bulk generate error for email id={email_id}")
                     rec.status = GeneratedEmail.Status.FAILED
                     rec.save(update_fields=["status", "updated_date"])
                     failed += 1

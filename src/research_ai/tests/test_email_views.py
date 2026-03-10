@@ -1,10 +1,11 @@
 from unittest.mock import patch
 
+from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from research_ai.models import ExpertSearch, GeneratedEmail
-from research_ai.views.email_views import _normalize_template
+from research_ai.views.email_views import _normalize_template, _send_plain_email
 from user.tests.helpers import create_random_authenticated_user
 
 
@@ -537,10 +538,69 @@ class BulkGenerateEmailViewTests(APITestCase):
         mock_task.delay.assert_called_once()
 
 
+class SendPlainEmailTests(APITestCase):
+    """Unit tests for _send_plain_email helper."""
+
+    @patch("research_ai.views.email_views.send_mail")
+    def test_send_plain_email_calls_send_mail_with_plain_and_html(self, mock_send_mail):
+        _send_plain_email(
+            ["to@example.com"],
+            "Subject",
+            "<p>Hello</p>",
+            reply_to=None,
+            cc=None,
+            from_email=None,
+        )
+        mock_send_mail.assert_called_once()
+        # send_mail(subject, message, from_email, recipient_list, ...)
+        call_args = mock_send_mail.call_args[0]
+        self.assertIn("Subject", call_args[0])
+        self.assertIn("Hello", call_args[1])
+        self.assertEqual(call_args[3], ["to@example.com"])
+        self.assertEqual(mock_send_mail.call_args[1]["html_message"], "<p>Hello</p>")
+
+    @patch("research_ai.views.email_views.EmailMultiAlternatives")
+    def test_send_plain_email_with_reply_to_uses_email_multi_alternatives(
+        self, mock_email_alt
+    ):
+        _send_plain_email(
+            ["to@example.com"],
+            "Subject",
+            "Body",
+            reply_to="reply@example.com",
+            cc=None,
+            from_email=None,
+        )
+        mock_email_alt.return_value.attach_alternative.assert_called_once()
+        mock_email_alt.return_value.send.assert_called_once()
+
+
 class PreviewEmailViewTests(APITestCase):
     def setUp(self):
         self.moderator = create_random_authenticated_user("mod", moderator=True)
         self.url = "/api/research_ai/expert-finder/emails/preview/"
+
+    def test_preview_user_no_email_returns_400(self):
+        """When request.user has no email/username, preview returns 400."""
+        user = create_random_authenticated_user("noemail", moderator=True)
+        email_rec = GeneratedEmail.objects.create(
+            created_by=user,
+            expert_name="Dr. X",
+            email_subject="Subj",
+            email_body="Body",
+        )
+        self.client.force_authenticate(user)
+        # Clear both so recipient is falsy (view uses email or username)
+        user.email = ""
+        if hasattr(user, "username"):
+            user.username = ""
+        response = self.client.post(
+            self.url,
+            {"generated_email_ids": [email_rec.id]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("email", response.json().get("detail", "").lower())
 
     @patch("research_ai.views.email_views._send_plain_email")
     def test_preview_by_ids_sends_to_current_user(self, mock_send):
@@ -565,6 +625,45 @@ class SendEmailViewTests(APITestCase):
     def setUp(self):
         self.moderator = create_random_authenticated_user("mod", moderator=True)
         self.url = "/api/research_ai/expert-finder/emails/send/"
+
+    @override_settings(PRODUCTION=False, TESTING=False)
+    def test_send_returns_403_when_not_production_not_testing(self):
+        email_rec = GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_name="Dr. Y",
+            expert_email="expert@example.com",
+            email_subject="Subj",
+            email_body="Body",
+            status="draft",
+        )
+        self.client.force_authenticate(self.moderator)
+        response = self.client.post(
+            self.url,
+            {"generated_email_ids": [email_rec.id]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn("disabled", response.json().get("detail", "").lower())
+
+    def test_send_user_no_email_returns_400_without_use_noreply(self):
+        user = create_random_authenticated_user("sendnoemail", moderator=True)
+        user.email = ""  # in-memory so view sees no email
+        email_rec = GeneratedEmail.objects.create(
+            created_by=user,
+            expert_name="Dr. Y",
+            expert_email="expert@example.com",
+            email_subject="Subj",
+            email_body="Body",
+            status="draft",
+        )
+        self.client.force_authenticate(user)
+        response = self.client.post(
+            self.url,
+            {"generated_email_ids": [email_rec.id], "use_noreply": False},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("email", response.json().get("detail", "").lower())
 
     @patch("research_ai.views.email_views.send_queued_emails_task")
     def test_send_queues_emails_and_returns_immediately(self, mock_task):
