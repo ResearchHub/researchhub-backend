@@ -22,7 +22,7 @@ VARIABLE_PATTERN = re.compile(r"\{\{(\w+)\.(\w+)\}\}")
 def _build_user_context(user) -> dict[str, str]:
     """Build user entity dict for variable replacement."""
     if not user:
-        return {k: "" for k in USER_VARIABLES}
+        return dict.fromkeys(USER_VARIABLES, "")
     first = getattr(user, "first_name", "") or ""
     last = getattr(user, "last_name", "") or ""
     if not isinstance(first, str):
@@ -57,7 +57,7 @@ def _build_user_context(user) -> dict[str, str]:
 def _build_rfp_context(rfp_context_dict: dict | None) -> dict[str, str]:
     """Build rfp entity dict from build_rfp_context() result."""
     if not rfp_context_dict:
-        return {k: "" for k in RFP_VARIABLES}
+        return dict.fromkeys(RFP_VARIABLES, "")
     return {
         "title": (rfp_context_dict.get("title") or "").strip(),
         "deadline": (rfp_context_dict.get("deadline") or "").strip(),
@@ -70,7 +70,7 @@ def _build_rfp_context(rfp_context_dict: dict | None) -> dict[str, str]:
 def _build_expert_context(resolved_expert: dict | None) -> dict[str, str]:
     """Build expert entity dict from resolve_expert_from_search() result."""
     if not resolved_expert:
-        return {k: "" for k in EXPERT_VARIABLES}
+        return dict.fromkeys(EXPERT_VARIABLES, "")
     return {
         "name": (resolved_expert.get("name") or "").strip(),
         "title": (resolved_expert.get("title") or "").strip(),

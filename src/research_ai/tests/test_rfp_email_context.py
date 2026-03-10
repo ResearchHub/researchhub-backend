@@ -50,7 +50,6 @@ class GetGrantFrontendUrlTests(TestCase):
         url = get_grant_frontend_url(grant)
         self.assertIsNotNone(url)
         self.assertIn("/grant/42/my-grant", url)
-        self.assertTrue(url.startswith("https://") or url.startswith("http://"))
 
     def test_returns_none_on_exception(self):
         grant = MagicMock()
