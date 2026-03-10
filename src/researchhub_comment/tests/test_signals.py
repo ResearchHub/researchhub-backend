@@ -387,3 +387,13 @@ class RewardPreregistrationUpdateSignalTests(TestCase):
         )
         # Assert
         self.assertEqual(self.reward_qs.count(), 0)
+
+    @patch("researchhub_comment.signals._reward_preregistration_update", side_effect=Exception("boom"))
+    def test_exception_is_caught_gracefully(self, mock_reward):
+        # Act
+        self._post_author_update()
+
+        # Assert
+        mock_reward.assert_called_once()
+
+
