@@ -401,6 +401,32 @@ class RewardPreregistrationUpdateSignalTests(TestCase):
         # Assert
         self.assertEqual(self.reward_qs.count(), 1)
 
+    def test_non_owner_author_update_does_not_reward(self):
+        # Arrange
+        fundraise = self._create_fundraise()
+        self._create_reminder(fundraise)
+        non_owner = create_random_default_user("non_owner")
+        # Act -- non-owner posts an AUTHOR_UPDATE on the same preregistration
+        thread = RhCommentThreadModel.objects.create(
+            thread_type=AUTHOR_UPDATE,
+            content_object=self.preregistration,
+            created_by=non_owner,
+        )
+        RhCommentModel.objects.create(
+            thread=thread,
+            created_by=non_owner,
+            comment_content_json={"text": "Update from non-owner"},
+            comment_type=AUTHOR_UPDATE,
+        )
+        # Assert -- no reward for non-owner or the actual owner
+        self.assertEqual(self.reward_qs.count(), 0)
+        self.assertFalse(
+            DistributionModel.objects.filter(
+                recipient=non_owner,
+                distribution_type="PREREGISTRATION_UPDATE_REWARD",
+            ).exists()
+        )
+
     @patch("researchhub_comment.signals.Distributor")
     def test_distribution_failure_rolls_back_and_logs(self, mock_distributor_cls):
         # Arrange
