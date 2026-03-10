@@ -506,6 +506,99 @@ class BountySerializer(serializers.Serializer):
         ]
 
 
+class FundraiseContributionContentSerializer(serializers.Serializer):
+    """
+    Serializer for fundraise contribution feed items (Purchase or
+    UsdFundraiseContribution).
+    """
+
+    id = serializers.IntegerField()
+    amount = serializers.SerializerMethodField()
+    currency = serializers.SerializerMethodField()
+    proposal_title = serializers.SerializerMethodField()
+    proposal_slug = serializers.SerializerMethodField()
+    unified_document_id = serializers.SerializerMethodField()
+    hub = serializers.SerializerMethodField()
+    category = serializers.SerializerMethodField()
+    subcategory = serializers.SerializerMethodField()
+
+    def _get_unified_document(self, obj):
+        """
+        Get unified document from the contribution's fundraise.
+        """
+        from purchase.models import Fundraise
+
+        if hasattr(obj, "purchase_type"):
+            # Purchase - object_id points to Fundraise
+            try:
+                fundraise = Fundraise.objects.select_related("unified_document").get(
+                    id=obj.object_id
+                )
+                return fundraise.unified_document
+            except Fundraise.DoesNotExist:
+                return None
+        elif hasattr(obj, "amount_cents"):
+            # UsdFundraiseContribution
+            return getattr(obj.fundraise, "unified_document", None)
+        return None
+
+    def get_amount(self, obj):
+        if hasattr(obj, "amount_cents"):
+            # UsdFundraiseContribution
+            return obj.amount_cents / 100.0
+        # Purchase (RSC)
+        return float(obj.amount)
+
+    def get_currency(self, obj):
+        if hasattr(obj, "amount_cents"):
+            return "USD"
+        return "RSC"
+
+    def get_proposal_title(self, obj):
+        ud = self._get_unified_document(obj)
+        if ud and hasattr(ud, "posts"):
+            post = ud.posts.first()
+            if post:
+                return post.title
+        return None
+
+    def get_proposal_slug(self, obj):
+        ud = self._get_unified_document(obj)
+        if ud and hasattr(ud, "posts"):
+            post = ud.posts.first()
+            if post:
+                return post.slug
+        return None
+
+    def get_unified_document_id(self, obj):
+        ud = self._get_unified_document(obj)
+        return ud.id if ud else None
+
+    def get_hub(self, obj):
+        ud = self._get_unified_document(obj)
+        if ud:
+            hub = ud.get_primary_hub(fallback=True)
+            if hub:
+                return SimpleHubSerializer(hub).data
+        return None
+
+    def get_category(self, obj):
+        ud = self._get_unified_document(obj)
+        if ud:
+            category = ud.hubs.filter(namespace=Hub.Namespace.CATEGORY).first()
+            if category:
+                return SimpleHubSerializer(category).data
+        return None
+
+    def get_subcategory(self, obj):
+        ud = self._get_unified_document(obj)
+        if ud:
+            subcategory = ud.hubs.filter(namespace=Hub.Namespace.SUBCATEGORY).first()
+            if subcategory:
+                return SimpleHubSerializer(subcategory).data
+        return None
+
+
 class CommentSerializer(serializers.Serializer):
     author = serializers.SerializerMethodField()
     comment_content_json = serializers.JSONField()
@@ -804,6 +897,8 @@ def serialize_feed_item(feed_item, item_content_type):
             return PostSerializer(feed_item).data
         case "rhcommentmodel":
             return CommentSerializer(feed_item).data
+        case "purchase" | "usdfundraisecontribution":
+            return FundraiseContributionContentSerializer(feed_item).data
         case _:
             return None
 
@@ -812,23 +907,37 @@ class FundingFeedEntrySerializer(FeedEntrySerializer):
     """Serializer for funding feed entries"""
 
     is_nonprofit = serializers.SerializerMethodField()
+    nonprofit = serializers.SerializerMethodField()
     associated_grants = serializers.SerializerMethodField()
 
     class Meta:
         model = FeedEntry
         fields = FeedEntrySerializer.Meta.fields + [
             "is_nonprofit",
+            "nonprofit",
             "associated_grants",
         ]
 
+    def get_nonprofit(self, obj):
+        if not (obj.unified_document and hasattr(obj.unified_document, "fundraises")):
+            return None
+        fundraises = obj.unified_document.fundraises.all()
+        if not fundraises:
+            return None
+        links = fundraises[0].nonprofit_links.all()
+        if not links:
+            return None
+        np = links[0].nonprofit
+        return {
+            "id": np.id,
+            "name": np.name,
+            "ein": np.ein,
+            "endaoment_org_id": np.endaoment_org_id,
+            "base_wallet_address": np.base_wallet_address,
+        }
+
     def get_is_nonprofit(self, obj):
-        if (
-            obj.unified_document
-            and hasattr(obj.unified_document, "fundraises")
-            and obj.unified_document.fundraises.exists()
-        ):
-            return obj.unified_document.fundraises.first().nonprofit_links.exists()
-        return None
+        return self.get_nonprofit(obj) is not None
 
     def get_associated_grants(self, obj):
         if not obj.item or not hasattr(obj.item, "grant_applications"):
@@ -855,6 +964,61 @@ class FundingFeedEntrySerializer(FeedEntrySerializer):
         if post and post.image:
             return default_storage.url(post.image)
         return None
+
+
+class ActivityFeedEntrySerializer(FeedEntrySerializer):
+    """
+    Serializer for activity feed entries that includes fundraise contributions.
+    """
+
+    contributions = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FeedEntry
+        fields = FeedEntrySerializer.Meta.fields + [
+            "contributions",
+        ]
+
+    def get_contributions(self, obj):
+        """
+        Return fundraise contributors for entries whose unified document has a
+        fundraise.
+        """
+        if not obj.unified_document:
+            return None
+
+        fundraises = getattr(obj.unified_document, "prefetched_fundraises", None)
+        if fundraises is None:
+            fundraises = list(obj.unified_document.fundraises.all())
+
+        if not fundraises:
+            return None
+
+        fundraise = fundraises[0]
+        aggregated = fundraise.get_contributors_summary()
+
+        result = []
+        for entry in aggregated.top:
+            serializer = SimpleUserSerializer(entry.user)
+            user_result = serializer.data
+            user_result["total_contribution"] = {
+                "rsc": entry.total_rsc,
+                "usd": entry.total_usd,
+            }
+            user_result["contributions"] = [
+                {
+                    "amount": contribution.amount,
+                    "currency": contribution.currency,
+                    "date": contribution.date,
+                }
+                for contribution in entry.contributions
+            ]
+            result.append(user_result)
+
+        return {
+            "total": aggregated.total,
+            "top": result,
+        }
 
 
 class GrantFeedEntrySerializer(FeedEntrySerializer):

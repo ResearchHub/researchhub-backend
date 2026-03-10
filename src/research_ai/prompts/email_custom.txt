@@ -1,0 +1,8 @@
+{sender_info}
+
+Use Case: {custom_use_case}
+
+{common}
+
+For this custom request, generate an email that authentically conveys the
+stated use case without fabricating details about the expert's work.

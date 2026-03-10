@@ -1,0 +1,5 @@
+{sender_info}
+
+{common}
+
+Generate a general professional outreach email based on this expert's expertise.

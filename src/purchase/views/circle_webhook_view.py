@@ -11,8 +11,10 @@ from purchase.circle.service import (
     BLOCKCHAIN_TO_NETWORK,
     COMPLETED_STATES,
     FAILED_STATES,
+    PENDING_DEPOSIT_STATES,
     is_rsc_token,
     process_circle_deposit,
+    upsert_pending_circle_deposit,
 )
 from purchase.circle.webhook import verify_webhook_signature
 from purchase.models import Wallet
@@ -35,6 +37,7 @@ class CircleWebhookView(APIView):
     """
 
     permission_classes = [AllowAny]
+    throttle_classes = []
 
     def head(self, request, *args, **kwargs):
         """Circle requires the webhook endpoint to accept HEAD requests."""
@@ -92,11 +95,15 @@ class CircleWebhookView(APIView):
             return Response(status=status.HTTP_200_OK)
 
     def _handle_inbound(self, payload, notification):
-        # Only process completed transfers.
-        # Circle uses "COMPLETED" for inbound and "COMPLETE" for outbound;
-        # accept both defensively.
         state = notification.get("state")
-        if state not in COMPLETED_STATES:
+
+        if state in COMPLETED_STATES:
+            handler = self._process_inbound_transfer
+        elif state in PENDING_DEPOSIT_STATES:
+            handler = self._create_pending_deposit
+        elif state in FAILED_STATES:
+            handler = self._fail_deposit
+        else:
             logger.info(
                 "Ignoring Circle inbound transfer in state: %s (id=%s)",
                 state,
@@ -105,7 +112,7 @@ class CircleWebhookView(APIView):
             return Response(status=status.HTTP_200_OK)
 
         try:
-            self._process_inbound_transfer(payload, notification)
+            handler(payload, notification)
         except Exception:
             logger.exception(
                 "Error processing Circle inbound transfer notification_id=%s",
@@ -177,13 +184,16 @@ class CircleWebhookView(APIView):
 
         return Response(status=status.HTTP_200_OK)
 
-    def _process_inbound_transfer(self, payload, notification):
+    def _validate_inbound_notification(self, payload, notification):
+        """
+        Validate and extract fields from an inbound Circle notification.
+
+        Returns a dict with validated fields, or ``None`` if the notification
+        is invalid and should be silently dropped.
+        """
         notification_id = payload["notificationId"]
-        circle_transaction_id = notification["id"]
         wallet_id = notification["walletId"]
         blockchain = notification.get("blockchain", "")
-        source_address = notification.get("sourceAddress", "")
-        tx_hash = notification.get("txHash", "")
         token_id = notification.get("tokenId")
         amounts = notification.get("amounts", [])
 
@@ -194,13 +204,12 @@ class CircleWebhookView(APIView):
                 blockchain,
                 notification_id,
             )
-            return
+            return None
 
-        # Validate deposit amount
         deposit_amount = amounts[0] if amounts else None
         if not deposit_amount:
             logger.error("No amounts in Circle notification %s", notification_id)
-            return
+            return None
 
         try:
             parsed_amount = Decimal(deposit_amount)
@@ -210,7 +219,7 @@ class CircleWebhookView(APIView):
                 deposit_amount,
                 notification_id,
             )
-            return
+            return None
 
         if parsed_amount <= 0:
             logger.error(
@@ -218,7 +227,7 @@ class CircleWebhookView(APIView):
                 deposit_amount,
                 notification_id,
             )
-            return
+            return None
 
         network = BLOCKCHAIN_TO_NETWORK.get(blockchain)
         if network is None:
@@ -228,9 +237,8 @@ class CircleWebhookView(APIView):
                 wallet_id,
                 notification_id,
             )
-            return
+            return None
 
-        # Look up the wallet (and user) by the chain-specific wallet ID.
         try:
             wallet = Wallet.get_by_circle_wallet_id(wallet_id, network=network)
         except Wallet.DoesNotExist:
@@ -239,13 +247,66 @@ class CircleWebhookView(APIView):
                 wallet_id,
                 notification_id,
             )
+            return None
+
+        return {
+            "circle_transaction_id": notification["id"],
+            "wallet": wallet,
+            "amount": deposit_amount,
+            "network": network,
+            "from_address": notification.get("sourceAddress", ""),
+            "transaction_hash": notification.get("txHash", ""),
+        }
+
+    def _create_pending_deposit(self, payload, notification):
+        """Create or update a pending deposit for an in-progress Circle transaction."""
+        validated = self._validate_inbound_notification(payload, notification)
+        if validated is None:
             return
 
-        process_circle_deposit(
-            circle_transaction_id=circle_transaction_id,
-            wallet=wallet,
-            amount=deposit_amount,
-            network=network,
-            from_address=source_address,
-            transaction_hash=tx_hash,
+        upsert_pending_circle_deposit(
+            circle_status=notification["state"],
+            **validated,
         )
+
+    def _fail_deposit(self, payload, notification):
+        """Mark an existing pending deposit as failed."""
+        circle_transaction_id = notification.get("id")
+        if not circle_transaction_id:
+            return
+
+        updated = (
+            Deposit.objects.filter(
+                circle_transaction_id=circle_transaction_id,
+            )
+            .exclude(
+                paid_status=Deposit.PAID,
+            )
+            .update(
+                circle_status=Deposit.CIRCLE_FAILED,
+                paid_status=Deposit.FAILED,
+            )
+        )
+
+        if updated:
+            logger.warning(
+                "Deposit marked FAILED via inbound webhook: "
+                "circle_transaction_id=%s state=%s notification_id=%s",
+                circle_transaction_id,
+                notification.get("state"),
+                payload.get("notificationId"),
+            )
+        else:
+            logger.info(
+                "No pending deposit found to fail: circle_transaction_id=%s "
+                "notification_id=%s",
+                circle_transaction_id,
+                payload.get("notificationId"),
+            )
+
+    def _process_inbound_transfer(self, payload, notification):
+        validated = self._validate_inbound_notification(payload, notification)
+        if validated is None:
+            return
+
+        process_circle_deposit(**validated)

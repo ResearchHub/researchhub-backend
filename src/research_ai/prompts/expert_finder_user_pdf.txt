@@ -1,5 +1,8 @@
 Based on the following research paper, please kindly provide me with {expert_count} recommended experts at the {expertise_level} level{region_text} and their contact for outreach purposes.
 
-**IMPORTANT**: Generate the expert recommendations table immediately. Do NOT ask follow-up questions, request clarifications, or seek additional information. Work with the research paper provided and generate results now.
+**Research paper (full text or abstract):**
+{query}
+
+**IMPORTANT**: Generate the expert recommendations table immediately. Do NOT ask follow-up questions, request clarifications, or seek additional information. Work with the research paper provided above and generate results now.
 
 Please analyze the document and generate your expert recommendations table, following all verification requirements and using only plain text formatting (no bold, no asterisks).

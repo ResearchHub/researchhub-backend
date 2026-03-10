@@ -22,7 +22,7 @@ class GeneratePdfReportTests(TestCase):
             }
         ]
         query = "Machine learning"
-        config = {"expert_count": 10, "expertise_level": "All Levels"}
+        config = {"expert_count": 10, "expertise_level": "all_levels"}
         pdf_bytes = generate_pdf_report(experts, query, config)
         self.assertIsInstance(pdf_bytes, bytes)
         self.assertTrue(pdf_bytes.startswith(b"%PDF"))

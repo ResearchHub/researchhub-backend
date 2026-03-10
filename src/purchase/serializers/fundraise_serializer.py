@@ -61,53 +61,33 @@ class DynamicFundraiseSerializer(DynamicModelFieldSerializer):
         }
 
     def get_contributors(self, fundraise):
-        # Get all contributions in a single query with prefetched user data
-        contributions = fundraise.purchases.select_related("user").order_by(
-            "-created_date"
-        )
-
-        # Process all contributions to build user data
-        user_data = {}
-        for contribution in contributions:
-            user_id = contribution.user_id
-            amount = float(contribution.amount)
-
-            if user_id not in user_data:
-                user_data[user_id] = {
-                    "user": contribution.user,
-                    "total": 0,
-                    "contributions": [],
-                }
-
-            # Add to running total
-            user_data[user_id]["total"] += amount
-
-            # Add contribution details
-            user_data[user_id]["contributions"].append(
-                {"amount": amount, "date": contribution.created_date}
-            )
+        aggregated = fundraise.get_contributors_summary()
 
         # Serialize users
         context = self.context
         _context_fields = context.get("pch_dfs_get_contributors", {})
 
         result = []
-        for user_id, data in user_data.items():
-            # Serialize the user
+        for entry in aggregated.top:
             serializer = DynamicUserSerializer(
-                data["user"], context=context, **_context_fields
+                entry.user, context=context, **_context_fields
             )
             user_result = serializer.data
-
-            # Add contribution data
-            user_result["total_contribution"] = data["total"]
-            user_result["contributions"] = data["contributions"]
+            user_result["total_contribution"] = {
+                "rsc": entry.total_rsc,
+                "usd": entry.total_usd,
+            }
+            user_result["contributions"] = [
+                {
+                    "amount": contribution.amount,
+                    "currency": contribution.currency,
+                    "date": contribution.date,
+                }
+                for contribution in entry.contributions
+            ]
             result.append(user_result)
 
-        # Sort by total contribution (descending)
-        result = sorted(result, key=lambda x: x["total_contribution"], reverse=True)
-
         return {
-            "total": len(user_data),
+            "total": aggregated.total,
             "top": result,  # Keep original key for backward compatibility
         }
