@@ -142,7 +142,7 @@ def _reward_preregistration_update(comment: RhCommentModel):
             created_by=author,
             status=Fundraise.COMPLETED,
         )
-        .order_by("-created_date")
+        .order_by("created_date")
         .values_list("id", flat=True)
     )
 
@@ -175,8 +175,8 @@ def _reward_preregistration_update(comment: RhCommentModel):
     if already_rewarded:
         return
 
-    latest_fundraise_id = completed_fundraise_ids[0]
-    fundraise = Fundraise.objects.get(id=latest_fundraise_id)
+    earliest_fundraise_id = completed_fundraise_ids[0]
+    fundraise = Fundraise.objects.get(id=earliest_fundraise_id)
 
     try:
         with transaction.atomic():

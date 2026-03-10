@@ -388,6 +388,32 @@ class RewardPreregistrationUpdateSignalTests(TestCase):
         # Assert
         self.assertEqual(self.reward_qs.count(), 0)
 
+    def test_multiple_completed_fundraises_rewards_only_once(self):
+        # Arrange
+        fundraise1 = self._create_fundraise()
+        fundraise2 = self._create_fundraise()
+        fundraise3 = self._create_fundraise()
+        self._create_reminder(fundraise1)
+        self._create_reminder(fundraise2)
+        self._create_reminder(fundraise3)
+        # Act
+        self._post_author_update()
+        # Assert
+        self.assertEqual(self.reward_qs.count(), 1)
+
+    @patch("researchhub_comment.signals.Distributor")
+    def test_distribution_failure_rolls_back_and_logs(self, mock_distributor_cls):
+        # Arrange
+        fundraise = self._create_fundraise()
+        self._create_reminder(fundraise)
+        mock_distributor_cls.return_value.distribute.side_effect = Exception(
+            "distribution failed"
+        )
+        # Act
+        self._post_author_update()
+        # Assert
+        self.assertEqual(self.reward_qs.count(), 0)
+
     @patch("researchhub_comment.signals._reward_preregistration_update", side_effect=Exception("boom"))
     def test_exception_is_caught_gracefully(self, mock_reward):
         # Act

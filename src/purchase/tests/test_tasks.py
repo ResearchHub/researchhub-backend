@@ -321,3 +321,14 @@ class PreregistrationUpdateReminderTest(TestCase):
         # Assert
         self.assertEqual(result["sent_count"], 0)
         self.assertEqual(self.notif_qs.count(), 1)
+
+    def test_multiple_completed_fundraises_sends_one_reminder(self):
+        # Arrange
+        self._create_fundraise(status=Fundraise.COMPLETED)
+        self._create_fundraise(status=Fundraise.COMPLETED)
+        self._create_fundraise(status=Fundraise.COMPLETED)
+        # Act
+        result = send_monthly_preregistration_update_reminders()
+        # Assert
+        self.assertEqual(result["sent_count"], 1)
+        self.assertEqual(self.notif_qs.count(), 1)
