@@ -133,6 +133,10 @@ def _reward_preregistration_update(comment: RhCommentModel):
         return
 
     author = comment.created_by
+
+    if document.created_by_id != author.id:
+        return
+
     unified_document = comment.unified_document
     now = datetime.now(pytz.UTC)
 
