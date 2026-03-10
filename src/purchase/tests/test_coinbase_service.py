@@ -10,6 +10,14 @@ from purchase.services.coinbase_service import CoinbaseService
 from user.tests.helpers import create_user
 
 TEST_IP = "8.8.8.8"
+MOCK_WALLET_ADDRESS = "0xABC123DEF456"
+
+
+def _mock_get_or_create_deposit_address(user):
+    """Return a fake DepositAddressResult for any user."""
+    from purchase.circle.service import DepositAddressResult
+
+    return DepositAddressResult(address=MOCK_WALLET_ADDRESS)
 
 
 @override_settings(
@@ -22,6 +30,7 @@ class TestCoinbaseService(TestCase):
     def setUp(self):
         """Set up test environment."""
         self.service = CoinbaseService()
+        self.user = create_user()
 
     def test_initialization_with_credentials(self):
         """Test service initialization with credentials."""
@@ -77,7 +86,13 @@ class TestCoinbaseService(TestCase):
 
     @patch("purchase.services.coinbase_service.requests.post")
     @patch("purchase.services.coinbase_service.generate_jwt")
-    def test_create_session_token_success(self, mock_generate_jwt, mock_post):
+    @patch(
+        "purchase.services.coinbase_service.CircleWalletService.get_or_create_deposit_address",
+        side_effect=_mock_get_or_create_deposit_address,
+    )
+    def test_create_session_token_success(
+        self, mock_wallet, mock_generate_jwt, mock_post
+    ):
         """Test successful session token creation."""
         mock_generate_jwt.return_value = "test_jwt_token"
 
@@ -90,11 +105,8 @@ class TestCoinbaseService(TestCase):
         mock_response.raise_for_status = Mock()
         mock_post.return_value = mock_response
 
-        addresses = [{"address": "0x123456789", "blockchains": ["base", "ethereum"]}]
-        assets = ["USDC", "ETH"]
-
         result = self.service.create_session_token(
-            addresses=addresses, assets=assets, client_ip=TEST_IP
+            user=self.user, assets=["USDC", "ETH"], client_ip=TEST_IP
         )
 
         # Verify the result
@@ -104,7 +116,10 @@ class TestCoinbaseService(TestCase):
         # Verify JWT generation was called
         mock_generate_jwt.assert_called_once()
 
-        # Verify the API request
+        # Verify the API request uses the Circle wallet address
+        expected_addresses = [
+            {"address": MOCK_WALLET_ADDRESS, "blockchains": ["base", "ethereum"]}
+        ]
         mock_post.assert_called_once_with(
             "https://api.developer.coinbase.com/onramp/v1/token",
             headers={
@@ -112,16 +127,22 @@ class TestCoinbaseService(TestCase):
                 "Content-Type": "application/json",
             },
             json={
-                "addresses": addresses,
+                "addresses": expected_addresses,
                 "clientIp": TEST_IP,
-                "assets": assets,
+                "assets": ["USDC", "ETH"],
             },
             timeout=30,
         )
 
     @patch("purchase.services.coinbase_service.requests.post")
     @patch("purchase.services.coinbase_service.generate_jwt")
-    def test_create_session_token_without_assets(self, mock_generate_jwt, mock_post):
+    @patch(
+        "purchase.services.coinbase_service.CircleWalletService.get_or_create_deposit_address",
+        side_effect=_mock_get_or_create_deposit_address,
+    )
+    def test_create_session_token_without_assets(
+        self, mock_wallet, mock_generate_jwt, mock_post
+    ):
         """Test session token creation without assets restriction."""
         mock_generate_jwt.return_value = "test_jwt_token"
 
@@ -133,15 +154,16 @@ class TestCoinbaseService(TestCase):
         mock_response.raise_for_status = Mock()
         mock_post.return_value = mock_response
 
-        addresses = [{"address": "0x987654321", "blockchains": ["base"]}]
-
-        self.service.create_session_token(addresses=addresses, client_ip=TEST_IP)
+        self.service.create_session_token(user=self.user, client_ip=TEST_IP)
 
         # Verify the request body doesn't include assets
         call_args = mock_post.call_args
         request_body = call_args[1]["json"]
         self.assertNotIn("assets", request_body)
-        self.assertEqual(request_body["addresses"], addresses)
+        self.assertEqual(
+            request_body["addresses"],
+            [{"address": MOCK_WALLET_ADDRESS, "blockchains": ["base", "ethereum"]}],
+        )
 
     @override_settings(COINBASE_API_KEY_ID=None, COINBASE_API_KEY_SECRET=None)
     def test_create_session_token_without_credentials(self):
@@ -150,7 +172,7 @@ class TestCoinbaseService(TestCase):
 
         with self.assertRaises(ValueError) as context:
             service.create_session_token(
-                addresses=[{"address": "0x123", "blockchains": ["base"]}],
+                user=self.user,
                 client_ip=TEST_IP,
             )
 
@@ -158,21 +180,31 @@ class TestCoinbaseService(TestCase):
 
     @patch("purchase.services.coinbase_service.requests.post")
     @patch("purchase.services.coinbase_service.generate_jwt")
-    def test_create_session_token_api_error(self, mock_generate_jwt, mock_post):
+    @patch(
+        "purchase.services.coinbase_service.CircleWalletService.get_or_create_deposit_address",
+        side_effect=_mock_get_or_create_deposit_address,
+    )
+    def test_create_session_token_api_error(
+        self, mock_wallet, mock_generate_jwt, mock_post
+    ):
         """Test session token creation with API error."""
         mock_generate_jwt.return_value = "test_jwt_token"
 
         # Mock API error response
         mock_post.side_effect = requests.RequestException("API Error")
 
-        addresses = [{"address": "0x123456789", "blockchains": ["base"]}]
-
         with self.assertRaises(requests.RequestException):
-            self.service.create_session_token(addresses=addresses, client_ip=TEST_IP)
+            self.service.create_session_token(user=self.user, client_ip=TEST_IP)
 
     @patch("purchase.services.coinbase_service.requests.post")
     @patch("purchase.services.coinbase_service.generate_jwt")
-    def test_create_session_token_http_error(self, mock_generate_jwt, mock_post):
+    @patch(
+        "purchase.services.coinbase_service.CircleWalletService.get_or_create_deposit_address",
+        side_effect=_mock_get_or_create_deposit_address,
+    )
+    def test_create_session_token_http_error(
+        self, mock_wallet, mock_generate_jwt, mock_post
+    ):
         """Test session token creation with HTTP error status."""
         mock_generate_jwt.return_value = "test_jwt_token"
 
@@ -183,14 +215,18 @@ class TestCoinbaseService(TestCase):
         )
         mock_post.return_value = mock_response
 
-        addresses = [{"address": "0x123456789", "blockchains": ["base"]}]
-
         with self.assertRaises(requests.HTTPError):
-            self.service.create_session_token(addresses=addresses, client_ip=TEST_IP)
+            self.service.create_session_token(user=self.user, client_ip=TEST_IP)
 
     @patch("purchase.services.coinbase_service.requests.post")
     @patch("purchase.services.coinbase_service.generate_jwt")
-    def test_generate_onramp_url_success(self, mock_generate_jwt, mock_post):
+    @patch(
+        "purchase.services.coinbase_service.CircleWalletService.get_or_create_deposit_address",
+        side_effect=_mock_get_or_create_deposit_address,
+    )
+    def test_generate_onramp_url_success(
+        self, mock_wallet, mock_generate_jwt, mock_post
+    ):
         """Test successful onramp URL generation."""
         mock_generate_jwt.return_value = "test_jwt_token"
 
@@ -203,10 +239,8 @@ class TestCoinbaseService(TestCase):
         mock_response.raise_for_status = Mock()
         mock_post.return_value = mock_response
 
-        addresses = [{"address": "0xABC123", "blockchains": ["base", "ethereum"]}]
-
         result = self.service.generate_onramp_url(
-            addresses=addresses,
+            user=self.user,
             assets=["ETH", "USDC"],
             default_network="base",
             preset_fiat_amount=100,
@@ -223,7 +257,13 @@ class TestCoinbaseService(TestCase):
 
     @patch("purchase.services.coinbase_service.requests.post")
     @patch("purchase.services.coinbase_service.generate_jwt")
-    def test_generate_onramp_url_minimal(self, mock_generate_jwt, mock_post):
+    @patch(
+        "purchase.services.coinbase_service.CircleWalletService.get_or_create_deposit_address",
+        side_effect=_mock_get_or_create_deposit_address,
+    )
+    def test_generate_onramp_url_minimal(
+        self, mock_wallet, mock_generate_jwt, mock_post
+    ):
         """Test onramp URL generation with minimal parameters."""
         mock_generate_jwt.return_value = "test_jwt_token"
 
@@ -235,18 +275,20 @@ class TestCoinbaseService(TestCase):
         mock_response.raise_for_status = Mock()
         mock_post.return_value = mock_response
 
-        addresses = [{"address": "0xDEF456", "blockchains": ["ethereum"]}]
-
-        result = self.service.generate_onramp_url(
-            addresses=addresses, client_ip=TEST_IP
-        )
+        result = self.service.generate_onramp_url(user=self.user, client_ip=TEST_IP)
 
         # Verify minimal URL format
         self.assertIn("https://pay.coinbase.com/buy/select-asset?sessionToken=", result)
 
     @patch("purchase.services.coinbase_service.requests.post")
     @patch("purchase.services.coinbase_service.generate_jwt")
-    def test_generate_onramp_url_with_crypto_amount(self, mock_generate_jwt, mock_post):
+    @patch(
+        "purchase.services.coinbase_service.CircleWalletService.get_or_create_deposit_address",
+        side_effect=_mock_get_or_create_deposit_address,
+    )
+    def test_generate_onramp_url_with_crypto_amount(
+        self, mock_wallet, mock_generate_jwt, mock_post
+    ):
         """Test onramp URL generation with preset crypto amount."""
         mock_generate_jwt.return_value = "test_jwt_token"
 
@@ -258,10 +300,8 @@ class TestCoinbaseService(TestCase):
         mock_response.raise_for_status = Mock()
         mock_post.return_value = mock_response
 
-        addresses = [{"address": "0x789GHI", "blockchains": ["base"]}]
-
         result = self.service.generate_onramp_url(
-            addresses=addresses,
+            user=self.user,
             preset_crypto_amount=0.5,
             client_ip=TEST_IP,
         )
@@ -270,8 +310,12 @@ class TestCoinbaseService(TestCase):
 
     @patch("purchase.services.coinbase_service.requests.post")
     @patch("purchase.services.coinbase_service.generate_jwt")
+    @patch(
+        "purchase.services.coinbase_service.CircleWalletService.get_or_create_deposit_address",
+        side_effect=_mock_get_or_create_deposit_address,
+    )
     def test_generate_onramp_url_no_token_in_response(
-        self, mock_generate_jwt, mock_post
+        self, mock_wallet, mock_generate_jwt, mock_post
     ):
         """Test error handling when token is missing from response."""
         mock_generate_jwt.return_value = "test_jwt_token"
@@ -282,10 +326,8 @@ class TestCoinbaseService(TestCase):
         mock_response.raise_for_status = Mock()
         mock_post.return_value = mock_response
 
-        addresses = [{"address": "0x123", "blockchains": ["base"]}]
-
         with self.assertRaises(ValueError) as context:
-            self.service.generate_onramp_url(addresses=addresses, client_ip=TEST_IP)
+            self.service.generate_onramp_url(user=self.user, client_ip=TEST_IP)
 
         self.assertIn(
             "Failed to get session token from response", str(context.exception)
@@ -298,7 +340,7 @@ class TestCoinbaseService(TestCase):
 
         with self.assertRaises(ValueError) as context:
             service.generate_onramp_url(
-                addresses=[{"address": "0x123", "blockchains": ["base"]}],
+                user=self.user,
                 client_ip=TEST_IP,
             )
 
@@ -316,19 +358,17 @@ class CoinbaseSecurityComplianceTests(TestCase):
         self.client.force_authenticate(user=self.user)
         self.url = "/api/payment/coinbase/create-onramp/"
         self.request_data = {
-            "addresses": [
-                {
-                    "address": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d3b6",
-                    "blockchains": ["base", "ethereum"],
-                }
-            ],
             "assets": ["ETH", "USDC"],
         }
 
     @patch("purchase.services.coinbase_service.requests.post")
     @patch("purchase.services.coinbase_service.generate_jwt")
+    @patch(
+        "purchase.services.coinbase_service.CircleWalletService.get_or_create_deposit_address",
+        side_effect=_mock_get_or_create_deposit_address,
+    )
     def test_web_request_success_with_cors_headers_and_ip_extraction(
-        self, mock_generate_jwt, mock_post
+        self, mock_wallet, mock_generate_jwt, mock_post
     ):
         mock_generate_jwt.return_value = "test_jwt_token"
         mock_response = Mock()

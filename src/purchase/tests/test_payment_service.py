@@ -179,6 +179,33 @@ class PaymentServiceTest(TestCase):
         self.assertEqual(payment.content_type, ContentType.objects.get_for_model(Paper))
         self.assertEqual(payment.user.id, self.user.id)
 
+    def test_insert_payment_from_checkout_session_null_payment_intent(self):
+        """
+        When amount_total is 0, Stripe doesn't create a payment_intent.
+        The service should fall back to the checkout session ID.
+        """
+        # Arrange
+        checkout_session = {
+            "id": "cs_session_id_1",
+            "amount_total": 0,
+            "currency": "usd",
+            "payment_intent": None,
+            "metadata": {
+                "user_id": str(self.user.id),
+                "paper_id": str(self.paper.id),
+            },
+        }
+
+        # Act
+        payment = self.service.insert_payment_from_checkout_session(checkout_session)
+
+        # Assert
+        self.assertIsInstance(payment, Payment)
+        self.assertEqual(payment.amount, 0)
+        self.assertEqual(payment.external_payment_id, "cs_session_id_1")
+        self.assertEqual(payment.payment_processor, PaymentProcessor.STRIPE)
+        self.assertEqual(payment.user.id, self.user.id)
+
     def test_insert_payment_from_checkout_session_missing_paper_id(self):
         # Arrange
         checkout_session = {
