@@ -4,6 +4,7 @@ from logging import Logger
 
 import pytz
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
@@ -135,47 +136,65 @@ def _reward_preregistration_update(comment: RhCommentModel):
     unified_document = comment.unified_document
     now = datetime.now(pytz.UTC)
 
-    completed_fundraises = Fundraise.objects.filter(
-        unified_document=unified_document,
-        created_by=author,
-        status=Fundraise.COMPLETED,
+    completed_fundraise_ids = list(
+        Fundraise.objects.filter(
+            unified_document=unified_document,
+            created_by=author,
+            status=Fundraise.COMPLETED,
+        )
+        .order_by("-created_date")
+        .values_list("id", flat=True)
     )
+
+    if not completed_fundraise_ids:
+        return
 
     fundraise_ct = ContentType.objects.get_for_model(Fundraise)
 
-    for fundraise in completed_fundraises:
-        reminder_sent = Notification.objects.filter(
-            notification_type=Notification.PREREGISTRATION_UPDATE_REMINDER,
-            recipient=author,
-            content_type=fundraise_ct,
-            object_id=fundraise.id,
-            created_date__year=now.year,
-            created_date__month=now.month,
-        ).exists()
+    reminder_sent = Notification.objects.filter(
+        notification_type=Notification.PREREGISTRATION_UPDATE_REMINDER,
+        recipient=author,
+        content_type=fundraise_ct,
+        object_id__in=completed_fundraise_ids,
+        created_date__year=now.year,
+        created_date__month=now.month,
+    ).exists()
 
-        if not reminder_sent:
-            continue
+    if not reminder_sent:
+        return
 
-        already_rewarded = DistributionModel.objects.filter(
-            recipient=author,
-            distribution_type="PREREGISTRATION_UPDATE_REWARD",
-            proof_item_content_type=fundraise_ct,
-            proof_item_object_id=fundraise.id,
-            created_date__year=now.year,
-            created_date__month=now.month,
-        ).exists()
+    already_rewarded = DistributionModel.objects.filter(
+        recipient=author,
+        distribution_type="PREREGISTRATION_UPDATE_REWARD",
+        proof_item_content_type=fundraise_ct,
+        proof_item_object_id__in=completed_fundraise_ids,
+        created_date__year=now.year,
+        created_date__month=now.month,
+    ).exists()
 
-        if already_rewarded:
-            continue
+    if already_rewarded:
+        return
 
-        rsc_amount = RscExchangeRate.usd_to_rsc(
-            PREREGISTRATION_UPDATE_REWARD_AMOUNT_USD
+    latest_fundraise_id = completed_fundraise_ids[0]
+    fundraise = Fundraise.objects.get(id=latest_fundraise_id)
+
+    try:
+        with transaction.atomic():
+            rsc_amount = RscExchangeRate.usd_to_rsc(
+                PREREGISTRATION_UPDATE_REWARD_AMOUNT_USD
+            )
+            distribution = create_preregistration_update_reward_distribution(
+                rsc_amount
+            )
+            distributor = Distributor(
+                distribution=distribution,
+                recipient=author,
+                db_record=fundraise,
+                timestamp=time.time(),
+            )
+            distributor.distribute()
+    except Exception as e:
+        logger.error(
+            f"Failed to distribute preregistration update reward "
+            f"for fundraise {fundraise.id}: {e}"
         )
-        distribution = create_preregistration_update_reward_distribution(rsc_amount)
-        distributor = Distributor(
-            distribution=distribution,
-            recipient=author,
-            db_record=fundraise,
-            timestamp=time.time(),
-        )
-        distributor.distribute()
