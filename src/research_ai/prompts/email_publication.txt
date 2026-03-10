@@ -2,9 +2,27 @@
 
 {common}
 
+EXAMPLE OF A GOOD PUBLICATION INVITATION EMAIL:
+
+Subject: Invitation to contribute to a special issue on research innovation
+
+Hello!
+
+I'm helping edit a special issue focused on practical approaches to research innovation, with an emphasis on tools, evaluation, and real-world implementation.
+
+Your expertise in this area seems especially well aligned with the themes we want to cover, and I think your perspective would add a lot to the issue. We are currently inviting short review-style contributions and expect submissions later this spring.
+
+Would you be open to contributing? I'm happy to share more detail on scope and format.
+
+---
+
 For inviting a publication contribution:
-- Specify the journal, book, or publication venue
-- Explain the scope/theme of the publication
-- Describe why their expertise fits this publication
-- Be specific about what type of contribution is needed
-- Avoid referencing any specific papers they may have written
+- Part 1 (Context): identify the publication venue, special issue, or project,
+  and explain the scope, audience, or timeline if available
+- Part 2 (Relevance): explain why their stated expertise aligns with the topic
+  or section you are inviting them to contribute to
+- Part 3 (Call to action): specify the type of contribution requested, such as
+  a review, chapter, commentary, or article, and include any key deadline or
+  next step
+- Be clear about expectations without overselling
+- Do not reference specific papers unless they were explicitly provided

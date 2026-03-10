@@ -1,6 +1,11 @@
+from django.conf import settings
 from django.db import models
 
 MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024
+
+BASE_FRONTEND_URL = getattr(
+    settings, "BASE_FRONTEND_URL", "https://www.researchhub.com"
+)
 
 
 class ExpertiseLevel(models.TextChoices):

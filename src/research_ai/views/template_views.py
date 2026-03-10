@@ -57,6 +57,9 @@ class TemplateListView(APIView):
             "contact_phone": (data.get("contact_phone") or "").strip(),
             "contact_website": (data.get("contact_website") or "").strip(),
             "outreach_context": (data.get("outreach_context") or "").strip(),
+            "template_type": data.get("template_type"),
+            "email_subject": (data.get("email_subject") or "").strip(),
+            "email_body": (data.get("email_body") or "").strip(),
         }
         template = create_template(request.user, **create_data)
         out = EmailTemplateSerializer(template)
@@ -111,6 +114,8 @@ class TemplateDetailView(APIView):
             "contact_phone",
             "contact_website",
             "outreach_context",
+            "email_subject",
+            "email_body",
         ):
             if field in data:
                 val = data[field]
