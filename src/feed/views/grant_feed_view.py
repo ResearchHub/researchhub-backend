@@ -119,7 +119,11 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             status_upper = status.upper()
             now = timezone.now()
 
-            if status_upper == Grant.OPEN:
+            if status_upper == Grant.PENDING:
+                queryset = queryset.filter(
+                    unified_document__grants__status=Grant.PENDING
+                )
+            elif status_upper == Grant.OPEN:
                 # Matches Grant.is_active(): status=OPEN and not expired
                 queryset = queryset.filter(
                     Q(unified_document__grants__status=Grant.OPEN),
