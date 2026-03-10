@@ -112,4 +112,3 @@ def replace_template_variables(text: str, context: dict[str, dict[str, Any]]) ->
         return str(value) if value is not None else ""
 
     return VARIABLE_PATTERN.sub(repl, text)
-    return VARIABLE_PATTERN.sub(repl, text)

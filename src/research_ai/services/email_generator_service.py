@@ -216,7 +216,6 @@ def _generate_with_fixed_template(
     ) or user
     context = build_replacement_context(
         user=request_user,
-        expert_search=expert_search,
         resolved_expert=expert_for_context,
         rfp_context_dict=rfp_context_dict,
     )
