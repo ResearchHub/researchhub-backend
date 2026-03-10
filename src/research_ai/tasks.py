@@ -11,6 +11,7 @@ from research_ai.services.email_generator_service import generate_expert_email
 from research_ai.services.expert_finder_service import ExpertFinderService
 from researchhub.celery import app
 from user.models import User
+from utils import sentry
 
 logger = logging.getLogger(__name__)
 
@@ -285,6 +286,9 @@ def process_bulk_generate_emails_task(
                 success += 1
             except Exception as e:
                 logger.exception("Bulk generate error for email id=%s: %s", email_id, e)
+                sentry.log_error(
+                    e, message=f"Bulk generate error for email id={email_id}"
+                )
                 try:
                     GeneratedEmail.objects.filter(id=email_id).update(
                         status=GeneratedEmail.Status.FAILED
@@ -296,6 +300,7 @@ def process_bulk_generate_emails_task(
         return {"processed": success + failed, "success": success, "failed": failed}
     except Exception as e:
         logger.exception("Bulk generate task failed: %s", e)
+        sentry.log_error(e, message="Bulk generate emails task failed")
         for email_id in generated_email_ids:
             try:
                 GeneratedEmail.objects.filter(id=email_id).update(
@@ -316,8 +321,7 @@ def send_queued_emails_task(
 ):
     """
     Send generated emails that are in SENDING status. Updates each to SENT on
-    success or SEND_FAILED on failure. Skips records without expert_email
-    (marks as SEND_FAILED).
+    success or SEND_FAILED on failure.
     """
     from research_ai.views.email_views import _send_plain_email
 

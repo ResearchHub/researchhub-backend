@@ -1,8 +1,9 @@
 import re
 from typing import Any
-
 # Supported variable names per entity (for documentation and optional validation).
 # To extend: add keys here and in _build_*_context.
+# See EMAIL_TEMPLATE_VARIABLES.md in this directory; update that README when changing
+# entities or properties below.
 USER_VARIABLES = (
     "email",
     "full_name",

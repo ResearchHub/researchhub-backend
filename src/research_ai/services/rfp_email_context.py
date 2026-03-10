@@ -1,16 +1,8 @@
-"""
-RFP (Grant) context for email generation.
-Builds grant URL from post.id/post.slug and resolves Grant from ExpertSearch.
-"""
-
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING
 
-from django.conf import settings
-
-if TYPE_CHECKING:
-    from research_ai.models import ExpertSearch
+from research_ai.constants import BASE_FRONTEND_URL
+from research_ai.models import ExpertSearch
 
 
 def get_grant_frontend_url(grant) -> str | None:
@@ -24,7 +16,7 @@ def get_grant_frontend_url(grant) -> str | None:
         doc = grant.unified_document.get_document()
         if doc is None or not hasattr(doc, "id") or not hasattr(doc, "slug"):
             return None
-        base = getattr(settings, "BASE_FRONTEND_URL", "https://www.researchhub.com")
+        base = BASE_FRONTEND_URL
         return f"{base}/grant/{doc.id}/{doc.slug}"
     except Exception:
         return None
@@ -59,7 +51,6 @@ def build_rfp_context(grant, description_snippet_length: int = 500) -> dict:
     """
     Build RFP context dict from a Grant for email templates and prompts.
     Returns: amount, deadline, title, url, description_snippet, blurb.
-    blurb is an alias for description_snippet (for {{rfp.blurb}} in templates).
     """
     if not grant:
         return {}
@@ -102,7 +93,7 @@ def resolve_expert_from_search(expert_search, expert_email: str) -> dict | None:
     return None
 
 
-def resolve_grant(*, expert_search: "ExpertSearch | None" = None):
+def resolve_grant(*, expert_search: ExpertSearch | None = None):
     """
     Resolve a Grant from expert_search's unified_document.
     Returns Grant instance or None.

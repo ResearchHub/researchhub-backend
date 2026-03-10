@@ -169,8 +169,9 @@ class BulkGenerateEmailView(APIView):
         )
 
 
-def _send_plain_email(to_emails, subject, body, reply_to=None, cc=None, from_email=None):
-    """Send email via Django (SES backend). Body is sent as HTML with a plain-text fallback."""
+def _send_plain_email(
+    to_emails, subject, body, reply_to=None, cc=None, from_email=None
+):
     subject = (subject or "").replace("\n", "").replace("\r", "")
     if not settings.PRODUCTION:
         subject = "[Staging] " + subject
@@ -280,8 +281,9 @@ class SendEmailView(APIView):
                     },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
+            get_full_name = getattr(request.user, "get_full_name", None)
             display_name = (
-                getattr(request.user, "get_full_name", lambda: "")() or ""
+                (get_full_name() if callable(get_full_name) else "") or ""
             ).strip() or "ResearchHub"
             from_email = f"{display_name} <{user_email}>"
 

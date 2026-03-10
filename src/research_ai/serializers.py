@@ -238,8 +238,7 @@ class ExpertSearchSubmitResponseSerializer(serializers.Serializer):
 
 
 class GenerateEmailRequestSerializer(serializers.Serializer):
-    """Request body for POST /expert-finder/generate-email/. Expert data is resolved from expert_results by email.
-    outreach_context comes from the template when loaded by template_id."""
+    """Request body for POST /expert-finder/generate-email/. Expert data is resolved from expert_results by email."""
 
     expert_search_id = serializers.IntegerField()
     expert_email = serializers.EmailField()
