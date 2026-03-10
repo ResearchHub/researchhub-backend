@@ -8,6 +8,7 @@ from django.utils import timezone
 from research_ai.constants import VALID_EMAIL_TEMPLATE_KEYS
 from research_ai.models import ExpertSearch, GeneratedEmail
 from research_ai.services.email_generator_service import generate_expert_email
+from research_ai.services.email_sending_service import send_plain_email
 from research_ai.services.expert_finder_service import ExpertFinderService
 from researchhub.celery import app
 from user.models import User
@@ -182,6 +183,118 @@ def process_expert_search_task(
         raise
 
 
+def _normalize_template_for_bulk(template: str) -> tuple[str, str | None]:
+    """Normalize template string to (template_key, custom_use_case)."""
+    template = (template or "").strip()
+    if template.startswith("custom:"):
+        return "custom", template[7:].strip() or None
+    if template in VALID_EMAIL_TEMPLATE_KEYS:
+        return template, None
+    return "custom", template or None
+
+
+def _get_bulk_emails_task_context(
+    generated_email_ids: list[int],
+    template_id: int | None,
+    created_by_id: int | None,
+) -> tuple | None:
+    """
+    Resolve user and template params from the first processing placeholder.
+    Returns (user, template_key, custom_use_case) or None if no placeholder found.
+    """
+    first = (
+        GeneratedEmail.objects.filter(
+            id__in=generated_email_ids,
+            status=GeneratedEmail.Status.PROCESSING,
+        )
+        .select_related("expert_search", "created_by")
+        .first()
+    )
+    if not first:
+        return None
+    user = first.created_by
+    if template_id and created_by_id:
+        try:
+            user = User.objects.get(id=created_by_id)
+        except User.DoesNotExist:
+            pass
+    template_key, custom_use_case = _normalize_template_for_bulk(first.template or "")
+    return (user, template_key, custom_use_case)
+
+
+def _process_one_bulk_email(
+    email_id: int,
+    template_key: str,
+    custom_use_case: str | None,
+    user,
+    template_id: int | None,
+) -> tuple[int, int]:
+    """
+    Generate email for one placeholder and update record. Returns (success_delta, failed_delta).
+    """
+    rec = (
+        GeneratedEmail.objects.filter(
+            id=email_id,
+            status=GeneratedEmail.Status.PROCESSING,
+        )
+        .select_related("expert_search")
+        .first()
+    )
+    if not rec:
+        return 0, 0
+    try:
+        resolved_expert = {
+            "name": rec.expert_name or "",
+            "title": rec.expert_title or "",
+            "affiliation": rec.expert_affiliation or "",
+            "expertise": rec.expertise or "",
+            "email": rec.expert_email or "",
+            "notes": rec.notes or "",
+        }
+        subject, body = generate_expert_email(
+            resolved_expert=resolved_expert,
+            template=template_key,
+            custom_use_case=custom_use_case,
+            expert_search=rec.expert_search,
+            template_id=template_id,
+            user=user,
+        )
+        rec.email_subject = subject
+        rec.email_body = body
+        rec.status = GeneratedEmail.Status.DRAFT
+        rec.save(
+            update_fields=[
+                "email_subject",
+                "email_body",
+                "status",
+                "updated_date",
+            ]
+        )
+        return 1, 0
+    except Exception as e:
+        logger.warning("Bulk generate failed for email id=%s: %s", email_id, e)
+        sentry.log_error(e, message=f"Bulk generate error for email id={email_id}")
+        try:
+            rec.status = GeneratedEmail.Status.FAILED
+            rec.save(update_fields=["status", "updated_date"])
+        except Exception:
+            GeneratedEmail.objects.filter(id=email_id).update(
+                status=GeneratedEmail.Status.FAILED
+            )
+        return 0, 1
+
+
+def _mark_generated_emails_failed(email_ids: list[int]) -> None:
+    """Set all given GeneratedEmail rows to FAILED; swallow per-id errors."""
+    for email_id in email_ids:
+        try:
+            GeneratedEmail.objects.filter(id=email_id).update(
+                status=GeneratedEmail.Status.FAILED
+            )
+        except Exception:
+            pass
+
+
 @app.task(bind=True)
 def process_bulk_generate_emails_task(
     self,
@@ -194,121 +307,33 @@ def process_bulk_generate_emails_task(
     Process placeholder GeneratedEmail rows: generate subject/body and set status to draft.
     Placeholders have status=processing; on success set to draft, on failure set to failed.
     """
-
-    def _normalize_template(template: str) -> tuple[str, str | None]:
-        template = (template or "").strip()
-        if template.startswith("custom:"):
-            return "custom", template[7:].strip() or None
-        if template in VALID_EMAIL_TEMPLATE_KEYS:
-            return template, None
-        return "custom", template or None
-
     if not generated_email_ids:
         return {"processed": 0}
 
     try:
-        first = (
-            GeneratedEmail.objects.filter(
-                id__in=generated_email_ids,
-                status=GeneratedEmail.Status.PROCESSING,
-            )
-            .select_related("expert_search", "created_by")
-            .first()
+        context = _get_bulk_emails_task_context(
+            generated_email_ids, template_id, created_by_id
         )
-        if not first:
+        if context is None:
             logger.warning(
                 "No processing placeholders found for ids=%s", generated_email_ids
             )
             return {"processed": 0}
 
-        created_by = first.created_by
-        template_key, custom_use_case = _normalize_template(first.template or "")
-
-        user = created_by
-        if template_id and created_by_id:
-            try:
-                user = User.objects.get(id=created_by_id)
-            except User.DoesNotExist:
-                pass
-
+        user, template_key, custom_use_case = context
         success = 0
         failed = 0
         for email_id in generated_email_ids:
-            try:
-                rec = (
-                    GeneratedEmail.objects.filter(
-                        id=email_id,
-                        status=GeneratedEmail.Status.PROCESSING,
-                    )
-                    .select_related("expert_search")
-                    .first()
-                )
-                if not rec:
-                    continue
-                subject = ""
-                body = ""
-                try:
-                    resolved_expert = {
-                        "name": rec.expert_name or "",
-                        "title": rec.expert_title or "",
-                        "affiliation": rec.expert_affiliation or "",
-                        "expertise": rec.expertise or "",
-                        "email": rec.expert_email or "",
-                        "notes": rec.notes or "",
-                    }
-                    subject, body = generate_expert_email(
-                        resolved_expert=resolved_expert,
-                        template=template_key,
-                        custom_use_case=custom_use_case,
-                        expert_search=rec.expert_search,
-                        template_id=template_id,
-                        user=user,
-                    )
-                except Exception as e:
-                    logger.warning(
-                        "Bulk generate failed for email id=%s: %s", email_id, e
-                    )
-                    sentry.log_error(e, message=f"Bulk generate error for email id={email_id}")
-                    rec.status = GeneratedEmail.Status.FAILED
-                    rec.save(update_fields=["status", "updated_date"])
-                    failed += 1
-                    continue
-                rec.email_subject = subject
-                rec.email_body = body
-                rec.status = GeneratedEmail.Status.DRAFT
-                rec.save(
-                    update_fields=[
-                        "email_subject",
-                        "email_body",
-                        "status",
-                        "updated_date",
-                    ]
-                )
-                success += 1
-            except Exception as e:
-                logger.exception("Bulk generate error for email id=%s: %s", email_id, e)
-                sentry.log_error(
-                    e, message=f"Bulk generate error for email id={email_id}"
-                )
-                try:
-                    GeneratedEmail.objects.filter(id=email_id).update(
-                        status=GeneratedEmail.Status.FAILED
-                    )
-                except Exception:
-                    pass
-                failed += 1
-
+            s, f = _process_one_bulk_email(
+                email_id, template_key, custom_use_case, user, template_id
+            )
+            success += s
+            failed += f
         return {"processed": success + failed, "success": success, "failed": failed}
     except Exception as e:
         logger.exception("Bulk generate task failed: %s", e)
         sentry.log_error(e, message="Bulk generate emails task failed")
-        for email_id in generated_email_ids:
-            try:
-                GeneratedEmail.objects.filter(id=email_id).update(
-                    status=GeneratedEmail.Status.FAILED
-                )
-            except Exception:
-                pass
+        _mark_generated_emails_failed(generated_email_ids)
         raise
 
 
@@ -324,7 +349,6 @@ def send_queued_emails_task(
     Send generated emails that are in SENDING status. Updates each to SENT on
     success or SEND_FAILED on failure.
     """
-    from research_ai.views.email_views import _send_plain_email
 
     cc_list = list(cc or [])
     reply_to_stripped = (reply_to or "").strip() or None
@@ -341,7 +365,7 @@ def send_queued_emails_task(
             failed += 1
             continue
         try:
-            _send_plain_email(
+            send_plain_email(
                 [rec.expert_email],
                 rec.email_subject,
                 rec.email_body,

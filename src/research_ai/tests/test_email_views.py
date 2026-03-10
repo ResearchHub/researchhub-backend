@@ -5,7 +5,8 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from research_ai.models import ExpertSearch, GeneratedEmail
-from research_ai.views.email_views import _normalize_template, _send_plain_email
+from research_ai.services.email_sending_service import send_plain_email
+from research_ai.views.email_views import _normalize_template
 from user.tests.helpers import create_random_authenticated_user
 
 
@@ -537,13 +538,51 @@ class BulkGenerateEmailViewTests(APITestCase):
         self.assertEqual(GeneratedEmail.objects.filter(status="processing").count(), 2)
         mock_task.delay.assert_called_once()
 
+    def test_post_expert_not_in_search_returns_400_and_creates_no_placeholders(self):
+        """Invalid expert email returns 400 and no GeneratedEmail records (transaction rollback)."""
+        self.client.force_authenticate(self.moderator)
+        initial_count = GeneratedEmail.objects.count()
+        response = self.client.post(
+            self.url,
+            {
+                "expert_search_id": self.expert_search.id,
+                "experts": [{"expert_email": "not-in-search@x.com"}],
+                "template": "rfp-outreach",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Expert not found", response.json().get("detail", ""))
+        self.assertEqual(GeneratedEmail.objects.count(), initial_count)
+
+    @patch("research_ai.views.email_views.process_bulk_generate_emails_task")
+    def test_post_second_expert_invalid_rolls_back_all_placeholders(self, mock_task):
+        """When second expert is invalid, no placeholders are created (atomic rollback)."""
+        self.client.force_authenticate(self.moderator)
+        initial_count = GeneratedEmail.objects.count()
+        response = self.client.post(
+            self.url,
+            {
+                "expert_search_id": self.expert_search.id,
+                "experts": [
+                    {"expert_email": "a@x.com"},
+                    {"expert_email": "not-in-search@x.com"},
+                ],
+                "template": "rfp-outreach",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(GeneratedEmail.objects.count(), initial_count)
+        mock_task.delay.assert_not_called()
+
 
 class SendPlainEmailTests(APITestCase):
-    """Unit tests for _send_plain_email helper."""
+    """Unit tests for send_plain_email service."""
 
-    @patch("research_ai.views.email_views.send_mail")
+    @patch("research_ai.services.email_sending_service.send_mail")
     def test_send_plain_email_calls_send_mail_with_plain_and_html(self, mock_send_mail):
-        _send_plain_email(
+        send_plain_email(
             ["to@example.com"],
             "Subject",
             "<p>Hello</p>",
@@ -559,11 +598,11 @@ class SendPlainEmailTests(APITestCase):
         self.assertEqual(call_args[3], ["to@example.com"])
         self.assertEqual(mock_send_mail.call_args[1]["html_message"], "<p>Hello</p>")
 
-    @patch("research_ai.views.email_views.EmailMultiAlternatives")
+    @patch("research_ai.services.email_sending_service.EmailMultiAlternatives")
     def test_send_plain_email_with_reply_to_uses_email_multi_alternatives(
         self, mock_email_alt
     ):
-        _send_plain_email(
+        send_plain_email(
             ["to@example.com"],
             "Subject",
             "Body",
@@ -602,7 +641,7 @@ class PreviewEmailViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("email", response.json().get("detail", "").lower())
 
-    @patch("research_ai.views.email_views._send_plain_email")
+    @patch("research_ai.views.email_views.send_plain_email")
     def test_preview_by_ids_sends_to_current_user(self, mock_send):
         email_rec = GeneratedEmail.objects.create(
             created_by=self.moderator,
@@ -735,7 +774,7 @@ class SendEmailViewTests(APITestCase):
         self.assertIn("email", response.json().get("detail", "").lower())
         mock_task.delay.assert_not_called()
 
-    @patch("research_ai.views.email_views._send_plain_email")
+    @patch("research_ai.tasks.send_plain_email")
     def test_send_queued_emails_task_sends_and_updates_status(self, mock_send):
         from research_ai.tasks import send_queued_emails_task
 

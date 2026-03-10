@@ -180,6 +180,106 @@ def _parse_subject_and_body(text: str) -> tuple[str, str]:
     return subject, body
 
 
+def _normalize_expert_from_resolved(resolved_expert: dict) -> dict:
+    """Extract and normalize expert fields from resolved_expert dict."""
+    return {
+        "name": (resolved_expert.get("name") or "").strip(),
+        "title": resolved_expert.get("title") or "",
+        "affiliation": resolved_expert.get("affiliation") or "",
+        "expertise": resolved_expert.get("expertise") or "",
+        "notes": resolved_expert.get("notes") or "",
+        "email": (resolved_expert.get("email") or "").strip(),
+    }
+
+
+def _generate_with_fixed_template(
+    et, template, expert_search, expert_dict: dict, user
+) -> tuple[str, str]:
+    """Generate subject/body using a fixed email template and variable replacement."""
+    rfp_context_dict = None
+    if (
+        template == EmailTemplateType.RFP_OUTREACH.value
+        and expert_search is not None
+    ):
+        grant = resolve_grant(expert_search=expert_search)
+        rfp_context_dict = build_rfp_context(grant) if grant else None
+
+    expert_for_context = {
+        "name": expert_dict["name"],
+        "title": expert_dict["title"],
+        "affiliation": expert_dict["affiliation"],
+        "email": expert_dict["email"],
+        "expertise": expert_dict["expertise"],
+    }
+    request_user = (
+        getattr(expert_search, "created_by", None) if expert_search else None
+    ) or user
+    context = build_replacement_context(
+        user=request_user,
+        expert_search=expert_search,
+        resolved_expert=expert_for_context,
+        rfp_context_dict=rfp_context_dict,
+    )
+    subject = replace_template_variables((et.email_subject or "").strip(), context)
+    body = replace_template_variables((et.email_body or "").strip(), context)
+    return subject, body
+
+
+def _get_outreach_context_and_template_data(et, template_data: dict | None):
+    """Derive outreach_context and template_data from EmailTemplate if present."""
+    outreach_context = getattr(et, "outreach_context", "").strip() or None
+    resolved_template_data = template_data or _normalize_template_data(
+        {
+            "contact_name": getattr(et, "contact_name", None) or "",
+            "contact_title": getattr(et, "contact_title", None) or "",
+            "contact_institution": getattr(et, "contact_institution", None) or "",
+            "contact_email": getattr(et, "contact_email", None) or "",
+            "contact_phone": getattr(et, "contact_phone", None) or "",
+            "contact_website": getattr(et, "contact_website", None) or "",
+        }
+    )
+    return outreach_context, resolved_template_data
+
+
+def _generate_with_llm(
+    et, template_data: dict | None, expert_dict: dict, template: str, custom_use_case
+) -> tuple[str, str]:
+    """Generate subject/body via LLM, then post-process and append signature."""
+    outreach_context = None
+    resolved_template_data = template_data
+    if et is not None:
+        outreach_context, resolved_template_data = _get_outreach_context_and_template_data(
+            et, template_data
+        )
+
+    prompt = build_email_prompt(
+        expert_name=expert_dict["name"] or "",
+        expert_title=expert_dict["title"] or "",
+        expert_affiliation=expert_dict["affiliation"] or "",
+        expertise=expert_dict["expertise"] or "",
+        notes=expert_dict["notes"] or "",
+        template=template,
+        custom_use_case=custom_use_case,
+        outreach_context=outreach_context,
+    )
+    service = BedrockLLMService()
+    raw = service.invoke(
+        system_prompt=EMAIL_SYSTEM_PROMPT,
+        user_prompt=prompt,
+        max_tokens=1024,
+        temperature=0.3,
+    )
+    normalized = _normalize_template_data(resolved_template_data)
+    text = _strip_markdown(raw)
+    text = _strip_existing_signature(text, normalized if normalized else None)
+    text = _replace_placeholders(text, normalized)
+    if normalized:
+        sig = _build_signature_block(normalized)
+        if sig:
+            text = text.rstrip() + sig
+    return _parse_subject_and_body(text)
+
+
 def generate_expert_email(
     resolved_expert: dict,
     template: str = DEFAULT_EMAIL_TEMPLATE_KEY,
@@ -195,92 +295,21 @@ def generate_expert_email(
     Returns:
         (email_subject, email_body)
     """
-    # Normalize expert fields from resolved_expert (view/task pass this dict only)
-    expert_name = (resolved_expert.get("name") or "").strip()
-    expert_title = resolved_expert.get("title") or ""
-    expert_affiliation = resolved_expert.get("affiliation") or ""
-    expertise = resolved_expert.get("expertise") or ""
-    notes = resolved_expert.get("notes") or ""
-    expert_email = (resolved_expert.get("email") or "").strip()
+    expert_dict = _normalize_expert_from_resolved(resolved_expert)
+    et = (
+        get_email_template(user, template_id)
+        if template_id is not None and user is not None
+        else None
+    )
 
-    et = None
-    if template_id is not None and user is not None:
-        et = get_email_template(user, template_id)
-
-    # Fixed-template path: use template subject/body with variable replacement.
-    # RFP_OUTREACH is the only type that adds context(grant details).
     if (
         et is not None
         and getattr(et, "template_type", None) == EmailTemplate.TemplateType.FIXED
     ):
-        rfp_context_dict = None
-        if (
-            template == EmailTemplateType.RFP_OUTREACH.value
-            and expert_search is not None
-        ):
-            grant = resolve_grant(expert_search=expert_search)
-            rfp_context_dict = build_rfp_context(grant) if grant else None
-
-        expert_for_context = {
-            "name": expert_name,
-            "title": expert_title,
-            "affiliation": expert_affiliation,
-            "email": expert_email,
-            "expertise": expertise,
-        }
-        request_user = (
-            getattr(expert_search, "created_by", None) if expert_search else None
-        ) or user
-        context = build_replacement_context(
-            user=request_user,
-            expert_search=expert_search,
-            resolved_expert=expert_for_context,
-            rfp_context_dict=rfp_context_dict,
-        )
-        subject = replace_template_variables((et.email_subject or "").strip(), context)
-        body = replace_template_variables((et.email_body or "").strip(), context)
-        return subject, body
-
-    # LLM path
-    outreach_context = None
-    if et is not None:
-        outreach_context = getattr(et, "outreach_context", "").strip() or None
-        template_data = template_data or _normalize_template_data(
-            {
-                "contact_name": getattr(et, "contact_name", None) or "",
-                "contact_title": getattr(et, "contact_title", None) or "",
-                "contact_institution": getattr(et, "contact_institution", None) or "",
-                "contact_email": getattr(et, "contact_email", None) or "",
-                "contact_phone": getattr(et, "contact_phone", None) or "",
-                "contact_website": getattr(et, "contact_website", None) or "",
-            }
+        return _generate_with_fixed_template(
+            et, template, expert_search, expert_dict, user
         )
 
-    prompt = build_email_prompt(
-        expert_name=expert_name or "",
-        expert_title=expert_title or "",
-        expert_affiliation=expert_affiliation or "",
-        expertise=expertise or "",
-        notes=notes or "",
-        template=template,
-        custom_use_case=custom_use_case,
-        outreach_context=outreach_context,
+    return _generate_with_llm(
+        et, template_data, expert_dict, template, custom_use_case
     )
-    service = BedrockLLMService()
-    raw = service.invoke(
-        system_prompt=EMAIL_SYSTEM_PROMPT,
-        user_prompt=prompt,
-        max_tokens=1024,
-        temperature=0.3,
-    )
-    # Post-process: strip markdown, signature, replace placeholders, append signature
-    normalized = _normalize_template_data(template_data)
-    text = _strip_markdown(raw)
-    text = _strip_existing_signature(text, normalized if normalized else None)
-    text = _replace_placeholders(text, normalized)
-    if normalized:
-        sig = _build_signature_block(normalized)
-        if sig:
-            text = text.rstrip() + sig
-    subject, body = _parse_subject_and_body(text)
-    return subject, body

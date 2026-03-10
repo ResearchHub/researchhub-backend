@@ -1,8 +1,7 @@
 import logging
 
 from django.conf import settings
-from django.core.mail import EmailMultiAlternatives, send_mail
-from django.utils.html import strip_tags
+from django.db import transaction
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -20,6 +19,7 @@ from research_ai.serializers import (
     SendEmailRequestSerializer,
 )
 from research_ai.services.email_generator_service import generate_expert_email
+from research_ai.services.email_sending_service import send_plain_email
 from research_ai.services.rfp_email_context import resolve_expert_from_search
 from research_ai.tasks import process_bulk_generate_emails_task, send_queued_emails_task
 from user.permissions import IsModerator
@@ -130,30 +130,36 @@ class BulkGenerateEmailView(APIView):
 
         template_key, _ = _normalize_template(data.get("template") or "")
         placeholders = []
-        for item in data["experts"]:
-            resolved = resolve_expert_from_search(expert_search, item["expert_email"])
-            if not resolved:
-                return Response(
-                    {
-                        "detail": f"Expert not found in search results: {item['expert_email']}."
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            email_record = GeneratedEmail.objects.create(
-                created_by=request.user,
-                expert_search=expert_search,
-                expert_name=(resolved.get("name") or "").strip(),
-                expert_title=resolved.get("title") or "",
-                expert_affiliation=resolved.get("affiliation") or "",
-                expert_email=(resolved.get("email") or "").strip(),
-                expertise=resolved.get("expertise") or "",
-                email_subject="",
-                email_body="",
-                template=template_key,
-                status=GeneratedEmail.Status.PROCESSING,
-                notes=resolved.get("notes") or "",
+        try:
+            with transaction.atomic():
+                for item in data["experts"]:
+                    resolved = resolve_expert_from_search(
+                        expert_search, item["expert_email"]
+                    )
+                    if not resolved:
+                        raise ValueError(
+                            f"Expert not found in search results: {item['expert_email']}."
+                        )
+                    email_record = GeneratedEmail.objects.create(
+                        created_by=request.user,
+                        expert_search=expert_search,
+                        expert_name=(resolved.get("name") or "").strip(),
+                        expert_title=resolved.get("title") or "",
+                        expert_affiliation=resolved.get("affiliation") or "",
+                        expert_email=(resolved.get("email") or "").strip(),
+                        expertise=resolved.get("expertise") or "",
+                        email_subject="",
+                        email_body="",
+                        template=template_key,
+                        status=GeneratedEmail.Status.PROCESSING,
+                        notes=resolved.get("notes") or "",
+                    )
+                    placeholders.append(email_record)
+        except ValueError as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-            placeholders.append(email_record)
 
         ids = [p.id for p in placeholders]
         process_bulk_generate_emails_task.delay(
@@ -167,45 +173,6 @@ class BulkGenerateEmailView(APIView):
             {"emails": out.data, "ids": ids},
             status=status.HTTP_202_ACCEPTED,
         )
-
-
-def _send_plain_email(
-    to_emails, subject, body, reply_to=None, cc=None, from_email=None
-):
-    subject = (subject or "").replace("\n", "").replace("\r", "")
-    if not settings.PRODUCTION:
-        subject = "[Staging] " + subject
-    if from_email is None:
-        from_email = f"ResearchHub <{settings.DEFAULT_FROM_EMAIL}>"
-    to_list = to_emails if isinstance(to_emails, list) else [to_emails]
-    html_body = body or ""
-    plain_body = strip_tags(html_body).strip() or "(No content)"
-
-    if reply_to or cc:
-        msg = EmailMultiAlternatives(
-            subject=subject,
-            body=plain_body,
-            from_email=from_email,
-            to=to_list,
-            reply_to=[reply_to] if reply_to else None,
-            cc=cc or None,
-        )
-        msg.attach_alternative(html_body, "text/html")
-        msg.send(fail_silently=False)
-    else:
-        for to in to_list:
-            try:
-                send_mail(
-                    subject,
-                    plain_body,
-                    from_email,
-                    [to],
-                    fail_silently=False,
-                    html_message=html_body,
-                )
-            except Exception as e:
-                logger.exception("Send email failed to %s: %s", to, e)
-                raise
 
 
 class PreviewEmailView(APIView):
@@ -235,7 +202,7 @@ class PreviewEmailView(APIView):
         sent = 0
         for rec in qs:
             try:
-                _send_plain_email(
+                send_plain_email(
                     [recipient],
                     rec.email_subject,
                     rec.email_body,

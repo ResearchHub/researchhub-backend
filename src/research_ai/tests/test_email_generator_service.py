@@ -78,7 +78,9 @@ class StripMarkdownTests(TestCase):
 
 class StripExistingSignatureTests(TestCase):
     def test_cuts_at_separator_in_second_half(self):
-        text = "First paragraph.\n\nSecond paragraph.\n\n---\n\n[Your Name]\n[Institution]"
+        text = (
+            "First paragraph.\n\nSecond paragraph.\n\n---\n\n[Your Name]\n[Institution]"
+        )
         result = _strip_existing_signature(text, None)
         self.assertNotIn("---", result)
         self.assertIn("Second paragraph", result)
@@ -119,22 +121,52 @@ class StripExistingSignatureTests(TestCase):
 class ReplacePlaceholdersTests(TestCase):
     def test_replaces_name_placeholders(self):
         text = "Signed, [Your Name]"
-        data = {"name": "Jane Doe", "title": "", "institution": "", "email": "", "phone": "", "website": ""}
+        data = {
+            "name": "Jane Doe",
+            "title": "",
+            "institution": "",
+            "email": "",
+            "phone": "",
+            "website": "",
+        }
         self.assertEqual(_replace_placeholders(text, data), "Signed, Jane Doe")
 
     def test_replaces_title_and_institution(self):
         text = "[Your Title] at [Institution]"
-        data = {"name": "", "title": "Prof", "institution": "MIT", "email": "", "phone": "", "website": ""}
+        data = {
+            "name": "",
+            "title": "Prof",
+            "institution": "MIT",
+            "email": "",
+            "phone": "",
+            "website": "",
+        }
         self.assertEqual(_replace_placeholders(text, data), "Prof at MIT")
 
     def test_replaces_email_phone_website(self):
         text = "Contact: [Email] [Phone] [Website]"
-        data = {"name": "", "title": "", "institution": "", "email": "j@x.com", "phone": "555", "website": "https://x.com"}
-        self.assertEqual(_replace_placeholders(text, data), "Contact: j@x.com 555 https://x.com")
+        data = {
+            "name": "",
+            "title": "",
+            "institution": "",
+            "email": "j@x.com",
+            "phone": "555",
+            "website": "https://x.com",
+        }
+        self.assertEqual(
+            _replace_placeholders(text, data), "Contact: j@x.com 555 https://x.com"
+        )
 
     def test_empty_value_does_not_replace(self):
         text = "[Your Name]"
-        data = {"name": "", "title": "", "institution": "", "email": "", "phone": "", "website": ""}
+        data = {
+            "name": "",
+            "title": "",
+            "institution": "",
+            "email": "",
+            "phone": "",
+            "website": "",
+        }
         self.assertEqual(_replace_placeholders(text, data), "[Your Name]")
 
 
@@ -143,11 +175,25 @@ class BuildSignatureBlockTests(TestCase):
         self.assertEqual(_build_signature_block({}), "")
 
     def test_all_empty_values_returns_empty_string(self):
-        data = {"name": "", "title": "", "institution": "", "email": "", "phone": "", "website": ""}
+        data = {
+            "name": "",
+            "title": "",
+            "institution": "",
+            "email": "",
+            "phone": "",
+            "website": "",
+        }
         self.assertEqual(_build_signature_block(data), "")
 
     def test_builds_signature_with_all_parts(self):
-        data = {"name": "Jane", "title": "Prof", "institution": "MIT", "email": "j@mit.edu", "phone": "", "website": ""}
+        data = {
+            "name": "Jane",
+            "title": "Prof",
+            "institution": "MIT",
+            "email": "j@mit.edu",
+            "phone": "",
+            "website": "",
+        }
         result = _build_signature_block(data)
         self.assertTrue(result.startswith("\n\nBest regards,\n\n"))
         self.assertIn("Jane", result)
@@ -292,7 +338,7 @@ class GenerateExpertEmailTests(TestCase):
         et.email_subject = "{{rfp.title}}"
         et.email_body = "Body with {{user.full_name}}."
         mock_get_template.return_value = et
-        subject, body = generate_expert_email(
+        _, body = generate_expert_email(
             resolved_expert={"name": "Dr. X"},
             template="rfp-outreach",
             expert_search=expert_search,
