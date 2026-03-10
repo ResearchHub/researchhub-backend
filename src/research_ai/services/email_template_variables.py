@@ -1,5 +1,6 @@
 import re
 from typing import Any
+
 # Supported variable names per entity (for documentation and optional validation).
 # To extend: add keys here and in _build_*_context.
 # See EMAIL_TEMPLATE_VARIABLES.md in this directory; update that README when changing
@@ -82,7 +83,6 @@ def _build_expert_context(resolved_expert: dict | None) -> dict[str, str]:
 
 def build_replacement_context(
     user=None,
-    expert_search=None,
     resolved_expert: dict | None = None,
     rfp_context_dict: dict | None = None,
 ) -> dict[str, dict[str, str]]:
@@ -111,4 +111,5 @@ def replace_template_variables(text: str, context: dict[str, dict[str, Any]]) ->
         value = context.get(entity, {}).get(field, "")
         return str(value) if value is not None else ""
 
+    return VARIABLE_PATTERN.sub(repl, text)
     return VARIABLE_PATTERN.sub(repl, text)
