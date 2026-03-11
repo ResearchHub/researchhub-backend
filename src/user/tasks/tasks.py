@@ -31,72 +31,77 @@ logger = logging.getLogger(__name__)
 @app.task
 def handle_spam_user_task(user_id, requestor=None):
     user = User.objects.filter(id=user_id).first()
+    if not user:
+        return
 
-    if user:
-        # Remove papers and their unified documents
-        papers = user.papers.all()
-        papers.update(is_removed=True)
-        ResearchhubUnifiedDocument.all_objects.filter(paper__in=papers).update(
-            is_removed=True
-        )
+    # Remove papers and their unified documents
+    papers = user.papers.all()
+    papers.update(is_removed=True)
+    ResearchhubUnifiedDocument.all_objects.filter(paper__in=papers).update(
+        is_removed=True
+    )
 
-        # Remove posts (discussions, questions, preregistrations, grants, etc.)
-        posts = user.created_posts.all()
-        post_unified_docs = ResearchhubUnifiedDocument.all_objects.filter(
-            posts__in=posts
-        ).distinct()
-        post_unified_docs.update(is_removed=True)
+    # Remove posts (discussions, questions, preregistrations, grants, etc.)
+    posts = user.created_posts.all()
+    post_unified_docs = ResearchhubUnifiedDocument.all_objects.filter(
+        posts__in=posts
+    ).distinct()
+    post_unified_docs.update(is_removed=True)
 
-        # Censor comments and cancel any bounties attached to them
-        comments = user.created_researchhub_comment_rhcommentmodel.all()
-        for comment in comments.iterator():
-            remove_bounties(comment)
-            if requestor:
-                censor(comment)
-                comment.refresh_related_discussion_count()
+    # Censor comments and cancel any bounties attached to them
+    comments = user.created_researchhub_comment_rhcommentmodel.all()
+    for comment in comments.iterator():
+        remove_bounties(comment)
+        if requestor:
+            censor(comment)
+            comment.refresh_related_discussion_count()
 
-        # Hide all activity feed actions
-        user.actions.update(display=False, is_removed=True)
+    # Hide all activity feed actions
+    user.actions.update(display=False, is_removed=True)
 
-        # Remove notes
-        ResearchhubUnifiedDocument.all_objects.filter(
-            note__created_by=user
-        ).update(is_removed=True)
+    # Remove notes
+    ResearchhubUnifiedDocument.all_objects.filter(
+        note__created_by=user
+    ).update(is_removed=True)
 
-        # Cancel any remaining open bounties the user created on other users' content
-        for bounty in user.bounties.filter(
-            status__in=[Bounty.OPEN, Bounty.ASSESSMENT]
-        ):
-            bounty.close(Bounty.CANCELLED)
+    # Cancel any remaining open bounties the user created on other users' content
+    for bounty in user.bounties.filter(
+        status__in=[Bounty.OPEN, Bounty.ASSESSMENT]
+    ):
+        bounty.close(Bounty.CANCELLED)
 
-        # Soft-delete peer reviews and reviews
-        now = timezone.now()
-        PeerReview.objects.filter(user=user).update(
-            is_removed=True, is_public=False, is_removed_date=now
-        )
-        Review.objects.filter(created_by=user).update(
-            is_removed=True, is_public=False, is_removed_date=now
-        )
+    # Soft-delete peer reviews and reviews
+    now = timezone.now()
+    PeerReview.objects.filter(user=user).update(
+        is_removed=True, is_public=False, is_removed_date=now
+    )
+    Review.objects.filter(created_by=user).update(
+        is_removed=True, is_public=False, is_removed_date=now
+    )
 
-        # Close open fundraises and refund escrowed RSC to contributors
-        for fundraise in user.fundraises.filter(
-            status=Fundraise.OPEN
-        ).select_related("escrow"):
-            if fundraise.escrow and fundraise.escrow.amount_holding > 0:
-                for purchase in fundraise.purchases.select_related("user"):
-                    refund_amount = min(
-                        Decimal(purchase.amount), fundraise.escrow.amount_holding
-                    )
-                    if refund_amount > 0:
-                        fundraise.escrow.refund(purchase.user, refund_amount)
-            fundraise.status = Fundraise.CLOSED
-            fundraise.save(update_fields=["status"])
+    # Close open fundraises and refund escrowed RSC to contributors
+    for fundraise in user.fundraises.filter(
+        status=Fundraise.OPEN
+    ).select_related("escrow"):
+        _close_and_refund_fundraise(fundraise)
 
-        # Close open grants (RFPs)
-        user.grants.filter(status=Grant.OPEN).update(status=Grant.CLOSED)
+    # Close open grants (RFPs)
+    user.grants.filter(status=Grant.OPEN).update(status=Grant.CLOSED)
 
-        # Resolve any open moderation flags on the user's content
-        _resolve_open_flags_for_user(user, requestor)
+    # Resolve any open moderation flags on the user's content
+    _resolve_open_flags_for_user(user, requestor)
+
+
+def _close_and_refund_fundraise(fundraise):
+    if fundraise.escrow and fundraise.escrow.amount_holding > 0:
+        for purchase in fundraise.purchases.select_related("user"):
+            refund_amount = min(
+                Decimal(purchase.amount), fundraise.escrow.amount_holding
+            )
+            if refund_amount > 0:
+                fundraise.escrow.refund(purchase.user, refund_amount)
+    fundraise.status = Fundraise.CLOSED
+    fundraise.save(update_fields=["status"])
 
 
 def _resolve_open_flags_for_user(user, requestor=None):

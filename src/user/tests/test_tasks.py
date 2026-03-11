@@ -322,7 +322,7 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
         note_unified_doc = ResearchhubUnifiedDocument.objects.create(
             document_type="NOTE"
         )
-        note = Note.objects.create(
+        Note.objects.create(
             created_by=self.user,
             title="Spam Note",
             unified_document=note_unified_doc,
@@ -440,7 +440,7 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
         prereg_unified_doc = ResearchhubUnifiedDocument.objects.create(
             document_type="PREREGISTRATION"
         )
-        prereg_post = ResearchhubPost.objects.create(
+        ResearchhubPost.objects.create(
             created_by=self.user,
             title="Preregistration",
             renderable_text="Prereg content",
@@ -517,7 +517,7 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
         note_unified_doc = ResearchhubUnifiedDocument.objects.create(
             document_type="NOTE"
         )
-        note = Note.objects.create(
+        Note.objects.create(
             created_by=self.user,
             title="Spam Note",
             unified_document=note_unified_doc,
