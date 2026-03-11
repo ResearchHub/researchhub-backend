@@ -1,16 +1,26 @@
+from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
+from discussion.constants.flag_reasons import ABUSIVE_OR_RUDE, SPAM
+from discussion.models import Flag
+from discussion.views import censor
+from note.models import Note
 from paper.tests.helpers import create_paper
+from purchase.models import Fundraise, Grant, Purchase
+from reputation.models import Bounty, Escrow
 from researchhub_comment.models import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from review.models.peer_review_model import PeerReview
+from review.models.review_model import Review
 from user.models import Action
+from user.related_models.verdict_model import Verdict
 from user.tasks import get_latest_actions, handle_spam_user_task, reinstate_user_task
 from user.tests.helpers import create_actions, create_random_default_user
 
@@ -299,3 +309,276 @@ class HandleSpamUserTaskTests(TestCase):
         # Check all comments are restored
         self.assertFalse(self.comment.is_removed)
         self.assertFalse(comment2.is_removed)
+
+
+class HandleSpamUserContentTests(HandleSpamUserTaskTests):
+    def setUp(self):
+        super().setUp()
+        self.other_user = create_random_default_user("content_other_user")
+
+    def test_suspend_removes_all_new_content_types(self):
+        """Notes, peer reviews, reviews, and grants are all removed on suspend."""
+        # Arrange
+        note_unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="NOTE"
+        )
+        note = Note.objects.create(
+            created_by=self.user,
+            title="Spam Note",
+            unified_document=note_unified_doc,
+        )
+
+        peer_review = PeerReview.objects.create(user=self.user, paper=self.paper)
+
+        other_thread = RhCommentThreadModel.objects.create(
+            created_by=self.other_user,
+            content_type=ContentType.objects.get_for_model(self.paper),
+            object_id=self.paper.id,
+        )
+        other_comment = RhCommentModel.objects.create(
+            created_by=self.other_user,
+            comment_content_json={"ops": [{"insert": "Other comment"}]},
+            thread=other_thread,
+        )
+        review = Review.objects.create(
+            created_by=self.user,
+            score=5.0,
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=other_comment.id,
+        )
+
+        grant_unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="GRANT"
+        )
+        ResearchhubPost.objects.create(
+            created_by=self.user,
+            title="Grant Post",
+            renderable_text="Grant content",
+            document_type="GRANT",
+            unified_document=grant_unified_doc,
+        )
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_unified_doc,
+            amount=Decimal("10000"),
+            organization="Test Org",
+            description="Test grant",
+            status=Grant.OPEN,
+        )
+
+        # Act
+        handle_spam_user_task(self.user.id, self.moderator)
+
+        # Assert
+        note_unified_doc.refresh_from_db()
+        self.assertTrue(note_unified_doc.is_removed)
+
+        peer_review.refresh_from_db()
+        self.assertTrue(peer_review.is_removed)
+        self.assertFalse(peer_review.is_public)
+
+        review = Review.all_objects.get(id=review.id)
+        self.assertTrue(review.is_removed)
+        self.assertFalse(review.is_public)
+
+        grant.refresh_from_db()
+        self.assertEqual(grant.status, Grant.CLOSED)
+
+    def test_suspend_cancels_open_bounties(self):
+        """Open bounties created by the user on other users' content are cancelled."""
+        # Arrange
+        other_post = ResearchhubPost.objects.create(
+            created_by=self.other_user,
+            title="Other Post",
+            renderable_text="Other content",
+            document_type="DISCUSSION",
+            unified_document=ResearchhubUnifiedDocument.objects.create(
+                document_type="DISCUSSION"
+            ),
+        )
+        other_thread = RhCommentThreadModel.objects.create(
+            created_by=self.other_user,
+            content_type=ContentType.objects.get_for_model(other_post),
+            object_id=other_post.id,
+        )
+        other_comment = RhCommentModel.objects.create(
+            created_by=self.other_user,
+            comment_content_json={"ops": [{"insert": "Other comment"}]},
+            thread=other_thread,
+        )
+
+        escrow = Escrow.objects.create(
+            created_by=self.user,
+            hold_type=Escrow.BOUNTY,
+            amount_holding=Decimal("100"),
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=other_comment.id,
+        )
+        bounty = Bounty.objects.create(
+            created_by=self.user,
+            amount=Decimal("100"),
+            status=Bounty.OPEN,
+            bounty_type=Bounty.Type.ANSWER,
+            item_content_type=ContentType.objects.get_for_model(RhCommentModel),
+            item_object_id=other_comment.id,
+            escrow=escrow,
+            unified_document=other_post.unified_document,
+        )
+
+        # Act
+        handle_spam_user_task(self.user.id, self.moderator)
+
+        # Assert
+        bounty.refresh_from_db()
+        escrow.refresh_from_db()
+        self.assertEqual(bounty.status, Bounty.CANCELLED)
+        self.assertEqual(escrow.amount_holding, Decimal("0"))
+
+    def test_suspend_closes_fundraises_and_refunds_escrow(self):
+        """Open fundraises are closed and escrowed RSC is refunded to contributors."""
+        # Arrange
+        prereg_unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PREREGISTRATION"
+        )
+        prereg_post = ResearchhubPost.objects.create(
+            created_by=self.user,
+            title="Preregistration",
+            renderable_text="Prereg content",
+            document_type="PREREGISTRATION",
+            unified_document=prereg_unified_doc,
+        )
+
+        escrow = Escrow.objects.create(
+            created_by=self.user,
+            hold_type=Escrow.FUNDRAISE,
+            amount_holding=Decimal("100"),
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=prereg_unified_doc.id,
+        )
+        fundraise = Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=prereg_unified_doc,
+            escrow=escrow,
+            status=Fundraise.OPEN,
+            goal_amount=Decimal("1000"),
+        )
+
+        Purchase.objects.create(
+            user=self.other_user,
+            content_type=ContentType.objects.get_for_model(Fundraise),
+            object_id=fundraise.id,
+            purchase_method=Purchase.OFF_CHAIN,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            paid_status=Purchase.PAID,
+            amount="100",
+        )
+
+        # Act
+        handle_spam_user_task(self.user.id, self.moderator)
+
+        # Assert
+        fundraise.refresh_from_db()
+        escrow.refresh_from_db()
+        self.assertEqual(fundraise.status, Fundraise.CLOSED)
+        self.assertEqual(escrow.amount_holding, Decimal("0"))
+
+    def test_suspend_resolves_open_flags(self):
+        """Open flags on the user's content get verdicts matching original reason."""
+        # Arrange
+        flagger = self.other_user
+        paper_flag = Flag.objects.create(
+            created_by=flagger,
+            content_type=ContentType.objects.get_for_model(self.paper),
+            object_id=self.paper.id,
+            reason_choice=SPAM,
+        )
+        comment_flag = Flag.objects.create(
+            created_by=flagger,
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=self.comment.id,
+            reason_choice=ABUSIVE_OR_RUDE,
+        )
+
+        # Act
+        handle_spam_user_task(self.user.id, self.moderator)
+
+        # Assert
+        paper_verdict = Verdict.objects.get(flag=paper_flag)
+        self.assertTrue(paper_verdict.is_content_removed)
+        self.assertEqual(paper_verdict.verdict_choice, SPAM)
+
+        comment_verdict = Verdict.objects.get(flag=comment_flag)
+        self.assertTrue(comment_verdict.is_content_removed)
+        self.assertEqual(comment_verdict.verdict_choice, ABUSIVE_OR_RUDE)
+
+    def test_reinstate_restores_new_content_types(self):
+        """Notes, peer reviews, and reviews are restored on reinstate."""
+        # Arrange
+        note_unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="NOTE"
+        )
+        note = Note.objects.create(
+            created_by=self.user,
+            title="Spam Note",
+            unified_document=note_unified_doc,
+        )
+
+        peer_review = PeerReview.objects.create(user=self.user, paper=self.paper)
+
+        review = Review.objects.create(
+            created_by=self.user,
+            score=5.0,
+            content_type=ContentType.objects.get_for_model(self.paper),
+            object_id=self.paper.id,
+        )
+
+        handle_spam_user_task(self.user.id, self.moderator)
+
+        # Act
+        reinstate_user_task(self.user.id)
+
+        # Assert
+        note_unified_doc.refresh_from_db()
+        self.assertFalse(note_unified_doc.is_removed)
+
+        peer_review = PeerReview.all_objects.get(id=peer_review.id)
+        self.assertFalse(peer_review.is_removed)
+        self.assertTrue(peer_review.is_public)
+
+        review = Review.all_objects.get(id=review.id)
+        self.assertFalse(review.is_removed)
+        self.assertTrue(review.is_public)
+
+
+class CensorFunctionTests(TestCase):
+    def test_censor_soft_deletes_reviews(self):
+        """censor() soft-deletes reviews instead of hard-deleting them."""
+        # Arrange
+        user = create_random_default_user("censor_user")
+        paper = create_paper(title="Censor Paper", uploaded_by=user)
+
+        thread = RhCommentThreadModel.objects.create(
+            created_by=user,
+            content_type=ContentType.objects.get_for_model(paper),
+            object_id=paper.id,
+        )
+        comment = RhCommentModel.objects.create(
+            created_by=user,
+            comment_content_json={"ops": [{"insert": "Test comment"}]},
+            thread=thread,
+        )
+        review = Review.objects.create(
+            created_by=user,
+            score=7.0,
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=comment.id,
+        )
+
+        # Act
+        censor(comment)
+
+        # Assert
+        self.assertTrue(Review.all_objects.filter(id=review.id).exists())
+        review = Review.all_objects.get(id=review.id)
+        self.assertTrue(review.is_removed)
+        self.assertFalse(review.is_public)

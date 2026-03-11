@@ -1,6 +1,7 @@
 from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError, transaction
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -41,7 +42,9 @@ def censor(item):
         item.unified_document.delete(soft=True)
 
     if reviews := getattr(item, "reviews", None):
-        reviews.all().delete()
+        reviews.all().update(
+            is_removed=True, is_public=False, is_removed_date=timezone.now()
+        )
 
     if action := getattr(item, "actions", None):
         if action.exists():
