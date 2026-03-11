@@ -7,6 +7,8 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import load_der_public_key
 from django.core.cache import cache
 
+from purchase.circle.client import CircleWalletClient
+
 logger = logging.getLogger(__name__)
 
 CIRCLE_PUBLIC_KEY_CACHE_TTL = 60 * 60  # 1 hour
@@ -18,8 +20,6 @@ _UUID_RE = re.compile(
 
 def _fetch_public_key(key_id: str) -> str:
     """Fetch a Circle notification public key by ID (base64-encoded DER)."""
-    from purchase.circle.client import CircleWalletClient
-
     client = CircleWalletClient()
     try:
         return client.get_notification_public_key(key_id)
