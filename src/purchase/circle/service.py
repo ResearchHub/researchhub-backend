@@ -30,13 +30,24 @@ FAILED_STATES = {"FAILED", "CANCELLED", "DENIED"}
 # but not yet finalized (i.e. not yet safe to credit the user).
 PENDING_DEPOSIT_STATES = {"INITIATED", "CONFIRMED"}
 
-# Map Circle blockchain identifiers to our Deposit.network choices.
+# Single source of truth for network <-> Circle blockchain mappings.
+_NETWORK_DEFS = [
+    {
+        "network": "ETHEREUM",
+        "mainnet_blockchain": "ETH",
+        "testnet_blockchain": "ETH-SEPOLIA",
+    },
+    {
+        "network": "BASE",
+        "mainnet_blockchain": "BASE",
+        "testnet_blockchain": "BASE-SEPOLIA",
+    },
+]
+
+# Map Circle blockchain identifiers to our Deposit.network choices (both envs).
 BLOCKCHAIN_TO_NETWORK = {
-    "ETH": "ETHEREUM",
-    "ETH-SEPOLIA": "ETHEREUM",
-    "BASE": "BASE",
-    "BASE-SEPOLIA": "BASE",
-}
+    d["mainnet_blockchain"]: d["network"] for d in _NETWORK_DEFS
+} | {d["testnet_blockchain"]: d["network"] for d in _NETWORK_DEFS}
 
 # Known Circle token IDs for the RSC token, keyed by Circle blockchain identifier.
 # These are stable identifiers assigned by Circle and do not change.
@@ -246,15 +257,12 @@ def _dispatch_sweep(wallet, amount, network, circle_transaction_id):
 # smaller sweeps go to the hot wallet.
 SWEEP_MULTISIG_THRESHOLD_USD = 10_000
 
-# Map Deposit.network values to Circle blockchain identifiers
+# Map Deposit.network values to Circle blockchain identifiers (derived from _NETWORK_DEFS).
 NETWORK_TO_BLOCKCHAIN_MAINNET = {
-    "ETHEREUM": "ETH",
-    "BASE": "BASE",
+    d["network"]: d["mainnet_blockchain"] for d in _NETWORK_DEFS
 }
-
 NETWORK_TO_BLOCKCHAIN_TESTNET = {
-    "ETHEREUM": "ETH-SEPOLIA",
-    "BASE": "BASE-SEPOLIA",
+    d["network"]: d["testnet_blockchain"] for d in _NETWORK_DEFS
 }
 
 
