@@ -506,6 +506,99 @@ class BountySerializer(serializers.Serializer):
         ]
 
 
+class FundraiseContributionContentSerializer(serializers.Serializer):
+    """
+    Serializer for fundraise contribution feed items (Purchase or
+    UsdFundraiseContribution).
+    """
+
+    id = serializers.IntegerField()
+    amount = serializers.SerializerMethodField()
+    currency = serializers.SerializerMethodField()
+    proposal_title = serializers.SerializerMethodField()
+    proposal_slug = serializers.SerializerMethodField()
+    unified_document_id = serializers.SerializerMethodField()
+    hub = serializers.SerializerMethodField()
+    category = serializers.SerializerMethodField()
+    subcategory = serializers.SerializerMethodField()
+
+    def _get_unified_document(self, obj):
+        """
+        Get unified document from the contribution's fundraise.
+        """
+        from purchase.models import Fundraise
+
+        if hasattr(obj, "purchase_type"):
+            # Purchase - object_id points to Fundraise
+            try:
+                fundraise = Fundraise.objects.select_related("unified_document").get(
+                    id=obj.object_id
+                )
+                return fundraise.unified_document
+            except Fundraise.DoesNotExist:
+                return None
+        elif hasattr(obj, "amount_cents"):
+            # UsdFundraiseContribution
+            return getattr(obj.fundraise, "unified_document", None)
+        return None
+
+    def get_amount(self, obj):
+        if hasattr(obj, "amount_cents"):
+            # UsdFundraiseContribution
+            return obj.amount_cents / 100.0
+        # Purchase (RSC)
+        return float(obj.amount)
+
+    def get_currency(self, obj):
+        if hasattr(obj, "amount_cents"):
+            return "USD"
+        return "RSC"
+
+    def get_proposal_title(self, obj):
+        ud = self._get_unified_document(obj)
+        if ud and hasattr(ud, "posts"):
+            post = ud.posts.first()
+            if post:
+                return post.title
+        return None
+
+    def get_proposal_slug(self, obj):
+        ud = self._get_unified_document(obj)
+        if ud and hasattr(ud, "posts"):
+            post = ud.posts.first()
+            if post:
+                return post.slug
+        return None
+
+    def get_unified_document_id(self, obj):
+        ud = self._get_unified_document(obj)
+        return ud.id if ud else None
+
+    def get_hub(self, obj):
+        ud = self._get_unified_document(obj)
+        if ud:
+            hub = ud.get_primary_hub(fallback=True)
+            if hub:
+                return SimpleHubSerializer(hub).data
+        return None
+
+    def get_category(self, obj):
+        ud = self._get_unified_document(obj)
+        if ud:
+            category = ud.hubs.filter(namespace=Hub.Namespace.CATEGORY).first()
+            if category:
+                return SimpleHubSerializer(category).data
+        return None
+
+    def get_subcategory(self, obj):
+        ud = self._get_unified_document(obj)
+        if ud:
+            subcategory = ud.hubs.filter(namespace=Hub.Namespace.SUBCATEGORY).first()
+            if subcategory:
+                return SimpleHubSerializer(subcategory).data
+        return None
+
+
 class CommentSerializer(serializers.Serializer):
     author = serializers.SerializerMethodField()
     comment_content_json = serializers.JSONField()
@@ -804,6 +897,8 @@ def serialize_feed_item(feed_item, item_content_type):
             return PostSerializer(feed_item).data
         case "rhcommentmodel":
             return CommentSerializer(feed_item).data
+        case "purchase" | "usdfundraisecontribution":
+            return FundraiseContributionContentSerializer(feed_item).data
         case _:
             return None
 

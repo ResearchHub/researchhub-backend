@@ -7,23 +7,25 @@ from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 
 from feed.models import FeedEntry
-from feed.tasks import refresh_feed_entry_by_id
+from feed.tasks import create_feed_entry, refresh_feed_entry_by_id
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.purchase_model import Purchase
+from purchase.related_models.usd_fundraise_contribution_model import (
+    UsdFundraiseContribution,
+)
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 
 logger = logging.getLogger(__name__)
 
 
 @receiver(post_save, sender=Purchase)
-def refresh_feed_entries_on_purchase(sender, instance, created, **kwargs):
+def handle_purchase_feed_entry(sender, instance, created, **kwargs):
     """
     Signal handler that refreshes feed entries when a purchase is created or updated.
     This ensures feed entries show the latest purchase information.
 
-    For fundraise contributions, we need to find feed entries via the unified document
-    since contributions are linked to Fundraise objects, but feed entries are created
-    for Post objects.
+    For fundraise contributions, we also create a dedicated feed entry
+    so the contribution appears as its own activity in the feed.
     """
     try:
         # Handle fundraise contributions differently
@@ -48,8 +50,12 @@ def refresh_feed_entries_on_purchase(sender, instance, created, **kwargs):
                 )
                 return
 
-            # Find all feed entries for this unified document
-            feed_entries = FeedEntry.objects.filter(unified_document=unified_document)
+            # Create a new feed entry for this contribution
+            if created:
+                _create_contribution_feed_entry(instance, unified_document)
+
+            # Refresh existing document feed entries
+            _refresh_document_feed_entries(unified_document)
         else:
             # For non-fundraise purchases, use direct lookup
             feed_entries = FeedEntry.objects.filter(
@@ -57,20 +63,84 @@ def refresh_feed_entries_on_purchase(sender, instance, created, **kwargs):
                 object_id=instance.object_id,
             )
 
-        if feed_entries.exists():
-            # Update all matching feed entries
-            tasks = [
-                partial(
-                    refresh_feed_entry_by_id.apply_async, args=(entry.id,), priority=1
-                )
-                for entry in feed_entries
-            ]
-            transaction.on_commit(lambda: [task() for task in tasks])
+            if feed_entries.exists():
+                # Update all matching feed entries
+                tasks = [
+                    partial(
+                        refresh_feed_entry_by_id.apply_async,
+                        args=(entry.id,),
+                        priority=1,
+                    )
+                    for entry in feed_entries
+                ]
+                transaction.on_commit(lambda: [task() for task in tasks])
 
     except Exception as e:
         logger.error(
             f"Error refreshing feed entries for purchase {instance.id}: {str(e)}"
         )
+
+
+@receiver(post_save, sender=UsdFundraiseContribution)
+def handle_usd_contribution_feed_entry(sender, instance, created, **kwargs):
+    """
+    When a USD fundraise contribution is created, create a new
+    feed entry for it and refresh existing document feed entries.
+    """
+    if not created:
+        return
+
+    try:
+        fundraise = instance.fundraise
+        unified_document = fundraise.unified_document
+        if not unified_document:
+            logger.warning(f"No unified document found for fundraise {fundraise.id}")
+            return
+
+        _create_contribution_feed_entry(instance, unified_document)
+        _refresh_document_feed_entries(unified_document)
+
+    except Exception as e:
+        logger.error(
+            f"Error handling feed entry for USD contribution {instance.id}: {str(e)}"
+        )
+
+
+def _create_contribution_feed_entry(instance, unified_document):
+    """
+    Create a feed entry for a fundraise contribution.
+    """
+    content_type = ContentType.objects.get_for_model(instance)
+    hub_ids = list(unified_document.hubs.values_list("id", flat=True))
+    transaction.on_commit(
+        lambda: create_feed_entry.apply_async(
+            args=(
+                instance.id,
+                content_type.id,
+                FeedEntry.PUBLISH,
+                hub_ids,
+                instance.user.id,
+            ),
+            priority=1,
+        )
+    )
+
+
+def _refresh_document_feed_entries(unified_document):
+    """
+    Refresh existing feed entries for a unified document.
+    """
+    feed_entries = FeedEntry.objects.filter(unified_document=unified_document)
+    if feed_entries.exists():
+        tasks = [
+            partial(
+                refresh_feed_entry_by_id.apply_async,
+                args=(entry.id,),
+                priority=1,
+            )
+            for entry in feed_entries
+        ]
+        transaction.on_commit(lambda: [task() for task in tasks])
 
 
 @receiver(post_save, sender=GrantApplication)

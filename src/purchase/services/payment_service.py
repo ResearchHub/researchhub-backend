@@ -31,7 +31,7 @@ from user.models import User
 logger = logging.getLogger(__name__)
 
 # The amount for Article Processing Charge (APC) in cents
-APC_AMOUNT_CENTS = 0  # $0 - Zero cost transaction
+APC_AMOUNT_CENTS = 100  # = $1
 
 # Stripe fee structure (as of 2024)
 STRIPE_FEE_PERCENT = Decimal("0.029")  # 2.9%

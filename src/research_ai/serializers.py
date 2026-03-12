@@ -238,26 +238,68 @@ class ExpertSearchSubmitResponseSerializer(serializers.Serializer):
 
 
 class GenerateEmailRequestSerializer(serializers.Serializer):
-    """Request body for POST /expert-finder/generate-email/."""
+    """Request body for POST /expert-finder/generate-email/. Expert data is resolved from expert_results by email."""
 
-    expert_name = serializers.CharField(required=True, allow_blank=False)
-    expert_title = serializers.CharField(required=False, default="")
-    expert_affiliation = serializers.CharField(required=False, default="")
-    expert_email = serializers.EmailField(required=False, default="", allow_blank=True)
-    expertise = serializers.CharField(required=False, default="")
-    notes = serializers.CharField(required=False, default="")
+    expert_search_id = serializers.IntegerField()
+    expert_email = serializers.EmailField()
     template = serializers.CharField(required=True)
-    expert_search_id = serializers.IntegerField(required=False, allow_null=True)
-    outreach_context = serializers.CharField(
-        required=False, default="", allow_blank=True
-    )
-    template_data = serializers.DictField(required=False, allow_null=True)
     template_id = serializers.IntegerField(required=False, allow_null=True)
 
     def validate_template(self, value):
         if not value or not value.strip():
             raise serializers.ValidationError("template is required")
         return value.strip()
+
+
+class BulkGenerateEmailExpertSerializer(serializers.Serializer):
+    """One expert in a bulk generate request; expert data is resolved from expert_results by email."""
+
+    expert_email = serializers.EmailField()
+
+
+class BulkGenerateEmailRequestSerializer(serializers.Serializer):
+    """Request body for POST /expert-finder/generate-emails-bulk/."""
+
+    expert_search_id = serializers.IntegerField()
+    experts = serializers.ListField(
+        child=BulkGenerateEmailExpertSerializer(),
+        min_length=1,
+        max_length=100,
+    )
+    template = serializers.CharField(required=True)
+    template_id = serializers.IntegerField(required=False, allow_null=True)
+
+    def validate_template(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("template is required")
+        return value.strip()
+
+
+class PreviewEmailRequestSerializer(serializers.Serializer):
+    """Request for POST /expert-finder/emails/preview/. Send existing generated emails to current user."""
+
+    generated_email_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        min_length=1,
+        max_length=100,
+    )
+
+
+class SendEmailRequestSerializer(serializers.Serializer):
+    """Request for POST /expert-finder/emails/send/."""
+
+    generated_email_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        min_length=1,
+        max_length=100,
+    )
+    reply_to = serializers.EmailField(required=False, allow_blank=True, default="")
+    cc = serializers.ListField(
+        child=serializers.EmailField(),
+        required=False,
+        default=list,
+    )
+    use_noreply = serializers.BooleanField(required=False, default=False)
 
 
 class GeneratedEmailSerializer(serializers.ModelSerializer):
@@ -334,6 +376,9 @@ class EmailTemplateSerializer(serializers.ModelSerializer):
             "contact_phone",
             "contact_website",
             "outreach_context",
+            "template_type",
+            "email_subject",
+            "email_body",
             "created_date",
             "updated_date",
         ]
@@ -355,6 +400,13 @@ class EmailTemplateCreateSerializer(serializers.Serializer):
     outreach_context = serializers.CharField(
         required=False, default="", allow_blank=True
     )
+    template_type = serializers.ChoiceField(
+        choices=EmailTemplate.TemplateType.choices,
+        required=False,
+        default=EmailTemplate.TemplateType.PROMPT_CONTEXT,
+    )
+    email_subject = serializers.CharField(required=False, default="", allow_blank=True)
+    email_body = serializers.CharField(required=False, default="", allow_blank=True)
 
 
 class EmailTemplateUpdateSerializer(serializers.Serializer):
@@ -380,3 +432,5 @@ class EmailTemplateUpdateSerializer(serializers.Serializer):
         max_length=512, required=False, allow_blank=True
     )
     outreach_context = serializers.CharField(required=False, allow_blank=True)
+    email_subject = serializers.CharField(required=False, allow_blank=True)
+    email_body = serializers.CharField(required=False, allow_blank=True)

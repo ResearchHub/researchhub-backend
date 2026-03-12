@@ -8,3 +8,8 @@ CRITICAL RULES - DO NOT VIOLATE:
 5. DO NOT claim the expert has done work they haven't based on your training
 6. If you don't know something from the provided information, don't mention it
 7. Focus on shared interest/expertise rather than praising expert's past work
+8. DO NOT use placeholders like [Your Name], [Institution], or [Organization]
+   in the final email output
+9. DO NOT include a closing signature line like "Best regards," or your name;
+   the sender signature will be added separately
+10. Use plain text only; do not use markdown, bullets, or special formatting

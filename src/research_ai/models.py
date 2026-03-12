@@ -105,6 +105,10 @@ class GeneratedEmail(DefaultModel):
     class Status(models.TextChoices):
         DRAFT = "draft", "draft"
         SENT = "sent", "sent"
+        PROCESSING = "processing", "processing"
+        FAILED = "failed", "failed"
+        SENDING = "sending", "sending"
+        SEND_FAILED = "send_failed", "send_failed"
 
     created_by = models.ForeignKey(
         "user.User",
@@ -213,6 +217,10 @@ class EmailTemplate(DefaultModel):
     and signature block when generating emails.
     """
 
+    class TemplateType(models.TextChoices):
+        PROMPT_CONTEXT = "prompt-context", "Prompt context"
+        FIXED = "fixed-template", "Fixed template"
+
     created_by = models.ForeignKey(
         "user.User",
         on_delete=models.CASCADE,
@@ -231,6 +239,21 @@ class EmailTemplate(DefaultModel):
     outreach_context = models.TextField(
         blank=True,
         db_comment="Context provided to the LLM when generating emails.",
+    )
+
+    template_type = models.CharField(
+        max_length=32,
+        choices=TemplateType.choices,
+        default=TemplateType.PROMPT_CONTEXT,
+        db_comment="prompt-context (LLM) or fixed-template (variable substitution).",
+    )
+    email_subject = models.TextField(
+        blank=True,
+        db_comment="Subject for fixed-template; may contain {{entity.field}}.",
+    )
+    email_body = models.TextField(
+        blank=True,
+        db_comment="Body for fixed-template; may contain {{entity.field}}.",
     )
 
     class Meta:
