@@ -1,56 +1,70 @@
 # ResearchHub Backend
 
-Django REST API backend for ResearchHub - accelerating the pace of scientific research.
+Django REST API backend for ResearchHub. The main application lives in `src/`.
 
-## Tech Stack
-- **Framework**: Django 5+ + Django REST Framework
-- **Python**: 3.13+
-- **Database**: PostgreSQL
-- **Search**: OpenSearch
-- **Cache**: Redis
-- **Task Queue**: Celery
-- **Dependencies**: Managed with `uv`
+## Environment
+- Python 3.13
+- Django 5.2 + Django REST Framework
+- PostgreSQL, Redis, OpenSearch
+- Celery for async work
+- Dependencies managed with `uv`
+- Dev Container is the preferred local setup
 
-## Project Structure
-- `src/` - Main Django project directory
-- Key apps: `paper`, `user`, `discussion`, `hub`, `search`, `feed`, `review`, `reputation`
-- `src/config_local/` - Local configuration (db, keys)
+## Repository Layout
+- `src/manage.py` - Django entrypoint
+- `src/researchhub/` - project settings, URLs, and shared Django config
+- `src/config_local/` - local config files and secrets
+- Major domain apps include `paper`, `feed`, `discussion`, `hub`, `search`, `review`, `reputation`, `purchase`, `researchhub_document`, and `research_ai`
 
 ## Common Commands
+Run Django commands from the repository root with `cd src && uv run python manage.py ...`.
+
 ```bash
-# Run server
-cd src && python manage.py runserver
+# Run the API
+cd src && uv run python manage.py runserver
 
-# Run tests (use --keepdb for faster local testing if there are no db changes)
-python manage.py test --keepdb
-python manage.py test <app_name> --exclude-tag=aws
+# Database
+cd src && uv run python manage.py migrate
 
-# Run specific test
-python manage.py test <app.tests.test_file.TestClass.test_method> --keepdb
+# Tests
+cd src && uv run python manage.py test --keepdb
+cd src && uv run python manage.py test <app_name> --keepdb
+cd src && uv run python manage.py test <app.tests.test_file.TestClass.test_method> --keepdb
 
-# Celery (async tasks)
-celery -A researchhub worker -l info -B
+# Search indexing
+cd src && uv run python manage.py opensearch index rebuild
 
-# OpenSearch indexing
-python manage.py opensearch index rebuild
+# Celery (development only)
+cd src && uv run celery -A researchhub worker -l info -B
 
-# Add dependencies
+# Lint and formatting
+cd src && uv run flake8
+cd src && uv run black .
+uv run pre-commit run --all-files
+
+# Dependencies
 uv add <package_name>
+uv add --dev <package_name>
 ```
 
 ## Development Guidelines
-- Use Dev Containers (VSCode recommended)
-- Run tests before committing
-- Follow Django best practices
-    - Move imports to top of file when possible
-- Use DRF serializers and viewsets
-- Keep migrations organized
-- Tag AWS-dependent tests with `@tag('aws')`
-
+- Prefer standard Django and DRF patterns.
+- Keep imports at the top of the file when possible.
+- Use serializers and viewsets for API boundaries.
+- Keep business logic out of views when it can live in services or model-layer code.
+- Keep migrations focused and reversible.
+- Run the relevant tests before committing.
 
 ## Testing
-- Write failing test first
-- Test behavior, not implementation
-- Use Django's TestCase or DRF's APITestCase
-- Mock external services (AWS, APIs)
-- Exclude AWS tests locally: `--exclude-tag=aws`
+- Prefer `django.test.TestCase` or DRF `APITestCase`.
+- Mock external services instead of calling real integrations in unit tests.
+- For AWS-dependent code, inherit from `AWSMockTestCase` in `src/utils/test_helpers.py`.
+- Use `AWSMockTransactionTestCase` when the code under test relies on `transaction.on_commit()`.
+- Test behavior, not implementation details.
+
+## CI Reference
+CI runs from `src/` and performs:
+- `uv run python manage.py migrate`
+- `uv run python manage.py collectstatic --noinput`
+- `uv run python manage.py opensearch index rebuild --force`
+- `uv run coverage run manage.py test --verbosity=2`
