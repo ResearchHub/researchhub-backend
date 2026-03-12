@@ -1,6 +1,7 @@
 from datetime import datetime
 
 import pytz
+from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.db.models import CASCADE
 
@@ -78,6 +79,7 @@ class Grant(DefaultModel):
         max_length=32,
         help_text="Current status of the grant",
     )
+    flags = GenericRelation("discussion.Flag")
 
     # Time fields
     start_date = models.DateTimeField(

@@ -3,11 +3,14 @@ from decimal import Decimal
 from unittest.mock import patch
 
 import pytz
+from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from discussion.models import Flag
+from user.related_models.verdict_model import Verdict
 from feed.views.grant_feed_view import GRANT_FEED_CACHE_VERSION_KEY
 from notification.models import Notification
 from purchase.models import Grant, GrantApplication
@@ -735,8 +738,6 @@ class GrantModerationTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.grant.refresh_from_db()
         self.assertEqual(self.grant.status, Grant.OPEN)
-        self.assertEqual(self.grant.reviewed_by, self.moderator)
-        self.assertIsNotNone(self.grant.reviewed_date)
         self.assertNotEqual(cache.get(GRANT_FEED_CACHE_VERSION_KEY), old_version)
         self.assertTrue(
             Notification.objects.filter(
@@ -753,15 +754,13 @@ class GrantModerationTests(APITestCase):
         # Act
         response = self.client.post(
             f"/api/grant/{self.grant.id}/decline/",
-            {"reason": "Does not meet guidelines"},
+            {"reason": "Does not meet guidelines", "reason_choice": "LOW_QUALITY"},
         )
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.grant.refresh_from_db()
         self.assertEqual(self.grant.status, Grant.DECLINED)
-        self.assertEqual(self.grant.reviewed_by, self.moderator)
-        self.assertEqual(self.grant.decline_reason, "Does not meet guidelines")
         self.post.unified_document.refresh_from_db()
         self.assertTrue(self.post.unified_document.is_removed)
         self.assertNotEqual(cache.get(GRANT_FEED_CACHE_VERSION_KEY), old_version)
@@ -771,6 +770,20 @@ class GrantModerationTests(APITestCase):
                 recipient=self.author,
             ).exists()
         )
+
+        grant_ct = ContentType.objects.get_for_model(Grant)
+        flag = Flag.objects.get(
+            content_type=grant_ct,
+            object_id=self.grant.id,
+            created_by=self.moderator,
+        )
+        self.assertEqual(flag.reason, "Does not meet guidelines")
+        self.assertEqual(flag.reason_choice, "LOW_QUALITY")
+        self.assertIsNotNone(flag.verdict_created_date)
+
+        verdict = Verdict.objects.get(flag=flag)
+        self.assertEqual(verdict.created_by, self.moderator)
+        self.assertTrue(verdict.is_content_removed)
 
     def test_approve_and_decline_reject_non_pending(self):
         # Arrange

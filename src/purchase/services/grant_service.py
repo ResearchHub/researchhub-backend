@@ -5,7 +5,9 @@ from django.core.cache import cache
 from django.db import transaction
 from django.utils import timezone
 
+from discussion.views import create_flag
 from feed.models import FeedEntry
+from user.related_models.verdict_model import Verdict
 from feed.tasks import create_feed_entry
 from feed.views.grant_feed_view import GRANT_FEED_CACHE_VERSION_KEY
 from notification.models import Notification
@@ -24,9 +26,7 @@ class GrantService:
             raise ValueError("Only pending grants can be approved")
 
         grant.status = Grant.OPEN
-        grant.reviewed_by = reviewer
-        grant.reviewed_date = timezone.now()
-        grant.save(update_fields=["status", "reviewed_by", "reviewed_date"])
+        grant.save(update_fields=["status"])
 
         cache.delete("grant_available_funding")
         cache.set(GRANT_FEED_CACHE_VERSION_KEY, timezone.now().timestamp())
@@ -40,23 +40,30 @@ class GrantService:
 
         return grant
 
-    def decline_grant(self, grant, reviewer, reason=""):
-        """Decline a pending grant and soft-delete its unified document."""
+    def decline_grant(self, grant, reviewer, reason="", reason_choice=""):
+        """Decline a pending grant, create a flag, and soft-delete its unified document."""
         if grant.status != Grant.PENDING:
             raise ValueError("Only pending grants can be declined")
 
         grant.status = Grant.DECLINED
-        grant.reviewed_by = reviewer
-        grant.reviewed_date = timezone.now()
-        grant.decline_reason = reason
-        grant.save(
-            update_fields=[
-                "status",
-                "reviewed_by",
-                "reviewed_date",
-                "decline_reason",
-            ]
+        grant.save(update_fields=["status"])
+
+        flag, _ = create_flag(
+            user=reviewer,
+            item=grant,
+            reason=reason,
+            reason_choice=reason_choice,
+            reason_memo=reason,
         )
+
+        verdict = Verdict.objects.create(
+            created_by=reviewer,
+            flag=flag,
+            verdict_choice=reason_choice,
+            is_content_removed=True,
+        )
+        flag.verdict_created_date = verdict.created_date
+        flag.save(update_fields=["verdict_created_date"])
 
         unified_document = grant.unified_document
         unified_document.is_removed = True

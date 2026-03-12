@@ -50,14 +50,6 @@ class GrantViewSet(viewsets.ModelViewSet):
                 "last_name",
             )
         }
-        context["pch_dgs_get_reviewed_by"] = {
-            "_include_fields": (
-                "id",
-                "author_profile",
-                "first_name",
-                "last_name",
-            )
-        }
         context["usr_dus_get_author_profile"] = {
             "_include_fields": (
                 "id",
@@ -132,9 +124,12 @@ class GrantViewSet(viewsets.ModelViewSet):
     def decline(self, request, *args, **kwargs):
         grant = self.get_object()
         reason = request.data.get("reason", "")
+        reason_choice = request.data.get("reason_choice", "")
 
         try:
-            self.grant_service.decline_grant(grant, request.user, reason)
+            self.grant_service.decline_grant(
+                grant, request.user, reason, reason_choice
+            )
         except ValueError as e:
             return Response({"message": str(e)}, status=400)
 
