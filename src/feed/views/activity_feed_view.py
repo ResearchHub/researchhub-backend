@@ -154,16 +154,23 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
     @staticmethod
     def _filter_peer_reviews(queryset):
         """
-        Return feed entries that are peer review comments.
+        Return feed entries for documents that have peer review comments.
         """
         comment_type = ContentType.objects.get_for_model(RhCommentModel)
         peer_review_ids = RhCommentModel.objects.filter(
             comment_type=PEER_REVIEW,
-        ).values_list("id", flat=True)
-        return queryset.filter(
-            content_type=comment_type,
-            object_id__in=peer_review_ids,
+        ).values("id")
+
+        document_ids = (
+            FeedEntry.objects.filter(
+                content_type=comment_type,
+                object_id__in=peer_review_ids,
+            )
+            .values("unified_document_id")
+            .distinct()
         )
+
+        return queryset.filter(unified_document_id__in=document_ids)
 
     @staticmethod
     def _filter_by_content_type(queryset, content_type_name):

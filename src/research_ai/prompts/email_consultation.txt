@@ -2,9 +2,26 @@
 
 {common}
 
+EXAMPLE OF A GOOD CONSULTATION EMAIL:
+
+Subject: Quick question on study design for a new grant project
+
+Hello!
+
+I'm putting together a project on how research teams evaluate early-stage outcomes, and I've run into a design question around which measures would be most useful to collect at the pilot stage.
+
+Given your expertise in study design and evaluation, I thought you might have a helpful perspective on how to approach that tradeoff. I'm especially trying to avoid overcomplicating the initial version of the project.
+
+Would you be open to a short 15-minute call, or if easier, a brief reply by email?
+
+---
+
 For requesting expert consultation:
-- Explain the specific challenge or question you're facing
-- Connect it to their stated expertise area
-- Be humble and specific about what advice you're seeking
-- Avoid flattery or overstating their knowledge
-- Focus on the problem, not on the expert
+- Part 1 (Context): explain the specific challenge, decision, or question you
+  need help with
+- Part 2 (Relevance): connect that challenge to their stated expertise in a
+  concrete way
+- Part 3 (Call to action): make a specific ask for their time or advice, such
+  as a 15-minute call or a quick reply by email
+- Be humble, focused, and clear about what input you need
+- Focus on the problem to solve rather than flattering the expert

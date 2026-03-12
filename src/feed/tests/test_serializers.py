@@ -13,6 +13,7 @@ from feed.serializers import (
     ContentObjectSerializer,
     FeedEntrySerializer,
     FundingFeedEntrySerializer,
+    FundraiseContributionContentSerializer,
     PaperSerializer,
     PostSerializer,
     SimpleReviewSerializer,
@@ -2637,3 +2638,85 @@ class ActivityFeedEntrySerializerTests(AWSMockTestCase):
         self.assertEqual(len(top_entry["contributions"]), 2)
         currencies = {c["currency"] for c in top_entry["contributions"]}
         self.assertEqual(currencies, {"RSC", "USD"})
+
+
+class FundraiseContributionContentSerializerTests(AWSMockTestCase):
+    """
+    Test cases for the FundraiseContributionContentSerializer.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.user = create_random_default_user("contribution_test_user")
+        self.unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.PREREGISTRATION,
+        )
+        self.hub = create_hub("TestHub")
+        self.unified_doc.hubs.add(self.hub)
+        self.post = ResearchhubPost.objects.create(
+            title="Test Proposal",
+            created_by=self.user,
+            document_type=document_type.PREREGISTRATION,
+            renderable_text="A test proposal",
+            unified_document=self.unified_doc,
+        )
+        self.fundraise = Fundraise.objects.create(
+            unified_document=self.unified_doc,
+            created_by=self.user,
+            goal_amount=Decimal("1000.00"),
+            goal_currency=USD,
+            status=Fundraise.OPEN,
+        )
+
+    def test_serializes_rsc_purchase_contribution(self):
+        """
+        Purchase with FUNDRAISE_CONTRIBUTION type serializes correctly.
+        """
+        # Arrange
+        ct = ContentType.objects.get_for_model(Fundraise)
+        purchase = Purchase.objects.create(
+            user=self.user,
+            content_type=ct,
+            object_id=self.fundraise.id,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            purchase_method=Purchase.OFF_CHAIN,
+            amount="100.5",
+        )
+
+        # Act
+        serializer = FundraiseContributionContentSerializer(purchase)
+        data = serializer.data
+
+        # Assert
+        self.assertEqual(data["id"], purchase.id)
+        self.assertEqual(data["amount"], 100.5)
+        self.assertEqual(data["currency"], "RSC")
+        self.assertEqual(data["proposal_title"], "Test Proposal")
+        self.assertEqual(data["proposal_slug"], self.post.slug)
+        self.assertEqual(data["unified_document_id"], self.unified_doc.id)
+
+    def test_serializes_usd_contribution(self):
+        """
+        UsdFundraiseContribution serializes correctly.
+        """
+        # Arrange
+        contribution = UsdFundraiseContribution.objects.create(
+            user=self.user,
+            fundraise=self.fundraise,
+            amount_cents=5500,
+            fee_cents=495,
+            origin_fund_id="test-origin",
+            destination_org_id="test-destination",
+        )
+
+        # Act
+        serializer = FundraiseContributionContentSerializer(contribution)
+        data = serializer.data
+
+        # Assert
+        self.assertEqual(data["id"], contribution.id)
+        self.assertEqual(data["amount"], 55.0)
+        self.assertEqual(data["currency"], "USD")
+        self.assertEqual(data["proposal_title"], "Test Proposal")
+        self.assertEqual(data["proposal_slug"], self.post.slug)
+        self.assertEqual(data["unified_document_id"], self.unified_doc.id)
