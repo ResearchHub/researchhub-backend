@@ -5,6 +5,28 @@ from utils.models import SoftDeletableModel
 
 
 class Deposit(SoftDeletableModel, PaidStatusModelMixin):
+    SWEEP_PENDING = "PENDING"
+    SWEEP_INITIATED = "INITIATED"
+    SWEEP_COMPLETED = "COMPLETED"
+    SWEEP_FAILED = "FAILED"
+    SWEEP_STATUS_CHOICES = [
+        (SWEEP_PENDING, "Pending"),
+        (SWEEP_INITIATED, "Initiated"),
+        (SWEEP_COMPLETED, "Completed"),
+        (SWEEP_FAILED, "Failed"),
+    ]
+
+    CIRCLE_INITIATED = "INITIATED"
+    CIRCLE_CONFIRMED = "CONFIRMED"
+    CIRCLE_COMPLETED = "COMPLETED"
+    CIRCLE_FAILED = "FAILED"
+    CIRCLE_STATUS_CHOICES = [
+        (CIRCLE_INITIATED, "Initiated"),
+        (CIRCLE_CONFIRMED, "Confirmed"),
+        (CIRCLE_COMPLETED, "Completed"),
+        (CIRCLE_FAILED, "Failed"),
+    ]
+
     user = models.ForeignKey(
         "user.User", related_name="deposits", on_delete=models.SET_NULL, null=True
     )
@@ -18,3 +40,32 @@ class Deposit(SoftDeletableModel, PaidStatusModelMixin):
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
     transaction_hash = models.CharField(default="", blank=True, max_length=255)
+    circle_transaction_id = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        unique=True,
+    )
+    sweep_status = models.CharField(
+        max_length=20,
+        choices=SWEEP_STATUS_CHOICES,
+        blank=True,
+        default="",
+    )
+    sweep_transfer_id = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        db_index=True,
+    )
+    circle_status = models.CharField(
+        max_length=20,
+        choices=CIRCLE_STATUS_CHOICES,
+        blank=True,
+        default="",
+    )
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["user", "paid_status"]),
+        ]

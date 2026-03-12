@@ -1,0 +1,27 @@
+{sender_info}
+
+{common}
+
+EXAMPLE OF A GOOD CONFERENCE INVITATION EMAIL:
+
+Subject: Invitation to speak at our research methods symposium
+
+Hello!
+
+I'm helping organize a symposium this fall focused on practical approaches to evaluating emerging research tools, with an audience of researchers, program leaders, and early-career scientists.
+
+Your expertise in evidence generation and applied research strategy seems like a strong fit for the session we are planning on implementation and evaluation. We are currently inviting speakers for a 20-minute talk followed by discussion.
+
+Would you be interested in participating? I'm happy to share more details if helpful.
+
+---
+
+For a conference or speaking invitation:
+- Part 1 (Context): name the event, session, or symposium and include the key
+  details that matter most, such as topic, timing, audience, or format
+- Part 2 (Relevance): explain why their stated expertise is a strong fit for
+  the session or audience
+- Part 3 (Call to action): clearly ask whether they would be interested in
+  speaking and mention the expected format or any decision deadline
+- Keep the invitation practical, specific, and easy to evaluate
+- Avoid prestige language; focus on fit and logistics

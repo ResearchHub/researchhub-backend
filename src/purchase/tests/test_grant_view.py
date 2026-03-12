@@ -1,12 +1,15 @@
 from datetime import datetime, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 import pytz
+from django.core.cache import cache
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from purchase.models import Grant, GrantApplication
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
@@ -315,6 +318,17 @@ class GrantViewTests(APITestCase):
         self.assertIn("is_expired", response.data)
         self.assertIn("is_active", response.data)
 
+    def test_short_title_returned_in_serializer(self):
+        """Test that short_title is included in the grant serializer response"""
+        self.grant.short_title = "AI Healthcare Grant"
+        self.grant.save()
+
+        self.client.force_authenticate(self.regular_user)
+        response = self.client.get(f"/api/grant/{self.grant.id}/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["short_title"], "AI Healthcare Grant")
+
     def test_apply_to_grant_success(self):
         """Test successfully applying to a grant with a preregistration post"""
         self.client.force_authenticate(self.regular_user)
@@ -563,3 +577,109 @@ class GrantViewTests(APITestCase):
         )
         grant_str = str(grant_without_org)
         self.assertEqual(grant_str, "Unknown Organization - 30000.00 USD")
+
+
+class AvailableFundingTests(APITestCase):
+    EXCHANGE_RATE = 0.5
+
+    def setUp(self):
+        cache.clear()
+        self.moderator = create_random_authenticated_user(
+            "funding_moderator", moderator=True
+        )
+        RscExchangeRate.objects.create(
+            rate=self.EXCHANGE_RATE, real_rate=self.EXCHANGE_RATE, target_currency="USD"
+        )
+        self.post1 = create_post(created_by=self.moderator, document_type=GRANT)
+        self.post2 = create_post(created_by=self.moderator, document_type=GRANT)
+
+    def tearDown(self):
+        cache.clear()
+
+    def _create_grant(self, amount, status_val=Grant.OPEN, end_date=None, post=None):
+        post = post or create_post(created_by=self.moderator, document_type=GRANT)
+        grant = Grant.objects.create(
+            created_by=self.moderator,
+            unified_document=post.unified_document,
+            amount=Decimal(str(amount)),
+            currency="USD",
+            description="test",
+            status=status_val,
+        )
+        if end_date is not None:
+            Grant.objects.filter(pk=grant.pk).update(end_date=end_date)
+        return grant
+
+    def test_sums_multiple_open_grants(self):
+        self._create_grant("20000.00", post=self.post1)
+        self._create_grant("30000.00", post=self.post2)
+
+        response = self.client.get("/api/grant/available_funding/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["available_funding_in_usd"], 50000.0)
+        expected_rsc = round(50000.0 / self.EXCHANGE_RATE, 2)
+        self.assertEqual(response.data["available_funding_in_rsc"], expected_rsc)
+
+    def test_excludes_closed_and_completed_grants(self):
+        self._create_grant("10000.00", post=self.post1)
+        self._create_grant("20000.00", status_val=Grant.CLOSED)
+        self._create_grant("30000.00", status_val=Grant.COMPLETED)
+
+        response = self.client.get("/api/grant/available_funding/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["available_funding_in_usd"], 10000.0)
+
+    def test_excludes_expired_grants(self):
+        yesterday = datetime.now(pytz.UTC) - timedelta(days=1)
+        self._create_grant("10000.00", post=self.post1)
+        self._create_grant("40000.00", end_date=yesterday)
+
+        response = self.client.get("/api/grant/available_funding/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["available_funding_in_usd"], 10000.0)
+
+    def test_includes_grants_with_no_end_date(self):
+        self._create_grant("25000.00", post=self.post1)
+
+        response = self.client.get("/api/grant/available_funding/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["available_funding_in_usd"], 25000.0)
+
+    def test_includes_grants_with_future_end_date(self):
+        tomorrow = datetime.now(pytz.UTC) + timedelta(days=1)
+        self._create_grant("15000.00", end_date=tomorrow, post=self.post1)
+
+        response = self.client.get("/api/grant/available_funding/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["available_funding_in_usd"], 15000.0)
+
+    def test_no_active_grants_returns_zero(self):
+        response = self.client.get("/api/grant/available_funding/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["available_funding_in_usd"], 0.0)
+        self.assertEqual(response.data["available_funding_in_rsc"], 0.0)
+
+    def test_response_is_cached(self):
+        self._create_grant("10000.00", post=self.post1)
+        self.client.get("/api/grant/available_funding/")
+
+        self._create_grant("90000.00", post=self.post2)
+        response = self.client.get("/api/grant/available_funding/")
+
+        self.assertEqual(response.data["available_funding_in_usd"], 10000.0)
+
+    def test_no_auth_required(self):
+        self._create_grant("5000.00", post=self.post1)
+
+        self.client.logout()
+        response = self.client.get("/api/grant/available_funding/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("available_funding_in_usd", response.data)
+        self.assertIn("available_funding_in_rsc", response.data)

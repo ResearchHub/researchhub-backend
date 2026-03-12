@@ -2,18 +2,22 @@ import json
 import logging
 
 from django.http import StreamingHttpResponse
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from research_ai.constants import ExpertiseLevel, Gender, Region
-from research_ai.models import ExpertSearch
+from research_ai.models import DocumentInvitedExpert, ExpertSearch
 from research_ai.permissions import ResearchAIPermission
 from research_ai.serializers import (
     ExpertSearchCreateSerializer,
     ExpertSearchListItemSerializer,
     ExpertSearchSerializer,
+    InvitedExpertSerializer,
+    resolve_work_for_unified_document,
 )
 from research_ai.services.expert_finder_service import get_document_content
 from research_ai.services.progress_service import ProgressService, TaskType
@@ -31,6 +35,21 @@ def _get_sse_url(request, search_id):
     return base + "/api/research_ai/expert-finder/progress/" + search_id + "/"
 
 
+def _get_document_title(unified_doc):
+    """Return a display title for the document (paper or post), max 512 chars."""
+    try:
+        doc = unified_doc.get_document()
+        if doc is None:
+            return ""
+        if hasattr(doc, "display_title"):
+            return (doc.display_title or "")[:512]
+        if hasattr(doc, "title"):
+            return (str(doc.title or ""))[:512]
+        return ""
+    except Exception:
+        return ""
+
+
 class ExpertSearchCreateView(APIView):
     permission_classes = [IsAuthenticated, ResearchAIPermission, IsModerator]
 
@@ -41,13 +60,16 @@ class ExpertSearchCreateView(APIView):
 
         unified_document_id = data.get("unified_document_id")
         query_text = (data.get("query") or "").strip()
-        input_type = data.get("input_type", ExpertSearch.InputType.ABSTRACT)
+        search_name = (data.get("name") or "").strip()
+        input_type = data.get("input_type")
         config = data.get("config") or {}
         excluded_expert_names = data.get("excluded_expert_names") or []
 
         search_config = {
             "expert_count": config.get("expert_count", 10),
-            "expertise_level": config.get("expertise_level", ExpertiseLevel.ALL_LEVELS),
+            "expertise_level": config.get(
+                "expertise_level", [ExpertiseLevel.ALL_LEVELS]
+            ),
             "region": config.get("region", Region.ALL_REGIONS),
             "state": config.get("state", "All States"),
             "gender": config.get("gender", Gender.ALL_GENDERS),
@@ -75,6 +97,8 @@ class ExpertSearchCreateView(APIView):
             query_text = content_text
             effective_input_type = content_type
             is_pdf = content_type == ExpertSearch.InputType.PDF
+            if not search_name:
+                search_name = _get_document_title(unified_doc)
         else:
             effective_input_type = ExpertSearch.InputType.CUSTOM_QUERY
             is_pdf = False
@@ -82,6 +106,7 @@ class ExpertSearchCreateView(APIView):
         expert_search = ExpertSearch.objects.create(
             created_by=request.user,
             unified_document_id=unified_document_id or None,
+            name=search_name,
             query=query_text,
             input_type=effective_input_type,
             config=search_config,
@@ -114,27 +139,85 @@ class ExpertSearchCreateView(APIView):
         )
 
 
+class ExpertSearchWorkView(APIView):
+    """
+    GET work (paper or post) for a unified document by ID.
+    Returns {"work": <payload>} or {"work": null} if not resolvable.
+    """
+
+    permission_classes = [IsAuthenticated, ResearchAIPermission, IsModerator]
+
+    def get(self, request, unified_document_id):
+        try:
+            unified_doc = ResearchhubUnifiedDocument.objects.get(id=unified_document_id)
+        except ResearchhubUnifiedDocument.DoesNotExist:
+            return Response(
+                {"detail": "Unified document not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        work = resolve_work_for_unified_document(
+            unified_doc, context={"request": request}
+        )
+        return Response({"work": work})
+
+
+INVITED_LIMIT = 20
+INVITED_CACHE_SEC = 60 * 60 * 3  # 3 hours
+
+
+class InvitedExpertsDocumentView(APIView):
+    """
+    GET invited experts for a unified document (limit 20, total_count).
+    Response is cached for 3 hours.
+    Returns author entity, expert_search_id, generated_email_id per invited person.
+    """
+
+    permission_classes = [IsAuthenticated, ResearchAIPermission, IsModerator]
+
+    @method_decorator(cache_page(INVITED_CACHE_SEC))
+    def get(self, request, unified_document_id):
+        try:
+            ResearchhubUnifiedDocument.objects.get(id=unified_document_id)
+        except ResearchhubUnifiedDocument.DoesNotExist:
+            return Response(
+                {"detail": "Unified document not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        qs = (
+            DocumentInvitedExpert.objects.filter(
+                unified_document_id=unified_document_id
+            )
+            .select_related(
+                "user", "user__author_profile", "expert_search", "generated_email"
+            )
+            .order_by("-created_date")
+        )
+        total_count = qs.count()
+        page = list(qs[:INVITED_LIMIT])
+        invited_data = InvitedExpertSerializer(page, many=True).data
+        return Response(
+            {
+                "unified_document_id": unified_document_id,
+                "invited": invited_data,
+                "total_count": total_count,
+            }
+        )
+
+
 class ExpertSearchDetailView(APIView):
     permission_classes = [IsAuthenticated, ResearchAIPermission, IsModerator]
 
     def get(self, request, search_id):
         try:
-            search_id_int = int(search_id)
-        except (ValueError, TypeError):
-            return Response(
-                {"detail": "Invalid search ID."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        try:
             expert_search = ExpertSearch.objects.get(
-                id=search_id_int, created_by=request.user
+                id=search_id, created_by=request.user
             )
         except ExpertSearch.DoesNotExist:
             return Response(
                 {"detail": "Expert search not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        ser = ExpertSearchSerializer(expert_search)
+        ser = ExpertSearchSerializer(expert_search, context={"request": request})
         return Response(ser.data)
 
 
@@ -259,21 +342,14 @@ class ExpertSearchProgressStreamView(APIView):
 
     def get(self, request, search_id):
         try:
-            search_id_int = int(search_id)
-        except (ValueError, TypeError):
-            return Response(
-                {"detail": "Invalid search ID."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        try:
-            ExpertSearch.objects.get(id=search_id_int, created_by=request.user)
+            ExpertSearch.objects.get(id=search_id, created_by=request.user)
         except ExpertSearch.DoesNotExist:
             return Response(
                 {"detail": "Expert search not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
         response = StreamingHttpResponse(
-            _sse_event_stream(search_id),
+            _sse_event_stream(str(search_id)),
             content_type="text/event-stream",
         )
         response["Cache-Control"] = "no-cache"

@@ -1,0 +1,27 @@
+{sender_info}
+
+{common}
+
+EXAMPLE OF A GOOD PEER REVIEW REQUEST EMAIL:
+
+Subject: Review request for a draft on research workflow evaluation
+
+Hello!
+
+I'm preparing a manuscript on how research teams evaluate new workflow tools before broader rollout, and I'm looking for a small number of experts who could provide feedback before submission.
+
+Your expertise in research methods and implementation would be especially helpful for assessing whether the framing and evaluation plan are clear. The draft is approximately 12 pages, and I would be grateful for comments over the next two weeks if your schedule allows.
+
+Would you be willing to review it? I can send the draft right away if useful.
+
+---
+
+For requesting peer review:
+- Part 1 (Context): clearly state what needs review, the scope or length, and
+  where it is being submitted or used if that context is available
+- Part 2 (Relevance): explain why their stated expertise makes them a good fit
+  to review this work
+- Part 3 (Call to action): ask whether they would be willing to review it and
+  include the requested timeline or next step
+- Be respectful of their time and specific about expectations
+- Avoid assuming prior familiarity with the topic beyond the provided context

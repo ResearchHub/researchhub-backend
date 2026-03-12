@@ -1,0 +1,30 @@
+{sender_info}
+
+{common}
+
+EXAMPLE OF A GOOD RFP OUTREACH EMAIL:
+
+Subject: Funding opportunity for projects in AI-enabled research workflows
+
+Hello!
+
+My name is Alex Chen, and I work with a team helping connect researchers to targeted funding opportunities.
+
+We are currently sharing an RFP focused on AI-enabled research workflows, with funding available for selected projects and a submission deadline later this month. Based on your expertise in this area, I thought this opportunity might be relevant to your work or to others in your group or network.
+
+If it would be helpful, I'm happy to share the details and application link or answer any questions.
+
+---
+
+For a Request for Proposal (RFP) outreach:
+- Part 1 (Context): briefly introduce yourself or your organization and clearly
+  describe the funding opportunity, including the topic, amount, and deadline
+  when available
+- Part 2 (Relevance): explain why their stated expertise aligns with the RFP
+  focus area, and when appropriate note that it may also fit students,
+  postdocs, collaborators, or others in their network
+- Part 3 (Call to action): encourage them to apply, share the opportunity, or
+  reply with questions; mention the RFP link or related resources when provided
+- Keep the tone helpful, direct, and professional
+- Focus on opportunity fit and usefulness, not praise
+- Do not use placeholders in the final output

@@ -1,13 +1,280 @@
 import logging
+import time
+import uuid
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Optional
 
+from django.conf import settings
 from django.db import transaction
 
-from purchase.circle.client import CircleWalletClient, CircleWalletFrozenError
+from purchase.circle.client import (
+    CircleTransferResult,
+    CircleWalletClient,
+    CircleWalletFrozenError,
+)
 from purchase.models import Wallet
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from reputation.distributions import Distribution as Dist
+from reputation.distributor import Distributor
+from reputation.models import Deposit
+from user.models import User
 
 logger = logging.getLogger(__name__)
+
+# Circle terminal states used across webhook handling and sweep tracking.
+COMPLETED_STATES = {"COMPLETED", "COMPLETE"}
+FAILED_STATES = {"FAILED", "CANCELLED", "DENIED"}
+
+# Circle inbound transaction states that indicate the deposit is in progress
+# but not yet finalized (i.e. not yet safe to credit the user).
+PENDING_DEPOSIT_STATES = {"INITIATED", "CONFIRMED"}
+
+# Map Circle blockchain identifiers to our Deposit.network choices.
+BLOCKCHAIN_TO_NETWORK = {
+    "ETH": "ETHEREUM",
+    "ETH-SEPOLIA": "ETHEREUM",
+    "BASE": "BASE",
+    "BASE-SEPOLIA": "BASE",
+}
+
+# Known Circle token IDs for the RSC token, keyed by Circle blockchain identifier.
+# These are stable identifiers assigned by Circle and do not change.
+_RSC_TOKEN_ID_BY_BLOCKCHAIN = {
+    # Testnet
+    "BASE-SEPOLIA": "e7233cf0-a48c-5265-a9ad-6d125af58e71",
+    "ETH-SEPOLIA": "979869da-9115-5f7d-917d-12d434e56ae7",
+    # Production
+    "BASE": "fe81326a-572d-5c31-9dde-31ef96a1220f",
+    "ETH": "fa1e82a2-fd87-5030-aa61-e9447ce24570",
+}
+
+
+def is_rsc_token(token_id: str, blockchain: str) -> bool:
+    """Check whether *token_id* is the known RSC token for *blockchain*."""
+    expected = _RSC_TOKEN_ID_BY_BLOCKCHAIN.get(blockchain)
+    return expected is not None and token_id == expected
+
+
+def upsert_pending_circle_deposit(
+    circle_transaction_id: str,
+    wallet: Wallet,
+    amount: str,
+    network: str,
+    circle_status: str,
+    from_address: str = "",
+    transaction_hash: str = "",
+) -> Deposit:
+    """
+    Create or update a pending Deposit for an in-progress Circle transaction.
+
+    Called when Circle sends an inbound webhook with a non-terminal state
+    (e.g. INITIATED or CONFIRMED). The user is NOT credited at this stage.
+
+    If a Deposit with the given ``circle_transaction_id`` already exists, its
+    ``circle_status`` is advanced (INITIATED -> CONFIRMED) but never moved
+    backwards.
+
+    Args:
+        circle_transaction_id: Circle's unique transaction identifier.
+        wallet: The user's ``Wallet`` instance (must have ``user`` loaded).
+        amount: Deposit amount as a decimal string.
+        network: ``"ETHEREUM"`` or ``"BASE"``.
+        circle_status: The Circle transaction state (e.g. "INITIATED", "CONFIRMED").
+        from_address: On-chain source address.
+        transaction_hash: On-chain tx hash.
+
+    Returns:
+        The Deposit instance.
+    """
+    user = wallet.user
+
+    # Define ordering so we only advance forward.
+    _CIRCLE_STATUS_ORDER = {
+        Deposit.CIRCLE_INITIATED: 0,
+        Deposit.CIRCLE_CONFIRMED: 1,
+        Deposit.CIRCLE_COMPLETED: 2,
+        Deposit.CIRCLE_FAILED: 2,
+    }
+
+    with transaction.atomic():
+        deposit, created = Deposit.objects.get_or_create(
+            circle_transaction_id=circle_transaction_id,
+            defaults={
+                "user": user,
+                "amount": amount,
+                "network": network,
+                "from_address": from_address,
+                "transaction_hash": transaction_hash,
+                "paid_status": Deposit.PENDING,
+                "circle_status": circle_status,
+            },
+        )
+
+        if not created:
+            # Only advance circle_status forward, never backwards.
+            current_order = _CIRCLE_STATUS_ORDER.get(deposit.circle_status, -1)
+            new_order = _CIRCLE_STATUS_ORDER.get(circle_status, -1)
+            if new_order > current_order:
+                deposit.circle_status = circle_status
+                deposit.save(update_fields=["circle_status"])
+
+    if created:
+        logger.info(
+            "Pending Circle deposit created: user=%s amount=%s network=%s "
+            "circle_status=%s circle_transaction_id=%s",
+            user.id,
+            amount,
+            network,
+            circle_status,
+            circle_transaction_id,
+        )
+    else:
+        logger.info(
+            "Circle deposit updated: circle_transaction_id=%s circle_status=%s",
+            circle_transaction_id,
+            circle_status,
+        )
+
+    return deposit
+
+
+def process_circle_deposit(
+    circle_transaction_id: str,
+    wallet: Wallet,
+    amount: str,
+    network: str,
+    from_address: str = "",
+    transaction_hash: str = "",
+) -> tuple[Deposit, bool]:
+    """
+    Idempotently record a Circle deposit, credit the user, and dispatch a sweep.
+
+    If a pending Deposit already exists (created by an earlier INITIATED or
+    CONFIRMED webhook), it is promoted to PAID. If no Deposit exists, one is
+    created and immediately marked PAID.
+
+    If the Deposit is already PAID, the user is *not* credited again and no
+    sweep is dispatched.
+
+    Args:
+        circle_transaction_id: Circle's unique transaction identifier.
+        wallet: The user's ``Wallet`` instance (must have ``user`` loaded).
+        amount: Deposit amount as a decimal string.
+        network: ``"ETHEREUM"`` or ``"BASE"``.
+        from_address: On-chain source address.
+        transaction_hash: On-chain tx hash.
+
+    Returns:
+        A ``(deposit, credited)`` tuple where *credited* is True if the user's
+        balance was credited during this call.
+    """
+    user = wallet.user
+    credited = False
+
+    with transaction.atomic():
+        deposit, created = Deposit.objects.get_or_create(
+            circle_transaction_id=circle_transaction_id,
+            defaults={
+                "user": user,
+                "amount": amount,
+                "network": network,
+                "from_address": from_address,
+                "transaction_hash": transaction_hash,
+                "sweep_status": Deposit.SWEEP_PENDING,
+                "circle_status": Deposit.CIRCLE_COMPLETED,
+            },
+        )
+
+        if created:
+            # Brand-new deposit (no prior INITIATED/CONFIRMED webhook).
+            deposit.set_paid()
+            credited = True
+        elif deposit.paid_status != Deposit.PAID:
+            # Existing pending deposit from an earlier webhook — promote it.
+            deposit.circle_status = Deposit.CIRCLE_COMPLETED
+            deposit.sweep_status = Deposit.SWEEP_PENDING
+            deposit.set_paid()  # sets paid_status=PAID, paid_date=now(), saves
+            credited = True
+
+        if credited:
+            distribution = Dist("DEPOSIT", amount, give_rep=False)
+            distributor = Distributor(distribution, user, deposit, time.time(), user)
+            distributor.distribute()
+
+    if credited:
+        logger.info(
+            "Circle deposit credited: user=%s amount=%s network=%s "
+            "circle_transaction_id=%s",
+            user.id,
+            amount,
+            network,
+            circle_transaction_id,
+        )
+        _dispatch_sweep(wallet, amount, network, circle_transaction_id)
+    else:
+        logger.info(
+            "Duplicate Circle transaction %s, skipping credit",
+            circle_transaction_id,
+        )
+
+    return deposit, credited
+
+
+def _dispatch_sweep(wallet, amount, network, circle_transaction_id):
+    """Schedule the sweep task to run after the current transaction commits."""
+    from purchase.tasks import sweep_deposit_to_multisig
+
+    sweep_wallet_id = wallet.get_circle_wallet_id_for_network(network)
+    if sweep_wallet_id:
+        transaction.on_commit(
+            lambda: sweep_deposit_to_multisig.delay(
+                sweep_wallet_id, amount, network, circle_transaction_id
+            )
+        )
+    else:
+        logger.error(
+            "No Circle wallet ID for network=%s wallet_pk=%s "
+            "circle_transaction_id=%s — skipping sweep",
+            network,
+            wallet.pk,
+            circle_transaction_id,
+        )
+
+
+# Sweeps worth this amount or more (in USD) go to the multisig;
+# smaller sweeps go to the hot wallet.
+SWEEP_MULTISIG_THRESHOLD_USD = 10_000
+
+# Map Deposit.network values to Circle blockchain identifiers
+NETWORK_TO_BLOCKCHAIN_MAINNET = {
+    "ETHEREUM": "ETH",
+    "BASE": "BASE",
+}
+
+NETWORK_TO_BLOCKCHAIN_TESTNET = {
+    "ETHEREUM": "ETH-SEPOLIA",
+    "BASE": "BASE-SEPOLIA",
+}
+
+
+def get_network_to_blockchain():
+    if settings.PRODUCTION:
+        return NETWORK_TO_BLOCKCHAIN_MAINNET
+    return NETWORK_TO_BLOCKCHAIN_TESTNET
+
+
+# Map network to the RSC token contract address on that chain
+NETWORK_TO_RSC_ADDRESS = {
+    "ETHEREUM": lambda: settings.WEB3_RSC_ADDRESS,
+    "BASE": lambda: settings.WEB3_BASE_RSC_ADDRESS,
+}
+
+
+class CircleZeroBalanceError(Exception):
+    """Raised when a sweep is attempted on a wallet with zero balance."""
+
+    pass
 
 
 @dataclass
@@ -15,7 +282,6 @@ class DepositAddressResult:
     """Result of requesting a user's deposit address."""
 
     address: str
-    provisioning: bool = False
 
 
 class CircleWalletService:
@@ -29,7 +295,7 @@ class CircleWalletService:
     def __init__(self, client: Optional[CircleWalletClient] = None):
         self.client = client or CircleWalletClient()
 
-    def get_or_create_deposit_address(self, user) -> DepositAddressResult:
+    def get_or_create_deposit_address(self, user: User) -> DepositAddressResult:
         """
         Get (or provision) the Circle deposit address for a user.
 
@@ -61,25 +327,36 @@ class CircleWalletService:
 
             # No Circle wallet yet — create one and persist the ID
             if not wallet.circle_wallet_id:
-                self._create_wallet(wallet)
+                self._create_wallet(wallet, user)
 
         # Phase 2: Fetch the address outside the transaction so that
         # a CircleWalletFrozenError does NOT roll back the wallet_id save.
         return self._fetch_and_store_address(wallet)
 
-    def _create_wallet(self, wallet: Wallet) -> None:
-        """Create a new Circle wallet and store the wallet ID."""
-        idempotency_key = f"rh-wallet-{wallet.pk}"
-        wallet_id = self.client.create_wallet(idempotency_key=idempotency_key)
+    def _create_wallet(self, wallet: Wallet, user: User) -> None:
+        """Create new Circle wallets (ETH + Base) and store both wallet IDs."""
+        idempotency_key = str(uuid.uuid5(uuid.NAMESPACE_URL, f"rh-wallet-{wallet.pk}"))
+        full_name = user.get_full_name().strip()
+        wallet_name = f"{full_name}'s wallet" if full_name else None
+        result = self.client.create_wallet(
+            idempotency_key=idempotency_key,
+            wallet_name=wallet_name,
+            ref_id=str(user.id),
+        )
 
-        wallet.circle_wallet_id = wallet_id
+        wallet.circle_wallet_id = result.eth_wallet_id
+        wallet.circle_base_wallet_id = result.base_wallet_id
         wallet.wallet_type = Wallet.WALLET_TYPE_CIRCLE
-        wallet.save(update_fields=["circle_wallet_id", "wallet_type"])
+        wallet.save(
+            update_fields=["circle_wallet_id", "circle_base_wallet_id", "wallet_type"]
+        )
 
         logger.info(
-            "Circle wallet created for wallet pk=%s, circle_wallet_id=%s",
+            "Circle wallets created for wallet pk=%s, "
+            "eth_wallet_id=%s, base_wallet_id=%s",
             wallet.pk,
-            wallet_id,
+            result.eth_wallet_id,
+            result.base_wallet_id,
         )
 
     def _fetch_and_store_address(self, wallet: Wallet) -> DepositAddressResult:
@@ -102,3 +379,127 @@ class CircleWalletService:
         )
 
         return DepositAddressResult(address=result.address)
+
+    def _get_sweep_destination(self, amount: str) -> str:
+        """
+        Return the destination address for a sweep based on USD value.
+
+        Amounts worth >= SWEEP_MULTISIG_THRESHOLD_USD go to the multisig;
+        smaller amounts go to the hot wallet.
+        """
+
+        multisig = getattr(settings, "RH_MULTISIG_ADDRESS", None)
+        hot_wallet = getattr(settings, "WEB3_WALLET_ADDRESS", None)
+
+        usd_value = RscExchangeRate.rsc_to_usd(float(amount))
+
+        if usd_value >= SWEEP_MULTISIG_THRESHOLD_USD:
+            if not multisig:
+                raise ValueError("RH_MULTISIG_ADDRESS is not configured")
+            return multisig
+        else:
+            if not hot_wallet:
+                raise ValueError("WEB3_WALLET_ADDRESS is not configured")
+            return hot_wallet
+
+    def sweep_wallet(
+        self,
+        circle_wallet_id: str,
+        amount: str,
+        network: str,
+        sweep_reference: str,
+    ) -> CircleTransferResult:
+        """
+        Sweep the full RSC balance from a user's Circle wallet.
+
+        Reads the wallet's actual token balance and sweeps the entire amount.
+        Amounts worth >= $10,000 USD are sent to the multisig wallet;
+        smaller amounts are sent to the hot wallet.
+
+        Args:
+            circle_wallet_id: The Circle wallet UUID to sweep from.
+            amount: Original deposit amount (used for logging comparison only).
+            network: Deposit network ("ETHEREUM" or "BASE").
+            sweep_reference: Unique per-deposit reference used for idempotency
+                (for example, Circle notification ID).
+
+        Returns:
+            CircleTransferResult with transfer_id and state.
+
+        Raises:
+            ValueError: If the network is unsupported or destination wallet
+                is not configured.
+            CircleZeroBalanceError: If the wallet has zero balance.
+            CircleBalanceError: If the balance fetch fails.
+            CircleTransferError: If the Circle API call fails.
+        """
+        blockchain = get_network_to_blockchain().get(network)
+        if not blockchain:
+            raise ValueError(f"Unsupported network for sweep: {network}")
+
+        rsc_address_fn = NETWORK_TO_RSC_ADDRESS.get(network)
+        if not rsc_address_fn:
+            raise ValueError(f"No RSC token address configured for network: {network}")
+        rsc_address = rsc_address_fn()
+
+        # Fetch actual wallet balance instead of using the deposit amount.
+        wallet_balance = self.client.get_wallet_balance(
+            wallet_id=circle_wallet_id,
+            token_address=rsc_address,
+        )
+
+        logger.info(
+            "sweep_balance_fetched: circle_wallet_id=%s wallet_balance=%s "
+            "original_deposit_amount=%s network=%s sweep_reference=%s",
+            circle_wallet_id,
+            wallet_balance,
+            amount,
+            network,
+            sweep_reference,
+        )
+
+        if wallet_balance == Decimal(0):
+            logger.error(
+                "sweep_zero_balance: circle_wallet_id=%s "
+                "original_deposit_amount=%s network=%s sweep_reference=%s",
+                circle_wallet_id,
+                amount,
+                network,
+                sweep_reference,
+            )
+            raise CircleZeroBalanceError(
+                f"Wallet {circle_wallet_id} has zero RSC balance "
+                f"(expected ~{amount}). sweep_reference={sweep_reference}"
+            )
+
+        sweep_amount = str(wallet_balance)
+        destination = self._get_sweep_destination(sweep_amount)
+
+        idempotency_key = str(
+            uuid.uuid5(uuid.NAMESPACE_URL, f"rh-sweep-{sweep_reference}")
+        )
+
+        result = self.client.create_transfer(
+            wallet_id=circle_wallet_id,
+            destination_address=destination,
+            token_address=rsc_address,
+            blockchain=blockchain,
+            amount=sweep_amount,
+            idempotency_key=idempotency_key,
+        )
+
+        logger.info(
+            "Sweep initiated: circle_wallet_id=%s sweep_amount=%s "
+            "original_deposit_amount=%s network=%s "
+            "destination=%s sweep_reference=%s transfer_id=%s state=%s",
+            circle_wallet_id,
+            sweep_amount,
+            amount,
+            network,
+            destination,
+            sweep_reference,
+            result.transfer_id,
+            result.state,
+        )
+
+        return result

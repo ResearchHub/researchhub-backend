@@ -1,33 +1,71 @@
-"""
-Expert finder configuration choices. Single source of truth for API and prompts.
-"""
+from django.conf import settings
 from django.db import models
+
+MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024
+
+BASE_FRONTEND_URL = getattr(
+    settings, "BASE_FRONTEND_URL", "https://www.researchhub.com"
+)
 
 
 class ExpertiseLevel(models.TextChoices):
-    """Target career stage for expert recommendations."""
+    """Career stage for expert recommendations. Value: snake_case (API/DB), label: display."""
 
-    PHD_POSTDOCS = "PhD/PostDocs", "PhD/PostDocs"
-    EARLY_CAREER = "Early Career Researchers", "Early Career Researchers"
-    MID_CAREER = "Mid-Career Researchers", "Mid-Career Researchers"
-    TOP_EXPERT = "Top Expert/World Renowned Expert", "Top Expert/World Renowned Expert"
-    ALL_LEVELS = "All Levels", "All Levels"
+    PHD_POSTDOCS = "phd_postdocs", "PhD/PostDocs"
+    EARLY_CAREER = "early_career", "Early Career Researchers"
+    MID_CAREER = "mid_career", "Mid-Career Researchers"
+    TOP_EXPERT = "top_expert", "Top Expert/World Renowned Expert"
+    ALL_LEVELS = "all_levels", "All Levels"
 
 
 class Region(models.TextChoices):
-    """Geographic region filter for expert recommendations."""
+    """Geographic region filter. Value is snake_case (API/DB), label is display."""
 
-    US = "US", "US"
-    NON_US = "non-US", "non-US"
-    EUROPE = "Europe", "Europe"
-    ASIA_PACIFIC = "Asia-Pacific", "Asia-Pacific"
-    AFRICA_MENA = "Africa & MENA", "Africa & MENA"
-    ALL_REGIONS = "All Regions", "All Regions"
+    US = "us", "US"
+    NON_US = "non_us", "non-US"
+    EUROPE = "europe", "Europe"
+    ASIA_PACIFIC = "asia_pacific", "Asia-Pacific"
+    AFRICA_MENA = "africa_mena", "Africa & MENA"
+    ALL_REGIONS = "all_regions", "All Regions"
 
 
 class Gender(models.TextChoices):
-    """Gender preference for expert recommendations."""
+    """Gender preference. Value is snake_case (API/DB), label is display."""
 
-    MALE = "Male", "Male"
-    FEMALE = "Female", "Female"
-    ALL_GENDERS = "All Genders", "All Genders"
+    MALE = "male", "Male"
+    FEMALE = "female", "Female"
+    ALL_GENDERS = "all_genders", "All Genders"
+
+
+def get_choice_label(value: str, enum_class: type) -> str:
+    """Return human-readable label for a choice value (e.g. for display in PDF/UI)."""
+    for choice in enum_class:
+        if choice.value == value:
+            return choice.label
+    return value
+
+
+class EmailTemplateType(models.TextChoices):
+    """Type of outreach email. Value stored in DB/API; label for display."""
+
+    COLLABORATION = "collaboration", "collaboration"
+    CONSULTATION = "consultation", "consultation"
+    CONFERENCE = "conference", "conference"
+    PEER_REVIEW = "peer-review", "peer-review"
+    PUBLICATION = "publication", "publication"
+    RFP_OUTREACH = "rfp-outreach", "rfp-outreach"
+    CUSTOM = "custom", "custom"
+
+
+VALID_EMAIL_TEMPLATE_KEYS = frozenset(e.value for e in EmailTemplateType)
+DEFAULT_EMAIL_TEMPLATE_KEY = EmailTemplateType.COLLABORATION.value
+
+EMAIL_TEMPLATE_PROMPT_FILES = {
+    EmailTemplateType.CUSTOM.value: "email_custom.txt",
+    EmailTemplateType.COLLABORATION.value: "email_collaboration.txt",
+    EmailTemplateType.CONSULTATION.value: "email_consultation.txt",
+    EmailTemplateType.CONFERENCE.value: "email_conference.txt",
+    EmailTemplateType.PEER_REVIEW.value: "email_peer_review.txt",
+    EmailTemplateType.PUBLICATION.value: "email_publication.txt",
+    EmailTemplateType.RFP_OUTREACH.value: "email_rfp_outreach.txt",
+}

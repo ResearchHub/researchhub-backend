@@ -36,10 +36,6 @@ class FundraiseViewTests(APITestCase):
         self.factory = APIRequestFactory()
         self.mock_fundraise_service = Mock(spec=FundraiseService)
 
-        # URLs for overview endpoints
-        self.funding_overview_url = "/api/fundraise/funding_overview/"
-        self.funding_impact_url = "/api/fundraise/funding_impact/"
-
         self.rsc_exchange_rate = RscExchangeRate.objects.create(
             rate=0.5,
             real_rate=0.5,
@@ -316,17 +312,20 @@ class FundraiseViewTests(APITestCase):
 
         # User2 should be first (200 RSC)
         self.assertEqual(top_contributors[0]["id"], user2.id)
-        self.assertEqual(top_contributors[0]["total_contribution"], 200.0)
+        self.assertEqual(top_contributors[0]["total_contribution"]["rsc"], 200.0)
+        self.assertEqual(top_contributors[0]["total_contribution"]["usd"], 0)
         self.assertEqual(len(top_contributors[0]["contributions"]), 1)
 
         # User1 should be second (150 RSC total)
         self.assertEqual(top_contributors[1]["id"], user1.id)
-        self.assertEqual(top_contributors[1]["total_contribution"], 150.0)
+        self.assertEqual(top_contributors[1]["total_contribution"]["rsc"], 150.0)
+        self.assertEqual(top_contributors[1]["total_contribution"]["usd"], 0)
         self.assertEqual(len(top_contributors[1]["contributions"]), 2)
 
         # User3 should be third (75 RSC)
         self.assertEqual(top_contributors[2]["id"], user3.id)
-        self.assertEqual(top_contributors[2]["total_contribution"], 75.0)
+        self.assertEqual(top_contributors[2]["total_contribution"]["rsc"], 75.0)
+        self.assertEqual(top_contributors[2]["total_contribution"]["usd"], 0)
         self.assertEqual(len(top_contributors[2]["contributions"]), 1)
 
         # Verify individual contributions for user1 (who made multiple contributions)
@@ -943,91 +942,6 @@ class FundraiseViewTests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("must be RSC or USD", response.data["message"])
-
-    def test_funding_overview_requires_authentication(self):
-        # Arrange
-        self.client.logout()
-
-        # Act
-        response = self.client.get(self.funding_overview_url)
-
-        # Assert
-        self.assertEqual(response.status_code, 401)
-
-    def test_funding_overview_returns_200(self):
-        # Arrange
-        self.client.force_authenticate(self.user)
-
-        # Act
-        response = self.client.get(self.funding_overview_url)
-
-        # Assert
-        self.assertEqual(response.status_code, 200)
-        self.assertIsInstance(response.data, dict)
-
-    def test_funding_impact_requires_authentication(self):
-        # Arrange
-        self.client.logout()
-
-        # Act
-        response = self.client.get(self.funding_impact_url)
-
-        # Assert
-        self.assertEqual(response.status_code, 401)
-
-    def test_funding_impact_returns_200(self):
-        # Arrange
-        self.client.force_authenticate(self.user)
-
-        # Act
-        response = self.client.get(self.funding_impact_url)
-
-        # Assert
-        self.assertEqual(response.status_code, 200)
-        self.assertIsInstance(response.data, dict)
-
-    def test_grant_overview_requires_authentication(self):
-        # Arrange
-        self.client.logout()
-
-        # Act
-        response = self.client.get("/api/grant/999/overview/")
-
-        # Assert
-        self.assertEqual(response.status_code, 401)
-
-    def test_grant_overview_returns_404_for_missing_grant(self):
-        # Arrange
-        self.client.force_authenticate(self.user)
-
-        # Act — post_id 999999 has no associated grant
-        response = self.client.get("/api/grant/999999/overview/")
-
-        # Assert
-        self.assertEqual(response.status_code, 404)
-
-    def test_grant_overview_returns_200(self):
-        # Arrange
-        from purchase.models import Grant
-        from researchhub_document.related_models.constants.document_type import (
-            GRANT as GRANT_DOC_TYPE,
-        )
-
-        self.client.force_authenticate(self.user)
-        grant_post = create_post(created_by=self.user, document_type=GRANT_DOC_TYPE)
-        Grant.objects.create(
-            created_by=self.user,
-            unified_document=grant_post.unified_document,
-            amount=Decimal("10000"),
-            status=Grant.OPEN,
-        )
-
-        # Act — overview looks up grant by post ID
-        response = self.client.get(f"/api/grant/{grant_post.id}/overview/")
-
-        # Assert
-        self.assertEqual(response.status_code, 200)
-        self.assertIsInstance(response.data, dict)
 
     def _create_usd_contribution(
         self, fundraise_id, user, amount_cents=10000, fee_cents=900, **kwargs

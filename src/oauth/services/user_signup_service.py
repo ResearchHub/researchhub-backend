@@ -16,14 +16,28 @@ class UserSignupService:
      - Tracking in Amplitude.
     """
 
-    def __init__(self, amplitude_client=None, mailchimp_client=None):
+    def __init__(
+        self,
+        amplitude_client=None,
+        mailchimp_client=None,
+        mailchimp_enabled=None,
+    ):
         self.amplitude_client = amplitude_client or Amplitude()
         self.mailchimp_client = mailchimp_client or Client()
+
+        # By default, enable Mailchimp integration in production environment only
+        self.mailchimp_enabled = (
+            mailchimp_enabled if mailchimp_enabled is not None else settings.PRODUCTION
+        )
 
     def add_to_mailchimp(self, user):
         """
         Adds user email to MailChimp mailing list.
         """
+        if not self.mailchimp_enabled:
+            logger.info(f"Skipping MailChimp registration for user {user.id}")
+            return
+
         self.mailchimp_client.set_config(
             {
                 "api_key": settings.MAILCHIMP_KEY,

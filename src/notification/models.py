@@ -44,6 +44,7 @@ class Notification(models.Model):
     Triggerd after user claimed a paper and received payout
     """
     PAPER_CLAIM_PAYOUT = "PAPER_CLAIM_PAYOUT"
+    PREREGISTRATION_UPDATE_REMINDER = "PREREGISTRATION_UPDATE_REMINDER"
 
     NOTIFICATION_TYPE_CHOICES = (
         (DEPRECATED, DEPRECATED),
@@ -68,6 +69,7 @@ class Notification(models.Model):
         (IDENTITY_VERIFICATION_UPDATED, IDENTITY_VERIFICATION_UPDATED),
         (PAPER_CLAIM_PAYOUT, PAPER_CLAIM_PAYOUT),
         (PREREGISTRATION_UPDATE, PREREGISTRATION_UPDATE),
+        (PREREGISTRATION_UPDATE_REMINDER, PREREGISTRATION_UPDATE_REMINDER),
     )
 
     notification_type = models.CharField(
@@ -590,5 +592,21 @@ class Notification(models.Model):
             {
                 "type": "text",
                 "value": f" has been fulfilled and you have received {amount} RSC",
+            },
+        ], base_url
+
+    def _format_preregistration_update_reminder(self):
+        unified_document = self.unified_document
+        document = unified_document.get_document()
+        doc_title = self._truncate_title(document.title)
+        base_url = self._create_frontend_doc_link()
+
+        return [
+            {"type": "text", "value": "Share an update on your preregistration "},
+            {
+                "type": "link",
+                "value": doc_title,
+                "link": base_url,
+                "extra": '["link"]',
             },
         ], base_url

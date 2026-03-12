@@ -53,6 +53,12 @@ def create_feed_entry(
     unified_document = _get_unified_document(item, item_content_type)
 
     content = serialize_feed_item(item, item_content_type)
+    if content is None:
+        logger.warning(
+            f"Unsupported content type for feed entry: {item_content_type.model} "
+            f"(item_id={item_id}). Skipping."
+        )
+        return None
 
     metrics = serialize_feed_metrics(item, item_content_type)
 
@@ -98,6 +104,12 @@ def create_feed_entry(
 
 def refresh_feed_entry(feed_entry, skip_figure_extraction=False):
     content = serialize_feed_item(feed_entry.item, feed_entry.content_type)
+    if content is None:
+        logger.warning(
+            f"Unsupported content type for feed entry refresh: "
+            f"{feed_entry.content_type.model} (feed_entry_id={feed_entry.id}). Skipping."
+        )
+        return
 
     metrics = serialize_feed_metrics(feed_entry.item, feed_entry.content_type)
 
@@ -182,6 +194,19 @@ def _get_unified_document(
             doc = item.unified_document
         case "rhcommentmodel":
             doc = item.thread.unified_document
+        case "purchase":
+            # Fundraise contribution - object_id points to Fundraise
+            from purchase.models import Fundraise
+
+            try:
+                fundraise = Fundraise.objects.select_related(
+                    "unified_document"
+                ).get(id=item.object_id)
+                doc = fundraise.unified_document
+            except Fundraise.DoesNotExist:
+                doc = None
+        case "usdfundraisecontribution":
+            doc = item.fundraise.unified_document
         case _:
             doc = None
 
@@ -211,6 +236,14 @@ def _get_authors_for_item(item: Any, item_content_type: ContentType) -> list[Aut
                 and item.created_by.author_profile
             ):
                 authors = [item.created_by.author_profile]
+        case "purchase" | "usdfundraisecontribution":
+            if (
+                hasattr(item, "user")
+                and item.user
+                and hasattr(item.user, "author_profile")
+                and item.user.author_profile
+            ):
+                authors = [item.user.author_profile]
 
     return authors
 

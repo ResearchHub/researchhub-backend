@@ -1,0 +1,9 @@
+{sender_info}
+
+{common}
+
+Generate a general professional outreach email based on this expert's expertise.
+Use the 3-part structure:
+- Part 1 (Context): explain why you are reaching out
+- Part 2 (Relevance): connect the request or opportunity to their expertise
+- Part 3 (Call to action): propose a simple next step
