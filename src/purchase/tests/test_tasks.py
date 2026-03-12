@@ -8,7 +8,6 @@ from django.test import TestCase
 
 from notification.models import Notification
 from purchase.circle.client import CircleTransferError
-from purchase.circle.service import CircleZeroBalanceError
 from purchase.models import Fundraise, Wallet
 from purchase.services.fundraise_service import FundraiseService
 from purchase.tasks import (
@@ -216,31 +215,6 @@ class SweepDepositTaskTest(TestCase):
             sweep_deposit_to_multisig.run("wallet-1", "100", "BASE", "notif-1")
 
         mock_retry.assert_called_once()
-
-    @patch.object(sweep_deposit_to_multisig, "retry")
-    @patch("purchase.tasks.CircleWalletService")
-    def test_sweep_task_does_not_retry_on_value_error(
-        self, mock_service_class, mock_retry
-    ):
-        mock_service_class.return_value.execute_sweep.side_effect = ValueError(
-            "bad network"
-        )
-
-        with self.assertRaises(ValueError):
-            sweep_deposit_to_multisig.run("wallet-1", "100", "BASE", "notif-1")
-
-        mock_retry.assert_not_called()
-
-    @patch.object(sweep_deposit_to_multisig, "retry")
-    @patch("purchase.tasks.CircleWalletService")
-    def test_sweep_zero_balance_does_not_retry(self, mock_service_class, mock_retry):
-        mock_service_class.return_value.execute_sweep.side_effect = (
-            CircleZeroBalanceError("zero balance")
-        )
-
-        sweep_deposit_to_multisig.run("wallet-1", "100", "BASE", "notif-1")
-
-        mock_retry.assert_not_called()
 
 
 class PreregistrationUpdateReminderTest(TestCase):

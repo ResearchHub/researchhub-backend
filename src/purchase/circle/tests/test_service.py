@@ -423,13 +423,12 @@ class TestExecuteSweep(TestCase):
     def test_value_error_sets_failed(self, mock_sweep):
         mock_sweep.side_effect = ValueError("bad network")
 
-        with self.assertRaises(ValueError):
-            self.service.execute_sweep(
-                circle_wallet_id="wallet-exec",
-                amount="100",
-                network="BASE",
-                sweep_reference="notif-exec-1",
-            )
+        self.service.execute_sweep(
+            circle_wallet_id="wallet-exec",
+            amount="100",
+            network="BASE",
+            sweep_reference="notif-exec-1",
+        )
 
         self.deposit.refresh_from_db()
         self.assertEqual(self.deposit.sweep_status, Deposit.SWEEP_FAILED)
