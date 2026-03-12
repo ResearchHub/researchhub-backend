@@ -3,15 +3,12 @@ from datetime import datetime, timedelta
 
 import pytz
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 
 from mailing_list.lib import base_email_context
 from notification.models import Notification
 from paper.models import Paper
-from purchase.circle.service import (
-    COMPLETED_STATES,
-    CircleWalletService,
-    CircleZeroBalanceError,
-)
+from purchase.circle.service import CircleWalletService, CircleZeroBalanceError
 from purchase.models import Fundraise, Purchase, Support
 from purchase.related_models.constants.currency import USD
 from purchase.services.fundraise_service import FundraiseService
@@ -249,6 +246,25 @@ def send_support_email(
         )
 
 
+def dispatch_sweep(wallet, amount, network, circle_transaction_id):
+    """Schedule the sweep task after the current DB transaction commits."""
+    sweep_wallet_id = wallet.get_circle_wallet_id_for_network(network)
+    if sweep_wallet_id:
+        transaction.on_commit(
+            lambda: sweep_deposit_to_multisig.delay(
+                sweep_wallet_id, amount, network, circle_transaction_id
+            )
+        )
+    else:
+        logger.error(
+            "No Circle wallet ID for network=%s wallet_pk=%s "
+            "circle_transaction_id=%s — skipping sweep",
+            network,
+            wallet.pk,
+            circle_transaction_id,
+        )
+
+
 @app.task(
     bind=True,
     queue=QUEUE_PURCHASES,
@@ -257,67 +273,24 @@ def send_support_email(
 )
 def sweep_deposit_to_multisig(self, circle_wallet_id, amount, network, sweep_reference):
     """
-    Sweep deposited RSC from a user's Circle wallet.
+    Celery wrapper for CircleWalletService.execute_sweep.
 
-    Amounts worth >= $10,000 USD are sent to the multisig wallet;
-    smaller amounts are sent to the hot wallet.
-
-    Fired asynchronously after crediting a user's balance on deposit.
-    Updates Deposit.sweep_status to track the outcome.
+    Handles retry logic; business logic lives in the service.
     """
-    deposit = Deposit.objects.filter(circle_transaction_id=sweep_reference).first()
-
     try:
         service = CircleWalletService()
-        result = service.sweep_wallet(
+        service.execute_sweep(
             circle_wallet_id=circle_wallet_id,
             amount=amount,
             network=network,
             sweep_reference=sweep_reference,
         )
-        if deposit:
-            # If the idempotent transfer is already finalized (e.g. duplicate
-            # webhook replay), record COMPLETED instead of downgrading.
-            if result.state in COMPLETED_STATES:
-                deposit.sweep_status = Deposit.SWEEP_COMPLETED
-            else:
-                deposit.sweep_status = Deposit.SWEEP_INITIATED
-            deposit.sweep_transfer_id = result.transfer_id
-            deposit.save(update_fields=["sweep_status", "sweep_transfer_id"])
     except CircleZeroBalanceError:
-        # Zero balance means another job already swept the funds.
-        # Mark as COMPLETED to avoid infinite retry loops.
-        logger.info(
-            "Sweep wallet has zero balance (already swept): "
-            "circle_wallet_id=%s sweep_reference=%s",
-            circle_wallet_id,
-            sweep_reference,
-        )
-        if deposit:
-            deposit.sweep_status = Deposit.SWEEP_COMPLETED
-            deposit.save(update_fields=["sweep_status"])
+        pass  # Already handled by the service — no retry needed.
     except ValueError:
-        logger.exception(
-            "Sweep failed (not retryable): circle_wallet_id=%s amount=%s "
-            "network=%s sweep_reference=%s",
-            circle_wallet_id,
-            amount,
-            network,
-            sweep_reference,
-        )
-        if deposit:
-            deposit.sweep_status = Deposit.SWEEP_FAILED
-            deposit.save(update_fields=["sweep_status"])
-        raise
+        raise  # Not retryable — service already marked FAILED.
     except Exception as exc:
-        logger.exception(
-            "Sweep failed (retrying): circle_wallet_id=%s amount=%s "
-            "network=%s sweep_reference=%s",
-            circle_wallet_id,
-            amount,
-            network,
-            sweep_reference,
-        )
+        deposit = Deposit.objects.filter(circle_transaction_id=sweep_reference).first()
         if deposit and self.request.retries >= self.max_retries:
             deposit.sweep_status = Deposit.SWEEP_FAILED
             deposit.save(update_fields=["sweep_status"])

@@ -12,11 +12,11 @@ from purchase.circle.service import (
     COMPLETED_STATES,
     FAILED_STATES,
     PENDING_DEPOSIT_STATES,
-    is_rsc_token,
     process_circle_deposit,
 )
-from purchase.circle.webhook import verify_webhook_signature
+from purchase.circle.webhook import is_rsc_token, verify_webhook_signature
 from purchase.models import Wallet
+from purchase.tasks import dispatch_sweep
 from reputation.models import Deposit
 
 logger = logging.getLogger(__name__)
@@ -298,4 +298,12 @@ class CircleWebhookView(APIView):
         if validated is None:
             return
 
-        process_circle_deposit(**validated)
+        wallet = validated["wallet"]
+        deposit, credited = process_circle_deposit(**validated)
+        if credited:
+            dispatch_sweep(
+                wallet,
+                validated["amount"],
+                validated["network"],
+                validated["circle_transaction_id"],
+            )

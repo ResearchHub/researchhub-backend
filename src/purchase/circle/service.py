@@ -49,23 +49,6 @@ BLOCKCHAIN_TO_NETWORK = {
     d["mainnet_blockchain"]: d["network"] for d in _NETWORK_DEFS
 } | {d["testnet_blockchain"]: d["network"] for d in _NETWORK_DEFS}
 
-# Known Circle token IDs for the RSC token, keyed by Circle blockchain identifier.
-# These are stable identifiers assigned by Circle and do not change.
-_RSC_TOKEN_ID_BY_BLOCKCHAIN = {
-    # Testnet
-    "BASE-SEPOLIA": "e7233cf0-a48c-5265-a9ad-6d125af58e71",
-    "ETH-SEPOLIA": "979869da-9115-5f7d-917d-12d434e56ae7",
-    # Production
-    "BASE": "fe81326a-572d-5c31-9dde-31ef96a1220f",
-    "ETH": "fa1e82a2-fd87-5030-aa61-e9447ce24570",
-}
-
-
-def is_rsc_token(token_id: str, blockchain: str) -> bool:
-    """Check whether *token_id* is the known RSC token for *blockchain*."""
-    expected = _RSC_TOKEN_ID_BY_BLOCKCHAIN.get(blockchain)
-    return expected is not None and token_id == expected
-
 
 def process_circle_deposit(
     circle_transaction_id: str,
@@ -139,7 +122,6 @@ def process_circle_deposit(
             network,
             circle_transaction_id,
         )
-        _dispatch_sweep(wallet, amount, network, circle_transaction_id)
     else:
         logger.info(
             "Duplicate Circle transaction %s, skipping credit",
@@ -147,27 +129,6 @@ def process_circle_deposit(
         )
 
     return deposit, credited
-
-
-def _dispatch_sweep(wallet, amount, network, circle_transaction_id):
-    """Schedule the sweep task to run after the current transaction commits."""
-    from purchase.tasks import sweep_deposit_to_multisig
-
-    sweep_wallet_id = wallet.get_circle_wallet_id_for_network(network)
-    if sweep_wallet_id:
-        transaction.on_commit(
-            lambda: sweep_deposit_to_multisig.delay(
-                sweep_wallet_id, amount, network, circle_transaction_id
-            )
-        )
-    else:
-        logger.error(
-            "No Circle wallet ID for network=%s wallet_pk=%s "
-            "circle_transaction_id=%s — skipping sweep",
-            network,
-            wallet.pk,
-            circle_transaction_id,
-        )
 
 
 # Sweeps worth this amount or more (in USD) go to the multisig;
@@ -428,3 +389,83 @@ class CircleWalletService:
         )
 
         return result
+
+    def execute_sweep(
+        self,
+        circle_wallet_id: str,
+        amount: str,
+        network: str,
+        sweep_reference: str,
+    ) -> None:
+        """
+        Execute a sweep and update the Deposit record accordingly.
+
+        This contains the business logic previously in the Celery task:
+        calls sweep_wallet, then updates Deposit.sweep_status based on
+        the outcome.
+
+        Args:
+            circle_wallet_id: The Circle wallet UUID to sweep from.
+            amount: Original deposit amount.
+            network: "ETHEREUM" or "BASE".
+            sweep_reference: Unique reference (Circle transaction ID).
+
+        Raises:
+            ValueError: Not retryable — sweep_status set to FAILED.
+            CircleZeroBalanceError: Already swept — sweep_status set to COMPLETED.
+            Exception: Any other error — sweep_status unchanged (caller should retry).
+        """
+        deposit = Deposit.objects.filter(circle_transaction_id=sweep_reference).first()
+
+        sweep_status = None
+        transfer_id = None
+
+        try:
+            result = self.sweep_wallet(
+                circle_wallet_id=circle_wallet_id,
+                amount=amount,
+                network=network,
+                sweep_reference=sweep_reference,
+            )
+            if result.state in COMPLETED_STATES:
+                sweep_status = Deposit.SWEEP_COMPLETED
+            else:
+                sweep_status = Deposit.SWEEP_INITIATED
+            transfer_id = result.transfer_id
+        except CircleZeroBalanceError:
+            logger.info(
+                "Sweep wallet has zero balance (already swept): "
+                "circle_wallet_id=%s sweep_reference=%s",
+                circle_wallet_id,
+                sweep_reference,
+            )
+            sweep_status = Deposit.SWEEP_COMPLETED
+        except ValueError:
+            logger.exception(
+                "Sweep failed (not retryable): circle_wallet_id=%s amount=%s "
+                "network=%s sweep_reference=%s",
+                circle_wallet_id,
+                amount,
+                network,
+                sweep_reference,
+            )
+            sweep_status = Deposit.SWEEP_FAILED
+            raise
+        except Exception:
+            logger.exception(
+                "Sweep failed (retrying): circle_wallet_id=%s amount=%s "
+                "network=%s sweep_reference=%s",
+                circle_wallet_id,
+                amount,
+                network,
+                sweep_reference,
+            )
+            raise
+        finally:
+            if deposit and sweep_status:
+                deposit.sweep_status = sweep_status
+                update_fields = ["sweep_status"]
+                if transfer_id:
+                    deposit.sweep_transfer_id = transfer_id
+                    update_fields.append("sweep_transfer_id")
+                deposit.save(update_fields=update_fields)

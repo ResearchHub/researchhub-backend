@@ -20,6 +20,7 @@ from purchase.circle.service import (
     get_network_to_blockchain,
 )
 from purchase.models import Wallet
+from reputation.related_models.deposit import Deposit
 
 User = get_user_model()
 
@@ -324,7 +325,7 @@ class TestCircleWalletServiceSweep(TestCase):
             transfer_id="tx-5", state="INITIATED"
         )
 
-        result = self.service.sweep_wallet("wallet-1", "100.0", "BASE", "notif-5")
+        self.service.sweep_wallet("wallet-1", "100.0", "BASE", "notif-5")
 
         call_kwargs = self.mock_client.create_transfer.call_args[1]
         self.assertEqual(call_kwargs["amount"], "150.5")
@@ -346,3 +347,104 @@ class TestCircleWalletServiceSweep(TestCase):
             self.service.sweep_wallet("wallet-1", "100.0", "BASE", "notif-7")
 
         self.mock_client.create_transfer.assert_not_called()
+
+
+class TestExecuteSweep(TestCase):
+    """Tests for CircleWalletService.execute_sweep deposit status updates."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="execsweepuser")
+        Wallet.objects.create(
+            user=self.user,
+            circle_wallet_id="wallet-exec",
+            circle_base_wallet_id="wallet-exec-base",
+            wallet_type=Wallet.WALLET_TYPE_CIRCLE,
+            address="0xExecSweepAddress",
+        )
+        self.deposit = Deposit.objects.create(
+            user=self.user,
+            amount="100",
+            network="BASE",
+            from_address="",
+            circle_transaction_id="notif-exec-1",
+            sweep_status=Deposit.SWEEP_PENDING,
+        )
+        self.service = CircleWalletService(client=Mock())
+
+    @patch.object(CircleWalletService, "sweep_wallet")
+    def test_sets_initiated_status_and_transfer_id(self, mock_sweep):
+        mock_sweep.return_value = CircleTransferResult(
+            transfer_id="transfer-123", state="INITIATED"
+        )
+
+        self.service.execute_sweep(
+            circle_wallet_id="wallet-exec",
+            amount="100",
+            network="BASE",
+            sweep_reference="notif-exec-1",
+        )
+
+        self.deposit.refresh_from_db()
+        self.assertEqual(self.deposit.sweep_status, Deposit.SWEEP_INITIATED)
+        self.assertEqual(self.deposit.sweep_transfer_id, "transfer-123")
+
+    @patch.object(CircleWalletService, "sweep_wallet")
+    def test_sets_completed_status_and_transfer_id(self, mock_sweep):
+        mock_sweep.return_value = CircleTransferResult(
+            transfer_id="transfer-456", state="COMPLETED"
+        )
+
+        self.service.execute_sweep(
+            circle_wallet_id="wallet-exec",
+            amount="100",
+            network="BASE",
+            sweep_reference="notif-exec-1",
+        )
+
+        self.deposit.refresh_from_db()
+        self.assertEqual(self.deposit.sweep_status, Deposit.SWEEP_COMPLETED)
+        self.assertEqual(self.deposit.sweep_transfer_id, "transfer-456")
+
+    @patch.object(CircleWalletService, "sweep_wallet")
+    def test_zero_balance_sets_completed(self, mock_sweep):
+        mock_sweep.side_effect = CircleZeroBalanceError("zero balance")
+
+        self.service.execute_sweep(
+            circle_wallet_id="wallet-exec",
+            amount="100",
+            network="BASE",
+            sweep_reference="notif-exec-1",
+        )
+
+        self.deposit.refresh_from_db()
+        self.assertEqual(self.deposit.sweep_status, Deposit.SWEEP_COMPLETED)
+
+    @patch.object(CircleWalletService, "sweep_wallet")
+    def test_value_error_sets_failed(self, mock_sweep):
+        mock_sweep.side_effect = ValueError("bad network")
+
+        with self.assertRaises(ValueError):
+            self.service.execute_sweep(
+                circle_wallet_id="wallet-exec",
+                amount="100",
+                network="BASE",
+                sweep_reference="notif-exec-1",
+            )
+
+        self.deposit.refresh_from_db()
+        self.assertEqual(self.deposit.sweep_status, Deposit.SWEEP_FAILED)
+
+    @patch.object(CircleWalletService, "sweep_wallet")
+    def test_unexpected_error_leaves_status_unchanged(self, mock_sweep):
+        mock_sweep.side_effect = RuntimeError("transport failed")
+
+        with self.assertRaises(RuntimeError):
+            self.service.execute_sweep(
+                circle_wallet_id="wallet-exec",
+                amount="100",
+                network="BASE",
+                sweep_reference="notif-exec-1",
+            )
+
+        self.deposit.refresh_from_db()
+        self.assertEqual(self.deposit.sweep_status, Deposit.SWEEP_PENDING)

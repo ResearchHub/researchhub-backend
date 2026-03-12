@@ -7,7 +7,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 
 from notification.models import Notification
-from purchase.circle.client import CircleTransferError, CircleTransferResult
+from purchase.circle.client import CircleTransferError
 from purchase.circle.service import CircleZeroBalanceError
 from purchase.models import Fundraise, Wallet
 from purchase.services.fundraise_service import FundraiseService
@@ -181,34 +181,20 @@ class SweepDepositTaskTest(TestCase):
         )
 
     @patch("purchase.tasks.CircleWalletService")
-    def test_sweep_task_calls_service_with_reference(self, mock_service_class):
-        mock_service_class.return_value.sweep_wallet.return_value = (
-            CircleTransferResult(transfer_id="tx-123", state="INITIATED")
-        )
+    def test_sweep_task_calls_execute_sweep(self, mock_service_class):
         sweep_deposit_to_multisig.run("wallet-1", "100", "BASE", "notif-1")
 
-        mock_service_class.return_value.sweep_wallet.assert_called_once_with(
+        mock_service_class.return_value.execute_sweep.assert_called_once_with(
             circle_wallet_id="wallet-1",
             amount="100",
             network="BASE",
             sweep_reference="notif-1",
         )
 
-    @patch("purchase.tasks.CircleWalletService")
-    def test_sweep_success_sets_initiated_and_transfer_id(self, mock_service_class):
-        mock_service_class.return_value.sweep_wallet.return_value = (
-            CircleTransferResult(transfer_id="tx-abc", state="INITIATED")
-        )
-        sweep_deposit_to_multisig.run("wallet-1", "100", "BASE", "notif-1")
-
-        self.deposit.refresh_from_db()
-        self.assertEqual(self.deposit.sweep_status, Deposit.SWEEP_INITIATED)
-        self.assertEqual(self.deposit.sweep_transfer_id, "tx-abc")
-
     @patch.object(sweep_deposit_to_multisig, "retry", side_effect=RuntimeError("retry"))
     @patch("purchase.tasks.CircleWalletService")
     def test_sweep_task_retries_on_transfer_error(self, mock_service_class, mock_retry):
-        mock_service_class.return_value.sweep_wallet.side_effect = CircleTransferError(
+        mock_service_class.return_value.execute_sweep.side_effect = CircleTransferError(
             "circle failed"
         )
 
@@ -222,7 +208,7 @@ class SweepDepositTaskTest(TestCase):
     def test_sweep_task_retries_on_unexpected_error(
         self, mock_service_class, mock_retry
     ):
-        mock_service_class.return_value.sweep_wallet.side_effect = RuntimeError(
+        mock_service_class.return_value.execute_sweep.side_effect = RuntimeError(
             "transport failed"
         )
 
@@ -236,7 +222,7 @@ class SweepDepositTaskTest(TestCase):
     def test_sweep_task_does_not_retry_on_value_error(
         self, mock_service_class, mock_retry
     ):
-        mock_service_class.return_value.sweep_wallet.side_effect = ValueError(
+        mock_service_class.return_value.execute_sweep.side_effect = ValueError(
             "bad network"
         )
 
@@ -247,29 +233,14 @@ class SweepDepositTaskTest(TestCase):
 
     @patch.object(sweep_deposit_to_multisig, "retry")
     @patch("purchase.tasks.CircleWalletService")
-    def test_sweep_value_error_sets_failed(self, mock_service_class, mock_retry):
-        mock_service_class.return_value.sweep_wallet.side_effect = ValueError(
-            "bad network"
-        )
-
-        with self.assertRaises(ValueError):
-            sweep_deposit_to_multisig.run("wallet-1", "100", "BASE", "notif-1")
-
-        self.deposit.refresh_from_db()
-        self.assertEqual(self.deposit.sweep_status, Deposit.SWEEP_FAILED)
-
-    @patch.object(sweep_deposit_to_multisig, "retry")
-    @patch("purchase.tasks.CircleWalletService")
-    def test_sweep_zero_balance_marks_completed(self, mock_service_class, mock_retry):
-        mock_service_class.return_value.sweep_wallet.side_effect = (
+    def test_sweep_zero_balance_does_not_retry(self, mock_service_class, mock_retry):
+        mock_service_class.return_value.execute_sweep.side_effect = (
             CircleZeroBalanceError("zero balance")
         )
 
         sweep_deposit_to_multisig.run("wallet-1", "100", "BASE", "notif-1")
 
         mock_retry.assert_not_called()
-        self.deposit.refresh_from_db()
-        self.assertEqual(self.deposit.sweep_status, Deposit.SWEEP_COMPLETED)
 
 
 class PreregistrationUpdateReminderTest(TestCase):
