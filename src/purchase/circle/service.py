@@ -411,9 +411,9 @@ class CircleWalletService:
             sweep_reference: Unique reference (Circle transaction ID).
 
         Raises:
-            ValueError: Not retryable — sweep_status set to FAILED.
-            CircleZeroBalanceError: Already swept — sweep_status set to COMPLETED.
-            Exception: Any other error — sweep_status unchanged (caller should retry).
+            Exception: Any retryable error — sweep_status unchanged (caller should retry).
+                Non-retryable errors (ValueError, CircleZeroBalanceError) are
+                handled internally and do not propagate.
         """
         deposit = Deposit.objects.filter(circle_transaction_id=sweep_reference).first()
 
@@ -450,7 +450,6 @@ class CircleWalletService:
                 sweep_reference,
             )
             sweep_status = Deposit.SWEEP_FAILED
-            raise
         except Exception:
             logger.exception(
                 "Sweep failed (retrying): circle_wallet_id=%s amount=%s "

@@ -8,7 +8,7 @@ from django.db import transaction
 from mailing_list.lib import base_email_context
 from notification.models import Notification
 from paper.models import Paper
-from purchase.circle.service import CircleWalletService, CircleZeroBalanceError
+from purchase.circle.service import CircleWalletService
 from purchase.models import Fundraise, Purchase, Support
 from purchase.related_models.constants.currency import USD
 from purchase.services.fundraise_service import FundraiseService
@@ -285,10 +285,6 @@ def sweep_deposit_to_multisig(self, circle_wallet_id, amount, network, sweep_ref
             network=network,
             sweep_reference=sweep_reference,
         )
-    except CircleZeroBalanceError:
-        pass  # Already handled by the service — no retry needed.
-    except ValueError:
-        raise  # Not retryable — service already marked FAILED.
     except Exception as exc:
         deposit = Deposit.objects.filter(circle_transaction_id=sweep_reference).first()
         if deposit and self.request.retries >= self.max_retries:
