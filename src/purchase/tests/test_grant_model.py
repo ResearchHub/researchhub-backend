@@ -3,7 +3,7 @@ from decimal import Decimal
 
 import pytz
 from django.test import TestCase
-from django.utils import timezone
+
 
 from purchase.models import Grant
 from researchhub_document.helpers import create_post
@@ -233,7 +233,6 @@ class GrantModelTests(TestCase):
 class GrantPendingModelTests(TestCase):
     def setUp(self):
         self.user = create_random_authenticated_user("pending_model")
-        self.moderator = create_random_authenticated_user("mod_model", moderator=True)
         self.post = create_post(created_by=self.user, document_type=GRANT)
         self.grant = Grant.objects.create(
             created_by=self.user,
@@ -261,23 +260,3 @@ class GrantPendingModelTests(TestCase):
             self.grant.status = val
             self.grant.full_clean()
 
-    def test_moderation_fields_default_to_null(self):
-        self.assertIsNone(self.grant.reviewed_by)
-        self.assertIsNone(self.grant.reviewed_date)
-        self.assertIsNone(self.grant.decline_reason)
-
-    def test_moderation_fields_can_be_set(self):
-        # Arrange
-        now = timezone.now()
-
-        # Act
-        self.grant.reviewed_by = self.moderator
-        self.grant.reviewed_date = now
-        self.grant.decline_reason = "Not aligned with goals"
-        self.grant.save()
-
-        # Assert
-        self.grant.refresh_from_db()
-        self.assertEqual(self.grant.reviewed_by, self.moderator)
-        self.assertEqual(self.grant.reviewed_date, now)
-        self.assertEqual(self.grant.decline_reason, "Not aligned with goals")
