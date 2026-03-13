@@ -497,6 +497,7 @@ class GrantFeedViewTests(APITestCase):
         filter_instance = FundOrderingFilter()
         factory = APIRequestFactory()
         mock_queryset = Mock()
+        mock_queryset.query.order_by = ("-created_date",)
         mock_view = Mock()
 
         # Setup view with ordering_fields and is_grant_view
