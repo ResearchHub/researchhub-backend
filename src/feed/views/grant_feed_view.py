@@ -5,7 +5,7 @@ and research grant postings.
 """
 
 from django.core.cache import cache
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
@@ -15,6 +15,7 @@ from feed.filters import FundOrderingFilter
 from feed.models import FeedEntry
 from feed.serializers import GrantFeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
+from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.grant_model import Grant
 from researchhub_document.related_models.constants.document_type import GRANT
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -111,7 +112,21 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
                 "unified_document__hubs",
                 "unified_document__grants",
                 "unified_document__grants__applications__applicant__author_profile",
-                "unified_document__grants__applications__preregistration_post__unified_document__fundraises",
+                Prefetch(
+                    "unified_document__grants__applications__preregistration_post__unified_document__fundraises",
+                    queryset=Fundraise.objects.select_related(
+                        "escrow"
+                    ).prefetch_related(
+                        Prefetch(
+                            "purchases",
+                            to_attr="prefetched_purchases",
+                        ),
+                        Prefetch(
+                            "usd_contributions",
+                            to_attr="prefetched_usd_contributions",
+                        ),
+                    ),
+                ),
             )
             .filter(document_type=GRANT, unified_document__is_removed=False)
         )

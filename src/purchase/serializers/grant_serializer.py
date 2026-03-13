@@ -1,7 +1,6 @@
 from rest_framework import serializers
 
 from purchase.models import Grant
-from purchase.related_models.constants.currency import RSC, USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub.serializers import DynamicModelFieldSerializer
 from user.serializers import DynamicAuthorSerializer, DynamicUserSerializer
@@ -80,19 +79,8 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
     def get_applications(self, grant):
         """Return grant applications with applicant and fundraise information"""
 
-        applications = (
-            grant.applications.select_related(
-                "applicant__author_profile",
-                "preregistration_post__unified_document",
-            )
-            .prefetch_related(
-                "preregistration_post__unified_document__fundraises",
-            )
-            .all()
-        )
-
         application_data = []
-        for application in applications:
+        for application in grant.applications.all():
             if (
                 application.applicant
                 and hasattr(application.applicant, "author_profile")
@@ -131,9 +119,10 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
         if not hasattr(ud, "fundraises"):
             return None
 
-        fundraise = ud.fundraises.first()
-        if not fundraise:
+        fundraises = ud.fundraises.all()
+        if not fundraises:
             return None
+        fundraise = fundraises[0]
 
         usd_goal = float(fundraise.goal_amount)
         try:
@@ -142,6 +131,26 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
             rsc_goal = None
 
         aggregated = fundraise.get_contributors_summary()
+
+        rsc_raised = sum(c.total_rsc for c in aggregated.top)
+        usd_raised = sum(c.total_usd for c in aggregated.top)
+        if fundraise.escrow:
+            escrow_rsc = float(
+                fundraise.escrow.amount_holding + fundraise.escrow.amount_paid
+            )
+            rsc_raised += escrow_rsc
+
+        try:
+            total_usd = usd_raised + (
+                RscExchangeRate.rsc_to_usd(rsc_raised) if rsc_raised > 0 else 0
+            )
+            total_rsc = rsc_raised + (
+                RscExchangeRate.usd_to_rsc(usd_raised) if usd_raised > 0 else 0
+            )
+        except AttributeError:
+            total_usd = usd_raised
+            total_rsc = rsc_raised
+
         contributors = []
         for entry in aggregated.top:
             contributors.append(
@@ -162,8 +171,8 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
             "status": fundraise.status,
             "goal_amount": {"usd": usd_goal, "rsc": rsc_goal},
             "amount_raised": {
-                "usd": fundraise.get_amount_raised(currency=USD),
-                "rsc": fundraise.get_amount_raised(currency=RSC),
+                "usd": total_usd,
+                "rsc": total_rsc,
             },
             "contributors": {
                 "total": aggregated.total,
