@@ -7,6 +7,7 @@ from django.test import TestCase
 from discussion.constants.flag_reasons import ABUSIVE_OR_RUDE, SPAM
 from discussion.models import Flag
 from discussion.views import censor
+from feed.models import FeedEntry
 from note.models import Note
 from paper.tests.helpers import create_paper
 from purchase.models import Fundraise, Grant, Purchase
@@ -512,6 +513,48 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
         comment_verdict = Verdict.objects.get(flag=comment_flag)
         self.assertTrue(comment_verdict.is_content_removed)
         self.assertEqual(comment_verdict.verdict_choice, ABUSIVE_OR_RUDE)
+
+    def test_suspend_deletes_feed_entries(self):
+        """Feed entries for the banned user are hard-deleted; other users' entries remain."""
+        # Arrange
+        post_ct = ContentType.objects.get_for_model(ResearchhubPost)
+        user_entry = FeedEntry.objects.create(
+            action="PUBLISH",
+            action_date=self.post.created_date,
+            content_type=post_ct,
+            object_id=self.post.id,
+            user=self.user,
+            unified_document=self.post.unified_document,
+            content={},
+            metrics={},
+        )
+
+        other_post = ResearchhubPost.objects.create(
+            created_by=self.other_user,
+            title="Other Post",
+            renderable_text="Other content",
+            document_type="DISCUSSION",
+            unified_document=ResearchhubUnifiedDocument.objects.create(
+                document_type="DISCUSSION"
+            ),
+        )
+        other_entry = FeedEntry.objects.create(
+            action="PUBLISH",
+            action_date=other_post.created_date,
+            content_type=post_ct,
+            object_id=other_post.id,
+            user=self.other_user,
+            unified_document=other_post.unified_document,
+            content={},
+            metrics={},
+        )
+
+        # Act
+        handle_spam_user_task(self.user.id, self.moderator)
+
+        # Assert
+        self.assertFalse(FeedEntry.objects.filter(id=user_entry.id).exists())
+        self.assertTrue(FeedEntry.objects.filter(id=other_entry.id).exists())
 
     def test_reinstate_restores_new_content_types(self):
         """Notes, peer reviews, and reviews are restored on reinstate."""

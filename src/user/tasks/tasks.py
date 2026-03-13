@@ -10,6 +10,7 @@ from django.utils import timezone
 from discussion.constants.flag_reasons import NOT_SPECIFIED
 from discussion.models import Flag, Vote
 from discussion.views import censor
+from feed.models import FeedEntry
 from paper.models import Paper
 from purchase.models import Fundraise, Grant
 from purchase.services.fundraise_service import FundraiseService
@@ -88,6 +89,9 @@ def handle_spam_user_task(user_id, requestor=None):
 
     # Close open grants (RFPs)
     user.grants.filter(status=Grant.OPEN).update(status=Grant.CLOSED)
+
+    # Purge activity feed entries
+    FeedEntry.objects.filter(user=user).delete()
 
     # Resolve any open moderation flags on the user's content
     _resolve_open_flags_for_user(user, requestor)
