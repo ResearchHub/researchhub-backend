@@ -77,14 +77,10 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
         return grant.is_active()
 
     def get_applications(self, grant):
-        """Return grant applications with applicant information"""
-
-        applications = grant.applications.select_related(
-            "applicant__author_profile"
-        ).all()
+        """Return grant applications with applicant and fundraise information"""
 
         application_data = []
-        for application in applications:
+        for application in grant.applications.all():
             if (
                 application.applicant
                 and hasattr(application.applicant, "author_profile")
@@ -93,17 +89,93 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
                 applicant_data = DynamicAuthorSerializer(
                     application.applicant.author_profile
                 ).data
-                application_data.append(
-                    {
-                        "id": application.id,
-                        "created_date": application.created_date,
-                        "applicant": applicant_data,
-                        "preregistration_post_id": (
-                            application.preregistration_post.id
-                            if application.preregistration_post
-                            else None
-                        ),
-                    }
-                )
+
+                entry = {
+                    "id": application.id,
+                    "created_date": application.created_date,
+                    "applicant": applicant_data,
+                    "preregistration_post_id": (
+                        application.preregistration_post.id
+                        if application.preregistration_post
+                        else None
+                    ),
+                    "fundraise": self._serialize_application_fundraise(application),
+                }
+                application_data.append(entry)
 
         return application_data
+
+    @staticmethod
+    def _serialize_application_fundraise(application):
+        post = application.preregistration_post
+        if (
+            not post
+            or not hasattr(post, "unified_document")
+            or not post.unified_document
+        ):
+            return None
+
+        ud = post.unified_document
+        if not hasattr(ud, "fundraises"):
+            return None
+
+        fundraises = ud.fundraises.all()
+        if not fundraises:
+            return None
+        fundraise = fundraises[0]
+
+        usd_goal = float(fundraise.goal_amount)
+        try:
+            rsc_goal = RscExchangeRate.usd_to_rsc(usd_goal)
+        except AttributeError:
+            rsc_goal = None
+
+        aggregated = fundraise.get_contributors_summary()
+
+        rsc_raised = sum(c.total_rsc for c in aggregated.top)
+        usd_raised = sum(c.total_usd for c in aggregated.top)
+        if fundraise.escrow:
+            escrow_rsc = float(
+                fundraise.escrow.amount_holding + fundraise.escrow.amount_paid
+            )
+            rsc_raised += escrow_rsc
+
+        try:
+            total_usd = usd_raised + (
+                RscExchangeRate.rsc_to_usd(rsc_raised) if rsc_raised > 0 else 0
+            )
+            total_rsc = rsc_raised + (
+                RscExchangeRate.usd_to_rsc(usd_raised) if usd_raised > 0 else 0
+            )
+        except AttributeError:
+            total_usd = usd_raised
+            total_rsc = rsc_raised
+
+        contributors = []
+        for entry in aggregated.top:
+            contributors.append(
+                {
+                    "id": entry.user.id,
+                    "first_name": entry.user.first_name,
+                    "last_name": entry.user.last_name,
+                    "total_contribution": {
+                        "rsc": entry.total_rsc,
+                        "usd": entry.total_usd,
+                    },
+                }
+            )
+
+        return {
+            "id": fundraise.id,
+            "title": post.title,
+            "status": fundraise.status,
+            "goal_amount": {"usd": usd_goal, "rsc": rsc_goal},
+            "amount_raised": {
+                "usd": total_usd,
+                "rsc": total_rsc,
+            },
+            "contributors": {
+                "total": aggregated.total,
+                "top": contributors,
+            },
+        }

@@ -965,6 +965,7 @@ class PostSerializerTests(AWSMockTestCase):
         self.assertIn("created_date", app1_data)
         self.assertIn("applicant", app1_data)
         self.assertIn("preregistration_post_id", app1_data)
+        self.assertIn("fundraise", app1_data)
 
         # Check applicant data structure (should use SimpleAuthorSerializer)
         applicant_data = app1_data["applicant"]
@@ -981,6 +982,10 @@ class PostSerializerTests(AWSMockTestCase):
         prereg_post_ids = [app["preregistration_post_id"] for app in applications]
         self.assertIn(prereg_post1.id, prereg_post_ids)
         self.assertIn(prereg_post2.id, prereg_post_ids)
+
+        # Applications without fundraises should have fundraise=None
+        for app_data in applications:
+            self.assertIsNone(app_data["fundraise"])
 
     def test_serializes_non_grant_post_returns_none_for_grant(self):
         """Test that non-grant posts return None for the grant field"""
