@@ -22,7 +22,7 @@ from research_ai.services.email_generator_service import generate_expert_email
 from research_ai.services.email_sending_service import send_plain_email
 from research_ai.services.rfp_email_context import resolve_expert_from_search
 from research_ai.tasks import process_bulk_generate_emails_task, send_queued_emails_task
-from user.permissions import IsModerator
+from user.permissions import IsModerator, UserIsEditor
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,11 @@ def _normalize_template(template: str) -> tuple[str, str | None]:
 class GenerateEmailView(APIView):
     """POST /api/research_ai/expert-finder/generate-email/ - Generate outreach email via LLM and save as draft."""
 
-    permission_classes = [IsAuthenticated, ResearchAIPermission, IsModerator]
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
 
     def post(self, request):
         ser = GenerateEmailRequestSerializer(data=request.data)
@@ -111,7 +115,11 @@ class GenerateEmailView(APIView):
 class BulkGenerateEmailView(APIView):
     """POST /api/research_ai/expert-finder/generate-emails-bulk/ - Create placeholders and enqueue Celery task."""
 
-    permission_classes = [IsAuthenticated, ResearchAIPermission, IsModerator]
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
 
     def post(self, request):
         ser = BulkGenerateEmailRequestSerializer(data=request.data)
@@ -178,7 +186,11 @@ class BulkGenerateEmailView(APIView):
 class PreviewEmailView(APIView):
     """POST /api/research_ai/expert-finder/emails/preview/ - Send generated email(s) to current user."""
 
-    permission_classes = [IsAuthenticated, ResearchAIPermission, IsModerator]
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
 
     def post(self, request):
         ser = PreviewEmailRequestSerializer(data=request.data)
@@ -220,7 +232,11 @@ class PreviewEmailView(APIView):
 class SendEmailView(APIView):
     """POST /api/research_ai/expert-finder/emails/send/ - Send generated emails to experts via SES."""
 
-    permission_classes = [IsAuthenticated, ResearchAIPermission, IsModerator]
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
 
     def post(self, request):
         if not settings.PRODUCTION and not settings.TESTING:
@@ -276,7 +292,11 @@ class SendEmailView(APIView):
 class GeneratedEmailListView(APIView):
     """GET /api/research_ai/expert-finder/emails/ - List. POST - Create draft (no LLM)."""
 
-    permission_classes = [IsAuthenticated, ResearchAIPermission, IsModerator]
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
 
     def get_queryset(self):
         return GeneratedEmail.objects.filter(created_by=self.request.user).order_by(
@@ -318,7 +338,11 @@ class GeneratedEmailListView(APIView):
 class GeneratedEmailDetailView(APIView):
     """GET /api/research_ai/expert-finder/emails/<id>/ - Retrieve one. PATCH - Update. DELETE - Delete."""
 
-    permission_classes = [IsAuthenticated, ResearchAIPermission, IsModerator]
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
 
     def _get_email(self, request, email_id):
         try:

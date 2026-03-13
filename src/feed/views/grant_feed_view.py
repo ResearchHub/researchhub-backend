@@ -5,7 +5,7 @@ and research grant postings.
 """
 
 from django.core.cache import cache
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
@@ -15,7 +15,12 @@ from feed.filters import FundOrderingFilter
 from feed.models import FeedEntry
 from feed.serializers import GrantFeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
+from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.grant_model import Grant
+from purchase.related_models.purchase_model import Purchase
+from purchase.related_models.usd_fundraise_contribution_model import (
+    UsdFundraiseContribution,
+)
 from researchhub_document.related_models.constants.document_type import GRANT
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 
@@ -31,8 +36,8 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
     pagination_class = FeedPagination
     filter_backends = [DjangoFilterBackend, FundOrderingFilter]
     is_grant_view = True
-    ordering_fields = ['newest', 'upvotes', 'most_applicants', 'amount_raised']
-    ordering = 'newest'  # Default ordering
+    ordering_fields = ["newest", "upvotes", "most_applicants", "amount_raised"]
+    ordering = "newest"  # Default ordering
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -125,6 +130,28 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
                 "unified_document__hubs",
                 "unified_document__grants",
                 "unified_document__grants__applications__applicant__author_profile",
+                Prefetch(
+                    "unified_document__grants__applications__preregistration_post__unified_document__fundraises",
+                    queryset=Fundraise.objects.select_related(
+                        "escrow"
+                    ).prefetch_related(
+                        Prefetch(
+                            "purchases",
+                            queryset=Purchase.objects.select_related(
+                                "user__author_profile"
+                            ),
+                            to_attr="prefetched_purchases",
+                        ),
+                        Prefetch(
+                            "usd_contributions",
+                            queryset=UsdFundraiseContribution.objects.select_related(
+                                "user__author_profile"
+                            ),
+                            to_attr="prefetched_usd_contributions",
+                        ),
+                        "nonprofit_links__nonprofit",
+                    ),
+                ),
             )
             .filter(document_type=GRANT, unified_document__is_removed=False)
         )
@@ -169,7 +196,12 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             elif status_upper in (Grant.CLOSED, Grant.COMPLETED):
                 # Inactive: explicitly closed/completed, or open but expired
                 queryset = queryset.filter(
-                    Q(unified_document__grants__status__in=[Grant.CLOSED, Grant.COMPLETED])
+                    Q(
+                        unified_document__grants__status__in=[
+                            Grant.CLOSED,
+                            Grant.COMPLETED,
+                        ]
+                    )
                     | Q(
                         unified_document__grants__status=Grant.OPEN,
                         unified_document__grants__end_date__lt=now,

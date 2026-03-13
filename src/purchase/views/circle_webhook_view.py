@@ -12,12 +12,11 @@ from purchase.circle.service import (
     COMPLETED_STATES,
     FAILED_STATES,
     PENDING_DEPOSIT_STATES,
-    is_rsc_token,
     process_circle_deposit,
-    upsert_pending_circle_deposit,
 )
-from purchase.circle.webhook import verify_webhook_signature
+from purchase.circle.webhook import is_rsc_token, verify_webhook_signature
 from purchase.models import Wallet
+from purchase.tasks import dispatch_sweep
 from reputation.models import Deposit
 
 logger = logging.getLogger(__name__)
@@ -128,6 +127,14 @@ class CircleWebhookView(APIView):
             status=status.HTTP_200_OK,
         )
 
+    def _update_sweep_status(self, transaction_id, new_status):
+        """Update sweep status for a deposit, skipping if already in that state."""
+        return (
+            Deposit.objects.filter(sweep_transfer_id=transaction_id)
+            .exclude(sweep_status=new_status)
+            .update(sweep_status=new_status)
+        )
+
     def _handle_outbound(self, payload, notification):
         state = notification.get("state", "")
         transaction_id = notification.get("id")
@@ -140,16 +147,7 @@ class CircleWebhookView(APIView):
             return Response(status=status.HTTP_200_OK)
 
         if state in COMPLETED_STATES:
-            updated = (
-                Deposit.objects.filter(
-                    sweep_transfer_id=transaction_id,
-                )
-                .exclude(
-                    sweep_status=Deposit.SWEEP_COMPLETED,
-                )
-                .update(sweep_status=Deposit.SWEEP_COMPLETED)
-            )
-
+            updated = self._update_sweep_status(transaction_id, Deposit.SWEEP_COMPLETED)
             if updated:
                 logger.info(
                     "Sweep marked COMPLETE: transfer_id=%s notification_id=%s",
@@ -157,16 +155,7 @@ class CircleWebhookView(APIView):
                     payload.get("notificationId"),
                 )
         elif state in FAILED_STATES:
-            updated = (
-                Deposit.objects.filter(
-                    sweep_transfer_id=transaction_id,
-                )
-                .exclude(
-                    sweep_status=Deposit.SWEEP_FAILED,
-                )
-                .update(sweep_status=Deposit.SWEEP_FAILED)
-            )
-
+            updated = self._update_sweep_status(transaction_id, Deposit.SWEEP_FAILED)
             if updated:
                 logger.warning(
                     "Sweep marked FAILED via outbound webhook: transfer_id=%s "
@@ -264,7 +253,7 @@ class CircleWebhookView(APIView):
         if validated is None:
             return
 
-        upsert_pending_circle_deposit(
+        Deposit.upsert_pending(
             circle_status=notification["state"],
             **validated,
         )
@@ -309,4 +298,12 @@ class CircleWebhookView(APIView):
         if validated is None:
             return
 
-        process_circle_deposit(**validated)
+        wallet = validated["wallet"]
+        _, credited = process_circle_deposit(**validated)
+        if credited:
+            dispatch_sweep(
+                wallet,
+                validated["amount"],
+                validated["network"],
+                validated["circle_transaction_id"],
+            )

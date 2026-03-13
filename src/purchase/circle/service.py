@@ -30,113 +30,24 @@ FAILED_STATES = {"FAILED", "CANCELLED", "DENIED"}
 # but not yet finalized (i.e. not yet safe to credit the user).
 PENDING_DEPOSIT_STATES = {"INITIATED", "CONFIRMED"}
 
-# Map Circle blockchain identifiers to our Deposit.network choices.
+# Single source of truth for network <-> Circle blockchain mappings.
+_NETWORK_DEFS = [
+    {
+        "network": "ETHEREUM",
+        "mainnet_blockchain": "ETH",
+        "testnet_blockchain": "ETH-SEPOLIA",
+    },
+    {
+        "network": "BASE",
+        "mainnet_blockchain": "BASE",
+        "testnet_blockchain": "BASE-SEPOLIA",
+    },
+]
+
+# Map Circle blockchain identifiers to our Deposit.network choices (both envs).
 BLOCKCHAIN_TO_NETWORK = {
-    "ETH": "ETHEREUM",
-    "ETH-SEPOLIA": "ETHEREUM",
-    "BASE": "BASE",
-    "BASE-SEPOLIA": "BASE",
-}
-
-# Known Circle token IDs for the RSC token, keyed by Circle blockchain identifier.
-# These are stable identifiers assigned by Circle and do not change.
-_RSC_TOKEN_ID_BY_BLOCKCHAIN = {
-    # Testnet
-    "BASE-SEPOLIA": "e7233cf0-a48c-5265-a9ad-6d125af58e71",
-    "ETH-SEPOLIA": "979869da-9115-5f7d-917d-12d434e56ae7",
-    # Production
-    "BASE": "fe81326a-572d-5c31-9dde-31ef96a1220f",
-    "ETH": "fa1e82a2-fd87-5030-aa61-e9447ce24570",
-}
-
-
-def is_rsc_token(token_id: str, blockchain: str) -> bool:
-    """Check whether *token_id* is the known RSC token for *blockchain*."""
-    expected = _RSC_TOKEN_ID_BY_BLOCKCHAIN.get(blockchain)
-    return expected is not None and token_id == expected
-
-
-def upsert_pending_circle_deposit(
-    circle_transaction_id: str,
-    wallet: Wallet,
-    amount: str,
-    network: str,
-    circle_status: str,
-    from_address: str = "",
-    transaction_hash: str = "",
-) -> Deposit:
-    """
-    Create or update a pending Deposit for an in-progress Circle transaction.
-
-    Called when Circle sends an inbound webhook with a non-terminal state
-    (e.g. INITIATED or CONFIRMED). The user is NOT credited at this stage.
-
-    If a Deposit with the given ``circle_transaction_id`` already exists, its
-    ``circle_status`` is advanced (INITIATED -> CONFIRMED) but never moved
-    backwards.
-
-    Args:
-        circle_transaction_id: Circle's unique transaction identifier.
-        wallet: The user's ``Wallet`` instance (must have ``user`` loaded).
-        amount: Deposit amount as a decimal string.
-        network: ``"ETHEREUM"`` or ``"BASE"``.
-        circle_status: The Circle transaction state (e.g. "INITIATED", "CONFIRMED").
-        from_address: On-chain source address.
-        transaction_hash: On-chain tx hash.
-
-    Returns:
-        The Deposit instance.
-    """
-    user = wallet.user
-
-    # Define ordering so we only advance forward.
-    _CIRCLE_STATUS_ORDER = {
-        Deposit.CIRCLE_INITIATED: 0,
-        Deposit.CIRCLE_CONFIRMED: 1,
-        Deposit.CIRCLE_COMPLETED: 2,
-        Deposit.CIRCLE_FAILED: 2,
-    }
-
-    with transaction.atomic():
-        deposit, created = Deposit.objects.get_or_create(
-            circle_transaction_id=circle_transaction_id,
-            defaults={
-                "user": user,
-                "amount": amount,
-                "network": network,
-                "from_address": from_address,
-                "transaction_hash": transaction_hash,
-                "paid_status": Deposit.PENDING,
-                "circle_status": circle_status,
-            },
-        )
-
-        if not created:
-            # Only advance circle_status forward, never backwards.
-            current_order = _CIRCLE_STATUS_ORDER.get(deposit.circle_status, -1)
-            new_order = _CIRCLE_STATUS_ORDER.get(circle_status, -1)
-            if new_order > current_order:
-                deposit.circle_status = circle_status
-                deposit.save(update_fields=["circle_status"])
-
-    if created:
-        logger.info(
-            "Pending Circle deposit created: user=%s amount=%s network=%s "
-            "circle_status=%s circle_transaction_id=%s",
-            user.id,
-            amount,
-            network,
-            circle_status,
-            circle_transaction_id,
-        )
-    else:
-        logger.info(
-            "Circle deposit updated: circle_transaction_id=%s circle_status=%s",
-            circle_transaction_id,
-            circle_status,
-        )
-
-    return deposit
+    d["mainnet_blockchain"]: d["network"] for d in _NETWORK_DEFS
+} | {d["testnet_blockchain"]: d["network"] for d in _NETWORK_DEFS}
 
 
 def process_circle_deposit(
@@ -211,7 +122,6 @@ def process_circle_deposit(
             network,
             circle_transaction_id,
         )
-        _dispatch_sweep(wallet, amount, network, circle_transaction_id)
     else:
         logger.info(
             "Duplicate Circle transaction %s, skipping credit",
@@ -221,40 +131,16 @@ def process_circle_deposit(
     return deposit, credited
 
 
-def _dispatch_sweep(wallet, amount, network, circle_transaction_id):
-    """Schedule the sweep task to run after the current transaction commits."""
-    from purchase.tasks import sweep_deposit_to_multisig
-
-    sweep_wallet_id = wallet.get_circle_wallet_id_for_network(network)
-    if sweep_wallet_id:
-        transaction.on_commit(
-            lambda: sweep_deposit_to_multisig.delay(
-                sweep_wallet_id, amount, network, circle_transaction_id
-            )
-        )
-    else:
-        logger.error(
-            "No Circle wallet ID for network=%s wallet_pk=%s "
-            "circle_transaction_id=%s — skipping sweep",
-            network,
-            wallet.pk,
-            circle_transaction_id,
-        )
-
-
 # Sweeps worth this amount or more (in USD) go to the multisig;
 # smaller sweeps go to the hot wallet.
 SWEEP_MULTISIG_THRESHOLD_USD = 10_000
 
-# Map Deposit.network values to Circle blockchain identifiers
+# Map Deposit.network values to Circle blockchain identifiers (derived from _NETWORK_DEFS).
 NETWORK_TO_BLOCKCHAIN_MAINNET = {
-    "ETHEREUM": "ETH",
-    "BASE": "BASE",
+    d["network"]: d["mainnet_blockchain"] for d in _NETWORK_DEFS
 }
-
 NETWORK_TO_BLOCKCHAIN_TESTNET = {
-    "ETHEREUM": "ETH-SEPOLIA",
-    "BASE": "BASE-SEPOLIA",
+    d["network"]: d["testnet_blockchain"] for d in _NETWORK_DEFS
 }
 
 
@@ -503,3 +389,82 @@ class CircleWalletService:
         )
 
         return result
+
+    def execute_sweep(
+        self,
+        circle_wallet_id: str,
+        amount: str,
+        network: str,
+        sweep_reference: str,
+    ) -> None:
+        """
+        Execute a sweep and update the Deposit record accordingly.
+
+        This contains the business logic previously in the Celery task:
+        calls sweep_wallet, then updates Deposit.sweep_status based on
+        the outcome.
+
+        Args:
+            circle_wallet_id: The Circle wallet UUID to sweep from.
+            amount: Original deposit amount.
+            network: "ETHEREUM" or "BASE".
+            sweep_reference: Unique reference (Circle transaction ID).
+
+        Raises:
+            Exception: Any retryable error — sweep_status unchanged (caller should retry).
+                Non-retryable errors (ValueError, CircleZeroBalanceError) are
+                handled internally and do not propagate.
+        """
+        deposit = Deposit.objects.filter(circle_transaction_id=sweep_reference).first()
+
+        sweep_status = None
+        transfer_id = None
+
+        try:
+            result = self.sweep_wallet(
+                circle_wallet_id=circle_wallet_id,
+                amount=amount,
+                network=network,
+                sweep_reference=sweep_reference,
+            )
+            if result.state in COMPLETED_STATES:
+                sweep_status = Deposit.SWEEP_COMPLETED
+            else:
+                sweep_status = Deposit.SWEEP_INITIATED
+            transfer_id = result.transfer_id
+        except CircleZeroBalanceError:
+            logger.info(
+                "Sweep wallet has zero balance (already swept): "
+                "circle_wallet_id=%s sweep_reference=%s",
+                circle_wallet_id,
+                sweep_reference,
+            )
+            sweep_status = Deposit.SWEEP_COMPLETED
+        except ValueError:
+            logger.exception(
+                "Sweep failed (not retryable): circle_wallet_id=%s amount=%s "
+                "network=%s sweep_reference=%s",
+                circle_wallet_id,
+                amount,
+                network,
+                sweep_reference,
+            )
+            sweep_status = Deposit.SWEEP_FAILED
+        except Exception:
+            logger.exception(
+                "Sweep failed (retrying): circle_wallet_id=%s amount=%s "
+                "network=%s sweep_reference=%s",
+                circle_wallet_id,
+                amount,
+                network,
+                sweep_reference,
+            )
+            raise
+        finally:
+            if deposit and sweep_status:
+                deposit.sweep_status = sweep_status
+                update_fields = ["sweep_status"]
+                if transfer_id:
+                    deposit.sweep_transfer_id = transfer_id
+                    update_fields.append("sweep_transfer_id")
+                deposit.save(update_fields=update_fields)

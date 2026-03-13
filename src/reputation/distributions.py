@@ -102,6 +102,11 @@ def create_referral_bonus_distribution(amount):
     return distribution
 
 
+def create_preregistration_update_reward_distribution(amount):
+    distribution = Distribution("PREREGISTRATION_UPDATE_REWARD", amount, give_rep=False)
+    return distribution
+
+
 DISTRIBUTION_TYPE_CHOICES = [
     (FlagPaper.name, FlagPaper.name),
     ("STORED_PAPER_POT", "STORED_PAPER_POT"),
@@ -117,4 +122,5 @@ DISTRIBUTION_TYPE_CHOICES = [
         "EDITOR_PAYOUT",
         "EDITOR_PAYOUT",
     ),
+    ("PREREGISTRATION_UPDATE_REWARD", "PREREGISTRATION_UPDATE_REWARD"),
 ]

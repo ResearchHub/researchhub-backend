@@ -239,45 +239,43 @@ class TestCircleWebhookView(TestCase):
         response = self.client.head(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    @patch("purchase.tasks.sweep_deposit_to_multisig")
+    @patch("purchase.views.circle_webhook_view.dispatch_sweep")
     @patch(
         "purchase.views.circle_webhook_view.verify_webhook_signature",
         return_value=True,
     )
-    def test_sweep_task_dispatched_after_credit(self, _mock_verify, mock_sweep_task):
-        """After crediting balance, sweep task is fired with correct args."""
+    def test_sweep_task_dispatched_after_credit(self, _mock_verify, mock_dispatch):
+        """After crediting balance, sweep is dispatched with correct args."""
         payload = _make_payload()
         with self.captureOnCommitCallbacks(execute=True):
             response = self._post(payload)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        mock_sweep_task.delay.assert_called_once_with(
-            "circle-wallet-base-abc", "100", "BASE", "tx-001"
-        )
+        mock_dispatch.assert_called_once_with(self.wallet, "100", "BASE", "tx-001")
 
-    @patch("purchase.tasks.sweep_deposit_to_multisig")
+    @patch("purchase.views.circle_webhook_view.dispatch_sweep")
     @patch(
         "purchase.views.circle_webhook_view.verify_webhook_signature",
         return_value=True,
     )
-    def test_sweep_not_dispatched_on_duplicate(self, _mock_verify, mock_sweep_task):
+    def test_sweep_not_dispatched_on_duplicate(self, _mock_verify, mock_dispatch):
         """Duplicate notification should not re-dispatch sweep."""
         payload = _make_payload()
         with self.captureOnCommitCallbacks(execute=True):
             self._post(payload)
-        mock_sweep_task.delay.reset_mock()
+        mock_dispatch.reset_mock()
 
         with self.captureOnCommitCallbacks(execute=True):
             self._post(payload)
-        mock_sweep_task.delay.assert_not_called()
+        mock_dispatch.assert_not_called()
 
-    @patch("purchase.tasks.sweep_deposit_to_multisig")
+    @patch("purchase.views.circle_webhook_view.dispatch_sweep")
     @patch(
         "purchase.views.circle_webhook_view.verify_webhook_signature",
         return_value=True,
     )
     def test_sweep_uses_eth_wallet_id_for_eth_deposit(
-        self, _mock_verify, mock_sweep_task
+        self, _mock_verify, mock_dispatch
     ):
         """ETH deposit uses circle_wallet_id (ETH) for sweep."""
         payload = _make_payload(wallet_id="circle-wallet-abc", blockchain="ETH")
@@ -285,16 +283,14 @@ class TestCircleWebhookView(TestCase):
             response = self._post(payload)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        mock_sweep_task.delay.assert_called_once_with(
-            "circle-wallet-abc", "100", "ETHEREUM", "tx-001"
-        )
+        mock_dispatch.assert_called_once_with(self.wallet, "100", "ETHEREUM", "tx-001")
 
-    @patch("purchase.tasks.sweep_deposit_to_multisig")
+    @patch("purchase.views.circle_webhook_view.dispatch_sweep")
     @patch(
         "purchase.views.circle_webhook_view.verify_webhook_signature",
         return_value=True,
     )
-    def test_base_deposit_found_by_base_wallet_id(self, _mock_verify, mock_sweep_task):
+    def test_base_deposit_found_by_base_wallet_id(self, _mock_verify, mock_dispatch):
         """Base chain deposit is found via circle_base_wallet_id."""
         payload = _make_payload(wallet_id="circle-wallet-base-abc", blockchain="BASE")
         with self.captureOnCommitCallbacks(execute=True):
@@ -303,9 +299,7 @@ class TestCircleWebhookView(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         deposit = Deposit.objects.get(circle_transaction_id="tx-001")
         self.assertEqual(deposit.network, "BASE")
-        mock_sweep_task.delay.assert_called_once_with(
-            "circle-wallet-base-abc", "100", "BASE", "tx-001"
-        )
+        mock_dispatch.assert_called_once_with(self.wallet, "100", "BASE", "tx-001")
 
     @patch(
         "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
@@ -390,12 +384,12 @@ class TestCircleWebhookView(TestCase):
         self.assertEqual(deposit.circle_status, Deposit.CIRCLE_FAILED)
         self.assertEqual(deposit.paid_status, "FAILED")
 
-    @patch("purchase.tasks.sweep_deposit_to_multisig")
+    @patch("purchase.views.circle_webhook_view.dispatch_sweep")
     @patch(
         "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
     )
     def test_pending_deposit_promoted_to_paid_on_completed(
-        self, _mock_verify, mock_sweep_task
+        self, _mock_verify, mock_dispatch
     ):
         """COMPLETED webhook promotes a pending deposit to PAID and credits user."""
         # First, create pending deposit via INITIATED webhook
@@ -422,7 +416,7 @@ class TestCircleWebhookView(TestCase):
         self.assertEqual(balance.amount, "100")
 
         # Sweep was dispatched
-        mock_sweep_task.delay.assert_called_once()
+        mock_dispatch.assert_called_once()
 
     @patch(
         "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
@@ -503,12 +497,12 @@ class TestCircleWebhookView(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertFalse(Deposit.objects.exists())
 
-    @patch("purchase.tasks.sweep_deposit_to_multisig")
+    @patch("purchase.views.circle_webhook_view.dispatch_sweep")
     @patch(
         "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
     )
     def test_full_lifecycle_initiated_confirmed_completed(
-        self, _mock_verify, mock_sweep_task
+        self, _mock_verify, _mock_dispatch
     ):
         """Full lifecycle: INITIATED -> CONFIRMED -> COMPLETED credits user once."""
         self._post(_make_payload(state="INITIATED"))

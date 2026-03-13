@@ -1,9 +1,13 @@
+from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
 from notification.models import Notification
+from purchase.related_models.fundraise_model import Fundraise
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from reputation.related_models.distribution import Distribution as DistributionModel
 from researchhub_comment.constants.rh_comment_thread_types import (
     AUTHOR_UPDATE,
     GENERIC_COMMENT,
@@ -261,3 +265,187 @@ class CreateAuthorUpdateNotificationSignalTests(TestCase):
             notification_type=Notification.PREREGISTRATION_UPDATE
         )
         self.assertEqual(notifications.count(), 0)
+
+
+class RewardPreregistrationUpdateSignalTests(TestCase):
+
+    def setUp(self):
+        self.author = create_random_default_user("reward_author")
+        self.unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION,
+        )
+        self.preregistration = ResearchhubPost.objects.create(
+            title="Test Preregistration",
+            document_type=PREREGISTRATION,
+            created_by=self.author,
+            unified_document=self.unified_doc,
+        )
+        RscExchangeRate.objects.create(
+            rate=0.5, real_rate=0.5,
+            price_source="COIN_GECKO", target_currency="USD",
+        )
+        self.reward_qs = DistributionModel.objects.filter(
+            recipient=self.author,
+            distribution_type="PREREGISTRATION_UPDATE_REWARD",
+        )
+
+    def _create_fundraise(self, status=Fundraise.COMPLETED):
+        return Fundraise.objects.create(
+            created_by=self.author,
+            unified_document=self.unified_doc,
+            goal_amount=Decimal("100.00"),
+            goal_currency="USD",
+            status=status,
+        )
+
+    def _create_reminder(self, fundraise):
+        return Notification.objects.create(
+            item=fundraise,
+            action_user=self.author,
+            recipient=self.author,
+            unified_document=self.unified_doc,
+            notification_type=Notification.PREREGISTRATION_UPDATE_REMINDER,
+        )
+
+    def _post_author_update(self):
+        thread = RhCommentThreadModel.objects.create(
+            thread_type=AUTHOR_UPDATE,
+            content_object=self.preregistration,
+            created_by=self.author,
+        )
+        return RhCommentModel.objects.create(
+            thread=thread,
+            created_by=self.author,
+            comment_content_json={"text": "Monthly progress update"},
+            comment_type=AUTHOR_UPDATE,
+        )
+
+    def test_rewards_author_for_completed_fundraise(self):
+        # Arrange
+        fundraise = self._create_fundraise()
+        self._create_reminder(fundraise)
+        # Act
+        self._post_author_update()
+        # Assert
+        self.assertEqual(self.reward_qs.count(), 1)
+        expected_rsc = RscExchangeRate.usd_to_rsc(50)
+        self.assertAlmostEqual(float(self.reward_qs.first().amount), expected_rsc, places=2)
+
+    def test_skips_without_reminder(self):
+        # Arrange
+        self._create_fundraise()
+        # Act
+        self._post_author_update()
+        # Assert
+        self.assertEqual(self.reward_qs.count(), 0)
+
+    def test_skips_open_and_closed(self):
+        # Arrange
+        f_open = self._create_fundraise(status=Fundraise.OPEN)
+        f_closed = self._create_fundraise(status=Fundraise.CLOSED)
+        self._create_reminder(f_open)
+        self._create_reminder(f_closed)
+        # Act
+        self._post_author_update()
+        # Assert
+        self.assertEqual(self.reward_qs.count(), 0)
+
+    def test_deduplicates_within_same_month(self):
+        # Arrange
+        fundraise = self._create_fundraise()
+        self._create_reminder(fundraise)
+        # Act
+        self._post_author_update()
+        self._post_author_update()
+        # Assert
+        self.assertEqual(self.reward_qs.count(), 1)
+
+    def test_skips_non_preregistration(self):
+        # Arrange
+        discussion_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=DISCUSSION,
+        )
+        discussion = ResearchhubPost.objects.create(
+            title="Test Discussion",
+            document_type=DISCUSSION,
+            created_by=self.author,
+            unified_document=discussion_doc,
+        )
+        fundraise = self._create_fundraise()
+        self._create_reminder(fundraise)
+        # Act
+        thread = RhCommentThreadModel.objects.create(
+            thread_type=AUTHOR_UPDATE,
+            content_object=discussion,
+            created_by=self.author,
+        )
+        RhCommentModel.objects.create(
+            thread=thread,
+            created_by=self.author,
+            comment_content_json={"text": "Update"},
+            comment_type=AUTHOR_UPDATE,
+        )
+        # Assert
+        self.assertEqual(self.reward_qs.count(), 0)
+
+    def test_multiple_completed_fundraises_rewards_only_once(self):
+        # Arrange
+        fundraise1 = self._create_fundraise()
+        fundraise2 = self._create_fundraise()
+        fundraise3 = self._create_fundraise()
+        self._create_reminder(fundraise1)
+        self._create_reminder(fundraise2)
+        self._create_reminder(fundraise3)
+        # Act
+        self._post_author_update()
+        # Assert
+        self.assertEqual(self.reward_qs.count(), 1)
+
+    def test_non_owner_author_update_does_not_reward(self):
+        # Arrange
+        fundraise = self._create_fundraise()
+        self._create_reminder(fundraise)
+        non_owner = create_random_default_user("non_owner")
+        # Act -- non-owner posts an AUTHOR_UPDATE on the same preregistration
+        thread = RhCommentThreadModel.objects.create(
+            thread_type=AUTHOR_UPDATE,
+            content_object=self.preregistration,
+            created_by=non_owner,
+        )
+        RhCommentModel.objects.create(
+            thread=thread,
+            created_by=non_owner,
+            comment_content_json={"text": "Update from non-owner"},
+            comment_type=AUTHOR_UPDATE,
+        )
+        # Assert -- no reward for non-owner or the actual owner
+        self.assertEqual(self.reward_qs.count(), 0)
+        self.assertFalse(
+            DistributionModel.objects.filter(
+                recipient=non_owner,
+                distribution_type="PREREGISTRATION_UPDATE_REWARD",
+            ).exists()
+        )
+
+    @patch("researchhub_comment.signals.Distributor")
+    def test_distribution_failure_rolls_back_and_logs(self, mock_distributor_cls):
+        # Arrange
+        fundraise = self._create_fundraise()
+        self._create_reminder(fundraise)
+        mock_distributor_cls.return_value.distribute.side_effect = Exception(
+            "distribution failed"
+        )
+        # Act
+        self._post_author_update()
+        # Assert
+        self.assertEqual(self.reward_qs.count(), 0)
+
+    @patch("researchhub_comment.signals._reward_preregistration_update", side_effect=Exception("boom"))
+    def test_exception_is_caught_gracefully(self, mock_reward):
+        # Act
+        self._post_author_update()
+
+        # Assert
+        mock_reward.assert_called_once()
+
+
