@@ -299,7 +299,7 @@ class CircleWebhookView(APIView):
             return
 
         wallet = validated["wallet"]
-        deposit, credited = process_circle_deposit(**validated)
+        _, credited = process_circle_deposit(**validated)
         if credited:
             dispatch_sweep(
                 wallet,
