@@ -1,5 +1,4 @@
 import logging
-from decimal import Decimal
 
 from django.apps import apps
 from django.contrib.contenttypes.models import ContentType
@@ -13,6 +12,7 @@ from discussion.models import Flag, Vote
 from discussion.views import censor
 from paper.models import Paper
 from purchase.models import Fundraise, Grant
+from purchase.services.fundraise_service import FundraiseService
 from reputation.models import Bounty
 from researchhub.celery import app
 from researchhub_comment.models import RhCommentModel
@@ -80,28 +80,17 @@ def handle_spam_user_task(user_id, requestor=None):
     )
 
     # Close open fundraises and refund escrowed RSC to contributors
+    fundraise_service = FundraiseService()
     for fundraise in user.fundraises.filter(
         status=Fundraise.OPEN
     ).select_related("escrow"):
-        _close_and_refund_fundraise(fundraise)
+        fundraise_service.close_fundraise(fundraise)
 
     # Close open grants (RFPs)
     user.grants.filter(status=Grant.OPEN).update(status=Grant.CLOSED)
 
     # Resolve any open moderation flags on the user's content
     _resolve_open_flags_for_user(user, requestor)
-
-
-def _close_and_refund_fundraise(fundraise):
-    if fundraise.escrow and fundraise.escrow.amount_holding > 0:
-        for purchase in fundraise.purchases.select_related("user"):
-            refund_amount = min(
-                Decimal(purchase.amount), fundraise.escrow.amount_holding
-            )
-            if refund_amount > 0:
-                fundraise.escrow.refund(purchase.user, refund_amount)
-    fundraise.status = Fundraise.CLOSED
-    fundraise.save(update_fields=["status"])
 
 
 def _resolve_open_flags_for_user(user, requestor=None):

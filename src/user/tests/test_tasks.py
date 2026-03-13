@@ -434,8 +434,10 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
         self.assertEqual(bounty.status, Bounty.CANCELLED)
         self.assertEqual(escrow.amount_holding, Decimal("0"))
 
-    def test_suspend_closes_fundraises_and_refunds_escrow(self):
+    @patch("purchase.services.fundraise_service.User.objects.get_revenue_account")
+    def test_suspend_closes_fundraises_and_refunds_escrow(self, mock_revenue_account):
         """Open fundraises are closed and escrowed RSC is refunded to contributors."""
+        mock_revenue_account.return_value = self.moderator
         # Arrange
         prereg_unified_doc = ResearchhubUnifiedDocument.objects.create(
             document_type="PREREGISTRATION"
