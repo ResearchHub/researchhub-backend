@@ -17,6 +17,10 @@ from feed.serializers import GrantFeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
 from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.grant_model import Grant
+from purchase.related_models.purchase_model import Purchase
+from purchase.related_models.usd_fundraise_contribution_model import (
+    UsdFundraiseContribution,
+)
 from researchhub_document.related_models.constants.document_type import GRANT
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 
@@ -119,12 +123,19 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
                     ).prefetch_related(
                         Prefetch(
                             "purchases",
+                            queryset=Purchase.objects.select_related(
+                                "user__author_profile"
+                            ),
                             to_attr="prefetched_purchases",
                         ),
                         Prefetch(
                             "usd_contributions",
+                            queryset=UsdFundraiseContribution.objects.select_related(
+                                "user__author_profile"
+                            ),
                             to_attr="prefetched_usd_contributions",
                         ),
+                        "nonprofit_links__nonprofit",
                     ),
                 ),
             )
