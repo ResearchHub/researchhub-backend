@@ -4,9 +4,9 @@ from utils.permissions import AuthorizationBasedPermission
 class ResearchAIPermission(AuthorizationBasedPermission):
     """
     Placeholder permission for Research AI features.
-    For now: allows any authenticated user. Compose with user.permissions.IsModerator
-    in views for moderator-only access, e.g.:
-        permission_classes = [ResearchAIPermission, IsModerator]
+    For now: allows any authenticated user. Compose with UserIsEditor | IsModerator
+    in views for editor/moderator access, e.g.:
+        permission_classes = [ResearchAIPermission, UserIsEditor | IsModerator]
     Future: Add business logic here (min funded, subscription tier, credits).
     """
 

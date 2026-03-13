@@ -23,7 +23,7 @@ from research_ai.services.expert_finder_service import get_document_content
 from research_ai.services.progress_service import ProgressService, TaskType
 from research_ai.tasks import process_expert_search_task
 from researchhub_document.models import ResearchhubUnifiedDocument
-from user.permissions import IsModerator
+from user.permissions import IsModerator, UserIsEditor
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,11 @@ def _get_document_title(unified_doc):
 
 
 class ExpertSearchCreateView(APIView):
-    permission_classes = [IsAuthenticated, ResearchAIPermission, IsModerator]
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
 
     def post(self, request):
         ser = ExpertSearchCreateSerializer(data=request.data)
@@ -145,7 +149,11 @@ class ExpertSearchWorkView(APIView):
     Returns {"work": <payload>} or {"work": null} if not resolvable.
     """
 
-    permission_classes = [IsAuthenticated, ResearchAIPermission, IsModerator]
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
 
     def get(self, request, unified_document_id):
         try:
@@ -172,7 +180,11 @@ class InvitedExpertsDocumentView(APIView):
     Returns author entity, expert_search_id, generated_email_id per invited person.
     """
 
-    permission_classes = [IsAuthenticated, ResearchAIPermission, IsModerator]
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
 
     @method_decorator(cache_page(INVITED_CACHE_SEC))
     def get(self, request, unified_document_id):
@@ -205,7 +217,11 @@ class InvitedExpertsDocumentView(APIView):
 
 
 class ExpertSearchDetailView(APIView):
-    permission_classes = [IsAuthenticated, ResearchAIPermission, IsModerator]
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
 
     def get(self, request, search_id):
         try:
@@ -222,7 +238,11 @@ class ExpertSearchDetailView(APIView):
 
 
 class ExpertSearchListView(APIView):
-    permission_classes = [IsAuthenticated, ResearchAIPermission, IsModerator]
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
 
     def get_queryset(self):
         return ExpertSearch.objects.filter(created_by=self.request.user).order_by(
@@ -338,7 +358,11 @@ def _sse_event_stream(search_id):
 
 
 class ExpertSearchProgressStreamView(APIView):
-    permission_classes = [IsAuthenticated, ResearchAIPermission, IsModerator]
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
 
     def get(self, request, search_id):
         try:

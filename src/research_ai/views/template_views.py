@@ -16,7 +16,7 @@ from research_ai.services.email_template_service import (
     list_templates,
     update_template,
 )
-from user.permissions import IsModerator
+from user.permissions import IsModerator, UserIsEditor
 
 
 class TemplateListView(APIView):
@@ -25,7 +25,11 @@ class TemplateListView(APIView):
     POST /api/research_ai/expert-finder/templates/ - Create template.
     """
 
-    permission_classes = [IsAuthenticated, ResearchAIPermission, IsModerator]
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
 
     def get(self, request):
         limit = max(1, min(100, int(request.query_params.get("limit", 20))))
@@ -71,7 +75,11 @@ class TemplateDetailView(APIView):
     GET/PATCH/DELETE /api/research_ai/expert-finder/templates/<template_id>/.
     """
 
-    permission_classes = [IsAuthenticated, ResearchAIPermission, IsModerator]
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
 
     def _get_template(self, request, template_id):
         try:
