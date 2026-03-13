@@ -15,6 +15,7 @@ from feed.views.grant_feed_view import GRANT_FEED_CACHE_VERSION_KEY
 from notification.models import Notification
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from purchase.services.grant_service import GrantService
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
@@ -829,3 +830,65 @@ class GrantModerationTests(APITestCase):
 
         # Assert
         self.assertEqual(len(response.data["results"]), 0)
+
+
+class GrantServiceTests(APITestCase):
+    """Tests for GrantService branches not reached by API tests (DOI assignment, decline internals)."""
+
+    def setUp(self):
+        self.moderator = create_random_authenticated_user("svc_mod", moderator=True)
+        self.author = create_random_authenticated_user("svc_author")
+        self.service = GrantService()
+        self.post = create_post(created_by=self.author, document_type=GRANT)
+        self.grant = Grant.objects.create(
+            created_by=self.author,
+            unified_document=self.post.unified_document,
+            amount=Decimal("50000.00"),
+            currency="USD",
+            description="Test grant",
+        )
+
+    @patch("purchase.services.grant_service.DOI")
+    def test_approve_assigns_doi_and_notifies(self, mock_doi_class):
+        # Arrange
+        mock_doi_class.return_value.doi = "10.55277/rhj.test"
+
+        # Act
+        self.service.approve_grant(self.grant, self.moderator)
+
+        # Assert
+        self.post.refresh_from_db()
+        self.assertEqual(self.post.doi, "10.55277/rhj.test")
+        mock_doi_class.return_value.register_doi_for_post.assert_called_once()
+        self.assertTrue(Notification.objects.filter(
+            notification_type=Notification.GRANT_APPROVED, recipient=self.author,
+        ).exists())
+
+    @patch("purchase.services.grant_service.DOI")
+    def test_approve_skips_doi_when_already_set(self, mock_doi_class):
+        # Arrange
+        self.post.doi = "10.55277/existing"
+        self.post.save(update_fields=["doi"])
+
+        # Act
+        self.service.approve_grant(self.grant, self.moderator)
+
+        # Assert
+        mock_doi_class.assert_not_called()
+
+    def test_decline_creates_flag_removes_doc_and_notifies(self):
+        # Act
+        self.service.decline_grant(
+            self.grant, self.moderator, reason="Spam", reason_choice="SPAM"
+        )
+
+        # Assert
+        grant_ct = ContentType.objects.get_for_model(Grant)
+        flag = Flag.objects.get(content_type=grant_ct, object_id=self.grant.id)
+        self.assertEqual(flag.reason_choice, "SPAM")
+        self.assertTrue(Verdict.objects.filter(flag=flag, is_content_removed=True).exists())
+        self.post.unified_document.refresh_from_db()
+        self.assertTrue(self.post.unified_document.is_removed)
+        self.assertTrue(Notification.objects.filter(
+            notification_type=Notification.GRANT_DECLINED, recipient=self.author,
+        ).exists())

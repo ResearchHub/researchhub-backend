@@ -692,3 +692,32 @@ class GrantFeedPendingVisibilityTests(APITestCase):
 
             # Act / Assert
             self.assertNotIn("Declined Grant", self._get_feed_titles())
+
+    def test_pending_status_filter(self):
+        """Moderator can filter by ?status=PENDING and see only pending grants."""
+        # Arrange
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self.client.get("/api/grant_feed/?status=PENDING")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        titles = [r["content_object"]["title"] for r in response.data["results"]]
+        self.assertIn("Pending Grant", titles)
+        self.assertNotIn("Open Grant", titles)
+
+    def test_pending_sorted_before_open_for_moderator(self):
+        """Pending grants sort before open grants for authenticated users."""
+        # Arrange
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self.client.get("/api/grant_feed/")
+
+        # Assert — pending should appear before open
+        results = response.data["results"]
+        titles = [r["content_object"]["title"] for r in results]
+        self.assertIn("Pending Grant", titles)
+        self.assertIn("Open Grant", titles)
+        self.assertLess(titles.index("Pending Grant"), titles.index("Open Grant"))
