@@ -222,7 +222,6 @@ class PreregistrationUpdateReminderTest(TestCase):
         self.user = create_random_authenticated_user("reminder_test", moderator=True)
         self.post = create_post(created_by=self.user, document_type=PREREGISTRATION)
         self.future = datetime.now(pytz.UTC) + timedelta(days=30)
-        self.past = datetime.now(pytz.UTC) - timedelta(days=1)
         self.notif_qs = Notification.objects.filter(
             notification_type=Notification.PREREGISTRATION_UPDATE_REMINDER,
             recipient=self.user,
@@ -240,27 +239,19 @@ class PreregistrationUpdateReminderTest(TestCase):
             Fundraise.objects.filter(id=f.id).update(end_date=end_date)
         return f
 
-    def test_sends_for_active_preregistration(self):
+    def test_sends_for_completed_preregistration(self):
         # Arrange
-        self._create_fundraise(end_date=self.future)
+        self._create_fundraise(status=Fundraise.COMPLETED)
         # Act
         result = send_monthly_preregistration_update_reminders()
         # Assert
         self.assertEqual(result["sent_count"], 1)
         self.assertTrue(self.notif_qs.exists())
 
-    def test_skips_closed_and_completed(self):
+    def test_skips_open_and_closed(self):
         # Arrange
+        self._create_fundraise(status=Fundraise.OPEN)
         self._create_fundraise(status=Fundraise.CLOSED)
-        self._create_fundraise(status=Fundraise.COMPLETED)
-        # Act
-        result = send_monthly_preregistration_update_reminders()
-        # Assert
-        self.assertEqual(result["sent_count"], 0)
-
-    def test_skips_expired_preregistration(self):
-        # Arrange
-        self._create_fundraise(end_date=self.past)
         # Act
         result = send_monthly_preregistration_update_reminders()
         # Assert
@@ -268,10 +259,21 @@ class PreregistrationUpdateReminderTest(TestCase):
 
     def test_deduplicates_within_same_month(self):
         # Arrange
-        self._create_fundraise(end_date=self.future)
+        self._create_fundraise(status=Fundraise.COMPLETED)
         send_monthly_preregistration_update_reminders()
         # Act
         result = send_monthly_preregistration_update_reminders()
         # Assert
         self.assertEqual(result["sent_count"], 0)
+        self.assertEqual(self.notif_qs.count(), 1)
+
+    def test_multiple_completed_fundraises_sends_one_reminder(self):
+        # Arrange
+        self._create_fundraise(status=Fundraise.COMPLETED)
+        self._create_fundraise(status=Fundraise.COMPLETED)
+        self._create_fundraise(status=Fundraise.COMPLETED)
+        # Act
+        result = send_monthly_preregistration_update_reminders()
+        # Assert
+        self.assertEqual(result["sent_count"], 1)
         self.assertEqual(self.notif_qs.count(), 1)
