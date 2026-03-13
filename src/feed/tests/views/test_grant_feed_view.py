@@ -5,7 +5,7 @@ import pytz
 from django.core.cache import cache
 from rest_framework.test import APITestCase
 
-from purchase.models import Grant, GrantApplication
+from purchase.models import Fundraise, Grant, GrantApplication
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
@@ -224,7 +224,7 @@ class GrantFeedViewTests(APITestCase):
         self.assertEqual(response1.data, response2.data)
 
     def test_grant_feed_includes_applications(self):
-        """Test that grant feed includes application data"""
+        """Test that grant feed includes application data with fundraise info"""
 
         # Create applicant users
         applicant1 = create_random_authenticated_user("applicant1")
@@ -240,6 +240,15 @@ class GrantFeedViewTests(APITestCase):
             created_by=applicant2,
             document_type=PREREGISTRATION,
             title="Preregistration 2",
+        )
+
+        # Create a fundraise on preregistration1's unified document
+        fundraise = Fundraise.objects.create(
+            created_by=applicant1,
+            unified_document=preregistration1.unified_document,
+            goal_amount=Decimal("10000.00"),
+            goal_currency="USD",
+            status=Fundraise.OPEN,
         )
 
         # Create applications
@@ -276,14 +285,15 @@ class GrantFeedViewTests(APITestCase):
         self.assertEqual(len(applications), 2)
 
         # Check application structure
-        application1 = applications[0]
-        self.assertIn("id", application1)
-        self.assertIn("created_date", application1)
-        self.assertIn("applicant", application1)
-        self.assertIn("preregistration_post_id", application1)
+        for app in applications:
+            self.assertIn("id", app)
+            self.assertIn("created_date", app)
+            self.assertIn("applicant", app)
+            self.assertIn("preregistration_post_id", app)
+            self.assertIn("fundraise", app)
 
         # Check applicant structure using SimpleAuthorSerializer
-        applicant_data = application1["applicant"]
+        applicant_data = applications[0]["applicant"]
         self.assertIn("id", applicant_data)
         self.assertIn("first_name", applicant_data)
         self.assertIn("last_name", applicant_data)
@@ -295,6 +305,34 @@ class GrantFeedViewTests(APITestCase):
         applicant_ids = [app["applicant"]["id"] for app in applications]
         self.assertIn(applicant1.author_profile.id, applicant_ids)
         self.assertIn(applicant2.author_profile.id, applicant_ids)
+
+        # Find the application with a fundraise (preregistration1)
+        app_with_fundraise = next(
+            app
+            for app in applications
+            if app["preregistration_post_id"] == preregistration1.id
+        )
+        self.assertIsNotNone(app_with_fundraise["fundraise"])
+        fr = app_with_fundraise["fundraise"]
+        self.assertEqual(fr["id"], fundraise.id)
+        self.assertEqual(fr["title"], "Preregistration 1")
+        self.assertEqual(fr["status"], "OPEN")
+        self.assertEqual(fr["goal_amount"]["usd"], 10000.0)
+        self.assertIn("usd", fr["amount_raised"])
+        self.assertIn("rsc", fr["amount_raised"])
+
+        # Verify contributors structure
+        self.assertIn("contributors", fr)
+        self.assertEqual(fr["contributors"]["total"], 0)
+        self.assertEqual(fr["contributors"]["top"], [])
+
+        # Find the application without a fundraise (preregistration2)
+        app_without_fundraise = next(
+            app
+            for app in applications
+            if app["preregistration_post_id"] == preregistration2.id
+        )
+        self.assertIsNone(app_without_fundraise["fundraise"])
 
     def test_grant_feed_empty_applications(self):
         """Test that grant feed handles grants with no applications"""
@@ -393,11 +431,15 @@ class GrantFeedViewTests(APITestCase):
         closed_response = self.client.get("/api/grant_feed/?status=CLOSED")
 
         # Assert - expired OPEN grant should NOT appear in OPEN filter
-        open_titles = [r["content_object"]["title"] for r in open_response.data["results"]]
+        open_titles = [
+            r["content_object"]["title"] for r in open_response.data["results"]
+        ]
         self.assertNotIn("Expired Open Grant", open_titles)
 
         # Assert - expired OPEN grant SHOULD appear in CLOSED filter
-        closed_titles = [r["content_object"]["title"] for r in closed_response.data["results"]]
+        closed_titles = [
+            r["content_object"]["title"] for r in closed_response.data["results"]
+        ]
         self.assertIn("Expired Open Grant", closed_titles)
 
     def test_grant_feed_filter_by_organization(self):

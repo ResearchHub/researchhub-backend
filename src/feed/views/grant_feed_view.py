@@ -29,8 +29,8 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
     pagination_class = FeedPagination
     filter_backends = [DjangoFilterBackend, FundOrderingFilter]
     is_grant_view = True
-    ordering_fields = ['newest', 'upvotes', 'most_applicants', 'amount_raised']
-    ordering = 'newest'  # Default ordering
+    ordering_fields = ["newest", "upvotes", "most_applicants", "amount_raised"]
+    ordering = "newest"  # Default ordering
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -111,6 +111,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
                 "unified_document__hubs",
                 "unified_document__grants",
                 "unified_document__grants__applications__applicant__author_profile",
+                "unified_document__grants__applications__preregistration_post__unified_document__fundraises",
             )
             .filter(document_type=GRANT, unified_document__is_removed=False)
         )
@@ -129,7 +130,12 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             elif status_upper in (Grant.CLOSED, Grant.COMPLETED):
                 # Inactive: explicitly closed/completed, or open but expired
                 queryset = queryset.filter(
-                    Q(unified_document__grants__status__in=[Grant.CLOSED, Grant.COMPLETED])
+                    Q(
+                        unified_document__grants__status__in=[
+                            Grant.CLOSED,
+                            Grant.COMPLETED,
+                        ]
+                    )
                     | Q(
                         unified_document__grants__status=Grant.OPEN,
                         unified_document__grants__end_date__lt=now,

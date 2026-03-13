@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from purchase.models import Grant
+from purchase.related_models.constants.currency import RSC, USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub.serializers import DynamicModelFieldSerializer
 from user.serializers import DynamicAuthorSerializer, DynamicUserSerializer
@@ -77,11 +78,18 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
         return grant.is_active()
 
     def get_applications(self, grant):
-        """Return grant applications with applicant information"""
+        """Return grant applications with applicant and fundraise information"""
 
-        applications = grant.applications.select_related(
-            "applicant__author_profile"
-        ).all()
+        applications = (
+            grant.applications.select_related(
+                "applicant__author_profile",
+                "preregistration_post__unified_document",
+            )
+            .prefetch_related(
+                "preregistration_post__unified_document__fundraises",
+            )
+            .all()
+        )
 
         application_data = []
         for application in applications:
@@ -93,17 +101,72 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
                 applicant_data = DynamicAuthorSerializer(
                     application.applicant.author_profile
                 ).data
-                application_data.append(
-                    {
-                        "id": application.id,
-                        "created_date": application.created_date,
-                        "applicant": applicant_data,
-                        "preregistration_post_id": (
-                            application.preregistration_post.id
-                            if application.preregistration_post
-                            else None
-                        ),
-                    }
-                )
+
+                entry = {
+                    "id": application.id,
+                    "created_date": application.created_date,
+                    "applicant": applicant_data,
+                    "preregistration_post_id": (
+                        application.preregistration_post.id
+                        if application.preregistration_post
+                        else None
+                    ),
+                    "fundraise": self._serialize_application_fundraise(application),
+                }
+                application_data.append(entry)
 
         return application_data
+
+    @staticmethod
+    def _serialize_application_fundraise(application):
+        post = application.preregistration_post
+        if (
+            not post
+            or not hasattr(post, "unified_document")
+            or not post.unified_document
+        ):
+            return None
+
+        ud = post.unified_document
+        if not hasattr(ud, "fundraises"):
+            return None
+
+        fundraise = ud.fundraises.first()
+        if not fundraise:
+            return None
+
+        usd_goal = float(fundraise.goal_amount)
+        try:
+            rsc_goal = RscExchangeRate.usd_to_rsc(usd_goal)
+        except AttributeError:
+            rsc_goal = None
+
+        aggregated = fundraise.get_contributors_summary()
+        contributors = []
+        for entry in aggregated.top:
+            contributors.append(
+                {
+                    "id": entry.user.id,
+                    "first_name": entry.user.first_name,
+                    "last_name": entry.user.last_name,
+                    "total_contribution": {
+                        "rsc": entry.total_rsc,
+                        "usd": entry.total_usd,
+                    },
+                }
+            )
+
+        return {
+            "id": fundraise.id,
+            "title": post.title,
+            "status": fundraise.status,
+            "goal_amount": {"usd": usd_goal, "rsc": rsc_goal},
+            "amount_raised": {
+                "usd": fundraise.get_amount_raised(currency=USD),
+                "rsc": fundraise.get_amount_raised(currency=RSC),
+            },
+            "contributors": {
+                "total": aggregated.total,
+                "top": contributors,
+            },
+        }
