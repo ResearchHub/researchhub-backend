@@ -153,17 +153,37 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
 
         contributors = []
         for entry in aggregated.top:
+            profile_image = None
+            author = getattr(entry.user, "author_profile", None)
+            if author and author.profile_image:
+                try:
+                    profile_image = author.profile_image.url
+                except ValueError:
+                    profile_image = None
+
             contributors.append(
                 {
                     "id": entry.user.id,
                     "first_name": entry.user.first_name,
                     "last_name": entry.user.last_name,
+                    "profile_image": profile_image,
                     "total_contribution": {
                         "rsc": entry.total_rsc,
                         "usd": entry.total_usd,
                     },
                 }
             )
+
+        nonprofit_data = None
+        links = fundraise.nonprofit_links.all()
+        if links:
+            np = links[0].nonprofit
+            nonprofit_data = {
+                "id": np.id,
+                "name": np.name,
+                "ein": np.ein,
+                "endaoment_org_id": np.endaoment_org_id,
+            }
 
         return {
             "id": fundraise.id,
@@ -178,4 +198,5 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
                 "total": aggregated.total,
                 "top": contributors,
             },
+            "nonprofit": nonprofit_data,
         }
