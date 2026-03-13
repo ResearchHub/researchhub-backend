@@ -35,66 +35,67 @@ def handle_spam_user_task(user_id, requestor=None):
     if not user:
         return
 
-    # Remove papers and their unified documents
-    papers = user.papers.all()
-    papers.update(is_removed=True)
-    ResearchhubUnifiedDocument.all_objects.filter(paper__in=papers).update(
-        is_removed=True
-    )
+    with transaction.atomic():
+        # Remove papers and their unified documents
+        papers = user.papers.all()
+        papers.update(is_removed=True)
+        ResearchhubUnifiedDocument.all_objects.filter(paper__in=papers).update(
+            is_removed=True
+        )
 
-    # Remove posts (discussions, questions, preregistrations, grants, etc.)
-    posts = user.created_posts.all()
-    post_unified_docs = ResearchhubUnifiedDocument.all_objects.filter(
-        posts__in=posts
-    ).distinct()
-    post_unified_docs.update(is_removed=True)
+        # Remove posts (discussions, questions, preregistrations, grants, etc.)
+        posts = user.created_posts.all()
+        post_unified_docs = ResearchhubUnifiedDocument.all_objects.filter(
+            posts__in=posts
+        ).distinct()
+        post_unified_docs.update(is_removed=True)
 
-    # Censor comments and cancel any bounties attached to them
-    comments = user.created_researchhub_comment_rhcommentmodel.all()
-    for comment in comments.iterator():
-        remove_bounties(comment)
-        if requestor:
-            censor(comment)
-            comment.refresh_related_discussion_count()
+        # Censor comments and cancel any bounties attached to them
+        comments = user.created_researchhub_comment_rhcommentmodel.all()
+        for comment in comments.iterator():
+            remove_bounties(comment)
+            if requestor:
+                censor(comment)
+                comment.refresh_related_discussion_count()
 
-    # Hide all activity feed actions
-    user.actions.update(display=False, is_removed=True)
+        # Hide all activity feed actions
+        user.actions.update(display=False, is_removed=True)
 
-    # Remove notes
-    ResearchhubUnifiedDocument.all_objects.filter(
-        note__created_by=user
-    ).update(is_removed=True)
+        # Remove notes
+        ResearchhubUnifiedDocument.all_objects.filter(
+            note__created_by=user
+        ).update(is_removed=True)
 
-    # Cancel any remaining open bounties the user created on other users' content
-    for bounty in user.bounties.filter(
-        status__in=[Bounty.OPEN, Bounty.ASSESSMENT]
-    ):
-        bounty.close(Bounty.CANCELLED)
+        # Cancel any remaining open bounties the user created on other users' content
+        for bounty in user.bounties.filter(
+            status__in=[Bounty.OPEN, Bounty.ASSESSMENT]
+        ):
+            bounty.close(Bounty.CANCELLED)
 
-    # Soft-delete peer reviews and reviews
-    now = timezone.now()
-    PeerReview.objects.filter(user=user).update(
-        is_removed=True, is_public=False, is_removed_date=now
-    )
-    Review.objects.filter(created_by=user).update(
-        is_removed=True, is_public=False, is_removed_date=now
-    )
+        # Soft-delete peer reviews and reviews
+        now = timezone.now()
+        PeerReview.objects.filter(user=user).update(
+            is_removed=True, is_public=False, is_removed_date=now
+        )
+        Review.objects.filter(created_by=user).update(
+            is_removed=True, is_public=False, is_removed_date=now
+        )
 
-    # Close open fundraises and refund escrowed RSC to contributors
-    fundraise_service = FundraiseService()
-    for fundraise in user.fundraises.filter(
-        status=Fundraise.OPEN
-    ).select_related("escrow"):
-        fundraise_service.close_fundraise(fundraise)
+        # Close open fundraises and refund escrowed RSC to contributors
+        fundraise_service = FundraiseService()
+        for fundraise in user.fundraises.filter(
+            status=Fundraise.OPEN
+        ).select_related("escrow"):
+            fundraise_service.close_fundraise(fundraise)
 
-    # Close open grants (RFPs)
-    user.grants.filter(status=Grant.OPEN).update(status=Grant.CLOSED)
+        # Close open grants (RFPs)
+        user.grants.filter(status=Grant.OPEN).update(status=Grant.CLOSED)
 
-    # Purge activity feed entries
-    FeedEntry.objects.filter(user=user).delete()
+        # Purge activity feed entries
+        FeedEntry.objects.filter(user=user).delete()
 
-    # Resolve any open moderation flags on the user's content
-    _resolve_open_flags_for_user(user, requestor)
+        # Resolve any open moderation flags on the user's content
+        _resolve_open_flags_for_user(user, requestor)
 
 
 def _resolve_open_flags_for_user(user, requestor=None):
@@ -127,19 +128,18 @@ def _resolve_open_flags_for_user(user, requestor=None):
     if requestor is None:
         requestor = User.objects.get_community_account()
 
-    with transaction.atomic():
-        Flag.objects.filter(id__in=[f.id for f in flags]).update(
-            verdict_created_date=timezone.now()
+    Flag.objects.filter(id__in=[f.id for f in flags]).update(
+        verdict_created_date=timezone.now()
+    )
+    Verdict.objects.bulk_create([
+        Verdict(
+            created_by=requestor,
+            flag=flag,
+            verdict_choice=flag.reason_choice or NOT_SPECIFIED,
+            is_content_removed=True,
         )
-        Verdict.objects.bulk_create([
-            Verdict(
-                created_by=requestor,
-                flag=flag,
-                verdict_choice=flag.reason_choice or NOT_SPECIFIED,
-                is_content_removed=True,
-            )
-            for flag in flags
-        ])
+        for flag in flags
+    ])
 
 
 @app.task
