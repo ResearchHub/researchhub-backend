@@ -185,6 +185,8 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
                 "endaoment_org_id": np.endaoment_org_id,
             }
 
+        review_details = ud.get_review_details()
+
         return {
             "id": fundraise.id,
             "title": post.title,
@@ -199,4 +201,8 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
                 "top": contributors,
             },
             "nonprofit": nonprofit_data,
+            "review_metrics": {
+                "avg": review_details.get("avg", 0),
+                "count": review_details.get("count", 0),
+            },
         }
