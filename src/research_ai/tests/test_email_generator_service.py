@@ -11,38 +11,7 @@ from research_ai.services.email_generator_service import (
     _strip_existing_signature,
     _strip_markdown,
     generate_expert_email,
-    normalize_llm_text_to_html,
 )
-
-
-class NormalizeLlmTextToHtmlTests(TestCase):
-    def test_empty_or_none_passthrough(self):
-        self.assertEqual(normalize_llm_text_to_html(""), "")
-        self.assertEqual(normalize_llm_text_to_html(None), None)
-
-    def test_single_newline_becomes_br(self):
-        self.assertEqual(
-            normalize_llm_text_to_html("Line one\nLine two"),
-            "Line one<br />Line two",
-        )
-
-    def test_multiple_newlines_collapsed_then_br(self):
-        self.assertEqual(
-            normalize_llm_text_to_html("A\n\n\nB"),
-            "A<br />B",
-        )
-
-    def test_literal_backslash_n_normalized(self):
-        self.assertEqual(
-            normalize_llm_text_to_html("Hi\\n\\nThere"),
-            "Hi<br />There",
-        )
-
-    def test_mixed_literal_and_real_newlines(self):
-        self.assertEqual(
-            normalize_llm_text_to_html("One\nTwo\\n\nThree"),
-            "One<br />Two<br />Three",
-        )
 
 
 class NormalizeTemplateDataTests(TestCase):
