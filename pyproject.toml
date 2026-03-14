@@ -49,7 +49,7 @@ dependencies = [
     "pandas>=2.2.3,<3.0.0",
     "pillow>=12.0.0",
     "psycopg[binary,pool]>=3.2.3,<4.0.0",
-    "pyjwt==2.10.1",
+    "pyjwt>=2.12.0",
     "PyMuPDF>=1.24.13,<2.0.0",
     "python-json-logger>=4.0.0",
     "reportlab>=4.0.0",
