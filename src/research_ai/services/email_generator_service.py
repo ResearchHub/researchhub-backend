@@ -37,25 +37,6 @@ def _normalize_template_data(data: dict | None) -> dict:
     }
 
 
-def normalize_llm_text_to_html(text: str) -> str:
-    """
-    Normalize LLM-generated plain text for HTML display.
-
-    - Replaces literal '\\n' (backslash-n) with newline so both are handled.
-    - Collapses multiple newlines (e.g. \\n\\n, \\n\\n\\n) to a single newline.
-    - Replaces newlines with <br /> so line breaks render correctly in HTML.
-    """
-    if not text:
-        return text
-    # Handle literal \n (two characters) from LLM output
-    result = text.replace("\\n", "\n")
-    # Collapse 2+ newlines to a single newline
-    result = re.sub(r"\n{2,}", "\n", result)
-    # Convert newlines to HTML line breaks
-    result = result.replace("\n", "<br />")
-    return result
-
-
 def _strip_markdown(text: str) -> str:
     """Strip markdown formatting (bold, italic, code, links)."""
     result = text
@@ -295,10 +276,7 @@ def _generate_with_llm(
         sig = _build_signature_block(normalized)
         if sig:
             text = text.rstrip() + sig
-    subject, body = _parse_subject_and_body(text)
-    subject = normalize_llm_text_to_html(subject)
-    body = normalize_llm_text_to_html(body)
-    return subject, body
+    return _parse_subject_and_body(text)
 
 
 def generate_expert_email(
