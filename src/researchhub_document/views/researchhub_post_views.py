@@ -32,6 +32,7 @@ from researchhub_document.serializers.researchhub_post_serializer import (
     ResearchhubPostSerializer,
 )
 from user.models import User
+from user.permissions import IsVerifiedUser
 from user.related_models.author_model import Author
 from utils.doi import DOI
 from utils.sentry import log_error
@@ -47,6 +48,18 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
     permission_classes = [IsAuthenticatedOrReadOnly, HasDocumentEditingPermission]
     serializer_class = ResearchhubPostSerializer
     throttle_classes = THROTTLE_CLASSES
+
+    def get_permissions(self):
+        if self.action in ("create", "update"):
+            permission_classes = [
+                IsAuthenticatedOrReadOnly,
+                IsVerifiedUser,
+                HasDocumentEditingPermission,
+            ]
+        else:
+            permission_classes = self.permission_classes
+
+        return [permission() for permission in permission_classes]
 
     @track_event
     def create(self, request, *args, **kwargs):
