@@ -595,6 +595,18 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
         self.assertTrue(review.is_public)
 
 
+class HandleSpamUserEdgeCaseTests(TestCase):
+    def test_nonexistent_user_returns_early(self):
+        """handle_spam_user_task should return early without error for a nonexistent user."""
+        result = handle_spam_user_task(999999)
+        self.assertIsNone(result)
+
+    def test_nonexistent_user_with_requestor_returns_early(self):
+        moderator = create_random_default_user("edge_moderator", moderator=True)
+        result = handle_spam_user_task(999999, moderator)
+        self.assertIsNone(result)
+
+
 class CensorFunctionTests(TestCase):
     def test_censor_soft_deletes_reviews(self):
         """censor() soft-deletes reviews instead of hard-deleting them."""
