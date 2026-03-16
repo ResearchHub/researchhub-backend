@@ -286,7 +286,7 @@ class PreviewEmailRequestSerializer(serializers.Serializer):
 
 
 class SendEmailRequestSerializer(serializers.Serializer):
-    """Request for POST /expert-finder/emails/send/. From no-reply, Reply-To = user."""
+    """Request for POST /expert-finder/emails/send/."""
 
     generated_email_ids = serializers.ListField(
         child=serializers.IntegerField(min_value=1),
