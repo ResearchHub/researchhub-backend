@@ -286,20 +286,18 @@ class PreviewEmailRequestSerializer(serializers.Serializer):
 
 
 class SendEmailRequestSerializer(serializers.Serializer):
-    """Request for POST /expert-finder/emails/send/."""
+    """Request for POST /expert-finder/emails/send/. From no-reply, Reply-To = user."""
 
     generated_email_ids = serializers.ListField(
         child=serializers.IntegerField(min_value=1),
         min_length=1,
         max_length=100,
     )
-    reply_to = serializers.EmailField(required=False, allow_blank=True, default="")
     cc = serializers.ListField(
         child=serializers.EmailField(),
         required=False,
         default=list,
     )
-    use_noreply = serializers.BooleanField(required=False, default=False)
 
 
 class GeneratedEmailSerializer(serializers.ModelSerializer):

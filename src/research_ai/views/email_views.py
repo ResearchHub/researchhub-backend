@@ -248,27 +248,21 @@ class SendEmailView(APIView):
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
 
-        reply_to = (data.get("reply_to") or "").strip() or None
+        user_email = (getattr(request.user, "email", None) or "").strip()
+        if not user_email or "@" not in user_email:
+            return Response(
+                {"detail": "User has no email address; required for Reply-To."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        reply_to = user_email
         cc_list = list(data.get("cc") or [])
-        use_noreply = data.get("use_noreply", False)
         ids = data["generated_email_ids"]
 
-        if use_noreply:
-            from_email = f"ResearchHub <{settings.DEFAULT_FROM_EMAIL}>"
-        else:
-            user_email = getattr(request.user, "email", None) or ""
-            if not (user_email and "@" in user_email):
-                return Response(
-                    {
-                        "detail": "User has no email address. Use use_noreply to send from ResearchHub."
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            get_full_name = getattr(request.user, "get_full_name", None)
-            display_name = (
-                (get_full_name() if callable(get_full_name) else "") or ""
-            ).strip() or "ResearchHub"
-            from_email = f"{display_name} <{user_email}>"
+        get_full_name = getattr(request.user, "get_full_name", None)
+        display_name = (
+            (get_full_name() if callable(get_full_name) else "") or ""
+        ).strip() or "ResearchHub"
+        from_email = f"{display_name} via ResearchHub <{settings.DEFAULT_FROM_EMAIL}>"
 
         qs = GeneratedEmail.objects.filter(
             id__in=ids,
