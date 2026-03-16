@@ -197,14 +197,20 @@ class PreviewEmailView(APIView):
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
 
-        recipient = getattr(request.user, "email", None) or (
-            request.user.username if hasattr(request.user, "username") else None
-        )
-        if not recipient:
+        recipient = (getattr(request.user, "email", None) or "").strip()
+        if not recipient or "@" not in recipient:
             return Response(
                 {"detail": "User has no email address for preview."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        get_full_name = getattr(request.user, "get_full_name", None)
+        display_name = (
+            (get_full_name() if callable(get_full_name) else "") or ""
+        ).strip() or "ResearchHub"
+        from_email = (
+            f"{display_name} via ResearchHub <{settings.EXPERT_FINDER_FROM_EMAIL}>"
+        )
 
         ids = data["generated_email_ids"]
         qs = GeneratedEmail.objects.filter(
@@ -218,6 +224,8 @@ class PreviewEmailView(APIView):
                     [recipient],
                     rec.email_subject,
                     rec.email_body,
+                    reply_to=recipient,
+                    from_email=from_email,
                 )
                 sent += 1
             except Exception as e:
@@ -239,11 +247,6 @@ class SendEmailView(APIView):
     ]
 
     def post(self, request):
-        if not settings.PRODUCTION and not settings.TESTING:
-            return Response(
-                {"detail": "Sending emails to experts is disabled in non-production."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
         ser = SendEmailRequestSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         data = ser.validated_data

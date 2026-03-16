@@ -621,8 +621,10 @@ class PreviewEmailViewTests(APITestCase):
         self.url = "/api/research_ai/expert-finder/emails/preview/"
 
     def test_preview_user_no_email_returns_400(self):
-        """When request.user has no email/username, preview returns 400."""
+        """When request.user has no email, preview returns 400."""
         user = create_random_authenticated_user("noemail", moderator=True)
+        user.email = ""
+        user.save(update_fields=["email"])
         email_rec = GeneratedEmail.objects.create(
             created_by=user,
             expert_name="Dr. X",
@@ -630,10 +632,6 @@ class PreviewEmailViewTests(APITestCase):
             email_body="Body",
         )
         self.client.force_authenticate(user)
-        # Clear both so recipient is falsy (view uses email or username)
-        user.email = ""
-        if hasattr(user, "username"):
-            user.username = ""
         response = self.client.post(
             self.url,
             {"generated_email_ids": [email_rec.id]},
@@ -659,31 +657,15 @@ class PreviewEmailViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.json().get("sent"), 1)
         mock_send.assert_called_once()
+        call_kw = mock_send.call_args[1]
+        self.assertEqual(call_kw["reply_to"], self.moderator.email)
+        self.assertIn(settings.EXPERT_FINDER_FROM_EMAIL, call_kw["from_email"])
 
 
 class SendEmailViewTests(APITestCase):
     def setUp(self):
         self.moderator = create_random_authenticated_user("mod", moderator=True)
         self.url = "/api/research_ai/expert-finder/emails/send/"
-
-    @override_settings(PRODUCTION=False, TESTING=False)
-    def test_send_returns_403_when_not_production_not_testing(self):
-        email_rec = GeneratedEmail.objects.create(
-            created_by=self.moderator,
-            expert_name="Dr. Y",
-            expert_email="expert@example.com",
-            email_subject="Subj",
-            email_body="Body",
-            status="draft",
-        )
-        self.client.force_authenticate(self.moderator)
-        response = self.client.post(
-            self.url,
-            {"generated_email_ids": [email_rec.id]},
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertIn("disabled", response.json().get("detail", "").lower())
 
     def test_send_user_no_email_returns_400(self):
         user = create_random_authenticated_user("sendnoemail", moderator=True)
