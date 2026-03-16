@@ -231,7 +231,6 @@ class PaperOpenAlexEnrichmentService:
 
         for author_instance in author_instances:
             try:
-                # Prepare defaults for creation
                 defaults = {
                     "first_name": author_instance.first_name,
                     "last_name": author_instance.last_name,
@@ -241,14 +240,20 @@ class PaperOpenAlexEnrichmentService:
                     ),
                 }
 
-                _, created = Author.objects.update_or_create(
-                    openalex_ids=author_instance.openalex_ids, defaults=defaults
-                )
+                existing = Author.objects.filter(
+                    openalex_ids=author_instance.openalex_ids
+                ).first()
 
-                if created:
-                    authors_created += 1
-                else:
+                if existing:
+                    for key, value in defaults.items():
+                        setattr(existing, key, value)
+                    existing.save(update_fields=list(defaults.keys()))
                     authors_updated += 1
+                else:
+                    Author.objects.create(
+                        openalex_ids=author_instance.openalex_ids, **defaults
+                    )
+                    authors_created += 1
 
             except Exception as e:
                 logger.error(
