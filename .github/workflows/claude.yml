@@ -93,4 +93,4 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           additional_permissions: |
             actions: read
-          claude_args: "--model claude-opus-4-6 --max-turns 15 --allowedTools 'Edit,Read,Write,Glob,Grep,Bash(cd src && uv run python manage.py test:*),Bash(cd src && uv run python manage.py migrate:*),Bash(cd src && uv run python manage.py makemigrations:*),Bash(cd src && uv run python manage.py collectstatic:*),Bash(cd src && uv run python manage.py opensearch:*),Bash(cd src && uv run flake8:*),Bash(cd src && uv run black:*),Bash(git:*),Bash(ls:*),Bash(pwd:*),Bash(uv:*)'"
+          claude_args: "--model claude-opus-4-6 --max-turns 30 --allowedTools 'Edit,Read,Write,Glob,Grep,Bash(cd src && uv run python manage.py test:*),Bash(cd src && uv run python manage.py migrate:*),Bash(cd src && uv run python manage.py makemigrations:*),Bash(cd src && uv run python manage.py collectstatic:*),Bash(cd src && uv run python manage.py opensearch:*),Bash(cd src && uv run flake8:*),Bash(cd src && uv run black:*),Bash(git:*),Bash(gh:*),Bash(ls:*),Bash(pwd:*),Bash(cat:*),Bash(find:*),Bash(echo:*),Bash(uv:*)'"
