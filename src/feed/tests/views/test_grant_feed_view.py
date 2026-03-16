@@ -497,7 +497,6 @@ class GrantFeedViewTests(APITestCase):
         filter_instance = FundOrderingFilter()
         factory = APIRequestFactory()
         mock_queryset = Mock()
-        mock_queryset.query.order_by = ("-created_date",)
         mock_view = Mock()
 
         # Setup view with ordering_fields and is_grant_view
@@ -588,136 +587,36 @@ class GrantFeedViewTests(APITestCase):
         # Assert
         self.assertEqual(len(response.data["results"]), 0)
 
-
-class GrantFeedPendingVisibilityTests(APITestCase):
-    def setUp(self):
-        cache.clear()
-        Grant.objects.all().delete()
-        ResearchhubPost.objects.filter(document_type=GRANT).delete()
-
-        self.moderator = create_random_authenticated_user("vis_mod", moderator=True)
-        self.author = create_random_authenticated_user("vis_author")
-        self.other_user = create_random_authenticated_user("vis_other")
-
-        self.open_post = create_post(
-            created_by=self.moderator, document_type=GRANT, title="Open Grant"
+    def test_pending_and_declined_excluded_from_feed(self):
+        """PENDING and DECLINED grants never appear in the feed."""
+        # Arrange
+        pending_post = create_post(
+            created_by=self.moderator, document_type=GRANT, title="Pending Grant"
         )
         Grant.objects.create(
             created_by=self.moderator,
-            unified_document=self.open_post.unified_document,
-            amount=Decimal("50000.00"),
-            status=Grant.OPEN,
-        )
-
-        self.pending_post = create_post(
-            created_by=self.author, document_type=GRANT, title="Pending Grant"
-        )
-        Grant.objects.create(
-            created_by=self.author,
-            unified_document=self.pending_post.unified_document,
-            amount=Decimal("30000.00"),
+            unified_document=pending_post.unified_document,
+            amount=Decimal("10000.00"),
             status=Grant.PENDING,
         )
-
         declined_post = create_post(
-            created_by=self.author, document_type=GRANT, title="Declined Grant"
+            created_by=self.moderator, document_type=GRANT, title="Declined Grant"
         )
         declined_post.unified_document.is_removed = True
         declined_post.unified_document.save()
         Grant.objects.create(
-            created_by=self.author,
+            created_by=self.moderator,
             unified_document=declined_post.unified_document,
-            amount=Decimal("20000.00"),
+            amount=Decimal("10000.00"),
             status=Grant.DECLINED,
         )
-
-    def tearDown(self):
-        cache.clear()
-
-    def _get_feed_titles(self):
-        return [
-            r["content_object"]["title"]
-            for r in self.client.get("/api/grant_feed/").data["results"]
-        ]
-
-    def test_anonymous_sees_only_open(self):
-        # Act
-        titles = self._get_feed_titles()
-
-        # Assert
-        self.assertIn("Open Grant", titles)
-        self.assertNotIn("Pending Grant", titles)
-        self.assertNotIn("Declined Grant", titles)
-
-    def test_other_user_cannot_see_pending(self):
-        # Arrange
-        self.client.force_authenticate(self.other_user)
-
-        # Act
-        titles = self._get_feed_titles()
-
-        # Assert
-        self.assertIn("Open Grant", titles)
-        self.assertNotIn("Pending Grant", titles)
-
-    def test_author_sees_own_pending(self):
-        # Arrange
-        self.client.force_authenticate(self.author)
-
-        # Act
-        titles = self._get_feed_titles()
-
-        # Assert
-        self.assertIn("Pending Grant", titles)
-        self.assertIn("Open Grant", titles)
-
-    def test_moderator_sees_all_pending(self):
-        # Arrange
-        self.client.force_authenticate(self.moderator)
-
-        # Act
-        titles = self._get_feed_titles()
-
-        # Assert
-        self.assertIn("Pending Grant", titles)
-        self.assertIn("Open Grant", titles)
-
-    def test_declined_hidden_from_all_users(self):
-        for user in [None, self.other_user, self.author, self.moderator]:
-            # Arrange
-            if user:
-                self.client.force_authenticate(user)
-            else:
-                self.client.logout()
-
-            # Act / Assert
-            self.assertNotIn("Declined Grant", self._get_feed_titles())
-
-    def test_pending_status_filter(self):
-        """Moderator can filter by ?status=PENDING and see only pending grants."""
-        # Arrange
-        self.client.force_authenticate(self.moderator)
-
-        # Act
-        response = self.client.get("/api/grant_feed/?status=PENDING")
-
-        # Assert
-        self.assertEqual(response.status_code, 200)
-        titles = [r["content_object"]["title"] for r in response.data["results"]]
-        self.assertIn("Pending Grant", titles)
-        self.assertNotIn("Open Grant", titles)
-
-    def test_pending_sorted_before_open_for_moderator(self):
-        """Pending grants sort before open grants for authenticated users."""
-        # Arrange
-        self.client.force_authenticate(self.moderator)
+        self.client.force_authenticate(self.user)
 
         # Act
         response = self.client.get("/api/grant_feed/")
 
-        # Assert — pending should appear before open
-        results = response.data["results"]
-        titles = [r["content_object"]["title"] for r in results]
-        self.assertIn("Pending Grant", titles)
-        self.assertIn("Open Grant", titles)
-        self.assertLess(titles.index("Pending Grant"), titles.index("Open Grant"))
+        # Assert
+        titles = [r["content_object"]["title"] for r in response.data["results"]]
+        self.assertNotIn("Pending Grant", titles)
+        self.assertNotIn("Declined Grant", titles)
+        self.assertEqual(len(titles), 3)

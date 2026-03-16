@@ -27,8 +27,6 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from ..serializers import PostSerializer, serialize_feed_metrics
 from .common import FeedPagination
 
-GRANT_FEED_CACHE_VERSION_KEY = "grant_feed_v"
-
 
 class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
     serializer_class = PostSerializer
@@ -44,10 +42,6 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         context.update(self.get_common_serializer_context())
         return context
 
-    def _is_moderator(self):
-        user = self.request.user
-        return user.is_authenticated and user.moderator
-
     def get_cache_key(self, request, feed_type=""):
         """Override to include grant-specific query parameters in cache key"""
         base_key = super().get_cache_key(request, feed_type)
@@ -58,15 +52,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         organization = request.query_params.get("organization", "")
         created_by = request.query_params.get("created_by", "")
 
-        if self._is_moderator():
-            user_segment = "mod"
-        elif request.user.is_authenticated:
-            user_segment = f"u:{request.user.id}"
-        else:
-            user_segment = "anon"
-
-        version = cache.get(GRANT_FEED_CACHE_VERSION_KEY, 0)
-        grant_params = f"-ordering:{ordering}-status:{status}-organization:{organization}-created_by:{created_by}-{user_segment}-v:{version}"
+        grant_params = f"-ordering:{ordering}-status:{status}-organization:{organization}-created_by:{created_by}"
         return base_key + grant_params
 
     def list(self, request, *args, **kwargs):
@@ -156,37 +142,15 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             .filter(document_type=GRANT, unified_document__is_removed=False)
         )
 
-        # DECLINED: hidden from everyone. PENDING: visible to moderators and authors only.
-        user = self.request.user
-        if self._is_moderator():
-            queryset = queryset.exclude(
-                unified_document__grants__status=Grant.DECLINED
-            )
-        elif user.is_authenticated:
-            queryset = queryset.exclude(
-                Q(unified_document__grants__status=Grant.DECLINED)
-                | (
-                    Q(unified_document__grants__status=Grant.PENDING)
-                    & ~Q(created_by=user)
-                )
-            )
-        else:
-            queryset = queryset.exclude(
-                unified_document__grants__status__in=[
-                    Grant.PENDING,
-                    Grant.DECLINED,
-                ]
-            )
+        queryset = queryset.exclude(
+            unified_document__grants__status__in=[Grant.PENDING, Grant.DECLINED]
+        )
 
         if status:
             status_upper = status.upper()
             now = timezone.now()
 
-            if status_upper == Grant.PENDING:
-                queryset = queryset.filter(
-                    unified_document__grants__status=Grant.PENDING
-                )
-            elif status_upper == Grant.OPEN:
+            if status_upper == Grant.OPEN:
                 # Matches Grant.is_active(): status=OPEN and not expired
                 queryset = queryset.filter(
                     Q(unified_document__grants__status=Grant.OPEN),

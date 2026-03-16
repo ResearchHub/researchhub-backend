@@ -11,7 +11,7 @@ from purchase.models import Grant, GrantApplication
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.serializers.grant_create_serializer import GrantCreateSerializer
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
-from purchase.services.grant_service import GrantService
+from purchase.services.grant_service import GrantModerationService
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.permissions import IsModerator
@@ -23,7 +23,7 @@ class GrantViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def dispatch(self, request, *args, **kwargs):
-        self.grant_service = kwargs.pop("grant_service", GrantService())
+        self.grant_service = kwargs.pop("grant_service", GrantModerationService())
         return super().dispatch(request, *args, **kwargs)
 
     def get_permissions(self):

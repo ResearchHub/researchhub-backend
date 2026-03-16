@@ -71,27 +71,24 @@ class FundOrderingFilter(OrderingFilter):
         ordering_list = self.get_ordering(request, queryset, view)
         ordering = ordering_list[0].lstrip('-') if ordering_list else 'newest'
         grant_id = request.query_params.get('grant_id')
-
+ 
         if ordering == 'newest':
-            queryset = self._apply_newest_sorting(queryset, model_config)
+            return self._apply_newest_sorting(queryset, model_config)
         elif ordering == 'best':
             # For RFP applications (when grant_id is passed), sort by most funded
             if grant_id:
-                queryset = self._apply_amount_raised_sorting(queryset, Fundraise)
-            else:
-                queryset = self._apply_best_sorting(queryset, model_config)
+                return self._apply_amount_raised_sorting(queryset, Fundraise)
+            return self._apply_best_sorting(queryset, model_config)
         elif ordering == 'upvotes':
-            queryset = self._apply_upvotes_sorting(queryset)
+            return self._apply_upvotes_sorting(queryset)
         elif ordering == 'most_applicants':
-            queryset = self._apply_most_applicants_sorting(queryset, model_config['model_class'])
+            return self._apply_most_applicants_sorting(queryset, model_config['model_class'])
         elif ordering == 'amount_raised':
-            queryset = self._apply_amount_raised_sorting(queryset, model_config['model_class'])
+            return self._apply_amount_raised_sorting(queryset, model_config['model_class'])
         else:
             # For any other ordering field, fall back to DRF's standard ordering
-            queryset = super().filter_queryset(request, queryset, view)
-
-        return self._prepend_pending_sorting(queryset, view)
-
+            return super().filter_queryset(request, queryset, view)
+            
     def get_ordering(self, request: Request, queryset: QuerySet, view: Any):
         """Get ordering from request with DRF-compatible signature."""
         ordering_param = request.query_params.get(self.ordering_param, '')
@@ -257,24 +254,3 @@ class FundOrderingFilter(OrderingFilter):
                     output_field=DecimalField(max_digits=19, decimal_places=10)
                 )
             ).order_by("-amount_raised", "-created_date")
-
-    def _prepend_pending_sorting(self, queryset: QuerySet, view: Any) -> QuerySet:
-        """For authenticated users viewing grants, sort PENDING items to the top."""
-        is_grant_view = getattr(view, 'is_grant_view', False)
-        if not is_grant_view:
-            return queryset
-
-        request = getattr(view, 'request', None)
-        if not request or not request.user.is_authenticated:
-            return queryset
-
-        current_ordering = queryset.query.order_by
-        queryset = queryset.annotate(
-            _is_pending=Case(
-                When(unified_document__grants__status=Grant.PENDING, then=Value(0)),
-                default=Value(1),
-                output_field=IntegerField(),
-            ),
-        )
-        return queryset.order_by("_is_pending", *current_ordering)
-

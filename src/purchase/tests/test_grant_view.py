@@ -11,11 +11,10 @@ from rest_framework.test import APITestCase
 
 from discussion.models import Flag
 from user.related_models.verdict_model import Verdict
-from feed.views.grant_feed_view import GRANT_FEED_CACHE_VERSION_KEY
 from notification.models import Notification
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-from purchase.services.grant_service import GrantService
+from purchase.services.grant_service import GrantModerationService
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
@@ -730,7 +729,6 @@ class GrantModerationTests(APITestCase):
     def test_approve_grant(self):
         # Arrange
         self.client.force_authenticate(self.moderator)
-        old_version = cache.get(GRANT_FEED_CACHE_VERSION_KEY)
 
         # Act
         response = self.client.post(f"/api/grant/{self.grant.id}/approve/")
@@ -739,7 +737,6 @@ class GrantModerationTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.grant.refresh_from_db()
         self.assertEqual(self.grant.status, Grant.OPEN)
-        self.assertNotEqual(cache.get(GRANT_FEED_CACHE_VERSION_KEY), old_version)
         self.assertTrue(
             Notification.objects.filter(
                 notification_type=Notification.GRANT_APPROVED,
@@ -750,7 +747,6 @@ class GrantModerationTests(APITestCase):
     def test_decline_grant(self):
         # Arrange
         self.client.force_authenticate(self.moderator)
-        old_version = cache.get(GRANT_FEED_CACHE_VERSION_KEY)
 
         # Act
         response = self.client.post(
@@ -764,7 +760,6 @@ class GrantModerationTests(APITestCase):
         self.assertEqual(self.grant.status, Grant.DECLINED)
         self.post.unified_document.refresh_from_db()
         self.assertTrue(self.post.unified_document.is_removed)
-        self.assertNotEqual(cache.get(GRANT_FEED_CACHE_VERSION_KEY), old_version)
         self.assertTrue(
             Notification.objects.filter(
                 notification_type=Notification.GRANT_DECLINED,
@@ -832,13 +827,13 @@ class GrantModerationTests(APITestCase):
         self.assertEqual(len(response.data["results"]), 0)
 
 
-class GrantServiceTests(APITestCase):
-    """Tests for GrantService branches not reached by API tests (DOI assignment, decline internals)."""
+class GrantModerationServiceTests(APITestCase):
+    """Tests for GrantModerationService branches not reached by API tests (DOI assignment, decline internals)."""
 
     def setUp(self):
         self.moderator = create_random_authenticated_user("svc_mod", moderator=True)
         self.author = create_random_authenticated_user("svc_author")
-        self.service = GrantService()
+        self.service = GrantModerationService()
         self.post = create_post(created_by=self.author, document_type=GRANT)
         self.grant = Grant.objects.create(
             created_by=self.author,
