@@ -4,7 +4,6 @@ from decimal import Decimal
 import pytz
 from django.test import TestCase
 
-
 from purchase.models import Grant
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import GRANT

@@ -142,9 +142,14 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             .filter(document_type=GRANT, unified_document__is_removed=False)
         )
 
-        queryset = queryset.exclude(
-            unified_document__grants__status__in=[Grant.PENDING, Grant.DECLINED]
-        )
+        if status and status.upper() == Grant.PENDING:
+            queryset = queryset.filter(
+                unified_document__grants__status=Grant.PENDING
+            )
+        else:
+            queryset = queryset.exclude(
+                unified_document__grants__status__in=[Grant.PENDING, Grant.DECLINED]
+            )
 
         if status:
             status_upper = status.upper()

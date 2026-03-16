@@ -254,3 +254,4 @@ class FundOrderingFilter(OrderingFilter):
                     output_field=DecimalField(max_digits=19, decimal_places=10)
                 )
             ).order_by("-amount_raised", "-created_date")
+            
