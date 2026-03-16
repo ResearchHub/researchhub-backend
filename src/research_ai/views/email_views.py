@@ -262,7 +262,9 @@ class SendEmailView(APIView):
         display_name = (
             (get_full_name() if callable(get_full_name) else "") or ""
         ).strip() or "ResearchHub"
-        from_email = f"{display_name} via ResearchHub <{settings.DEFAULT_FROM_EMAIL}>"
+        from_email = (
+            f"{display_name} via ResearchHub <{settings.EXPERT_FINDER_FROM_EMAIL}>"
+        )
 
         qs = GeneratedEmail.objects.filter(
             id__in=ids,

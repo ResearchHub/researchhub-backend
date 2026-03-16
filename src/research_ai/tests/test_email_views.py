@@ -732,7 +732,7 @@ class SendEmailViewTests(APITestCase):
         self.assertEqual(call_kw["reply_to"], self.moderator.email)
         from_email = call_kw["from_email"]
         self.assertIn("ResearchHub", from_email)
-        self.assertIn(settings.DEFAULT_FROM_EMAIL, from_email)
+        self.assertIn(settings.EXPERT_FINDER_FROM_EMAIL, from_email)
         self.assertNotIn(self.moderator.email, from_email)
 
     @patch("research_ai.views.email_views.send_queued_emails_task")
