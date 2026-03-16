@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import List, Optional
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from hub.models import Hub
@@ -241,9 +241,28 @@ class PaperOpenAlexEnrichmentService:
                     ),
                 }
 
-                _, created = Author.objects.update_or_create(
-                    openalex_ids=author_instance.openalex_ids, defaults=defaults
-                )
+                try:
+                    existing = Author.objects.filter(
+                        openalex_ids=author_instance.openalex_ids
+                    ).first()
+
+                    if existing:
+                        for key, value in defaults.items():
+                            setattr(existing, key, value)
+                        existing.save()
+                        author_instance = existing
+                        created = False
+                    else:
+                        author_instance = Author.objects.create(
+                            openalex_ids=author_instance.openalex_ids,
+                            **defaults,
+                        )
+                        created = True
+                except IntegrityError:
+                    author_instance = Author.objects.filter(
+                        openalex_ids=author_instance.openalex_ids
+                    ).first()
+                    created = False
 
                 if created:
                     authors_created += 1
