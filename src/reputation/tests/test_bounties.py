@@ -1758,7 +1758,7 @@ class BountyViewTests(APITestCase):
             "Proposal review bounties should appear first in get_bounties",
         )
 
-    def test_proposal_review_priority_with_personalized_sort(self):
+    def test_preregistration_first_with_personalized_sort(self):
         """Personalized sort should still prioritize proposal reviews."""
         # Arrange
         self.client.force_authenticate(self.user)

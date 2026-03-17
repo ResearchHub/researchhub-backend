@@ -643,10 +643,10 @@ class BountyViewSet(viewsets.ModelViewSet):
         return queryset.filter(applied_filters)
 
     @staticmethod
-    def _prioritize_proposal_reviews(queryset):
+    def _prioritize_preregistration_bounties(queryset):
         """Annotate and sort so REVIEW bounties on proposals appear first."""
         return queryset.annotate(
-            proposal_review_priority=Case(
+            preregistration_first=Case(
                 When(
                     bounty_type=Bounty.Type.REVIEW,
                     unified_document__document_type=PREREGISTRATION,
@@ -672,8 +672,8 @@ class BountyViewSet(viewsets.ModelViewSet):
 
             queryset = Bounty.objects.filter(id__in=[b.id for b in bounties])
             queryset = self.filter_queryset(queryset)
-            queryset = self._prioritize_proposal_reviews(queryset)
-            queryset = queryset.order_by("proposal_review_priority", "-created_date")
+            queryset = self._prioritize_preregistration_bounties(queryset)
+            queryset = queryset.order_by("preregistration_first", "-created_date")
         else:
             queryset = self.filter_queryset(self.get_queryset())
 
@@ -709,8 +709,8 @@ class BountyViewSet(viewsets.ModelViewSet):
                     )
                 )
 
-            queryset = self._prioritize_proposal_reviews(queryset)
-            queryset = queryset.order_by("proposal_review_priority", sort)
+            queryset = self._prioritize_preregistration_bounties(queryset)
+            queryset = queryset.order_by("preregistration_first", sort)
 
         page = self.paginate_queryset(queryset)
         context = self._get_retrieve_context()
@@ -750,8 +750,8 @@ class BountyViewSet(viewsets.ModelViewSet):
         qs = self.filter_queryset(self.get_queryset()).filter(
             parent__isnull=True, unified_document__is_removed=False
         )
-        qs = self._prioritize_proposal_reviews(qs).order_by(
-            "proposal_review_priority", "-created_date"
+        qs = self._prioritize_preregistration_bounties(qs).order_by(
+            "preregistration_first", "-created_date"
         )[:10]
 
         context = self._get_retrieve_context()
