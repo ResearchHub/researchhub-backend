@@ -293,13 +293,11 @@ class SendEmailRequestSerializer(serializers.Serializer):
         min_length=1,
         max_length=100,
     )
-    reply_to = serializers.EmailField(required=False, allow_blank=True, default="")
     cc = serializers.ListField(
         child=serializers.EmailField(),
         required=False,
         default=list,
     )
-    use_noreply = serializers.BooleanField(required=False, default=False)
 
 
 class GeneratedEmailSerializer(serializers.ModelSerializer):
