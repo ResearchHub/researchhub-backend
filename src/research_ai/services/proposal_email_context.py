@@ -6,7 +6,7 @@ def get_proposal_frontend_url(post_or_unified_document) -> str | None:
     """
     Build frontend URL for a proposal (preregistration post).
     Accepts ResearchhubPost or ResearchhubUnifiedDocument.
-    Preregistration pages: https://www.researchhub.com/post/{id}/{slug}
+    Preregistration pages: https://www.researchhub.com/fund/{id}/{slug}
     """
     if not post_or_unified_document:
         return None
@@ -25,7 +25,7 @@ def get_proposal_frontend_url(post_or_unified_document) -> str | None:
         post_slug = getattr(post, "slug", None)
         if not post_id or not post_slug:
             return None
-        return f"{BASE_FRONTEND_URL}/post/{post_id}/{post_slug}"
+        return f"{BASE_FRONTEND_URL}/fund/{post_id}/{post_slug}"
     except Exception:
         return None
 

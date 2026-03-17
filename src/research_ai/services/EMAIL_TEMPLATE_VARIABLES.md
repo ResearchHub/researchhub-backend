@@ -2,7 +2,7 @@
 
 Fixed email templates (e.g. RFP outreach) support **variable replacement** via placeholders in the form `{{entity.field}}`. This document lists all available entities and their properties.
 
-**Usage:** Implemented in `email_template_variables.py`. Context is built by `build_replacement_context()` and applied with `replace_template_variables()`. Used in `email_generator_service.generate_expert_email()` when the template type is FIXED. Proposal context is built by `build_proposal_context()` in `proposal_email_context.py`.
+**Usage:** Implemented in `email_template_variables.py`. Context is built by `build_replacement_context()` and applied with `replace_template_variables()`. Used in `email_generator_service.generate_expert_email()` when the template type is FIXED. 
 
 ---
 

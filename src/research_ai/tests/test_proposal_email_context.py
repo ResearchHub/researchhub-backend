@@ -30,7 +30,7 @@ class GetProposalFrontendUrlTests(TestCase):
         post.id = 5
         post.slug = "prereg-2025"
         url = get_proposal_frontend_url(post)
-        self.assertIn("/post/5/prereg-2025", url)
+        self.assertIn("/fund/5/prereg-2025", url)
 
 
 class BuildProposalContextTests(TestCase):
