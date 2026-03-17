@@ -27,6 +27,8 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from ..serializers import PostSerializer, serialize_feed_metrics
 from .common import FeedPagination
 
+GRANT_FEED_CACHE_VERSION_KEY = "grant_feed_cache_version"
+
 
 class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
     serializer_class = PostSerializer
@@ -52,7 +54,8 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         organization = request.query_params.get("organization", "")
         created_by = request.query_params.get("created_by", "")
 
-        grant_params = f"-ordering:{ordering}-status:{status}-organization:{organization}-created_by:{created_by}"
+        version = cache.get(GRANT_FEED_CACHE_VERSION_KEY, 0)
+        grant_params = f"-ordering:{ordering}-status:{status}-organization:{organization}-created_by:{created_by}-v:{version}"
         return base_key + grant_params
 
     def list(self, request, *args, **kwargs):

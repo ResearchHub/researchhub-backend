@@ -10,6 +10,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from discussion.models import Flag
+from feed.views.grant_feed_view import GRANT_FEED_CACHE_VERSION_KEY
 from user.related_models.verdict_model import Verdict
 from notification.models import Notification
 from purchase.models import Grant, GrantApplication
@@ -729,6 +730,7 @@ class GrantModerationTests(APITestCase):
     def test_approve_grant(self):
         # Arrange
         self.client.force_authenticate(self.moderator)
+        old_version = cache.get(GRANT_FEED_CACHE_VERSION_KEY)
 
         # Act
         response = self.client.post(f"/api/grant/{self.grant.id}/approve/")
@@ -737,6 +739,7 @@ class GrantModerationTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.grant.refresh_from_db()
         self.assertEqual(self.grant.status, Grant.OPEN)
+        self.assertNotEqual(cache.get(GRANT_FEED_CACHE_VERSION_KEY), old_version)
         self.assertTrue(
             Notification.objects.filter(
                 notification_type=Notification.GRANT_APPROVED,
@@ -747,6 +750,7 @@ class GrantModerationTests(APITestCase):
     def test_decline_grant(self):
         # Arrange
         self.client.force_authenticate(self.moderator)
+        old_version = cache.get(GRANT_FEED_CACHE_VERSION_KEY)
 
         # Act
         response = self.client.post(
@@ -760,6 +764,7 @@ class GrantModerationTests(APITestCase):
         self.assertEqual(self.grant.status, Grant.DECLINED)
         self.post.unified_document.refresh_from_db()
         self.assertTrue(self.post.unified_document.is_removed)
+        self.assertNotEqual(cache.get(GRANT_FEED_CACHE_VERSION_KEY), old_version)
         self.assertTrue(
             Notification.objects.filter(
                 notification_type=Notification.GRANT_DECLINED,
