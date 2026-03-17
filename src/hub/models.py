@@ -165,15 +165,18 @@ class Hub(models.Model):
             ),
         ).all()
 
-    # There are a handful of OpenAlex subfields that have duplicate names
-    # but different IDs. This method will ensure that a corresponding hub
-    # is returned properly
     @classmethod
     def get_from_subfield(cls, subfield):
-        return Hub.objects.get(
+        hub = Hub.objects.filter(
             (Q(name__iexact=subfield.display_name) | Q(subfield_id=subfield.id))
             & ~Q(namespace="journal")
-        )
+        ).first()
+        if hub is None:
+            raise Hub.DoesNotExist(
+                f"No Hub found for subfield {subfield.id} "
+                f"({subfield.display_name})"
+            )
+        return hub
 
     @property
     def editor_permission_groups(self):

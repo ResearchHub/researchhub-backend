@@ -90,10 +90,10 @@ class PersonaWebhookView(APIView):
         )
         first_name = self._get_nested_attr(
             data, "data.attributes.payload.data.attributes.name-first"
-        )
+        ) or ""
         last_name = self._get_nested_attr(
             data, "data.attributes.payload.data.attributes.name-last"
-        )
+        ) or ""
         inquiry_id = self._get_nested_attr(data, "data.attributes.payload.data.id")
 
         user_verification, _ = UserVerification.objects.update_or_create(
