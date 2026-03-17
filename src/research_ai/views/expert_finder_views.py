@@ -225,9 +225,10 @@ class ExpertSearchDetailView(APIView):
 
     def get(self, request, search_id):
         try:
-            expert_search = ExpertSearch.objects.get(
-                id=search_id, created_by=request.user
-            )
+            expert_search = ExpertSearch.objects.select_related(
+                "created_by",
+                "created_by__author_profile",
+            ).get(id=search_id)
         except ExpertSearch.DoesNotExist:
             return Response(
                 {"detail": "Expert search not found."},
@@ -245,9 +246,10 @@ class ExpertSearchListView(APIView):
     ]
 
     def get_queryset(self):
-        return ExpertSearch.objects.filter(created_by=self.request.user).order_by(
-            "-created_date"
-        )
+        return ExpertSearch.objects.select_related(
+            "created_by",
+            "created_by__author_profile",
+        ).order_by("-created_date")
 
     def get(self, request):
         limit = max(1, min(100, int(request.query_params.get("limit", 10))))
@@ -366,7 +368,7 @@ class ExpertSearchProgressStreamView(APIView):
 
     def get(self, request, search_id):
         try:
-            ExpertSearch.objects.get(id=search_id, created_by=request.user)
+            ExpertSearch.objects.select_related("created_by").get(id=search_id)
         except ExpertSearch.DoesNotExist:
             return Response(
                 {"detail": "Expert search not found."},

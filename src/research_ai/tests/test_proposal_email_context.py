@@ -26,6 +26,7 @@ class GetProposalFrontendUrlTests(TestCase):
     def test_returns_url_from_post_id_slug_when_no_frontend_view_link(self):
         post = MagicMock()
         post.unified_document = None
+        post.get_document = MagicMock(return_value=None)  # so we use post itself
         post.id = 5
         post.slug = "prereg-2025"
         url = get_proposal_frontend_url(post)

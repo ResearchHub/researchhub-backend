@@ -428,13 +428,15 @@ class GeneratedEmailDetailViewTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_get_returns_404_for_other_users_email(self):
+    def test_get_returns_200_for_other_users_email(self):
+        """Generated emails are shared: any editor can retrieve any email."""
         email = self._create_email(created_by=self.user)
         self.client.force_authenticate(self.moderator)
         response = self.client.get(
             f"/api/research_ai/expert-finder/emails/{email.id}/"
         )
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["id"], email.id)
 
     def test_patch_updates_and_returns_200(self):
         email = self._create_email()
@@ -448,17 +450,18 @@ class GeneratedEmailDetailViewTests(APITestCase):
         email.refresh_from_db()
         self.assertEqual(email.email_body, "Updated body")
 
-    def test_patch_returns_404_for_other_users_email(self):
+    def test_patch_returns_200_for_other_users_email(self):
+        """Generated emails are shared: any editor can update any email."""
         email = self._create_email(created_by=self.user)
         self.client.force_authenticate(self.moderator)
         response = self.client.patch(
             f"/api/research_ai/expert-finder/emails/{email.id}/",
-            {"email_body": "Hacked"},
+            {"email_body": "Updated By Moderator"},
             format="json",
         )
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         email.refresh_from_db()
-        self.assertEqual(email.email_body, "Body")
+        self.assertEqual(email.email_body, "Updated By Moderator")
 
     def test_delete_returns_204_and_removes_record(self):
         email = self._create_email()
@@ -469,14 +472,15 @@ class GeneratedEmailDetailViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(GeneratedEmail.objects.filter(pk=email.id).exists())
 
-    def test_delete_returns_404_for_other_users_email(self):
+    def test_delete_returns_204_for_other_users_email(self):
+        """Generated emails are shared: any editor can delete any email."""
         email = self._create_email(created_by=self.user)
         self.client.force_authenticate(self.moderator)
         response = self.client.delete(
             f"/api/research_ai/expert-finder/emails/{email.id}/"
         )
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-        self.assertTrue(GeneratedEmail.objects.filter(pk=email.id).exists())
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(GeneratedEmail.objects.filter(pk=email.id).exists())
 
 
 class BulkGenerateEmailViewTests(APITestCase):
@@ -667,29 +671,8 @@ class SendEmailViewTests(APITestCase):
         self.moderator = create_random_authenticated_user("mod", moderator=True)
         self.url = "/api/research_ai/expert-finder/emails/send/"
 
-    def test_send_user_no_email_returns_400(self):
-        user = create_random_authenticated_user("sendnoemail", moderator=True)
-        user.email = ""
-        user.save(update_fields=["email"])
-        email_rec = GeneratedEmail.objects.create(
-            created_by=user,
-            expert_name="Dr. Y",
-            expert_email="expert@example.com",
-            email_subject="Subj",
-            email_body="Body",
-            status="draft",
-        )
-        self.client.force_authenticate(user)
-        response = self.client.post(
-            self.url,
-            {"generated_email_ids": [email_rec.id]},
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("email", response.json().get("detail", "").lower())
-
-    @patch("research_ai.views.email_views.send_queued_emails_task")
-    def test_send_queues_emails_and_returns_immediately(self, mock_task):
+    def test_send_without_reply_to_returns_400(self):
+        """Send endpoint requires reply_to in request body."""
         email_rec = GeneratedEmail.objects.create(
             created_by=self.moderator,
             expert_name="Dr. Y",
@@ -702,6 +685,29 @@ class SendEmailViewTests(APITestCase):
         response = self.client.post(
             self.url,
             {"generated_email_ids": [email_rec.id]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("reply_to", response.json())
+
+    @patch("research_ai.views.email_views.send_queued_emails_task")
+    def test_send_queues_emails_and_returns_immediately(self, mock_task):
+        reply_to_email = "reply@example.com"
+        email_rec = GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_name="Dr. Y",
+            expert_email="expert@example.com",
+            email_subject="Subj",
+            email_body="Body",
+            status="draft",
+        )
+        self.client.force_authenticate(self.moderator)
+        response = self.client.post(
+            self.url,
+            {
+                "generated_email_ids": [email_rec.id],
+                "reply_to": reply_to_email,
+            },
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -711,33 +717,10 @@ class SendEmailViewTests(APITestCase):
         mock_task.delay.assert_called_once()
         call_kw = mock_task.delay.call_args[1]
         self.assertEqual(call_kw["generated_email_ids"], [email_rec.id])
-        self.assertEqual(call_kw["reply_to"], self.moderator.email)
+        self.assertEqual(call_kw["reply_to"], reply_to_email)
         from_email = call_kw["from_email"]
         self.assertIn("ResearchHub", from_email)
         self.assertIn(settings.EXPERT_FINDER_FROM_EMAIL, from_email)
-        self.assertNotIn(self.moderator.email, from_email)
-
-    @patch("research_ai.views.email_views.send_queued_emails_task")
-    def test_send_without_user_email_returns_400(self, mock_task):
-        self.moderator.email = ""
-        self.moderator.save()
-        email_rec = GeneratedEmail.objects.create(
-            created_by=self.moderator,
-            expert_name="Dr. Y",
-            expert_email="expert@example.com",
-            email_subject="Subj",
-            email_body="Body",
-            status="draft",
-        )
-        self.client.force_authenticate(self.moderator)
-        response = self.client.post(
-            self.url,
-            {"generated_email_ids": [email_rec.id]},
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("email", response.json().get("detail", "").lower())
-        mock_task.delay.assert_not_called()
 
     @patch("research_ai.tasks.send_plain_email")
     def test_send_queued_emails_task_sends_and_updates_status(self, mock_send):

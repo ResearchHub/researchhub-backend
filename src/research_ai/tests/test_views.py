@@ -179,10 +179,12 @@ class ExpertSearchDetailViewTests(APITestCase):
         self.assertEqual(data["work"]["id"], paper.id)
         self.assertIn("Detail Work Paper", data["work"]["title"])
 
-    def test_get_other_user_search_returns_404(self):
+    def test_get_other_user_search_returns_200_shared(self):
+        """Searches are shared: any editor/moderator can get any search."""
         self.client.force_authenticate(self.other)
         response = self.client.get(self.url)
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["search_id"], self.search.id)
 
     def test_get_non_integer_search_id_returns_404(self):
         """Non-integer search_id does not match URL pattern; Django returns 404."""
