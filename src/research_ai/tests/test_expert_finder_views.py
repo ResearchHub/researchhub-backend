@@ -1,10 +1,12 @@
 # Expert finder API view tests
 from unittest.mock import patch
+
 from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
+
 from research_ai.models import ExpertSearch
-from user.tests.helpers import create_random_authenticated_user
+from user.tests.helpers import create_hub_editor, create_random_authenticated_user
 
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
 class ExpertSearchCreateViewTests(APITestCase):
@@ -50,3 +52,41 @@ class ExpertSearchCreateViewTests(APITestCase):
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    @patch("research_ai.tasks.process_expert_search_task.delay")
+    def test_editor_can_create_search(self, mock_delay):
+        """Hub editors (non-moderators) should have access after the
+        IsModerator -> UserIsEditor | IsModerator permission change."""
+        editor, _hub = create_hub_editor("expert_ed", "expert_hub")
+        self.client.force_authenticate(editor)
+        response = self.client.post(
+            self.url, {"query": "Machine learning"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        search = ExpertSearch.objects.get(id=response.json()["search_id"])
+        self.assertEqual(search.created_by, editor)
+        mock_delay.assert_called_once()
+
+
+@override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+class ExpertSearchListViewEditorTests(APITestCase):
+    """Verify hub editors can list their own expert searches."""
+
+    def setUp(self):
+        self.editor, _hub = create_hub_editor("list_ed", "list_hub")
+        self.url = "/api/research_ai/expert-finder/searches/"
+        ExpertSearch.objects.create(
+            created_by=self.editor,
+            name="Editor Search",
+            query="NLP",
+            input_type=ExpertSearch.InputType.CUSTOM_QUERY,
+            status=ExpertSearch.Status.COMPLETED,
+            progress=100,
+            expert_results=[],
+        )
+
+    def test_editor_can_list_own_searches(self):
+        self.client.force_authenticate(self.editor)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["total"], 1)

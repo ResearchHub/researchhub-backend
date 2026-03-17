@@ -7,7 +7,7 @@ from rest_framework.test import APITestCase
 from research_ai.models import ExpertSearch, GeneratedEmail
 from research_ai.services.email_sending_service import send_plain_email
 from research_ai.views.email_views import _normalize_template
-from user.tests.helpers import create_random_authenticated_user
+from user.tests.helpers import create_hub_editor, create_random_authenticated_user
 
 
 class NormalizeTemplateTests(APITestCase):
@@ -799,3 +799,85 @@ class SendEmailViewTests(APITestCase):
         email_rec.refresh_from_db()
         self.assertEqual(email_rec.status, "sent")
         mock_send.assert_called_once()
+
+
+class EditorAccessEmailViewTests(APITestCase):
+    """Verify hub editors can access email endpoints after the permission
+    change from IsModerator to UserIsEditor | IsModerator."""
+
+    def setUp(self):
+        self.editor, _hub = create_hub_editor("email_ed", "email_hub")
+        self.search = ExpertSearch.objects.create(
+            created_by=self.editor,
+            name="Ed Search",
+            query="ML",
+            input_type=ExpertSearch.InputType.CUSTOM_QUERY,
+            status=ExpertSearch.Status.COMPLETED,
+            progress=100,
+            expert_results=[
+                {
+                    "name": "Dr. X",
+                    "email": "x@example.com",
+                    "title": "Prof",
+                    "affiliation": "MIT",
+                    "expertise": "ML",
+                    "notes": "",
+                },
+            ],
+        )
+
+    @patch("research_ai.views.email_views.generate_expert_email")
+    def test_editor_can_generate_email(self, mock_gen):
+        mock_gen.return_value = ("Subj", "Body")
+        self.client.force_authenticate(self.editor)
+        response = self.client.post(
+            "/api/research_ai/expert-finder/generate-email/",
+            {
+                "expert_search_id": self.search.id,
+                "expert_email": "x@example.com",
+                "template": "collaboration",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(GeneratedEmail.objects.count(), 1)
+        self.assertEqual(GeneratedEmail.objects.get().created_by, self.editor)
+
+    def test_editor_can_list_emails(self):
+        GeneratedEmail.objects.create(
+            created_by=self.editor,
+            expert_name="Dr. X",
+            email_subject="S",
+            email_body="B",
+        )
+        self.client.force_authenticate(self.editor)
+        response = self.client.get("/api/research_ai/expert-finder/emails/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["total"], 1)
+
+    def test_editor_can_retrieve_own_email(self):
+        rec = GeneratedEmail.objects.create(
+            created_by=self.editor,
+            expert_name="Dr. X",
+            email_subject="S",
+            email_body="B",
+        )
+        self.client.force_authenticate(self.editor)
+        response = self.client.get(
+            f"/api/research_ai/expert-finder/emails/{rec.id}/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["id"], rec.id)
+
+    def test_editor_can_create_draft(self):
+        self.client.force_authenticate(self.editor)
+        response = self.client.post(
+            "/api/research_ai/expert-finder/emails/",
+            {
+                "expert_name": "Dr. Draft",
+                "email_subject": "Draft S",
+                "email_body": "Draft B",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
