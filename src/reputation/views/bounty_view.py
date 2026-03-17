@@ -2,7 +2,18 @@ import decimal
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import DecimalField, F, OuterRef, Q, Subquery, Sum, Value
+from django.db.models import (
+    Case,
+    DecimalField,
+    F,
+    IntegerField,
+    OuterRef,
+    Q,
+    Subquery,
+    Sum,
+    Value,
+    When,
+)
 from django.db.models.functions import Coalesce
 from django.http import Http404
 from django.shortcuts import get_object_or_404
@@ -31,6 +42,7 @@ from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_CLOSED,
     FILTER_BOUNTY_OPEN,
     FILTER_HAS_BOUNTY,
+    PREREGISTRATION,
     SORT_BOUNTY_EXPIRATION_DATE,
     SORT_BOUNTY_TOTAL_AMOUNT,
 )
@@ -630,6 +642,21 @@ class BountyViewSet(viewsets.ModelViewSet):
         # Apply the combined filter
         return queryset.filter(applied_filters)
 
+    @staticmethod
+    def _prioritize_proposal_reviews(queryset):
+        """Annotate and sort so REVIEW bounties on proposals appear first."""
+        return queryset.annotate(
+            proposal_review_priority=Case(
+                When(
+                    bounty_type=Bounty.Type.REVIEW,
+                    unified_document__document_type=PREREGISTRATION,
+                    then=Value(0),
+                ),
+                default=Value(1),
+                output_field=IntegerField(),
+            )
+        )
+
     def list(self, request, *args, **kwargs):
         sort = self.request.query_params.get("sort", "-created_date")
 
@@ -645,6 +672,8 @@ class BountyViewSet(viewsets.ModelViewSet):
 
             queryset = Bounty.objects.filter(id__in=[b.id for b in bounties])
             queryset = self.filter_queryset(queryset)
+            queryset = self._prioritize_proposal_reviews(queryset)
+            queryset = queryset.order_by("proposal_review_priority", "-created_date")
         else:
             queryset = self.filter_queryset(self.get_queryset())
 
@@ -680,8 +709,8 @@ class BountyViewSet(viewsets.ModelViewSet):
                     )
                 )
 
-            # Apply sorting
-            queryset = queryset.order_by(sort)
+            queryset = self._prioritize_proposal_reviews(queryset)
+            queryset = queryset.order_by("proposal_review_priority", sort)
 
         page = self.paginate_queryset(queryset)
         context = self._get_retrieve_context()
@@ -720,6 +749,9 @@ class BountyViewSet(viewsets.ModelViewSet):
     def get_bounties(self, request):
         qs = self.filter_queryset(self.get_queryset()).filter(
             parent__isnull=True, unified_document__is_removed=False
+        )
+        qs = self._prioritize_proposal_reviews(qs).order_by(
+            "proposal_review_priority", "-created_date"
         )[:10]
 
         context = self._get_retrieve_context()

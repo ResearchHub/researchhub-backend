@@ -22,6 +22,13 @@ from reputation.tasks import check_open_bounties
 from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_comment.tests.helpers import create_rh_comment
+from researchhub_document.related_models.constants.document_type import (
+    PREREGISTRATION,
+)
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from user.models import User
 from user.related_models.user_model import FOUNDATION_REVENUE_EMAIL
 from user.tests.helpers import create_moderator, create_random_default_user, create_user
@@ -1641,6 +1648,62 @@ class BountyViewTests(APITestCase):
             distribution_type="BOUNTY_DAO_FEE"
         ).latest("created_date")
         self.assertEqual(dao_fee_distribution.recipient, community_revenue_user)
+
+    def test_proposal_review_bounties_appear_first(self):
+        """REVIEW bounties on PREREGISTRATION docs should sort before others."""
+        # Arrange
+        self.client.force_authenticate(self.user)
+
+        paper_bounty_res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 100,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
+                "bounty_type": Bounty.Type.REVIEW,
+            },
+        )
+        self.assertEqual(paper_bounty_res.status_code, 201)
+
+        prereg_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION,
+        )
+        prereg_post = ResearchhubPost.objects.create(
+            title="Proposal Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=prereg_doc,
+        )
+        prereg_comment = create_rh_comment(
+            post=prereg_post, created_by=self.recipient
+        )
+        proposal_bounty_res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 100,
+                "item_content_type": prereg_comment._meta.model_name,
+                "item_object_id": prereg_comment.id,
+                "bounty_type": Bounty.Type.REVIEW,
+            },
+        )
+        self.assertEqual(proposal_bounty_res.status_code, 201)
+
+        # Act
+        res = self.client.get(
+            "/api/bounty/",
+            {"bounty_type": [Bounty.Type.REVIEW]},
+        )
+
+        # Assert
+        self.assertEqual(res.status_code, 200)
+        ids = [b["id"] for b in res.data["results"]]
+        proposal_idx = ids.index(proposal_bounty_res.data["id"])
+        paper_idx = ids.index(paper_bounty_res.data["id"])
+        self.assertLess(
+            proposal_idx,
+            paper_idx,
+            "Proposal review bounties should appear before other review bounties",
+        )
 
 
 class BountyAssessmentPhaseTests(APITestCase):
