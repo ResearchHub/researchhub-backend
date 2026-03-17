@@ -45,6 +45,29 @@ class ReplaceTemplateVariablesTests(TestCase):
         out = replace_template_variables(text, context)
         self.assertEqual(out, "Dear Dr. Y, Prof at Stanford.")
 
+    def test_replaces_proposal_variables(self):
+        context = {
+            "user": {},
+            "rfp": {},
+            "proposal": {
+                "title": "Replication Study 2025",
+                "url": "https://www.researchhub.com/post/1/my-prereg",
+                "created_by_name": "Jane Doe",
+                "goal_amount": "$10K",
+                "amount_raised": "$2K",
+                "contributor_count": "5",
+                "deadline": "April 1, 2026",
+                "blurb": "We plan to replicate...",
+            },
+            "expert": {},
+        }
+        text = "Check out {{proposal.title}} by {{proposal.created_by_name}}. {{proposal.amount_raised}} of {{proposal.goal_amount}}."
+        out = replace_template_variables(text, context)
+        self.assertIn("Replication Study 2025", out)
+        self.assertIn("Jane Doe", out)
+        self.assertIn("$2K", out)
+        self.assertIn("$10K", out)
+
     def test_unknown_entity_or_field_replaced_with_empty(self):
         context = {"user": {"name": "J"}, "rfp": {}, "expert": {}}
         text = "{{user.name}} {{unknown.foo}} {{user.missing}}"
@@ -80,10 +103,34 @@ class BuildReplacementContextTests(TestCase):
         self.assertEqual(ctx["expert"]["affiliation"], "Yale")
 
     def test_none_inputs_yield_empty_entity_dicts(self):
-        ctx = build_replacement_context(user=None, rfp_context_dict=None, resolved_expert=None)
+        ctx = build_replacement_context(
+            user=None,
+            rfp_context_dict=None,
+            proposal_context_dict=None,
+            resolved_expert=None,
+        )
         self.assertEqual(ctx["user"]["full_name"], "")
         self.assertEqual(ctx["rfp"]["title"], "")
+        self.assertEqual(ctx["proposal"]["title"], "")
         self.assertEqual(ctx["expert"]["name"], "")
+
+    def test_build_replacement_context_fills_proposal_when_provided(self):
+        proposal_dict = {
+            "title": "My Preregistration",
+            "url": "https://www.researchhub.com/post/1/slug",
+            "created_by_name": "Alice",
+            "goal_amount": "$5K",
+            "amount_raised": "$1K",
+            "contributor_count": "3",
+            "deadline": "May 1, 2026",
+            "blurb": "Short blurb.",
+        }
+        ctx = build_replacement_context(proposal_context_dict=proposal_dict)
+        self.assertEqual(ctx["proposal"]["title"], "My Preregistration")
+        self.assertEqual(ctx["proposal"]["url"], "https://www.researchhub.com/post/1/slug")
+        self.assertEqual(ctx["proposal"]["created_by_name"], "Alice")
+        self.assertEqual(ctx["proposal"]["amount_raised"], "$1K")
+        self.assertEqual(ctx["proposal"]["contributor_count"], "3")
 
 
 class BuildRfpContextBlurbTests(TestCase):
