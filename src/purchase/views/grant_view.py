@@ -90,7 +90,7 @@ class GrantViewSet(viewsets.ModelViewSet):
         grant = self.get_object()
 
         # Allow grant creator to update their own grants
-        if request.user != grant.created_by and not request.user.is_moderator():
+        if request.user != grant.created_by and not request.user.moderator:
             return Response({"message": "Permission denied"}, status=403)
 
         response = super().update(request, *args, **kwargs)
@@ -104,7 +104,7 @@ class GrantViewSet(viewsets.ModelViewSet):
         grant = self.get_object()
 
         # Allow grant creator to update their own grants
-        if request.user != grant.created_by and not request.user.is_moderator():
+        if request.user != grant.created_by and not request.user.moderator:
             return Response({"message": "Permission denied"}, status=403)
 
         response = super().partial_update(request, *args, **kwargs)

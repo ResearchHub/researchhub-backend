@@ -948,6 +948,39 @@ class GrantModerationTests(APITestCase):
         # Assert
         self.assertIsNone(cache.get("grant_available_funding"))
 
+    def test_moderator_can_update_grant_they_did_not_create(self):
+        # Arrange
+        self.grant.status = Grant.OPEN
+        self.grant.save()
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self.client.patch(
+            f"/api/grant/{self.grant.id}/",
+            {"description": "Updated by moderator"},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.grant.refresh_from_db()
+        self.assertEqual(self.grant.description, "Updated by moderator")
+
+    def test_non_moderator_cannot_update_others_grant(self):
+        # Arrange
+        self.grant.status = Grant.OPEN
+        self.grant.save()
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self.client.patch(
+            f"/api/grant/{self.grant.id}/",
+            {"description": "Should be denied"},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
 class GrantModerationServiceTests(APITestCase):
     """Tests for GrantModerationService branches not reached by API tests (DOI assignment, decline internals)."""
 
@@ -1057,3 +1090,17 @@ class GrantModerationServiceTests(APITestCase):
         # Assert
         self.grant.refresh_from_db()
         self.assertEqual(self.grant.status, Grant.DECLINED)
+
+    @patch("purchase.services.grant_service.ContentType")
+    @patch("purchase.services.grant_service.DOI")
+    def test_approve_handles_feed_entry_creation_failure(self, mock_doi, mock_ct):
+        # Arrange
+        mock_doi.return_value.doi = "10.55277/test"
+        mock_ct.objects.get_for_model.side_effect = Exception("CT lookup failed")
+
+        # Act
+        self.service.approve_grant(self.grant, self.moderator)
+
+        # Assert
+        self.grant.refresh_from_db()
+        self.assertEqual(self.grant.status, Grant.OPEN)
