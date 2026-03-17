@@ -565,6 +565,7 @@ EMAIL_DOMAIN = (
     "researchhub.com" if APP_ENV == "production" else f"{APP_ENV}.researchhub.com"
 )
 DEFAULT_FROM_EMAIL = f"noreply@{EMAIL_DOMAIN}"
+EXPERT_FINDER_FROM_EMAIL = f"outreach@{EMAIL_DOMAIN}"
 
 # Storage
 STORAGES = {
