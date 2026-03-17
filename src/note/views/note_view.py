@@ -65,6 +65,13 @@ class NoteViewSet(ModelViewSet):
             .order_by("-created_date")
         )
 
+    def get_object(self):
+        if self.request.user.moderator:
+            obj = get_object_or_404(Note, pk=self.kwargs[self.lookup_field])
+            self.check_object_permissions(self.request, obj)
+            return obj
+        return super().get_object()
+
     def create(self, request, *args, **kwargs):
         user = request.user
         data = request.data

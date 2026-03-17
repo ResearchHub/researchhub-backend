@@ -1535,3 +1535,70 @@ class NoteTests(APITestCase):
         self.assertEqual(
             application["preregistration_post_id"], preregistration_response.data["id"]
         )
+
+    def test_moderator_can_retrieve_others_private_note(self):
+        # Arrange
+        other_user = get_user_model().objects.create_user(
+            username="note_owner",
+            password=uuid.uuid4().hex,
+            email="note_owner@researchhub.com",
+        )
+        self.client.force_authenticate(other_user)
+        response = self.client.post(
+            "/api/note/",
+            {"grouping": "PRIVATE", "title": "Owner's private note"},
+        )
+        self.assertEqual(response.status_code, 200)
+        note_id = response.data["id"]
+
+        # Act
+        self.client.force_authenticate(self.user)  # moderator
+        response = self.client.get(f"/api/note/{note_id}/")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["title"], "Owner's private note")
+
+    def test_moderator_does_not_list_others_notes(self):
+        # Arrange
+        other_user = get_user_model().objects.create_user(
+            username="note_owner2",
+            password=uuid.uuid4().hex,
+            email="note_owner2@researchhub.com",
+        )
+        self.client.force_authenticate(other_user)
+        self.client.post(
+            "/api/note/",
+            {"grouping": "PRIVATE", "title": "Should not appear in list"},
+        )
+
+        # Act
+        self.client.force_authenticate(self.user)  # moderator
+        response = self.client.get("/api/note/")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        titles = [n["title"] for n in response.data["results"]]
+        self.assertNotIn("Should not appear in list", titles)
+
+    def test_non_moderator_cannot_retrieve_others_private_note(self):
+        # Arrange
+        response = self.client.post(
+            "/api/note/",
+            {"grouping": "PRIVATE", "title": "Moderator's private note"},
+        )
+        self.assertEqual(response.status_code, 200)
+        note_id = response.data["id"]
+
+        non_mod = get_user_model().objects.create_user(
+            username="non_mod",
+            password=uuid.uuid4().hex,
+            email="non_mod@researchhub.com",
+        )
+
+        # Act
+        self.client.force_authenticate(non_mod)
+        response = self.client.get(f"/api/note/{note_id}/")
+
+        # Assert
+        self.assertEqual(response.status_code, 404)

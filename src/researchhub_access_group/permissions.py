@@ -113,6 +113,9 @@ class HasAccessPermission(BasePermission):
         if user.is_anonymous:
             return False
 
+        if user.moderator:
+            return True
+
         unified_document = obj.unified_document
         permissions = unified_document.permissions
         return permissions.has_user(user)
