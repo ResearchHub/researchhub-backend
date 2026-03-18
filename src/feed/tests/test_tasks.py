@@ -74,6 +74,18 @@ class FeedTasksTest(AWSMockTestCase):
         self.assertEqual(feed_entry.hubs.first(), self.hub)
         self.assertEqual(feed_entry.unified_document, self.paper.unified_document)
 
+    def test_create_feed_entry_deleted_item_raises(self):
+        """Attempting to create a feed entry for a deleted item raises."""
+        self.paper.delete()
+
+        with self.assertRaises(Paper.DoesNotExist):
+            create_feed_entry(
+                item_id=self.paper.id,
+                item_content_type_id=self.paper_content_type.id,
+                action=FeedEntry.PUBLISH,
+                hub_ids=[self.hub.id],
+            )
+
     def test_create_feed_entry_skips_unsupported_content_type(self):
         """Test that creating a feed entry with an unsupported content type
         returns None and does not create a FeedEntry."""

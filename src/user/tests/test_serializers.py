@@ -183,6 +183,26 @@ class UserSerializersTests(TestCase):
         )
 
 
+class DynamicUserSerializerAuthorProfileTests(TestCase):
+    def test_get_author_profile_returns_empty_dict_when_no_profile(self):
+        """Users without an author_profile should get {} instead of a crash."""
+        from user.related_models.author_model import Author
+
+        user = create_user(email="noprofile@researchhub.com")
+        Author.objects.filter(user=user).delete()
+        user.refresh_from_db()
+
+        serializer = DynamicUserSerializer(
+            user,
+            context={
+                "usr_dus_get_author_profile": {
+                    "_include_fields": ["id", "first_name", "last_name"],
+                },
+            },
+        )
+        self.assertEqual(serializer.data["author_profile"], {})
+
+
 class UserBalancesSerializerTests(TestCase):
     def setUp(self):
         self.user = create_user(first_name="BalanceTest")

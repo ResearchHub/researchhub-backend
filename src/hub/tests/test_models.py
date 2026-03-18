@@ -64,6 +64,40 @@ class HubModelsTests(TestCase):
         with self.assertRaises(Hub.DoesNotExist):
             Hub.get_from_subfield(subfield)
 
+    def test_get_from_subfield_excludes_journal_namespace(self):
+        subfield = Subfield.objects.create(display_name="Immunology")
+        Hub.objects.create(
+            name="Immunology",
+            namespace=Hub.Namespace.JOURNAL,
+            subfield=subfield,
+        )
+
+        with self.assertRaises(Hub.DoesNotExist):
+            Hub.get_from_subfield(subfield)
+
+    def test_get_from_subfield_by_subfield_id(self):
+        subfield = Subfield.objects.create(
+            display_name="Original Name",
+            openalex_id="https://openalex.org/subfields/1234",
+        )
+        expected = Hub.objects.create(
+            name="Different Name",
+            subfield=subfield,
+            subfield_id=subfield.id,
+        )
+
+        actual = Hub.get_from_subfield(subfield)
+        self.assertEqual(actual, expected)
+
+    def test_get_from_subfield_with_duplicates_raises(self):
+        """When multiple non-journal hubs match, .get() raises."""
+        subfield = Subfield.objects.create(display_name="Duplicate Hub")
+        Hub.objects.create(name="Duplicate Hub")
+        Hub.objects.create(name="Other Name", subfield_id=subfield.id)
+
+        with self.assertRaises(Hub.MultipleObjectsReturned):
+            Hub.get_from_subfield(subfield)
+
     def test_slugify_new_hub(self):
         # Arrange
         hub = Hub(name="Test Hub")
