@@ -1100,12 +1100,12 @@ class GrantModerationServiceTests(APITestCase):
         self.grant.refresh_from_db()
         self.assertEqual(self.grant.status, Grant.DECLINED)
 
-    @patch("purchase.services.grant_service.ContentType")
+    @patch("purchase.services.grant_service._create_post_feed_entries")
     @patch("purchase.services.grant_service.DOI")
-    def test_approve_handles_feed_entry_creation_failure(self, mock_doi, mock_ct):
+    def test_approve_handles_feed_entry_creation_failure(self, mock_doi, mock_create):
         # Arrange
         mock_doi.return_value.doi = "10.55277/test"
-        mock_ct.objects.get_for_model.side_effect = Exception("CT lookup failed")
+        mock_create.side_effect = Exception("Feed entry creation failed")
 
         # Act
         self.service.approve_grant(self.grant, self.moderator)

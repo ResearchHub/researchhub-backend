@@ -5,9 +5,8 @@ from django.core.cache import cache
 from django.db import transaction
 
 from discussion.views import create_flag
-from feed.models import FeedEntry
+from feed.signals.post_signals import _create_post_feed_entries
 from user.related_models.verdict_model import Verdict
-from feed.tasks import create_feed_entry
 from feed.views.grant_feed_mixin import GrantFeedMixin
 from notification.models import Notification
 from purchase.models import Grant
@@ -24,18 +23,19 @@ class GrantModerationService:
         if grant.status != Grant.PENDING:
             raise ValueError("Only pending grants can be approved")
 
-        grant.status = Grant.OPEN
-        grant.save(update_fields=["status"])
+        with transaction.atomic():
+            grant.status = Grant.OPEN
+            grant.save(update_fields=["status"])
 
-        cache.delete("grant_available_funding")
-        GrantFeedMixin.invalidate_grant_feed_cache()
+            post = grant.unified_document.posts.first()
+            self._assign_doi_to_post(post)
+            self._publish_to_feed(post)
 
-        post = grant.unified_document.posts.first()
-        self._assign_doi_to_post(post)
-        self._create_feed_entry_for_post(post)
-        self._send_moderation_notification(
-            grant, reviewer, Notification.GRANT_APPROVED
-        )
+            cache.delete("grant_available_funding")
+            GrantFeedMixin.invalidate_grant_feed_cache()
+            self._send_moderation_notification(
+                grant, reviewer, Notification.GRANT_APPROVED
+            )
 
         return grant
 
@@ -44,16 +44,15 @@ class GrantModerationService:
         if grant.status != Grant.PENDING:
             raise ValueError("Only pending grants can be declined")
 
-        grant.status = Grant.DECLINED
-        grant.save(update_fields=["status"])
+        with transaction.atomic():
+            grant.status = Grant.DECLINED
+            grant.save(update_fields=["status"])
+            self._flag_and_remove_grant(grant, reviewer, reason, reason_choice)
 
-        self._flag_and_remove_grant(grant, reviewer, reason, reason_choice)
-
-        GrantFeedMixin.invalidate_grant_feed_cache()
-
-        self._send_moderation_notification(
-            grant, reviewer, Notification.GRANT_DECLINED
-        )
+            GrantFeedMixin.invalidate_grant_feed_cache()
+            self._send_moderation_notification(
+                grant, reviewer, Notification.GRANT_DECLINED
+            )
 
         return grant
 
@@ -93,28 +92,12 @@ class GrantModerationService:
         except Exception:
             logger.exception("Failed to assign DOI to post %s", post.id)
 
-    def _create_feed_entry_for_post(self, post):
+    def _publish_to_feed(self, post):
         if not post:
             return
 
         try:
-            hub_ids = list(
-                post.unified_document.hubs.values_list("id", flat=True)
-            )
-            content_type_id = ContentType.objects.get_for_model(post).id
-
-            transaction.on_commit(
-                lambda: create_feed_entry.apply_async(
-                    args=(
-                        post.id,
-                        content_type_id,
-                        FeedEntry.PUBLISH,
-                        hub_ids,
-                        post.created_by_id,
-                    ),
-                    priority=1,
-                )
-            )
+            _create_post_feed_entries(post)
         except Exception:
             logger.exception("Failed to create feed entry for post %s", post.id)
 
