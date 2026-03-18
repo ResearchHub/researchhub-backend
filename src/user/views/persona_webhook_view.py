@@ -70,9 +70,10 @@ class PersonaWebhookView(APIView):
         except json.JSONDecodeError:
             raise ValueError("Invalid JSON payload")
 
-        persona_status = self._get_nested_attr(
+        raw_status = self._get_nested_attr(
             data, "data.attributes.payload.data.attributes.status"
-        ).lower()
+        )
+        persona_status = (raw_status or "").lower()
         status = None
         if persona_status == "approved":
             status = UserVerification.Status.APPROVED
@@ -88,13 +89,18 @@ class PersonaWebhookView(APIView):
         reference_id = self._get_nested_attr(
             data, "data.attributes.payload.data.attributes.reference-id"
         )
+        if not reference_id:
+            raise ValueError("Missing reference-id in webhook payload")
+
         first_name = self._get_nested_attr(
             data, "data.attributes.payload.data.attributes.name-first"
-        )
+        ) or ""
         last_name = self._get_nested_attr(
             data, "data.attributes.payload.data.attributes.name-last"
-        )
-        inquiry_id = self._get_nested_attr(data, "data.attributes.payload.data.id")
+        ) or ""
+        inquiry_id = self._get_nested_attr(
+            data, "data.attributes.payload.data.id"
+        ) or ""
 
         user_verification, _ = UserVerification.objects.update_or_create(
             user_id=reference_id,
