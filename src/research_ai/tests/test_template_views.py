@@ -2,7 +2,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from research_ai.models import EmailTemplate
-from user.tests.helpers import create_random_authenticated_user
+from user.tests.helpers import create_hub_editor, create_random_authenticated_user
 
 
 class TemplateListViewTests(APITestCase):
@@ -222,3 +222,68 @@ class TemplateDetailViewTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertTrue(EmailTemplate.objects.filter(pk=t.id).exists())
+
+
+class EditorAccessTemplateViewTests(APITestCase):
+    """Verify hub editors can access template endpoints after the permission
+    change from IsModerator to UserIsEditor | IsModerator."""
+
+    def setUp(self):
+        self.editor, _hub = create_hub_editor("tmpl_ed", "tmpl_hub")
+        self.url = "/api/research_ai/expert-finder/templates/"
+
+    def test_editor_can_list_templates(self):
+        EmailTemplate.objects.create(
+            created_by=self.editor,
+            name="Editor Template",
+        )
+        self.client.force_authenticate(self.editor)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["total"], 1)
+
+    def test_editor_can_create_template(self):
+        self.client.force_authenticate(self.editor)
+        response = self.client.post(
+            self.url,
+            {"name": "Editor Created", "contact_name": "Ed"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(EmailTemplate.objects.count(), 1)
+        self.assertEqual(EmailTemplate.objects.get().created_by, self.editor)
+
+    def test_editor_can_retrieve_own_template(self):
+        t = EmailTemplate.objects.create(
+            created_by=self.editor,
+            name="Ed T",
+        )
+        self.client.force_authenticate(self.editor)
+        response = self.client.get(f"{self.url}{t.id}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["name"], "Ed T")
+
+    def test_editor_can_update_own_template(self):
+        t = EmailTemplate.objects.create(
+            created_by=self.editor,
+            name="Old",
+        )
+        self.client.force_authenticate(self.editor)
+        response = self.client.patch(
+            f"{self.url}{t.id}/",
+            {"name": "New"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        t.refresh_from_db()
+        self.assertEqual(t.name, "New")
+
+    def test_editor_can_delete_own_template(self):
+        t = EmailTemplate.objects.create(
+            created_by=self.editor,
+            name="To Delete",
+        )
+        self.client.force_authenticate(self.editor)
+        response = self.client.delete(f"{self.url}{t.id}/")
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(EmailTemplate.objects.filter(pk=t.id).exists())
