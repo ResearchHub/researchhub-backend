@@ -171,6 +171,10 @@ class HasEditingPermissionTests(_PermissionTestBase):
 
 
 class HasOrgEditingPermissionTests(_PermissionTestBase):
+    """HasOrgEditingPermission passes perm=False to has_admin_user / has_editor_user,
+    disabling per-permission access_type filtering so that any user who has ANY
+    non-NO_ACCESS permission record on the document is allowed."""
+
     def test_admin_user_is_allowed(self):
         request = self._make_request(self.admin_user)
         result = HasOrgEditingPermission().has_object_permission(
@@ -185,8 +189,16 @@ class HasOrgEditingPermissionTests(_PermissionTestBase):
         )
         self.assertTrue(result)
 
-    def test_viewer_user_is_denied(self):
+    def test_viewer_user_is_allowed_via_org_path(self):
+        """Viewer is allowed because perm=False disables access_type filtering."""
         request = self._make_request(self.viewer_user)
+        result = HasOrgEditingPermission().has_object_permission(
+            request, None, self.note
+        )
+        self.assertTrue(result)
+
+    def test_outsider_is_denied(self):
+        request = self._make_request(self.outsider)
         result = HasOrgEditingPermission().has_object_permission(
             request, None, self.note
         )
