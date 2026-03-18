@@ -376,6 +376,38 @@ class FundraiseService:
 
         return contribution, None
 
+    def _refund_contribution_debit(
+        self, fundraise, user, debit, purchase_ct, bounty_fee_ct
+    ):
+        """Refund a single debit entry. Returns True on success, False on failure."""
+        abs_amount = abs(Decimal(debit.amount))
+        if abs_amount == 0:
+            return True
+
+        if debit.content_type == purchase_ct:
+            return fundraise.escrow.refund(user, abs_amount, is_locked=debit.is_locked)
+
+        if debit.content_type == bounty_fee_ct:
+            return self._refund_fee(user, debit, abs_amount)
+
+        return True
+
+    def _refund_fee(self, user, debit, abs_amount):
+        """Refund a fee debit from the revenue account. Returns True on success."""
+        rh_revenue_account = User.objects.get_revenue_account()
+        fee_object = BountyFee.objects.get(id=debit.object_id)
+        distribution = create_bounty_refund_distribution(abs_amount)
+        distributor = Distributor(
+            distribution,
+            user,
+            fee_object,
+            time.time(),
+            giver=rh_revenue_account,
+            is_locked=debit.is_locked,
+        )
+        record = distributor.distribute()
+        return record.distributed_status != "FAILED"
+
     def refund_rsc_contributions(self, fundraise: Fundraise) -> bool:
         """
         Refund all RSC contributions from escrow back to contributors.
@@ -387,36 +419,11 @@ class FundraiseService:
         bounty_fee_ct = ContentType.objects.get_for_model(BountyFee)
 
         for contribution in fundraise.purchases.all():
-            user = contribution.user
-            debits = Balance.objects.filter(purchase=contribution)
-
-            for debit in debits:
-                abs_amount = abs(Decimal(debit.amount))
-                if abs_amount == 0:
-                    continue
-
-                if debit.content_type == purchase_ct:
-                    # Refund contribution amount from escrow
-                    if not fundraise.escrow.refund(
-                        user, abs_amount, is_locked=debit.is_locked
-                    ):
-                        return False
-                elif debit.content_type == bounty_fee_ct:
-                    # Refund fee from revenue account
-                    rh_revenue_account = User.objects.get_revenue_account()
-                    fee_object = BountyFee.objects.get(id=debit.object_id)
-                    distribution = create_bounty_refund_distribution(abs_amount)
-                    distributor = Distributor(
-                        distribution,
-                        user,
-                        fee_object,
-                        time.time(),
-                        giver=rh_revenue_account,
-                        is_locked=debit.is_locked,
-                    )
-                    record = distributor.distribute()
-                    if record.distributed_status == "FAILED":
-                        return False
+            for debit in Balance.objects.filter(purchase=contribution):
+                if not self._refund_contribution_debit(
+                    fundraise, contribution.user, debit, purchase_ct, bounty_fee_ct
+                ):
+                    return False
 
         return True
 
