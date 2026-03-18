@@ -9,6 +9,9 @@ class CustomAccountAdapter(DefaultAccountAdapter):
     def get_email_confirmation_url(self, request, emailconfirmation):
         return f"{settings.BASE_FRONTEND_URL}/verify/{emailconfirmation.key}"
 
+    def get_signup_redirect_url(self, request):
+        return settings.BASE_FRONTEND_URL
+
 
 class CustomPasswordResetSerializer(PasswordResetSerializer):
     @property
