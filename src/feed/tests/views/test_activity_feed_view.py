@@ -733,9 +733,9 @@ class ActivityFeedPeerReviewFilterTests(AWSMockTestCase):
             user=self.user,
         )
 
-    def test_scope_peer_reviews_returns_all_entries_for_reviewed_documents(self):
+    def test_scope_peer_reviews_returns_only_peer_review_entries(self):
         """
-        All feed entries for a document with peer reviews should be included.
+        Only feed entries that are peer review comments should be returned.
         """
         # Act
         resp = self.client.get(ACTIVITY_LIST_URL, {"scope": "peer_reviews"})
@@ -744,8 +744,8 @@ class ActivityFeedPeerReviewFilterTests(AWSMockTestCase):
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         ids = {e["id"] for e in resp.data["results"]}
         self.assertIn(self.peer_review_entry.id, ids)
-        self.assertIn(self.generic_comment_entry.id, ids)
-        self.assertIn(self.post_entry.id, ids)
+        self.assertNotIn(self.generic_comment_entry.id, ids)
+        self.assertNotIn(self.post_entry.id, ids)
 
     def test_scope_peer_reviews_excludes_unrelated_documents(self):
         """
