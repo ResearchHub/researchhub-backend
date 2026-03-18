@@ -3,7 +3,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.pagination import CursorPagination
+from rest_framework.pagination import CursorPagination, PageNumberPagination
 from rest_framework.response import Response
 
 from discussion.constants.flag_reasons import FLAG_REASON_CHOICES, NOT_SPECIFIED
@@ -12,10 +12,12 @@ from discussion.serializers import DynamicFlagSerializer, FlagSerializer
 from discussion.views import censor
 from mailing_list.lib import base_email_context
 from notification.models import Notification
+from reputation.models import Distribution
+from reputation.serializers import DynamicDistributionSerializer
 from researchhub.settings import EMAIL_DOMAIN
 from researchhub_comment.models import RhCommentModel
 from researchhub_comment.views.rh_comment_view import remove_bounties
-from user.filters import AuditDashboardFilterBackend
+from user.filters import AUTO_PAYMENT_TYPES, AuditDashboardFilterBackend
 from user.models import Action, User
 from user.permissions import IsModerator, UserIsEditor
 from user.serializers import DynamicActionSerializer, VerdictSerializer
@@ -27,6 +29,12 @@ from utils.models import SoftDeletableModel
 class CursorSetPagination(CursorPagination):
     page_size = 10
     cursor_query_param = "page"
+
+
+class AutoPaymentPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
 
 
 class AuditViewSet(viewsets.GenericViewSet):
@@ -47,6 +55,14 @@ class AuditViewSet(viewsets.GenericViewSet):
         if self.action == "flagged":
             return Flag.objects.select_related("content_type").prefetch_related(
                 "verdict__created_by"
+            )
+        if self.action == "auto_payments":
+            return (
+                Distribution.objects.filter(
+                    distribution_type__in=AUTO_PAYMENT_TYPES,
+                )
+                .select_related("recipient", "recipient__author_profile")
+                .order_by("-created_date")
             )
         return super().get_queryset()
 
@@ -210,6 +226,47 @@ class AuditViewSet(viewsets.GenericViewSet):
         )
         data = serializer.data
         return self.get_paginated_response(data)
+
+    @action(detail=False, methods=["get"])
+    def auto_payments(self, request):
+        qs = self.filter_queryset(self.get_queryset())
+
+        paginator = AutoPaymentPagination()
+        page = paginator.paginate_queryset(qs, request, view=self)
+
+        context = {
+            "rep_dds_get_recipient": {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "author_profile",
+                    "email",
+                ]
+            },
+            "usr_dus_get_author_profile": {
+                "_include_fields": [
+                    "id",
+                    "profile_image",
+                ]
+            },
+        }
+
+        serializer = DynamicDistributionSerializer(
+            page,
+            many=True,
+            context=context,
+            _include_fields=[
+                "id",
+                "recipient",
+                "amount",
+                "distribution_type",
+                "distributed_status",
+                "created_date",
+            ],
+        )
+
+        return paginator.get_paginated_response(serializer.data)
 
     @action(detail=False, methods=["post"])
     def flag(self, request):

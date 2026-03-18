@@ -10,6 +10,7 @@ from discussion.constants.flag_reasons import (
     VERDICT_OPEN,
 )
 from discussion.models import Flag
+from reputation.related_models.distribution import Distribution
 from user.models import Action, User
 from utils.filters import ListExcludeFilter
 
@@ -71,6 +72,30 @@ class ActionDashboardFilter(filters.FilterSet):
         fields = ["hubs"]
 
 
+AUTO_PAYMENT_TYPES = [
+    "EDITOR_PAYOUT",
+    "EDITOR_COMPENSATION",
+    "PREREGISTRATION_UPDATE_REWARD",
+]
+
+AUTO_PAYMENT_TYPE_CHOICES = [(t, t) for t in AUTO_PAYMENT_TYPES]
+
+
+class AutoPaymentFilter(filters.FilterSet):
+    distribution_type = filters.ChoiceFilter(choices=AUTO_PAYMENT_TYPE_CHOICES)
+    recipient = filters.NumberFilter(field_name="recipient_id")
+    created_after = filters.DateTimeFilter(
+        field_name="created_date", lookup_expr="gte"
+    )
+    created_before = filters.DateTimeFilter(
+        field_name="created_date", lookup_expr="lte"
+    )
+
+    class Meta:
+        model = Distribution
+        fields = ["distribution_type", "recipient", "created_after", "created_before"]
+
+
 class AuditDashboardFilterBackend(filters.DjangoFilterBackend):
     ordering_param = "ordering"
 
@@ -84,6 +109,8 @@ class AuditDashboardFilterBackend(filters.DjangoFilterBackend):
         # Custom logic start
         if view.action == "flagged":
             filterset_class = FlagDashboardFilter
+        elif view.action == "auto_payments":
+            filterset_class = AutoPaymentFilter
         else:
             filterset_class = ActionDashboardFilter
         # Custom logic end

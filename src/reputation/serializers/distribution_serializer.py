@@ -7,6 +7,7 @@ from discussion.serializers import VoteSerializer as DisVoteSerializer
 from paper.models import Paper
 from purchase.models import Purchase
 from reputation.models import Distribution
+from researchhub.serializers import DynamicModelFieldSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -44,3 +45,23 @@ class DistributionSerializer(serializers.ModelSerializer):
         model = Distribution
         fields = "__all__"
         fields = "__all__"
+
+
+class DynamicDistributionSerializer(DynamicModelFieldSerializer):
+    recipient = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Distribution
+        fields = "__all__"
+
+    def get_recipient(self, distribution):
+        from user.serializers import DynamicUserSerializer
+
+        context = self.context
+        _context_fields = context.get("rep_dds_get_recipient", {})
+        if distribution.recipient is None:
+            return None
+        serializer = DynamicUserSerializer(
+            distribution.recipient, context=context, **_context_fields
+        )
+        return serializer.data

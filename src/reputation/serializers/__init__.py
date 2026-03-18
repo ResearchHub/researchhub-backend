@@ -15,7 +15,10 @@ from reputation.serializers.contribution_serializer import (
     DynamicContributionSerializer,
 )
 from reputation.serializers.deposit_serializer import DepositSerializer
-from reputation.serializers.distribution_serializer import DistributionSerializer
+from reputation.serializers.distribution_serializer import (
+    DistributionSerializer,
+    DynamicDistributionSerializer,
+)
 from reputation.serializers.escrow_serializer import (
     DynamicEscrowSerializer,
     EscrowSerializer,
