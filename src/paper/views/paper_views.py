@@ -1,3 +1,4 @@
+import logging
 from urllib.parse import urlparse
 
 import requests
@@ -54,6 +55,8 @@ from utils.openalex import OpenAlex
 from utils.permissions import CreateOrUpdateIfAllowed, HasAPIKey, PostOnly
 from utils.sentry import log_error
 from utils.throttles import THROTTLE_CLASSES
+
+logger = logging.getLogger(__name__)
 
 
 class PaperViewSet(
@@ -313,16 +316,10 @@ class PaperViewSet(
                     authors = Author.objects.filter(id__in=author_ids)
                     author_map = {author.id: author for author in authors}
 
-                    # Log if any authors weren't found
                     missing_author_ids = set(author_ids) - set(author_map.keys())
                     if missing_author_ids:
-                        log_error(
-                            ValueError("Some authors not found"),
-                            message=f"Authors not found: {missing_author_ids}",
-                            json_data={
-                                "author_ids": author_ids,
-                                "found_authors": list(author_map.keys()),
-                            },
+                        logger.warning(
+                            f"Some authors not found during paper creation: {missing_author_ids}"
                         )
 
                     for author_data in authors_data:
