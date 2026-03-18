@@ -376,6 +376,23 @@ class FundraiseService:
 
         return contribution, None
 
+    def _get_locked_splits(self, content_type, object_id, total, user=None):
+        """Return [(amount, is_locked)] pairs from original Balance debits."""
+        filters = {"content_type": content_type, "object_id": object_id}
+        if user:
+            filters["user"] = user
+        amount_field = DecimalField(max_digits=19, decimal_places=10)
+        locked = Balance.objects.filter(**filters, is_locked=True).aggregate(
+            total=Coalesce(Sum(Abs(Cast("amount", amount_field))), Decimal("0"))
+        )["total"]
+        splits = []
+        if locked > 0:
+            splits.append((locked, True))
+        unlocked = total - locked
+        if unlocked > 0:
+            splits.append((unlocked, False))
+        return splits
+
     def refund_rsc_contributions(self, fundraise: Fundraise) -> bool:
         """
         Refund all RSC contributions from escrow back to contributors.
@@ -386,90 +403,32 @@ class FundraiseService:
         purchase_ct = ContentType.objects.get_for_model(Purchase)
         bounty_fee_ct = ContentType.objects.get_for_model(BountyFee)
 
-        # Get all purchases (RSC contributions) for this fundraise
-        contributions = fundraise.purchases.all()
-
-        # Refund each RSC contributor
-        for contribution in contributions:
+        for contribution in fundraise.purchases.all():
             user = contribution.user
             amount = Decimal(contribution.amount)
 
-            # Look up the original Balance debit records for this purchase
-            # to determine how much was locked vs unlocked.
-            purchase_balances = Balance.objects.filter(
-                content_type=purchase_ct,
-                object_id=contribution.id,
-            )
-
-            amount_field = DecimalField(max_digits=19, decimal_places=10)
-            locked_amount = purchase_balances.filter(is_locked=True).aggregate(
-                total=Coalesce(
-                    Sum(Abs(Cast("amount", amount_field))),
-                    Decimal("0"),
-                )
-            )["total"]
-            unlocked_amount = amount - locked_amount
-
-            # Refund locked portion
-            if locked_amount > 0:
-                success = fundraise.escrow.refund(user, locked_amount, is_locked=True)
-                if not success:
+            # Refund contribution (locked + unlocked splits)
+            for split_amount, is_locked in self._get_locked_splits(
+                purchase_ct, contribution.id, amount
+            ):
+                if not fundraise.escrow.refund(user, split_amount, is_locked=is_locked):
                     return False
 
-            # Refund unlocked portion
-            if unlocked_amount > 0:
-                success = fundraise.escrow.refund(user, unlocked_amount)
-                if not success:
-                    return False
-
-            # Also refund the fees that were deducted when this contribution
-            # was made. Calculate the fee using the same logic used during
-            # contribution creation.
+            # Refund fees (locked + unlocked splits)
             fee, _, _, fee_object = calculate_bounty_fees(amount)
-
             if fee > 0:
-                # Look up the original fee Balance debit records to determine
-                # the locked/unlocked split for the fee.
-                fee_balances = Balance.objects.filter(
-                    content_type=bounty_fee_ct,
-                    object_id=fee_object.id,
-                    user=user,
-                )
-
-                locked_fee = fee_balances.filter(is_locked=True).aggregate(
-                    total=Coalesce(
-                        Sum(Abs(Cast("amount", amount_field))),
-                        Decimal("0"),
-                    )
-                )["total"]
-                unlocked_fee = fee - locked_fee
-
                 rh_revenue_account = User.objects.get_revenue_account()
-
-                # Refund locked fee portion
-                if locked_fee > 0:
-                    distribution = create_bounty_refund_distribution(locked_fee)
+                for split_amount, is_locked in self._get_locked_splits(
+                    bounty_fee_ct, fee_object.id, fee, user=user
+                ):
+                    distribution = create_bounty_refund_distribution(split_amount)
                     distributor = Distributor(
                         distribution,
                         user,
                         fee_object,
                         time.time(),
                         giver=rh_revenue_account,
-                        is_locked=True,
-                    )
-                    record = distributor.distribute()
-                    if record.distributed_status == "FAILED":
-                        return False
-
-                # Refund unlocked fee portion
-                if unlocked_fee > 0:
-                    distribution = create_bounty_refund_distribution(unlocked_fee)
-                    distributor = Distributor(
-                        distribution,
-                        user,
-                        fee_object,
-                        time.time(),
-                        giver=rh_revenue_account,
+                        is_locked=is_locked,
                     )
                     record = distributor.distribute()
                     if record.distributed_status == "FAILED":

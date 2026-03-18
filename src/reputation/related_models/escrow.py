@@ -161,7 +161,7 @@ class Escrow(DefaultModel):
             notification.send_notification()
         return True
 
-    def refund(self, recipient, amount, status=None, is_locked=False, lock_type=None):
+    def refund(self, recipient, amount, status=None, is_locked=False):
         from reputation.distributor import Distributor
 
         if amount == 0:
@@ -180,7 +180,6 @@ class Escrow(DefaultModel):
             # Giver is recipient because they originally created the bounty
             giver=recipient,
             is_locked=is_locked,
-            lock_type=lock_type,
         )
         record = distributor.distribute()
         if record.distributed_status == "FAILED":
