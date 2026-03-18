@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Dict, List, Optional
 
@@ -180,6 +181,11 @@ class BlueskyMetricsClient:
                 response_data = self.bluesky_client.search_posts(
                     query=term, limit=limit
                 )
+            except json.JSONDecodeError as e:
+                logger.warning(
+                    f"JSON parse error for Bluesky term {term!r}: {e}"
+                )
+                continue
             except Exception as e:
                 logger.warning(
                     f"Failed to retrieve Bluesky metrics for term {term}: {e}"

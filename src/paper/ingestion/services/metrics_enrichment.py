@@ -170,6 +170,11 @@ class PaperMetricsEnrichmentService:
                 metrics={"bluesky": result},
             )
 
+        except json.JSONDecodeError as e:
+            logger.warning(
+                f"JSON parse error fetching Bluesky metrics for paper {paper.id}: {e}"
+            )
+            return EnrichmentResult(status="error", reason=str(e))
         except Exception as e:
             logger.error(f"Error fetching Bluesky metrics for paper {paper.id}: {e}")
             return EnrichmentResult(status="error", reason=str(e))
