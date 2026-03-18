@@ -10,7 +10,10 @@ from purchase.models import Fundraise, UsdFundraiseContribution
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
 from purchase.related_models.purchase_model import Purchase
-from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
+from researchhub_comment.constants.rh_comment_thread_types import (
+    COMMUNITY_REVIEW,
+    PEER_REVIEW,
+)
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 
 
@@ -158,7 +161,7 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         """
         comment_type = ContentType.objects.get_for_model(RhCommentModel)
         peer_review_ids = RhCommentModel.objects.filter(
-            comment_type=PEER_REVIEW,
+            comment_type__in=[PEER_REVIEW, COMMUNITY_REVIEW],
         ).values("id")
 
         return queryset.filter(
