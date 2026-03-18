@@ -31,7 +31,15 @@ class Distributor:
     """
 
     def __init__(
-        self, distribution, recipient, db_record, timestamp, giver=None, hubs=None
+        self,
+        distribution,
+        recipient,
+        db_record,
+        timestamp,
+        giver=None,
+        hubs=None,
+        is_locked=False,
+        lock_type=None,
     ):
         self.distribution = distribution
         self.recipient = recipient
@@ -39,6 +47,8 @@ class Distributor:
         self.proof_item = db_record
         self.giver = giver
         self.hubs = hubs
+        self.is_locked = is_locked
+        self.lock_type = lock_type
 
     @staticmethod
     def generate_proof(db_record, timestamp):
@@ -107,7 +117,9 @@ class Distributor:
             if self.distribution.gives_rep and rep:
                 # updates at the SQL level and does not call save() or emit signals
                 users.update(reputation=models.F("reputation") + rep)
-            self._record_balance(record)
+            self._record_balance(
+                record, is_locked=self.is_locked, lock_type=self.lock_type
+            )
 
     def _record_balance(self, distribution, is_locked=False, lock_type=None):
         content_type = ContentType.objects.get_for_model(distribution)

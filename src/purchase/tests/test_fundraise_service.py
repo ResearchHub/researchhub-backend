@@ -22,6 +22,7 @@ from researchhub_document.related_models.constants.document_type import PREREGIS
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from user.related_models.user_model import User
 from user.tests.helpers import create_random_authenticated_user
 
 
@@ -423,6 +424,106 @@ class CloseFundraiseTests(TestCase):
         contribution.refresh_from_db()
         # Already refunded, should not have been modified
         self.assertTrue(contribution.is_refunded)
+
+    # --- Locked balance refund tests ---
+
+    def test_close_fundraise_refunds_locked_funds_as_locked(self):
+        """
+        When a contribution used locked funds, the refund should
+        restore those funds as locked (not unlocked).
+        """
+        # Ensure default account (id=1) exists for fee deduction
+        User.objects.get_or_create(id=1)
+
+        contributor = create_random_authenticated_user("locked_contributor")
+
+        # Give contributor 50 locked + 100 unlocked RSC
+        dist_ct = ContentType.objects.get(model="distribution")
+        Balance.objects.create(
+            amount=50,
+            user=contributor,
+            content_type=dist_ct,
+            is_locked=True,
+        )
+        Balance.objects.create(
+            amount=100,
+            user=contributor,
+            content_type=dist_ct,
+            is_locked=False,
+        )
+
+        # Create contribution of 100 RSC via the service (uses
+        # allocate_spend which consumes locked funds first).
+        purchase, error = self.fundraise_service.create_rsc_contribution(
+            contributor, self.fundraise, Decimal("100")
+        )
+        self.assertIsNone(error)
+
+        # Verify debit Balance records have correct locked flags
+        purchase_ct = ContentType.objects.get_for_model(Purchase)
+        locked_debits = Balance.objects.filter(
+            content_type=purchase_ct,
+            object_id=purchase.id,
+            is_locked=True,
+        )
+        unlocked_debits = Balance.objects.filter(
+            content_type=purchase_ct,
+            object_id=purchase.id,
+            is_locked=False,
+        )
+        self.assertTrue(locked_debits.exists())
+        self.assertTrue(unlocked_debits.exists())
+
+        # Close the fundraise (triggers refunds)
+        result = self.fundraise_service.close_fundraise(self.fundraise)
+        self.assertTrue(result)
+
+        # Verify that refund created locked Balance credits
+        dist_ct_distribution = ContentType.objects.get(model="distribution")
+        locked_refunds = Balance.objects.filter(
+            user=contributor,
+            content_type=dist_ct_distribution,
+            is_locked=True,
+        ).exclude(
+            # Exclude the original seed balance
+            amount="50",
+        )
+        self.assertTrue(locked_refunds.exists())
+
+        # Verify the contributor's locked balance is restored
+        locked_balance = contributor.get_locked_balance()
+        self.assertEqual(locked_balance, Decimal("50"))
+
+    def test_close_fundraise_all_unlocked_stays_unlocked(self):
+        """
+        When a contribution used only unlocked funds, the refund
+        should not create any locked Balance records.
+        """
+        # Ensure default account (id=1) exists for fee deduction
+        User.objects.get_or_create(id=1)
+
+        contributor = create_random_authenticated_user("unlocked_contributor")
+        self._give_user_rsc_balance(contributor, 1000)
+
+        purchase, error = self.fundraise_service.create_rsc_contribution(
+            contributor, self.fundraise, Decimal("100")
+        )
+        self.assertIsNone(error)
+
+        result = self.fundraise_service.close_fundraise(self.fundraise)
+        self.assertTrue(result)
+
+        # No locked refund balances should exist
+        dist_ct = ContentType.objects.get(model="distribution")
+        locked_refunds = Balance.objects.filter(
+            user=contributor,
+            content_type=dist_ct,
+            is_locked=True,
+        )
+        self.assertFalse(locked_refunds.exists())
+
+        # Locked balance should be 0
+        self.assertEqual(contributor.get_locked_balance(), Decimal("0"))
 
     # --- Mixed RSC and USD tests ---
 
