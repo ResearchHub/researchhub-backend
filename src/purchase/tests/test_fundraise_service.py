@@ -218,6 +218,15 @@ class CloseFundraiseTests(TestCase):
             amount=amount,
         )
 
+        # Create balance debit record (mirrors real service behavior)
+        Balance.objects.create(
+            user=user,
+            content_type=ContentType.objects.get_for_model(Purchase),
+            object_id=purchase.id,
+            amount=f"-{amount}",
+            purchase=purchase,
+        )
+
         # Add amount to escrow
         fundraise.escrow.amount_holding += amount
         fundraise.escrow.save()
@@ -336,13 +345,16 @@ class CloseFundraiseTests(TestCase):
         """Test that closing a fundraise also refunds the RSC fees"""
         from reputation.utils import calculate_bounty_fees
 
+        User.objects.get_or_create(id=1)
+
         contributor = create_random_authenticated_user("fundraise_contributor")
         self._give_user_rsc_balance(contributor, 1000)
 
         contribution_amount = Decimal("100")
-        self._create_rsc_contribution(
-            self.fundraise, contributor, amount=contribution_amount
+        purchase, error = self.fundraise_service.create_rsc_contribution(
+            contributor, self.fundraise, contribution_amount
         )
+        self.assertIsNone(error)
 
         fee, rh_fee, dao_fee, fee_object = calculate_bounty_fees(contribution_amount)
         initial_balance_count = Balance.objects.filter(user=contributor).count()
@@ -361,6 +373,53 @@ class CloseFundraiseTests(TestCase):
             amount=fee.to_eng_string(),
         ).exists()
         self.assertTrue(fee_refund_exists)
+
+    def test_close_fundraise_fee_refund_scoped_to_contribution(self):
+        """
+        Regression: when the same user makes multiple contributions, fee
+        refunds must be scoped per-contribution. Previously fee Balance
+        debits all pointed at the shared BountyFee config row, so
+        _get_locked_splits aggregated every fee debit for the user and
+        over-refunded on later contributions.
+        """
+        from reputation.utils import calculate_bounty_fees
+
+        User.objects.get_or_create(id=1)
+
+        contributor = create_random_authenticated_user("multi_contrib")
+        self._give_user_rsc_balance(contributor, 5000)
+
+        amt1 = Decimal("100")
+        amt2 = Decimal("200")
+
+        purchase1, err1 = self.fundraise_service.create_rsc_contribution(
+            contributor, self.fundraise, amt1
+        )
+        self.assertIsNone(err1)
+
+        purchase2, err2 = self.fundraise_service.create_rsc_contribution(
+            contributor, self.fundraise, amt2
+        )
+        self.assertIsNone(err2)
+
+        fee1, _, _, _ = calculate_bounty_fees(amt1)
+        fee2, _, _, _ = calculate_bounty_fees(amt2)
+
+        balance_before = contributor.get_balance()
+
+        result = self.fundraise_service.close_fundraise(self.fundraise)
+        self.assertTrue(result)
+
+        balance_after = contributor.get_balance()
+        expected_refund = amt1 + amt2 + fee1 + fee2
+        actual_refund = balance_after - balance_before
+
+        self.assertEqual(
+            actual_refund,
+            expected_refund,
+            f"Refund should be {expected_refund} but was {actual_refund}; "
+            f"fee debits were likely aggregated across contributions.",
+        )
 
     # --- USD refund tests ---
 

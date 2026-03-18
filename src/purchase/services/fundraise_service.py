@@ -5,8 +5,6 @@ from typing import Optional, Tuple
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import DecimalField, Sum
-from django.db.models.functions import Abs, Cast, Coalesce
 
 from analytics.tasks import track_revenue_event
 from purchase.endaoment import EndaomentService
@@ -260,6 +258,7 @@ class FundraiseService:
                         object_id=purchase.id,
                         amount=f"-{amount_used.to_eng_string()}",
                         is_locked=alloc["is_locked"],
+                        purchase=purchase,
                     )
 
                 if fee_used > 0:
@@ -269,6 +268,7 @@ class FundraiseService:
                         object_id=fee_object.id,
                         amount=f"-{fee_used.to_eng_string()}",
                         is_locked=alloc["is_locked"],
+                        purchase=purchase,
                     )
 
                 remaining_amount -= amount_used
@@ -376,23 +376,6 @@ class FundraiseService:
 
         return contribution, None
 
-    def _get_locked_splits(self, content_type, object_id, total, user=None):
-        """Return [(amount, is_locked)] pairs from original Balance debits."""
-        filters = {"content_type": content_type, "object_id": object_id}
-        if user:
-            filters["user"] = user
-        amount_field = DecimalField(max_digits=19, decimal_places=10)
-        locked = Balance.objects.filter(**filters, is_locked=True).aggregate(
-            total=Coalesce(Sum(Abs(Cast("amount", amount_field))), Decimal("0"))
-        )["total"]
-        splits = []
-        if locked > 0:
-            splits.append((locked, True))
-        unlocked = total - locked
-        if unlocked > 0:
-            splits.append((unlocked, False))
-        return splits
-
     def refund_rsc_contributions(self, fundraise: Fundraise) -> bool:
         """
         Refund all RSC contributions from escrow back to contributors.
@@ -405,30 +388,31 @@ class FundraiseService:
 
         for contribution in fundraise.purchases.all():
             user = contribution.user
-            amount = Decimal(contribution.amount)
+            debits = Balance.objects.filter(purchase=contribution)
 
-            # Refund contribution (locked + unlocked splits)
-            for split_amount, is_locked in self._get_locked_splits(
-                purchase_ct, contribution.id, amount
-            ):
-                if not fundraise.escrow.refund(user, split_amount, is_locked=is_locked):
-                    return False
+            for debit in debits:
+                abs_amount = abs(Decimal(debit.amount))
+                if abs_amount == 0:
+                    continue
 
-            # Refund fees (locked + unlocked splits)
-            fee, _, _, fee_object = calculate_bounty_fees(amount)
-            if fee > 0:
-                rh_revenue_account = User.objects.get_revenue_account()
-                for split_amount, is_locked in self._get_locked_splits(
-                    bounty_fee_ct, fee_object.id, fee, user=user
-                ):
-                    distribution = create_bounty_refund_distribution(split_amount)
+                if debit.content_type == purchase_ct:
+                    # Refund contribution amount from escrow
+                    if not fundraise.escrow.refund(
+                        user, abs_amount, is_locked=debit.is_locked
+                    ):
+                        return False
+                elif debit.content_type == bounty_fee_ct:
+                    # Refund fee from revenue account
+                    rh_revenue_account = User.objects.get_revenue_account()
+                    fee_object = BountyFee.objects.get(id=debit.object_id)
+                    distribution = create_bounty_refund_distribution(abs_amount)
                     distributor = Distributor(
                         distribution,
                         user,
                         fee_object,
                         time.time(),
                         giver=rh_revenue_account,
-                        is_locked=is_locked,
+                        is_locked=debit.is_locked,
                     )
                     record = distributor.distribute()
                     if record.distributed_status == "FAILED":
