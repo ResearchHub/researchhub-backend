@@ -351,7 +351,7 @@ class CloseFundraiseTests(TestCase):
         self._give_user_rsc_balance(contributor, 1000)
 
         contribution_amount = Decimal("100")
-        purchase, error = self.fundraise_service.create_rsc_contribution(
+        _, error = self.fundraise_service.create_rsc_contribution(
             contributor, self.fundraise, contribution_amount
         )
         self.assertIsNone(error)
@@ -392,12 +392,12 @@ class CloseFundraiseTests(TestCase):
         amt1 = Decimal("100")
         amt2 = Decimal("200")
 
-        purchase1, err1 = self.fundraise_service.create_rsc_contribution(
+        _, err1 = self.fundraise_service.create_rsc_contribution(
             contributor, self.fundraise, amt1
         )
         self.assertIsNone(err1)
 
-        purchase2, err2 = self.fundraise_service.create_rsc_contribution(
+        _, err2 = self.fundraise_service.create_rsc_contribution(
             contributor, self.fundraise, amt2
         )
         self.assertIsNone(err2)
@@ -564,7 +564,7 @@ class CloseFundraiseTests(TestCase):
         contributor = create_random_authenticated_user("unlocked_contributor")
         self._give_user_rsc_balance(contributor, 1000)
 
-        purchase, error = self.fundraise_service.create_rsc_contribution(
+        _, error = self.fundraise_service.create_rsc_contribution(
             contributor, self.fundraise, Decimal("100")
         )
         self.assertIsNone(error)
