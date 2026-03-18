@@ -66,11 +66,11 @@ class HasDocumentEditingPermission(AuthorizationBasedPermission):
         ):
             if request.data.get("post_id") is not None:
                 post = ResearchhubPost.objects.get(id=request.data.get("post_id"))
-                return (
-                    post.created_by_id == request.user.id
-                    or request.user.moderator
-                    or post.note.organization.org_has_member_user(request.user)
-                )
+                if post.created_by_id == request.user.id or request.user.moderator:
+                    return True
+                if post.note_id is not None:
+                    return post.note.organization.org_has_member_user(request.user)
+                return False
 
         return True
 

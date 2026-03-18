@@ -12,7 +12,10 @@ from purchase.related_models.usd_fundraise_contribution_model import (
     UsdFundraiseContribution,
 )
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
-from purchase.services.fundraise_service import FundraiseService
+from purchase.services.fundraise_service import (
+    USD_CONTRIBUTION_CSV_HEADERS,
+    FundraiseService,
+)
 from reputation.models import BountyFee
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
@@ -608,3 +611,120 @@ class CreateUsdContributionTests(TestCase):
                 user=self.user, fundraise=self.fundraise
             ).exists()
         )
+
+
+class ExportUsdContributionsTests(TestCase):
+    """Tests for the USD contribution export functionality."""
+
+    def setUp(self):
+        self.service = FundraiseService()
+        self.creator = create_random_authenticated_user("exporter1", moderator=True)
+        self.post = create_post(created_by=self.creator, document_type=PREREGISTRATION)
+        self.fundraise = self.service.create_fundraise_with_escrow(
+            user=self.creator,
+            unified_document=self.post.unified_document,
+            goal_amount=Decimal("1000"),
+            goal_currency="USD",
+            status=Fundraise.OPEN,
+        )
+        self.nonprofit = NonprofitOrg.objects.create(
+            name="Export Nonprofit", endaoment_org_id="org_export"
+        )
+        NonprofitFundraiseLink.objects.create(
+            fundraise=self.fundraise, nonprofit=self.nonprofit
+        )
+
+    def _create_contribution(self, user, amount_cents=10000, **kwargs):
+        defaults = {
+            "user": user,
+            "fundraise": self.fundraise,
+            "amount_cents": amount_cents,
+            "fee_cents": int(amount_cents * 0.09),
+            "origin_fund_id": "fund_test",
+            "destination_org_id": "org_export",
+            "endaoment_transfer_id": "transfer_test",
+            "status": UsdFundraiseContribution.Status.SUBMITTED,
+        }
+        defaults.update(kwargs)
+        return UsdFundraiseContribution.objects.create(**defaults)
+
+    def test_empty_fundraise_returns_no_rows(self):
+        # Act
+        rows = self.service.export_usd_contributions(self.fundraise)
+
+        # Assert
+        self.assertEqual(rows, [])
+
+    def test_row_count_matches_contributions(self):
+        # Arrange
+        user1 = create_random_authenticated_user("export_u1")
+        user2 = create_random_authenticated_user("export_u2")
+        self._create_contribution(user1)
+        self._create_contribution(user2)
+
+        # Act
+        rows = self.service.export_usd_contributions(self.fundraise)
+
+        # Assert
+        self.assertEqual(len(rows), 2)
+
+    def test_row_values(self):
+        # Arrange
+        contributor = create_random_authenticated_user("export_vals")
+        contributor.first_name = "Jane"
+        contributor.last_name = "Doe"
+        contributor.save()
+
+        self._create_contribution(
+            contributor,
+            amount_cents=50000,
+            fee_cents=4500,
+            origin_fund_id="fund_abc",
+            destination_org_id="org_xyz",
+            endaoment_transfer_id="tx_999",
+        )
+
+        # Act
+        rows = self.service.export_usd_contributions(self.fundraise)
+
+        # Assert
+        self.assertEqual(len(rows), 1)
+
+        row = rows[0]
+        self.assertEqual(row[0], self.fundraise.id)
+        self.assertEqual(row[1], Fundraise.OPEN)
+        self.assertEqual(row[2], Decimal("1000"))
+        self.assertEqual(row[3], self.post.title)
+        self.assertEqual(row[4], "Export Nonprofit")
+        self.assertEqual(row[6], "Jane Doe")
+        self.assertEqual(row[7], contributor.email)
+        self.assertEqual(row[8], "500.00")
+        self.assertEqual(row[9], "45.00")
+        self.assertEqual(row[10], "455.00")
+        self.assertEqual(row[11], "fund_abc")
+        self.assertEqual(row[12], "org_xyz")
+        self.assertEqual(row[13], "tx_999")
+        self.assertEqual(row[15], "SUBMITTED")
+        self.assertEqual(row[16], False)
+
+    def test_includes_refunded_contributions(self):
+        # Arrange
+        user = create_random_authenticated_user("export_refund")
+        self._create_contribution(user)
+        self._create_contribution(
+            user,
+            is_refunded=True,
+            status=UsdFundraiseContribution.Status.CANCELLED,
+        )
+
+        # Act
+        rows = self.service.export_usd_contributions(self.fundraise)
+
+        # Assert
+        self.assertEqual(len(rows), 2)
+
+        statuses = {row[15] for row in rows}
+        self.assertEqual(statuses, {"SUBMITTED", "CANCELLED"})
+
+        refunded_flags = {row[16] for row in rows}
+        self.assertEqual(refunded_flags, {True, False})

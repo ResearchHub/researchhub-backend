@@ -8,10 +8,24 @@ from note.models import Note
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
-from user.models import Organization
+from user.models import Organization, UserVerification
 
 unified_doc_content_type = ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
 organization_content_type = ContentType.objects.get_for_model(Organization)
+
+
+def _make_user_verified(user):
+    """Create UserVerification (APPROVED) so user.is_verified is True."""
+    UserVerification.objects.get_or_create(
+        user=user,
+        defaults={
+            "first_name": user.first_name or "Test",
+            "last_name": user.last_name or "User",
+            "status": UserVerification.Status.APPROVED,
+            "verified_by": UserVerification.Type.MANUAL,
+            "external_id": f"test-verified-{user.id}",
+        },
+    )
 
 
 class NoteTests(APITestCase):
@@ -22,6 +36,7 @@ class NoteTests(APITestCase):
         self.user = get_user_model().objects.create_user(
             username=username, password=password, email=username, moderator=True
         )
+        _make_user_verified(self.user)
         self.client.force_authenticate(self.user)
 
         # Create org
@@ -1421,12 +1436,13 @@ class NoteTests(APITestCase):
         self.assertEqual(response.data["results"][0]["title"], "Draft grant")
 
     def test_note_with_grant_applications_serialization(self):
-        # Create applicant user
+        # Create applicant user (must be verified to create preregistration post)
         applicant = get_user_model().objects.create_user(
             username="applicant",
             password=uuid.uuid4().hex,
             email="applicant@researchhub.com",
         )
+        _make_user_verified(applicant)
 
         # Create a note first
         response = self.client.post(

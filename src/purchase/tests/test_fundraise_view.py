@@ -7,8 +7,17 @@ from django.contrib.contenttypes.models import ContentType
 from rest_framework.test import APIRequestFactory, APITestCase, force_authenticate
 
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
-from purchase.models import Balance, Fundraise, Purchase, RscExchangeRate
-from purchase.services.fundraise_service import FundraiseService
+from purchase.models import (
+    Balance,
+    Fundraise,
+    Purchase,
+    RscExchangeRate,
+    UsdFundraiseContribution,
+)
+from purchase.services.fundraise_service import (
+    USD_CONTRIBUTION_CSV_HEADERS,
+    FundraiseService,
+)
 from purchase.views import FundraiseViewSet
 from referral.models import ReferralSignup
 from referral.services.referral_bonus_service import ReferralBonusService
@@ -934,3 +943,111 @@ class FundraiseViewTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("must be RSC or USD", response.data["message"])
 
+    def _create_usd_contribution(
+        self, fundraise_id, user, amount_cents=10000, fee_cents=900, **kwargs
+    ):
+        defaults = {
+            "user": user,
+            "fundraise_id": fundraise_id,
+            "amount_cents": amount_cents,
+            "fee_cents": fee_cents,
+            "origin_fund_id": "fund_123",
+            "destination_org_id": "org_123",
+            "endaoment_transfer_id": "transfer_123",
+            "status": UsdFundraiseContribution.Status.SUBMITTED,
+        }
+        defaults.update(kwargs)
+        return UsdFundraiseContribution.objects.create(**defaults)
+
+    def test_usd_contributions_csv_returns_csv(self):
+        """
+        Test that the endpoint returns a CSV with correct headers.
+        """
+        # Arrange
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+
+        # Act
+        self.client.force_authenticate(self.user)
+        response = self.client.get(
+            f"/api/fundraise/{fundraise_id}/usd_contributions.csv/"
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "text/csv")
+        self.assertIn(
+            f"fundraise_{fundraise_id}_usd_contributions.csv",
+            response["Content-Disposition"],
+        )
+
+        content = response.content.decode()
+        lines = content.strip().split("\n")
+        headers = lines[0].split(",")
+        self.assertEqual(headers, USD_CONTRIBUTION_CSV_HEADERS)
+
+    def test_usd_contributions_csv_includes_contributions(self):
+        """
+        Test that CSV rows contain correct contribution data.
+        """
+        # Arrange
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+        self._link_nonprofit(fundraise_id)
+
+        contributor = create_random_authenticated_user("csv_contributor")
+        self._create_usd_contribution(
+            fundraise_id,
+            contributor,
+            amount_cents=50000,
+            fee_cents=4500,
+        )
+
+        # Act
+        self.client.force_authenticate(self.user)
+        response = self.client.get(
+            f"/api/fundraise/{fundraise_id}/usd_contributions.csv/"
+        )
+
+        # Assert
+        content = response.content.decode()
+        lines = content.strip().split("\n")
+        self.assertEqual(len(lines), 2)  # header + 1 row
+
+        row = lines[1].split(",")
+        self.assertEqual(row[0], str(fundraise_id))  # fundraise_id
+        self.assertEqual(row[4], "Test Nonprofit")  # nonprofit_name
+        self.assertEqual(row[8], "500.00")  # amount_usd
+        self.assertEqual(row[9], "45.00")  # fee_usd
+        self.assertEqual(row[10], "455.00")  # net_amount_usd
+        self.assertEqual(row[15], "SUBMITTED")  # status
+        self.assertEqual(row[16], "False")  # is_refunded
+
+    def test_usd_contributions_csv_requires_moderator(self):
+        """
+        Test that non-moderators cannot access the CSV endpoint.
+        """
+        # Arrange
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+        regular_user = create_random_authenticated_user("regular_user")
+
+        # Act
+        self.client.force_authenticate(regular_user)
+        response = self.client.get(
+            f"/api/fundraise/{fundraise_id}/usd_contributions.csv/"
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 403)
+
+    def test_usd_contributions_csv_not_found(self):
+        """
+        Test that a nonexistent fundraise returns 404.
+        """
+        # Act
+        self.client.force_authenticate(self.user)
+        response = self.client.get("/api/fundraise/99999/usd_contributions.csv/")
+
+        # Assert
+        self.assertEqual(response.status_code, 404)
