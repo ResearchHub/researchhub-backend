@@ -7,7 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from feed.views.grant_feed_view import GRANT_FEED_CACHE_VERSION_KEY
+from feed.views.grant_feed_mixin import GrantFeedMixin
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.serializers.grant_create_serializer import GrantCreateSerializer
@@ -34,7 +34,7 @@ class GrantViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
     def _invalidate_grant_feed_cache(self):
-        cache.set(GRANT_FEED_CACHE_VERSION_KEY, timezone.now().timestamp())
+        GrantFeedMixin.invalidate_grant_feed_cache()
 
     def get_serializer_context(self):
         context = super().get_serializer_context()

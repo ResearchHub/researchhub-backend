@@ -5,12 +5,11 @@ from unittest.mock import patch
 import pytz
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
-from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from discussion.models import Flag
-from feed.views.grant_feed_view import GRANT_FEED_CACHE_VERSION_KEY
+from feed.views.grant_feed_mixin import GrantFeedMixin
 from user.related_models.verdict_model import Verdict
 from notification.models import Notification
 from purchase.models import Grant, GrantApplication
@@ -603,27 +602,6 @@ class GrantViewTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_create_grant_invalidates_feed_cache(self):
-        # Arrange
-        cache.clear()
-        self.client.force_authenticate(self.moderator)
-        post = create_post(created_by=self.moderator, document_type=GRANT)
-        old_version = cache.get(GRANT_FEED_CACHE_VERSION_KEY)
-
-        # Act
-        self.client.post("/api/grant/", {
-            "unified_document_id": post.unified_document.id,
-            "amount": "10000.00",
-            "currency": "USD",
-            "organization": "Cache Org",
-            "description": "Cache test",
-        })
-
-        # Assert
-        new_version = cache.get(GRANT_FEED_CACHE_VERSION_KEY)
-        self.assertIsNotNone(new_version)
-        self.assertNotEqual(new_version, old_version)
-
     def test_apply_to_pending_grant_rejected(self):
         # Arrange
         post = create_post(created_by=self.moderator, document_type=GRANT)
@@ -647,6 +625,39 @@ class GrantViewTests(APITestCase):
         self.assertEqual(
             response.data["error"], "Grant is no longer accepting applications"
         )
+
+
+class GrantCacheInvalidationTests(APITestCase):
+
+    def setUp(self):
+        cache.clear()
+
+    def tearDown(self):
+        cache.clear()
+
+    def test_invalidate_clears_grant_feed_caches(self):
+        cache_keys = [
+            "grants_feed:popular:all:all:none:1-20:",
+            "grants_feed:popular:all:all:none:1-20:OPEN",
+            "grants_feed:popular:all:all:none:2-20-newest:",
+            "grants_feed:popular:all:all:none:3-20-upvotes:CLOSED",
+        ]
+
+        for key in cache_keys:
+            cache.set(key, {"test": "data"})
+
+        GrantFeedMixin.invalidate_grant_feed_cache()
+
+        for key in cache_keys:
+            self.assertIsNone(cache.get(key))
+
+    def test_invalidate_does_not_affect_other_caches(self):
+        other_key = "feed:popular:all:all:none:1-20"
+        cache.set(other_key, {"other": "data"})
+
+        GrantFeedMixin.invalidate_grant_feed_cache()
+
+        self.assertIsNotNone(cache.get(other_key))
 
 
 class AvailableFundingTests(APITestCase):
@@ -792,7 +803,6 @@ class GrantModerationTests(APITestCase):
     def test_approve_grant(self):
         # Arrange
         self.client.force_authenticate(self.moderator)
-        old_version = cache.get(GRANT_FEED_CACHE_VERSION_KEY)
 
         # Act
         response = self.client.post(f"/api/grant/{self.grant.id}/approve/")
@@ -801,7 +811,6 @@ class GrantModerationTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.grant.refresh_from_db()
         self.assertEqual(self.grant.status, Grant.OPEN)
-        self.assertNotEqual(cache.get(GRANT_FEED_CACHE_VERSION_KEY), old_version)
         self.assertTrue(
             Notification.objects.filter(
                 notification_type=Notification.GRANT_APPROVED,
@@ -812,7 +821,6 @@ class GrantModerationTests(APITestCase):
     def test_decline_grant(self):
         # Arrange
         self.client.force_authenticate(self.moderator)
-        old_version = cache.get(GRANT_FEED_CACHE_VERSION_KEY)
 
         # Act
         response = self.client.post(
@@ -826,7 +834,6 @@ class GrantModerationTests(APITestCase):
         self.assertEqual(self.grant.status, Grant.DECLINED)
         self.post.unified_document.refresh_from_db()
         self.assertTrue(self.post.unified_document.is_removed)
-        self.assertNotEqual(cache.get(GRANT_FEED_CACHE_VERSION_KEY), old_version)
         self.assertTrue(
             Notification.objects.filter(
                 notification_type=Notification.GRANT_DECLINED,
@@ -867,10 +874,12 @@ class GrantModerationTests(APITestCase):
         for url in [
             f"/api/grant/{self.grant.id}/approve/",
             f"/api/grant/{self.grant.id}/decline/",
-            "/api/grant/pending/",
         ]:
             response = self.client.post(url)
             self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        response = self.client.get("/api/grant/pending/")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_pending_list(self):
         # Arrange

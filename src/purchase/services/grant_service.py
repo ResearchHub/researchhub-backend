@@ -3,13 +3,12 @@ import logging
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db import transaction
-from django.utils import timezone
 
 from discussion.views import create_flag
 from feed.models import FeedEntry
 from user.related_models.verdict_model import Verdict
 from feed.tasks import create_feed_entry
-from feed.views.grant_feed_view import GRANT_FEED_CACHE_VERSION_KEY
+from feed.views.grant_feed_mixin import GrantFeedMixin
 from notification.models import Notification
 from purchase.models import Grant
 from utils.doi import DOI
@@ -29,7 +28,7 @@ class GrantModerationService:
         grant.save(update_fields=["status"])
 
         cache.delete("grant_available_funding")
-        cache.set(GRANT_FEED_CACHE_VERSION_KEY, timezone.now().timestamp())
+        GrantFeedMixin.invalidate_grant_feed_cache()
 
         post = grant.unified_document.posts.first()
         self._assign_doi_to_post(post)
@@ -48,6 +47,17 @@ class GrantModerationService:
         grant.status = Grant.DECLINED
         grant.save(update_fields=["status"])
 
+        self._flag_and_remove_grant(grant, reviewer, reason, reason_choice)
+
+        GrantFeedMixin.invalidate_grant_feed_cache()
+
+        self._send_moderation_notification(
+            grant, reviewer, Notification.GRANT_DECLINED
+        )
+
+        return grant
+
+    def _flag_and_remove_grant(self, grant, reviewer, reason, reason_choice):
         flag, _ = create_flag(
             user=reviewer,
             item=grant,
@@ -68,14 +78,6 @@ class GrantModerationService:
         unified_document = grant.unified_document
         unified_document.is_removed = True
         unified_document.save(update_fields=["is_removed"])
-
-        cache.set(GRANT_FEED_CACHE_VERSION_KEY, timezone.now().timestamp())
-
-        self._send_moderation_notification(
-            grant, reviewer, Notification.GRANT_DECLINED
-        )
-
-        return grant
 
     def _assign_doi_to_post(self, post):
         if not post or post.doi:

@@ -15,6 +15,7 @@ from feed.filters import FundOrderingFilter
 from feed.models import FeedEntry
 from feed.serializers import GrantFeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
+from feed.views.grant_feed_mixin import GRANT_FEED_MAX_CACHED_PAGE, GrantFeedMixin
 from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.grant_model import Grant
 from purchase.related_models.purchase_model import Purchase
@@ -27,10 +28,8 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from ..serializers import PostSerializer, serialize_feed_metrics
 from .common import FeedPagination
 
-GRANT_FEED_CACHE_VERSION_KEY = "grant_feed_cache_version"
 
-
-class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
+class GrantFeedViewSet(GrantFeedMixin, FeedViewMixin, ModelViewSet):
     serializer_class = PostSerializer
     permission_classes = []
     pagination_class = FeedPagination
@@ -44,25 +43,11 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         context.update(self.get_common_serializer_context())
         return context
 
-    def get_cache_key(self, request, feed_type=""):
-        """Override to include grant-specific query parameters in cache key"""
-        base_key = super().get_cache_key(request, feed_type)
-
-        # Add grant-specific parameters to cache key
-        ordering = request.query_params.get("ordering", "")
-        status = request.query_params.get("status", "")
-        organization = request.query_params.get("organization", "")
-        created_by = request.query_params.get("created_by", "")
-
-        version = cache.get(GRANT_FEED_CACHE_VERSION_KEY, 0)
-        grant_params = f"-ordering:{ordering}-status:{status}-organization:{organization}-created_by:{created_by}-v:{version}"
-        return base_key + grant_params
-
     def list(self, request, *args, **kwargs):
         page = request.query_params.get("page", "1")
         page_num = int(page)
         cache_key = self.get_cache_key(request, "grants")
-        use_cache = page_num < 4
+        use_cache = page_num <= GRANT_FEED_MAX_CACHED_PAGE
 
         if use_cache:
             cached_response = cache.get(cache_key)
