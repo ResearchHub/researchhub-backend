@@ -241,7 +241,6 @@ class FundraiseService:
             # Create balance debit records, splitting each allocation across
             # the contribution amount and fee.
             remaining_amount = amount
-            remaining_fee = fee
 
             for alloc in allocations:
                 alloc_amount = alloc["amount"]
@@ -272,7 +271,6 @@ class FundraiseService:
                     )
 
                 remaining_amount -= amount_used
-                remaining_fee -= fee_used
 
             # Track in Amplitude
             rh_fee_str = rh_fee.to_eng_string()
