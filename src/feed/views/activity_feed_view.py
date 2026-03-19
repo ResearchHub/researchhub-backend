@@ -10,7 +10,10 @@ from purchase.models import Fundraise, UsdFundraiseContribution
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
 from purchase.related_models.purchase_model import Purchase
-from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
+from researchhub_comment.constants.rh_comment_thread_types import (
+    COMMUNITY_REVIEW,
+    PEER_REVIEW,
+)
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 
 
@@ -154,23 +157,17 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
     @staticmethod
     def _filter_peer_reviews(queryset):
         """
-        Return feed entries for documents that have peer review comments.
+        Return feed entries that are peer review comments.
         """
         comment_type = ContentType.objects.get_for_model(RhCommentModel)
         peer_review_ids = RhCommentModel.objects.filter(
-            comment_type=PEER_REVIEW,
+            comment_type__in=[PEER_REVIEW, COMMUNITY_REVIEW],
         ).values("id")
 
-        document_ids = (
-            FeedEntry.objects.filter(
-                content_type=comment_type,
-                object_id__in=peer_review_ids,
-            )
-            .values("unified_document_id")
-            .distinct()
+        return queryset.filter(
+            content_type=comment_type,
+            object_id__in=peer_review_ids,
         )
-
-        return queryset.filter(unified_document_id__in=document_ids)
 
     @staticmethod
     def _filter_by_content_type(queryset, content_type_name):
