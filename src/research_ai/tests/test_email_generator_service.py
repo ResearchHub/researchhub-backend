@@ -307,7 +307,7 @@ class GenerateExpertEmailTests(TestCase):
             template_id=1,
             user=user,
         )
-        mock_get_template.assert_called_once_with(user, 1)
+        mock_get_template.assert_called_once_with(1)
         self.assertEqual(subject, "Subject: Test RFP")
         self.assertIn("Dr. X", body)
         self.assertIn("$10K", body)

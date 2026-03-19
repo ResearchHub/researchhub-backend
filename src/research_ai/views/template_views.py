@@ -34,7 +34,7 @@ class TemplateListView(APIView):
     def get(self, request):
         limit = max(1, min(100, int(request.query_params.get("limit", 20))))
         offset = max(0, int(request.query_params.get("offset", 0)))
-        qs = list_templates(request.user)
+        qs = list_templates()
         total = qs.count()
         items = list(qs[offset : offset + limit])
         ser = EmailTemplateSerializer(items, many=True)
@@ -89,7 +89,7 @@ class TemplateDetailView(APIView):
                 {"detail": "Invalid template ID."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        template = get_template(request.user, tid)
+        template = get_template(tid)
         if not template:
             return None, Response(
                 {"detail": "Template not found."},
@@ -128,7 +128,7 @@ class TemplateDetailView(APIView):
             if field in data:
                 val = data[field]
                 update_data[field] = (val or "").strip() if val is not None else ""
-        template, not_found = update_template(request.user, template_id, **update_data)
+        template, not_found = update_template(template_id, **update_data)
         if not_found:
             return Response(
                 {"detail": not_found},
@@ -141,5 +141,5 @@ class TemplateDetailView(APIView):
         template, err = self._get_template(request, template_id)
         if err:
             return err
-        delete_template(request.user, template_id)
+        delete_template(template_id)
         return Response(status=status.HTTP_204_NO_CONTENT)

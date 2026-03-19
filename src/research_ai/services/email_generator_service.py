@@ -296,9 +296,7 @@ def generate_expert_email(
     """
     expert_dict = _normalize_expert_from_resolved(resolved_expert)
     et = (
-        get_email_template(user, template_id)
-        if template_id is not None and user is not None
-        else None
+        get_email_template(template_id) if template_id is not None else None
     )
 
     if (

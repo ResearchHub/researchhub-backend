@@ -2,11 +2,11 @@ from rest_framework import serializers
 
 from feed.serializers import SimpleAuthorSerializer
 from paper.serializers import PaperSerializer
-from user.models import Author
 from research_ai.constants import ExpertiseLevel, Gender, Region
 from research_ai.models import EmailTemplate, ExpertSearch, GeneratedEmail
 from researchhub_document.related_models.constants.document_type import PAPER
 from researchhub_document.serializers import ResearchhubPostSerializer
+from user.models import Author
 
 
 class ExpertSearchConfigSerializer(serializers.Serializer):
@@ -117,17 +117,14 @@ class ResearchAIAuthorSerializer(serializers.ModelSerializer):
         return None
 
 
-def _get_created_by_payload(obj, created_by_attr="created_by"):
-    """Build { user_id: int, author: {...} } for list/detail responses; None if no creator."""
-    created_by = getattr(obj, created_by_attr, None)
-    if not created_by:
-        return None
-    user_id = getattr(created_by, "id", None) or getattr(obj, f"{created_by_attr}_id", None)
-    if user_id is None:
-        return None
+def _get_created_by_payload(obj):
+    """
+    Build { user_id: int, author: {...} } for list/detail responses.
+    """
+    created_by = obj.created_by
     author = getattr(created_by, "author_profile", None)
     author_data = ResearchAIAuthorSerializer(author).data if author else None
-    return {"user_id": user_id, "author": author_data}
+    return {"user_id": created_by.id, "author": author_data}
 
 
 def resolve_work_for_unified_document(unified_doc, context=None):

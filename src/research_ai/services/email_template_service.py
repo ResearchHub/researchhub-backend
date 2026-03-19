@@ -3,7 +3,7 @@ from django.db import transaction
 from research_ai.models import EmailTemplate
 
 
-def list_templates(user):
+def list_templates():
     """Return all templates (shared for editors/moderators), ordered by updated_date descending."""
     return EmailTemplate.objects.select_related(
         "created_by",
@@ -11,7 +11,7 @@ def list_templates(user):
     ).order_by("-updated_date")
 
 
-def get_template(user, template_id):
+def get_template(template_id):
     """
     Return the EmailTemplate with the given id, or None if not found.
     Shared: any editor/moderator can retrieve any template.
@@ -59,12 +59,12 @@ def create_template(user, **data):
 
 
 @transaction.atomic
-def update_template(user, template_id, **data):
+def update_template(template_id, **data):
     """
     Update an EmailTemplate (shared: any editor/moderator can update).
     Returns (template, None) on success, (None, error_message) on not found.
     """
-    template = get_template(user, template_id)
+    template = get_template(template_id)
     if not template:
         return None, "Template not found."
 
@@ -75,12 +75,12 @@ def update_template(user, template_id, **data):
     return template, None
 
 
-def delete_template(user, template_id):
+def delete_template(template_id):
     """
     Delete the EmailTemplate (shared: any editor/moderator can delete).
     Returns True if deleted, False if not found.
     """
-    template = get_template(user, template_id)
+    template = get_template(template_id)
     if not template:
         return False
     template.delete()
