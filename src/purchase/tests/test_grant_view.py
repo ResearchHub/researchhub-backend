@@ -9,7 +9,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from discussion.models import Flag
-from feed.views.grant_feed_mixin import GrantFeedMixin
+from feed.views.grant_cache_mixin import GrantCacheMixin
 from user.related_models.verdict_model import Verdict
 from notification.models import Notification
 from purchase.models import Grant, GrantApplication
@@ -646,7 +646,7 @@ class GrantCacheInvalidationTests(APITestCase):
         for key in cache_keys:
             cache.set(key, {"test": "data"})
 
-        GrantFeedMixin.invalidate_grant_feed_cache()
+        GrantCacheMixin.invalidate_grant_feed_cache()
 
         for key in cache_keys:
             self.assertIsNone(cache.get(key))
@@ -655,7 +655,7 @@ class GrantCacheInvalidationTests(APITestCase):
         other_key = "feed:popular:all:all:none:1-20"
         cache.set(other_key, {"other": "data"})
 
-        GrantFeedMixin.invalidate_grant_feed_cache()
+        GrantCacheMixin.invalidate_grant_feed_cache()
 
         self.assertIsNotNone(cache.get(other_key))
 

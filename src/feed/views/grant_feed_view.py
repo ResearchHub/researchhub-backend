@@ -15,7 +15,7 @@ from feed.filters import FundOrderingFilter
 from feed.models import FeedEntry
 from feed.serializers import GrantFeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
-from feed.views.grant_feed_mixin import GRANT_FEED_MAX_CACHED_PAGE, GrantFeedMixin
+from feed.views.grant_cache_mixin import GRANT_FEED_MAX_CACHED_PAGE, GrantCacheMixin
 from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.grant_model import Grant
 from purchase.related_models.purchase_model import Purchase
@@ -29,7 +29,7 @@ from ..serializers import PostSerializer, serialize_feed_metrics
 from .common import FeedPagination
 
 
-class GrantFeedViewSet(GrantFeedMixin, FeedViewMixin, ModelViewSet):
+class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ModelViewSet):
     serializer_class = PostSerializer
     permission_classes = []
     pagination_class = FeedPagination

@@ -7,7 +7,7 @@ GRANT_FEED_STATUSES = ["", "OPEN", "CLOSED", "COMPLETED", "PENDING"]
 GRANT_FEED_MAX_CACHED_PAGE = 3
 
 
-class GrantFeedMixin:
+class GrantCacheMixin:
     def get_cache_key(self, request, feed_type=""):
         base_key = super().get_cache_key(request, feed_type)
         status = request.query_params.get("status", "")

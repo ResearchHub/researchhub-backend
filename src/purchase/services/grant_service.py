@@ -7,7 +7,7 @@ from django.db import transaction
 from discussion.views import create_flag
 from feed.signals.post_signals import _create_post_feed_entries
 from user.related_models.verdict_model import Verdict
-from feed.views.grant_feed_mixin import GrantFeedMixin
+from feed.views.grant_cache_mixin import GrantCacheMixin
 from notification.models import Notification
 from purchase.models import Grant
 from utils.doi import DOI
@@ -32,7 +32,7 @@ class GrantModerationService:
             self._publish_to_feed(post)
 
             cache.delete("grant_available_funding")
-            GrantFeedMixin.invalidate_grant_feed_cache()
+            GrantCacheMixin.invalidate_grant_feed_cache()
             self._send_moderation_notification(
                 grant, reviewer, Notification.GRANT_APPROVED
             )
@@ -49,7 +49,7 @@ class GrantModerationService:
             grant.save(update_fields=["status"])
             self._flag_and_remove_grant(grant, reviewer, reason, reason_choice)
 
-            GrantFeedMixin.invalidate_grant_feed_cache()
+            GrantCacheMixin.invalidate_grant_feed_cache()
             self._send_moderation_notification(
                 grant, reviewer, Notification.GRANT_DECLINED
             )
