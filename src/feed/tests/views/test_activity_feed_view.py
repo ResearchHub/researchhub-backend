@@ -1,4 +1,3 @@
-import uuid
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -34,17 +33,10 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
-from utils.test_helpers import AWSMockTestCase
+from utils.test_helpers import AWSMockTestCase, create_test_user
 
 User = get_user_model()
 ACTIVITY_LIST_URL = reverse("activity_feed-list")
-
-
-def _make_user(username=None):
-    return User.objects.create_user(
-        username=username or uuid.uuid4().hex,
-        password=uuid.uuid4().hex,
-    )
 
 
 def _make_feed_entry(
@@ -72,7 +64,7 @@ class ActivityFeedBaseTests(AWSMockTestCase):
 
     def setUp(self):
         super().setUp()
-        self.user = _make_user("activity_user")
+        self.user = create_test_user("activity_user")
         self.client = APIClient()
 
         self.prereg_doc = ResearchhubUnifiedDocument.objects.create(
@@ -200,7 +192,7 @@ class ActivityFeedGrantFilterTests(AWSMockTestCase):
 
     def setUp(self):
         super().setUp()
-        self.user = _make_user()
+        self.user = create_test_user()
         self.client = APIClient()
 
         # Grant document + post + Grant object
@@ -427,7 +419,7 @@ class ActivityFeedScopeGrantsTests(AWSMockTestCase):
 
     def setUp(self):
         super().setUp()
-        self.user = _make_user()
+        self.user = create_test_user()
         self.client = APIClient()
 
         # Grant A with an applied preregistration
@@ -596,7 +588,7 @@ class ActivityFeedActionDateOrderingTests(AWSMockTestCase):
 
     def setUp(self):
         super().setUp()
-        self.user = _make_user()
+        self.user = create_test_user()
         self.client = APIClient()
 
     def test_action_date_determines_order_not_created_date(self):
@@ -660,7 +652,7 @@ class ActivityFeedPeerReviewFilterTests(AWSMockTestCase):
 
     def setUp(self):
         super().setUp()
-        self.user = _make_user()
+        self.user = create_test_user()
         self.client = APIClient()
 
         self.doc = ResearchhubUnifiedDocument.objects.create(
@@ -802,7 +794,7 @@ class ActivityFeedFinancialScopeTests(AWSMockTestCase):
 
     def setUp(self):
         super().setUp()
-        self.user = _make_user("financial_user")
+        self.user = create_test_user()
         self.client = APIClient()
 
         self.proposal_doc = ResearchhubUnifiedDocument.objects.create(
