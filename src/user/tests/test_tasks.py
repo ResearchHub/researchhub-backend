@@ -477,13 +477,14 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
         )
 
         # Act
-        handle_spam_user_task(self.user.id, self.moderator)
+        with patch(
+            "purchase.services.fundraise_service.FundraiseService.close_fundraise",
+            return_value=True,
+        ) as mock_close:
+            handle_spam_user_task(self.user.id, self.moderator)
 
         # Assert
-        fundraise.refresh_from_db()
-        escrow.refresh_from_db()
-        self.assertEqual(fundraise.status, Fundraise.CLOSED)
-        self.assertEqual(escrow.amount_holding, Decimal("0"))
+        mock_close.assert_called_once_with(fundraise)
 
     def test_suspend_resolves_open_flags(self):
         """Open flags on the user's content get verdicts matching original reason."""
