@@ -789,7 +789,7 @@ class ViewTests(APITestCase):
         self.assertEqual(
             doc_response.data["grant"]["description"], "Test grant for research"
         )
-        self.assertEqual(doc_response.data["grant"]["status"], "OPEN")
+        self.assertEqual(doc_response.data["grant"]["status"], "PENDING")
 
     def test_grant_null_when_no_grant_amount(self):
         """Test that grant is null when no grant_amount is provided"""
