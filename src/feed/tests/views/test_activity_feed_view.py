@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
@@ -9,8 +10,13 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from feed.models import FeedEntry
+from purchase.models import Fundraise
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
+from purchase.related_models.purchase_model import Purchase
+from purchase.related_models.usd_fundraise_contribution_model import (
+    UsdFundraiseContribution,
+)
 from researchhub_comment.constants.rh_comment_thread_types import (
     COMMUNITY_REVIEW,
     GENERIC_COMMENT,
@@ -787,3 +793,106 @@ class ActivityFeedPeerReviewFilterTests(AWSMockTestCase):
         # Assert
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertEqual(len(resp.data["results"]), 0)
+
+
+class ActivityFeedFinancialScopeTests(AWSMockTestCase):
+    """
+    Test financial scope returns fundraise contribution activities.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.user = _make_user("financial_user")
+        self.client = APIClient()
+
+        self.proposal_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION,
+        )
+        self.proposal_post = ResearchhubPost.objects.create(
+            title="Funding Proposal",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=self.proposal_doc,
+        )
+        self.fundraise = Fundraise.objects.create(
+            unified_document=self.proposal_doc,
+            created_by=self.user,
+            goal_amount=Decimal("1000.00"),
+            goal_currency="USD",
+            status=Fundraise.OPEN,
+        )
+
+        fundraise_ct = ContentType.objects.get_for_model(Fundraise)
+        self.rsc_contribution = Purchase.objects.create(
+            user=self.user,
+            content_type=fundraise_ct,
+            object_id=self.fundraise.id,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            purchase_method=Purchase.OFF_CHAIN,
+            amount="100",
+        )
+        self.usd_contribution = UsdFundraiseContribution.objects.create(
+            user=self.user,
+            fundraise=self.fundraise,
+            amount_cents=5500,
+            fee_cents=495,
+            origin_fund_id="test-origin",
+            destination_org_id="test-destination",
+        )
+
+        self.rsc_entry = _make_feed_entry(
+            Purchase,
+            self.rsc_contribution.id,
+            self.proposal_doc,
+            user=self.user,
+        )
+        self.usd_entry = _make_feed_entry(
+            UsdFundraiseContribution,
+            self.usd_contribution.id,
+            self.proposal_doc,
+            user=self.user,
+        )
+
+        self.unrelated_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="DISCUSSION",
+        )
+        self.unrelated_post = ResearchhubPost.objects.create(
+            title="Unrelated Discussion",
+            created_by=self.user,
+            document_type="DISCUSSION",
+            unified_document=self.unrelated_doc,
+        )
+        self.unrelated_entry = _make_feed_entry(
+            ResearchhubPost,
+            self.unrelated_post.id,
+            self.unrelated_doc,
+            user=self.user,
+        )
+
+        post_ct = ContentType.objects.get_for_model(ResearchhubPost)
+        self.boost_purchase = Purchase.objects.create(
+            user=self.user,
+            content_type=post_ct,
+            object_id=self.unrelated_post.id,
+            purchase_type=Purchase.BOOST,
+            purchase_method=Purchase.OFF_CHAIN,
+            amount="10",
+        )
+        self.boost_entry = _make_feed_entry(
+            Purchase,
+            self.boost_purchase.id,
+            self.unrelated_doc,
+            user=self.user,
+        )
+
+    def test_scope_financial_includes_rsc_and_usd_contributions(self):
+        # Act
+        resp = self.client.get(ACTIVITY_LIST_URL, {"scope": "financial"})
+
+        # Assert
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        ids = {entry["id"] for entry in resp.data["results"]}
+        self.assertIn(self.rsc_entry.id, ids)
+        self.assertIn(self.usd_entry.id, ids)
+        self.assertNotIn(self.unrelated_entry.id, ids)
+        self.assertNotIn(self.boost_entry.id, ids)
