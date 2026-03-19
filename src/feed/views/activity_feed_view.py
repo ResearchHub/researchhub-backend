@@ -111,8 +111,11 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         """
         Return feed entries for every grant document and every
         preregistration that has applied to any grant.
+        Excludes PENDING and DECLINED grants (moderation-only).
         """
-        grant_ud_ids = Grant.objects.values_list("unified_document_id", flat=True)
+        grant_ud_ids = Grant.objects.exclude(
+            status__in=[Grant.PENDING, Grant.DECLINED]
+        ).values_list("unified_document_id", flat=True)
         prereg_ud_ids = GrantApplication.objects.values_list(
             "preregistration_post__unified_document_id",
             flat=True,

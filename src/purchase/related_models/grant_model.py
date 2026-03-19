@@ -1,6 +1,7 @@
 from datetime import datetime
 
 import pytz
+from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.db.models import CASCADE
 
@@ -16,14 +17,18 @@ class Grant(DefaultModel):
     """
 
     # Status choices
+    PENDING = "PENDING"
     OPEN = "OPEN"
     CLOSED = "CLOSED"
     COMPLETED = "COMPLETED"
+    DECLINED = "DECLINED"
 
     STATUS_CHOICES = (
+        (PENDING, "Pending"),
         (OPEN, "Open"),
         (CLOSED, "Closed"),
         (COMPLETED, "Completed"),
+        (DECLINED, "Declined"),
     )
 
     # Foreign key relationships
@@ -70,10 +75,11 @@ class Grant(DefaultModel):
     )
     status = models.CharField(
         choices=STATUS_CHOICES,
-        default=OPEN,
+        default=PENDING,
         max_length=32,
         help_text="Current status of the grant",
     )
+    flags = GenericRelation("discussion.Flag")
 
     # Time fields
     start_date = models.DateTimeField(
