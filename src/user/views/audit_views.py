@@ -45,8 +45,12 @@ class AuditViewSet(viewsets.GenericViewSet):
 
     def get_queryset(self):
         if self.action == "flagged":
-            return Flag.objects.select_related("content_type").prefetch_related(
-                "verdict__created_by"
+            return (
+                Flag.objects.filter(
+                    content_type__in=self._get_allowed_models()
+                )
+                .select_related("content_type")
+                .prefetch_related("verdict__created_by")
             )
         return super().get_queryset()
 
@@ -187,7 +191,10 @@ class AuditViewSet(viewsets.GenericViewSet):
 
     @action(detail=False, methods=["get"])
     def flagged_count(self, request):
-        count = Flag.objects.filter(verdict__isnull=True).count()
+        count = Flag.objects.filter(
+            verdict__isnull=True,
+            content_type__in=self._get_allowed_models(),
+        ).count()
         return Response(
             {"count": count},
             status=status.HTTP_200_OK,

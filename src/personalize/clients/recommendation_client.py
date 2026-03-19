@@ -19,7 +19,7 @@ class RecommendationClient:
     """
 
     # Number of days to look back for content filtering
-    FILTER_DAYS = 45
+    FILTER_DAYS = 20
 
     def __init__(self):
         """Initialize the Personalize runtime client."""

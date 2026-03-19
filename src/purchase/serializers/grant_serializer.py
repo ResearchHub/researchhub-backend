@@ -21,6 +21,7 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
     created_by = serializers.SerializerMethodField()
     contacts = serializers.SerializerMethodField()
     amount = serializers.SerializerMethodField()
+    post_id = serializers.SerializerMethodField()
     is_expired = serializers.SerializerMethodField()
     is_active = serializers.SerializerMethodField()
     applications = serializers.SerializerMethodField()
@@ -44,6 +45,10 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
             grant.contacts.all(), context=context, many=True, **_context_fields
         )
         return serializer.data
+
+    def get_post_id(self, grant):
+        posts = grant.unified_document.posts.all()
+        return posts[0].id if posts else None
 
     def get_amount(self, grant):
         """

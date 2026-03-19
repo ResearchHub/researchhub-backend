@@ -12,6 +12,7 @@ from feed.models import FeedEntry
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
 from researchhub_comment.constants.rh_comment_thread_types import (
+    COMMUNITY_REVIEW,
     GENERIC_COMMENT,
     PEER_REVIEW,
 )
@@ -680,6 +681,12 @@ class ActivityFeedPeerReviewFilterTests(AWSMockTestCase):
             created_by=self.user,
             thread=thread,
         )
+        self.community_review_comment = RhCommentModel.objects.create(
+            comment_content_json={"ops": [{"insert": "community review"}]},
+            comment_type=COMMUNITY_REVIEW,
+            created_by=self.user,
+            thread=thread,
+        )
         self.generic_comment = RhCommentModel.objects.create(
             comment_content_json={"ops": [{"insert": "generic comment"}]},
             comment_type=GENERIC_COMMENT,
@@ -692,6 +699,16 @@ class ActivityFeedPeerReviewFilterTests(AWSMockTestCase):
         self.peer_review_entry = FeedEntry.objects.create(
             content_type=comment_ct,
             object_id=self.peer_review_comment.id,
+            unified_document=self.doc,
+            user=self.user,
+            action="PUBLISH",
+            action_date=timezone.now(),
+            content={},
+            metrics={},
+        )
+        self.community_review_entry = FeedEntry.objects.create(
+            content_type=comment_ct,
+            object_id=self.community_review_comment.id,
             unified_document=self.doc,
             user=self.user,
             action="PUBLISH",
@@ -733,9 +750,10 @@ class ActivityFeedPeerReviewFilterTests(AWSMockTestCase):
             user=self.user,
         )
 
-    def test_scope_peer_reviews_returns_all_entries_for_reviewed_documents(self):
+    def test_scope_peer_reviews_returns_only_peer_review_entries(self):
         """
-        All feed entries for a document with peer reviews should be included.
+        Only feed entries that are peer review comments (PEER_REVIEW or
+        COMMUNITY_REVIEW) should be returned.
         """
         # Act
         resp = self.client.get(ACTIVITY_LIST_URL, {"scope": "peer_reviews"})
@@ -744,8 +762,9 @@ class ActivityFeedPeerReviewFilterTests(AWSMockTestCase):
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         ids = {e["id"] for e in resp.data["results"]}
         self.assertIn(self.peer_review_entry.id, ids)
-        self.assertIn(self.generic_comment_entry.id, ids)
-        self.assertIn(self.post_entry.id, ids)
+        self.assertIn(self.community_review_entry.id, ids)
+        self.assertNotIn(self.generic_comment_entry.id, ids)
+        self.assertNotIn(self.post_entry.id, ids)
 
     def test_scope_peer_reviews_excludes_unrelated_documents(self):
         """
