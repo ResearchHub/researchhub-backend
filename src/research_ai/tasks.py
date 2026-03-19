@@ -386,3 +386,17 @@ def send_queued_emails_task(
             )
             failed += 1
     return {"sent": sent, "failed": failed}
+
+
+@app.task
+def process_proposal_review_task(review_id: int):
+    from research_ai.services.proposal_review_service import run_proposal_review
+
+    run_proposal_review(review_id)
+
+
+@app.task
+def process_rfp_summary_task(rfp_summary_id: int):
+    from research_ai.services.rfp_summary_service import run_rfp_summary
+
+    run_rfp_summary(rfp_summary_id)

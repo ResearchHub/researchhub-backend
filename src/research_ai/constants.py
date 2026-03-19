@@ -60,6 +60,23 @@ class EmailTemplateType(models.TextChoices):
 VALID_EMAIL_TEMPLATE_KEYS = frozenset(e.value for e in EmailTemplateType)
 DEFAULT_EMAIL_TEMPLATE_KEY = EmailTemplateType.COLLABORATION.value
 
+class ReviewStatus(models.TextChoices):
+    """Async AI job lifecycle for proposal review and RFP summary."""
+
+    PENDING = "pending", "pending"
+    PROCESSING = "processing", "processing"
+    COMPLETED = "completed", "completed"
+    FAILED = "failed", "failed"
+
+
+class OverallRating(models.TextChoices):
+    """Aggregate proposal quality from five dimension scores (5-15 scale)."""
+
+    EXCELLENT = "excellent", "excellent"
+    GOOD = "good", "good"
+    POOR = "poor", "poor"
+
+
 EMAIL_TEMPLATE_PROMPT_FILES = {
     EmailTemplateType.CUSTOM.value: "email_custom.txt",
     EmailTemplateType.COLLABORATION.value: "email_collaboration.txt",

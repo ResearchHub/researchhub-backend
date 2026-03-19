@@ -2,8 +2,15 @@ from rest_framework import serializers
 
 from feed.serializers import SimpleAuthorSerializer
 from paper.serializers import PaperSerializer
-from research_ai.constants import ExpertiseLevel, Gender, Region
-from research_ai.models import EmailTemplate, ExpertSearch, GeneratedEmail
+from research_ai.constants import ExpertiseLevel, Gender, Region, ReviewStatus
+from research_ai.models import (
+    EmailTemplate,
+    ExpertSearch,
+    GeneratedEmail,
+    ProposalReview,
+    RFPSummary,
+)
+from research_ai.services.proposal_review_scoring import dimension_overall_scores
 from researchhub_document.related_models.constants.document_type import PAPER
 from researchhub_document.serializers import ResearchhubPostSerializer
 
@@ -432,3 +439,88 @@ class EmailTemplateUpdateSerializer(serializers.Serializer):
     outreach_context = serializers.CharField(required=False, allow_blank=True)
     email_subject = serializers.CharField(required=False, allow_blank=True)
     email_body = serializers.CharField(required=False, allow_blank=True)
+
+
+class ProposalReviewCreateSerializer(serializers.Serializer):
+    unified_document_id = serializers.IntegerField()
+    grant_id = serializers.IntegerField(required=False, allow_null=True)
+
+
+class ProposalReviewSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProposalReview
+        fields = [
+            "id",
+            "unified_document_id",
+            "grant_id",
+            "status",
+            "overall_rating",
+            "overall_score_numeric",
+            "result_data",
+            "error_message",
+            "progress",
+            "current_step",
+            "llm_model",
+            "processing_time",
+            "created_date",
+            "updated_date",
+        ]
+        read_only_fields = fields
+
+
+class RFPSummarySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RFPSummary
+        fields = [
+            "id",
+            "grant_id",
+            "status",
+            "summary_content",
+            "executive_comparison_summary",
+            "executive_comparison_updated_date",
+            "error_message",
+            "llm_model",
+            "processing_time",
+            "created_date",
+            "updated_date",
+        ]
+        read_only_fields = fields
+
+
+class GrantExecutiveSummaryRequestSerializer(serializers.Serializer):
+    grant_id = serializers.IntegerField()
+
+
+class GrantRfpSummaryRequestSerializer(serializers.Serializer):
+    grant_id = serializers.IntegerField()
+    force = serializers.BooleanField(required=False, default=False)
+
+
+def build_proposal_comparison_row(review: ProposalReview | None, ud_id: int, title: str):
+    row = {
+        "unified_document_id": ud_id,
+        "proposal_title": title,
+        "review_id": None,
+        "status": None,
+        "overall_rating": None,
+        "overall_score_numeric": None,
+        "fundability": None,
+        "feasibility": None,
+        "novelty": None,
+        "impact": None,
+        "reproducibility": None,
+    }
+    if review is None:
+        return row
+    row["review_id"] = review.id
+    row["status"] = review.status
+    row["overall_rating"] = review.overall_rating
+    row["overall_score_numeric"] = review.overall_score_numeric
+    if review.status == ReviewStatus.COMPLETED and review.result_data:
+        dims = dimension_overall_scores(review.result_data)
+        row["fundability"] = dims.get("fundability")
+        row["feasibility"] = dims.get("feasibility")
+        row["novelty"] = dims.get("novelty")
+        row["impact"] = dims.get("impact")
+        row["reproducibility"] = dims.get("reproducibility")
+    return row

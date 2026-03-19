@@ -1,0 +1,131 @@
+"""
+RFP (grant) summary and executive comparison via Bedrock.
+"""
+
+import logging
+import time
+
+from django.conf import settings
+from django.utils import timezone
+
+from research_ai.constants import ReviewStatus
+from research_ai.models import RFPSummary
+from research_ai.prompts.rfp_summary_prompts import (
+    build_rfp_summary_user_prompt,
+    get_grant_executive_summary_system_prompt,
+    get_rfp_summary_system_prompt,
+)
+from research_ai.services.bedrock_llm_service import BEDROCK_MODEL_ID, BedrockLLMService
+from research_ai.services.proposal_review_scoring import dimension_overall_scores
+from purchase.models import Grant
+
+logger = logging.getLogger(__name__)
+
+
+def get_grant_source_text(grant: Grant) -> str:
+    parts = []
+    if grant.short_title:
+        parts.append(f"Title: {grant.short_title}")
+    if grant.organization:
+        parts.append(f"Organization: {grant.organization}")
+    parts.append(grant.description or "")
+    post = grant.unified_document.posts.first()
+    if post:
+        body = post.get_full_markdown()
+        if body:
+            parts.append(body)
+    return "\n\n".join(p for p in parts if p).strip()
+
+
+def run_rfp_summary(rfp_summary_id: int) -> None:
+    obj = RFPSummary.objects.select_related("grant").get(pk=rfp_summary_id)
+    if obj.status == ReviewStatus.COMPLETED and obj.summary_content.strip():
+        return
+    t0 = time.monotonic()
+    obj.status = ReviewStatus.PROCESSING
+    obj.error_message = ""
+    obj.save(update_fields=["status", "error_message", "updated_date"])
+    try:
+        text = get_grant_source_text(obj.grant)
+        if not text.strip():
+            raise ValueError("Grant has no readable description or post body.")
+        llm = BedrockLLMService()
+        out = llm.invoke(
+            get_rfp_summary_system_prompt(),
+            build_rfp_summary_user_prompt(text),
+            max_tokens=8192,
+            temperature=0.0,
+        )
+        obj.summary_content = out.strip()
+        obj.status = ReviewStatus.COMPLETED
+        obj.llm_model = getattr(
+            settings, "RESEARCH_AI_BEDROCK_MODEL_ID", BEDROCK_MODEL_ID
+        )
+        obj.processing_time = time.monotonic() - t0
+        obj.save()
+    except Exception as e:
+        logger.exception("RFP summary %s failed", rfp_summary_id)
+        obj.status = ReviewStatus.FAILED
+        obj.error_message = str(e)[:4000]
+        obj.processing_time = time.monotonic() - t0
+        obj.save()
+
+
+def run_executive_comparison(grant_id: int, created_by_id: int) -> RFPSummary:
+    from research_ai.models import ProposalReview
+
+    grant = Grant.objects.get(pk=grant_id)
+    reviews = (
+        ProposalReview.objects.filter(
+            grant_id=grant_id,
+            status=ReviewStatus.COMPLETED,
+        )
+        .select_related("unified_document")
+        .order_by("-overall_score_numeric", "id")
+    )
+    lines = []
+    for r in reviews:
+        ud = r.unified_document
+        post = ud.posts.first()
+        title = (post.title if post else "") or f"Document {ud.id}"
+        dims = dimension_overall_scores(r.result_data or {})
+        lines.append(
+            f"- Title: {title[:200]}\n"
+            f"  Overall: {r.overall_rating} ({r.overall_score_numeric}/15)\n"
+            f"  Dimensions: fundability={dims.get('fundability')}, "
+            f"feasibility={dims.get('feasibility')}, novelty={dims.get('novelty')}, "
+            f"impact={dims.get('impact')}, reproducibility={dims.get('reproducibility')}\n"
+            f"  Summary snippet: "
+            f"{(r.result_data or {}).get('editorial_summary', {}).get('consensus_summary', '')[:400]}"
+        )
+    if not lines:
+        raise ValueError(
+            "No completed proposal reviews for this grant. Run proposal reviews first."
+        )
+    user_prompt = (
+        "Funding opportunity (context):\n"
+        + get_grant_source_text(grant)[:6000]
+        + "\n\n---\nProposals and scores:\n"
+        + "\n".join(lines)
+    )
+    llm = BedrockLLMService()
+    out = llm.invoke(
+        get_grant_executive_summary_system_prompt(),
+        user_prompt,
+        max_tokens=4096,
+        temperature=0.2,
+    )
+    obj, _ = RFPSummary.objects.get_or_create(
+        grant=grant,
+        defaults={"created_by_id": created_by_id, "status": ReviewStatus.PENDING},
+    )
+    obj.executive_comparison_summary = out.strip()
+    obj.executive_comparison_updated_date = timezone.now()
+    obj.save(
+        update_fields=[
+            "executive_comparison_summary",
+            "executive_comparison_updated_date",
+            "updated_date",
+        ]
+    )
+    return obj

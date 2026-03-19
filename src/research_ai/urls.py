@@ -16,6 +16,14 @@ from research_ai.views.expert_finder_views import (
     ExpertSearchWorkView,
     InvitedExpertsDocumentView,
 )
+from research_ai.views.proposal_review_views import (
+    GrantExecutiveSummaryView,
+    ProposalReviewByGrantView,
+    ProposalReviewCreateView,
+    ProposalReviewDetailView,
+    RFPSummaryCreateView,
+    RFPSummaryDetailView,
+)
 from research_ai.views.template_views import TemplateDetailView, TemplateListView
 
 urlpatterns = [
@@ -63,4 +71,10 @@ urlpatterns = [
         "expert-finder/templates/<int:template_id>/",
         TemplateDetailView.as_view(),
     ),
+    path("proposal-review/grant/<int:grant_id>/", ProposalReviewByGrantView.as_view()),
+    path("proposal-review/<int:review_id>/", ProposalReviewDetailView.as_view()),
+    path("proposal-review/", ProposalReviewCreateView.as_view()),
+    path("rfp-summary/<int:grant_id>/", RFPSummaryDetailView.as_view()),
+    path("rfp-summary/", RFPSummaryCreateView.as_view()),
+    path("grant-executive-summary/", GrantExecutiveSummaryView.as_view()),
 ]
