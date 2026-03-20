@@ -217,10 +217,11 @@ class FundraiseService:
         with transaction.atomic():
             user = User.objects.select_for_update().get(id=user.id)
 
-            # Check if user has enough balance in their wallet
-            # For fundraise contributions, we allow using locked balance
-            user_balance = user.get_balance(include_locked=True)
-            if user_balance - (amount + fee) < 0:
+            # Allocate the total spend (amount + fee) across locked/unlocked
+            # pools. Fundraise contributions are allowed to consume locked funds.
+            try:
+                allocations = user.allocate_spend(amount + fee, allow_locked=True)
+            except ValueError:
                 return None, "Insufficient balance"
 
             # Create purchase object
@@ -237,55 +238,39 @@ class FundraiseService:
             # Deduct fees
             deduct_bounty_fees(user, fee, rh_fee, dao_fee, fee_object)
 
-            # Get user's available locked balance
-            available_locked_balance = user.get_locked_balance()
+            # Create balance debit records, splitting each allocation across
+            # the contribution amount and fee.
+            remaining_amount = amount
 
-            # Determine how to split the contribution amount
-            locked_amount_used = min(available_locked_balance, amount)
-            regular_amount_used = amount - locked_amount_used
+            for alloc in allocations:
+                alloc_amount = alloc["amount"]
 
-            # Determine how to split the fees using remaining locked balance
-            remaining_locked_balance = available_locked_balance - locked_amount_used
-            locked_fee_used = min(remaining_locked_balance, fee)
-            regular_fee_used = fee - locked_fee_used
+                # Apply as much of this allocation to the contribution first,
+                # then the remainder to fees.
+                amount_used = min(alloc_amount, remaining_amount)
+                fee_used = alloc_amount - amount_used
 
-            # Create balance records for the contribution amount
-            if locked_amount_used > 0:
-                Balance.objects.create(
-                    user=user,
-                    content_type=ContentType.objects.get_for_model(Purchase),
-                    object_id=purchase.id,
-                    amount=f"-{locked_amount_used.to_eng_string()}",
-                    is_locked=True,
-                    lock_type=Balance.LockType.REFERRAL_BONUS,
-                )
+                if amount_used > 0:
+                    Balance.objects.create(
+                        user=user,
+                        content_type=ContentType.objects.get_for_model(Purchase),
+                        object_id=purchase.id,
+                        amount=f"-{amount_used.to_eng_string()}",
+                        is_locked=alloc["is_locked"],
+                        purchase=purchase,
+                    )
 
-            if regular_amount_used > 0:
-                Balance.objects.create(
-                    user=user,
-                    content_type=ContentType.objects.get_for_model(Purchase),
-                    object_id=purchase.id,
-                    amount=f"-{regular_amount_used.to_eng_string()}",
-                )
+                if fee_used > 0:
+                    Balance.objects.create(
+                        user=user,
+                        content_type=ContentType.objects.get_for_model(BountyFee),
+                        object_id=fee_object.id,
+                        amount=f"-{fee_used.to_eng_string()}",
+                        is_locked=alloc["is_locked"],
+                        purchase=purchase,
+                    )
 
-            # Create balance records for the fees
-            if locked_fee_used > 0:
-                Balance.objects.create(
-                    user=user,
-                    content_type=ContentType.objects.get_for_model(BountyFee),
-                    object_id=fee_object.id,
-                    amount=f"-{locked_fee_used.to_eng_string()}",
-                    is_locked=True,
-                    lock_type=Balance.LockType.REFERRAL_BONUS,
-                )
-
-            if regular_fee_used > 0:
-                Balance.objects.create(
-                    user=user,
-                    content_type=ContentType.objects.get_for_model(BountyFee),
-                    object_id=fee_object.id,
-                    amount=f"-{regular_fee_used.to_eng_string()}",
-                )
+                remaining_amount -= amount_used
 
             # Track in Amplitude
             rh_fee_str = rh_fee.to_eng_string()
@@ -389,47 +374,53 @@ class FundraiseService:
 
         return contribution, None
 
+    def _refund_contribution_debit(
+        self, fundraise, user, debit, purchase_ct, bounty_fee_ct
+    ):
+        """Refund a single debit entry. Returns True on success, False on failure."""
+        abs_amount = abs(Decimal(debit.amount))
+        if abs_amount == 0:
+            return True
+
+        if debit.content_type == purchase_ct:
+            return fundraise.escrow.refund(user, abs_amount, is_locked=debit.is_locked)
+
+        if debit.content_type == bounty_fee_ct:
+            return self._refund_fee(user, debit, abs_amount)
+
+        return True
+
+    def _refund_fee(self, user, debit, abs_amount):
+        """Refund a fee debit from the revenue account. Returns True on success."""
+        rh_revenue_account = User.objects.get_revenue_account()
+        fee_object = BountyFee.objects.get(id=debit.object_id)
+        distribution = create_bounty_refund_distribution(abs_amount)
+        distributor = Distributor(
+            distribution,
+            user,
+            fee_object,
+            time.time(),
+            giver=rh_revenue_account,
+            is_locked=debit.is_locked,
+        )
+        record = distributor.distribute()
+        return record.distributed_status != "FAILED"
+
     def refund_rsc_contributions(self, fundraise: Fundraise) -> bool:
         """
         Refund all RSC contributions from escrow back to contributors.
         Also refunds the fees that were deducted when creating contributions.
+        Preserves the locked/unlocked status of the original funds.
         Returns True if all refunds successful, False if any fail.
         """
-        # Get all purchases (RSC contributions) for this fundraise
-        contributions = fundraise.purchases.all()
+        purchase_ct = ContentType.objects.get_for_model(Purchase)
+        bounty_fee_ct = ContentType.objects.get_for_model(BountyFee)
 
-        # Refund each RSC contributor
-        for contribution in contributions:
-            user = contribution.user
-            amount = Decimal(contribution.amount)
-
-            # Only refund what's still in escrow
-            if amount > 0:
-                success = fundraise.escrow.refund(user, amount)
-                if not success:
-                    # If a refund fails, we should abort the whole transaction
-                    return False
-
-            # Also refund the fees that were deducted when this contribution
-            # was made. Calculate the fee using the same logic used during
-            # contribution creation.
-            fee, _, _, fee_object = calculate_bounty_fees(amount)
-
-            if fee > 0:
-                # Create a refund for the fee
-                rh_revenue_account = User.objects.get_revenue_account()
-                distribution = create_bounty_refund_distribution(fee)
-                distributor = Distributor(
-                    distribution,
-                    user,
-                    fee_object,  # The BountyFee object
-                    time.time(),
-                    giver=rh_revenue_account,
-                )
-                record = distributor.distribute()
-                if record.distributed_status == "FAILED":
-                    # If fee refund fails, we should abort the whole
-                    # transaction
+        for contribution in fundraise.purchases.all():
+            for debit in Balance.objects.filter(purchase=contribution):
+                if not self._refund_contribution_debit(
+                    fundraise, contribution.user, debit, purchase_ct, bounty_fee_ct
+                ):
                     return False
 
         return True

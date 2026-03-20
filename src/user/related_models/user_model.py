@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.contrib.contenttypes.models import ContentType
@@ -227,6 +228,36 @@ class User(AbstractUser):
         if lock_type:
             locked_queryset = locked_queryset.filter(lock_type=lock_type)
         return self.get_balance(queryset=locked_queryset, include_locked=True)
+
+    def allocate_spend(self, amount, allow_locked=False):
+        """
+        Determine how to split ``amount`` across locked and unlocked balances.
+
+        Returns a list of dicts::
+
+            [{"amount": Decimal, "is_locked": bool}]
+
+        Raises ``ValueError`` if the user cannot cover ``amount``.
+        """
+        if amount <= 0:
+            return []
+
+        remaining = Decimal(str(amount))
+        allocations = []
+
+        if allow_locked:
+            locked_balance = self.get_locked_balance()
+            if locked_balance > 0:
+                use = min(locked_balance, remaining)
+                allocations.append({"amount": use, "is_locked": True})
+                remaining -= use
+
+        if remaining > 0:
+            if self.get_available_balance() < remaining:
+                raise ValueError("Insufficient balance")
+            allocations.append({"amount": remaining, "is_locked": False})
+
+        return allocations
 
     def notify_inactivity(self, paper_count=0, comment_count=0):
         recipient = [self.email]

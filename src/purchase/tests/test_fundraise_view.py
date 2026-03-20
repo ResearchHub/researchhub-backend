@@ -538,9 +538,6 @@ class FundraiseViewTests(APITestCase):
         locked_amount_balance = amount_balances.filter(is_locked=True).first()
         self.assertIsNotNone(locked_amount_balance)
         self.assertEqual(float(locked_amount_balance.amount), -100.0)
-        self.assertEqual(
-            locked_amount_balance.lock_type, Balance.LockType.REFERRAL_BONUS
-        )
 
         # Should have 1 fee balance record: 9 from regular (no locked left)
         fee_balances = Balance.objects.filter(user=user, content_type=fee_content_type)
