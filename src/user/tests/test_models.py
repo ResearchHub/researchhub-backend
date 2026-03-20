@@ -310,3 +310,84 @@ class UserBalanceTests(TestCase):
 
         # Verify math: available + locked = total
         self.assertEqual(available + locked, total_with_locked)
+
+    def test_allocate_spend_unlocked_only(self):
+        Balance.objects.create(
+            user=self.user,
+            amount="200",
+            content_type=self.content_type,
+            is_locked=False,
+        )
+        Balance.objects.create(
+            user=self.user,
+            amount="100",
+            content_type=self.content_type,
+            is_locked=True,
+            lock_type=Balance.LockType.RSC_PURCHASE,
+        )
+
+        allocations = self.user.allocate_spend(Decimal("150"))
+        self.assertEqual(len(allocations), 1)
+        self.assertFalse(allocations[0]["is_locked"])
+        self.assertEqual(allocations[0]["amount"], Decimal("150"))
+
+    def test_allocate_spend_unlocked_insufficient_raises(self):
+        Balance.objects.create(
+            user=self.user,
+            amount="50",
+            content_type=self.content_type,
+            is_locked=False,
+        )
+        Balance.objects.create(
+            user=self.user,
+            amount="200",
+            content_type=self.content_type,
+            is_locked=True,
+            lock_type=Balance.LockType.RSC_PURCHASE,
+        )
+
+        with self.assertRaises(ValueError):
+            self.user.allocate_spend(Decimal("100"))
+
+    def test_allocate_spend_with_locked(self):
+        Balance.objects.create(
+            user=self.user,
+            amount="50",
+            content_type=self.content_type,
+            is_locked=False,
+        )
+        Balance.objects.create(
+            user=self.user,
+            amount="120",
+            content_type=self.content_type,
+            is_locked=True,
+            lock_type=Balance.LockType.RSC_PURCHASE,
+        )
+
+        allocations = self.user.allocate_spend(Decimal("150"), allow_locked=True)
+        locked_allocs = [a for a in allocations if a["is_locked"]]
+        unlocked_allocs = [a for a in allocations if not a["is_locked"]]
+
+        self.assertEqual(len(locked_allocs), 1)
+        self.assertEqual(locked_allocs[0]["amount"], Decimal("120"))
+
+        self.assertEqual(len(unlocked_allocs), 1)
+        self.assertEqual(unlocked_allocs[0]["amount"], Decimal("30"))
+
+    def test_allocate_spend_fully_covered_by_locked(self):
+        Balance.objects.create(
+            user=self.user,
+            amount="200",
+            content_type=self.content_type,
+            is_locked=True,
+            lock_type=Balance.LockType.REFERRAL_BONUS,
+        )
+
+        allocations = self.user.allocate_spend(Decimal("100"), allow_locked=True)
+        self.assertEqual(len(allocations), 1)
+        self.assertTrue(allocations[0]["is_locked"])
+        self.assertEqual(allocations[0]["amount"], Decimal("100"))
+
+    def test_allocate_spend_zero_amount(self):
+        allocations = self.user.allocate_spend(Decimal("0"))
+        self.assertEqual(allocations, [])
