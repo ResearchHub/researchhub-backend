@@ -16,7 +16,6 @@ from feed.hot_score_utils import (
     get_age_hours_from_content,
     get_bounties_from_content,
     get_comment_count_from_metrics,
-    get_content_type_name,
     get_fundraise_amount_from_content,
     get_peer_review_count_from_metrics,
     get_social_media_engagement_from_metrics,
@@ -62,15 +61,6 @@ class TestHotScoreUtils(AWSMockTestCase):
         # Test with both = 0
         metrics = {"replies": 0, "review_metrics": {"count": 0}}
         self.assertFalse(has_comments(metrics))
-
-    def test_get_content_type_name(self):
-        """Test extracting content type name from feed entry."""
-        # Mock feed_entry with content_type
-        feed_entry = Mock()
-        feed_entry.content_type.model = "paper"
-
-        result = get_content_type_name(feed_entry)
-        self.assertEqual(result, "paper")
 
     def test_parse_iso_datetime(self):
         """Test parsing ISO 8601 datetime strings."""
