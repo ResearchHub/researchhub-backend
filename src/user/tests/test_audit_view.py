@@ -165,6 +165,13 @@ class AutoPaymentAuditTests(APITestCase):
         )
         self.editor_payout.set_distributed()
 
+        self.editor_compensation = Distribution.objects.create(
+            recipient=self.recipient,
+            amount=3000,
+            distribution_type="EDITOR_COMPENSATION",
+        )
+        self.editor_compensation.set_distributed()
+
         self.author_reward = Distribution.objects.create(
             recipient=self.recipient,
             amount=2500,
@@ -187,9 +194,12 @@ class AutoPaymentAuditTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["count"], 2)
+        self.assertEqual(response.data["count"], 3)
         types = {r["distribution_type"] for r in response.data["results"]}
-        self.assertEqual(types, {"EDITOR_PAYOUT", "PREREGISTRATION_UPDATE_REWARD"})
+        self.assertEqual(
+            types,
+            {"EDITOR_PAYOUT", "EDITOR_COMPENSATION", "PREREGISTRATION_UPDATE_REWARD"},
+        )
 
     def test_reg_user_cannot_view_auto_payments(self):
         # Arrange
@@ -212,10 +222,9 @@ class AutoPaymentAuditTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["count"], 1)
-        self.assertEqual(
-            response.data["results"][0]["distribution_type"], "EDITOR_PAYOUT"
-        )
+        self.assertEqual(response.data["count"], 2)
+        types = {r["distribution_type"] for r in response.data["results"]}
+        self.assertEqual(types, {"EDITOR_PAYOUT", "EDITOR_COMPENSATION"})
 
     def test_filter_by_recipient(self):
         # Arrange
@@ -228,7 +237,7 @@ class AutoPaymentAuditTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["count"], 2)
+        self.assertEqual(response.data["count"], 3)
 
     def test_response_includes_recipient_info(self):
         # Arrange
@@ -255,7 +264,7 @@ class AutoPaymentAuditTests(APITestCase):
         )
 
         # Assert
-        self.assertEqual(response.data["count"], 2)
+        self.assertEqual(response.data["count"], 3)
 
     def test_filter_by_date_range_excludes_old(self):
         # Arrange

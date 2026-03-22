@@ -72,17 +72,21 @@ class ActionDashboardFilter(filters.FilterSet):
         fields = ["hubs"]
 
 
-AUTO_PAYMENT_TYPES = [
-    "EDITOR_PAYOUT",
-    "EDITOR_COMPENSATION",
-    "PREREGISTRATION_UPDATE_REWARD",
-]
+EDITOR_PAYMENT_TYPES = ["EDITOR_PAYOUT", "EDITOR_COMPENSATION"]
 
-AUTO_PAYMENT_TYPE_CHOICES = [(t, t) for t in AUTO_PAYMENT_TYPES]
+AUTO_PAYMENT_TYPES = EDITOR_PAYMENT_TYPES + ["PREREGISTRATION_UPDATE_REWARD"]
+
+AUTO_PAYMENT_TYPE_CHOICES = [
+    ("EDITOR_PAYOUT", "EDITOR_PAYOUT"),
+    ("PREREGISTRATION_UPDATE_REWARD", "PREREGISTRATION_UPDATE_REWARD"),
+]
 
 
 class AutoPaymentFilter(filters.FilterSet):
-    distribution_type = filters.ChoiceFilter(choices=AUTO_PAYMENT_TYPE_CHOICES)
+    distribution_type = filters.ChoiceFilter(
+        choices=AUTO_PAYMENT_TYPE_CHOICES,
+        method="filter_by_distribution_type",
+    )
     recipient = filters.NumberFilter(field_name="recipient_id")
     created_after = filters.DateTimeFilter(
         field_name="created_date", lookup_expr="gte"
@@ -94,6 +98,11 @@ class AutoPaymentFilter(filters.FilterSet):
     class Meta:
         model = Distribution
         fields = ["distribution_type", "recipient", "created_after", "created_before"]
+
+    def filter_by_distribution_type(self, qs, name, value):
+        if value == "EDITOR_PAYOUT":
+            return qs.filter(distribution_type__in=EDITOR_PAYMENT_TYPES)
+        return qs.filter(distribution_type=value)
 
 
 class AuditDashboardFilterBackend(filters.DjangoFilterBackend):
