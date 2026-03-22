@@ -253,27 +253,29 @@ class AutoPaymentAuditTests(APITestCase):
         self.assertIn("first_name", result["recipient"])
         self.assertIn("author_profile", result["recipient"])
 
-    def test_filter_by_date_range_includes_recent(self):
+    def test_filter_by_date_range_includes_today(self):
         # Arrange
         self.client.force_authenticate(self.editor)
-        one_hour_ago = (timezone.now() - timedelta(hours=1)).isoformat()
+        start_of_day = timezone.now().replace(hour=0, minute=0, second=0).isoformat()
+        end_of_day = timezone.now().replace(hour=23, minute=59, second=59).isoformat()
 
         # Act
         response = self.client.get(
-            AUTO_PAYMENTS_URL, {"created_after": one_hour_ago}
+            AUTO_PAYMENTS_URL,
+            {"created_after": start_of_day, "created_before": end_of_day},
         )
 
         # Assert
         self.assertEqual(response.data["count"], 3)
 
-    def test_filter_by_date_range_excludes_old(self):
+    def test_filter_by_date_range_excludes_future(self):
         # Arrange
         self.client.force_authenticate(self.editor)
-        one_hour_from_now = (timezone.now() + timedelta(hours=1)).isoformat()
+        tomorrow = (timezone.now() + timedelta(days=1)).isoformat()
 
         # Act
         response = self.client.get(
-            AUTO_PAYMENTS_URL, {"created_after": one_hour_from_now}
+            AUTO_PAYMENTS_URL, {"created_after": tomorrow}
         )
 
         # Assert

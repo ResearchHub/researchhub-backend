@@ -89,10 +89,10 @@ class AutoPaymentFilter(filters.FilterSet):
     )
     recipient = filters.NumberFilter(field_name="recipient_id")
     created_after = filters.DateTimeFilter(
-        field_name="created_date", lookup_expr="gte"
+        field_name="created_date__date", lookup_expr="gte"
     )
     created_before = filters.DateTimeFilter(
-        field_name="created_date", lookup_expr="lte"
+        field_name="created_date__date", lookup_expr="lte"
     )
 
     class Meta:
