@@ -1,4 +1,4 @@
-from allauth.account.models import EmailAddress
+from allauth.account.models import EmailAddress, EmailConfirmationHMAC
 from django.contrib.auth import get_user_model
 from rest_framework.test import APITransactionTestCase
 
@@ -99,3 +99,49 @@ class UpdateEmailTest(APITransactionTestCase):
 
         # Assert
         self.assertIn(response.status_code, [401, 403])
+
+
+class VerifyEmailUpdateTest(APITransactionTestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="user@researchhub.com",
+            email="user@researchhub.com",
+            password="testpass123",
+        )
+        self.primary = EmailAddress.objects.create(
+            user=self.user,
+            email=self.user.email,
+            primary=True,
+            verified=True,
+        )
+        self.verify_url = "/api/auth/register/verify-email/"
+
+    def test_verify_email_change_swaps_email(self):
+        """
+        Test that verifying an email change swaps the user's email and username.
+        """
+        # Arrange
+        new_address = EmailAddress.objects.create(
+            user=self.user,
+            email="new@researchhub.com",
+            verified=False,
+            primary=False,
+        )
+        confirmation = EmailConfirmationHMAC(new_address)
+
+        # Act
+        response = self.client.post(
+            self.verify_url, {"key": confirmation.key}, format="json"
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data.get("email_changed"))
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, "new@researchhub.com")
+        self.assertEqual(self.user.username, "new@researchhub.com")
+
+        self.assertFalse(
+            EmailAddress.objects.filter(email="user@researchhub.com").exists()
+        )
