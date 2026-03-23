@@ -2,16 +2,14 @@ from allauth.account.models import EmailAddress, EmailConfirmationHMAC
 from django.contrib.auth import get_user_model
 from rest_framework.test import APITransactionTestCase
 
+from utils.test_helpers import create_test_user
+
 User = get_user_model()
 
 
 class UpdateEmailTest(APITransactionTestCase):
     def setUp(self):
-        self.user = User.objects.create_user(
-            username="user@researchhub.com",
-            email="user@researchhub.com",
-            password="testpass123",
-        )
+        self.user = create_test_user(email="user@researchhub.com")
         EmailAddress.objects.create(
             user=self.user,
             email=self.user.email,
@@ -73,11 +71,7 @@ class UpdateEmailTest(APITransactionTestCase):
         Update with an email that is already in use should fail with HTTP 409.
         """
         # Arrange
-        User.objects.create_user(
-            username="other@researchhub.com",
-            email="other@researchhub.com",
-            password="testpass123",
-        )
+        create_test_user(email="other@researchhub.com")
         self.client.force_authenticate(self.user)
 
         # Act
@@ -103,11 +97,7 @@ class UpdateEmailTest(APITransactionTestCase):
 
 class VerifyEmailUpdateTest(APITransactionTestCase):
     def setUp(self):
-        self.user = User.objects.create_user(
-            username="user@researchhub.com",
-            email="user@researchhub.com",
-            password="testpass123",
-        )
+        self.user = create_test_user(email="user@researchhub.com")
         self.primary = EmailAddress.objects.create(
             user=self.user,
             email=self.user.email,
