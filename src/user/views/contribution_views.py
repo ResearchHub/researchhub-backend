@@ -30,7 +30,6 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
             "researchhubpost",
             "rhcommentmodel",
             "paper",
-            "hypothesis",
             "bounty",
         )
 

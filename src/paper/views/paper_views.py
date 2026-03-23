@@ -52,7 +52,11 @@ from utils.doi import DOI
 from utils.http import POST, check_url_contains_pdf
 from utils.openalex import OpenAlex
 from utils.permissions import CreateOrUpdateIfAllowed, HasAPIKey, PostOnly
+import logging
+
 from utils.sentry import log_error
+
+logger = logging.getLogger(__name__)
 from utils.throttles import THROTTLE_CLASSES
 
 
@@ -316,13 +320,11 @@ class PaperViewSet(
                     # Log if any authors weren't found
                     missing_author_ids = set(author_ids) - set(author_map.keys())
                     if missing_author_ids:
-                        log_error(
-                            ValueError("Some authors not found"),
-                            message=f"Authors not found: {missing_author_ids}",
-                            json_data={
-                                "author_ids": author_ids,
-                                "found_authors": list(author_map.keys()),
-                            },
+                        logger.warning(
+                            "Some authors not found: %s (requested: %s, found: %s)",
+                            missing_author_ids,
+                            author_ids,
+                            list(author_map.keys()),
                         )
 
                     for author_data in authors_data:
