@@ -10,6 +10,7 @@ from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper
 from purchase.models import Purchase
 from purchase.related_models.balance_model import Balance
+from reputation.related_models.distribution import Distribution
 from user.related_models.follow_model import Follow
 from user.related_models.user_model import User
 from user.tests.helpers import create_random_authenticated_user, create_user
@@ -379,3 +380,129 @@ class UserBalanceTests(TestCase):
     def test_allocate_spend_zero_amount(self):
         allocations = self.user.allocate_spend(Decimal("0"))
         self.assertEqual(allocations, [])
+
+
+class BalanceLockedByReferralBonusTests(TestCase):
+    def setUp(self):
+        self.user = create_user(
+            email="locked@test.com",
+            first_name="Locked",
+            last_name="Test",
+        )
+        self.dist_ct = ContentType.objects.get_for_model(Distribution)
+        self.paper_ct = ContentType.objects.get_for_model(Paper)
+
+    def _create_distribution(self, distribution_type="REFERRAL_BONUS", recipient=None):
+        return Distribution.objects.create(
+            recipient=recipient or self.user,
+            amount=100,
+            distribution_type=distribution_type,
+        )
+
+    def test_returns_locked_referral_bonus_balances(self):
+        dist = self._create_distribution()
+        Balance.objects.create(
+            user=self.user,
+            amount="100",
+            content_type=self.dist_ct,
+            object_id=dist.id,
+            is_locked=True,
+        )
+
+        result = Balance.locked_by_referral_bonus()
+        self.assertEqual(result.count(), 1)
+        self.assertEqual(result.first().amount, "100")
+
+    def test_excludes_unlocked_referral_bonus_balances(self):
+        dist = self._create_distribution()
+        Balance.objects.create(
+            user=self.user,
+            amount="100",
+            content_type=self.dist_ct,
+            object_id=dist.id,
+            is_locked=False,
+        )
+
+        result = Balance.locked_by_referral_bonus()
+        self.assertEqual(result.count(), 0)
+
+    def test_excludes_locked_non_referral_distributions(self):
+        dist = self._create_distribution(distribution_type="CREATE_BOUNTY")
+        Balance.objects.create(
+            user=self.user,
+            amount="50",
+            content_type=self.dist_ct,
+            object_id=dist.id,
+            is_locked=True,
+        )
+
+        result = Balance.locked_by_referral_bonus()
+        self.assertEqual(result.count(), 0)
+
+    def test_excludes_locked_non_distribution_balances(self):
+        Balance.objects.create(
+            user=self.user,
+            amount="75",
+            content_type=self.paper_ct,
+            object_id=1,
+            is_locked=True,
+        )
+
+        result = Balance.locked_by_referral_bonus()
+        self.assertEqual(result.count(), 0)
+
+    def test_filters_within_provided_queryset(self):
+        other_user = create_user(
+            email="other@test.com",
+            first_name="Other",
+            last_name="User",
+        )
+        dist_self = self._create_distribution(recipient=self.user)
+        dist_other = self._create_distribution(recipient=other_user)
+
+        Balance.objects.create(
+            user=self.user,
+            amount="100",
+            content_type=self.dist_ct,
+            object_id=dist_self.id,
+            is_locked=True,
+        )
+        Balance.objects.create(
+            user=other_user,
+            amount="200",
+            content_type=self.dist_ct,
+            object_id=dist_other.id,
+            is_locked=True,
+        )
+
+        result = Balance.locked_by_referral_bonus(
+            Balance.objects.filter(user=self.user)
+        )
+        self.assertEqual(result.count(), 1)
+        self.assertEqual(result.first().amount, "100")
+
+    def test_returns_empty_when_no_matching_balances(self):
+        result = Balance.locked_by_referral_bonus()
+        self.assertEqual(result.count(), 0)
+
+    def test_multiple_locked_referral_balances(self):
+        dist1 = self._create_distribution()
+        dist2 = self._create_distribution()
+
+        Balance.objects.create(
+            user=self.user,
+            amount="100",
+            content_type=self.dist_ct,
+            object_id=dist1.id,
+            is_locked=True,
+        )
+        Balance.objects.create(
+            user=self.user,
+            amount="200",
+            content_type=self.dist_ct,
+            object_id=dist2.id,
+            is_locked=True,
+        )
+
+        result = Balance.locked_by_referral_bonus()
+        self.assertEqual(result.count(), 2)
