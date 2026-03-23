@@ -5,71 +5,117 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from feed.models import FeedEntry
-from feed.tasks import create_feed_entry
+from feed.serializers import serialize_feed_metrics
+from feed.tasks import create_feed_entry, serialize_feed_item
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 
 
 class Command(BaseCommand):
-    help = "Backfill FeedEntry rows for existing comments"
+    help = "Backfill or refresh FeedEntry rows for existing comments"
 
     def add_arguments(self, parser):
         parser.add_argument(
             "--since",
             type=str,
             default=None,
-            help="Only backfill comments created after this date " "(YYYY-MM-DD).",
+            help="Only process entries after this date (YYYY-MM-DD).",
         )
         parser.add_argument(
             "--dry-run",
             action="store_true",
             default=False,
-            help="Count eligible comments without creating entries.",
+            help="Count eligible entries without making changes.",
+        )
+        parser.add_argument(
+            "--refresh",
+            action="store_true",
+            default=False,
+            help="Refresh content and metrics on existing comment feed entries "
+            "instead of creating new ones.",
         )
 
-    def handle(self, *args, **options):
-        comment_ct = ContentType.objects.get_for_model(RhCommentModel)
+    def _parse_since(self, since_str):
+        try:
+            return timezone.make_aware(datetime.strptime(since_str, "%Y-%m-%d"))
+        except ValueError:
+            self.stderr.write(self.style.ERROR("Invalid date format. Use YYYY-MM-DD."))
+            return None
 
+    def handle(self, *args, **options):
+        if options["refresh"]:
+            self._handle_refresh(**options)
+        else:
+            self._handle_backfill(**options)
+
+    def _handle_refresh(self, **options):
+        comment_ct = ContentType.objects.get_for_model(RhCommentModel)
+        queryset = FeedEntry.objects.filter(content_type=comment_ct).order_by("id")
+
+        if options["since"]:
+            since_dt = self._parse_since(options["since"])
+            if not since_dt:
+                return
+            queryset = queryset.filter(action_date__gte=since_dt)
+
+        total = queryset.count()
+        self.stdout.write(f"Found {total} comment feed entries to refresh")
+
+        if total == 0 or options["dry_run"]:
+            return
+
+        processed = skipped = errors = 0
+
+        for entry in queryset.iterator(chunk_size=500):
+            try:
+                if not entry.item:
+                    skipped += 1
+                    continue
+
+                content = serialize_feed_item(entry.item, entry.content_type)
+                if content is None:
+                    skipped += 1
+                    continue
+
+                entry.content = content
+                entry.metrics = serialize_feed_metrics(entry.item, entry.content_type)
+                entry.save(update_fields=["content", "metrics"])
+                processed += 1
+
+                if processed % 100 == 0:
+                    self.stdout.write(f"Refreshed {processed}/{total}")
+            except Exception as e:
+                errors += 1
+                self.stderr.write(
+                    self.style.ERROR(f"Error on feed entry {entry.id}: {e}")
+                )
+
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Done: refreshed={processed}, skipped={skipped}, errors={errors}"
+            )
+        )
+
+    def _handle_backfill(self, **options):
+        comment_ct = ContentType.objects.get_for_model(RhCommentModel)
         queryset = (
-            RhCommentModel.objects.filter(
-                is_removed=False,
-            )
-            .select_related(
-                "thread__content_type",
-                "created_by",
-            )
+            RhCommentModel.objects.filter(is_removed=False)
+            .select_related("thread__content_type", "created_by")
             .order_by("id")
         )
 
         if options["since"]:
-            try:
-                since_dt = datetime.strptime(options["since"], "%Y-%m-%d")
-                since_dt = timezone.make_aware(since_dt)
-                queryset = queryset.filter(created_date__gte=since_dt)
-                self.stdout.write(
-                    f"Filtering comments created since " f"{options['since']}"
-                )
-            except ValueError:
-                self.stderr.write(
-                    self.style.ERROR("Invalid date format. Use YYYY-MM-DD.")
-                )
+            since_dt = self._parse_since(options["since"])
+            if not since_dt:
                 return
+            queryset = queryset.filter(created_date__gte=since_dt)
 
         total = queryset.count()
-        self.stdout.write(f"Found {total} comments to process")
+        self.stdout.write(f"Found {total} comments to backfill")
 
-        if total == 0:
-            self.stdout.write(self.style.SUCCESS("No comments to backfill"))
+        if total == 0 or options["dry_run"]:
             return
 
-        if options["dry_run"]:
-            self.stdout.write(
-                self.style.SUCCESS(f"Dry run: would backfill {total} comments")
-            )
-            return
-
-        processed = 0
-        skipped = 0
-        errors = 0
+        processed = skipped = errors = 0
 
         for comment in queryset.iterator(chunk_size=500):
             try:
@@ -86,20 +132,18 @@ class Command(BaseCommand):
                     continue
 
                 hub_ids = list(unified_doc.hubs.values_list("id", flat=True))
-                user_id = comment.created_by_id if comment.created_by_id else None
 
                 create_feed_entry(
                     item_id=comment.id,
                     item_content_type_id=comment_ct.id,
                     action=FeedEntry.PUBLISH,
                     hub_ids=hub_ids,
-                    user_id=user_id,
+                    user_id=comment.created_by_id or None,
                 )
                 processed += 1
 
                 if processed % 100 == 0:
                     self.stdout.write(f"Processed {processed}/{total}")
-
             except Exception as e:
                 errors += 1
                 self.stderr.write(
@@ -108,6 +152,6 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"Done: processed={processed}, " f"skipped={skipped}, errors={errors}"
+                f"Done: processed={processed}, skipped={skipped}, errors={errors}"
             )
         )
