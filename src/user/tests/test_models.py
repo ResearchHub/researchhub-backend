@@ -178,7 +178,6 @@ class UserBalanceTests(TestCase):
             amount="50",
             content_type=self.content_type,
             is_locked=True,
-            lock_type="FUNDRAISE_CONTRIBUTION",
         )
 
         # Default behavior should exclude locked funds
@@ -200,7 +199,6 @@ class UserBalanceTests(TestCase):
             amount="50",
             content_type=self.content_type,
             is_locked=True,
-            lock_type="FUNDRAISE_CONTRIBUTION",
         )
 
         # When include_locked=True, should include all funds
@@ -222,7 +220,6 @@ class UserBalanceTests(TestCase):
             amount="75",
             content_type=self.content_type,
             is_locked=True,
-            lock_type="FUNDRAISE_CONTRIBUTION",
         )
 
         # Should only return unlocked funds
@@ -244,7 +241,6 @@ class UserBalanceTests(TestCase):
             amount="100",
             content_type=self.content_type,
             is_locked=True,
-            lock_type="FUNDRAISE_CONTRIBUTION",
         )
 
         Balance.objects.create(
@@ -252,26 +248,23 @@ class UserBalanceTests(TestCase):
             amount="25",
             content_type=self.content_type,
             is_locked=True,
-            lock_type="FUNDRAISE_CONTRIBUTION",
         )
 
         # Should return total locked funds
         locked = self.user.get_locked_balance()
         self.assertEqual(locked, Decimal("125"))
 
-    def test_get_locked_balance_by_type(self):
-        # Create locked balances of different types
+    def test_get_locked_balance_returns_all_locked(self):
+        # Create locked balance
         Balance.objects.create(
             user=self.user,
             amount="60",
             content_type=self.content_type,
             is_locked=True,
-            lock_type="FUNDRAISE_CONTRIBUTION",
         )
 
-        # Should return only the specified lock type
-        fundraise_locked = self.user.get_locked_balance("FUNDRAISE_CONTRIBUTION")
-        self.assertEqual(fundraise_locked, Decimal("60"))
+        locked = self.user.get_locked_balance()
+        self.assertEqual(locked, Decimal("60"))
 
     def test_balance_calculations_with_mixed_balances(self):
         # Create mix of locked and unlocked balances
@@ -287,7 +280,6 @@ class UserBalanceTests(TestCase):
             amount="200",
             content_type=self.content_type,
             is_locked=True,
-            lock_type="FUNDRAISE_CONTRIBUTION",
         )
 
         Balance.objects.create(
@@ -323,7 +315,6 @@ class UserBalanceTests(TestCase):
             amount="100",
             content_type=self.content_type,
             is_locked=True,
-            lock_type=Balance.LockType.RSC_PURCHASE,
         )
 
         allocations = self.user.allocate_spend(Decimal("150"))
@@ -343,7 +334,6 @@ class UserBalanceTests(TestCase):
             amount="200",
             content_type=self.content_type,
             is_locked=True,
-            lock_type=Balance.LockType.RSC_PURCHASE,
         )
 
         with self.assertRaises(ValueError):
@@ -361,7 +351,6 @@ class UserBalanceTests(TestCase):
             amount="120",
             content_type=self.content_type,
             is_locked=True,
-            lock_type=Balance.LockType.RSC_PURCHASE,
         )
 
         allocations = self.user.allocate_spend(Decimal("150"), allow_locked=True)
@@ -380,7 +369,6 @@ class UserBalanceTests(TestCase):
             amount="200",
             content_type=self.content_type,
             is_locked=True,
-            lock_type=Balance.LockType.REFERRAL_BONUS,
         )
 
         allocations = self.user.allocate_spend(Decimal("100"), allow_locked=True)
