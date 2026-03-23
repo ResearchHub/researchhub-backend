@@ -547,6 +547,11 @@ BEDROCK_PROCESSING_ENABLED = (
     == "true"
 )
 
+OPENAI_API_KEY = os.environ.get(
+    "OPENAI_API_KEY",
+    getattr(keys, "OPENAI_API_KEY", ""),
+)
+
 if not (CLOUD or TESTING) and os.environ.get("AWS_PROFILE") is None:
     # Set AWS profile for local development
     os.environ["AWS_PROFILE"] = keys.AWS_PROFILE

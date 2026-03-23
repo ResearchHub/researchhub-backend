@@ -10,6 +10,7 @@ from research_ai.services.expert_finder_service import (
     _extract_text_from_pdf_bytes,
     _get_paper_pdf_bytes,
 )
+from research_ai.services.openai_expert_finder_service import OPENAI_EXPERT_FINDER_MODEL
 
 
 class GetDocumentContentTests(TestCase):
@@ -357,7 +358,7 @@ class ExpertFinderServiceParseTests(TestCase):
         self.assertEqual(len(experts), 1)
         self.assertEqual(experts[0]["name"], "John")
 
-    @patch("research_ai.services.expert_finder_service.BedrockLLMService")
+    @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
     @patch("research_ai.services.expert_finder_service.ProgressService")
     @patch(
         "research_ai.services.expert_finder_service.generate_pdf_report",
@@ -377,16 +378,16 @@ class ExpertFinderServiceParseTests(TestCase):
         mock_csv,
         mock_pdf,
         mock_progress,
-        mock_bedrock,
+        mock_openai,
     ):
-        mock_llm = MagicMock()
-        mock_llm.invoke.return_value = """
+        mock_openai_llm = MagicMock()
+        mock_openai_llm.invoke.return_value = """
         | Name | Title | Affiliation | Expertise | Email |
         |------|-------|-------------|-----------|-------|
         | Alice | Prof | MIT | AI | alice@mit.edu |
         """
-        mock_llm.model_id = "test-model"
-        mock_bedrock.return_value = mock_llm
+        mock_openai_llm.model_id = OPENAI_EXPERT_FINDER_MODEL
+        mock_openai.return_value = mock_openai_llm
         mock_progress.return_value.publish_progress_sync = MagicMock()
 
         service = ExpertFinderService()
@@ -400,8 +401,9 @@ class ExpertFinderServiceParseTests(TestCase):
         self.assertEqual(result["experts"][0]["name"], "Alice")
         self.assertIn("pdf", result["report_urls"])
         self.assertIn("csv", result["report_urls"])
+        self.assertEqual(result["llm_model"], OPENAI_EXPERT_FINDER_MODEL)
 
-    @patch("research_ai.services.expert_finder_service.BedrockLLMService")
+    @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
     @patch("research_ai.services.expert_finder_service.ProgressService")
     @patch(
         "research_ai.services.expert_finder_service.generate_pdf_report",
@@ -421,16 +423,16 @@ class ExpertFinderServiceParseTests(TestCase):
         mock_csv,
         mock_pdf,
         mock_progress,
-        mock_bedrock,
+        mock_openai,
     ):
-        mock_llm = MagicMock()
-        mock_llm.invoke.return_value = """
+        mock_openai_llm = MagicMock()
+        mock_openai_llm.invoke.return_value = """
         | Name | Title | Affiliation | Expertise | Email |
         |------|-------|-------------|-----------|-------|
         | Alice | Prof | MIT | AI | alice@mit.edu |
         """
-        mock_llm.model_id = "test-model"
-        mock_bedrock.return_value = mock_llm
+        mock_openai_llm.model_id = OPENAI_EXPERT_FINDER_MODEL
+        mock_openai.return_value = mock_openai_llm
         mock_progress.return_value.publish_progress_sync = MagicMock()
         callback = MagicMock()
 
@@ -448,19 +450,20 @@ class ExpertFinderServiceParseTests(TestCase):
         self.assertEqual(final_call[0][1], 100)
         self.assertIn("complete", final_call[0][2].lower())
 
-    @patch("research_ai.services.expert_finder_service.BedrockLLMService")
+    @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
     @patch("research_ai.services.expert_finder_service.ProgressService")
     def test_process_expert_search_returns_failed_when_no_table_parsed(
-        self, mock_progress, mock_bedrock
+        self, mock_progress, mock_openai
     ):
         """When LLM returns prose instead of a table, result is FAILED with error_message."""
-        mock_llm = MagicMock()
-        mock_llm.invoke.return_value = (
+        openai_bad_response = (
             "I cannot proceed. The input contains only placeholder text. "
             "Please provide the actual research description."
         )
-        mock_llm.model_id = "test-model"
-        mock_bedrock.return_value = mock_llm
+        mock_openai_llm = MagicMock()
+        mock_openai_llm.invoke.return_value = openai_bad_response
+        mock_openai_llm.model_id = OPENAI_EXPERT_FINDER_MODEL
+        mock_openai.return_value = mock_openai_llm
         publish = MagicMock()
         mock_progress.return_value.publish_progress_sync = publish
 
@@ -475,26 +478,26 @@ class ExpertFinderServiceParseTests(TestCase):
         self.assertEqual(result["experts"], [])
         self.assertEqual(result["report_urls"], {})
         self.assertIn("placeholder text", result["error_message"])
-        self.assertEqual(result["error_message"], mock_llm.invoke.return_value)
+        self.assertEqual(result["error_message"], openai_bad_response)
         failed_call = next(
             c for c in publish.call_args_list
             if c[0][2].get("status") == ExpertSearch.Status.FAILED
         )
         self.assertIsNotNone(failed_call)
 
-    @patch("research_ai.services.expert_finder_service.BedrockLLMService")
+    @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
     @patch("research_ai.services.expert_finder_service.ProgressService")
     def test_process_expert_search_error_message_truncated_when_llm_response_long(
-        self, mock_progress, mock_bedrock
+        self, mock_progress, mock_openai
     ):
         """When LLM returns non-table response, error_message is truncated to MAX_ERROR_MESSAGE_LENGTH."""
         from research_ai.services.expert_finder_service import MAX_ERROR_MESSAGE_LENGTH
 
         long_response = "No table here. " + "x" * (MAX_ERROR_MESSAGE_LENGTH + 1000)
-        mock_llm = MagicMock()
-        mock_llm.invoke.return_value = long_response
-        mock_llm.model_id = "test-model"
-        mock_bedrock.return_value = mock_llm
+        mock_openai_llm = MagicMock()
+        mock_openai_llm.invoke.return_value = long_response
+        mock_openai_llm.model_id = OPENAI_EXPERT_FINDER_MODEL
+        mock_openai.return_value = mock_openai_llm
         mock_progress.return_value.publish_progress_sync = MagicMock()
 
         service = ExpertFinderService()
@@ -506,14 +509,14 @@ class ExpertFinderServiceParseTests(TestCase):
         self.assertEqual(result["status"], ExpertSearch.Status.FAILED)
         self.assertEqual(len(result["error_message"]), MAX_ERROR_MESSAGE_LENGTH)
 
-    @patch("research_ai.services.expert_finder_service.BedrockLLMService")
+    @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
     @patch("research_ai.services.expert_finder_service.ProgressService")
     def test_process_expert_search_on_exception_publishes_failed_and_reraises(
-        self, mock_progress, mock_bedrock
+        self, mock_progress, mock_openai
     ):
-        mock_llm = MagicMock()
-        mock_llm.invoke.side_effect = RuntimeError("LLM down")
-        mock_bedrock.return_value = mock_llm
+        mock_openai_llm = MagicMock()
+        mock_openai_llm.invoke.side_effect = RuntimeError("LLM down")
+        mock_openai.return_value = mock_openai_llm
         publish = MagicMock()
         mock_progress.return_value.publish_progress_sync = publish
 
@@ -530,7 +533,7 @@ class ExpertFinderServiceParseTests(TestCase):
         )
         self.assertIsNotNone(failed_call)
 
-    @patch("research_ai.services.expert_finder_service.BedrockLLMService")
+    @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
     @patch("research_ai.services.expert_finder_service.ProgressService")
     @patch(
         "research_ai.services.expert_finder_service.generate_pdf_report",
@@ -545,16 +548,16 @@ class ExpertFinderServiceParseTests(TestCase):
         side_effect=lambda sid, content, ext, ct: f"https://storage/{sid}.{ext}",
     )
     def test_process_expert_search_config_expert_count_alternate_keys(
-        self, mock_upload, mock_csv, mock_pdf, mock_progress, mock_bedrock
+        self, mock_upload, mock_csv, mock_pdf, mock_progress, mock_openai
     ):
-        mock_llm = MagicMock()
-        mock_llm.invoke.return_value = """
+        mock_openai_llm = MagicMock()
+        mock_openai_llm.invoke.return_value = """
         | Name | Title | Affiliation | Expertise | Email |
         |------|-------|-------------|-----------|-------|
         | Alice | Prof | MIT | AI | alice@mit.edu |
         """
-        mock_llm.model_id = "model"
-        mock_bedrock.return_value = mock_llm
+        mock_openai_llm.model_id = OPENAI_EXPERT_FINDER_MODEL
+        mock_openai.return_value = mock_openai_llm
         mock_progress.return_value.publish_progress_sync = MagicMock()
 
         service = ExpertFinderService()
@@ -565,7 +568,7 @@ class ExpertFinderServiceParseTests(TestCase):
         )
         self.assertEqual(result["status"], ExpertSearch.Status.COMPLETED)
 
-    @patch("research_ai.services.expert_finder_service.BedrockLLMService")
+    @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
     @patch("research_ai.services.expert_finder_service.ProgressService")
     @patch(
         "research_ai.services.expert_finder_service.generate_pdf_report",
@@ -580,18 +583,18 @@ class ExpertFinderServiceParseTests(TestCase):
         side_effect=lambda sid, content, ext, ct: f"https://storage/{sid}.{ext}",
     )
     def test_process_expert_search_expertise_level_string_and_list(
-        self, mock_upload, mock_csv, mock_pdf, mock_progress, mock_bedrock
+        self, mock_upload, mock_csv, mock_pdf, mock_progress, mock_openai
     ):
         from research_ai.constants import ExpertiseLevel
 
-        mock_llm = MagicMock()
-        mock_llm.invoke.return_value = """
+        mock_openai_llm = MagicMock()
+        mock_openai_llm.invoke.return_value = """
         | Name | Title | Affiliation | Expertise | Email |
         |------|-------|-------------|-----------|-------|
         | Alice | Prof | MIT | AI | alice@mit.edu |
         """
-        mock_llm.model_id = "model"
-        mock_bedrock.return_value = mock_llm
+        mock_openai_llm.model_id = OPENAI_EXPERT_FINDER_MODEL
+        mock_openai.return_value = mock_openai_llm
         mock_progress.return_value.publish_progress_sync = MagicMock()
 
         service = ExpertFinderService()
@@ -602,7 +605,7 @@ class ExpertFinderServiceParseTests(TestCase):
         )
         self.assertEqual(result["status"], ExpertSearch.Status.COMPLETED)
 
-    @patch("research_ai.services.expert_finder_service.BedrockLLMService")
+    @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
     @patch("research_ai.services.expert_finder_service.ProgressService")
     @patch(
         "research_ai.services.expert_finder_service.generate_pdf_report",
@@ -617,11 +620,11 @@ class ExpertFinderServiceParseTests(TestCase):
         side_effect=lambda sid, content, ext, ct: f"https://storage/{sid}.{ext}",
     )
     def test_process_expert_search_exception_calls_progress_callback(
-        self, mock_upload, mock_csv, mock_pdf, mock_progress, mock_bedrock
+        self, mock_upload, mock_csv, mock_pdf, mock_progress, mock_openai
     ):
-        mock_llm = MagicMock()
-        mock_llm.invoke.side_effect = ValueError("fail")
-        mock_bedrock.return_value = mock_llm
+        mock_openai_llm = MagicMock()
+        mock_openai_llm.invoke.side_effect = ValueError("fail")
+        mock_openai.return_value = mock_openai_llm
         mock_progress.return_value.publish_progress_sync = MagicMock()
         callback = MagicMock()
 

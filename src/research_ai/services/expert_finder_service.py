@@ -14,7 +14,7 @@ from research_ai.prompts.expert_finder_prompts import (
     build_system_prompt,
     build_user_prompt,
 )
-from research_ai.services.bedrock_llm_service import BedrockLLMService
+from research_ai.services.openai_expert_finder_service import OpenAIExpertFinderService
 from research_ai.services.progress_service import ProgressService, TaskType
 from research_ai.services.report_generator_service import (
     generate_csv_file,
@@ -132,7 +132,7 @@ def _extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
 
 class ExpertFinderService:
     def __init__(self):
-        self.bedrock_llm = BedrockLLMService()
+        self.openai_expert = OpenAIExpertFinderService()
         self.progress_service = ProgressService()
 
     def process_expert_search(
@@ -146,7 +146,7 @@ class ExpertFinderService:
         progress_callback: Callable[[str, int, str], None] | None = None,
     ) -> dict[str, Any]:
         """
-        Run expert finder: build prompts, call Bedrock, parse table, generate reports.
+        Run expert finder: OpenAI finds experts (web search), parse table, generate reports.
 
         All operations are synchronous (for use from Celery). Progress is published
         to Redis and optionally to progress_callback(search_id, percent, message).
@@ -182,7 +182,9 @@ class ExpertFinderService:
             expert_count = config.get("expert_count", 10)
             from research_ai.constants import ExpertiseLevel, Gender, Region
 
-            expertise_level_raw = config.get("expertise_level", [ExpertiseLevel.ALL_LEVELS])
+            expertise_level_raw = config.get(
+                "expertise_level", [ExpertiseLevel.ALL_LEVELS]
+            )
             if isinstance(expertise_level_raw, str):
                 expertise_level = (
                     [expertise_level_raw]
@@ -222,12 +224,12 @@ class ExpertFinderService:
                 is_pdf=is_pdf,
             )
 
-            publish("Initiating AI search...", 50)
-            llm_response = self.bedrock_llm.invoke(
+            publish("Initiating AI search...", 40)
+            llm_response = self.openai_expert.invoke(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
             )
-            logger.info("LLM response length: %s", len(llm_response))
+            logger.info("OpenAI expert finder response length: %s", len(llm_response))
 
             publish("Parsing expert recommendations...", 70)
             experts = self._parse_markdown_table(llm_response)
@@ -278,7 +280,7 @@ class ExpertFinderService:
                     "experts": [],
                     "report_urls": {},
                     "expert_count": 0,
-                    "llm_model": self.bedrock_llm.model_id,
+                    "llm_model": self.openai_expert.model_id,
                     "error_message": error_message,
                     "current_step": current_step,
                 }
@@ -301,7 +303,7 @@ class ExpertFinderService:
                 "experts": experts,
                 "report_urls": {"pdf": pdf_url, "csv": csv_url},
                 "expert_count": len(experts),
-                "llm_model": self.bedrock_llm.model_id,
+                "llm_model": self.openai_expert.model_id,
             }
             publish(
                 "Expert search complete!", 100, status=ExpertSearch.Status.COMPLETED
