@@ -17,6 +17,16 @@ class Balance(models.Model):
     object_id = models.PositiveIntegerField(null=True)
     source = GenericForeignKey("content_type", "object_id")
 
+    # Optional link to the purchase that triggered this balance record.
+    # Used for contribution refunds.
+    purchase = models.ForeignKey(
+        "purchase.Purchase",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="balance_records",
+    )
+
     # TODO: why is this a char field?
     amount = models.CharField(max_length=255)
     testnet_amount = models.CharField(max_length=255, default=0, null=True, blank=True)

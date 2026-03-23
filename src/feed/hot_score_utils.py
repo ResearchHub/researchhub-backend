@@ -36,13 +36,6 @@ def has_comments(metrics: dict) -> bool:
     return replies > 0 or review_count > 0
 
 
-def get_content_type_name(feed_entry) -> str:
-    try:
-        return feed_entry.content_type.model.lower()
-    except (AttributeError, TypeError):
-        return "unknown"
-
-
 def parse_iso_datetime(date_string: str) -> Optional[datetime]:
     if not date_string or not isinstance(date_string, str):
         return None
