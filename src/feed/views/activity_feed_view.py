@@ -17,6 +17,7 @@ from researchhub_comment.constants.rh_comment_thread_types import (
     PEER_REVIEW,
 )
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
+from researchhub_document.related_models.constants.document_type import PAPER
 
 
 class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
@@ -81,6 +82,10 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
             if document_type:
                 queryset = queryset.filter(
                     unified_document__document_type=(document_type.upper())
+                )
+            else:
+                queryset = queryset.exclude(
+                    unified_document__document_type=PAPER
                 )
 
         content_type = self.request.query_params.get("content_type")
