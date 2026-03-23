@@ -2,10 +2,12 @@ from unittest import TestCase
 from unittest.mock import Mock, patch
 
 from django_opensearch_dsl.registries import registry
+from opensearchpy.exceptions import NotFoundError
 
-from search.celery import (  # Replace `search.celery` with the actual module name
+from search.celery import (
     DEBOUNCE_PERIOD,
     CelerySignalProcessor,
+    _is_benign_bulk_error,
 )
 
 
@@ -182,3 +184,74 @@ class TestCelerySignalProcessor(TestCase):
         # Assert
         get_model_mock.assert_called_once_with("test_app", "TestModel")
         model_mock.objects.get.assert_called_once_with(pk=1)
+
+    @patch("search.celery.registry.update")
+    @patch("search.celery.apps.get_model")
+    def test_registry_update_task_not_found_error(
+        self, get_model_mock, registry_update_mock
+    ):
+        """NotFoundError should be silently ignored."""
+        model_mock = Mock()
+        model_mock.DoesNotExist = type("DoesNotExist", (Exception,), {})
+        model_mock.objects.get.return_value = self.instance
+        get_model_mock.return_value = model_mock
+        registry_update_mock.side_effect = NotFoundError(
+            404, "document_missing_exception"
+        )
+
+        CelerySignalProcessor.registry_update_task(1, "test_app", "TestModel")
+
+    @patch("search.celery.registry.update")
+    @patch("search.celery.apps.get_model")
+    def test_registry_update_task_benign_bulk_error(
+        self, get_model_mock, registry_update_mock
+    ):
+        """BulkIndexError with not_found should be silently handled."""
+        model_mock = Mock()
+        model_mock.DoesNotExist = type("DoesNotExist", (Exception,), {})
+        model_mock.objects.get.return_value = self.instance
+        get_model_mock.return_value = model_mock
+
+        class BulkIndexError(Exception):
+            pass
+
+        registry_update_mock.side_effect = BulkIndexError(
+            "1 document(s) failed to index: not_found"
+        )
+
+        CelerySignalProcessor.registry_update_task(1, "test_app", "TestModel")
+
+    @patch("search.celery.registry.update")
+    @patch("search.celery.apps.get_model")
+    def test_registry_update_task_real_error_reraises(
+        self, get_model_mock, registry_update_mock
+    ):
+        """Non-benign exceptions should propagate."""
+        model_mock = Mock()
+        model_mock.DoesNotExist = type("DoesNotExist", (Exception,), {})
+        model_mock.objects.get.return_value = self.instance
+        get_model_mock.return_value = model_mock
+        registry_update_mock.side_effect = RuntimeError("connection refused")
+
+        with self.assertRaises(RuntimeError):
+            CelerySignalProcessor.registry_update_task(1, "test_app", "TestModel")
+
+
+class TestIsBenignBulkError(TestCase):
+    def test_benign_bulk_error(self):
+        class BulkIndexError(Exception):
+            pass
+
+        exc = BulkIndexError("1 document(s) failed: not_found")
+        self.assertTrue(_is_benign_bulk_error(exc))
+
+    def test_non_benign_bulk_error(self):
+        class BulkIndexError(Exception):
+            pass
+
+        exc = BulkIndexError("1 document(s) failed: mapper_parsing_exception")
+        self.assertFalse(_is_benign_bulk_error(exc))
+
+    def test_non_bulk_error(self):
+        exc = RuntimeError("not_found")
+        self.assertFalse(_is_benign_bulk_error(exc))

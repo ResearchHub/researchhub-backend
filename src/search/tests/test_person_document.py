@@ -139,3 +139,29 @@ class PersonDocumentTests(TestCase):
 
         # Assert
         self.assertEqual(result, 0)
+
+    def test_prepare_headline_with_valid_string(self):
+        document = PersonDocument()
+        author = Mock()
+        author.headline = "Professor of Computer Science"
+        self.assertEqual(
+            document.prepare_headline(author), "Professor of Computer Science"
+        )
+
+    def test_prepare_headline_with_none(self):
+        document = PersonDocument()
+        author = Mock()
+        author.headline = None
+        self.assertEqual(document.prepare_headline(author), "")
+
+    def test_prepare_headline_with_non_string(self):
+        document = PersonDocument()
+        author = Mock()
+        author.headline = {"nested": "object"}
+        self.assertEqual(document.prepare_headline(author), "")
+
+    def test_prepare_headline_with_empty_string(self):
+        document = PersonDocument()
+        author = Mock()
+        author.headline = ""
+        self.assertEqual(document.prepare_headline(author), "")
