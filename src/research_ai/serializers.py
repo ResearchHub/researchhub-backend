@@ -6,6 +6,7 @@ from research_ai.constants import ExpertiseLevel, Gender, Region
 from research_ai.models import EmailTemplate, ExpertSearch, GeneratedEmail
 from researchhub_document.related_models.constants.document_type import PAPER
 from researchhub_document.serializers import ResearchhubPostSerializer
+from user.models import Author
 
 
 class ExpertSearchConfigSerializer(serializers.Serializer):
@@ -94,6 +95,38 @@ class ExpertResultSerializer(serializers.Serializer):
     sources = serializers.ListField(required=False, allow_null=True)
 
 
+class ResearchAIAuthorSerializer(serializers.ModelSerializer):
+    """Author (creator) for research_ai list/detail responses; no nested user."""
+
+    profile_image = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Author
+        fields = ["id", "first_name", "last_name", "profile_image", "headline"]
+
+    def get_profile_image(self, obj):
+        try:
+            if (
+                hasattr(obj, "profile_image")
+                and obj.profile_image
+                and obj.profile_image.name
+            ):
+                return obj.profile_image.url
+        except Exception:
+            pass
+        return None
+
+
+def _get_created_by_payload(obj):
+    """
+    Build { user_id: int, author: {...} } for list/detail responses.
+    """
+    created_by = obj.created_by
+    author = getattr(created_by, "author_profile", None)
+    author_data = ResearchAIAuthorSerializer(author).data if author else None
+    return {"user_id": created_by.id, "author": author_data}
+
+
 def resolve_work_for_unified_document(unified_doc, context=None):
     """
     Resolve a unified document to work payload (paper or post) using paper/post serializers.
@@ -131,6 +164,7 @@ def _resolve_expert_search_work(expert_search, context=None):
 class ExpertSearchSerializer(serializers.ModelSerializer):
 
     search_id = serializers.IntegerField(source="id", read_only=True)
+    created_by = serializers.SerializerMethodField()
     expert_names = serializers.SerializerMethodField()
     report_urls = serializers.SerializerMethodField()
     work = serializers.SerializerMethodField()
@@ -141,6 +175,7 @@ class ExpertSearchSerializer(serializers.ModelSerializer):
         model = ExpertSearch
         fields = [
             "search_id",
+            "created_by",
             "name",
             "query",
             "work",
@@ -165,6 +200,9 @@ class ExpertSearchSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
+    def get_created_by(self, obj):
+        return _get_created_by_payload(obj)
+
     def get_work(self, obj):
         return _resolve_expert_search_work(obj, context=self.context)
 
@@ -186,6 +224,7 @@ class ExpertSearchSerializer(serializers.ModelSerializer):
 class ExpertSearchListItemSerializer(serializers.ModelSerializer):
 
     search_id = serializers.IntegerField(source="id", read_only=True)
+    created_by = serializers.SerializerMethodField()
     expert_names = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(source="created_date", read_only=True)
 
@@ -193,6 +232,7 @@ class ExpertSearchListItemSerializer(serializers.ModelSerializer):
         model = ExpertSearch
         fields = [
             "search_id",
+            "created_by",
             "name",
             "query",
             "status",
@@ -202,6 +242,9 @@ class ExpertSearchListItemSerializer(serializers.ModelSerializer):
             "completed_at",
         ]
         read_only_fields = fields
+
+    def get_created_by(self, obj):
+        return _get_created_by_payload(obj)
 
     def get_expert_names(self, obj):
         if not obj.expert_results:
@@ -293,6 +336,7 @@ class SendEmailRequestSerializer(serializers.Serializer):
         min_length=1,
         max_length=100,
     )
+    reply_to = serializers.EmailField(required=True)
     cc = serializers.ListField(
         child=serializers.EmailField(),
         required=False,
@@ -301,6 +345,7 @@ class SendEmailRequestSerializer(serializers.Serializer):
 
 
 class GeneratedEmailSerializer(serializers.ModelSerializer):
+    created_by = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(source="created_date", read_only=True)
     updated_at = serializers.DateTimeField(source="updated_date", read_only=True)
 
@@ -308,6 +353,7 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
         model = GeneratedEmail
         fields = [
             "id",
+            "created_by",
             "expert_search",
             "expert_name",
             "expert_title",
@@ -323,6 +369,9 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
+
+    def get_created_by(self, obj):
+        return _get_created_by_payload(obj)
 
 
 class GeneratedEmailCreateUpdateSerializer(serializers.ModelSerializer):
@@ -361,6 +410,8 @@ class GeneratedEmailCreateUpdateSerializer(serializers.ModelSerializer):
 class EmailTemplateSerializer(serializers.ModelSerializer):
     """List/detail serializer for EmailTemplate."""
 
+    created_by = serializers.SerializerMethodField()
+
     class Meta:
         model = EmailTemplate
         fields = [
@@ -381,6 +432,9 @@ class EmailTemplateSerializer(serializers.ModelSerializer):
             "updated_date",
         ]
         read_only_fields = ["id", "created_by", "created_date", "updated_date"]
+
+    def get_created_by(self, obj):
+        return _get_created_by_payload(obj)
 
 
 class EmailTemplateCreateSerializer(serializers.Serializer):

@@ -52,9 +52,7 @@ class GenerateEmailView(APIView):
         data = ser.validated_data
 
         try:
-            expert_search = ExpertSearch.objects.get(
-                id=data["expert_search_id"], created_by=request.user
-            )
+            expert_search = ExpertSearch.objects.get(id=data["expert_search_id"])
         except ExpertSearch.DoesNotExist:
             return Response(
                 {"detail": "Expert search not found."},
@@ -127,9 +125,7 @@ class BulkGenerateEmailView(APIView):
         data = ser.validated_data
 
         try:
-            expert_search = ExpertSearch.objects.get(
-                id=data["expert_search_id"], created_by=request.user
-            )
+            expert_search = ExpertSearch.objects.get(id=data["expert_search_id"])
         except ExpertSearch.DoesNotExist:
             return Response(
                 {"detail": "Expert search not found."},
@@ -213,10 +209,9 @@ class PreviewEmailView(APIView):
         )
 
         ids = data["generated_email_ids"]
-        qs = GeneratedEmail.objects.filter(
-            id__in=ids,
-            created_by=request.user,
-        ).exclude(status=GeneratedEmail.Status.PROCESSING)
+        qs = GeneratedEmail.objects.filter(id__in=ids).exclude(
+            status=GeneratedEmail.Status.PROCESSING
+        )
         sent = 0
         for rec in qs:
             try:
@@ -251,13 +246,7 @@ class SendEmailView(APIView):
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
 
-        user_email = (getattr(request.user, "email", None) or "").strip()
-        if not user_email or "@" not in user_email:
-            return Response(
-                {"detail": "User has no email address; required for Reply-To."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        reply_to = user_email
+        reply_to = (data["reply_to"] or "").strip()
         cc_list = list(data.get("cc") or [])
         ids = data["generated_email_ids"]
 
@@ -271,7 +260,6 @@ class SendEmailView(APIView):
 
         qs = GeneratedEmail.objects.filter(
             id__in=ids,
-            created_by=request.user,
             status=GeneratedEmail.Status.DRAFT,
         )
         queued_ids = list(qs.values_list("id", flat=True))
@@ -298,9 +286,10 @@ class GeneratedEmailListView(APIView):
     ]
 
     def get_queryset(self):
-        return GeneratedEmail.objects.filter(created_by=self.request.user).order_by(
-            "-created_date"
-        )
+        return GeneratedEmail.objects.select_related(
+            "created_by",
+            "created_by__author_profile",
+        ).order_by("-created_date")
 
     def get(self, request):
         limit = max(1, min(100, int(request.query_params.get("limit", 20))))
@@ -345,9 +334,10 @@ class GeneratedEmailDetailView(APIView):
 
     def _get_email(self, request, email_id):
         try:
-            email = GeneratedEmail.objects.get(
-                id=int(email_id), created_by=request.user
-            )
+            email = GeneratedEmail.objects.select_related(
+                "created_by",
+                "created_by__author_profile",
+            ).get(id=int(email_id))
             return email, None
         except (ValueError, TypeError, GeneratedEmail.DoesNotExist):
             return None, Response(
