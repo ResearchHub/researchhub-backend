@@ -64,6 +64,10 @@ dependencies = [
     "openai>=1.45.0",
 ]
 
+[tool.coverage.run]
+concurrency = ["multiprocessing"]
+parallel = true
+
 [dependency-groups]
 dev = [
     "black==26.3.1",
