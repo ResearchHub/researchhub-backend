@@ -91,6 +91,7 @@ class User(AbstractUser):
     referral_code = models.CharField(max_length=36, default=uuid.uuid4, unique=True)
     reputation = models.IntegerField(default=100)
     should_display_rsc_balance_home = models.BooleanField(default=True)
+    is_staking_opted_in = models.BooleanField(default=False, db_index=True)
     spam_updated_date = models.DateTimeField(null=True)
     suspended_updated_date = models.DateTimeField(null=True)
     updated_date = models.DateTimeField(auto_now=True)
