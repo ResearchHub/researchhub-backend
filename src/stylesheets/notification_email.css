@@ -216,3 +216,20 @@ body {
 .button-label:hover {
   border-color: rgb(78, 83, 255);
 }
+
+.cta-wrapper {
+  text-align: center;
+  padding: 10px 0 20px;
+}
+
+.cta-button {
+  display: inline-block;
+  background-color: #3971FF;
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 12px 32px;
+  border-radius: 8px;
+  text-decoration: none;
+  letter-spacing: 0.3px;
+}

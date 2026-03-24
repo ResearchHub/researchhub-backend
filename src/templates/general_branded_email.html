@@ -1,0 +1,42 @@
+{% load inlinecss %}
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>{{ subject|default:"ResearchHub" }}</title>
+        <link href="https://fonts.googleapis.com/css?family=Roboto&display=swap" rel="stylesheet">
+    </head>
+    {% inlinecss "notification_email.css" %}
+    <body>
+      <div class="email-container">
+        <div class="email-header">
+          <img class="img-logo" src="{{ assets_base_url }}/email_assets/ResearchHubLogo.png" alt="ResearchHub" />
+          {% if subject %}
+            <div class="header">
+              {{ subject }}
+            </div>
+          {% endif %}
+        </div>
+          <div class="content">
+            <div class="body">
+              {{ body|safe }}
+            </div>
+            {% if cta_url %}
+              <div class="cta-wrapper">
+                <a class="cta-button" href="{{ cta_url }}">
+                  {{ cta_label|default:"View" }}
+                </a>
+              </div>
+            {% endif %}
+            <div class="divider">
+              <div class="line"></div>
+            </div>
+          </div>
+      <div class="footer">
+        {% if opt_out %}
+          <a href="{{ opt_out }}">Unsubscribe or change how frequently I get updated</a>
+        {% endif %}
+      </div>
+    </body>
+</html>
+
+{% endinlinecss %}

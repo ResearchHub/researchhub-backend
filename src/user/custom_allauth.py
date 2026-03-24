@@ -1,13 +1,38 @@
-from allauth.account.adapter import DefaultAccountAdapter, get_adapter
+from allauth.account.adapter import DefaultAccountAdapter
 from allauth.account.forms import ResetPasswordForm
 from allauth.account.utils import user_pk_to_url_str
 from dj_rest_auth.serializers import PasswordResetSerializer
 from django.conf import settings
 
+from utils.message import send_email_message
+
+BRANDED_TEMPLATE = "general_branded_email.html"
+
 
 class CustomAccountAdapter(DefaultAccountAdapter):
     def get_email_confirmation_url(self, request, emailconfirmation):
         return f"{settings.BASE_FRONTEND_URL}/verify/{emailconfirmation.key}"
+
+    def send_confirmation_mail(self, request, emailconfirmation, signup):
+        activate_url = self.get_email_confirmation_url(request, emailconfirmation)
+        subject = "Confirm Your Email Address"
+        send_email_message(
+            emailconfirmation.email_address.email,
+            None,
+            subject,
+            {
+                "body": (
+                    "<p>Hello from ResearchHub,</p>"
+                    "<p>Click the button below to confirm your email address.</p>"
+                ),
+                "cta_url": activate_url,
+                "cta_label": "Confirm Email",
+                "subject": subject,
+                "assets_base_url": settings.ASSETS_BASE_URL,
+            },
+            html_template=BRANDED_TEMPLATE,
+            is_transactional=True,
+        )
 
 
 class CustomPasswordResetSerializer(PasswordResetSerializer):
@@ -16,27 +41,34 @@ class CustomPasswordResetSerializer(PasswordResetSerializer):
         return CustomResetPasswordForm
 
     def get_email_options(self):
-        return {
-            "email_template": "account/registration/reset",
-            "extra_email_context": {},
-        }
+        return {}
 
 
 class CustomResetPasswordForm(ResetPasswordForm):
     def save(self, request, **kwargs):
         email = self.cleaned_data["email"]
         token_generator = kwargs.get("token_generator")
-        template = kwargs.get("email_template")
         for user in self.users:
             uid = user_pk_to_url_str(user)
             token = token_generator.make_token(user)
             reset_url = f"{settings.BASE_FRONTEND_URL}/reset/{uid}/{token}"
-            context = {
-                "assets_base_url": settings.ASSETS_BASE_URL,
-                "user": user,
-                "request": request,
-                "email": email,
-                "reset_url": reset_url,
-            }
-            get_adapter(request).send_mail(template, email, context)
+            subject = "Reset Your Password"
+            send_email_message(
+                email,
+                None,
+                subject,
+                {
+                    "body": (
+                        "<p>Hello from ResearchHub,</p>"
+                        "<p>Click the button below to complete "
+                        "your password reset.</p>"
+                    ),
+                    "cta_url": reset_url,
+                    "cta_label": "Reset Password",
+                    "subject": subject,
+                    "assets_base_url": settings.ASSETS_BASE_URL,
+                },
+                html_template=BRANDED_TEMPLATE,
+                is_transactional=True,
+            )
         return email
