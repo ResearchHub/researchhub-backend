@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 BEDROCK_MODEL_ID = getattr(
     settings,
     "RESEARCH_AI_BEDROCK_MODEL_ID",
-    "us.anthropic.claude-sonnet-4-6",
+    "us.anthropic.claude-haiku-4-5-20251001-v1:0",
 )
 
 
