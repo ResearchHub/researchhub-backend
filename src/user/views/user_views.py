@@ -503,7 +503,11 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         user = User.objects.get(pk=user.id)
         is_opted_in = request.data.get("is_staking_opted_in", False)
         user.is_staking_opted_in = is_opted_in
-        user.save(update_fields=["is_staking_opted_in"])
+        if is_opted_in:
+            user.staking_opted_in_date = timezone.now()
+        else:
+            user.staking_opted_in_date = None
+        user.save(update_fields=["is_staking_opted_in", "staking_opted_in_date"])
         serialized = UserSerializer(user)
         return Response(serialized.data, status=200)
 
