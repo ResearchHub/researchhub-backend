@@ -260,7 +260,6 @@ class WithdrawalViewSetTests(APITestCase):
             content_type=ContentType.objects.get(model="distribution"),
             amount=str(WITHDRAWAL_MINIMUM + 100),
             is_locked=True,
-            lock_type=Balance.LockType.RSC_PURCHASE,
         )
 
         self.client.force_authenticate(user)
@@ -302,7 +301,6 @@ class WithdrawalViewSetTests(APITestCase):
             content_type=ContentType.objects.get(model="distribution"),
             amount="75.0",
             is_locked=True,
-            lock_type=Balance.LockType.REFERRAL_BONUS,
         )
         initial_locked_balance = user.get_locked_balance()
 
