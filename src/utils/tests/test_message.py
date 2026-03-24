@@ -81,7 +81,7 @@ class SendEmailMessageTests(TestCase):
         self.assertIn("bounced@example.com", result["exclude"])
         self.assertEqual(len(mail.outbox), 0)
 
-    def test_transactional_skips_suppression_and_sets_header(self):
+    def test_transactional_skips_whitelist_and_suppression(self):
         # Arrange
         EmailRecipient.objects.create(email="bounced@example.com", do_not_email=True)
 
@@ -92,6 +92,7 @@ class SendEmailMessageTests(TestCase):
 
         # Assert
         self.assertEqual(result["success"], ["bounced@example.com"])
+        self.assertEqual(result["exclude"], [])
         msg = mail.outbox[0]
         self.assertEqual(msg.extra_headers["X-Auto-Response-Suppress"], "All")
         self.assertNotIn("Precedence", msg.extra_headers)

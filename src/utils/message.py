@@ -8,8 +8,6 @@ from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from sentry_sdk import capture_exception
 
-from mailing_list.models import EmailRecipient
-
 logger = logging.getLogger(__name__)
 
 
@@ -25,6 +23,8 @@ def get_suppressed_emails(emails):
     An address is suppressed when its ``EmailRecipient`` record has
     ``do_not_email=True`` (bounced / complained) or ``is_opted_out=True``.
     """
+    from mailing_list.models import EmailRecipient
+
     return set(
         EmailRecipient.objects.filter(
             email__in=emails,
@@ -74,8 +74,11 @@ def send_email_message(
 
     result = {"success": [], "failure": [], "exclude": []}
 
-    sendable = [r for r in recipients if is_valid_email(r)]
-    result["exclude"].extend(set(recipients) - set(sendable))
+    if is_transactional:
+        sendable = list(recipients)
+    else:
+        sendable = [r for r in recipients if is_valid_email(r)]
+        result["exclude"].extend(set(recipients) - set(sendable))
 
     if not is_transactional and sendable:
         suppressed = get_suppressed_emails(sendable)
