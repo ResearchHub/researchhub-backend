@@ -20,9 +20,28 @@ from researchhub_access_group.models import Permission
 from researchhub_document.helpers import create_post
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import GRANT
+from researchhub_document.views.researchhub_post_views import (
+    MIN_POST_BODY_LENGTH,
+    MIN_POST_TITLE_LENGTH,
+)
+from user.models import UserVerification
 from user.related_models.author_model import Author
 from user.related_models.organization_model import Organization
 from user.tests.helpers import create_organization, create_random_default_user
+
+
+def make_user_verified(user):
+    """Create UserVerification (APPROVED) for user so user.is_verified is True."""
+    UserVerification.objects.get_or_create(
+        user=user,
+        defaults={
+            "first_name": user.first_name or "Test",
+            "last_name": user.last_name or "User",
+            "status": UserVerification.Status.APPROVED,
+            "verified_by": UserVerification.Type.MANUAL,
+            "external_id": f"test-verified-{user.id}",
+        },
+    )
 
 
 class ViewTests(APITestCase):
@@ -50,8 +69,114 @@ class ViewTests(APITestCase):
         # Add exchange rate for fundraise tests
         RscExchangeRate.objects.create(rate=1.0)
 
+        # Require verified user for create/update; make setUp users verified so existing tests pass
+        make_user_verified(self.admin_user)
+        make_user_verified(self.member_user)
+        make_user_verified(self.non_member)
+
+    def test_unverified_user_cannot_create_post(self):
+        unverified = create_random_default_user("unverified_no_verification")
+        self.client.force_authenticate(unverified)
+        hub = create_hub("hub")
+        response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "DISCUSSION",
+                "created_by": unverified.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": "x" * MIN_POST_BODY_LENGTH,
+                "title": "x" * MIN_POST_TITLE_LENGTH,
+                "hubs": [hub.id],
+            },
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("verified", (response.data.get("detail") or "").lower())
+
+    def test_unverified_user_cannot_update_post(self):
+        author = create_random_default_user("author_verified_owner")
+        make_user_verified(author)
+        self.client.force_authenticate(author)
+        hub = create_hub("hub")
+        create_resp = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "DISCUSSION",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": "x" * MIN_POST_BODY_LENGTH,
+                "title": "x" * MIN_POST_TITLE_LENGTH,
+                "hubs": [hub.id],
+            },
+        )
+        self.assertEqual(create_resp.status_code, 200)
+        post_id = create_resp.data["id"]
+        # Unverified user cannot update another's post
+        unverified = create_random_default_user("unverified_updater")
+        self.client.force_authenticate(unverified)
+        update_resp = self.client.put(
+            f"/api/researchhubpost/{post_id}/",
+            {
+                "post_id": post_id,
+                "document_type": "DISCUSSION",
+                "created_by": author.id,
+                "full_src": "updated",
+                "is_public": True,
+                "renderable_text": "x" * MIN_POST_BODY_LENGTH,
+                "title": "x" * MIN_POST_TITLE_LENGTH,
+                "hubs": [hub.id],
+            },
+        )
+        self.assertEqual(update_resp.status_code, 403)
+        self.assertIn("verified", (update_resp.data.get("detail") or "").lower())
+
+    def test_verified_user_can_create_and_update_post(self):
+        verified = create_random_default_user("verified_creator")
+        make_user_verified(verified)
+        self.client.force_authenticate(verified)
+        hub = create_hub("hub")
+        create_resp = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "DISCUSSION",
+                "created_by": verified.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": "x" * MIN_POST_BODY_LENGTH,
+                "title": "x" * MIN_POST_TITLE_LENGTH,
+                "hubs": [hub.id],
+            },
+        )
+        self.assertEqual(create_resp.status_code, 200)
+        post_id = create_resp.data["id"]
+        update_resp = self.client.put(
+            f"/api/researchhubpost/{post_id}/",
+            {
+                "post_id": post_id,
+                "document_type": "DISCUSSION",
+                "created_by": verified.id,
+                "full_src": "updated",
+                "is_public": True,
+                "renderable_text": "x" * MIN_POST_BODY_LENGTH,
+                "title": "x" * MIN_POST_TITLE_LENGTH,
+                "hubs": [hub.id],
+            },
+        )
+        self.assertEqual(update_resp.status_code, 200)
+
+    def test_unverified_user_can_list_and_retrieve_posts(self):
+        unverified = create_random_default_user("unverified_reader")
+        self.client.force_authenticate(unverified)
+        list_resp = self.client.get("/api/researchhubpost/")
+        self.assertEqual(list_resp.status_code, 200)
+        post = create_post(created_by=self.admin_user, document_type=GRANT)
+        retrieve_resp = self.client.get(f"/api/researchhubpost/{post.id}/")
+        self.assertEqual(retrieve_resp.status_code, 200)
+
     def test_author_can_delete_doc(self):
         author = create_random_default_user("author")
+        make_user_verified(author)
         hub = create_hub()
 
         self.client.force_authenticate(author)
@@ -81,6 +206,7 @@ class ViewTests(APITestCase):
 
     def test_author_can_restore_doc(self):
         author = create_random_default_user("author")
+        make_user_verified(author)
         hub = create_hub()
 
         self.client.force_authenticate(author)
@@ -110,6 +236,7 @@ class ViewTests(APITestCase):
 
     def test_moderator_can_restore_doc(self):
         author = create_random_default_user("author")
+        make_user_verified(author)
         mod = create_random_default_user("mod", moderator=True)
         hub = create_hub()
 
@@ -141,6 +268,7 @@ class ViewTests(APITestCase):
 
     def test_non_author_cannot_delete_doc(self):
         author = create_random_default_user("author")
+        make_user_verified(author)
         non_author = create_random_default_user("non_author")
         hub = create_hub()
 
@@ -173,6 +301,7 @@ class ViewTests(APITestCase):
 
     def test_moderator_can_delete_doc(self):
         author = create_random_default_user("author")
+        make_user_verified(author)
         moderator = create_random_default_user("moderator", moderator=True)
         hub = create_hub()
 
@@ -205,6 +334,7 @@ class ViewTests(APITestCase):
 
     def test_author_can_create_post(self):
         author = create_random_default_user("author")
+        make_user_verified(author)
         hub = create_hub()
 
         self.client.force_authenticate(author)
@@ -226,6 +356,7 @@ class ViewTests(APITestCase):
 
     def test_min_post_title_length(self):
         author = create_random_default_user("author")
+        make_user_verified(author)
         hub = create_hub()
 
         self.client.force_authenticate(author)
@@ -247,6 +378,7 @@ class ViewTests(APITestCase):
 
     def test_min_post_body_length(self):
         author = create_random_default_user("author")
+        make_user_verified(author)
         hub = create_hub()
 
         self.client.force_authenticate(author)
@@ -395,6 +527,7 @@ class ViewTests(APITestCase):
         hub = create_hub()
 
         author = create_random_default_user("author")
+        make_user_verified(author)
         self.client.force_authenticate(author)
 
         org = create_organization(author, "organization")
@@ -485,6 +618,7 @@ class ViewTests(APITestCase):
         mock_crossref.return_value.status_code = 200
 
         author = create_random_default_user("author")
+        make_user_verified(author)
         hub = create_hub()
 
         self.client.force_authenticate(author)
@@ -534,6 +668,7 @@ class ViewTests(APITestCase):
 
     def test_fundraise_in_response_when_preregistration(self):
         author = create_random_default_user("author")
+        make_user_verified(author)
         hub = create_hub()
 
         self.client.force_authenticate(author)
@@ -557,6 +692,7 @@ class ViewTests(APITestCase):
 
     def test_fundraise_null_in_response_when_not_preregistration(self):
         author = create_random_default_user("author")
+        make_user_verified(author)
         hub = create_hub()
 
         self.client.force_authenticate(author)
@@ -583,6 +719,7 @@ class ViewTests(APITestCase):
         mock_crossref.return_value.status_code = 200
 
         author = create_random_default_user("author")
+        make_user_verified(author)
         hub = create_hub()
 
         self.client.force_authenticate(author)
@@ -619,6 +756,7 @@ class ViewTests(APITestCase):
     def test_grant_created_when_grant_amount_provided(self):
         """Test that a grant is created when grant_amount is provided"""
         author = create_random_default_user("author", moderator=True)
+        make_user_verified(author)
         hub = create_hub()
 
         self.client.force_authenticate(author)
@@ -651,11 +789,12 @@ class ViewTests(APITestCase):
         self.assertEqual(
             doc_response.data["grant"]["description"], "Test grant for research"
         )
-        self.assertEqual(doc_response.data["grant"]["status"], "OPEN")
+        self.assertEqual(doc_response.data["grant"]["status"], "PENDING")
 
     def test_grant_null_when_no_grant_amount(self):
         """Test that grant is null when no grant_amount is provided"""
         author = create_random_default_user("author", moderator=True)
+        make_user_verified(author)
         hub = create_hub()
 
         self.client.force_authenticate(author)
@@ -683,6 +822,7 @@ class ViewTests(APITestCase):
     def test_grant_created_with_end_date(self):
         """Test that a grant can be created with an end date"""
         author = create_random_default_user("author", moderator=True)
+        make_user_verified(author)
         hub = create_hub()
         end_date = datetime.now(pytz.UTC) + timedelta(days=30)
 
@@ -720,6 +860,7 @@ class ViewTests(APITestCase):
     def test_grant_creation_validation_error(self):
         """Test that grant creation fails with invalid data"""
         author = create_random_default_user("author", moderator=True)
+        make_user_verified(author)
         hub = create_hub()
 
         self.client.force_authenticate(author)
@@ -750,6 +891,7 @@ class ViewTests(APITestCase):
     def test_grant_with_fundraise_both_created(self):
         """Test that both grant and fundraise can be created on the same post"""
         author = create_random_default_user("author", moderator=True)
+        make_user_verified(author)
         hub = create_hub()
 
         self.client.force_authenticate(author)
@@ -815,6 +957,7 @@ class ViewTests(APITestCase):
     def test_grant_update_existing_grant(self):
         """Test that an existing grant can be updated when updating a post"""
         author = create_random_default_user("author", moderator=True)
+        make_user_verified(author)
         hub = create_hub()
 
         self.client.force_authenticate(author)
@@ -890,6 +1033,7 @@ class ViewTests(APITestCase):
     def test_grant_create_new_grant_during_update(self):
         """Test that grants cannot be created during updates (only at post creation)"""
         author = create_random_default_user("author", moderator=True)
+        make_user_verified(author)
         hub = create_hub()
 
         self.client.force_authenticate(author)
@@ -951,6 +1095,7 @@ class ViewTests(APITestCase):
     def test_grant_preserve_existing_grant_when_no_grant_data(self):
         """Test that existing grant is preserved when no grant data is provided in update"""
         author = create_random_default_user("author", moderator=True)
+        make_user_verified(author)
         hub = create_hub()
 
         self.client.force_authenticate(author)
@@ -1019,6 +1164,7 @@ class ViewTests(APITestCase):
     def test_grant_update_with_end_date(self):
         """Test that grant end date can be updated"""
         author = create_random_default_user("author", moderator=True)
+        make_user_verified(author)
         hub = create_hub()
         initial_end_date = datetime.now(pytz.UTC) + timedelta(days=30)
         updated_end_date = datetime.now(pytz.UTC) + timedelta(days=60)
@@ -1086,6 +1232,7 @@ class ViewTests(APITestCase):
     def test_grant_update_validation_error(self):
         """Test that grant update fails with invalid data"""
         author = create_random_default_user("author", moderator=True)
+        make_user_verified(author)
         hub = create_hub()
 
         self.client.force_authenticate(author)
@@ -1140,6 +1287,7 @@ class ViewTests(APITestCase):
     def test_grant_update_with_null_fields(self):
         """Test that grant fields can be updated to null/empty values where appropriate"""
         author = create_random_default_user("author", moderator=True)
+        make_user_verified(author)
         hub = create_hub()
 
         self.client.force_authenticate(author)
@@ -1203,6 +1351,7 @@ class ViewTests(APITestCase):
     def test_grant_created_with_contacts(self):
         """Test that a grant can be created with contact users"""
         author = create_random_default_user("author", moderator=True)
+        make_user_verified(author)
         contact1 = create_random_default_user("contact1")
         contact2 = create_random_default_user("contact2")
         hub = create_hub()
@@ -1250,6 +1399,7 @@ class ViewTests(APITestCase):
     def test_grant_update_add_contacts(self):
         """Test that contacts can be added to an existing grant"""
         author = create_random_default_user("author", moderator=True)
+        make_user_verified(author)
         contact1 = create_random_default_user("contact1")
         contact2 = create_random_default_user("contact2")
         hub = create_hub()
@@ -1321,6 +1471,7 @@ class ViewTests(APITestCase):
     def test_grant_update_remove_contacts(self):
         """Test that contacts can be removed from an existing grant"""
         author = create_random_default_user("author", moderator=True)
+        make_user_verified(author)
         contact1 = create_random_default_user("contact1")
         contact2 = create_random_default_user("contact2")
         hub = create_hub()
@@ -1390,6 +1541,7 @@ class ViewTests(APITestCase):
     def test_grant_update_change_contacts(self):
         """Test that contacts can be changed in an existing grant"""
         author = create_random_default_user("author", moderator=True)
+        make_user_verified(author)
         contact1 = create_random_default_user("contact1")
         contact2 = create_random_default_user("contact2")
         contact3 = create_random_default_user("contact3")
@@ -1467,6 +1619,7 @@ class ViewTests(APITestCase):
     def test_get_queryset_filters_by_document_type(self):
         """Test that the get_queryset method filters posts by document_type parameter"""
         author = create_random_default_user("author")
+        make_user_verified(author)
         hub = create_hub()
 
         self.client.force_authenticate(author)

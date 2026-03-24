@@ -7,8 +7,17 @@ from django.contrib.contenttypes.models import ContentType
 from rest_framework.test import APIRequestFactory, APITestCase, force_authenticate
 
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
-from purchase.models import Balance, Fundraise, Purchase, RscExchangeRate
-from purchase.services.fundraise_service import FundraiseService
+from purchase.models import (
+    Balance,
+    Fundraise,
+    Purchase,
+    RscExchangeRate,
+    UsdFundraiseContribution,
+)
+from purchase.services.fundraise_service import (
+    USD_CONTRIBUTION_CSV_HEADERS,
+    FundraiseService,
+)
 from purchase.views import FundraiseViewSet
 from referral.models import ReferralSignup
 from referral.services.referral_bonus_service import ReferralBonusService
@@ -426,7 +435,7 @@ class FundraiseViewTests(APITestCase):
         # Should create 2 distributions (one for referrer, one for referred user)
         # Note: Other distributions (fundraise payout, fees) are also created
         referral_bonus_distributions = Distribution.objects.filter(
-            distribution_type=Balance.LockType.REFERRAL_BONUS,
+            distribution_type="REFERRAL_BONUS",
             created_date__gte=datetime.now(pytz.UTC) - timedelta(seconds=10),
         )
 
@@ -439,29 +448,26 @@ class FundraiseViewTests(APITestCase):
 
         referrer_distribution = Distribution.objects.filter(
             recipient=referrer,
-            distribution_type=Balance.LockType.REFERRAL_BONUS,
+            distribution_type="REFERRAL_BONUS",
             amount=expected_bonus,
         ).first()
         self.assertIsNotNone(referrer_distribution)
 
         referred_distribution = Distribution.objects.filter(
             recipient=referred_user,
-            distribution_type=Balance.LockType.REFERRAL_BONUS,
+            distribution_type="REFERRAL_BONUS",
             amount=expected_bonus,
         ).first()
         self.assertIsNotNone(referred_distribution)
 
         # Check that locked balances were created
-        referrer_balance = Balance.objects.filter(
-            user=referrer, is_locked=True, lock_type=Balance.LockType.REFERRAL_BONUS
-        ).first()
+        referrer_balance = Balance.objects.filter(user=referrer, is_locked=True).first()
         self.assertIsNotNone(referrer_balance)
         self.assertEqual(float(referrer_balance.amount), expected_bonus)
 
         referred_balance = Balance.objects.filter(
             user=referred_user,
             is_locked=True,
-            lock_type=Balance.LockType.REFERRAL_BONUS,
         ).first()
         self.assertIsNotNone(referred_balance)
         self.assertEqual(float(referred_balance.amount), expected_bonus)
@@ -490,7 +496,6 @@ class FundraiseViewTests(APITestCase):
             user=user,
             content_type=ContentType.objects.get(model="distribution"),
             is_locked=True,
-            lock_type=Balance.LockType.REFERRAL_BONUS,
         )
 
         # Verify user's balance situation
@@ -529,9 +534,6 @@ class FundraiseViewTests(APITestCase):
         locked_amount_balance = amount_balances.filter(is_locked=True).first()
         self.assertIsNotNone(locked_amount_balance)
         self.assertEqual(float(locked_amount_balance.amount), -100.0)
-        self.assertEqual(
-            locked_amount_balance.lock_type, Balance.LockType.REFERRAL_BONUS
-        )
 
         # Should have 1 fee balance record: 9 from regular (no locked left)
         fee_balances = Balance.objects.filter(user=user, content_type=fee_content_type)
@@ -567,7 +569,6 @@ class FundraiseViewTests(APITestCase):
             user=user,
             content_type=ContentType.objects.get(model="distribution"),
             is_locked=True,
-            lock_type=Balance.LockType.REFERRAL_BONUS,
         )
 
         # Total balance is 80, but contribution of 100 + 9 fees = 109 total cost
@@ -597,7 +598,6 @@ class FundraiseViewTests(APITestCase):
             user=user,
             content_type=ContentType.objects.get(model="distribution"),
             is_locked=True,
-            lock_type=Balance.LockType.REFERRAL_BONUS,
         )
 
         # Verify user's balance situation
@@ -653,7 +653,6 @@ class FundraiseViewTests(APITestCase):
             user=user,
             content_type=ContentType.objects.get(model="distribution"),
             is_locked=True,
-            lock_type=Balance.LockType.REFERRAL_BONUS,
         )
 
         # Give user regular balance to cover the rest
@@ -934,3 +933,111 @@ class FundraiseViewTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("must be RSC or USD", response.data["message"])
 
+    def _create_usd_contribution(
+        self, fundraise_id, user, amount_cents=10000, fee_cents=900, **kwargs
+    ):
+        defaults = {
+            "user": user,
+            "fundraise_id": fundraise_id,
+            "amount_cents": amount_cents,
+            "fee_cents": fee_cents,
+            "origin_fund_id": "fund_123",
+            "destination_org_id": "org_123",
+            "endaoment_transfer_id": "transfer_123",
+            "status": UsdFundraiseContribution.Status.SUBMITTED,
+        }
+        defaults.update(kwargs)
+        return UsdFundraiseContribution.objects.create(**defaults)
+
+    def test_usd_contributions_csv_returns_csv(self):
+        """
+        Test that the endpoint returns a CSV with correct headers.
+        """
+        # Arrange
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+
+        # Act
+        self.client.force_authenticate(self.user)
+        response = self.client.get(
+            f"/api/fundraise/{fundraise_id}/usd_contributions.csv/"
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "text/csv")
+        self.assertIn(
+            f"fundraise_{fundraise_id}_usd_contributions.csv",
+            response["Content-Disposition"],
+        )
+
+        content = response.content.decode()
+        lines = content.strip().split("\n")
+        headers = lines[0].split(",")
+        self.assertEqual(headers, USD_CONTRIBUTION_CSV_HEADERS)
+
+    def test_usd_contributions_csv_includes_contributions(self):
+        """
+        Test that CSV rows contain correct contribution data.
+        """
+        # Arrange
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+        self._link_nonprofit(fundraise_id)
+
+        contributor = create_random_authenticated_user("csv_contributor")
+        self._create_usd_contribution(
+            fundraise_id,
+            contributor,
+            amount_cents=50000,
+            fee_cents=4500,
+        )
+
+        # Act
+        self.client.force_authenticate(self.user)
+        response = self.client.get(
+            f"/api/fundraise/{fundraise_id}/usd_contributions.csv/"
+        )
+
+        # Assert
+        content = response.content.decode()
+        lines = content.strip().split("\n")
+        self.assertEqual(len(lines), 2)  # header + 1 row
+
+        row = lines[1].split(",")
+        self.assertEqual(row[0], str(fundraise_id))  # fundraise_id
+        self.assertEqual(row[4], "Test Nonprofit")  # nonprofit_name
+        self.assertEqual(row[8], "500.00")  # amount_usd
+        self.assertEqual(row[9], "45.00")  # fee_usd
+        self.assertEqual(row[10], "455.00")  # net_amount_usd
+        self.assertEqual(row[15], "SUBMITTED")  # status
+        self.assertEqual(row[16], "False")  # is_refunded
+
+    def test_usd_contributions_csv_requires_moderator(self):
+        """
+        Test that non-moderators cannot access the CSV endpoint.
+        """
+        # Arrange
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+        regular_user = create_random_authenticated_user("regular_user")
+
+        # Act
+        self.client.force_authenticate(regular_user)
+        response = self.client.get(
+            f"/api/fundraise/{fundraise_id}/usd_contributions.csv/"
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 403)
+
+    def test_usd_contributions_csv_not_found(self):
+        """
+        Test that a nonexistent fundraise returns 404.
+        """
+        # Act
+        self.client.force_authenticate(self.user)
+        response = self.client.get("/api/fundraise/99999/usd_contributions.csv/")
+
+        # Assert
+        self.assertEqual(response.status_code, 404)

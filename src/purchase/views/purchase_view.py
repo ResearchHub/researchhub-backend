@@ -139,12 +139,14 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                     content_type=ContentType.objects.get_for_model(SupportFee),
                     object_id=current_support_fee.id,
                     amount=f"-{fee_str}",
+                    purchase=purchase,
                 )
                 Balance.objects.create(
                     user=user,
                     content_type=source_type,
                     object_id=purchase_id,
                     amount=f"-{amount}",
+                    purchase=purchase,
                 )
 
                 # Track in Amplitude

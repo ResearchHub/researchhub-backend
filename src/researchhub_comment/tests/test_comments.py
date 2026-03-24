@@ -9,7 +9,22 @@ from paper.tests.helpers import create_paper
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.models import Score
+from user.models import UserVerification
 from user.tests.helpers import create_moderator, create_random_default_user, create_user
+
+
+def _make_user_verified(user):
+    """Create UserVerification (APPROVED) so user.is_verified is True."""
+    UserVerification.objects.get_or_create(
+        user=user,
+        defaults={
+            "first_name": user.first_name or "Test",
+            "last_name": user.last_name or "User",
+            "status": UserVerification.Status.APPROVED,
+            "verified_by": UserVerification.Type.MANUAL,
+            "external_id": f"test-verified-{user.id}",
+        },
+    )
 
 
 class CommentViewTests(APITestCase):
@@ -22,6 +37,8 @@ class CommentViewTests(APITestCase):
         self.user_4 = create_random_default_user("comment_user_4")
         self.moderator = create_moderator(first_name="moderator", last_name="moderator")
         self.paper = create_paper(uploaded_by=self.paper_uploader)
+        self.verified_user = create_random_default_user("verified_user")
+        _make_user_verified(self.verified_user)
 
     def _create_comment(self, obj_name, obj_id, created_by, data):
         self.client.force_authenticate(created_by)
@@ -380,8 +397,8 @@ class CommentViewTests(APITestCase):
         self.assertEqual(paper_res.data["discussion_count"], 3)
 
     def test_censor_post_comments_updates_discussion_count(self):
-        # Create a post first
-        self.client.force_authenticate(self.user_1)
+        # Create a post first (verified user required for POST)
+        self.client.force_authenticate(self.verified_user)
         post_res = self.client.post(
             "/api/researchhubpost/",
             {
@@ -433,8 +450,8 @@ class CommentViewTests(APITestCase):
         self.assertEqual(post_res.data["discussion_count"], initial_count - 1)
 
     def test_censor_post_child_with_deleted_parent_preserves_count(self):
-        # Create a post
-        self.client.force_authenticate(self.user_1)
+        # Create a post (verified user required for POST)
+        self.client.force_authenticate(self.verified_user)
         post_res = self.client.post(
             "/api/researchhubpost/",
             {
@@ -496,8 +513,8 @@ class CommentViewTests(APITestCase):
         )
 
     def test_censor_nested_post_comments(self):
-        # Create a post
-        self.client.force_authenticate(self.user_1)
+        # Create a post (verified user required for POST)
+        self.client.force_authenticate(self.verified_user)
         post_res = self.client.post(
             "/api/researchhubpost/",
             {

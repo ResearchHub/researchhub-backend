@@ -12,13 +12,17 @@ from purchase.related_models.usd_fundraise_contribution_model import (
     UsdFundraiseContribution,
 )
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
-from purchase.services.fundraise_service import FundraiseService
+from purchase.services.fundraise_service import (
+    USD_CONTRIBUTION_CSV_HEADERS,
+    FundraiseService,
+)
 from reputation.models import BountyFee
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from user.related_models.user_model import User
 from user.tests.helpers import create_random_authenticated_user
 
 
@@ -214,6 +218,15 @@ class CloseFundraiseTests(TestCase):
             amount=amount,
         )
 
+        # Create balance debit record (mirrors real service behavior)
+        Balance.objects.create(
+            user=user,
+            content_type=ContentType.objects.get_for_model(Purchase),
+            object_id=purchase.id,
+            amount=f"-{amount}",
+            purchase=purchase,
+        )
+
         # Add amount to escrow
         fundraise.escrow.amount_holding += amount
         fundraise.escrow.save()
@@ -332,13 +345,16 @@ class CloseFundraiseTests(TestCase):
         """Test that closing a fundraise also refunds the RSC fees"""
         from reputation.utils import calculate_bounty_fees
 
+        User.objects.get_or_create(id=1)
+
         contributor = create_random_authenticated_user("fundraise_contributor")
         self._give_user_rsc_balance(contributor, 1000)
 
         contribution_amount = Decimal("100")
-        self._create_rsc_contribution(
-            self.fundraise, contributor, amount=contribution_amount
+        _, error = self.fundraise_service.create_rsc_contribution(
+            contributor, self.fundraise, contribution_amount
         )
+        self.assertIsNone(error)
 
         fee, rh_fee, dao_fee, fee_object = calculate_bounty_fees(contribution_amount)
         initial_balance_count = Balance.objects.filter(user=contributor).count()
@@ -357,6 +373,53 @@ class CloseFundraiseTests(TestCase):
             amount=fee.to_eng_string(),
         ).exists()
         self.assertTrue(fee_refund_exists)
+
+    def test_close_fundraise_fee_refund_scoped_to_contribution(self):
+        """
+        Regression: when the same user makes multiple contributions, fee
+        refunds must be scoped per-contribution. Previously fee Balance
+        debits all pointed at the shared BountyFee config row, so
+        _get_locked_splits aggregated every fee debit for the user and
+        over-refunded on later contributions.
+        """
+        from reputation.utils import calculate_bounty_fees
+
+        User.objects.get_or_create(id=1)
+
+        contributor = create_random_authenticated_user("multi_contrib")
+        self._give_user_rsc_balance(contributor, 5000)
+
+        amt1 = Decimal("100")
+        amt2 = Decimal("200")
+
+        _, err1 = self.fundraise_service.create_rsc_contribution(
+            contributor, self.fundraise, amt1
+        )
+        self.assertIsNone(err1)
+
+        _, err2 = self.fundraise_service.create_rsc_contribution(
+            contributor, self.fundraise, amt2
+        )
+        self.assertIsNone(err2)
+
+        fee1, _, _, _ = calculate_bounty_fees(amt1)
+        fee2, _, _, _ = calculate_bounty_fees(amt2)
+
+        balance_before = contributor.get_balance()
+
+        result = self.fundraise_service.close_fundraise(self.fundraise)
+        self.assertTrue(result)
+
+        balance_after = contributor.get_balance()
+        expected_refund = amt1 + amt2 + fee1 + fee2
+        actual_refund = balance_after - balance_before
+
+        self.assertEqual(
+            actual_refund,
+            expected_refund,
+            f"Refund should be {expected_refund} but was {actual_refund}; "
+            f"fee debits were likely aggregated across contributions.",
+        )
 
     # --- USD refund tests ---
 
@@ -420,6 +483,106 @@ class CloseFundraiseTests(TestCase):
         contribution.refresh_from_db()
         # Already refunded, should not have been modified
         self.assertTrue(contribution.is_refunded)
+
+    # --- Locked balance refund tests ---
+
+    def test_close_fundraise_refunds_locked_funds_as_locked(self):
+        """
+        When a contribution used locked funds, the refund should
+        restore those funds as locked (not unlocked).
+        """
+        # Ensure default account (id=1) exists for fee deduction
+        User.objects.get_or_create(id=1)
+
+        contributor = create_random_authenticated_user("locked_contributor")
+
+        # Give contributor 50 locked + 100 unlocked RSC
+        dist_ct = ContentType.objects.get(model="distribution")
+        Balance.objects.create(
+            amount=50,
+            user=contributor,
+            content_type=dist_ct,
+            is_locked=True,
+        )
+        Balance.objects.create(
+            amount=100,
+            user=contributor,
+            content_type=dist_ct,
+            is_locked=False,
+        )
+
+        # Create contribution of 100 RSC via the service (uses
+        # allocate_spend which consumes locked funds first).
+        purchase, error = self.fundraise_service.create_rsc_contribution(
+            contributor, self.fundraise, Decimal("100")
+        )
+        self.assertIsNone(error)
+
+        # Verify debit Balance records have correct locked flags
+        purchase_ct = ContentType.objects.get_for_model(Purchase)
+        locked_debits = Balance.objects.filter(
+            content_type=purchase_ct,
+            object_id=purchase.id,
+            is_locked=True,
+        )
+        unlocked_debits = Balance.objects.filter(
+            content_type=purchase_ct,
+            object_id=purchase.id,
+            is_locked=False,
+        )
+        self.assertTrue(locked_debits.exists())
+        self.assertTrue(unlocked_debits.exists())
+
+        # Close the fundraise (triggers refunds)
+        result = self.fundraise_service.close_fundraise(self.fundraise)
+        self.assertTrue(result)
+
+        # Verify that refund created locked Balance credits
+        dist_ct_distribution = ContentType.objects.get(model="distribution")
+        locked_refunds = Balance.objects.filter(
+            user=contributor,
+            content_type=dist_ct_distribution,
+            is_locked=True,
+        ).exclude(
+            # Exclude the original seed balance
+            amount="50",
+        )
+        self.assertTrue(locked_refunds.exists())
+
+        # Verify the contributor's locked balance is restored
+        locked_balance = contributor.get_locked_balance()
+        self.assertEqual(locked_balance, Decimal("50"))
+
+    def test_close_fundraise_all_unlocked_stays_unlocked(self):
+        """
+        When a contribution used only unlocked funds, the refund
+        should not create any locked Balance records.
+        """
+        # Ensure default account (id=1) exists for fee deduction
+        User.objects.get_or_create(id=1)
+
+        contributor = create_random_authenticated_user("unlocked_contributor")
+        self._give_user_rsc_balance(contributor, 1000)
+
+        _, error = self.fundraise_service.create_rsc_contribution(
+            contributor, self.fundraise, Decimal("100")
+        )
+        self.assertIsNone(error)
+
+        result = self.fundraise_service.close_fundraise(self.fundraise)
+        self.assertTrue(result)
+
+        # No locked refund balances should exist
+        dist_ct = ContentType.objects.get(model="distribution")
+        locked_refunds = Balance.objects.filter(
+            user=contributor,
+            content_type=dist_ct,
+            is_locked=True,
+        )
+        self.assertFalse(locked_refunds.exists())
+
+        # Locked balance should be 0
+        self.assertEqual(contributor.get_locked_balance(), Decimal("0"))
 
     # --- Mixed RSC and USD tests ---
 
@@ -608,3 +771,120 @@ class CreateUsdContributionTests(TestCase):
                 user=self.user, fundraise=self.fundraise
             ).exists()
         )
+
+
+class ExportUsdContributionsTests(TestCase):
+    """Tests for the USD contribution export functionality."""
+
+    def setUp(self):
+        self.service = FundraiseService()
+        self.creator = create_random_authenticated_user("exporter1", moderator=True)
+        self.post = create_post(created_by=self.creator, document_type=PREREGISTRATION)
+        self.fundraise = self.service.create_fundraise_with_escrow(
+            user=self.creator,
+            unified_document=self.post.unified_document,
+            goal_amount=Decimal("1000"),
+            goal_currency="USD",
+            status=Fundraise.OPEN,
+        )
+        self.nonprofit = NonprofitOrg.objects.create(
+            name="Export Nonprofit", endaoment_org_id="org_export"
+        )
+        NonprofitFundraiseLink.objects.create(
+            fundraise=self.fundraise, nonprofit=self.nonprofit
+        )
+
+    def _create_contribution(self, user, amount_cents=10000, **kwargs):
+        defaults = {
+            "user": user,
+            "fundraise": self.fundraise,
+            "amount_cents": amount_cents,
+            "fee_cents": int(amount_cents * 0.09),
+            "origin_fund_id": "fund_test",
+            "destination_org_id": "org_export",
+            "endaoment_transfer_id": "transfer_test",
+            "status": UsdFundraiseContribution.Status.SUBMITTED,
+        }
+        defaults.update(kwargs)
+        return UsdFundraiseContribution.objects.create(**defaults)
+
+    def test_empty_fundraise_returns_no_rows(self):
+        # Act
+        rows = self.service.export_usd_contributions(self.fundraise)
+
+        # Assert
+        self.assertEqual(rows, [])
+
+    def test_row_count_matches_contributions(self):
+        # Arrange
+        user1 = create_random_authenticated_user("export_u1")
+        user2 = create_random_authenticated_user("export_u2")
+        self._create_contribution(user1)
+        self._create_contribution(user2)
+
+        # Act
+        rows = self.service.export_usd_contributions(self.fundraise)
+
+        # Assert
+        self.assertEqual(len(rows), 2)
+
+    def test_row_values(self):
+        # Arrange
+        contributor = create_random_authenticated_user("export_vals")
+        contributor.first_name = "Jane"
+        contributor.last_name = "Doe"
+        contributor.save()
+
+        self._create_contribution(
+            contributor,
+            amount_cents=50000,
+            fee_cents=4500,
+            origin_fund_id="fund_abc",
+            destination_org_id="org_xyz",
+            endaoment_transfer_id="tx_999",
+        )
+
+        # Act
+        rows = self.service.export_usd_contributions(self.fundraise)
+
+        # Assert
+        self.assertEqual(len(rows), 1)
+
+        row = rows[0]
+        self.assertEqual(row[0], self.fundraise.id)
+        self.assertEqual(row[1], Fundraise.OPEN)
+        self.assertEqual(row[2], Decimal("1000"))
+        self.assertEqual(row[3], self.post.title)
+        self.assertEqual(row[4], "Export Nonprofit")
+        self.assertEqual(row[6], "Jane Doe")
+        self.assertEqual(row[7], contributor.email)
+        self.assertEqual(row[8], "500.00")
+        self.assertEqual(row[9], "45.00")
+        self.assertEqual(row[10], "455.00")
+        self.assertEqual(row[11], "fund_abc")
+        self.assertEqual(row[12], "org_xyz")
+        self.assertEqual(row[13], "tx_999")
+        self.assertEqual(row[15], "SUBMITTED")
+        self.assertEqual(row[16], False)
+
+    def test_includes_refunded_contributions(self):
+        # Arrange
+        user = create_random_authenticated_user("export_refund")
+        self._create_contribution(user)
+        self._create_contribution(
+            user,
+            is_refunded=True,
+            status=UsdFundraiseContribution.Status.CANCELLED,
+        )
+
+        # Act
+        rows = self.service.export_usd_contributions(self.fundraise)
+
+        # Assert
+        self.assertEqual(len(rows), 2)
+
+        statuses = {row[15] for row in rows}
+        self.assertEqual(statuses, {"SUBMITTED", "CANCELLED"})
+
+        refunded_flags = {row[16] for row in rows}
+        self.assertEqual(refunded_flags, {True, False})

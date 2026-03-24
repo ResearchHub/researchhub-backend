@@ -52,9 +52,7 @@ class GenerateEmailView(APIView):
         data = ser.validated_data
 
         try:
-            expert_search = ExpertSearch.objects.get(
-                id=data["expert_search_id"], created_by=request.user
-            )
+            expert_search = ExpertSearch.objects.get(id=data["expert_search_id"])
         except ExpertSearch.DoesNotExist:
             return Response(
                 {"detail": "Expert search not found."},
@@ -127,9 +125,7 @@ class BulkGenerateEmailView(APIView):
         data = ser.validated_data
 
         try:
-            expert_search = ExpertSearch.objects.get(
-                id=data["expert_search_id"], created_by=request.user
-            )
+            expert_search = ExpertSearch.objects.get(id=data["expert_search_id"])
         except ExpertSearch.DoesNotExist:
             return Response(
                 {"detail": "Expert search not found."},
@@ -197,20 +193,25 @@ class PreviewEmailView(APIView):
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
 
-        recipient = getattr(request.user, "email", None) or (
-            request.user.username if hasattr(request.user, "username") else None
-        )
-        if not recipient:
+        recipient = (getattr(request.user, "email", None) or "").strip()
+        if not recipient or "@" not in recipient:
             return Response(
                 {"detail": "User has no email address for preview."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        get_full_name = getattr(request.user, "get_full_name", None)
+        display_name = (
+            (get_full_name() if callable(get_full_name) else "") or ""
+        ).strip() or "ResearchHub"
+        from_email = (
+            f"{display_name} via ResearchHub <{settings.EXPERT_FINDER_FROM_EMAIL}>"
+        )
+
         ids = data["generated_email_ids"]
-        qs = GeneratedEmail.objects.filter(
-            id__in=ids,
-            created_by=request.user,
-        ).exclude(status=GeneratedEmail.Status.PROCESSING)
+        qs = GeneratedEmail.objects.filter(id__in=ids).exclude(
+            status=GeneratedEmail.Status.PROCESSING
+        )
         sent = 0
         for rec in qs:
             try:
@@ -218,6 +219,8 @@ class PreviewEmailView(APIView):
                     [recipient],
                     rec.email_subject,
                     rec.email_body,
+                    reply_to=recipient,
+                    from_email=from_email,
                 )
                 sent += 1
             except Exception as e:
@@ -239,40 +242,24 @@ class SendEmailView(APIView):
     ]
 
     def post(self, request):
-        if not settings.PRODUCTION and not settings.TESTING:
-            return Response(
-                {"detail": "Sending emails to experts is disabled in non-production."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
         ser = SendEmailRequestSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
 
-        reply_to = (data.get("reply_to") or "").strip() or None
+        reply_to = (data["reply_to"] or "").strip()
         cc_list = list(data.get("cc") or [])
-        use_noreply = data.get("use_noreply", False)
         ids = data["generated_email_ids"]
 
-        if use_noreply:
-            from_email = f"ResearchHub <{settings.DEFAULT_FROM_EMAIL}>"
-        else:
-            user_email = getattr(request.user, "email", None) or ""
-            if not (user_email and "@" in user_email):
-                return Response(
-                    {
-                        "detail": "User has no email address. Use use_noreply to send from ResearchHub."
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            get_full_name = getattr(request.user, "get_full_name", None)
-            display_name = (
-                (get_full_name() if callable(get_full_name) else "") or ""
-            ).strip() or "ResearchHub"
-            from_email = f"{display_name} <{user_email}>"
+        get_full_name = getattr(request.user, "get_full_name", None)
+        display_name = (
+            (get_full_name() if callable(get_full_name) else "") or ""
+        ).strip() or "ResearchHub"
+        from_email = (
+            f"{display_name} via ResearchHub <{settings.EXPERT_FINDER_FROM_EMAIL}>"
+        )
 
         qs = GeneratedEmail.objects.filter(
             id__in=ids,
-            created_by=request.user,
             status=GeneratedEmail.Status.DRAFT,
         )
         queued_ids = list(qs.values_list("id", flat=True))
@@ -299,9 +286,10 @@ class GeneratedEmailListView(APIView):
     ]
 
     def get_queryset(self):
-        return GeneratedEmail.objects.filter(created_by=self.request.user).order_by(
-            "-created_date"
-        )
+        return GeneratedEmail.objects.select_related(
+            "created_by",
+            "created_by__author_profile",
+        ).order_by("-created_date")
 
     def get(self, request):
         limit = max(1, min(100, int(request.query_params.get("limit", 20))))
@@ -346,9 +334,10 @@ class GeneratedEmailDetailView(APIView):
 
     def _get_email(self, request, email_id):
         try:
-            email = GeneratedEmail.objects.get(
-                id=int(email_id), created_by=request.user
-            )
+            email = GeneratedEmail.objects.select_related(
+                "created_by",
+                "created_by__author_profile",
+            ).get(id=int(email_id))
             return email, None
         except (ValueError, TypeError, GeneratedEmail.DoesNotExist):
             return None, Response(

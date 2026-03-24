@@ -53,3 +53,14 @@ def _update_feed_entries(review):
             args=(entry.id,),
             priority=1,
         )
+
+    # Refresh the reviewed comment's feed entry (to include the latest review score)
+    if review.content_type and review.object_id:
+        comment_feed_entries = FeedEntry.objects.filter(
+            content_type=review.content_type, object_id=review.object_id
+        )
+        for entry in comment_feed_entries:
+            refresh_feed_entry_by_id.apply_async(
+                args=(entry.id,),
+                priority=1,
+            )

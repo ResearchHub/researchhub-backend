@@ -7,27 +7,34 @@ from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from feed.views.grant_cache_mixin import GrantCacheMixin
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.serializers.grant_create_serializer import GrantCreateSerializer
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
+from purchase.services.grant_service import GrantModerationService
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.permissions import IsModerator
+
 
 class GrantViewSet(viewsets.ModelViewSet):
     queryset = Grant.objects.all()
     serializer_class = DynamicGrantSerializer
     permission_classes = [IsAuthenticated]
 
+    def dispatch(self, request, *args, **kwargs):
+        self.grant_service = kwargs.pop("grant_service", GrantModerationService())
+        return super().dispatch(request, *args, **kwargs)
+
     def get_permissions(self):
-        """
-        Only moderators can create, update, or delete grants.
-        Anyone authenticated can view grants.
-        """
-        if self.action in ["create", "update", "partial_update", "destroy"]:
+        """Moderators only for update/delete; any authenticated user can create/view."""
+        if self.action in ["update", "partial_update", "destroy"]:
             return [IsModerator()]
         return super().get_permissions()
+
+    def _invalidate_grant_feed_cache(self):
+        GrantCacheMixin.invalidate_grant_feed_cache()
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -61,9 +68,7 @@ class GrantViewSet(viewsets.ModelViewSet):
         return context
 
     def create(self, request, *args, **kwargs):
-        """
-        Create a new grant. Only moderators can create grants.
-        """
+        """Create a new grant in PENDING status awaiting moderator approval."""
         serializer = GrantCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -71,6 +76,8 @@ class GrantViewSet(viewsets.ModelViewSet):
             validated_data = serializer.validated_data.copy()
             validated_data["created_by"] = request.user
             grant = serializer.create(validated_data)
+
+        self._invalidate_grant_feed_cache()
 
         context = self.get_serializer_context()
         response_serializer = self.get_serializer(grant, context=context)
@@ -83,10 +90,12 @@ class GrantViewSet(viewsets.ModelViewSet):
         grant = self.get_object()
 
         # Allow grant creator to update their own grants
-        if request.user != grant.created_by and not request.user.is_moderator():
+        if request.user != grant.created_by and not request.user.moderator:
             return Response({"message": "Permission denied"}, status=403)
 
-        return super().update(request, *args, **kwargs)
+        response = super().update(request, *args, **kwargs)
+        self._invalidate_grant_feed_cache()
+        return response
 
     def partial_update(self, request, *args, **kwargs):
         """
@@ -95,10 +104,77 @@ class GrantViewSet(viewsets.ModelViewSet):
         grant = self.get_object()
 
         # Allow grant creator to update their own grants
-        if request.user != grant.created_by and not request.user.is_moderator():
+        if request.user != grant.created_by and not request.user.moderator:
             return Response({"message": "Permission denied"}, status=403)
 
-        return super().partial_update(request, *args, **kwargs)
+        response = super().partial_update(request, *args, **kwargs)
+        self._invalidate_grant_feed_cache()
+        return response
+
+    @action(
+        methods=["POST"],
+        detail=True,
+        permission_classes=[IsModerator],
+    )
+    def approve(self, request, *args, **kwargs):
+        grant = self.get_object()
+
+        try:
+            self.grant_service.approve_grant(grant, request.user)
+        except ValueError as e:
+            return Response({"message": str(e)}, status=400)
+
+        return Response(self.get_serializer(grant).data)
+
+    @action(
+        methods=["POST"],
+        detail=True,
+        permission_classes=[IsModerator],
+    )
+    def decline(self, request, *args, **kwargs):
+        grant = self.get_object()
+        reason = request.data.get("reason", "")
+        reason_choice = request.data.get("reason_choice", "")
+
+        try:
+            self.grant_service.decline_grant(
+                grant, request.user, reason, reason_choice
+            )
+        except ValueError as e:
+            return Response({"message": str(e)}, status=400)
+
+        return Response(self.get_serializer(grant).data)
+
+    @action(
+        methods=["GET"],
+        detail=False,
+        permission_classes=[IsModerator],
+    )
+    def pending(self, request, *args, **kwargs):
+        queryset = (
+            Grant.objects.filter(status=Grant.PENDING)
+            .select_related(
+                "created_by", "created_by__author_profile", "unified_document"
+            )
+            .prefetch_related("unified_document__posts")
+            .order_by("-created_date")
+        )
+
+        organization = request.query_params.get("organization")
+        if organization:
+            queryset = queryset.filter(organization__icontains=organization)
+
+        created_by = request.query_params.get("created_by")
+        if created_by:
+            queryset = queryset.filter(created_by_id=created_by)
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            return self.get_paginated_response(
+                self.get_serializer(page, many=True).data
+            )
+
+        return Response(self.get_serializer(queryset, many=True).data)
 
     @action(
         methods=["POST"],
@@ -116,6 +192,7 @@ class GrantViewSet(viewsets.ModelViewSet):
 
         grant.status = Grant.CLOSED
         grant.save()
+        self._invalidate_grant_feed_cache()
 
         context = self.get_serializer_context()
         serializer = self.get_serializer(grant, context=context)
@@ -137,6 +214,7 @@ class GrantViewSet(viewsets.ModelViewSet):
 
         grant.status = Grant.COMPLETED
         grant.save()
+        self._invalidate_grant_feed_cache()
 
         context = self.get_serializer_context()
         serializer = self.get_serializer(grant, context=context)
@@ -158,6 +236,7 @@ class GrantViewSet(viewsets.ModelViewSet):
 
         grant.status = Grant.OPEN
         grant.save()
+        self._invalidate_grant_feed_cache()
 
         context = self.get_serializer_context()
         serializer = self.get_serializer(grant, context=context)
@@ -191,10 +270,10 @@ class GrantViewSet(viewsets.ModelViewSet):
         )
 
         if created:
+            self._invalidate_grant_feed_cache()
             return Response({"message": "Application submitted"}, status=201)
         else:
             return Response({"message": "Already applied"}, status=200)
-
 
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def available_funding(self, request, *args, **kwargs):
@@ -218,3 +297,4 @@ class GrantViewSet(viewsets.ModelViewSet):
         }
         cache.set(cache_key, data, timeout=60 * 60 * 12)
         return Response(data)
+
