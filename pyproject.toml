@@ -66,6 +66,7 @@ dependencies = [
 [tool.coverage.run]
 concurrency = ["multiprocessing"]
 parallel = true
+omit = ["*/setup-uv-cache/*"]
 
 [dependency-groups]
 dev = [
