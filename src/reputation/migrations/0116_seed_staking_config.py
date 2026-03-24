@@ -1,0 +1,31 @@
+from django.db import migrations
+
+
+def seed_staking_config(apps, schema_editor):
+    StakingConfig = apps.get_model("reputation", "StakingConfig")
+    StakingConfig.objects.get_or_create(
+        pk=1,
+        defaults={
+            "emission_per_year": 0,
+            "circulating_supply": 0,
+            "staked_fraction": 0,
+            "avg_multiplier": 1,
+            "is_active": False,
+        },
+    )
+
+
+def reverse_seed(apps, schema_editor):
+    StakingConfig = apps.get_model("reputation", "StakingConfig")
+    StakingConfig.objects.filter(pk=1).delete()
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ("reputation", "0115_staking_config_and_accrual"),
+    ]
+
+    operations = [
+        migrations.RunPython(seed_staking_config, reverse_seed),
+    ]
