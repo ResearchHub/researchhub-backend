@@ -63,6 +63,10 @@ dependencies = [
     "xdk>=0.4.5",
 ]
 
+[tool.coverage.run]
+concurrency = ["multiprocessing"]
+parallel = true
+
 [dependency-groups]
 dev = [
     "black==26.3.1",
