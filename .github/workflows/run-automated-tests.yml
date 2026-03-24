@@ -68,6 +68,7 @@ jobs:
           uv run python manage.py migrate
           uv run python manage.py collectstatic --noinput
           uv run python manage.py opensearch index rebuild --force
+          uv run coverage run manage.py test --verbosity=2 --parallel auto
           uv run coverage run manage.py test --verbosity=2
           uv run coverage xml -o coverage.xml
 
