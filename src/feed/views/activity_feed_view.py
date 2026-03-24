@@ -6,6 +6,7 @@ from feed.models import FeedEntry
 from feed.serializers import FeedEntrySerializer
 from feed.views.common import FeedPagination
 from feed.views.feed_view_mixin import FeedViewMixin
+from paper.related_models.paper_model import Paper
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
 from purchase.related_models.purchase_model import Purchase
@@ -17,7 +18,6 @@ from researchhub_comment.constants.rh_comment_thread_types import (
     PEER_REVIEW,
 )
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
-from researchhub_document.related_models.constants.document_type import PAPER
 
 
 class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
@@ -66,6 +66,10 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
             "user__userverification",
         ).order_by("-action_date")
 
+        # Exclude paper publications
+        paper_ct = ContentType.objects.get_for_model(Paper)
+        queryset = queryset.exclude(content_type=paper_ct)
+
         scope = self.request.query_params.get("scope", "").lower()
         grant_id = self.request.query_params.get("grant_id")
 
@@ -83,10 +87,6 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
             if document_type:
                 queryset = queryset.filter(
                     unified_document__document_type=(document_type.upper())
-                )
-            else:
-                queryset = queryset.exclude(
-                    unified_document__document_type=PAPER
                 )
 
         content_type = self.request.query_params.get("content_type")
