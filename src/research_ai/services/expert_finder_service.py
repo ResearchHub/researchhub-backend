@@ -8,7 +8,7 @@ from django.core.validators import EmailValidator
 
 from paper.tasks.tasks import create_download_url
 from paper.utils import download_pdf_from_url
-from research_ai.constants import MAX_PDF_SIZE_BYTES
+from research_ai.constants import MAX_PDF_SIZE_BYTES, ExpertiseLevel, Gender, Region
 from research_ai.models import ExpertSearch
 from research_ai.prompts.expert_finder_prompts import (
     build_system_prompt,
@@ -180,8 +180,6 @@ class ExpertFinderService:
         try:
             logger.info("Starting Expert Finder for search_id=%s", search_id)
             expert_count = config.get("expert_count", 10)
-            from research_ai.constants import ExpertiseLevel, Gender, Region
-
             expertise_level_raw = config.get(
                 "expertise_level", [ExpertiseLevel.ALL_LEVELS]
             )

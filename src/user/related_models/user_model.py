@@ -91,6 +91,7 @@ class User(AbstractUser):
     referral_code = models.CharField(max_length=36, default=uuid.uuid4, unique=True)
     reputation = models.IntegerField(default=100)
     should_display_rsc_balance_home = models.BooleanField(default=True)
+    is_staking_opted_in = models.BooleanField(default=False, db_index=True)
     spam_updated_date = models.DateTimeField(null=True)
     suspended_updated_date = models.DateTimeField(null=True)
     updated_date = models.DateTimeField(auto_now=True)
@@ -222,11 +223,9 @@ class User(AbstractUser):
         available_queryset = queryset.filter(is_locked=False)
         return self.get_balance(queryset=available_queryset, include_locked=True)
 
-    def get_locked_balance(self, lock_type=None):
-        """Returns total locked balance amount, optionally filtered by lock_type"""
+    def get_locked_balance(self):
+        """Returns total locked balance amount."""
         locked_queryset = self.get_balance_qs().filter(is_locked=True)
-        if lock_type:
-            locked_queryset = locked_queryset.filter(lock_type=lock_type)
         return self.get_balance(queryset=locked_queryset, include_locked=True)
 
     def allocate_spend(self, amount, allow_locked=False):

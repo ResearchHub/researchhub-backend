@@ -1,14 +1,9 @@
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from django.utils.translation import gettext_lazy as _
 
 
 class Balance(models.Model):
-
-    class LockType(models.TextChoices):
-        REFERRAL_BONUS = "REFERRAL_BONUS", _("Referral Bonus")
-        RSC_PURCHASE = "RSC_PURCHASE", _("RSC Purchase")
 
     user = models.ForeignKey(
         "user.User", on_delete=models.CASCADE, related_name="balances"
@@ -31,13 +26,21 @@ class Balance(models.Model):
     amount = models.CharField(max_length=255)
     testnet_amount = models.CharField(max_length=255, default=0, null=True, blank=True)
 
-    # Balance locking fields
     is_locked = models.BooleanField(default=False)
-    lock_type = models.TextField(
-        choices=LockType.choices,
-        null=True,
-        blank=True,
-    )
 
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
+
+    @staticmethod
+    def locked_by_referral_bonus(queryset=None):
+        from reputation.models import Distribution
+
+        qs = queryset if queryset is not None else Balance.objects.all()
+        dist_ct = ContentType.objects.get_for_model(Distribution)
+        return qs.filter(
+            is_locked=True,
+            content_type=dist_ct,
+            object_id__in=Distribution.objects.filter(
+                distribution_type="REFERRAL_BONUS"
+            ).values_list("id", flat=True),
+        )

@@ -14,6 +14,16 @@ USER_VARIABLES = (
     "organization",
 )
 RFP_VARIABLES = ("title", "deadline", "blurb", "amount", "url")
+PROPOSAL_VARIABLES = (
+    "title",
+    "url",
+    "created_by_name",
+    "goal_amount",
+    "amount_raised",
+    "contributor_count",
+    "deadline",
+    "blurb",
+)
 EXPERT_VARIABLES = ("name", "title", "affiliation", "email", "expertise")
 
 # Regex for {{entity.field}} placeholders.
@@ -68,6 +78,22 @@ def _build_rfp_context(rfp_context_dict: dict | None) -> dict[str, str]:
     }
 
 
+def _build_proposal_context(proposal_context_dict: dict | None) -> dict[str, str]:
+    """Build proposal entity dict from build_proposal_context() result."""
+    if not proposal_context_dict:
+        return dict.fromkeys(PROPOSAL_VARIABLES, "")
+    return {
+        "title": (proposal_context_dict.get("title") or "").strip(),
+        "url": (proposal_context_dict.get("url") or "").strip(),
+        "created_by_name": (proposal_context_dict.get("created_by_name") or "").strip(),
+        "goal_amount": (proposal_context_dict.get("goal_amount") or "").strip(),
+        "amount_raised": (proposal_context_dict.get("amount_raised") or "").strip(),
+        "contributor_count": (proposal_context_dict.get("contributor_count") or "").strip(),
+        "deadline": (proposal_context_dict.get("deadline") or "").strip(),
+        "blurb": (proposal_context_dict.get("blurb") or "").strip(),
+    }
+
+
 def _build_expert_context(resolved_expert: dict | None) -> dict[str, str]:
     """Build expert entity dict from resolve_expert_from_search() result."""
     if not resolved_expert:
@@ -85,14 +111,16 @@ def build_replacement_context(
     user=None,
     resolved_expert: dict | None = None,
     rfp_context_dict: dict | None = None,
+    proposal_context_dict: dict | None = None,
 ) -> dict[str, dict[str, str]]:
     """
     Build nested context for {{entity.field}} replacement.
-    Returns {"user": {...}, "rfp": {...}, "expert": {...}}.
+    Returns {"user": {...}, "rfp": {...}, "proposal": {...}, "expert": {...}}.
     """
     result = {
         "user": _build_user_context(user),
         "rfp": _build_rfp_context(rfp_context_dict),
+        "proposal": _build_proposal_context(proposal_context_dict),
         "expert": _build_expert_context(resolved_expert),
     }
     return result

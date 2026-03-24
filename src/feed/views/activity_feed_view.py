@@ -71,13 +71,14 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
 
         if grant_id:
             queryset = self._filter_by_grant(queryset, grant_id)
-        elif scope == "grants":
+
+        if scope == "grants" and not grant_id:
             queryset = self._filter_all_grants(queryset)
         elif scope == "peer_reviews":
             queryset = self._filter_peer_reviews(queryset)
         elif scope == "financial":
             queryset = self._filter_financial_activities(queryset)
-        else:
+        elif not grant_id:
             document_type = self.request.query_params.get("document_type")
             if document_type:
                 queryset = queryset.filter(
