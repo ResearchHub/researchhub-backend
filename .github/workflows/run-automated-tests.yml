@@ -64,6 +64,8 @@ jobs:
         env:
           APP_ENV: test
         working-directory: ./src
+        env:
+          COVERAGE_PROCESS_START: ../pyproject.toml
         run: |
           cp config/ci/* config
           uv run python manage.py migrate
