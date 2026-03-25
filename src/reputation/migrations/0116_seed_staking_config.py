@@ -21,7 +21,7 @@ def reverse_seed(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("reputation", "0115_staking_config_and_accrual"),
+        ("reputation", "0115_stakingconfig_stakingyieldaccrual"),
     ]
 
     operations = [
