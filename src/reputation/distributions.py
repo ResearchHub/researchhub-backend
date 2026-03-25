@@ -107,6 +107,11 @@ def create_preregistration_update_reward_distribution(amount):
     return distribution
 
 
+def create_staking_yield_distribution(amount):
+    distribution = Distribution("STAKING_YIELD", amount, give_rep=False)
+    return distribution
+
+
 DISTRIBUTION_TYPE_CHOICES = [
     (FlagPaper.name, FlagPaper.name),
     ("STORED_PAPER_POT", "STORED_PAPER_POT"),
@@ -123,4 +128,5 @@ DISTRIBUTION_TYPE_CHOICES = [
         "EDITOR_PAYOUT",
     ),
     ("PREREGISTRATION_UPDATE_REWARD", "PREREGISTRATION_UPDATE_REWARD"),
+    ("STAKING_YIELD", "STAKING_YIELD"),
 ]

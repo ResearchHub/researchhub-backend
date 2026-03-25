@@ -92,6 +92,7 @@ class User(AbstractUser):
     reputation = models.IntegerField(default=100)
     should_display_rsc_balance_home = models.BooleanField(default=True)
     is_staking_opted_in = models.BooleanField(default=False, db_index=True)
+    staking_opted_in_date = models.DateTimeField(null=True, blank=True)
     spam_updated_date = models.DateTimeField(null=True)
     suspended_updated_date = models.DateTimeField(null=True)
     updated_date = models.DateTimeField(auto_now=True)

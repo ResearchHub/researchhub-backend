@@ -1,9 +1,11 @@
 import json
+from datetime import timedelta
 from pathlib import Path
 from unittest.mock import patch
 
 from django.core.cache import cache
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from paper.openalex_util import process_openalex_works
@@ -274,6 +276,27 @@ class UserViewsTests(TestCase):
 
         user.refresh_from_db()
         self.assertTrue(user.has_seen_first_coin_modal)
+
+    def test_set_staking_opted_in_preserves_existing_opt_in_date(self):
+        user = create_random_authenticated_user("staking_opt_in")
+        original_opt_in_date = timezone.now() - timedelta(days=2)
+        user.is_staking_opted_in = True
+        user.staking_opted_in_date = original_opt_in_date
+        user.save(update_fields=["is_staking_opted_in", "staking_opted_in_date"])
+
+        url = "/api/user/set_staking_opted_in/"
+        response = get_authenticated_patch_response(
+            user,
+            url,
+            data={"is_staking_opted_in": True},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        user.refresh_from_db()
+        self.assertTrue(user.is_staking_opted_in)
+        self.assertEqual(user.staking_opted_in_date, original_opt_in_date)
 
     def test_get_author_profile_user(self):
         # Arrange
