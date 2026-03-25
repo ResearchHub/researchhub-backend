@@ -1,17 +1,16 @@
 from django.contrib import admin
 
-from reputation.related_models.staking_config import StakingConfig
+from reputation.related_models.staking_snapshot import StakingSnapshot
 from reputation.related_models.staking_yield_accrual import StakingYieldAccrual
 
 
-@admin.register(StakingConfig)
-class StakingConfigAdmin(admin.ModelAdmin):
+@admin.register(StakingSnapshot)
+class StakingSnapshotAdmin(admin.ModelAdmin):
     list_display = (
         "pk",
         "emission_per_year",
         "circulating_supply",
         "staked_fraction",
-        "is_active",
         "updated_date",
     )
 

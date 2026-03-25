@@ -15,7 +15,7 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name="StakingConfig",
+            name="StakingSnapshot",
             fields=[
                 (
                     "id",
@@ -50,7 +50,6 @@ class Migration(migrations.Migration):
                         decimal_places=8, default=Decimal("1"), max_digits=19
                     ),
                 ),
-                ("is_active", models.BooleanField(default=False)),
                 (
                     "last_circulating_supply_at",
                     models.DateTimeField(blank=True, null=True),
@@ -109,13 +108,13 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
-                    "staking_config",
+                    "staking_snapshot",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.SET_NULL,
                         related_name="yield_accruals",
-                        to="reputation.stakingconfig",
+                        to="reputation.stakingsnapshot",
                     ),
                 ),
                 (
