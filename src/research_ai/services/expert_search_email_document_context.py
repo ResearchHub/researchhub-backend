@@ -208,7 +208,7 @@ def _format_generic_work_narrative(g: dict) -> str:
     kind = (g.get("kind") or "work").replace("_", " ")
     if kind == "paper":
         lead = "This expert search is grounded in the following research paper."
-    elif kind == "custom_query":
+    elif kind == "custom query":
         lead = (
             "This expert search is based on a free-text or uploaded query "
             "(no single linked document)."
