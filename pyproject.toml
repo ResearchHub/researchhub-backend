@@ -63,6 +63,11 @@ dependencies = [
     "xdk>=0.4.5",
 ]
 
+[tool.coverage.run]
+concurrency = ["multiprocessing"]
+parallel = true
+omit = ["*/setup-uv-cache/*"]
+
 [dependency-groups]
 dev = [
     "black==26.3.1",
@@ -70,4 +75,5 @@ dev = [
     "flake8==5.0.4",
     "pre-commit==2.17.0",
     "setuptools>=78.1.1",
+    "tblib>=3.2.2",
 ]
