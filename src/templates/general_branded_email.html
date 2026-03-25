@@ -1,9 +1,10 @@
 {% load inlinecss %}
-<html>
+<!DOCTYPE html>
+<html lang="en">
     <head>
         <meta charset="UTF-8">
         <title></title>
-        <link href="https://fonts.googleapis.com/css?family=Roboto&display=swap" rel="stylesheet">
+
     </head>
     {% inlinecss "notification_email.css" %}
     <body>
@@ -18,7 +19,7 @@
         </div>
           <div class="content">
             <div class="body">
-              {{ body|safe }}
+              {{ body }}
             </div>
             {% if cta_url %}
               <div class="cta-wrapper">

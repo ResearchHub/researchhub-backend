@@ -3,6 +3,7 @@ from allauth.account.forms import ResetPasswordForm
 from allauth.account.utils import user_pk_to_url_str
 from dj_rest_auth.serializers import PasswordResetSerializer
 from django.conf import settings
+from django.utils.safestring import mark_safe
 
 from utils.message import send_email_message
 
@@ -21,7 +22,7 @@ class CustomAccountAdapter(DefaultAccountAdapter):
             None,
             subject,
             {
-                "body": (
+                "body": mark_safe(
                     "<p>Hello from ResearchHub,</p>"
                     "<p>Click the button below to confirm your email address.</p>"
                 ),
@@ -58,7 +59,7 @@ class CustomResetPasswordForm(ResetPasswordForm):
                 None,
                 subject,
                 {
-                    "body": (
+                    "body": mark_safe(
                         "<p>Hello from ResearchHub,</p>"
                         "<p>Click the button below to complete "
                         "your password reset.</p>"

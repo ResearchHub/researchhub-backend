@@ -34,6 +34,49 @@ def get_suppressed_emails(emails):
     )
 
 
+def _filter_recipients(recipients, is_transactional):
+    """Partition recipients into sendable and excluded lists."""
+    if is_transactional:
+        return list(recipients), []
+
+    sendable = [r for r in recipients if is_valid_email(r)]
+    excluded = list(set(recipients) - set(sendable))
+
+    if sendable:
+        suppressed = get_suppressed_emails(sendable)
+        excluded.extend(suppressed)
+        sendable = [r for r in sendable if r not in suppressed]
+
+    return sendable, excluded
+
+
+def _render_body(template, html_template, context):
+    """Render plain-text and HTML email bodies from templates."""
+    html_body = render_to_string(html_template, context) if html_template else None
+
+    if template:
+        plain_body = render_to_string(template, context)
+    elif html_body:
+        plain_body = strip_tags(html_body).strip()
+    else:
+        plain_body = ""
+
+    return plain_body, html_body
+
+
+def _build_headers(base_headers, context, is_transactional):
+    """Build per-recipient headers, adding unsubscribe when applicable."""
+    headers = {**base_headers}
+    unsub_url = context.get("opt_out")
+    if unsub_url and not is_transactional:
+        headers["List-Unsubscribe"] = (
+            f"<mailto:{settings.DEFAULT_FROM_EMAIL}?subject=unsubscribe>, "
+            f"<{unsub_url}>"
+        )
+        headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"
+    return headers
+
+
 def send_email_message(
     recipients,
     template,
@@ -73,51 +116,25 @@ def send_email_message(
         subject = "[Staging] " + subject
 
     result = {"success": [], "failure": [], "exclude": []}
-
-    if is_transactional:
-        sendable = list(recipients)
-    else:
-        sendable = [r for r in recipients if is_valid_email(r)]
-        result["exclude"].extend(set(recipients) - set(sendable))
-
-    if not is_transactional and sendable:
-        suppressed = get_suppressed_emails(sendable)
-        result["exclude"].extend(suppressed)
-        sendable = [r for r in sendable if r not in suppressed]
+    sendable, excluded = _filter_recipients(recipients, is_transactional)
+    result["exclude"].extend(excluded)
 
     if not sendable:
         return result
 
-    base_headers = {}
-    if is_transactional:
-        base_headers["X-Auto-Response-Suppress"] = "All"
-    else:
-        base_headers["Precedence"] = "bulk"
+    base_headers = (
+        {"X-Auto-Response-Suppress": "All"}
+        if is_transactional
+        else {"Precedence": "bulk"}
+    )
 
     for recipient in sendable:
         context = email_context.copy()
         if "opt_out" in context:
             context["opt_out"] += f"?email={recipient}"
 
-        html_message = (
-            render_to_string(html_template, context) if html_template else None
-        )
-
-        if template:
-            plain_message = render_to_string(template, context)
-        elif html_message:
-            plain_message = strip_tags(html_message).strip()
-        else:
-            plain_message = ""
-
-        headers = {**base_headers}
-        unsub_url = context.get("opt_out")
-        if unsub_url and not is_transactional:
-            headers["List-Unsubscribe"] = (
-                f"<mailto:{settings.DEFAULT_FROM_EMAIL}?subject=unsubscribe>, "
-                f"<{unsub_url}>"
-            )
-            headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"
+        plain_message, html_message = _render_body(template, html_template, context)
+        headers = _build_headers(base_headers, context, is_transactional)
 
         try:
             msg = EmailMultiAlternatives(
