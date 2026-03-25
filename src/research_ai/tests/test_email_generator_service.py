@@ -11,10 +11,41 @@ from research_ai.services.email_generator_service import (
     _strip_existing_signature,
     _strip_markdown,
     generate_expert_email,
+    normalize_llm_text_to_html,
 )
 from research_ai.services.expert_search_email_document_context import (
     ExpertSearchEmailDocumentContext,
 )
+
+
+class NormalizeLlmTextToHtmlTests(TestCase):
+    def test_empty_or_none_passthrough(self):
+        self.assertEqual(normalize_llm_text_to_html(""), "")
+        self.assertEqual(normalize_llm_text_to_html(None), None)
+
+    def test_single_newline_becomes_br(self):
+        self.assertEqual(
+            normalize_llm_text_to_html("Line one\nLine two"),
+            "Line one<br />Line two",
+        )
+
+    def test_multiple_newlines_collapsed_then_br(self):
+        self.assertEqual(
+            normalize_llm_text_to_html("A\n\n\nB"),
+            "A<br />B",
+        )
+
+    def test_literal_backslash_n_normalized(self):
+        self.assertEqual(
+            normalize_llm_text_to_html("Hi\\n\\nThere"),
+            "Hi<br />There",
+        )
+
+    def test_mixed_literal_and_real_newlines(self):
+        self.assertEqual(
+            normalize_llm_text_to_html("One\nTwo\\n\nThree"),
+            "One<br />Two<br />Three",
+        )
 
 
 class StripMarkdownTests(TestCase):
@@ -255,7 +286,9 @@ class GenerateExpertEmailTests(TestCase):
         self.assertNotIn("[Your Name]", body)
         self.assertNotIn("[Institution]", body)
 
-    @patch("research_ai.services.email_generator_service.resolve_expert_search_email_document_context")
+    @patch(
+        "research_ai.services.email_generator_service.resolve_expert_search_email_document_context"
+    )
     @patch("research_ai.services.email_generator_service.get_email_template")
     def test_fixed_template_uses_resolver_rfp_context(
         self, mock_get_template, mock_resolve_doc
@@ -291,7 +324,9 @@ class GenerateExpertEmailTests(TestCase):
         self.assertIn("$10K", body)
         self.assertIn("March 1", body)
 
-    @patch("research_ai.services.email_generator_service.resolve_expert_search_email_document_context")
+    @patch(
+        "research_ai.services.email_generator_service.resolve_expert_search_email_document_context"
+    )
     @patch("research_ai.services.email_generator_service.get_email_template")
     def test_fixed_template_uses_user_context(
         self, mock_get_template, mock_resolve_doc
