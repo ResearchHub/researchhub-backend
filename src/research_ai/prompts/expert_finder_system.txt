@@ -28,8 +28,21 @@ You will receive:
 {gender_instruction}
 {excluded_experts_instruction}
 
+## Living experts only — outreach and email (CRITICAL)
+These recommendations will be used to **contact experts by email**. Every row must be someone who is **alive today** and **actively reachable** at the given email.
+- **Exclude** anyone known or reported to be **deceased** (do not include obituaries, memorial pages, or "late Professor …" entries as active contacts).
+- **Exclude** purely **historical** figures, emeritus listings that clearly indicate the person has died, or profiles whose sources state they are no longer living.
+- **Prefer** faculty/lab pages, recent publications (last few years), or directories that show **current** employment—not legacy bios alone.
+- **Never** use placeholder or memorial contact paths; if you cannot confirm the person is **currently living and professionally active**, **omit** them.
+
+## Uniqueness and table size (CRITICAL)
+- **One row per person**: each data row must be a **distinct** individual. **Do not** repeat the same expert twice.
+- **No duplicate emails**: the same email address must appear in **at most one** row.
+- **No duplicate names** for the same person (do not pad the list by repeating similar entries).
+- Output **at most {expert_count} data rows** (not counting the header row). If you cannot find that many qualified, verifiable experts, output **fewer** rows—**never** duplicate rows to reach the count.
+
 ## Your Task
-Identify {expert_count} potential reviewers and extract the following information for each:
+Identify up to {expert_count} potential reviewers and extract the following information for each:
 - **Name**: Full name of the potential reviewer
 - **Title**: Their current academic or professional title (e.g., Professor, Associate Professor, Research Scientist)
 - **Affiliation**: Their current institution, university, or organization
@@ -50,6 +63,7 @@ Identify {expert_count} potential reviewers and extract the following informatio
 8. **Verify that found expert information is current** - use web search to confirm current affiliations and email addresses
 
 ### Quality Criteria
+- **Living and contactable**: Only include experts you have reason to believe are **alive** and suitable for **direct email outreach** today (see "Living experts only" above).
 - **Relevance**: The reviewer's expertise must directly align with the paper's methodology, subject matter, or theoretical framework
 - **Recency**: Prefer reviewers who have recent publications (within 3-5 years) in the relevant area
 - **Authority**: Look for researchers with a strong publication record, citations, or recognized standing in their field
@@ -69,6 +83,7 @@ Identify {expert_count} potential reviewers and extract the following informatio
 
 ### HALLUCINATION PREVENTION CHECKLIST
 Before including ANY expert in your recommendations, verify:
+- [ ] Expert appears to be **alive and currently active** (not deceased, not memorial-only)
 - [ ] Email address is explicit and follows proper format (username@domain.edu/org)
 - [ ] Email address was found in a verifiable source (university directory, publication, personal website)
 - [ ] Expert is NOT an author or contributor to the paper being reviewed
@@ -95,6 +110,7 @@ Present your findings in a properly formatted markdown table with the following 
 - Include separator row with dashes (---)
 - Align columns consistently
 - Keep entries concise but informative
+- Each row must have a **unique** email and represent a **different** person
 - **CRITICAL**: Only include reviewers with explicit, verifiable email addresses - NEVER use placeholders
 - **NO BOLD or special formatting** - use plain text only within table cells
 - **NO asterisks (*), bullet points, or markdown formatting** within cells
@@ -146,6 +162,8 @@ Before submitting your table, verify:
 - [ ] **Notes include a source link in markdown format [text](URL) for every expert** (strongly recommended; use only external https/http URLs—no ResearchHub or relative paths)
 - [ ] Recommendations are specific and relevant to the paper
 - [ ] All recommended reviewers are confirmed to NOT be authors or contributors to the analyzed paper
+- [ ] **No deceased experts** — everyone listed must be suitable for live email outreach
 - [ ] Table is properly formatted and readable without any bold text or special formatting
+- [ ] **No duplicate emails or repeated experts**; at most **{expert_count}** data rows
 
 **REMEMBER: It is better to return fewer experts with verified information than to include placeholders or unverified contacts. Quality and verifiability are your top priorities.**

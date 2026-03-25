@@ -28,6 +28,24 @@ logger = logging.getLogger(__name__)
 PDF_TOO_LARGE_MESSAGE = "PDF is too large. Maximum size is 10 MB. Please use another input type (e.g. abstract)."
 MAX_ERROR_MESSAGE_LENGTH = 10000
 
+EXPERT_FILL_MAX_ROUNDS = 6
+EXPERT_FILL_TOLERANCE_SHORT = 10
+EXPERT_FILL_EXCLUDED_NAMES_CAP = 250
+
+_DECEASED_ROW_REGEX = re.compile(
+    r"(?i)(?:"
+    r"\b(?:the\s+)?late\s+(?:dr\.?|prof\.?|professor)\b|"
+    r"\bdeceased\b|"
+    r"\bpassed\s+away\b|"
+    r"\bin\s+memoriam\b|"
+    r"\bposthumous(?:ly)?\b|"
+    r"\brest\s+in\s+peace\b|"
+    r"\(d\.\s*\d{4}\)|"
+    r"\bd\.\s*\d{4}\b|"
+    r"\bdied\s+(?:in|on)?\s*\d{4}\b"
+    r")"
+)
+
 
 def get_document_content(unified_doc, input_type: str):
     """
@@ -203,48 +221,137 @@ class ExpertFinderService:
             state_filter = config.get("state", "All States")
             gender_filter = config.get("gender", Gender.ALL_GENDERS)
             excluded = excluded_expert_names or []
+            T = max(0, int(expert_count))
 
-            publish("Preparing expert search prompt...", 20)
-            system_prompt = build_system_prompt(
-                expert_count=expert_count,
-                expertise_level=expertise_level,
-                region_filter=region_filter,
-                state_filter=state_filter,
-                gender_filter=gender_filter,
-                excluded_expert_names=excluded,
-            )
-            user_prompt = build_user_prompt(
-                query=query,
-                expert_count=expert_count,
-                expertise_level=expertise_level,
-                region_filter=region_filter,
-                gender_filter=gender_filter,
-                is_pdf=is_pdf,
-            )
-
-            publish("Initiating AI search...", 40)
-            llm_response = self.openai_expert.invoke(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-            )
-            logger.info("OpenAI expert finder response length: %s", len(llm_response))
-
-            publish("Parsing expert recommendations...", 70)
-            experts = self._parse_markdown_table(llm_response)
-            logger.info("Parsed %s experts", len(experts))
-
+            accumulated: list[dict[str, Any]] = []
+            seen_email: set[str] = set()
+            llm_response = ""
             all_filtered_out = False
-            if excluded:
-                before_count = len(experts)
-                experts = [
+
+            for round_num in range(1, EXPERT_FILL_MAX_ROUNDS + 1):
+                if len(accumulated) >= T:
+                    break
+                remaining = T - len(accumulated)
+                # Within ~N of target (e.g. 90/100): only when T is large enough that
+                # T - tolerance > 0. Using "remaining <= tolerance" would wrongly stop
+                # small jobs (e.g. T=3, need 1 more, remaining=1 <= 10 skips round 2).
+                if (
+                    round_num > 1
+                    and T > EXPERT_FILL_TOLERANCE_SHORT
+                    and len(accumulated) >= T - EXPERT_FILL_TOLERANCE_SHORT
+                ):
+                    logger.info(
+                        "Expert Finder search_id=%s stopping fill: unique=%s >= "
+                        "target - tolerance (%s - %s) after %s rounds",
+                        search_id,
+                        len(accumulated),
+                        T,
+                        EXPERT_FILL_TOLERANCE_SHORT,
+                        round_num - 1,
+                    )
+                    break
+
+                effective_excluded = self._effective_excluded_for_fill(
+                    excluded, accumulated
+                )
+                round_request = max(1, remaining)
+
+                publish("Preparing expert search prompt...", 18 + round_num * 2)
+                system_prompt = build_system_prompt(
+                    expert_count=round_request,
+                    expertise_level=expertise_level,
+                    region_filter=region_filter,
+                    state_filter=state_filter,
+                    gender_filter=gender_filter,
+                    excluded_expert_names=effective_excluded,
+                )
+                user_prompt = build_user_prompt(
+                    query=query,
+                    expert_count=round_request,
+                    expertise_level=expertise_level,
+                    region_filter=region_filter,
+                    gender_filter=gender_filter,
+                    is_pdf=is_pdf,
+                )
+
+                publish(
+                    f"Finding experts (round {round_num}/{EXPERT_FILL_MAX_ROUNDS}, "
+                    f"{len(accumulated)}/{T})...",
+                    38 + round_num * 4,
+                )
+                llm_response = self.openai_expert.invoke(
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt,
+                )
+                logger.info(
+                    "OpenAI expert finder search_id=%s round=%s response_len=%s",
+                    search_id,
+                    round_num,
+                    len(llm_response),
+                )
+
+                publish("Parsing expert recommendations...", 58 + round_num * 2)
+                batch = self._parse_markdown_table(llm_response)
+                parsed_count = len(batch)
+
+                before_name_filter = len(batch)
+                batch = [
                     e
-                    for e in experts
+                    for e in batch
                     if not self._expert_name_matches_excluded(
-                        e.get("name") or "", excluded
+                        e.get("name") or "", effective_excluded
                     )
                 ]
-                if before_count > 0 and len(experts) == 0:
+                after_exclude = len(batch)
+                if (
+                    round_num == 1
+                    and excluded
+                    and before_name_filter > 0
+                    and after_exclude == 0
+                ):
                     all_filtered_out = True
+
+                batch = [e for e in batch if not self._expert_row_suggests_deceased(e)]
+                after_deceased = len(batch)
+
+                batch = self._dedupe_experts_by_normalized_email(batch)
+                after_dedupe = len(batch)
+
+                before_merge_len = len(accumulated)
+                for e in batch:
+                    em = (e.get("email") or "").strip().lower()
+                    if not em or em in seen_email:
+                        continue
+                    seen_email.add(em)
+                    accumulated.append(dict(e))
+                new_added = len(accumulated) - before_merge_len
+
+                logger.info(
+                    "Expert Finder search_id=%s round=%s: parsed=%s after_name_filter=%s "
+                    "after_deceased_filter=%s after_batch_dedupe=%s new_unique_merged=%s "
+                    "total_unique=%s target=%s",
+                    search_id,
+                    round_num,
+                    parsed_count,
+                    after_exclude,
+                    after_deceased,
+                    after_dedupe,
+                    new_added,
+                    len(accumulated),
+                    T,
+                )
+
+                if new_added == 0:
+                    break
+
+            experts = accumulated[:T]
+            logger.info(
+                "Expert Finder search_id=%s fill complete: unique=%s after_cap=%s target=%s",
+                search_id,
+                len(accumulated),
+                len(experts),
+                T,
+            )
 
             if len(experts) == 0:
                 if all_filtered_out:
@@ -341,6 +448,25 @@ class ExpertFinderService:
         return f"{base}?{'&'.join(params)}" if params else base
 
     @staticmethod
+    def _expert_row_suggests_deceased(expert: dict[str, Any]) -> bool:
+        """
+        True if name/title/affiliation/expertise/notes contain obvious deceased indicators.
+
+        Conservative: only flags clear phrases (e.g. deceased, late Prof., d. 2020).
+        """
+        parts = [
+            expert.get("name") or "",
+            expert.get("title") or "",
+            expert.get("affiliation") or "",
+            expert.get("expertise") or "",
+            expert.get("notes") or "",
+        ]
+        blob = " ".join(p.strip() for p in parts if p and str(p).strip())
+        if not blob:
+            return False
+        return _DECEASED_ROW_REGEX.search(blob) is not None
+
+    @staticmethod
     def _normalize_name_for_exclusion(name: str) -> str:
         """Normalize expert name for exclusion matching: lowercase, strip, collapse spaces."""
         if not name or not isinstance(name, str):
@@ -380,6 +506,63 @@ class ExpertFinderService:
             if all(token in expert_tokens for token in excluded_tokens):
                 return True
         return False
+
+    @staticmethod
+    def _dedupe_experts_by_normalized_email(
+        experts: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """
+        Keep first row per email; normalize email with strip().lower() for identity.
+        Stored expert dicts use the normalized email string.
+        """
+        seen: set[str] = set()
+        out: list[dict[str, Any]] = []
+        for e in experts:
+            raw = (e.get("email") or "").strip()
+            if not raw:
+                continue
+            key = raw.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            row = dict(e)
+            row["email"] = key
+            out.append(row)
+        return out
+
+    @staticmethod
+    def _effective_excluded_for_fill(
+        user_excluded: list[str],
+        accumulated: list[dict[str, Any]],
+    ) -> list[str]:
+        """
+        Names the model must not repeat: user exclusions plus experts already collected.
+        Capped to avoid oversized prompts.
+        """
+        acc_names = [
+            (e.get("name") or "").strip()
+            for e in accumulated
+            if (e.get("name") or "").strip()
+        ]
+        combined = list(user_excluded) + acc_names
+        if len(combined) <= EXPERT_FILL_EXCLUDED_NAMES_CAP:
+            return combined
+        n_user = len(user_excluded)
+        if n_user >= EXPERT_FILL_EXCLUDED_NAMES_CAP:
+            logger.warning(
+                "Expert fill: user exclusion list length %s exceeds cap %s; truncating",
+                n_user,
+                EXPERT_FILL_EXCLUDED_NAMES_CAP,
+            )
+            return list(user_excluded)[:EXPERT_FILL_EXCLUDED_NAMES_CAP]
+        tail = EXPERT_FILL_EXCLUDED_NAMES_CAP - n_user
+        logger.warning(
+            "Expert fill: exclusion list capped to %s (user=%s accumulated_names=%s)",
+            EXPERT_FILL_EXCLUDED_NAMES_CAP,
+            n_user,
+            len(acc_names),
+        )
+        return list(user_excluded) + acc_names[-tail:]
 
     def _parse_markdown_table(self, markdown_text: str) -> list[dict[str, Any]]:
         """Parse markdown table from LLM response into list of expert dicts."""

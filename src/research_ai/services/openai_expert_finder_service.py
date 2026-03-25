@@ -7,7 +7,7 @@ from utils import sentry
 
 logger = logging.getLogger(__name__)
 
-OPENAI_EXPERT_FINDER_MODEL = "gpt-4.1-mini"
+OPENAI_EXPERT_FINDER_MODEL = "gpt-5.4-mini"
 
 
 class OpenAIExpertFinderService:
