@@ -38,14 +38,6 @@ def create_template(user, **data):
     """
     allowed = {
         "name",
-        "contact_name",
-        "contact_title",
-        "contact_institution",
-        "contact_email",
-        "contact_phone",
-        "contact_website",
-        "outreach_context",
-        "template_type",
         "email_subject",
         "email_body",
     }

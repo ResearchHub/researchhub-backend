@@ -54,14 +54,6 @@ class TemplateListView(APIView):
         # Normalize optional strings to empty string for model
         create_data = {
             "name": (data.get("name") or "").strip(),
-            "contact_name": (data.get("contact_name") or "").strip(),
-            "contact_title": (data.get("contact_title") or "").strip(),
-            "contact_institution": (data.get("contact_institution") or "").strip(),
-            "contact_email": (data.get("contact_email") or "").strip(),
-            "contact_phone": (data.get("contact_phone") or "").strip(),
-            "contact_website": (data.get("contact_website") or "").strip(),
-            "outreach_context": (data.get("outreach_context") or "").strip(),
-            "template_type": data.get("template_type"),
             "email_subject": (data.get("email_subject") or "").strip(),
             "email_body": (data.get("email_body") or "").strip(),
         }
@@ -115,13 +107,6 @@ class TemplateDetailView(APIView):
         update_data = {}
         for field in (
             "name",
-            "contact_name",
-            "contact_title",
-            "contact_institution",
-            "contact_email",
-            "contact_phone",
-            "contact_website",
-            "outreach_context",
             "email_subject",
             "email_body",
         ):

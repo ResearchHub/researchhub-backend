@@ -183,9 +183,13 @@ def process_expert_search_task(
         raise
 
 
-def _normalize_template_for_bulk(template: str) -> tuple[str, str | None]:
-    """Normalize template string to (template_key, custom_use_case)."""
-    template = (template or "").strip()
+def _normalize_template_for_bulk(template: str | None) -> tuple[str | None, str | None]:
+    """Normalize stored GeneratedEmail.template to (template_key, custom_use_case)."""
+    if template is None:
+        return None, None
+    template = template.strip()
+    if not template:
+        return "custom", None
     if template.startswith("custom:"):
         return "custom", template[7:].strip() or None
     if template in VALID_EMAIL_TEMPLATE_KEYS:
@@ -218,13 +222,13 @@ def _get_bulk_emails_task_context(
             user = User.objects.get(id=created_by_id)
         except User.DoesNotExist:
             pass
-    template_key, custom_use_case = _normalize_template_for_bulk(first.template or "")
+    template_key, custom_use_case = _normalize_template_for_bulk(first.template)
     return (user, template_key, custom_use_case)
 
 
 def _process_one_bulk_email(
     email_id: int,
-    template_key: str,
+    template_key: str | None,
     custom_use_case: str | None,
     user,
     template_id: int | None,
