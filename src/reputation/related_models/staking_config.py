@@ -29,5 +29,4 @@ class StakingConfig(models.Model):
 
     @classmethod
     def load(cls):
-        obj, _ = cls.objects.get_or_create(pk=1)
-        return obj
+        return cls.objects.filter(is_active=True).order_by("-created_date").first()
