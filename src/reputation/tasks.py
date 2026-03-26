@@ -2,9 +2,11 @@ import json
 import logging
 import time
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import List, Optional
 
 import pytz
+from celery.exceptions import MaxRetriesExceededError
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
@@ -24,6 +26,11 @@ from reputation.lib import check_hotwallet, check_pending_withdrawal, contract_a
 from reputation.models import Bounty, BountySolution, Contribution, Deposit
 from reputation.related_models.bounty import AnnotatedBounty
 from reputation.related_models.score import Score
+from reputation.related_models.staking_global_snapshot import StakingGlobalSnapshot
+from reputation.related_models.staking_user_snapshot import StakingUserSnapshot
+from reputation.related_models.staking_yield_record import StakingYieldRecord
+from reputation.services.rsc_supply_service import RscSupplyService
+from reputation.services.staking_yield_service import StakingYieldService
 from reputation.services.wallet import WalletService
 from researchhub.celery import QUEUE_CONTRIBUTIONS, QUEUE_PURCHASES, app
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -666,3 +673,229 @@ def burn_revenue_rsc(network="BASE"):
     Weekly task to burn ResearchCoin from the revenue account.
     """
     return WalletService.burn_revenue_rsc(network)
+
+
+@app.task(
+    bind=True,
+    queue=QUEUE_PURCHASES,
+    max_retries=3,
+    default_retry_delay=60,
+)
+def create_daily_staking_global_snapshot(self):
+    """Daily task to create a new StakingGlobalSnapshot with fresh circulating
+    supply and aggregate staking stats.
+
+    Runs before distribute_staking_yield so the distribution task uses
+    up-to-date supply and staking data.
+    """
+    accrual_date = datetime.now(pytz.UTC).date() - timedelta(days=1)
+    key = lock.name(f"create_daily_staking_global_snapshot_{accrual_date}")
+    if not lock.acquire(key):
+        logger.warning("Already locked %s, skipping task", key)
+        return False
+
+    try:
+        previous = StakingGlobalSnapshot.load()
+        if previous is None:
+            logger.warning("No existing staking snapshot found, skipping")
+            return False
+
+        existing = StakingGlobalSnapshot.load_for_accrual_date(accrual_date)
+        if existing is not None:
+            logger.info(
+                "Staking snapshot already exists for %s, skipping create",
+                accrual_date,
+            )
+            return True
+
+        try:
+            supply = RscSupplyService.fetch_circulating_supply()
+        except Exception as exc:
+            logger.warning(
+                "Failed to fetch circulating supply for %s (attempt %d/%d)",
+                accrual_date,
+                self.request.retries + 1,
+                self.max_retries + 1,
+            )
+
+            if self.request.retries < self.max_retries:
+                try:
+                    raise self.retry(exc=exc)
+                except MaxRetriesExceededError:
+                    pass
+
+            supply = previous.circulating_supply
+            logger.warning(
+                "Falling back to previous circulating supply=%s for %s",
+                supply,
+                accrual_date,
+            )
+            log_error(
+                exc,
+                message=(
+                    "Failed to fetch staking circulating supply after retries; "
+                    "using previous snapshot supply"
+                ),
+                json_data={
+                    "accrual_date": str(accrual_date),
+                    "fallback_circulating_supply": str(supply),
+                },
+            )
+
+        eligible_users = User.objects.filter(
+            is_staking_opted_in=True,
+            is_active=True,
+            is_suspended=False,
+            probable_spammer=False,
+        ).iterator()
+
+        total_staked = Decimal("0")
+        total_weighted_stake = Decimal("0")
+        position_rows = []
+
+        for user in eligible_users:
+            stake = user.get_available_balance()
+            if stake is None:
+                continue
+
+            stake = Decimal(str(stake))
+            if stake <= 0:
+                continue
+
+            multiplier = Decimal("1")  # v1: hardcoded
+            weighted_stake = StakingYieldService.compute_weighted_stake(
+                stake, multiplier
+            )
+            if weighted_stake <= 0:
+                continue
+
+            total_staked += stake
+            total_weighted_stake += weighted_stake
+            position_rows.append(
+                StakingUserSnapshot(
+                    user=user,
+                    stake_amount=stake,
+                    multiplier=multiplier,
+                    weighted_stake=weighted_stake,
+                    staking_opted_in_date=user.staking_opted_in_date,
+                )
+            )
+
+        with transaction.atomic():
+            global_snapshot = StakingGlobalSnapshot.objects.create(
+                accrual_date=accrual_date,
+                emission_per_year=previous.emission_per_year,
+                circulating_supply=supply,
+                total_staked=total_staked,
+                total_weighted_stake=total_weighted_stake,
+            )
+            for position_row in position_rows:
+                position_row.global_snapshot = global_snapshot
+            StakingUserSnapshot.objects.bulk_create(position_rows)
+
+        logger.info(
+            "Created daily StakingGlobalSnapshot pk=%d accrual_date=%s supply=%s "
+            "total_staked=%s total_weighted_stake=%s",
+            global_snapshot.pk,
+            accrual_date,
+            supply,
+            total_staked,
+            total_weighted_stake,
+        )
+        return True
+    finally:
+        lock.release(key)
+        logger.info("Released lock %s", key)
+
+
+@app.task(queue=QUEUE_PURCHASES)
+def distribute_staking_yield():
+    """Daily task to distribute staking yield for the previous UTC day."""
+    if not settings.STAGING:
+        logger.info("Staking yield distribution is only enabled in staging")
+        return False
+
+    accrual_date = datetime.now(pytz.UTC).date() - timedelta(days=1)
+
+    key = lock.name(f"distribute_staking_yield_{accrual_date}")
+    if not lock.acquire(key):
+        logger.warning("Already locked %s, skipping task", key)
+        return False
+
+    try:
+        global_snapshot = StakingGlobalSnapshot.load_for_accrual_date(accrual_date)
+        if global_snapshot is None:
+            logger.info(
+                "No staking snapshot found for %s, skipping distribution",
+                accrual_date,
+            )
+            return False
+
+        distributed_count = 0
+        user_snapshots = global_snapshot.user_snapshots.select_related(
+            "user"
+        ).iterator()
+        for user_snapshot in user_snapshots:
+            user = user_snapshot.user
+            if not user.is_active or user.is_suspended or user.probable_spammer:
+                continue
+
+            annualized_rate = StakingYieldService.compute_annualized_rate(
+                user_snapshot.stake_amount,
+                user_snapshot.multiplier,
+                global_snapshot,
+            )
+            proration = StakingYieldService.compute_proration(
+                user_snapshot.staking_opted_in_date,
+                accrual_date,
+            )
+            daily_yield = StakingYieldService.compute_daily_yield_from_pool_share(
+                user_snapshot.weighted_stake,
+                global_snapshot.total_weighted_stake,
+                global_snapshot.emission_per_year,
+                proration,
+                accrual_date,
+            )
+
+            yield_record, _ = StakingYieldRecord.objects.get_or_create(
+                user=user,
+                accrual_date=accrual_date,
+                defaults={
+                    "global_snapshot": global_snapshot,
+                    "user_snapshot": user_snapshot,
+                    "stake_amount": user_snapshot.stake_amount,
+                    "annualized_rate": annualized_rate,
+                    "proration_fraction": proration,
+                    "yield_amount": daily_yield,
+                },
+            )
+
+            if yield_record.distribution_id is not None:
+                continue  # already paid
+
+            yield_record.global_snapshot = global_snapshot
+            yield_record.user_snapshot = user_snapshot
+            yield_record.stake_amount = user_snapshot.stake_amount
+            yield_record.annualized_rate = annualized_rate
+            yield_record.proration_fraction = proration
+            yield_record.yield_amount = daily_yield
+
+            if daily_yield <= 0:
+                yield_record.save()
+                continue
+
+            record = StakingYieldService.create_yield_distribution(user, yield_record)
+            if record:
+                yield_record.distribution = record
+                distributed_count += 1
+
+            yield_record.save()
+
+        logger.info(
+            "Staking yield distribution complete for %s: %d users paid",
+            accrual_date,
+            distributed_count,
+        )
+    finally:
+        lock.release(key)
+        logger.info("Released lock %s", key)
