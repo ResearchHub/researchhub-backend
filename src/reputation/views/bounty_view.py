@@ -795,6 +795,7 @@ class BountyViewSet(viewsets.ModelViewSet):
             Hub.objects.filter(
                 related_documents__related_bounties__status=Bounty.OPEN,
                 is_removed=False,
+                namespace=Hub.Namespace.SUBCATEGORY,
             )
             .values("id", "name", "slug")
             .distinct()
