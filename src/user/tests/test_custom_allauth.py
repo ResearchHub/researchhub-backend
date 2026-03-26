@@ -70,6 +70,6 @@ class CustomResetPasswordFormTests(TestCase):
 
         # Assert
         self.assertEqual(result, "user@example.com")
-        args, kwargs = mock_send.call_args
+        args, _ = mock_send.call_args
         self.assertEqual(args[0], "user@example.com")
         self.assertEqual(args[2], "Reset Your Password")
