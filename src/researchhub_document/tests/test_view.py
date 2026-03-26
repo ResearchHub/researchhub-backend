@@ -420,7 +420,7 @@ class ViewTests(APITestCase):
 
         self.assertEqual(doc_response.status_code, 200)
 
-    def test_user_cannot_create_post_with_non_members(self):
+    def test_user_can_create_post_with_non_members(self):
         note = create_note(self.admin_user, self.organization)
 
         self.client.force_authenticate(self.admin_user)
@@ -440,7 +440,7 @@ class ViewTests(APITestCase):
             },
         )
 
-        self.assertEqual(doc_response.status_code, 403)
+        self.assertEqual(doc_response.status_code, 200)
 
     def test_author_can_update_post(self):
         note = create_note(self.admin_user, self.organization)
@@ -485,7 +485,7 @@ class ViewTests(APITestCase):
         )
         self.assertEqual(updated_response.data["image_url"], "/updatedImagePath1")
 
-    def test_author_cannot_update_post_with_non_members(self):
+    def test_author_can_update_post_with_non_members(self):
         note = create_note(self.admin_user, self.organization)
 
         self.client.force_authenticate(self.admin_user)
@@ -521,7 +521,7 @@ class ViewTests(APITestCase):
             },
         )
 
-        self.assertEqual(updated_response.status_code, 403)
+        self.assertEqual(updated_response.status_code, 200)
 
     def test_non_author_cannot_update_post(self):
         hub = create_hub()
