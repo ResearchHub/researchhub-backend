@@ -27,7 +27,12 @@ class OpenAIExpertFinderService:
         temperature: float = 0.0,
     ) -> str:
         """
-        Run expert discovery. Returns assistant text (expected: markdown expert table).
+        Run expert discovery via the Responses API with web search, when available.
+
+        Returns:
+            The model's assistant message as plain text. Callers should treat this as
+            a single markdown document whose main payload is a pipe table of experts
+            (columns such as name, title, affiliation, expertise, email, notes).
 
         Raises:
             RuntimeError: If API key is missing or the API call fails.
@@ -91,6 +96,10 @@ class OpenAIExpertFinderService:
         max_tokens: int,
         temperature: float,
     ) -> str:
+        """
+        Fallback path when web_search fails.
+        Uses Chat Completions without web search, so results may be less grounded.
+        """
         completion = self._client.chat.completions.create(
             model=self.model_id,
             messages=[

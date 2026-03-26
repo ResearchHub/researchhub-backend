@@ -28,6 +28,9 @@ logger = logging.getLogger(__name__)
 PDF_TOO_LARGE_MESSAGE = "PDF is too large. Maximum size is 10 MB. Please use another input type (e.g. abstract)."
 MAX_ERROR_MESSAGE_LENGTH = 10000
 
+# Cap on how many times we call the model to "top up" unique experts.
+# One API call can return many rows, but duplicates, invalid emails, exclusions, and deceased filtering often leave the
+# pool short of the user's target, so we re-prompt with updated exclusions until we reach the target.
 EXPERT_FILL_MAX_ROUNDS = 6
 EXPERT_FILL_TOLERANCE_SHORT = 10
 EXPERT_FILL_EXCLUDED_NAMES_CAP = 250
@@ -172,7 +175,7 @@ class ExpertFinderService:
         is_pdf: Set True when query text was extracted from a PDF (affects prompt wording).
         """
 
-        def publish(
+        def publish_progress_update(
             message: str,
             percent: int,
             status: str = ExpertSearch.Status.PROCESSING,
@@ -221,31 +224,40 @@ class ExpertFinderService:
             state_filter = config.get("state", "All States")
             gender_filter = config.get("gender", Gender.ALL_GENDERS)
             excluded = excluded_expert_names or []
-            T = max(0, int(expert_count))
+            target_expert_count = max(0, int(expert_count))
 
             accumulated: list[dict[str, Any]] = []
             seen_email: set[str] = set()
             llm_response = ""
             all_filtered_out = False
 
+            # Each round: one model call asking for up to `remaining` new experts,
+            # then parse/filter/dedupe and merge into `accumulated`. We iterate a
+            # fixed maximum number of rounds (not "one round per expert") because a
+            # single response can return many rows; rounds exist to recover when the
+            # first batch is thin after validation. Stops early when we hit the target,
+            # when a round adds no new unique experts, or when the "near target"
+            # tolerance applies (large targets only).
             for round_num in range(1, EXPERT_FILL_MAX_ROUNDS + 1):
-                if len(accumulated) >= T:
+                if len(accumulated) >= target_expert_count:
                     break
-                remaining = T - len(accumulated)
-                # Within ~N of target (e.g. 90/100): only when T is large enough that
-                # T - tolerance > 0. Using "remaining <= tolerance" would wrongly stop
-                # small jobs (e.g. T=3, need 1 more, remaining=1 <= 10 skips round 2).
+                remaining = target_expert_count - len(accumulated)
+                # Near-target early exit (large jobs only): e.g. target 100 experts,
+                # tolerance 10 → stop once we have ≥90 unique experts. We require
+                # target_expert_count > tolerance so small jobs (e.g. need 3, have 2)
+                # are not misclassified as "close enough" when remaining ≤ tolerance.
                 if (
                     round_num > 1
-                    and T > EXPERT_FILL_TOLERANCE_SHORT
-                    and len(accumulated) >= T - EXPERT_FILL_TOLERANCE_SHORT
+                    and target_expert_count > EXPERT_FILL_TOLERANCE_SHORT
+                    and len(accumulated)
+                    >= target_expert_count - EXPERT_FILL_TOLERANCE_SHORT
                 ):
                     logger.info(
                         "Expert Finder search_id=%s stopping fill: unique=%s >= "
                         "target - tolerance (%s - %s) after %s rounds",
                         search_id,
                         len(accumulated),
-                        T,
+                        target_expert_count,
                         EXPERT_FILL_TOLERANCE_SHORT,
                         round_num - 1,
                     )
@@ -256,8 +268,12 @@ class ExpertFinderService:
                 )
                 round_request = max(1, remaining)
 
-                publish("Preparing expert search prompt...", 18 + round_num * 2)
-                system_prompt = build_system_prompt(
+                publish_progress_update(
+                    "Preparing expert search prompt...", 18 + round_num * 2
+                )
+                # System role: output format, filters, exclusions. User role: the
+                # document/query text and task framing (see expert_finder_prompts).
+                finder_system_instructions = build_system_prompt(
                     expert_count=round_request,
                     expertise_level=expertise_level,
                     region_filter=region_filter,
@@ -265,7 +281,7 @@ class ExpertFinderService:
                     gender_filter=gender_filter,
                     excluded_expert_names=effective_excluded,
                 )
-                user_prompt = build_user_prompt(
+                finder_user_task = build_user_prompt(
                     query=query,
                     expert_count=round_request,
                     expertise_level=expertise_level,
@@ -274,14 +290,14 @@ class ExpertFinderService:
                     is_pdf=is_pdf,
                 )
 
-                publish(
+                publish_progress_update(
                     f"Finding experts (round {round_num}/{EXPERT_FILL_MAX_ROUNDS}, "
-                    f"{len(accumulated)}/{T})...",
+                    f"{len(accumulated)}/{target_expert_count})...",
                     38 + round_num * 4,
                 )
                 llm_response = self.openai_expert.invoke(
-                    system_prompt=system_prompt,
-                    user_prompt=user_prompt,
+                    system_prompt=finder_system_instructions,
+                    user_prompt=finder_user_task,
                 )
                 logger.info(
                     "OpenAI expert finder search_id=%s round=%s response_len=%s",
@@ -290,7 +306,9 @@ class ExpertFinderService:
                     len(llm_response),
                 )
 
-                publish("Parsing expert recommendations...", 58 + round_num * 2)
+                publish_progress_update(
+                    "Parsing expert recommendations...", 58 + round_num * 2
+                )
                 batch = self._parse_markdown_table(llm_response)
                 parsed_count = len(batch)
 
@@ -338,19 +356,19 @@ class ExpertFinderService:
                     after_dedupe,
                     new_added,
                     len(accumulated),
-                    T,
+                    target_expert_count,
                 )
 
                 if new_added == 0:
                     break
 
-            experts = accumulated[:T]
+            experts = accumulated[:target_expert_count]
             logger.info(
                 "Expert Finder search_id=%s fill complete: unique=%s after_cap=%s target=%s",
                 search_id,
                 len(accumulated),
                 len(experts),
-                T,
+                target_expert_count,
             )
 
             if len(experts) == 0:
@@ -374,7 +392,7 @@ class ExpertFinderService:
                         msg = msg + " Response from model:\n\n" + display_error
                     current_step = "No expert recommendations table returned by model"
                     error_message = (llm_response or "")[:MAX_ERROR_MESSAGE_LENGTH]
-                publish(msg, 0, status=ExpertSearch.Status.FAILED)
+                publish_progress_update(msg, 0, status=ExpertSearch.Status.FAILED)
                 if progress_callback:
                     progress_callback(search_id, 0, msg)
                 return {
@@ -389,12 +407,12 @@ class ExpertFinderService:
                     "error_message": error_message,
                     "current_step": current_step,
                 }
-            publish("Generating PDF report...", 80)
+            publish_progress_update("Generating PDF report...", 80)
             pdf_bytes = generate_pdf_report(experts, query, config)
-            publish("Generating CSV file...", 88)
+            publish_progress_update("Generating CSV file...", 88)
             csv_bytes = generate_csv_file(experts)
 
-            publish("Uploading results to storage...", 94)
+            publish_progress_update("Uploading results to storage...", 94)
             pdf_url = upload_report_to_storage(
                 search_id, pdf_bytes, "pdf", "application/pdf"
             )
@@ -410,7 +428,7 @@ class ExpertFinderService:
                 "expert_count": len(experts),
                 "llm_model": self.openai_expert.model_id,
             }
-            publish(
+            publish_progress_update(
                 "Expert search complete!", 100, status=ExpertSearch.Status.COMPLETED
             )
             if progress_callback:
@@ -420,7 +438,7 @@ class ExpertFinderService:
         except Exception as e:
             error_message = f"Expert search processing failed: {str(e)}"
             logger.exception(error_message)
-            publish(error_message, 0, status=ExpertSearch.Status.FAILED)
+            publish_progress_update(error_message, 0, status=ExpertSearch.Status.FAILED)
             if progress_callback:
                 progress_callback(search_id, 0, error_message)
             raise
