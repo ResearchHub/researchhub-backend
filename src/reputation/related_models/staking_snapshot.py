@@ -1,0 +1,31 @@
+from decimal import Decimal
+
+from django.db import models
+
+
+class StakingSnapshot(models.Model):
+    emission_per_year = models.DecimalField(
+        max_digits=19, decimal_places=8, default=Decimal("0")
+    )
+    circulating_supply = models.DecimalField(
+        max_digits=19, decimal_places=8, default=Decimal("0")
+    )
+    staked_fraction = models.DecimalField(
+        max_digits=19, decimal_places=18, default=Decimal("0")
+    )
+    avg_multiplier = models.DecimalField(
+        max_digits=19, decimal_places=8, default=Decimal("1")
+    )
+    last_circulating_supply_at = models.DateTimeField(null=True, blank=True)
+    created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        app_label = "reputation"
+
+    def __str__(self):
+        return f"StakingSnapshot(pk={self.pk})"
+
+    @classmethod
+    def load(cls):
+        return cls.objects.order_by("-created_date").first()
