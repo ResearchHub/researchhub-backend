@@ -23,7 +23,6 @@ jobs:
           DB_HOST: localhost
           DB_USER: rh_developer
           DB_PASS: not_secure
-          APP_ENV: test
         ports:
           - 5432:5432
         options: >-
@@ -62,6 +61,8 @@ jobs:
         run: uv sync --all-extras
 
       - name: Run Tests
+        env:
+          APP_ENV: test
         working-directory: ./src
         run: |
           cp config/ci/* config
