@@ -8,18 +8,13 @@ from django.core.validators import EmailValidator
 
 from paper.tasks.tasks import create_download_url
 from paper.utils import download_pdf_from_url
-from research_ai.constants import (
-    MAX_PDF_SIZE_BYTES,
-    ExpertiseLevel,
-    Gender,
-    Region,
-)
+from research_ai.constants import MAX_PDF_SIZE_BYTES, ExpertiseLevel, Gender, Region
 from research_ai.models import ExpertSearch
 from research_ai.prompts.expert_finder_prompts import (
     build_system_prompt,
     build_user_prompt,
 )
-from research_ai.services.bedrock_llm_service import BedrockLLMService
+from research_ai.services.openai_expert_finder_service import OpenAIExpertFinderService
 from research_ai.services.progress_service import ProgressService, TaskType
 from research_ai.services.report_generator_service import (
     generate_csv_file,
@@ -32,6 +27,27 @@ logger = logging.getLogger(__name__)
 
 PDF_TOO_LARGE_MESSAGE = "PDF is too large. Maximum size is 10 MB. Please use another input type (e.g. abstract)."
 MAX_ERROR_MESSAGE_LENGTH = 10000
+
+# Cap on how many times we call the model to "top up" unique experts.
+# One API call can return many rows, but duplicates, invalid emails, exclusions, and deceased filtering often leave the
+# pool short of the user's target, so we re-prompt with updated exclusions until we reach the target.
+EXPERT_FILL_MAX_ROUNDS = 6
+EXPERT_FILL_TOLERANCE_SHORT = 10
+EXPERT_FILL_EXCLUDED_NAMES_CAP = 250
+
+_DECEASED_ROW_REGEX = re.compile(
+    r"(?i)(?:"
+    r"\b(?:the\s+)?late\s+(?:dr\.?|prof\.?|professor)\b|"
+    r"\bdeceased\b|"
+    r"\bpassed\s+away\b|"
+    r"\bin\s+memoriam\b|"
+    r"\bposthumous(?:ly)?\b|"
+    r"\brest\s+in\s+peace\b|"
+    r"\(d\.\s*\d{4}\)|"
+    r"\bd\.\s*\d{4}\b|"
+    r"\bdied\s+(?:in|on)?\s*\d{4}\b"
+    r")"
+)
 
 
 def get_document_content(unified_doc, input_type: str):
@@ -137,7 +153,7 @@ def _extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
 
 class ExpertFinderService:
     def __init__(self):
-        self.bedrock_llm = BedrockLLMService()
+        self.openai_expert = OpenAIExpertFinderService()
         self.progress_service = ProgressService()
 
     def process_expert_search(
@@ -151,7 +167,7 @@ class ExpertFinderService:
         progress_callback: Callable[[str, int, str], None] | None = None,
     ) -> dict[str, Any]:
         """
-        Run expert finder: build prompts, call Bedrock, parse table, generate reports.
+        Run expert finder: OpenAI finds experts (web search), parse table, generate reports.
 
         All operations are synchronous (for use from Celery). Progress is published
         to Redis and optionally to progress_callback(search_id, percent, message).
@@ -159,7 +175,7 @@ class ExpertFinderService:
         is_pdf: Set True when query text was extracted from a PDF (affects prompt wording).
         """
 
-        def publish(
+        def publish_progress_update(
             message: str,
             percent: int,
             status: str = ExpertSearch.Status.PROCESSING,
@@ -185,7 +201,9 @@ class ExpertFinderService:
         try:
             logger.info("Starting Expert Finder for search_id=%s", search_id)
             expert_count = config.get("expert_count", 10)
-            expertise_level_raw = config.get("expertise_level", [ExpertiseLevel.ALL_LEVELS])
+            expertise_level_raw = config.get(
+                "expertise_level", [ExpertiseLevel.ALL_LEVELS]
+            )
             if isinstance(expertise_level_raw, str):
                 expertise_level = (
                     [expertise_level_raw]
@@ -206,48 +224,152 @@ class ExpertFinderService:
             state_filter = config.get("state", "All States")
             gender_filter = config.get("gender", Gender.ALL_GENDERS)
             excluded = excluded_expert_names or []
+            target_expert_count = max(0, int(expert_count))
 
-            publish("Preparing expert search prompt...", 20)
-            system_prompt = build_system_prompt(
-                expert_count=expert_count,
-                expertise_level=expertise_level,
-                region_filter=region_filter,
-                state_filter=state_filter,
-                gender_filter=gender_filter,
-                excluded_expert_names=excluded,
-            )
-            user_prompt = build_user_prompt(
-                query=query,
-                expert_count=expert_count,
-                expertise_level=expertise_level,
-                region_filter=region_filter,
-                gender_filter=gender_filter,
-                is_pdf=is_pdf,
-            )
-
-            publish("Initiating AI search...", 50)
-            llm_response = self.bedrock_llm.invoke(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-            )
-            logger.info("LLM response length: %s", len(llm_response))
-
-            publish("Parsing expert recommendations...", 70)
-            experts = self._parse_markdown_table(llm_response)
-            logger.info("Parsed %s experts", len(experts))
-
+            accumulated: list[dict[str, Any]] = []
+            seen_email: set[str] = set()
+            llm_response = ""
             all_filtered_out = False
-            if excluded:
-                before_count = len(experts)
-                experts = [
+
+            # Each round: one model call asking for up to `remaining` new experts,
+            # then parse/filter/dedupe and merge into `accumulated`. We iterate a
+            # fixed maximum number of rounds (not "one round per expert") because a
+            # single response can return many rows; rounds exist to recover when the
+            # first batch is thin after validation. Stops early when we hit the target,
+            # when a round adds no new unique experts, or when the "near target"
+            # tolerance applies (large targets only).
+            for round_num in range(1, EXPERT_FILL_MAX_ROUNDS + 1):
+                if len(accumulated) >= target_expert_count:
+                    break
+                remaining = target_expert_count - len(accumulated)
+                # Near-target early exit (large jobs only): e.g. target 100 experts,
+                # tolerance 10 → stop once we have ≥90 unique experts. We require
+                # target_expert_count > tolerance so small jobs (e.g. need 3, have 2)
+                # are not misclassified as "close enough" when remaining ≤ tolerance.
+                if (
+                    round_num > 1
+                    and target_expert_count > EXPERT_FILL_TOLERANCE_SHORT
+                    and len(accumulated)
+                    >= target_expert_count - EXPERT_FILL_TOLERANCE_SHORT
+                ):
+                    logger.info(
+                        "Expert Finder search_id=%s stopping fill: unique=%s >= "
+                        "target - tolerance (%s - %s) after %s rounds",
+                        search_id,
+                        len(accumulated),
+                        target_expert_count,
+                        EXPERT_FILL_TOLERANCE_SHORT,
+                        round_num - 1,
+                    )
+                    break
+
+                effective_excluded = self._effective_excluded_for_fill(
+                    excluded, accumulated
+                )
+                round_request = max(1, remaining)
+
+                publish_progress_update(
+                    "Preparing expert search prompt...", 18 + round_num * 2
+                )
+                # System role: output format, filters, exclusions. User role: the
+                # document/query text and task framing (see expert_finder_prompts).
+                finder_system_instructions = build_system_prompt(
+                    expert_count=round_request,
+                    expertise_level=expertise_level,
+                    region_filter=region_filter,
+                    state_filter=state_filter,
+                    gender_filter=gender_filter,
+                    excluded_expert_names=effective_excluded,
+                )
+                finder_user_task = build_user_prompt(
+                    query=query,
+                    expert_count=round_request,
+                    expertise_level=expertise_level,
+                    region_filter=region_filter,
+                    gender_filter=gender_filter,
+                    is_pdf=is_pdf,
+                )
+
+                publish_progress_update(
+                    f"Finding experts (round {round_num}/{EXPERT_FILL_MAX_ROUNDS}, "
+                    f"{len(accumulated)}/{target_expert_count})...",
+                    38 + round_num * 4,
+                )
+                llm_response = self.openai_expert.invoke(
+                    system_prompt=finder_system_instructions,
+                    user_prompt=finder_user_task,
+                )
+                logger.info(
+                    "OpenAI expert finder search_id=%s round=%s response_len=%s",
+                    search_id,
+                    round_num,
+                    len(llm_response),
+                )
+
+                publish_progress_update(
+                    "Parsing expert recommendations...", 58 + round_num * 2
+                )
+                batch = self._parse_markdown_table(llm_response)
+                parsed_count = len(batch)
+
+                before_name_filter = len(batch)
+                batch = [
                     e
-                    for e in experts
+                    for e in batch
                     if not self._expert_name_matches_excluded(
-                        e.get("name") or "", excluded
+                        e.get("name") or "", effective_excluded
                     )
                 ]
-                if before_count > 0 and len(experts) == 0:
+                after_exclude = len(batch)
+                if (
+                    round_num == 1
+                    and excluded
+                    and before_name_filter > 0
+                    and after_exclude == 0
+                ):
                     all_filtered_out = True
+
+                batch = [e for e in batch if not self._expert_row_suggests_deceased(e)]
+                after_deceased = len(batch)
+
+                batch = self._dedupe_experts_by_normalized_email(batch)
+                after_dedupe = len(batch)
+
+                before_merge_len = len(accumulated)
+                for e in batch:
+                    em = (e.get("email") or "").strip().lower()
+                    if not em or em in seen_email:
+                        continue
+                    seen_email.add(em)
+                    accumulated.append(dict(e))
+                new_added = len(accumulated) - before_merge_len
+
+                logger.info(
+                    "Expert Finder search_id=%s round=%s: parsed=%s after_name_filter=%s "
+                    "after_deceased_filter=%s after_batch_dedupe=%s new_unique_merged=%s "
+                    "total_unique=%s target=%s",
+                    search_id,
+                    round_num,
+                    parsed_count,
+                    after_exclude,
+                    after_deceased,
+                    after_dedupe,
+                    new_added,
+                    len(accumulated),
+                    target_expert_count,
+                )
+
+                if new_added == 0:
+                    break
+
+            experts = accumulated[:target_expert_count]
+            logger.info(
+                "Expert Finder search_id=%s fill complete: unique=%s after_cap=%s target=%s",
+                search_id,
+                len(accumulated),
+                len(experts),
+                target_expert_count,
+            )
 
             if len(experts) == 0:
                 if all_filtered_out:
@@ -270,7 +392,7 @@ class ExpertFinderService:
                         msg = msg + " Response from model:\n\n" + display_error
                     current_step = "No expert recommendations table returned by model"
                     error_message = (llm_response or "")[:MAX_ERROR_MESSAGE_LENGTH]
-                publish(msg, 0, status=ExpertSearch.Status.FAILED)
+                publish_progress_update(msg, 0, status=ExpertSearch.Status.FAILED)
                 if progress_callback:
                     progress_callback(search_id, 0, msg)
                 return {
@@ -281,16 +403,16 @@ class ExpertFinderService:
                     "experts": [],
                     "report_urls": {},
                     "expert_count": 0,
-                    "llm_model": self.bedrock_llm.model_id,
+                    "llm_model": self.openai_expert.model_id,
                     "error_message": error_message,
                     "current_step": current_step,
                 }
-            publish("Generating PDF report...", 80)
+            publish_progress_update("Generating PDF report...", 80)
             pdf_bytes = generate_pdf_report(experts, query, config)
-            publish("Generating CSV file...", 88)
+            publish_progress_update("Generating CSV file...", 88)
             csv_bytes = generate_csv_file(experts)
 
-            publish("Uploading results to storage...", 94)
+            publish_progress_update("Uploading results to storage...", 94)
             pdf_url = upload_report_to_storage(
                 search_id, pdf_bytes, "pdf", "application/pdf"
             )
@@ -304,9 +426,9 @@ class ExpertFinderService:
                 "experts": experts,
                 "report_urls": {"pdf": pdf_url, "csv": csv_url},
                 "expert_count": len(experts),
-                "llm_model": self.bedrock_llm.model_id,
+                "llm_model": self.openai_expert.model_id,
             }
-            publish(
+            publish_progress_update(
                 "Expert search complete!", 100, status=ExpertSearch.Status.COMPLETED
             )
             if progress_callback:
@@ -316,7 +438,7 @@ class ExpertFinderService:
         except Exception as e:
             error_message = f"Expert search processing failed: {str(e)}"
             logger.exception(error_message)
-            publish(error_message, 0, status=ExpertSearch.Status.FAILED)
+            publish_progress_update(error_message, 0, status=ExpertSearch.Status.FAILED)
             if progress_callback:
                 progress_callback(search_id, 0, error_message)
             raise
@@ -342,6 +464,25 @@ class ExpertFinderService:
         base, qs = url.split("?", 1)
         params = [p for p in qs.split("&") if not p.startswith("utm_")]
         return f"{base}?{'&'.join(params)}" if params else base
+
+    @staticmethod
+    def _expert_row_suggests_deceased(expert: dict[str, Any]) -> bool:
+        """
+        True if name/title/affiliation/expertise/notes contain obvious deceased indicators.
+
+        Conservative: only flags clear phrases (e.g. deceased, late Prof., d. 2020).
+        """
+        parts = [
+            expert.get("name") or "",
+            expert.get("title") or "",
+            expert.get("affiliation") or "",
+            expert.get("expertise") or "",
+            expert.get("notes") or "",
+        ]
+        blob = " ".join(p.strip() for p in parts if p and str(p).strip())
+        if not blob:
+            return False
+        return _DECEASED_ROW_REGEX.search(blob) is not None
 
     @staticmethod
     def _normalize_name_for_exclusion(name: str) -> str:
@@ -383,6 +524,63 @@ class ExpertFinderService:
             if all(token in expert_tokens for token in excluded_tokens):
                 return True
         return False
+
+    @staticmethod
+    def _dedupe_experts_by_normalized_email(
+        experts: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """
+        Keep first row per email; normalize email with strip().lower() for identity.
+        Stored expert dicts use the normalized email string.
+        """
+        seen: set[str] = set()
+        out: list[dict[str, Any]] = []
+        for e in experts:
+            raw = (e.get("email") or "").strip()
+            if not raw:
+                continue
+            key = raw.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            row = dict(e)
+            row["email"] = key
+            out.append(row)
+        return out
+
+    @staticmethod
+    def _effective_excluded_for_fill(
+        user_excluded: list[str],
+        accumulated: list[dict[str, Any]],
+    ) -> list[str]:
+        """
+        Names the model must not repeat: user exclusions plus experts already collected.
+        Capped to avoid oversized prompts.
+        """
+        acc_names = [
+            (e.get("name") or "").strip()
+            for e in accumulated
+            if (e.get("name") or "").strip()
+        ]
+        combined = list(user_excluded) + acc_names
+        if len(combined) <= EXPERT_FILL_EXCLUDED_NAMES_CAP:
+            return combined
+        n_user = len(user_excluded)
+        if n_user >= EXPERT_FILL_EXCLUDED_NAMES_CAP:
+            logger.warning(
+                "Expert fill: user exclusion list length %s exceeds cap %s; truncating",
+                n_user,
+                EXPERT_FILL_EXCLUDED_NAMES_CAP,
+            )
+            return list(user_excluded)[:EXPERT_FILL_EXCLUDED_NAMES_CAP]
+        tail = EXPERT_FILL_EXCLUDED_NAMES_CAP - n_user
+        logger.warning(
+            "Expert fill: exclusion list capped to %s (user=%s accumulated_names=%s)",
+            EXPERT_FILL_EXCLUDED_NAMES_CAP,
+            n_user,
+            len(acc_names),
+        )
+        return list(user_excluded) + acc_names[-tail:]
 
     def _parse_markdown_table(self, markdown_text: str) -> list[dict[str, Any]]:
         """Parse markdown table from LLM response into list of expert dicts."""
