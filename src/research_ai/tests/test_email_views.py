@@ -5,7 +5,7 @@ from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from research_ai.models import ExpertSearch, GeneratedEmail
+from research_ai.models import EmailTemplate, ExpertSearch, GeneratedEmail
 from research_ai.services.email_sending_service import send_plain_email
 from research_ai.views.email_views import _normalize_template
 from user.tests.helpers import create_random_authenticated_user
@@ -225,7 +225,47 @@ class GenerateEmailViewTests(APITestCase):
         call_kw = mock_generate.call_args[1]
         self.assertEqual(call_kw["template_id"], 1)
         self.assertEqual(call_kw["user"], self.moderator)
-        self.assertNotIn("use_llm", call_kw)
+        self.assertEqual(call_kw["template"], "collaboration")
+
+    @patch("research_ai.views.email_views.generate_expert_email")
+    def test_post_template_null_requires_template_id(self, mock_generate):
+        mock_generate.return_value = ("S", "B")
+        self.client.force_authenticate(self.moderator)
+        response = self.client.post(
+            self.url,
+            {
+                "expert_search_id": self.expert_search.id,
+                "expert_email": "jane@example.com",
+                "template": None,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @patch("research_ai.views.email_views.generate_expert_email")
+    def test_post_template_null_with_template_id_fixed_path(self, mock_generate):
+        mock_generate.return_value = ("S", "B")
+        t = EmailTemplate.objects.create(
+            created_by=self.moderator,
+            name="Var",
+            email_subject="{{expert.name}}",
+            email_body="Hi",
+        )
+        self.client.force_authenticate(self.moderator)
+        response = self.client.post(
+            self.url,
+            {
+                "expert_search_id": self.expert_search.id,
+                "expert_email": "jane@example.com",
+                "template": None,
+                "template_id": t.id,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        call_kw = mock_generate.call_args[1]
+        self.assertIsNone(call_kw["template"])
+        self.assertEqual(call_kw["template_id"], t.id)
 
     def test_post_with_invalid_expert_search_id_returns_404(self):
         self.client.force_authenticate(self.moderator)
@@ -542,6 +582,43 @@ class BulkGenerateEmailViewTests(APITestCase):
         self.assertEqual(len(data["ids"]), 2)
         self.assertEqual(GeneratedEmail.objects.filter(status="processing").count(), 2)
         mock_task.delay.assert_called_once()
+
+    def test_post_template_null_without_template_id_returns_400(self):
+        self.client.force_authenticate(self.moderator)
+        response = self.client.post(
+            self.url,
+            {
+                "expert_search_id": self.expert_search.id,
+                "experts": [{"expert_email": "a@x.com"}],
+                "template": None,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @patch("research_ai.views.email_views.process_bulk_generate_emails_task")
+    def test_post_template_null_stores_null_template_on_placeholder(self, mock_task):
+        mock_task.delay.return_value = None
+        t = EmailTemplate.objects.create(
+            created_by=self.moderator,
+            name="Bulk var",
+            email_subject="S",
+            email_body="B",
+        )
+        self.client.force_authenticate(self.moderator)
+        response = self.client.post(
+            self.url,
+            {
+                "expert_search_id": self.expert_search.id,
+                "experts": [{"expert_email": "a@x.com"}],
+                "template": None,
+                "template_id": t.id,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        rec = GeneratedEmail.objects.get(expert_email="a@x.com")
+        self.assertIsNone(rec.template)
 
     def test_post_expert_not_in_search_returns_400_and_creates_no_placeholders(self):
         """Invalid expert email returns 400 and no GeneratedEmail records (transaction rollback)."""
