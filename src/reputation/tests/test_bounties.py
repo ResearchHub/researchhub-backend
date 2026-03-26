@@ -1479,6 +1479,8 @@ class BountyViewTests(APITestCase):
     def test_hubs_endpoint_returns_hubs_with_bounties(self):
         """Ensure /api/bounty/hubs/ returns hubs linked to open bounties."""
         # Arrange: create a hub linked paper and bounty
+        self.hub.namespace = Hub.Namespace.SUBCATEGORY
+        self.hub.save(update_fields=["namespace"])
         paper = create_paper()
         paper.unified_document.hubs.add(self.hub)
         comment = create_rh_comment(created_by=self.user, paper=paper)
