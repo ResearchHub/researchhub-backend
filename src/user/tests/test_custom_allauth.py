@@ -49,7 +49,6 @@ class CustomAccountAdapterTests(SimpleTestCase):
         args, kwargs = mock_send.call_args
         self.assertEqual(args[0], "user@example.com")
         self.assertEqual(args[2], "Confirm Your Email Address")
-        self.assertTrue(kwargs["is_transactional"])
         self.assertEqual(kwargs["html_template"], "general_branded_email.html")
         self.assertEqual(args[3]["cta_url"], "https://www.researchhub.com/verify/key1")
 
@@ -74,4 +73,3 @@ class CustomResetPasswordFormTests(TestCase):
         args, kwargs = mock_send.call_args
         self.assertEqual(args[0], "user@example.com")
         self.assertEqual(args[2], "Reset Your Password")
-        self.assertTrue(kwargs["is_transactional"])

@@ -6,10 +6,8 @@ from mailing_list.models import EmailRecipient
 from user.tests.helpers import create_random_authenticated_user
 from utils.test_helpers import get_authenticated_post_response
 
-URL = "/email_notifications/"
 
-
-class SNSNotificationTests(TransactionTestCase):
+class MailingListSNSEmailTests(TransactionTestCase):
     def setUp(self):
         self.user = create_random_authenticated_user("mailing_user")
 
@@ -20,7 +18,7 @@ class SNSNotificationTests(TransactionTestCase):
 
         # Act
         return get_authenticated_post_response(
-            self.user, URL, data, content_type="plain/text"
+            self.user, "/email_notifications/", data, content_type="plain/text"
         )
 
     def test_bounce_marks_do_not_email(self):

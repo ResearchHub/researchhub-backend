@@ -81,23 +81,7 @@ class SendEmailMessageTests(TestCase):
         self.assertIn("bounced@example.com", result["exclude"])
         self.assertEqual(len(mail.outbox), 0)
 
-    def test_transactional_skips_whitelist_and_suppression(self):
-        # Arrange
-        EmailRecipient.objects.create(email="bounced@example.com", do_not_email=True)
-
-        # Act
-        result = self._send(
-            recipients=["bounced@example.com"], is_transactional=True
-        )
-
-        # Assert
-        self.assertEqual(result["success"], ["bounced@example.com"])
-        self.assertEqual(result["exclude"], [])
-        msg = mail.outbox[0]
-        self.assertEqual(msg.extra_headers["X-Auto-Response-Suppress"], "All")
-        self.assertNotIn("Precedence", msg.extra_headers)
-
-    def test_non_transactional_sets_precedence_bulk(self):
+    def test_sets_precedence_bulk(self):
         # Act
         self._send()
 
@@ -105,7 +89,7 @@ class SendEmailMessageTests(TestCase):
         msg = mail.outbox[0]
         self.assertEqual(msg.extra_headers["Precedence"], "bulk")
 
-    def test_list_unsubscribe_header_for_non_transactional_with_opt_out(self):
+    def test_list_unsubscribe_header_with_opt_out(self):
         # Act
         self._send(
             email_context={**BASE_CONTEXT, "opt_out": "https://example.com/unsub"}
@@ -115,16 +99,6 @@ class SendEmailMessageTests(TestCase):
         headers = mail.outbox[0].extra_headers
         self.assertIn("List-Unsubscribe", headers)
         self.assertIn("List-Unsubscribe-Post", headers)
-
-    def test_no_list_unsubscribe_for_transactional(self):
-        # Act
-        self._send(
-            email_context={**BASE_CONTEXT, "opt_out": "https://example.com/unsub"},
-            is_transactional=True,
-        )
-
-        # Assert
-        self.assertNotIn("List-Unsubscribe", mail.outbox[0].extra_headers)
 
     def test_does_not_mutate_email_context(self):
         # Arrange

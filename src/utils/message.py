@@ -1,5 +1,6 @@
 import logging
 from time import sleep
+from typing import Any
 
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
@@ -11,13 +12,13 @@ from sentry_sdk import capture_exception
 logger = logging.getLogger(__name__)
 
 
-def is_valid_email(email):
+def is_valid_email(email: str) -> bool:
     if settings.TESTING or settings.PRODUCTION:
         return True
     return email in settings.EMAIL_WHITELIST
 
 
-def get_suppressed_emails(emails):
+def get_suppressed_emails(emails: list[str]) -> set[str]:
     """Return the subset of *emails* that should not receive mail.
 
     An address is suppressed when its ``EmailRecipient`` record has
@@ -27,18 +28,18 @@ def get_suppressed_emails(emails):
 
     return set(
         EmailRecipient.objects.filter(
+            Q(do_not_email=True) | Q(is_opted_out=True),
             email__in=emails,
-        )
-        .filter(Q(do_not_email=True) | Q(is_opted_out=True))
-        .values_list("email", flat=True)
+        ).values_list("email", flat=True)
     )
 
 
-def _filter_recipients(recipients, is_transactional):
-    """Partition recipients into sendable and excluded lists."""
-    if is_transactional:
-        return list(recipients), []
+def _filter_recipients(recipients: list[str]) -> tuple[list[str], list[str]]:
+    """Partition recipients into sendable and excluded lists.
 
+    Returns:
+        (sendable, excluded) – two lists of email addresses.
+    """
     sendable = [r for r in recipients if is_valid_email(r)]
     excluded = list(set(recipients) - set(sendable))
 
@@ -50,7 +51,9 @@ def _filter_recipients(recipients, is_transactional):
     return sendable, excluded
 
 
-def _render_body(template, html_template, context):
+def _render_body(
+    template: str | None, html_template: str | None, context: dict[str, Any]
+) -> tuple[str, str | None]:
     """Render plain-text and HTML email bodies from templates."""
     html_body = render_to_string(html_template, context) if html_template else None
 
@@ -64,30 +67,28 @@ def _render_body(template, html_template, context):
     return plain_body, html_body
 
 
-def _build_headers(base_headers, context, is_transactional):
-    """Build per-recipient headers, adding unsubscribe when applicable."""
-    headers = {**base_headers}
-    unsub_url = context.get("opt_out")
-    if unsub_url and not is_transactional:
+def _build_headers(opt_out_url: str | None = None) -> dict[str, str]:
+    """Build email headers, adding unsubscribe when applicable."""
+    headers: dict[str, str] = {"Precedence": "bulk"}
+    if opt_out_url:
         headers["List-Unsubscribe"] = (
             f"<mailto:{settings.DEFAULT_FROM_EMAIL}?subject=unsubscribe>, "
-            f"<{unsub_url}>"
+            f"<{opt_out_url}>"
         )
         headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"
     return headers
 
 
 def send_email_message(
-    recipients,
-    template,
-    subject,
-    email_context,
-    html_template=None,
-    sender=f"ResearchHub <{settings.DEFAULT_FROM_EMAIL}>",
-    is_transactional=False,
-    reply_to=None,
-    cc=None,
-):
+    recipients: str | list[str],
+    template: str | None,
+    subject: str,
+    email_context: dict[str, Any],
+    html_template: str | None = None,
+    sender: str = f"ResearchHub <{settings.DEFAULT_FROM_EMAIL}>",
+    reply_to: str | None = None,
+    cc: list[str] | None = None,
+) -> dict[str, list[str]]:
     """Send a branded email to one or more recipients.
 
     Args:
@@ -99,8 +100,6 @@ def send_email_message(
         html_template: HTML Django template name. If ``None``, only the
             plain-text version is sent.
         sender: From address.
-        is_transactional: If ``True``, skip suppression checks and set
-            ``X-Auto-Response-Suppress`` header (for password resets, etc.).
         reply_to: Optional reply-to address.
         cc: Optional list of CC addresses.
 
@@ -115,26 +114,21 @@ def send_email_message(
     if not settings.PRODUCTION:
         subject = "[Staging] " + subject
 
-    result = {"success": [], "failure": [], "exclude": []}
-    sendable, excluded = _filter_recipients(recipients, is_transactional)
-    result["exclude"].extend(excluded)
+    sendable, excluded = _filter_recipients(recipients)
+    result = {"success": [], "failure": [], "exclude": excluded}
 
     if not sendable:
         return result
 
-    base_headers = (
-        {"X-Auto-Response-Suppress": "All"}
-        if is_transactional
-        else {"Precedence": "bulk"}
-    )
-
     for recipient in sendable:
         context = email_context.copy()
-        if "opt_out" in context:
-            context["opt_out"] += f"?email={recipient}"
+        opt_out_url = context.get("opt_out")
+        if opt_out_url:
+            opt_out_url += f"?email={recipient}"
+            context["opt_out"] = opt_out_url
 
         plain_message, html_message = _render_body(template, html_template, context)
-        headers = _build_headers(base_headers, context, is_transactional)
+        headers = _build_headers(opt_out_url)
 
         try:
             msg = EmailMultiAlternatives(

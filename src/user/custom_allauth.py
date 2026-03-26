@@ -3,6 +3,7 @@ from allauth.account.forms import ResetPasswordForm
 from allauth.account.utils import user_pk_to_url_str
 from dj_rest_auth.serializers import PasswordResetSerializer
 from django.conf import settings
+from django.http import HttpRequest
 from django.utils.safestring import mark_safe
 
 from utils.message import send_email_message
@@ -11,10 +12,10 @@ BRANDED_TEMPLATE = "general_branded_email.html"
 
 
 class CustomAccountAdapter(DefaultAccountAdapter):
-    def get_email_confirmation_url(self, request, emailconfirmation):
+    def get_email_confirmation_url(self, request: HttpRequest, emailconfirmation) -> str:
         return f"{settings.BASE_FRONTEND_URL}/verify/{emailconfirmation.key}"
 
-    def send_confirmation_mail(self, request, emailconfirmation, signup):
+    def send_confirmation_mail(self, request: HttpRequest, emailconfirmation, signup: bool) -> None:
         activate_url = self.get_email_confirmation_url(request, emailconfirmation)
         subject = "Confirm Your Email Address"
         send_email_message(
@@ -32,7 +33,6 @@ class CustomAccountAdapter(DefaultAccountAdapter):
                 "assets_base_url": settings.ASSETS_BASE_URL,
             },
             html_template=BRANDED_TEMPLATE,
-            is_transactional=True,
         )
 
 
@@ -41,12 +41,12 @@ class CustomPasswordResetSerializer(PasswordResetSerializer):
     def password_reset_form_class(self):
         return CustomResetPasswordForm
 
-    def get_email_options(self):
+    def get_email_options(self) -> dict:
         return {}
 
 
 class CustomResetPasswordForm(ResetPasswordForm):
-    def save(self, request, **kwargs):
+    def save(self, request: HttpRequest, **kwargs) -> str:
         email = self.cleaned_data["email"]
         token_generator = kwargs.get("token_generator")
         for user in self.users:
@@ -70,6 +70,5 @@ class CustomResetPasswordForm(ResetPasswordForm):
                     "assets_base_url": settings.ASSETS_BASE_URL,
                 },
                 html_template=BRANDED_TEMPLATE,
-                is_transactional=True,
             )
         return email
