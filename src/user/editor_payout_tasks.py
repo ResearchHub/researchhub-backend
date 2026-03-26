@@ -33,7 +33,7 @@ UNI_SWAP_GRAPH_URI = "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v2
 ASSISTANT_EDITOR_USD_PAY_AMOUNT_PER_MONTH = 1000
 ASSOCIATE_EDITOR_USD_PAY_AMOUNT_PER_MONTH = 1500
 SENIOR_EDITOR_USD_PAY_AMOUNT_PER_MONTH = 2000
-USD_PER_RSC_PRICE_FLOOR = 0.01
+USD_PER_RSC_PRICE_FLOOR = 0.10
 
 MORALIS_LOOKUP_URI = (
     "https://deep-index.moralis.io/api/v2/erc20/{address}/price".format(

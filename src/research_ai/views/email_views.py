@@ -7,7 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from research_ai.constants import VALID_EMAIL_TEMPLATE_KEYS
+from research_ai.constants import DEFAULT_EMAIL_TEMPLATE_KEY, VALID_EMAIL_TEMPLATE_KEYS
 from research_ai.models import ExpertSearch, GeneratedEmail
 from research_ai.permissions import ResearchAIPermission
 from research_ai.serializers import (
@@ -35,6 +35,30 @@ def _normalize_template(template: str) -> tuple[str, str | None]:
     if template in VALID_EMAIL_TEMPLATE_KEYS:
         return template, None
     return "custom", template or None
+
+
+def _resolve_generate_llm_params(request_data: dict, validated_data: dict):
+    """
+    Return (template_key, custom_use_case) for generate_expert_email.
+    (None, None) means fixed template path (template was JSON null).
+    """
+    if "template" in request_data and request_data["template"] is None:
+        return None, None
+    raw = validated_data.get("template")
+    if raw is None:
+        return DEFAULT_EMAIL_TEMPLATE_KEY, None
+    return _normalize_template(raw)
+
+
+def _stored_template_for_bulk(request_data: dict, validated_data: dict) -> str | None:
+    """Value persisted on GeneratedEmail.template for bulk jobs (null = fixed path)."""
+    if "template" in request_data and request_data["template"] is None:
+        return None
+    raw = validated_data.get("template")
+    if raw is None:
+        return DEFAULT_EMAIL_TEMPLATE_KEY
+    key, _ = _normalize_template(raw)
+    return key
 
 
 class GenerateEmailView(APIView):
@@ -66,7 +90,7 @@ class GenerateEmailView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        template_key, custom_use_case = _normalize_template(data.get("template") or "")
+        template_key, custom_use_case = _resolve_generate_llm_params(request.data, data)
         template_id = data.get("template_id")
 
         try:
@@ -77,6 +101,11 @@ class GenerateEmailView(APIView):
                 expert_search=expert_search,
                 template_id=template_id,
                 user=request.user,
+            )
+        except ValueError as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
             )
         except RuntimeError as e:
             logger.exception("Email generation failed")
@@ -91,6 +120,7 @@ class GenerateEmailView(APIView):
         if save_param == "false" or action_param == "generate":
             return Response({"subject": subject, "body": body})
 
+        stored_template = None if template_key is None else template_key
         email_record = GeneratedEmail.objects.create(
             created_by=request.user,
             expert_search=expert_search,
@@ -101,7 +131,7 @@ class GenerateEmailView(APIView):
             expertise=resolved.get("expertise") or "",
             email_subject=subject,
             email_body=body,
-            template=template_key,
+            template=stored_template,
             status="draft",
             notes=resolved.get("notes") or "",
         )
@@ -132,7 +162,7 @@ class BulkGenerateEmailView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        template_key, _ = _normalize_template(data.get("template") or "")
+        stored_template = _stored_template_for_bulk(request.data, data)
         placeholders = []
         try:
             with transaction.atomic():
@@ -154,7 +184,7 @@ class BulkGenerateEmailView(APIView):
                         expertise=resolved.get("expertise") or "",
                         email_subject="",
                         email_body="",
-                        template=template_key,
+                        template=stored_template,
                         status=GeneratedEmail.Status.PROCESSING,
                         notes=resolved.get("notes") or "",
                     )
