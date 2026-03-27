@@ -98,6 +98,34 @@ class StakingYieldServiceTest(TestCase):
         )
         self.assertEqual(daily_yield, expected)
 
+    def test_daily_emission_day_0_matches_spreadsheet(self):
+        """Day 0 emission = 9,500,000 / 365 ≈ 26027.39726 RSC."""
+        emission = StakingYieldService.compute_total_daily_emission(
+            STAKING_RELEASE_DATE
+        )
+        self.assertAlmostEqual(float(emission), 26027.39726, places=3)
+
+    def test_daily_emission_day_1_matches_spreadsheet(self):
+        """Spreadsheet Daily Returns row for day 1: 26026.62498 RSC."""
+        emission = StakingYieldService.compute_total_daily_emission(
+            STAKING_RELEASE_DATE + timedelta(days=1)
+        )
+        self.assertAlmostEqual(float(emission), 26026.62498, places=2)
+
+    def test_daily_emission_day_365_matches_spreadsheet(self):
+        """Spreadsheet Daily Returns row for day 365: 25747.03048 RSC."""
+        emission = StakingYieldService.compute_total_daily_emission(
+            STAKING_RELEASE_DATE + timedelta(days=365)
+        )
+        self.assertAlmostEqual(float(emission), 25747.03048, places=2)
+
+    def test_daily_emission_day_730_matches_spreadsheet(self):
+        """Spreadsheet Daily Returns row for day 730: 25469.68381 RSC."""
+        emission = StakingYieldService.compute_total_daily_emission(
+            STAKING_RELEASE_DATE + timedelta(days=730)
+        )
+        self.assertAlmostEqual(float(emission), 25469.68381, places=2)
+
     def test_yearly_return_from_daily_yields(self):
         accrual_start = STAKING_RELEASE_DATE
         snapshot = self._make_snapshot_with_staking(
