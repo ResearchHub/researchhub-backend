@@ -442,6 +442,30 @@ class ViewTests(APITestCase):
 
         self.assertEqual(doc_response.status_code, 200)
 
+    def test_user_cannot_create_post_without_self_in_authors(self):
+        # Arrange
+        note = create_note(self.admin_user, self.organization)
+        self.client.force_authenticate(self.admin_user)
+
+        # Act
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "authors": [self.member_author.id],
+                "created_by": self.admin_user.id,
+                "document_type": "DISCUSSION",
+                "full_src": "body",
+                "hubs": [self.hub.id],
+                "is_public": True,
+                "note_id": note[0].id,
+                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
+                "title": "sufficiently long title. sufficiently long title.",
+            },
+        )
+
+        # Assert
+        self.assertEqual(doc_response.status_code, 400)
+
     def test_author_can_update_post(self):
         note = create_note(self.admin_user, self.organization)
 
@@ -522,6 +546,44 @@ class ViewTests(APITestCase):
         )
 
         self.assertEqual(updated_response.status_code, 200)
+
+    def test_author_cannot_update_post_without_self_in_authors(self):
+        # Arrange
+        note = create_note(self.admin_user, self.organization)
+        self.client.force_authenticate(self.admin_user)
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "DISCUSSION",
+                "created_by": self.admin_user.id,
+                "full_src": "body",
+                "is_public": True,
+                "note_id": note[0].id,
+                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
+                "title": "sufficiently long title. sufficiently long title.",
+                "hubs": [self.hub.id],
+            },
+        )
+        self.assertEqual(doc_response.status_code, 200)
+
+        # Act
+        updated_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "authors": [self.member_author.id],
+                "post_id": doc_response.data["id"],
+                "document_type": "DISCUSSION",
+                "created_by": self.admin_user.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
+                "title": "sufficiently long title. sufficiently long title.",
+                "hubs": [self.hub.id],
+            },
+        )
+
+        # Assert
+        self.assertEqual(updated_response.status_code, 400)
 
     def test_non_author_cannot_update_post(self):
         hub = create_hub()

@@ -107,6 +107,12 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         renderable_text = data.get("renderable_text", "")
         grant_amount = data.get("grant_amount")
 
+        if authors and request.user.author_profile.id not in authors:
+            return Response(
+                {"msg": "You must include yourself in the authors list"},
+                status=400,
+            )
+
         if type(title) is not str or len(title) < MIN_POST_TITLE_LENGTH:
             return Response(
                 {
@@ -318,6 +324,12 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             authors = data.get("authors", [])
             rh_post_id = data.get("post_id", None)
             rh_post = ResearchhubPost.objects.get(id=rh_post_id)
+
+            if authors and request.user.author_profile.id not in authors:
+                return Response(
+                    {"msg": "You must include yourself in the authors list"},
+                    status=400,
+                )
 
             created_by = request.user
             created_by_author = created_by.author_profile
