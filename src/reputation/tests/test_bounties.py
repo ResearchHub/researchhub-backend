@@ -22,9 +22,7 @@ from reputation.tasks import check_open_bounties
 from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_comment.tests.helpers import create_rh_comment
-from researchhub_document.related_models.constants.document_type import (
-    PREREGISTRATION,
-)
+from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -61,7 +59,7 @@ class BountyViewTests(APITestCase):
         )
         self.comment.score = 1
         self.comment.save()
-        self.hub = create_hub()
+        self.hub = create_hub(namespace=Hub.Namespace.SUBCATEGORY)
         self.bountyFee = BountyFee.objects.create(rh_pct=0.07, dao_pct=0.02)
 
         self._create_vote(self.user, self.comment, Vote.UPVOTE)
@@ -1674,9 +1672,7 @@ class BountyViewTests(APITestCase):
             document_type=PREREGISTRATION,
             unified_document=prereg_doc,
         )
-        prereg_comment = create_rh_comment(
-            post=prereg_post, created_by=self.recipient
-        )
+        prereg_comment = create_rh_comment(post=prereg_post, created_by=self.recipient)
         proposal_bounty_res = self.client.post(
             "/api/bounty/",
             {
@@ -1730,9 +1726,7 @@ class BountyViewTests(APITestCase):
             document_type=PREREGISTRATION,
             unified_document=prereg_doc,
         )
-        prereg_comment = create_rh_comment(
-            post=prereg_post, created_by=self.recipient
-        )
+        prereg_comment = create_rh_comment(post=prereg_post, created_by=self.recipient)
         proposal_bounty_res = self.client.post(
             "/api/bounty/",
             {
@@ -1783,9 +1777,7 @@ class BountyViewTests(APITestCase):
             document_type=PREREGISTRATION,
             unified_document=prereg_doc,
         )
-        prereg_comment = create_rh_comment(
-            post=prereg_post, created_by=self.recipient
-        )
+        prereg_comment = create_rh_comment(post=prereg_post, created_by=self.recipient)
         proposal_bounty_res = self.client.post(
             "/api/bounty/",
             {
