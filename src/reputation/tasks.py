@@ -6,7 +6,6 @@ from decimal import Decimal
 from typing import List, Optional
 
 import pytz
-from celery.exceptions import MaxRetriesExceededError
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
@@ -718,29 +717,26 @@ def create_daily_staking_global_snapshot(self):
                 self.max_retries + 1,
             )
 
-            if self.request.retries < self.max_retries:
-                try:
-                    raise self.retry(exc=exc)
-                except MaxRetriesExceededError:
-                    pass
-
-            supply = previous.circulating_supply
-            logger.warning(
-                "Falling back to previous circulating supply=%s for %s",
-                supply,
-                accrual_date,
-            )
-            log_error(
-                exc,
-                message=(
-                    "Failed to fetch staking circulating supply after retries; "
-                    "using previous snapshot supply"
-                ),
-                json_data={
-                    "accrual_date": str(accrual_date),
-                    "fallback_circulating_supply": str(supply),
-                },
-            )
+            if self.request.retries >= self.max_retries:
+                supply = previous.circulating_supply
+                logger.warning(
+                    "Falling back to previous circulating supply=%s for %s",
+                    supply,
+                    accrual_date,
+                )
+                log_error(
+                    exc,
+                    message=(
+                        "Failed to fetch staking circulating supply after retries; "
+                        "using previous snapshot supply"
+                    ),
+                    json_data={
+                        "accrual_date": str(accrual_date),
+                        "fallback_circulating_supply": str(supply),
+                    },
+                )
+            else:
+                raise self.retry(exc=exc)
 
         eligible_users = User.objects.filter(
             is_staking_opted_in=True,
@@ -859,39 +855,46 @@ def distribute_staking_yield():
                 accrual_date,
             )
 
-            yield_record, _ = StakingYieldRecord.objects.get_or_create(
-                user=user,
-                accrual_date=accrual_date,
-                defaults={
-                    "global_snapshot": global_snapshot,
-                    "user_snapshot": user_snapshot,
-                    "stake_amount": user_snapshot.stake_amount,
-                    "annualized_rate": annualized_rate,
-                    "proration_fraction": proration,
-                    "yield_amount": daily_yield,
-                },
-            )
+            with transaction.atomic():
+                (
+                    yield_record,
+                    _,
+                ) = StakingYieldRecord.objects.select_for_update().get_or_create(
+                    user=user,
+                    accrual_date=accrual_date,
+                    defaults={
+                        "global_snapshot": global_snapshot,
+                        "user_snapshot": user_snapshot,
+                        "stake_amount": user_snapshot.stake_amount,
+                        "annualized_rate": annualized_rate,
+                        "proration_fraction": proration,
+                        "yield_amount": daily_yield,
+                    },
+                )
 
-            if yield_record.distribution_id is not None:
-                continue  # already paid
+                if yield_record.distribution_id is not None:
+                    continue  # already paid
 
-            yield_record.global_snapshot = global_snapshot
-            yield_record.user_snapshot = user_snapshot
-            yield_record.stake_amount = user_snapshot.stake_amount
-            yield_record.annualized_rate = annualized_rate
-            yield_record.proration_fraction = proration
-            yield_record.yield_amount = daily_yield
+                yield_record.global_snapshot = global_snapshot
+                yield_record.user_snapshot = user_snapshot
+                yield_record.stake_amount = user_snapshot.stake_amount
+                yield_record.annualized_rate = annualized_rate
+                yield_record.proration_fraction = proration
+                yield_record.yield_amount = daily_yield
 
-            if daily_yield <= 0:
+                if daily_yield <= 0:
+                    yield_record.save()
+                    continue
+
+                record = StakingYieldService.create_yield_distribution(
+                    user, yield_record
+                )
+                if record:
+                    yield_record.distribution = record
+
                 yield_record.save()
-                continue
-
-            record = StakingYieldService.create_yield_distribution(user, yield_record)
-            if record:
-                yield_record.distribution = record
-                distributed_count += 1
-
-            yield_record.save()
+                if record:
+                    distributed_count += 1
 
         logger.info(
             "Staking yield distribution complete for %s: %d users paid",

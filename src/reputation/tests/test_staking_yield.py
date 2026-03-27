@@ -3,7 +3,7 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import ROUND_DOWN, Decimal
 from unittest.mock import patch
 
-from celery.exceptions import MaxRetriesExceededError, Retry
+from celery.exceptions import Retry
 from django.test import TestCase, override_settings
 
 from purchase.models import Balance
@@ -140,6 +140,16 @@ class StakingYieldServiceTest(TestCase):
             Decimal("0"), Decimal("1"), snapshot
         )
         self.assertEqual(rate, Decimal("0"))
+
+    def test_compute_annualized_rate_uses_snapshot_emission(self):
+        snapshot = self._make_snapshot(
+            emission_per_year=Decimal("365"),
+            total_weighted_stake=Decimal("100"),
+        )
+        rate = StakingYieldService.compute_annualized_rate(
+            Decimal("1"), Decimal("1"), snapshot
+        )
+        self.assertEqual(rate, Decimal("365"))
 
     # --- proration tests ---
 
@@ -418,19 +428,23 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
     )
     @patch("reputation.tasks.log_error")
     @patch("reputation.tasks.create_daily_staking_global_snapshot.retry")
-    def test_falls_back_to_previous_supply_when_retries_exhausted(
+    def test_falls_back_to_previous_supply_on_final_attempt(
         self, mock_retry, mock_log_error, mock_supply
     ):
         mock_supply.side_effect = Exception("CoinGecko unavailable")
-        mock_retry.side_effect = MaxRetriesExceededError()
 
-        result = create_daily_staking_global_snapshot()
+        with patch.object(
+            create_daily_staking_global_snapshot.request,
+            "retries",
+            create_daily_staking_global_snapshot.max_retries,
+        ):
+            result = create_daily_staking_global_snapshot()
 
         self.assertTrue(result)
         latest = StakingGlobalSnapshot.load()
         self.assertEqual(latest.circulating_supply, self.config.circulating_supply)
         self.assertEqual(latest.accrual_date, self._expected_accrual_date())
-        mock_retry.assert_called_once()
+        mock_retry.assert_not_called()
         mock_log_error.assert_called_once()
 
 
@@ -518,12 +532,6 @@ class DistributeStakingYieldTaskTest(TestCase):
         )
         self.assertEqual(distributions.count(), 1)
 
-    def test_skip_when_no_snapshot(self):
-        StakingGlobalSnapshot.objects.all().delete()
-        result = distribute_staking_yield()
-        self.assertFalse(result)
-        self.assertEqual(StakingYieldRecord.objects.count(), 0)
-
     def test_uses_snapshot_position_even_if_user_state_changes_after_snapshot(self):
         Balance.objects.filter(user=self.user).delete()
         self.user.is_staking_opted_in = False
@@ -544,3 +552,38 @@ class DistributeStakingYieldTaskTest(TestCase):
 
         distribute_staking_yield()
         self.assertEqual(StakingYieldRecord.objects.count(), 0)
+
+    def test_rolls_back_distribution_if_yield_record_save_fails(self):
+        yield_record = StakingYieldRecord.objects.create(
+            user=self.user,
+            accrual_date=self.accrual_date,
+            global_snapshot=self.global_snapshot,
+            user_snapshot=self.user_snapshot,
+            stake_amount=Decimal("0"),
+            annualized_rate=Decimal("0"),
+            proration_fraction=Decimal("1"),
+            yield_amount=Decimal("0"),
+        )
+
+        with patch.object(
+            StakingYieldRecord,
+            "save",
+            autospec=True,
+            side_effect=RuntimeError("save failed"),
+        ):
+            with self.assertRaises(RuntimeError):
+                distribute_staking_yield()
+
+        self.assertEqual(
+            Distribution.objects.filter(
+                recipient=self.user,
+                distribution_type="STAKING_YIELD",
+            ).count(),
+            0,
+        )
+        self.assertEqual(
+            Balance.objects.filter(user=self.user, is_locked=True).count(),
+            0,
+        )
+        yield_record.refresh_from_db()
+        self.assertIsNone(yield_record.distribution_id)

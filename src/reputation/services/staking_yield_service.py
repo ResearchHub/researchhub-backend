@@ -27,8 +27,8 @@ class StakingYieldService:
     def compute_annualized_rate(stake, multiplier, snapshot):
         """Compute the annualized yield rate for a single user.
 
-        Uses the halving-based daily emission for the snapshot's accrual_date,
-        then annualizes: rate = 100 * daily_emission * days_in_year * multiplier / total_weighted_stake
+        Uses the snapshot's emission_per_year when present, and falls back to
+        the halving formula if it is missing.
 
         Returns Decimal annualized rate (e.g. 10.5 means 10.5%).
         Returns Decimal("0") when denominator is zero or negative.
@@ -39,11 +39,17 @@ class StakingYieldService:
         if snapshot.total_weighted_stake <= 0:
             return Decimal("0")
 
-        daily_emission = StakingYieldService.compute_total_daily_emission(
-            snapshot.accrual_date
-        )
-        year = snapshot.accrual_date.year if snapshot.accrual_date else None
-        emission_per_year = daily_emission * Decimal(str(days_in_year(year)))
+        emission_per_year = snapshot.emission_per_year
+        if emission_per_year <= 0 and snapshot.accrual_date is not None:
+            daily_emission = StakingYieldService.compute_total_daily_emission(
+                snapshot.accrual_date
+            )
+            emission_per_year = daily_emission * Decimal(
+                str(days_in_year(snapshot.accrual_date.year))
+            )
+
+        if emission_per_year <= 0:
+            return Decimal("0")
 
         return HUNDRED * emission_per_year * multiplier / snapshot.total_weighted_stake
 
