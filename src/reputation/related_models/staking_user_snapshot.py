@@ -25,7 +25,6 @@ class StakingUserSnapshot(DefaultModel):
     weighted_stake = models.DecimalField(
         max_digits=19, decimal_places=8, default=Decimal("0")
     )
-    staking_opted_in_date = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         app_label = "reputation"
