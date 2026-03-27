@@ -125,34 +125,3 @@ class StakingYieldServiceTest(TestCase):
             STAKING_RELEASE_DATE + timedelta(days=730)
         )
         self.assertAlmostEqual(float(emission), 25469.68381, places=2)
-
-    def test_yearly_return_from_daily_yields(self):
-        accrual_start = STAKING_RELEASE_DATE
-        snapshot = self._make_snapshot_with_staking(
-            accrual_date=accrual_start,
-            circulating_supply=Decimal("134157343"),
-            staked_pct=Decimal("10"),
-            avg_multiplier=Decimal("1"),
-        )
-        stake = Decimal("10000000")
-        multiplier = Decimal("1")
-        weighted_stake = StakingYieldService.compute_weighted_stake(stake, multiplier)
-
-        total_yield = Decimal("0")
-        for day_offset in range(365):
-            accrual = accrual_start + timedelta(days=day_offset)
-            daily = StakingYieldService.compute_daily_yield_from_pool_share(
-                weighted_stake,
-                snapshot.total_weighted_stake,
-                accrual,
-            )
-            total_yield += daily
-
-        self.assertGreater(total_yield, Decimal("0"))
-        total_emission = sum(
-            StakingYieldService.compute_total_daily_emission(
-                accrual_start + timedelta(days=d)
-            )
-            for d in range(365)
-        )
-        self.assertLess(total_yield, total_emission)

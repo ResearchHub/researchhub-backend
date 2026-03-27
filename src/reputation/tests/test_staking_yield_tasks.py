@@ -23,7 +23,7 @@ from user.tests.helpers import create_random_default_user
 
 @patch(
     "reputation.services.staking_yield_service.STAKING_RELEASE_DATE",
-    date(2020, 1, 1),
+    datetime.now(timezone.utc).date() - timedelta(days=2),
 )
 class CreateDailyStakingSnapshotTaskTest(TestCase):
     def _expected_accrual_date(self):
@@ -158,7 +158,7 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
 @override_settings(STAGING=True)
 @patch(
     "reputation.services.staking_yield_service.STAKING_RELEASE_DATE",
-    date(2020, 1, 1),
+    datetime.now(timezone.utc).date() - timedelta(days=2),
 )
 class DistributeStakingYieldTaskTest(TestCase):
     def setUp(self):
@@ -220,7 +220,7 @@ class DistributeStakingYieldTaskTest(TestCase):
         )
         self.assertEqual(distributions.count(), 1)
 
-    def test_uses_snapshot_position_even_if_user_state_changes_after_snapshot(self):
+    def test_uses_snapshot_even_if_user_state_changes_after_snapshot(self):
         Balance.objects.filter(user=self.user).delete()
         self.user.is_staking_opted_in = False
         self.user.staking_opted_in_date = None
@@ -237,6 +237,56 @@ class DistributeStakingYieldTaskTest(TestCase):
 
         distribute_staking_yield()
         self.assertEqual(StakingYieldRecord.objects.count(), 0)
+
+    def test_splits_yield_proportionally_between_two_users(self):
+        user2 = create_random_default_user("yielduser2")
+        user2.is_staking_opted_in = True
+        user2.staking_opted_in_date = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        user2.save()
+        create_deposit(user2, amount="30000")
+
+        # Update global snapshot to reflect both users' stakes.
+        self.global_snapshot.total_staked = Decimal("40000")
+        self.global_snapshot.total_weighted_stake = Decimal("40000")
+        self.global_snapshot.save()
+
+        user2_snapshot = StakingUserSnapshot.objects.create(
+            global_snapshot=self.global_snapshot,
+            user=user2,
+            stake_amount=Decimal("30000"),
+            multiplier=Decimal("1"),
+            weighted_stake=Decimal("30000"),
+        )
+
+        distribute_staking_yield()
+
+        rec1 = StakingYieldRecord.objects.get(user_snapshot=self.user_snapshot)
+        rec2 = StakingYieldRecord.objects.get(user_snapshot=user2_snapshot)
+
+        # user1 has 10k/40k = 25%, user2 has 30k/40k = 75%
+        self.assertGreater(rec1.yield_amount, Decimal("0"))
+        self.assertGreater(rec2.yield_amount, Decimal("0"))
+
+        expected_daily = StakingYieldService.compute_total_daily_emission(
+            self.accrual_date
+        )
+        expected1 = StakingYieldService.compute_daily_yield_from_pool_share(
+            Decimal("10000"), Decimal("40000"), self.accrual_date
+        )
+        expected2 = StakingYieldService.compute_daily_yield_from_pool_share(
+            Decimal("30000"), Decimal("40000"), self.accrual_date
+        )
+
+        self.assertEqual(rec1.yield_amount, expected1)
+        self.assertEqual(rec2.yield_amount, expected2)
+
+        # 3:1 ratio
+        self.assertAlmostEqual(
+            float(rec2.yield_amount / rec1.yield_amount), 3.0, places=2
+        )
+
+        # Sum should not exceed daily emission
+        self.assertLessEqual(rec1.yield_amount + rec2.yield_amount, expected_daily)
 
     def test_rolls_back_distribution_if_yield_record_save_fails(self):
         yield_record = StakingYieldRecord.objects.create(
