@@ -109,9 +109,8 @@ class StakingYieldServiceTest(TestCase):
 
     def test_compute_annualized_rate_basic(self):
         snapshot = self._make_snapshot_with_staking()
-        stake = Decimal("1000")
         multiplier = Decimal("1")
-        rate = StakingYieldService.compute_annualized_rate(stake, multiplier, snapshot)
+        rate = StakingYieldService.compute_annualized_rate(multiplier, snapshot)
         self.assertGreater(rate, Decimal("0"))
 
     def test_compute_annualized_rate_known_values(self):
@@ -123,9 +122,8 @@ class StakingYieldServiceTest(TestCase):
             staked_pct=Decimal("10"),  # total staked = 1000
             avg_multiplier=Decimal("1"),
         )
-        stake = Decimal("1000")
         multiplier = Decimal("1")
-        rate = StakingYieldService.compute_annualized_rate(stake, multiplier, snapshot)
+        rate = StakingYieldService.compute_annualized_rate(multiplier, snapshot)
 
         # On release date, daily emission = 9500000
         # emission_per_year = 9500000 * 365 = 3467500000
@@ -134,11 +132,9 @@ class StakingYieldServiceTest(TestCase):
         expected = HUNDRED * daily * Decimal("365") * multiplier / Decimal("1000")
         self.assertEqual(rate, expected)
 
-    def test_compute_annualized_rate_zero_stake(self):
+    def test_compute_annualized_rate_zero_total_weighted_stake(self):
         snapshot = self._make_snapshot(total_weighted_stake=Decimal("0"))
-        rate = StakingYieldService.compute_annualized_rate(
-            Decimal("0"), Decimal("1"), snapshot
-        )
+        rate = StakingYieldService.compute_annualized_rate(Decimal("1"), snapshot)
         self.assertEqual(rate, Decimal("0"))
 
     def test_compute_annualized_rate_uses_snapshot_emission(self):
@@ -146,9 +142,7 @@ class StakingYieldServiceTest(TestCase):
             emission_per_year=Decimal("365"),
             total_weighted_stake=Decimal("100"),
         )
-        rate = StakingYieldService.compute_annualized_rate(
-            Decimal("1"), Decimal("1"), snapshot
-        )
+        rate = StakingYieldService.compute_annualized_rate(Decimal("1"), snapshot)
         self.assertEqual(rate, Decimal("365"))
 
     # --- proration tests ---
@@ -235,7 +229,6 @@ class StakingYieldServiceTest(TestCase):
             "circulating_supply": Decimal("134157343"),
             "accrual_date": STAKING_RELEASE_DATE,
         }
-        stake = Decimal("1000")
         multiplier = Decimal("1")
 
         rates = []
@@ -243,9 +236,7 @@ class StakingYieldServiceTest(TestCase):
             snapshot = self._make_snapshot_with_staking(
                 staked_pct=Decimal(str(pct)), **base
             )
-            rate = StakingYieldService.compute_annualized_rate(
-                stake, multiplier, snapshot
-            )
+            rate = StakingYieldService.compute_annualized_rate(multiplier, snapshot)
             rates.append(rate)
 
         # Rates should be strictly decreasing as staked pct increases
@@ -298,15 +289,6 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
     def _expected_accrual_date(self):
         return datetime.now(timezone.utc).date() - timedelta(days=1)
 
-    def setUp(self):
-        self.config, _ = StakingGlobalSnapshot.objects.update_or_create(
-            pk=1,
-            defaults={
-                "emission_per_year": Decimal("9500000"),
-                "circulating_supply": Decimal("215052673"),
-            },
-        )
-
     @patch(
         "reputation.services.rsc_supply_service."
         "RscSupplyService.fetch_circulating_supply"
@@ -317,11 +299,11 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
 
         self.assertTrue(result)
         latest = StakingGlobalSnapshot.load()
-        self.assertNotEqual(latest.pk, self.config.pk)
         self.assertEqual(latest.accrual_date, self._expected_accrual_date())
         self.assertEqual(latest.circulating_supply, Decimal("220000000"))
         # emission_per_year is computed from the halving formula
         self.assertGreater(latest.emission_per_year, Decimal("0"))
+        self.assertEqual(StakingGlobalSnapshot.objects.count(), 1)
 
     @patch(
         "reputation.services.rsc_supply_service."
@@ -402,10 +384,16 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
         )
         self.assertEqual(snapshots.count(), 1)
 
-    def test_skip_when_no_snapshot_exists(self):
-        StakingGlobalSnapshot.objects.all().delete()
+    @patch(
+        "reputation.services.rsc_supply_service."
+        "RscSupplyService.fetch_circulating_supply"
+    )
+    def test_creates_first_snapshot_without_seed_row(self, mock_supply):
+        mock_supply.return_value = Decimal("220000000")
         result = create_daily_staking_global_snapshot()
-        self.assertFalse(result)
+
+        self.assertTrue(result)
+        self.assertEqual(StakingGlobalSnapshot.objects.count(), 1)
 
     @patch(
         "reputation.services.rsc_supply_service."
@@ -420,7 +408,7 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
             create_daily_staking_global_snapshot()
 
         mock_retry.assert_called_once()
-        self.assertEqual(StakingGlobalSnapshot.objects.count(), 1)
+        self.assertEqual(StakingGlobalSnapshot.objects.count(), 0)
 
     @patch(
         "reputation.services.rsc_supply_service."
@@ -431,6 +419,13 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
     def test_falls_back_to_previous_supply_on_final_attempt(
         self, mock_retry, mock_log_error, mock_supply
     ):
+        previous = StakingGlobalSnapshot.objects.create(
+            accrual_date=self._expected_accrual_date() - timedelta(days=1),
+            emission_per_year=Decimal("9500000"),
+            circulating_supply=Decimal("215052673"),
+            total_staked=Decimal("0"),
+            total_weighted_stake=Decimal("0"),
+        )
         mock_supply.side_effect = Exception("CoinGecko unavailable")
 
         with patch.object(
@@ -442,7 +437,7 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
 
         self.assertTrue(result)
         latest = StakingGlobalSnapshot.load()
-        self.assertEqual(latest.circulating_supply, self.config.circulating_supply)
+        self.assertEqual(latest.circulating_supply, previous.circulating_supply)
         self.assertEqual(latest.accrual_date, self._expected_accrual_date())
         mock_retry.assert_not_called()
         mock_log_error.assert_called_once()
@@ -458,15 +453,6 @@ class DistributeStakingYieldTaskTest(TestCase):
         self.accrual_date = datetime.now(timezone.utc).date() - timedelta(days=1)
         daily = StakingYieldService.compute_total_daily_emission(self.accrual_date)
         annual = daily * Decimal(str(days_in_year(self.accrual_date.year)))
-        self.config, _ = StakingGlobalSnapshot.objects.update_or_create(
-            pk=1,
-            defaults={
-                "emission_per_year": annual,
-                "circulating_supply": Decimal("215052673"),
-                "total_staked": Decimal("0"),
-                "total_weighted_stake": Decimal("0"),
-            },
-        )
         self.user = create_random_default_user("yielduser")
         self.user.is_staking_opted_in = True
         self.user.staking_opted_in_date = datetime(2026, 1, 1, tzinfo=timezone.utc)
@@ -491,17 +477,15 @@ class DistributeStakingYieldTaskTest(TestCase):
     def test_distributes_yield(self):
         distribute_staking_yield()
 
-        yield_record = StakingYieldRecord.objects.get(
-            user=self.user, accrual_date=self.accrual_date
-        )
+        yield_record = StakingYieldRecord.objects.get(user_snapshot=self.user_snapshot)
         self.assertGreater(yield_record.yield_amount, Decimal("0"))
         self.assertIsNotNone(yield_record.distribution)
         self.assertEqual(
-            yield_record.global_snapshot,
+            yield_record.user_snapshot.global_snapshot,
             self.global_snapshot,
         )
         self.assertEqual(yield_record.user_snapshot, self.user_snapshot)
-        self.assertEqual(yield_record.stake_amount, Decimal("10000"))
+        self.assertEqual(yield_record.user_snapshot.stake_amount, Decimal("10000"))
 
         # Verify distribution is locked
         dist = yield_record.distribution
@@ -523,7 +507,7 @@ class DistributeStakingYieldTaskTest(TestCase):
         distribute_staking_yield()
 
         yield_records = StakingYieldRecord.objects.filter(
-            user=self.user, accrual_date=self.accrual_date
+            user_snapshot=self.user_snapshot
         )
         self.assertEqual(yield_records.count(), 1)
 
@@ -539,11 +523,8 @@ class DistributeStakingYieldTaskTest(TestCase):
         self.user.save(update_fields=["is_staking_opted_in", "staking_opted_in_date"])
 
         distribute_staking_yield()
-        yield_record = StakingYieldRecord.objects.get(
-            user=self.user,
-            accrual_date=self.accrual_date,
-        )
-        self.assertEqual(yield_record.stake_amount, Decimal("10000"))
+        yield_record = StakingYieldRecord.objects.get(user_snapshot=self.user_snapshot)
+        self.assertEqual(yield_record.user_snapshot.stake_amount, Decimal("10000"))
         self.assertGreater(yield_record.yield_amount, Decimal("0"))
 
     def test_skips_currently_suspended_user(self):
@@ -555,11 +536,7 @@ class DistributeStakingYieldTaskTest(TestCase):
 
     def test_rolls_back_distribution_if_yield_record_save_fails(self):
         yield_record = StakingYieldRecord.objects.create(
-            user=self.user,
-            accrual_date=self.accrual_date,
-            global_snapshot=self.global_snapshot,
             user_snapshot=self.user_snapshot,
-            stake_amount=Decimal("0"),
             annualized_rate=Decimal("0"),
             proration_fraction=Decimal("1"),
             yield_amount=Decimal("0"),

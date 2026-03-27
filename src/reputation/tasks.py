@@ -695,9 +695,6 @@ def create_daily_staking_global_snapshot(self):
 
     try:
         previous = StakingGlobalSnapshot.load()
-        if previous is None:
-            logger.warning("No existing staking snapshot found, skipping")
-            return False
 
         existing = StakingGlobalSnapshot.load_for_accrual_date(accrual_date)
         if existing is not None:
@@ -718,6 +715,21 @@ def create_daily_staking_global_snapshot(self):
             )
 
             if self.request.retries >= self.max_retries:
+                if previous is None:
+                    logger.warning(
+                        "No previous staking snapshot available for supply fallback on %s",
+                        accrual_date,
+                    )
+                    log_error(
+                        exc,
+                        message=(
+                            "Failed to fetch staking circulating supply after retries; "
+                            "no previous snapshot available for fallback"
+                        ),
+                        json_data={"accrual_date": str(accrual_date)},
+                    )
+                    return False
+
                 supply = previous.circulating_supply
                 logger.warning(
                     "Falling back to previous circulating supply=%s for %s",
@@ -840,7 +852,6 @@ def distribute_staking_yield():
                 continue
 
             annualized_rate = StakingYieldService.compute_annualized_rate(
-                user_snapshot.stake_amount,
                 user_snapshot.multiplier,
                 global_snapshot,
             )
@@ -860,12 +871,8 @@ def distribute_staking_yield():
                     yield_record,
                     _,
                 ) = StakingYieldRecord.objects.select_for_update().get_or_create(
-                    user=user,
-                    accrual_date=accrual_date,
+                    user_snapshot=user_snapshot,
                     defaults={
-                        "global_snapshot": global_snapshot,
-                        "user_snapshot": user_snapshot,
-                        "stake_amount": user_snapshot.stake_amount,
                         "annualized_rate": annualized_rate,
                         "proration_fraction": proration,
                         "yield_amount": daily_yield,
@@ -875,9 +882,6 @@ def distribute_staking_yield():
                 if yield_record.distribution_id is not None:
                     continue  # already paid
 
-                yield_record.global_snapshot = global_snapshot
-                yield_record.user_snapshot = user_snapshot
-                yield_record.stake_amount = user_snapshot.stake_amount
                 yield_record.annualized_rate = annualized_rate
                 yield_record.proration_fraction = proration
                 yield_record.yield_amount = daily_yield

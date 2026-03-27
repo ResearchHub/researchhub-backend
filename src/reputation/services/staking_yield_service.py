@@ -24,8 +24,8 @@ def days_in_year(year=None):
 
 class StakingYieldService:
     @staticmethod
-    def compute_annualized_rate(stake, multiplier, snapshot):
-        """Compute the annualized yield rate for a single user.
+    def compute_annualized_rate(multiplier, snapshot):
+        """Compute the annualized yield rate for a single snapshot position.
 
         Uses the snapshot's emission_per_year when present, and falls back to
         the halving formula if it is missing.
@@ -33,7 +33,7 @@ class StakingYieldService:
         Returns Decimal annualized rate (e.g. 10.5 means 10.5%).
         Returns Decimal("0") when denominator is zero or negative.
         """
-        if stake <= 0 or multiplier <= 0:
+        if multiplier <= 0:
             return Decimal("0")
 
         if snapshot.total_weighted_stake <= 0:
