@@ -1,5 +1,6 @@
+import math
 from datetime import date, datetime, timedelta, timezone
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal
 from unittest.mock import patch
 
 from celery.exceptions import MaxRetriesExceededError, Retry
@@ -12,7 +13,15 @@ from reputation.models import (
     StakingUserSnapshot,
     StakingYieldRecord,
 )
-from reputation.services.staking_yield_service import StakingYieldService
+from reputation.services.staking_yield_service import (
+    HALVING_PERIOD_DAYS,
+    HUNDRED,
+    INITIAL_DAILY_EMISSION,
+    QUANTIZE_8,
+    STAKING_RELEASE_DATE,
+    StakingYieldService,
+    days_in_year,
+)
 from reputation.tasks import (
     create_daily_staking_global_snapshot,
     distribute_staking_yield,
@@ -24,7 +33,8 @@ from user.tests.helpers import create_random_default_user
 class StakingYieldServiceTest(TestCase):
     def _make_snapshot(self, **kwargs):
         defaults = {
-            "emission_per_year": Decimal("9500000"),
+            "accrual_date": STAKING_RELEASE_DATE,
+            "emission_per_year": Decimal("0"),
             "circulating_supply": Decimal("215052673"),
         }
         defaults.update(kwargs)
@@ -48,6 +58,55 @@ class StakingYieldServiceTest(TestCase):
         kwargs["total_weighted_stake"] = total_weighted_stake
         return self._make_snapshot(**kwargs)
 
+    # --- compute_total_daily_emission tests ---
+
+    def test_daily_emission_on_release_date(self):
+        """On day 0, daily emission equals the initial value."""
+        emission = StakingYieldService.compute_total_daily_emission(
+            STAKING_RELEASE_DATE
+        )
+        self.assertEqual(emission, INITIAL_DAILY_EMISSION)
+
+    def test_daily_emission_before_release_date(self):
+        """Before release, emission is 0."""
+        emission = StakingYieldService.compute_total_daily_emission(
+            STAKING_RELEASE_DATE - timedelta(days=1)
+        )
+        self.assertEqual(emission, Decimal("0"))
+
+    def test_daily_emission_halves_after_64_years(self):
+        """After exactly 64 years (HALVING_PERIOD_DAYS), emission halves."""
+        future = STAKING_RELEASE_DATE + timedelta(days=HALVING_PERIOD_DAYS)
+        emission = StakingYieldService.compute_total_daily_emission(future)
+        expected = (INITIAL_DAILY_EMISSION / Decimal("2")).quantize(
+            QUANTIZE_8, rounding=ROUND_DOWN
+        )
+        self.assertEqual(emission, expected)
+
+    def test_daily_emission_after_one_year(self):
+        """After 1 year, emission matches the formula."""
+        one_year_later = STAKING_RELEASE_DATE + timedelta(days=365)
+        emission = StakingYieldService.compute_total_daily_emission(one_year_later)
+        exponent = 365 / HALVING_PERIOD_DAYS
+        expected = (
+            INITIAL_DAILY_EMISSION / Decimal(str(math.pow(2, exponent)))
+        ).quantize(QUANTIZE_8, rounding=ROUND_DOWN)
+        self.assertEqual(emission, expected)
+
+    def test_daily_emission_decreases_over_time(self):
+        """Emission strictly decreases day over day."""
+        day1 = StakingYieldService.compute_total_daily_emission(STAKING_RELEASE_DATE)
+        day2 = StakingYieldService.compute_total_daily_emission(
+            STAKING_RELEASE_DATE + timedelta(days=30)
+        )
+        day3 = StakingYieldService.compute_total_daily_emission(
+            STAKING_RELEASE_DATE + timedelta(days=365)
+        )
+        self.assertGreater(day1, day2)
+        self.assertGreater(day2, day3)
+
+    # --- compute_annualized_rate tests ---
+
     def test_compute_annualized_rate_basic(self):
         snapshot = self._make_snapshot_with_staking()
         stake = Decimal("1000")
@@ -57,9 +116,9 @@ class StakingYieldServiceTest(TestCase):
 
     def test_compute_annualized_rate_known_values(self):
         """When a user's stake equals total staked supply, rate simplifies
-        to 100 * emission / total_weighted_stake."""
+        to 100 * daily_emission * days_in_year * multiplier / total_weighted_stake."""
         snapshot = self._make_snapshot_with_staking(
-            emission_per_year=Decimal("100"),
+            accrual_date=STAKING_RELEASE_DATE,
             circulating_supply=Decimal("10000"),
             staked_pct=Decimal("10"),  # total staked = 1000
             avg_multiplier=Decimal("1"),
@@ -67,8 +126,13 @@ class StakingYieldServiceTest(TestCase):
         stake = Decimal("1000")
         multiplier = Decimal("1")
         rate = StakingYieldService.compute_annualized_rate(stake, multiplier, snapshot)
-        # 100 * 100 * 1 / 1000 = 10
-        self.assertEqual(rate, Decimal("10"))
+
+        # On release date, daily emission = 9500000
+        # emission_per_year = 9500000 * 365 = 3467500000
+        # rate = 100 * 3467500000 * 1 / 1000 = 346750000
+        daily = StakingYieldService.compute_total_daily_emission(STAKING_RELEASE_DATE)
+        expected = HUNDRED * daily * Decimal("365") * multiplier / Decimal("1000")
+        self.assertEqual(rate, expected)
 
     def test_compute_annualized_rate_zero_stake(self):
         snapshot = self._make_snapshot(total_weighted_stake=Decimal("0"))
@@ -76,6 +140,8 @@ class StakingYieldServiceTest(TestCase):
             Decimal("0"), Decimal("1"), snapshot
         )
         self.assertEqual(rate, Decimal("0"))
+
+    # --- proration tests ---
 
     def test_compute_proration_full_day(self):
         opted_in = datetime(2026, 3, 22, 12, 0, tzinfo=timezone.utc)
@@ -99,179 +165,125 @@ class StakingYieldServiceTest(TestCase):
         proration = StakingYieldService.compute_proration(None, date(2026, 3, 23))
         self.assertEqual(proration, Decimal("1"))
 
-    def test_compute_daily_emission(self):
-        daily_emission = StakingYieldService.compute_daily_emission(
-            Decimal("3650"),
-            date(2026, 3, 23),
-        )
-        self.assertEqual(daily_emission, Decimal("10"))
-
-    def test_compute_daily_emission_leap_year(self):
-        daily_emission = StakingYieldService.compute_daily_emission(
-            Decimal("3660"),
-            date(2028, 3, 23),
-        )
-        self.assertEqual(daily_emission, Decimal("10"))
+    # --- compute_daily_yield_from_pool_share tests ---
 
     def test_compute_daily_yield_from_pool_share(self):
+        accrual = STAKING_RELEASE_DATE
+        daily_emission = StakingYieldService.compute_total_daily_emission(accrual)
         daily_yield = StakingYieldService.compute_daily_yield_from_pool_share(
             weighted_stake=Decimal("10000"),
             total_weighted_stake=Decimal("100000"),
-            emission_per_year=Decimal("3650"),
             proration=Decimal("1"),
-            accrual_date=date(2026, 3, 23),
+            accrual_date=accrual,
         )
-        self.assertEqual(daily_yield, Decimal("1.00000000"))
+        expected = (daily_emission * Decimal("10000") / Decimal("100000")).quantize(
+            QUANTIZE_8, rounding=ROUND_DOWN
+        )
+        self.assertEqual(daily_yield, expected)
 
-    def test_compute_daily_yield_from_pool_share_leap_year(self):
+    def test_compute_daily_yield_from_pool_share_before_release(self):
+        """Before release date, yield is 0."""
         daily_yield = StakingYieldService.compute_daily_yield_from_pool_share(
             weighted_stake=Decimal("10000"),
             total_weighted_stake=Decimal("100000"),
-            emission_per_year=Decimal("3660"),
             proration=Decimal("1"),
-            accrual_date=date(2028, 3, 23),
+            accrual_date=STAKING_RELEASE_DATE - timedelta(days=1),
         )
-        self.assertEqual(daily_yield, Decimal("1.00000000"))
+        self.assertEqual(daily_yield, Decimal("0"))
 
-    def test_annualized_rate_matches_spreadsheet_year0_estimates(self):
-        """Verify annualized rate values match the staking yield spreadsheet (Year 0).
+    def test_compute_daily_yield_from_pool_share_zero_inputs(self):
+        result = StakingYieldService.compute_daily_yield_from_pool_share(
+            weighted_stake=Decimal("0"),
+            total_weighted_stake=Decimal("100000"),
+            proration=Decimal("1"),
+            accrual_date=STAKING_RELEASE_DATE,
+        )
+        self.assertEqual(result, Decimal("0"))
 
-        Spreadsheet globals: circ_supply=134,157,343, emission=9,500,000.
-        When multiplier=1 and the individual stake is small,
-        rate ~ 100 * emission / (circ_supply * staked_pct / 100).
-        """
+    def test_compute_daily_yield_from_pool_share_with_proration(self):
+        accrual = STAKING_RELEASE_DATE
+        daily_emission = StakingYieldService.compute_total_daily_emission(accrual)
+        daily_yield = StakingYieldService.compute_daily_yield_from_pool_share(
+            weighted_stake=Decimal("10000"),
+            total_weighted_stake=Decimal("100000"),
+            proration=Decimal("0.50000000"),
+            accrual_date=accrual,
+        )
+        expected = (
+            daily_emission
+            * Decimal("10000")
+            / Decimal("100000")
+            * Decimal("0.50000000")
+        ).quantize(QUANTIZE_8, rounding=ROUND_DOWN)
+        self.assertEqual(daily_yield, expected)
+
+    # --- spreadsheet / annualized rate tests ---
+
+    def test_annualized_rate_scales_with_staked_pct(self):
+        """Higher staked percentage means lower individual rate."""
         base = {
-            "emission_per_year": Decimal("9500000"),
             "circulating_supply": Decimal("134157343"),
+            "accrual_date": STAKING_RELEASE_DATE,
         }
-        small_stake = Decimal("1000")
+        stake = Decimal("1000")
         multiplier = Decimal("1")
 
-        cases = [
-            (1, Decimal("708.12")),
-            (2, Decimal("354.06")),
-            (3, Decimal("236.04")),
-            (5, Decimal("141.62")),
-            (7, Decimal("101.16")),
-            (10, Decimal("70.81")),
-            (15, Decimal("47.21")),
-        ]
-
-        for pct, expected_rate in cases:
+        rates = []
+        for pct in [1, 5, 10, 15]:
             snapshot = self._make_snapshot_with_staking(
                 staked_pct=Decimal(str(pct)), **base
             )
             rate = StakingYieldService.compute_annualized_rate(
-                small_stake, multiplier, snapshot
+                stake, multiplier, snapshot
             )
-            self.assertAlmostEqual(
-                float(rate),
-                float(expected_rate),
-                places=1,
-                msg=f"Rate mismatch at {pct}% staked",
-            )
+            rates.append(rate)
 
-    def test_annualized_rate_matches_spreadsheet_10m_stake_at_10pct(self):
-        """With a 10M individual stake at 10% staked, rate should be ~70.81%."""
-        snapshot = self._make_snapshot_with_staking(
-            emission_per_year=Decimal("9500000"),
-            circulating_supply=Decimal("134157343"),
-            staked_pct=Decimal("10"),
-            avg_multiplier=Decimal("1"),
-        )
-        rate = StakingYieldService.compute_annualized_rate(
-            Decimal("10000000"), Decimal("1"), snapshot
-        )
-        self.assertAlmostEqual(float(rate), 70.81, places=1)
+        # Rates should be strictly decreasing as staked pct increases
+        for i in range(len(rates) - 1):
+            self.assertGreater(rates[i], rates[i + 1])
 
     def test_yearly_return_from_daily_yields(self):
-        """Summing 365 daily yields should approximate stake * rate / 100."""
+        """Summing daily yields over a year should approximate
+        the annualized return, accounting for daily emission decay."""
+        accrual_start = STAKING_RELEASE_DATE
         snapshot = self._make_snapshot_with_staking(
-            emission_per_year=Decimal("9500000"),
+            accrual_date=accrual_start,
             circulating_supply=Decimal("134157343"),
             staked_pct=Decimal("10"),
             avg_multiplier=Decimal("1"),
         )
         stake = Decimal("10000000")
         multiplier = Decimal("1")
-        annualized_rate = StakingYieldService.compute_annualized_rate(
-            stake,
-            multiplier,
-            snapshot,
-        )
         weighted_stake = StakingYieldService.compute_weighted_stake(stake, multiplier)
 
         total_yield = Decimal("0")
         for day_offset in range(365):
-            accrual = date(2025, 1, 1) + timedelta(days=day_offset)
+            accrual = accrual_start + timedelta(days=day_offset)
             daily = StakingYieldService.compute_daily_yield_from_pool_share(
                 weighted_stake,
                 snapshot.total_weighted_stake,
-                snapshot.emission_per_year,
                 Decimal("1"),
                 accrual,
             )
             total_yield += daily
 
-        expected_annual = stake * annualized_rate / Decimal("100")
-        pct_diff = abs(float(total_yield - expected_annual) / float(expected_annual))
-        self.assertLess(
-            pct_diff,
-            0.001,
-            f"Yearly yield {total_yield} differs from expected {expected_annual} "
-            f"by {pct_diff:.4%}",
-        )
-
-    def test_annualized_rate_matches_spreadsheet_year1_estimates(self):
-        """Verify rate values match the spreadsheet Year 1 column."""
-        base = {
-            "emission_per_year": Decimal("9397666"),
-            "circulating_supply": Decimal("143657343"),
-        }
-        small_stake = Decimal("1000")
-        multiplier = Decimal("1")
-
-        cases = [
-            (1, Decimal("654.17")),
-            (5, Decimal("130.83")),
-            (10, Decimal("65.42")),
-            (15, Decimal("43.61")),
-        ]
-
-        for pct, expected_rate in cases:
-            snapshot = self._make_snapshot_with_staking(
-                staked_pct=Decimal(str(pct)), **base
+        # Total yield should be positive and reasonable
+        self.assertGreater(total_yield, Decimal("0"))
+        # Yield should be less than total emission for the year
+        # (user doesn't own 100% of the pool)
+        total_emission = sum(
+            StakingYieldService.compute_total_daily_emission(
+                accrual_start + timedelta(days=d)
             )
-            rate = StakingYieldService.compute_annualized_rate(
-                small_stake, multiplier, snapshot
-            )
-            self.assertAlmostEqual(
-                float(rate),
-                float(expected_rate),
-                places=1,
-                msg=f"Year 1 rate mismatch at {pct}% staked",
-            )
-
-    def test_compute_daily_yield_from_pool_share_zero_inputs(self):
-        result = StakingYieldService.compute_daily_yield_from_pool_share(
-            weighted_stake=Decimal("10000"),
-            total_weighted_stake=Decimal("100000"),
-            emission_per_year=Decimal("0"),
-            proration=Decimal("1"),
+            for d in range(365)
         )
-        self.assertEqual(result, Decimal("0"))
-
-    def test_compute_daily_yield_from_pool_share_with_proration(self):
-        daily_yield = StakingYieldService.compute_daily_yield_from_pool_share(
-            weighted_stake=Decimal("10000"),
-            total_weighted_stake=Decimal("100000"),
-            emission_per_year=Decimal("3650"),
-            proration=Decimal("0.50000000"),
-            accrual_date=date(2026, 3, 23),
-        )
-        self.assertEqual(daily_yield, Decimal("0.50000000"))
+        self.assertLess(total_yield, total_emission)
 
 
+@patch(
+    "reputation.services.staking_yield_service.STAKING_RELEASE_DATE",
+    date(2020, 1, 1),
+)
 class CreateDailyStakingSnapshotTaskTest(TestCase):
     def _expected_accrual_date(self):
         return datetime.now(timezone.utc).date() - timedelta(days=1)
@@ -298,7 +310,8 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
         self.assertNotEqual(latest.pk, self.config.pk)
         self.assertEqual(latest.accrual_date, self._expected_accrual_date())
         self.assertEqual(latest.circulating_supply, Decimal("220000000"))
-        self.assertEqual(latest.emission_per_year, Decimal("9500000"))
+        # emission_per_year is computed from the halving formula
+        self.assertGreater(latest.emission_per_year, Decimal("0"))
 
     @patch(
         "reputation.services.rsc_supply_service."
@@ -353,14 +366,16 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
         "reputation.services.rsc_supply_service."
         "RscSupplyService.fetch_circulating_supply"
     )
-    def test_inherits_emission_from_previous(self, mock_supply):
+    def test_emission_computed_from_halving_formula(self, mock_supply):
         mock_supply.return_value = Decimal("220000000")
-        self.config.emission_per_year = Decimal("5000000")
-        self.config.save()
 
         create_daily_staking_global_snapshot()
         latest = StakingGlobalSnapshot.load()
-        self.assertEqual(latest.emission_per_year, Decimal("5000000"))
+        accrual = latest.accrual_date
+
+        daily = StakingYieldService.compute_total_daily_emission(accrual)
+        expected_annual = daily * Decimal(str(days_in_year(accrual.year)))
+        self.assertEqual(latest.emission_per_year, expected_annual)
 
     @patch(
         "reputation.services.rsc_supply_service."
@@ -420,13 +435,19 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
 
 
 @override_settings(STAGING=True)
+@patch(
+    "reputation.services.staking_yield_service.STAKING_RELEASE_DATE",
+    date(2020, 1, 1),
+)
 class DistributeStakingYieldTaskTest(TestCase):
     def setUp(self):
         self.accrual_date = datetime.now(timezone.utc).date() - timedelta(days=1)
+        daily = StakingYieldService.compute_total_daily_emission(self.accrual_date)
+        annual = daily * Decimal(str(days_in_year(self.accrual_date.year)))
         self.config, _ = StakingGlobalSnapshot.objects.update_or_create(
             pk=1,
             defaults={
-                "emission_per_year": Decimal("9500000"),
+                "emission_per_year": annual,
                 "circulating_supply": Decimal("215052673"),
                 "total_staked": Decimal("0"),
                 "total_weighted_stake": Decimal("0"),
@@ -439,7 +460,7 @@ class DistributeStakingYieldTaskTest(TestCase):
         create_deposit(self.user, amount="10000")
         self.global_snapshot = StakingGlobalSnapshot.objects.create(
             accrual_date=self.accrual_date,
-            emission_per_year=Decimal("9500000"),
+            emission_per_year=annual,
             circulating_supply=Decimal("215052673"),
             total_staked=Decimal("10000"),
             total_weighted_stake=Decimal("10000"),

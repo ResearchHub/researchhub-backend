@@ -30,7 +30,7 @@ from reputation.related_models.staking_global_snapshot import StakingGlobalSnaps
 from reputation.related_models.staking_user_snapshot import StakingUserSnapshot
 from reputation.related_models.staking_yield_record import StakingYieldRecord
 from reputation.services.rsc_supply_service import RscSupplyService
-from reputation.services.staking_yield_service import StakingYieldService
+from reputation.services.staking_yield_service import StakingYieldService, days_in_year
 from reputation.services.wallet import WalletService
 from researchhub.celery import QUEUE_CONTRIBUTIONS, QUEUE_PURCHASES, app
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -784,7 +784,10 @@ def create_daily_staking_global_snapshot(self):
         with transaction.atomic():
             global_snapshot = StakingGlobalSnapshot.objects.create(
                 accrual_date=accrual_date,
-                emission_per_year=previous.emission_per_year,
+                emission_per_year=StakingYieldService.compute_total_daily_emission(
+                    accrual_date
+                )
+                * Decimal(str(days_in_year(accrual_date.year))),
                 circulating_supply=supply,
                 total_staked=total_staked,
                 total_weighted_stake=total_weighted_stake,
@@ -852,7 +855,6 @@ def distribute_staking_yield():
             daily_yield = StakingYieldService.compute_daily_yield_from_pool_share(
                 user_snapshot.weighted_stake,
                 global_snapshot.total_weighted_stake,
-                global_snapshot.emission_per_year,
                 proration,
                 accrual_date,
             )
