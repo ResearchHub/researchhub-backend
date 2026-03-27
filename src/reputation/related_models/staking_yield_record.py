@@ -6,9 +6,6 @@ from utils.models import DefaultModel
 
 
 class StakingYieldRecord(DefaultModel):
-    annualized_rate = models.DecimalField(
-        max_digits=19, decimal_places=8, default=Decimal("0")
-    )
     proration_fraction = models.DecimalField(
         max_digits=19, decimal_places=18, default=Decimal("1")
     )
