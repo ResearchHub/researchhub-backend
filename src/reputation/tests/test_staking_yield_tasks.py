@@ -12,7 +12,6 @@ from reputation.models import (
     StakingUserSnapshot,
     StakingYieldRecord,
 )
-from reputation.services.staking_yield_service import StakingYieldService, days_in_year
 from reputation.tasks import (
     create_daily_staking_global_snapshot,
     distribute_staking_yield,
@@ -41,7 +40,6 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
         latest = StakingGlobalSnapshot.load()
         self.assertEqual(latest.accrual_date, self._expected_accrual_date())
         self.assertEqual(latest.circulating_supply, Decimal("220000000"))
-        self.assertGreater(latest.emission_per_year, Decimal("0"))
         self.assertEqual(StakingGlobalSnapshot.objects.count(), 1)
 
     @patch(
@@ -95,21 +93,6 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
         "reputation.services.rsc_supply_service."
         "RscSupplyService.fetch_circulating_supply"
     )
-    def test_emission_computed_from_halving_formula(self, mock_supply):
-        mock_supply.return_value = Decimal("220000000")
-
-        create_daily_staking_global_snapshot()
-        latest = StakingGlobalSnapshot.load()
-        accrual = latest.accrual_date
-
-        daily = StakingYieldService.compute_total_daily_emission(accrual)
-        expected_annual = daily * Decimal(str(days_in_year(accrual.year)))
-        self.assertEqual(latest.emission_per_year, expected_annual)
-
-    @patch(
-        "reputation.services.rsc_supply_service."
-        "RscSupplyService.fetch_circulating_supply"
-    )
     def test_snapshot_is_idempotent_per_accrual_date(self, mock_supply):
         mock_supply.return_value = Decimal("220000000")
 
@@ -158,7 +141,6 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
     ):
         previous = StakingGlobalSnapshot.objects.create(
             accrual_date=self._expected_accrual_date() - timedelta(days=1),
-            emission_per_year=Decimal("9500000"),
             circulating_supply=Decimal("215052673"),
             total_staked=Decimal("0"),
             total_weighted_stake=Decimal("0"),
@@ -188,8 +170,6 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
 class DistributeStakingYieldTaskTest(TestCase):
     def setUp(self):
         self.accrual_date = datetime.now(timezone.utc).date() - timedelta(days=1)
-        daily = StakingYieldService.compute_total_daily_emission(self.accrual_date)
-        annual = daily * Decimal(str(days_in_year(self.accrual_date.year)))
         self.user = create_random_default_user("yielduser")
         self.user.is_staking_opted_in = True
         self.user.staking_opted_in_date = datetime(2026, 1, 1, tzinfo=timezone.utc)
@@ -197,7 +177,6 @@ class DistributeStakingYieldTaskTest(TestCase):
         create_deposit(self.user, amount="10000")
         self.global_snapshot = StakingGlobalSnapshot.objects.create(
             accrual_date=self.accrual_date,
-            emission_per_year=annual,
             circulating_supply=Decimal("215052673"),
             total_staked=Decimal("10000"),
             total_weighted_stake=Decimal("10000"),

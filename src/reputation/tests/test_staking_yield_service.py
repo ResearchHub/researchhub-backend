@@ -18,7 +18,6 @@ class StakingYieldServiceTest(TestCase):
     def _make_snapshot(self, **kwargs):
         defaults = {
             "accrual_date": STAKING_RELEASE_DATE,
-            "emission_per_year": Decimal("0"),
             "circulating_supply": Decimal("215052673"),
         }
         defaults.update(kwargs)
