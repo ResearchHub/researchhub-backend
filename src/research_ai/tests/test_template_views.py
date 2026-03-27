@@ -24,7 +24,7 @@ class TemplateListViewTests(APITestCase):
         EmailTemplate.objects.create(
             created_by=self.moderator,
             name="My Template",
-            contact_name="Jane",
+            email_subject="Hello",
         )
         self.client.force_authenticate(self.moderator)
         response = self.client.get(self.url)
@@ -37,7 +37,7 @@ class TemplateListViewTests(APITestCase):
         self.assertEqual(data["total"], 1)
         self.assertEqual(len(data["templates"]), 1)
         self.assertEqual(data["templates"][0]["name"], "My Template")
-        self.assertEqual(data["templates"][0]["contact_name"], "Jane")
+        self.assertEqual(data["templates"][0]["email_subject"], "Hello")
 
     def test_get_respects_limit_and_offset(self):
         for i in range(5):
@@ -94,20 +94,16 @@ class TemplateListViewTests(APITestCase):
             self.url,
             {
                 "name": "Conference Invite",
-                "contact_name": "Jane Doe",
-                "contact_title": "Prof",
-                "contact_institution": "MIT",
-                "contact_email": "jane@mit.edu",
-                "outreach_context": "Annual conference 2025",
+                "email_subject": "Join us",
+                "email_body": "Hi {{expert.name}}",
             },
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         data = response.json()
         self.assertEqual(data["name"], "Conference Invite")
-        self.assertEqual(data["contact_name"], "Jane Doe")
-        self.assertEqual(data["contact_institution"], "MIT")
-        self.assertEqual(data["outreach_context"], "Annual conference 2025")
+        self.assertEqual(data["email_subject"], "Join us")
+        self.assertEqual(data["email_body"], "Hi {{expert.name}}")
         self.assertEqual(EmailTemplate.objects.count(), 1)
         t = EmailTemplate.objects.get()
         self.assertEqual(t.created_by, self.moderator)
@@ -116,7 +112,7 @@ class TemplateListViewTests(APITestCase):
         self.client.force_authenticate(self.moderator)
         response = self.client.post(
             self.url,
-            {"contact_name": "Jane"},
+            {"email_subject": "Only subject"},
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -132,8 +128,8 @@ class TemplateDetailViewTests(APITestCase):
         return EmailTemplate.objects.create(
             created_by=created_by,
             name=name,
-            contact_name="Jane",
-            contact_institution="MIT",
+            email_subject="Subj",
+            email_body="Body {{expert.name}}",
         )
 
     def test_get_requires_authentication(self):
@@ -161,7 +157,7 @@ class TemplateDetailViewTests(APITestCase):
         data = response.json()
         self.assertEqual(data["id"], t.id)
         self.assertEqual(data["name"], "My Template")
-        self.assertEqual(data["contact_institution"], "MIT")
+        self.assertEqual(data["email_body"], "Body {{expert.name}}")
 
     def test_get_returns_404_for_nonexistent(self):
         self.client.force_authenticate(self.moderator)
@@ -187,16 +183,16 @@ class TemplateDetailViewTests(APITestCase):
         self.client.force_authenticate(self.moderator)
         response = self.client.patch(
             f"/api/research_ai/expert-finder/templates/{t.id}/",
-            {"name": "Updated Name", "contact_email": "new@mit.edu"},
+            {"name": "Updated Name", "email_subject": "New subj"},
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.json()
         self.assertEqual(data["name"], "Updated Name")
-        self.assertEqual(data["contact_email"], "new@mit.edu")
+        self.assertEqual(data["email_subject"], "New subj")
         t.refresh_from_db()
         self.assertEqual(t.name, "Updated Name")
-        self.assertEqual(t.contact_email, "new@mit.edu")
+        self.assertEqual(t.email_subject, "New subj")
 
     def test_patch_returns_200_for_other_users_template(self):
         """Templates are shared: any editor can update any template."""

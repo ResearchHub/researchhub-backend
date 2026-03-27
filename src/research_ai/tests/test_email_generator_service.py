@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
@@ -5,13 +6,15 @@ from django.test import TestCase
 from research_ai.models import EmailTemplate
 from research_ai.services.email_generator_service import (
     _build_signature_block,
-    _normalize_template_data,
     _parse_subject_and_body,
     _replace_placeholders,
     _strip_existing_signature,
     _strip_markdown,
     generate_expert_email,
     normalize_llm_text_to_html,
+)
+from research_ai.services.expert_search_email_document_context import (
+    ExpertSearchEmailDocumentContext,
 )
 
 
@@ -43,38 +46,6 @@ class NormalizeLlmTextToHtmlTests(TestCase):
             normalize_llm_text_to_html("One\nTwo\\n\nThree"),
             "One<br />Two<br />Three",
         )
-
-
-class NormalizeTemplateDataTests(TestCase):
-    def test_empty_or_none_returns_empty_dict(self):
-        self.assertEqual(_normalize_template_data(None), {})
-        self.assertEqual(_normalize_template_data({}), {})
-
-    def test_maps_contact_keys_to_normalized_keys(self):
-        data = {
-            "contact_name": " Jane ",
-            "contact_title": " Prof ",
-            "contact_institution": " MIT ",
-            "contact_email": " jane@mit.edu ",
-            "contact_phone": " 555-1234 ",
-            "contact_website": " https://example.com ",
-        }
-        out = _normalize_template_data(data)
-        self.assertEqual(out["name"], "Jane")
-        self.assertEqual(out["title"], "Prof")
-        self.assertEqual(out["institution"], "MIT")
-        self.assertEqual(out["email"], "jane@mit.edu")
-        self.assertEqual(out["phone"], "555-1234")
-        self.assertEqual(out["website"], "https://example.com")
-
-    def test_missing_keys_become_empty_string(self):
-        out = _normalize_template_data({"contact_name": "Only"})
-        self.assertEqual(out["name"], "Only")
-        self.assertEqual(out["title"], "")
-        self.assertEqual(out["institution"], "")
-        self.assertEqual(out["email"], "")
-        self.assertEqual(out["phone"], "")
-        self.assertEqual(out["website"], "")
 
 
 class StripMarkdownTests(TestCase):
@@ -272,7 +243,7 @@ class GenerateExpertEmailTests(TestCase):
 
         subject, body = generate_expert_email(
             resolved_expert={"name": "Dr. Smith", "title": "Professor"},
-            template_data=None,
+            template="collaboration",
         )
 
         self.assertEqual(subject, "Invitation to collaborate")
@@ -281,7 +252,7 @@ class GenerateExpertEmailTests(TestCase):
 
     @patch("research_ai.services.email_generator_service.BedrockLLMService")
     @patch("research_ai.services.email_generator_service.build_email_prompt")
-    def test_post_processes_with_template_data_and_signature(
+    def test_post_processes_with_user_signature(
         self, mock_build_prompt, mock_bedrock_class
     ):
         mock_build_prompt.return_value = "user prompt"
@@ -295,25 +266,32 @@ class GenerateExpertEmailTests(TestCase):
         )
         mock_bedrock_class.return_value = mock_llm
 
-        subject, body = generate_expert_email(
-            resolved_expert={"name": "Expert"},
-            template_data={
-                "contact_name": "Jane Doe",
-                "contact_institution": "MIT",
-            },
+        user = SimpleNamespace(
+            first_name="Jane",
+            last_name="Doe",
+            email="jane@mit.edu",
+            author_profile=SimpleNamespace(headline=""),
+            organization=None,
         )
 
+        subject, body = generate_expert_email(
+            resolved_expert={"name": "Expert"},
+            template="collaboration",
+            user=user,
+        )
+
+        self.assertEqual(subject, "Hello")
         self.assertIn("Jane Doe", body)
-        self.assertIn("MIT", body)
-        self.assertTrue(body.strip().endswith("MIT"))
+        self.assertIn("jane@mit.edu", body)
         self.assertNotIn("[Your Name]", body)
         self.assertNotIn("[Institution]", body)
 
+    @patch(
+        "research_ai.services.email_generator_service.resolve_expert_search_email_document_context"
+    )
     @patch("research_ai.services.email_generator_service.get_email_template")
-    @patch("research_ai.services.email_generator_service.build_rfp_context")
-    @patch("research_ai.services.email_generator_service.resolve_grant")
-    def test_generate_expert_email_fixed_template_with_rfp_uses_variable_substitution(
-        self, mock_resolve_grant, mock_build_rfp_context, mock_get_template
+    def test_fixed_template_uses_resolver_rfp_context(
+        self, mock_get_template, mock_resolve_doc
     ):
         rfp_context = {
             "amount": "$10K",
@@ -322,18 +300,20 @@ class GenerateExpertEmailTests(TestCase):
             "url": "https://x.com/g",
             "blurb": "RFP description",
         }
-        mock_build_rfp_context.return_value = rfp_context
-        mock_resolve_grant.return_value = MagicMock()
+        mock_resolve_doc.return_value = ExpertSearchEmailDocumentContext(
+            rfp_context_dict=rfp_context,
+            proposal_context_dict=None,
+            generic_work_context_dict=None,
+        )
         expert_search = MagicMock()
         user = MagicMock()
         et = MagicMock(spec=EmailTemplate)
-        et.template_type = EmailTemplate.TemplateType.FIXED
         et.email_subject = "Subject: {{rfp.title}}"
         et.email_body = "Hi {{expert.name}}, see {{rfp.amount}} and {{rfp.deadline}}."
         mock_get_template.return_value = et
         subject, body = generate_expert_email(
             resolved_expert={"name": "Dr. X"},
-            template="rfp-outreach",
+            template=None,
             expert_search=expert_search,
             template_id=1,
             user=user,
@@ -344,11 +324,12 @@ class GenerateExpertEmailTests(TestCase):
         self.assertIn("$10K", body)
         self.assertIn("March 1", body)
 
+    @patch(
+        "research_ai.services.email_generator_service.resolve_expert_search_email_document_context"
+    )
     @patch("research_ai.services.email_generator_service.get_email_template")
-    @patch("research_ai.services.email_generator_service.build_rfp_context")
-    @patch("research_ai.services.email_generator_service.resolve_grant")
-    def test_generate_expert_email_fixed_template_uses_user_context_for_signature(
-        self, mock_resolve_grant, mock_build_rfp_context, mock_get_template
+    def test_fixed_template_uses_user_context(
+        self, mock_get_template, mock_resolve_doc
     ):
         rfp_context = {
             "amount": "$10K",
@@ -357,40 +338,34 @@ class GenerateExpertEmailTests(TestCase):
             "url": "https://x.com/g",
             "blurb": "Desc",
         }
-        mock_build_rfp_context.return_value = rfp_context
-        mock_resolve_grant.return_value = MagicMock()
+        mock_resolve_doc.return_value = ExpertSearchEmailDocumentContext(
+            rfp_context_dict=rfp_context,
+            proposal_context_dict=None,
+            generic_work_context_dict=None,
+        )
         expert_search = MagicMock()
-        expert_search.created_by.first_name = "Ada"
-        expert_search.created_by.last_name = "Lovelace"
-        expert_search.created_by.author_profile.headline = "Research Scientist"
-        user = MagicMock()
+        user = SimpleNamespace(
+            first_name="Ada",
+            last_name="Lovelace",
+            email="",
+            author_profile=SimpleNamespace(headline="Research Scientist"),
+            organization=None,
+        )
         et = MagicMock(spec=EmailTemplate)
-        et.template_type = EmailTemplate.TemplateType.FIXED
         et.email_subject = "{{rfp.title}}"
         et.email_body = "Body with {{user.full_name}}."
         mock_get_template.return_value = et
         _, body = generate_expert_email(
             resolved_expert={"name": "Dr. X"},
-            template="rfp-outreach",
+            template=None,
             expert_search=expert_search,
             template_id=1,
             user=user,
-            template_data={
-                "contact_name": "Ada Lovelace",
-                "contact_title": "Research Scientist",
-                "contact_institution": "",
-                "contact_email": "",
-                "contact_phone": "",
-                "contact_website": "",
-            },
         )
         self.assertIn("Body with Ada Lovelace.", body)
-        self.assertTrue(
-            body.strip().endswith("Research Scientist") or "Ada Lovelace" in body
-        )
 
     @patch("research_ai.services.email_generator_service.BedrockLLMService")
-    def test_generate_expert_email_without_template_uses_llm(self, mock_bedrock_class):
+    def test_llm_path_with_collaboration_key(self, mock_bedrock_class):
         mock_llm = MagicMock()
         mock_llm.invoke.return_value = "Subject: Hello\n\nBody text here."
         mock_bedrock_class.return_value = mock_llm
@@ -400,3 +375,11 @@ class GenerateExpertEmailTests(TestCase):
         )
         self.assertEqual(mock_llm.invoke.call_count, 1)
         self.assertIn("Body text", body or subject or "")
+
+    def test_fixed_path_requires_template_id(self):
+        with self.assertRaises(ValueError):
+            generate_expert_email(
+                resolved_expert={"name": "X"},
+                template=None,
+                template_id=None,
+            )

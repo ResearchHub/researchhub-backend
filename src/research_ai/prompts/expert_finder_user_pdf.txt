@@ -1,4 +1,4 @@
-Based on the following research paper, please kindly provide me with {expert_count} recommended experts at the {expertise_level} level{region_text} and their contact for outreach purposes.
+Based on the following research paper, please kindly provide me with up to {expert_count} recommended living experts at the {expertise_level} level{region_text} and their contact for email outreach (exclude anyone deceased or not currently reachable). Each expert must be unique (no duplicate people or emails); output at most {expert_count} table rows.
 
 **Research paper (full text or abstract):**
 {query}
