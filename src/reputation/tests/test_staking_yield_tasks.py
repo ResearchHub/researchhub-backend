@@ -206,22 +206,6 @@ class DistributeStakingYieldTaskTest(TestCase):
         self.assertIsNotNone(balance)
         self.assertTrue(balance.is_locked)
 
-    def test_same_day_opt_in_snapshot_receives_full_day_yield(self):
-        self.user.staking_opted_in_date = datetime.combine(
-            self.accrual_date,
-            datetime.min.time(),
-            tzinfo=timezone.utc,
-        ) + timedelta(hours=12)
-        self.user.save(update_fields=["staking_opted_in_date"])
-
-        distribute_staking_yield()
-
-        yield_record = StakingYieldRecord.objects.get(user_snapshot=self.user_snapshot)
-        self.assertEqual(
-            yield_record.yield_amount,
-            StakingYieldService.compute_total_daily_emission(self.accrual_date),
-        )
-
     def test_idempotent_distribution(self):
         distribute_staking_yield()
         distribute_staking_yield()

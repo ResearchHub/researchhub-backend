@@ -20,7 +20,7 @@ QUANTIZE_8 = Decimal("0.00000001")
 
 # Halving schedule constants
 STAKING_RELEASE_DATE = date(2026, 4, 13)
-INITIAL_DAILY_EMISSION = Decimal("9500000")
+INITIAL_YEARLY_EMISSION = Decimal("9500000")
 HALVING_PERIOD_DAYS = 64 * 365  # 64 years in days
 
 
@@ -50,7 +50,7 @@ class StakingYieldService:
 
         exponent = days_since_release / HALVING_PERIOD_DAYS
         divisor = Decimal(str(math.pow(2, exponent)))
-        return (INITIAL_DAILY_EMISSION / divisor).quantize(
+        return ((INITIAL_YEARLY_EMISSION / Decimal("365")) / divisor).quantize(
             QUANTIZE_8, rounding=ROUND_DOWN
         )
 

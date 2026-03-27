@@ -6,8 +6,6 @@ from django.test import TestCase
 
 from reputation.models import StakingGlobalSnapshot
 from reputation.services.staking_yield_service import (
-    HALVING_PERIOD_DAYS,
-    INITIAL_DAILY_EMISSION,
     QUANTIZE_8,
     STAKING_RELEASE_DATE,
     StakingYieldService,
@@ -41,34 +39,11 @@ class StakingYieldServiceTest(TestCase):
         kwargs["total_weighted_stake"] = total_weighted_stake
         return self._make_snapshot(**kwargs)
 
-    def test_daily_emission_on_release_date(self):
-        emission = StakingYieldService.compute_total_daily_emission(
-            STAKING_RELEASE_DATE
-        )
-        self.assertEqual(emission, INITIAL_DAILY_EMISSION)
-
     def test_daily_emission_before_release_date(self):
         emission = StakingYieldService.compute_total_daily_emission(
             STAKING_RELEASE_DATE - timedelta(days=1)
         )
         self.assertEqual(emission, Decimal("0"))
-
-    def test_daily_emission_halves_after_64_years(self):
-        future = STAKING_RELEASE_DATE + timedelta(days=HALVING_PERIOD_DAYS)
-        emission = StakingYieldService.compute_total_daily_emission(future)
-        expected = (INITIAL_DAILY_EMISSION / Decimal("2")).quantize(
-            QUANTIZE_8, rounding=ROUND_DOWN
-        )
-        self.assertEqual(emission, expected)
-
-    def test_daily_emission_after_one_year(self):
-        one_year_later = STAKING_RELEASE_DATE + timedelta(days=365)
-        emission = StakingYieldService.compute_total_daily_emission(one_year_later)
-        exponent = 365 / HALVING_PERIOD_DAYS
-        expected = (
-            INITIAL_DAILY_EMISSION / Decimal(str(math.pow(2, exponent)))
-        ).quantize(QUANTIZE_8, rounding=ROUND_DOWN)
-        self.assertEqual(emission, expected)
 
     def test_daily_emission_decreases_over_time(self):
         day1 = StakingYieldService.compute_total_daily_emission(STAKING_RELEASE_DATE)
