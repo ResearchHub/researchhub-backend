@@ -851,10 +851,6 @@ def distribute_staking_yield():
             if not user.is_active or user.is_suspended or user.probable_spammer:
                 continue
 
-            annualized_rate = StakingYieldService.compute_annualized_rate(
-                user_snapshot.multiplier,
-                global_snapshot,
-            )
             proration = StakingYieldService.compute_proration(
                 user_snapshot.staking_opted_in_date,
                 accrual_date,
@@ -873,7 +869,6 @@ def distribute_staking_yield():
                 ) = StakingYieldRecord.objects.select_for_update().get_or_create(
                     user_snapshot=user_snapshot,
                     defaults={
-                        "annualized_rate": annualized_rate,
                         "proration_fraction": proration,
                         "yield_amount": daily_yield,
                     },
@@ -882,7 +877,6 @@ def distribute_staking_yield():
                 if yield_record.distribution_id is not None:
                     continue  # already paid
 
-                yield_record.annualized_rate = annualized_rate
                 yield_record.proration_fraction = proration
                 yield_record.yield_amount = daily_yield
 
