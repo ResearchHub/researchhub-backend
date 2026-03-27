@@ -25,8 +25,6 @@ from reputation.lib import check_hotwallet, check_pending_withdrawal, contract_a
 from reputation.models import Bounty, BountySolution, Contribution, Deposit
 from reputation.related_models.bounty import AnnotatedBounty
 from reputation.related_models.score import Score
-from reputation.related_models.staking_global_snapshot import StakingGlobalSnapshot
-from reputation.related_models.staking_yield_record import StakingYieldRecord
 from reputation.services.staking_yield_service import StakingYieldService
 from reputation.services.wallet import WalletService
 from researchhub.celery import QUEUE_CONTRIBUTIONS, QUEUE_PURCHASES, app
@@ -715,8 +713,13 @@ def create_daily_staking_global_snapshot(self):
         logger.info("Released lock %s", key)
 
 
-@app.task(queue=QUEUE_PURCHASES)
-def distribute_staking_yield():
+@app.task(
+    bind=True,
+    queue=QUEUE_PURCHASES,
+    max_retries=3,
+    default_retry_delay=60,
+)
+def distribute_staking_yield(self):
     """Daily task to distribute staking yield for the previous UTC day."""
     if not settings.STAGING:
         logger.info("Staking yield distribution is only enabled in staging")
@@ -730,64 +733,24 @@ def distribute_staking_yield():
         return False
 
     try:
-        global_snapshot = StakingGlobalSnapshot.load_for_accrual_date(accrual_date)
-        if global_snapshot is None:
-            logger.info(
-                "No staking snapshot found for %s, skipping distribution",
-                accrual_date,
+        result = StakingYieldService.distribute_yield(accrual_date)
+        return result is not None
+    except Exception as exc:
+        logger.warning(
+            "distribute_staking_yield failed for %s (attempt %d/%d): %s",
+            accrual_date,
+            self.request.retries + 1,
+            self.max_retries + 1,
+            exc,
+        )
+        if self.request.retries >= self.max_retries:
+            log_error(
+                exc,
+                message="distribute_staking_yield failed after all retries",
+                json_data={"accrual_date": str(accrual_date)},
             )
             return False
-
-        distributed_count = 0
-        user_snapshots = global_snapshot.user_snapshots.select_related(
-            "user"
-        ).iterator()
-        for user_snapshot in user_snapshots:
-            user = user_snapshot.user
-            if not user.is_active or user.is_suspended or user.probable_spammer:
-                continue
-
-            daily_yield = StakingYieldService.compute_daily_yield_from_pool_share(
-                user_snapshot.weighted_stake,
-                global_snapshot.total_weighted_stake,
-                accrual_date,
-            )
-
-            with transaction.atomic():
-                (
-                    yield_record,
-                    _,
-                ) = StakingYieldRecord.objects.select_for_update().get_or_create(
-                    user_snapshot=user_snapshot,
-                    defaults={
-                        "yield_amount": daily_yield,
-                    },
-                )
-
-                if yield_record.distribution_id is not None:
-                    continue  # already paid
-
-                yield_record.yield_amount = daily_yield
-
-                if daily_yield <= 0:
-                    yield_record.save()
-                    continue
-
-                record = StakingYieldService.create_yield_distribution(
-                    user, yield_record
-                )
-                if record:
-                    yield_record.distribution = record
-
-                yield_record.save()
-                if record:
-                    distributed_count += 1
-
-        logger.info(
-            "Staking yield distribution complete for %s: %d users paid",
-            accrual_date,
-            distributed_count,
-        )
+        raise self.retry(exc=exc)
     finally:
         lock.release(key)
         logger.info("Released lock %s", key)

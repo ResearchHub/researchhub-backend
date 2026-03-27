@@ -11,6 +11,7 @@ from reputation.distributions import create_staking_yield_distribution
 from reputation.distributor import Distributor
 from reputation.related_models.staking_global_snapshot import StakingGlobalSnapshot
 from reputation.related_models.staking_user_snapshot import StakingUserSnapshot
+from reputation.related_models.staking_yield_record import StakingYieldRecord
 from reputation.services.rsc_supply_service import RscSupplyService
 
 logger = logging.getLogger(__name__)
@@ -170,3 +171,72 @@ class StakingYieldService:
             total_weighted_stake,
         )
         return global_snapshot
+
+    @staticmethod
+    def distribute_yield(accrual_date):
+        """Distribute staking yield for the given accrual date.
+
+        Returns the number of users who received a distribution, or None
+        if no snapshot exists for the date.
+
+        Raises on any failure so callers can retry.
+        """
+        global_snapshot = StakingGlobalSnapshot.load_for_accrual_date(accrual_date)
+        if global_snapshot is None:
+            logger.info(
+                "No staking snapshot found for %s, skipping distribution",
+                accrual_date,
+            )
+            return None
+
+        distributed_count = 0
+        user_snapshots = global_snapshot.user_snapshots.select_related(
+            "user"
+        ).iterator()
+        for user_snapshot in user_snapshots:
+            user = user_snapshot.user
+            if not user.is_active or user.is_suspended or user.probable_spammer:
+                continue
+
+            daily_yield = StakingYieldService.compute_daily_yield_from_pool_share(
+                user_snapshot.weighted_stake,
+                global_snapshot.total_weighted_stake,
+                accrual_date,
+            )
+
+            with transaction.atomic():
+                (
+                    yield_record,
+                    _,
+                ) = StakingYieldRecord.objects.select_for_update().get_or_create(
+                    user_snapshot=user_snapshot,
+                    defaults={
+                        "yield_amount": daily_yield,
+                    },
+                )
+
+                if yield_record.distribution_id is not None:
+                    continue  # already paid
+
+                yield_record.yield_amount = daily_yield
+
+                if daily_yield <= 0:
+                    yield_record.save()
+                    continue
+
+                record = StakingYieldService.create_yield_distribution(
+                    user, yield_record
+                )
+                if record:
+                    yield_record.distribution = record
+
+                yield_record.save()
+                if record:
+                    distributed_count += 1
+
+        logger.info(
+            "Staking yield distribution complete for %s: %d users paid",
+            accrual_date,
+            distributed_count,
+        )
+        return distributed_count
