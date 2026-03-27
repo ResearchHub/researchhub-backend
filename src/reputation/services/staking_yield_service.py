@@ -15,13 +15,8 @@ INITIAL_DAILY_EMISSION = Decimal("9500000")
 HALVING_PERIOD_DAYS = 64 * 365  # 64 years in days
 
 
-def days_in_year(year=None):
-    if year is None:
-        year = date.today().year
-    return 365 + calendar.isleap(year)
-
-
 class StakingYieldService:
+    @staticmethod
     def compute_weighted_stake(stake, multiplier):
         if stake <= 0 or multiplier <= 0:
             return Decimal("0")
