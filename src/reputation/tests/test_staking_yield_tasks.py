@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -21,11 +21,16 @@ from reputation.tests.helpers import create_deposit
 from user.tests.helpers import create_random_default_user
 
 
-@patch(
-    "reputation.services.staking_yield_service.STAKING_RELEASE_DATE",
-    datetime.now(timezone.utc).date() - timedelta(days=2),
-)
 class CreateDailyStakingSnapshotTaskTest(TestCase):
+    def setUp(self):
+        self.release_date = datetime.now(timezone.utc).date() - timedelta(days=2)
+        self.patcher = patch(
+            "reputation.services.staking_yield_service.STAKING_RELEASE_DATE",
+            self.release_date,
+        )
+        self.patcher.start()
+        self.addCleanup(self.patcher.stop)
+
     def _expected_accrual_date(self):
         return datetime.now(timezone.utc).date() - timedelta(days=1)
 
@@ -156,12 +161,16 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
 
 
 @override_settings(STAGING=True)
-@patch(
-    "reputation.services.staking_yield_service.STAKING_RELEASE_DATE",
-    datetime.now(timezone.utc).date() - timedelta(days=2),
-)
 class DistributeStakingYieldTaskTest(TestCase):
     def setUp(self):
+        self.release_date = datetime.now(timezone.utc).date() - timedelta(days=2)
+        self.patcher = patch(
+            "reputation.services.staking_yield_service.STAKING_RELEASE_DATE",
+            self.release_date,
+        )
+        self.patcher.start()
+        self.addCleanup(self.patcher.stop)
+
         self.accrual_date = datetime.now(timezone.utc).date() - timedelta(days=1)
         self.user = create_random_default_user("yielduser")
         self.user.is_staking_opted_in = True
