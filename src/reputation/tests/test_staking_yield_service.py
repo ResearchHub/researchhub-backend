@@ -1,5 +1,5 @@
 import math
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, timedelta
 from decimal import ROUND_DOWN, Decimal
 
 from django.test import TestCase
@@ -81,35 +81,12 @@ class StakingYieldServiceTest(TestCase):
         self.assertGreater(day1, day2)
         self.assertGreater(day2, day3)
 
-    def test_compute_proration_full_day(self):
-        opted_in = datetime(2026, 3, 22, 12, 0, tzinfo=timezone.utc)
-        accrual = date(2026, 3, 23)
-        proration = StakingYieldService.compute_proration(opted_in, accrual)
-        self.assertEqual(proration, Decimal("1"))
-
-    def test_compute_proration_mid_day(self):
-        opted_in = datetime(2026, 3, 23, 12, 0, tzinfo=timezone.utc)
-        accrual = date(2026, 3, 23)
-        proration = StakingYieldService.compute_proration(opted_in, accrual)
-        self.assertEqual(proration, Decimal("0.50000000"))
-
-    def test_compute_proration_after_day(self):
-        opted_in = datetime(2026, 3, 24, 12, 0, tzinfo=timezone.utc)
-        accrual = date(2026, 3, 23)
-        proration = StakingYieldService.compute_proration(opted_in, accrual)
-        self.assertEqual(proration, Decimal("0"))
-
-    def test_compute_proration_none_opted_in_date(self):
-        proration = StakingYieldService.compute_proration(None, date(2026, 3, 23))
-        self.assertEqual(proration, Decimal("1"))
-
     def test_compute_daily_yield_from_pool_share(self):
         accrual = STAKING_RELEASE_DATE
         daily_emission = StakingYieldService.compute_total_daily_emission(accrual)
         daily_yield = StakingYieldService.compute_daily_yield_from_pool_share(
             weighted_stake=Decimal("10000"),
             total_weighted_stake=Decimal("100000"),
-            proration=Decimal("1"),
             accrual_date=accrual,
         )
         expected = (daily_emission * Decimal("10000") / Decimal("100000")).quantize(
@@ -121,7 +98,6 @@ class StakingYieldServiceTest(TestCase):
         daily_yield = StakingYieldService.compute_daily_yield_from_pool_share(
             weighted_stake=Decimal("10000"),
             total_weighted_stake=Decimal("100000"),
-            proration=Decimal("1"),
             accrual_date=STAKING_RELEASE_DATE - timedelta(days=1),
         )
         self.assertEqual(daily_yield, Decimal("0"))
@@ -130,26 +106,21 @@ class StakingYieldServiceTest(TestCase):
         result = StakingYieldService.compute_daily_yield_from_pool_share(
             weighted_stake=Decimal("0"),
             total_weighted_stake=Decimal("100000"),
-            proration=Decimal("1"),
             accrual_date=STAKING_RELEASE_DATE,
         )
         self.assertEqual(result, Decimal("0"))
 
-    def test_compute_daily_yield_from_pool_share_with_proration(self):
+    def test_compute_daily_yield_from_pool_share_rounds_down(self):
         accrual = STAKING_RELEASE_DATE
         daily_emission = StakingYieldService.compute_total_daily_emission(accrual)
         daily_yield = StakingYieldService.compute_daily_yield_from_pool_share(
-            weighted_stake=Decimal("10000"),
-            total_weighted_stake=Decimal("100000"),
-            proration=Decimal("0.50000000"),
+            weighted_stake=Decimal("1"),
+            total_weighted_stake=Decimal("3"),
             accrual_date=accrual,
         )
-        expected = (
-            daily_emission
-            * Decimal("10000")
-            / Decimal("100000")
-            * Decimal("0.50000000")
-        ).quantize(QUANTIZE_8, rounding=ROUND_DOWN)
+        expected = (daily_emission / Decimal("3")).quantize(
+            QUANTIZE_8, rounding=ROUND_DOWN
+        )
         self.assertEqual(daily_yield, expected)
 
     def test_yearly_return_from_daily_yields(self):
@@ -170,7 +141,6 @@ class StakingYieldServiceTest(TestCase):
             daily = StakingYieldService.compute_daily_yield_from_pool_share(
                 weighted_stake,
                 snapshot.total_weighted_stake,
-                Decimal("1"),
                 accrual,
             )
             total_yield += daily

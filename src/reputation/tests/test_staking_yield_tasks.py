@@ -12,6 +12,7 @@ from reputation.models import (
     StakingUserSnapshot,
     StakingYieldRecord,
 )
+from reputation.services.staking_yield_service import StakingYieldService
 from reputation.tasks import (
     create_daily_staking_global_snapshot,
     distribute_staking_yield,
@@ -187,7 +188,6 @@ class DistributeStakingYieldTaskTest(TestCase):
             stake_amount=Decimal("10000"),
             multiplier=Decimal("1"),
             weighted_stake=Decimal("10000"),
-            staking_opted_in_date=self.user.staking_opted_in_date,
         )
 
     def test_distributes_yield(self):
@@ -213,6 +213,22 @@ class DistributeStakingYieldTaskTest(TestCase):
         ).first()
         self.assertIsNotNone(balance)
         self.assertTrue(balance.is_locked)
+
+    def test_same_day_opt_in_snapshot_receives_full_day_yield(self):
+        self.user.staking_opted_in_date = datetime.combine(
+            self.accrual_date,
+            datetime.min.time(),
+            tzinfo=timezone.utc,
+        ) + timedelta(hours=12)
+        self.user.save(update_fields=["staking_opted_in_date"])
+
+        distribute_staking_yield()
+
+        yield_record = StakingYieldRecord.objects.get(user_snapshot=self.user_snapshot)
+        self.assertEqual(
+            yield_record.yield_amount,
+            StakingYieldService.compute_total_daily_emission(self.accrual_date),
+        )
 
     def test_idempotent_distribution(self):
         distribute_staking_yield()
@@ -249,7 +265,6 @@ class DistributeStakingYieldTaskTest(TestCase):
     def test_rolls_back_distribution_if_yield_record_save_fails(self):
         yield_record = StakingYieldRecord.objects.create(
             user_snapshot=self.user_snapshot,
-            proration_fraction=Decimal("1"),
             yield_amount=Decimal("0"),
         )
 

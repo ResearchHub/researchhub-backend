@@ -785,7 +785,6 @@ def create_daily_staking_global_snapshot(self):
                     stake_amount=stake,
                     multiplier=multiplier,
                     weighted_stake=weighted_stake,
-                    staking_opted_in_date=user.staking_opted_in_date,
                 )
             )
 
@@ -847,14 +846,9 @@ def distribute_staking_yield():
             if not user.is_active or user.is_suspended or user.probable_spammer:
                 continue
 
-            proration = StakingYieldService.compute_proration(
-                user_snapshot.staking_opted_in_date,
-                accrual_date,
-            )
             daily_yield = StakingYieldService.compute_daily_yield_from_pool_share(
                 user_snapshot.weighted_stake,
                 global_snapshot.total_weighted_stake,
-                proration,
                 accrual_date,
             )
 
@@ -865,7 +859,6 @@ def distribute_staking_yield():
                 ) = StakingYieldRecord.objects.select_for_update().get_or_create(
                     user_snapshot=user_snapshot,
                     defaults={
-                        "proration_fraction": proration,
                         "yield_amount": daily_yield,
                     },
                 )
@@ -873,7 +866,6 @@ def distribute_staking_yield():
                 if yield_record.distribution_id is not None:
                     continue  # already paid
 
-                yield_record.proration_fraction = proration
                 yield_record.yield_amount = daily_yield
 
                 if daily_yield <= 0:
