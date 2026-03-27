@@ -215,6 +215,35 @@ class PersonaWebhookViewTests(TestCase):
 
     @mock.patch("notification.models.Notification.send_notification")
     @override_settings(PERSONA_WEBHOOK_SECRET=webhook_secret)
+    def test_post_webhook_null_names(self, send_notification_mock):
+        """Webhook payloads missing name-first/name-last should not crash."""
+        user = User.objects.create(first_name="firstName1", last_name="lastName1")
+
+        body = self.webhook_approved_body.replace(
+            '"reference-id": "$REFERENCE_ID"', f'"reference-id": "{user.id}"'
+        )
+        body = body.replace('"name-first": "ALEXANDER J"', '"name-first": null')
+        body = body.replace('"name-last": "SAMPLE"', '"name-last": null')
+
+        digest = PersonaWebhookView.create_digest(
+            self.webhook_secret, "1720448965", body
+        )
+
+        response = self.client.post(
+            "/webhooks/persona/",
+            body,
+            content_type="application/json",
+            headers={"Persona-Signature": f"t=1720448965,v1={digest}"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        user_verification = UserVerification.objects.get(user=user)
+        self.assertEqual(user_verification.first_name, "")
+        self.assertEqual(user_verification.last_name, "")
+        self.assertEqual(user_verification.status, UserVerification.Status.APPROVED)
+
+    @mock.patch("notification.models.Notification.send_notification")
+    @override_settings(PERSONA_WEBHOOK_SECRET=webhook_secret)
     def test_post_webhook_marked_for_review_status(self, send_notification_mock):
         # arrange
         user = User.objects.create(first_name="firstName1", last_name="lastName1")

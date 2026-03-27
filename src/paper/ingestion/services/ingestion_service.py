@@ -233,7 +233,7 @@ class PaperIngestionService:
 
                 # Create hubs
                 hubs = mapper.map_to_hubs(record)
-                if hubs:
+                if hubs and paper.unified_document:
                     paper.unified_document.hubs.add(*hubs)
 
                 # Create authors and institutions after paper is saved
