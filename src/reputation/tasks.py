@@ -26,9 +26,7 @@ from reputation.models import Bounty, BountySolution, Contribution, Deposit
 from reputation.related_models.bounty import AnnotatedBounty
 from reputation.related_models.score import Score
 from reputation.related_models.staking_global_snapshot import StakingGlobalSnapshot
-from reputation.related_models.staking_user_snapshot import StakingUserSnapshot
 from reputation.related_models.staking_yield_record import StakingYieldRecord
-from reputation.services.rsc_supply_service import RscSupplyService
 from reputation.services.staking_yield_service import StakingYieldService
 from reputation.services.wallet import WalletService
 from researchhub.celery import QUEUE_CONTRIBUTIONS, QUEUE_PURCHASES, app
@@ -694,121 +692,24 @@ def create_daily_staking_global_snapshot(self):
         return False
 
     try:
-        previous = StakingGlobalSnapshot.load()
-
-        existing = StakingGlobalSnapshot.load_for_accrual_date(accrual_date)
-        if existing is not None:
-            logger.info(
-                "Staking snapshot already exists for %s, skipping create",
-                accrual_date,
-            )
-            return True
-
-        try:
-            supply = RscSupplyService.fetch_circulating_supply()
-        except Exception as exc:
-            logger.warning(
-                "Failed to fetch circulating supply for %s (attempt %d/%d)",
-                accrual_date,
-                self.request.retries + 1,
-                self.max_retries + 1,
-            )
-
-            if self.request.retries >= self.max_retries:
-                if previous is None:
-                    logger.warning(
-                        "No previous staking snapshot available for supply fallback on %s",
-                        accrual_date,
-                    )
-                    log_error(
-                        exc,
-                        message=(
-                            "Failed to fetch staking circulating supply after retries; "
-                            "no previous snapshot available for fallback"
-                        ),
-                        json_data={"accrual_date": str(accrual_date)},
-                    )
-                    return False
-
-                supply = previous.circulating_supply
-                logger.warning(
-                    "Falling back to previous circulating supply=%s for %s",
-                    supply,
-                    accrual_date,
-                )
-                log_error(
-                    exc,
-                    message=(
-                        "Failed to fetch staking circulating supply after retries; "
-                        "using previous snapshot supply"
-                    ),
-                    json_data={
-                        "accrual_date": str(accrual_date),
-                        "fallback_circulating_supply": str(supply),
-                    },
-                )
-            else:
-                raise self.retry(exc=exc)
-
-        eligible_users = User.objects.filter(
-            is_staking_opted_in=True,
-            is_active=True,
-            is_suspended=False,
-            probable_spammer=False,
-        ).iterator()
-
-        total_staked = Decimal("0")
-        total_weighted_stake = Decimal("0")
-        position_rows = []
-
-        for user in eligible_users:
-            stake = user.get_available_balance()
-            if stake is None:
-                continue
-
-            stake = Decimal(str(stake))
-            if stake <= 0:
-                continue
-
-            multiplier = Decimal("1")  # v1: hardcoded
-            weighted_stake = StakingYieldService.compute_weighted_stake(
-                stake, multiplier
-            )
-            if weighted_stake <= 0:
-                continue
-
-            total_staked += stake
-            total_weighted_stake += weighted_stake
-            position_rows.append(
-                StakingUserSnapshot(
-                    user=user,
-                    stake_amount=stake,
-                    multiplier=multiplier,
-                    weighted_stake=weighted_stake,
-                )
-            )
-
-        with transaction.atomic():
-            global_snapshot = StakingGlobalSnapshot.objects.create(
-                accrual_date=accrual_date,
-                circulating_supply=supply,
-                total_staked=total_staked,
-                total_weighted_stake=total_weighted_stake,
-            )
-            for position_row in position_rows:
-                position_row.global_snapshot = global_snapshot
-            StakingUserSnapshot.objects.bulk_create(position_rows)
-
-        logger.info(
-            "Created daily StakingGlobalSnapshot pk=%d accrual_date=%s supply=%s "
-            "total_staked=%s total_weighted_stake=%s",
-            global_snapshot.pk,
+        result = StakingYieldService.create_daily_snapshot(accrual_date)
+        return result is not None
+    except Exception as exc:
+        logger.warning(
+            "create_daily_staking_global_snapshot failed for %s (attempt %d/%d): %s",
             accrual_date,
-            supply,
-            total_staked,
-            total_weighted_stake,
+            self.request.retries + 1,
+            self.max_retries + 1,
+            exc,
         )
-        return True
+        if self.request.retries >= self.max_retries:
+            log_error(
+                exc,
+                message="create_daily_staking_global_snapshot failed after all retries",
+                json_data={"accrual_date": str(accrual_date)},
+            )
+            return False
+        raise self.retry(exc=exc)
     finally:
         lock.release(key)
         logger.info("Released lock %s", key)

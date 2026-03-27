@@ -137,15 +137,9 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
     )
     @patch("reputation.tasks.log_error")
     @patch("reputation.tasks.create_daily_staking_global_snapshot.retry")
-    def test_falls_back_to_previous_supply_on_final_attempt(
+    def test_returns_false_and_logs_error_on_final_attempt(
         self, mock_retry, mock_log_error, mock_supply
     ):
-        previous = StakingGlobalSnapshot.objects.create(
-            accrual_date=self._expected_accrual_date() - timedelta(days=1),
-            circulating_supply=Decimal("215052673"),
-            total_staked=Decimal("0"),
-            total_weighted_stake=Decimal("0"),
-        )
         mock_supply.side_effect = Exception("CoinGecko unavailable")
 
         with patch.object(
@@ -155,10 +149,8 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
         ):
             result = create_daily_staking_global_snapshot()
 
-        self.assertTrue(result)
-        latest = StakingGlobalSnapshot.load()
-        self.assertEqual(latest.circulating_supply, previous.circulating_supply)
-        self.assertEqual(latest.accrual_date, self._expected_accrual_date())
+        self.assertFalse(result)
+        self.assertEqual(StakingGlobalSnapshot.objects.count(), 0)
         mock_retry.assert_not_called()
         mock_log_error.assert_called_once()
 
