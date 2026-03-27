@@ -7,19 +7,7 @@ from django.conf import settings
 from django.db import migrations, models
 
 
-def seed_staking_global_snapshot(apps, schema_editor):
-    StakingGlobalSnapshot = apps.get_model("reputation", "StakingGlobalSnapshot")
-    if not StakingGlobalSnapshot.objects.exists():
-        StakingGlobalSnapshot.objects.create(
-            emission_per_year=9_500_000,
-            circulating_supply=215_052_673,
-            total_staked=0,
-            total_weighted_stake=0,
-        )
-
-
 class Migration(migrations.Migration):
-
     dependencies = [
         ("reputation", "0116_seed_staking_snapshot"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
@@ -38,7 +26,7 @@ class Migration(migrations.Migration):
                         verbose_name="ID",
                     ),
                 ),
-                ("accrual_date", models.DateField(blank=True, null=True, unique=True)),
+                ("accrual_date", models.DateField(unique=True)),
                 (
                     "emission_per_year",
                     models.DecimalField(
@@ -66,22 +54,6 @@ class Migration(migrations.Migration):
                 ("created_date", models.DateTimeField(auto_now_add=True)),
                 ("updated_date", models.DateTimeField(auto_now=True)),
             ],
-        ),
-        migrations.RemoveField(
-            model_name="stakingyieldaccrual",
-            name="staking_snapshot",
-        ),
-        migrations.AlterUniqueTogether(
-            name="stakingyieldaccrual",
-            unique_together=None,
-        ),
-        migrations.RemoveField(
-            model_name="stakingyieldaccrual",
-            name="distribution",
-        ),
-        migrations.RemoveField(
-            model_name="stakingyieldaccrual",
-            name="user",
         ),
         migrations.CreateModel(
             name="StakingUserSnapshot",
@@ -149,13 +121,6 @@ class Migration(migrations.Migration):
                         verbose_name="ID",
                     ),
                 ),
-                ("accrual_date", models.DateField()),
-                (
-                    "stake_amount",
-                    models.DecimalField(
-                        decimal_places=8, default=Decimal("0"), max_digits=19
-                    ),
-                ),
                 (
                     "annualized_rate",
                     models.DecimalField(
@@ -187,42 +152,19 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
-                    "global_snapshot",
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.PROTECT,
-                        related_name="yield_records",
-                        to="reputation.stakingglobalsnapshot",
-                    ),
-                ),
-                (
-                    "user",
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        related_name="staking_yield_records",
-                        to=settings.AUTH_USER_MODEL,
-                    ),
-                ),
-                (
                     "user_snapshot",
-                    models.ForeignKey(
+                    models.OneToOneField(
                         on_delete=django.db.models.deletion.PROTECT,
-                        related_name="yield_records",
+                        related_name="yield_record",
                         to="reputation.stakingusersnapshot",
                     ),
                 ),
             ],
-            options={
-                "unique_together": {("user", "accrual_date")},
-            },
         ),
         migrations.DeleteModel(
             name="StakingSnapshot",
         ),
         migrations.DeleteModel(
             name="StakingYieldAccrual",
-        ),
-        migrations.RunPython(
-            seed_staking_global_snapshot,
-            migrations.RunPython.noop,
         ),
     ]

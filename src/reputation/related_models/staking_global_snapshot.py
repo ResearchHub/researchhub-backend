@@ -2,9 +2,11 @@ from decimal import Decimal
 
 from django.db import models
 
+from utils.models import DefaultModel
 
-class StakingGlobalSnapshot(models.Model):
-    accrual_date = models.DateField(null=True, blank=True, unique=True)
+
+class StakingGlobalSnapshot(DefaultModel):
+    accrual_date = models.DateField(unique=True)
     emission_per_year = models.DecimalField(
         max_digits=19, decimal_places=8, default=Decimal("0")
     )
@@ -17,8 +19,6 @@ class StakingGlobalSnapshot(models.Model):
     total_weighted_stake = models.DecimalField(
         max_digits=19, decimal_places=8, default=Decimal("0")
     )
-    created_date = models.DateTimeField(auto_now_add=True)
-    updated_date = models.DateTimeField(auto_now=True)
 
     class Meta:
         app_label = "reputation"
@@ -30,7 +30,7 @@ class StakingGlobalSnapshot(models.Model):
 
     @classmethod
     def load(cls):
-        return cls.objects.order_by("-created_date").first()
+        return cls.objects.order_by("-accrual_date").first()
 
     @classmethod
     def load_for_accrual_date(cls, accrual_date):

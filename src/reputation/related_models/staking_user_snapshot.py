@@ -2,8 +2,10 @@ from decimal import Decimal
 
 from django.db import models
 
+from utils.models import DefaultModel
 
-class StakingUserSnapshot(models.Model):
+
+class StakingUserSnapshot(DefaultModel):
     global_snapshot = models.ForeignKey(
         "reputation.StakingGlobalSnapshot",
         on_delete=models.CASCADE,
@@ -24,8 +26,6 @@ class StakingUserSnapshot(models.Model):
         max_digits=19, decimal_places=8, default=Decimal("0")
     )
     staking_opted_in_date = models.DateTimeField(null=True, blank=True)
-    created_date = models.DateTimeField(auto_now_add=True)
-    updated_date = models.DateTimeField(auto_now=True)
 
     class Meta:
         app_label = "reputation"
