@@ -27,6 +27,49 @@ from user.permissions import IsModerator, UserIsEditor
 logger = logging.getLogger(__name__)
 
 
+def _generated_email_list_sequence_queryset(expert_search_id):
+    """
+    Same default ordering and search scope as GET expert-finder/emails/:
+    order by -created_date; if expert_search_id is not None, filter to that search
+    (equivalent to ?search_id=<id>). If None, no expert_search filter (full list).
+    """
+    qs = GeneratedEmail.objects.order_by("-created_date")
+    if expert_search_id is not None:
+        qs = qs.filter(expert_search_id=expert_search_id)
+    return qs
+
+
+def _list_navigation_for_generated_email(email):
+    """
+    Adjacent rows in the same order as the paginated list for this email's search
+    (or the unfiltered list when expert_search is null).
+    """
+    qs = _generated_email_list_sequence_queryset(email.expert_search_id)
+    ids = list(qs.values_list("id", flat=True))
+    try:
+        idx = ids.index(email.id)
+    except ValueError:
+        return {
+            "total": len(ids),
+            "position": 1,
+            "previous_id": None,
+            "next_id": None,
+        }
+    n = len(ids)
+    return {
+        "total": n,
+        "position": idx + 1,
+        "previous_id": ids[idx - 1] if idx > 0 else None,
+        "next_id": ids[idx + 1] if idx < n - 1 else None,
+    }
+
+
+def _generated_email_detail_response(email):
+    data = GeneratedEmailSerializer(email).data
+    data["list_navigation"] = _list_navigation_for_generated_email(email)
+    return data
+
+
 def _normalize_template(template: str) -> tuple[str, str | None]:
     """Return (template_key, custom_use_case or None). Supports 'custom: use case'."""
     template = (template or "").strip()
@@ -328,9 +371,11 @@ class GeneratedEmailListView(APIView):
         search_id = request.query_params.get("search_id")
         if search_id is not None:
             try:
-                qs = qs.filter(expert_search_id=int(search_id))
+                sid = int(search_id)
             except (ValueError, TypeError):
                 qs = qs.none()
+            else:
+                qs = qs.filter(expert_search_id=sid)
         total = qs.count()
         items = list(qs[offset : offset + limit])
         ser = GeneratedEmailSerializer(items, many=True)
@@ -379,8 +424,7 @@ class GeneratedEmailDetailView(APIView):
         email, err = self._get_email(request, email_id)
         if err:
             return err
-        ser = GeneratedEmailSerializer(email)
-        return Response(ser.data)
+        return Response(_generated_email_detail_response(email))
 
     def patch(self, request, email_id):
         email, err = self._get_email(request, email_id)
@@ -391,8 +435,7 @@ class GeneratedEmailDetailView(APIView):
         )
         ser.is_valid(raise_exception=True)
         ser.save()
-        out = GeneratedEmailSerializer(email)
-        return Response(out.data)
+        return Response(_generated_email_detail_response(email))
 
     def delete(self, request, email_id):
         email, err = self._get_email(request, email_id)

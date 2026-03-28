@@ -23,28 +23,46 @@ class NormalizeLlmTextToHtmlTests(TestCase):
         self.assertEqual(normalize_llm_text_to_html(""), "")
         self.assertEqual(normalize_llm_text_to_html(None), None)
 
-    def test_single_newline_becomes_br(self):
+    def test_single_newline_becomes_br_inside_paragraph(self):
         self.assertEqual(
             normalize_llm_text_to_html("Line one\nLine two"),
-            "Line one<br />Line two",
+            "<p>Line one<br />Line two</p>",
         )
 
-    def test_multiple_newlines_collapsed_then_br(self):
+    def test_multiple_newlines_become_paragraph_breaks(self):
         self.assertEqual(
             normalize_llm_text_to_html("A\n\n\nB"),
-            "A<br />B",
+            "<p>A</p><p>B</p>",
         )
 
     def test_literal_backslash_n_normalized(self):
         self.assertEqual(
             normalize_llm_text_to_html("Hi\\n\\nThere"),
-            "Hi<br />There",
+            "<p>Hi</p><p>There</p>",
         )
 
     def test_mixed_literal_and_real_newlines(self):
         self.assertEqual(
             normalize_llm_text_to_html("One\nTwo\\n\nThree"),
-            "One<br />Two<br />Three",
+            "<p>One<br />Two</p><p>Three</p>",
+        )
+
+    def test_empty_paragraph_between_blocks(self):
+        self.assertEqual(
+            normalize_llm_text_to_html("A\n\n\n\nB"),
+            "<p>A</p><p>B</p>",
+        )
+
+    def test_subject_mode_plain_text_no_p_tags(self):
+        self.assertEqual(
+            normalize_llm_text_to_html("Line one\nLine two", wrap_in_paragraphs=False),
+            "Line one Line two",
+        )
+
+    def test_subject_mode_collapses_paragraph_breaks(self):
+        self.assertEqual(
+            normalize_llm_text_to_html("Hi\\n\\nThere", wrap_in_paragraphs=False),
+            "Hi There",
         )
 
 

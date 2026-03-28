@@ -1,7 +1,9 @@
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.conf import settings
 from django.test import override_settings
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -460,6 +462,107 @@ class GeneratedEmailDetailViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.json()["id"], email.id)
         self.assertEqual(response.json()["expert_name"], "Dr. Test")
+
+    def test_get_includes_list_navigation_single_email_in_search(self):
+        search = _make_expert_search(self.moderator)
+        email = GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_search=search,
+            expert_name="Only",
+            email_subject="",
+            email_body="",
+        )
+        self.client.force_authenticate(self.moderator)
+        response = self.client.get(
+            f"/api/research_ai/expert-finder/emails/{email.id}/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        nav = response.json()["list_navigation"]
+        self.assertEqual(nav["total"], 1)
+        self.assertEqual(nav["position"], 1)
+        self.assertIsNone(nav["previous_id"])
+        self.assertIsNone(nav["next_id"])
+
+    def test_get_list_navigation_matches_list_order_for_search(self):
+        search = _make_expert_search(self.moderator)
+        other_search = _make_expert_search(self.moderator)
+        base = timezone.now()
+        newest = GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_search=search,
+            expert_name="Newest",
+            email_subject="",
+            email_body="",
+        )
+        mid = GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_search=search,
+            expert_name="Mid",
+            email_subject="",
+            email_body="",
+        )
+        oldest = GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_search=search,
+            expert_name="Oldest",
+            email_subject="",
+            email_body="",
+        )
+        GeneratedEmail.objects.filter(pk=newest.pk).update(created_date=base)
+        GeneratedEmail.objects.filter(pk=mid.pk).update(
+            created_date=base - timedelta(hours=1)
+        )
+        GeneratedEmail.objects.filter(pk=oldest.pk).update(
+            created_date=base - timedelta(hours=2)
+        )
+        GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_search=other_search,
+            expert_name="Other search",
+            email_subject="",
+            email_body="",
+        )
+        self.client.force_authenticate(self.moderator)
+
+        r_mid = self.client.get(f"/api/research_ai/expert-finder/emails/{mid.id}/")
+        nav = r_mid.json()["list_navigation"]
+        self.assertEqual(nav["total"], 3)
+        self.assertEqual(nav["position"], 2)
+        self.assertEqual(nav["previous_id"], newest.id)
+        self.assertEqual(nav["next_id"], oldest.id)
+
+        r_new = self.client.get(f"/api/research_ai/expert-finder/emails/{newest.id}/")
+        nav_new = r_new.json()["list_navigation"]
+        self.assertEqual(nav_new["position"], 1)
+        self.assertIsNone(nav_new["previous_id"])
+        self.assertEqual(nav_new["next_id"], mid.id)
+
+        r_old = self.client.get(f"/api/research_ai/expert-finder/emails/{oldest.id}/")
+        nav_old = r_old.json()["list_navigation"]
+        self.assertEqual(nav_old["position"], 3)
+        self.assertEqual(nav_old["previous_id"], mid.id)
+        self.assertIsNone(nav_old["next_id"])
+
+    def test_get_list_navigation_without_expert_search_uses_global_sequence(self):
+        base = timezone.now()
+        first = self._create_email()
+        second = GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_name="Second",
+            email_subject="",
+            email_body="",
+        )
+        GeneratedEmail.objects.filter(pk=first.pk).update(created_date=base)
+        GeneratedEmail.objects.filter(pk=second.pk).update(
+            created_date=base - timedelta(hours=1)
+        )
+        self.client.force_authenticate(self.moderator)
+        r = self.client.get(f"/api/research_ai/expert-finder/emails/{second.id}/")
+        nav = r.json()["list_navigation"]
+        self.assertEqual(nav["total"], 2)
+        self.assertEqual(nav["position"], 2)
+        self.assertEqual(nav["previous_id"], first.id)
+        self.assertIsNone(nav["next_id"])
 
     def test_get_returns_404_for_nonexistent(self):
         self.client.force_authenticate(self.moderator)

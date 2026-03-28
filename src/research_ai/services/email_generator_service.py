@@ -36,23 +36,32 @@ def _normalize_signature_dict(data: dict | None) -> dict:
     }
 
 
-def normalize_llm_text_to_html(text: str) -> str:
+def normalize_llm_text_to_html(text: str, *, wrap_in_paragraphs: bool = True) -> str:
     """
     Normalize LLM-generated plain text for HTML display.
 
-    - Replaces literal '\\n' (backslash-n) with newline so both are handled.
-    - Collapses multiple newlines (e.g. \\n\\n, \\n\\n\\n) to a single newline.
-    - Replaces newlines with <br /> so line breaks render correctly in HTML.
+    - Replaces literal '\\n' (backslash-n) with real newlines.
+    - When wrap_in_paragraphs is True (email body): splits on 2+ newlines into
+      paragraphs; each paragraph is wrapped in <p>...</p>, empty segments use
+      <p></p>; single newlines inside a paragraph become <br />.
+    - When wrap_in_paragraphs is False (email subject): newlines and runs of
+      whitespace collapse to a single space (plain text).
     """
     if not text:
         return text
-    # Handle literal \n (two characters) from LLM output
     result = text.replace("\\n", "\n")
-    # Collapse 2+ newlines to a single newline
-    result = re.sub(r"\n{2,}", "\n", result)
-    # Convert newlines to HTML line breaks
-    result = result.replace("\n", "<br />")
-    return result
+    if not wrap_in_paragraphs:
+        result = re.sub(r"\s+", " ", result).strip()
+        return result
+    parts = re.split(r"\n{2,}", result)
+    out: list[str] = []
+    for part in parts:
+        inner = part.replace("\n", "<br />")
+        if inner.strip() == "":
+            out.append("<p></p>")
+        else:
+            out.append(f"<p>{inner}</p>")
+    return "".join(out)
 
 
 def _strip_markdown(text: str) -> str:
@@ -311,7 +320,7 @@ def _generate_with_llm(
         if sig:
             text = text.rstrip() + sig
     subject, body = _parse_subject_and_body(text)
-    subject = normalize_llm_text_to_html(subject)
+    subject = normalize_llm_text_to_html(subject, wrap_in_paragraphs=False)
     body = normalize_llm_text_to_html(body)
     return subject, body
 
