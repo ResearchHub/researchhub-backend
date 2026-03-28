@@ -2,6 +2,7 @@ import json
 import logging
 import time
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import List, Optional
 
 import pytz
@@ -24,6 +25,7 @@ from reputation.lib import check_hotwallet, check_pending_withdrawal, contract_a
 from reputation.models import Bounty, BountySolution, Contribution, Deposit
 from reputation.related_models.bounty import AnnotatedBounty
 from reputation.related_models.score import Score
+from reputation.services.staking_yield_service import StakingYieldService
 from reputation.services.wallet import WalletService
 from researchhub.celery import QUEUE_CONTRIBUTIONS, QUEUE_PURCHASES, app
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -666,3 +668,93 @@ def burn_revenue_rsc(network="BASE"):
     Weekly task to burn ResearchCoin from the revenue account.
     """
     return WalletService.burn_revenue_rsc(network)
+
+
+@app.task(
+    bind=True,
+    queue=QUEUE_PURCHASES,
+    max_retries=3,
+    default_retry_delay=60,
+)
+def create_daily_staking_snapshots(self):
+    """Daily task to create a new StakingGlobalSnapshot with fresh circulating
+    supply and aggregate staking stats.
+
+    Runs before distribute_staking_yield so the distribution task uses
+    up-to-date supply and staking data.
+    """
+    if not settings.STAGING:
+        logger.info("Staking daily snapshot creation is only enabled in staging")
+        return False
+
+    accrual_date = datetime.now(pytz.UTC).date() - timedelta(days=1)
+    key = lock.name(f"create_daily_staking_snapshots_{accrual_date}")
+    if not lock.acquire(key):
+        logger.warning("Already locked %s, skipping task", key)
+        return False
+
+    try:
+        result = StakingYieldService.create_daily_snapshots(accrual_date)
+        return result is not None
+    except Exception as exc:
+        logger.warning(
+            "create_daily_staking_snapshots failed for %s (attempt %d/%d): %s",
+            accrual_date,
+            self.request.retries + 1,
+            self.max_retries + 1,
+            exc,
+        )
+        if self.request.retries >= self.max_retries:
+            log_error(
+                exc,
+                message="create_daily_staking_snapshots failed after all retries",
+                json_data={"accrual_date": str(accrual_date)},
+            )
+            return False
+        raise self.retry(exc=exc)
+    finally:
+        lock.release(key)
+        logger.info("Released lock %s", key)
+
+
+@app.task(
+    bind=True,
+    queue=QUEUE_PURCHASES,
+    max_retries=3,
+    default_retry_delay=60,
+)
+def distribute_staking_yield(self):
+    """Daily task to distribute staking yield for the previous UTC day."""
+    if not settings.STAGING:
+        logger.info("Staking yield distribution is only enabled in staging")
+        return False
+
+    accrual_date = datetime.now(pytz.UTC).date() - timedelta(days=1)
+
+    key = lock.name(f"distribute_staking_yield_{accrual_date}")
+    if not lock.acquire(key):
+        logger.warning("Already locked %s, skipping task", key)
+        return False
+
+    try:
+        result = StakingYieldService.distribute_yield(accrual_date)
+        return result is not None
+    except Exception as exc:
+        logger.warning(
+            "distribute_staking_yield failed for %s (attempt %d/%d): %s",
+            accrual_date,
+            self.request.retries + 1,
+            self.max_retries + 1,
+            exc,
+        )
+        if self.request.retries >= self.max_retries:
+            log_error(
+                exc,
+                message="distribute_staking_yield failed after all retries",
+                json_data={"accrual_date": str(accrual_date)},
+            )
+            return False
+        raise self.retry(exc=exc)
+    finally:
+        lock.release(key)
+        logger.info("Released lock %s", key)
