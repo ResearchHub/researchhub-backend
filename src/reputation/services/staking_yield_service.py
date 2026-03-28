@@ -19,9 +19,7 @@ logger = logging.getLogger(__name__)
 QUANTIZE_8 = Decimal("0.00000001")
 
 # Halving schedule constants
-STAKING_RELEASE_DATE = date(
-    2026, 3, 27
-)  # TODO: Set actual release date when deploying to prod
+STAKING_RELEASE_DATE = date(2026, 4, 13)
 INITIAL_YEARLY_EMISSION = Decimal("9500000")
 HALVING_PERIOD_DAYS = 64 * 365  # 64 years in days
 
