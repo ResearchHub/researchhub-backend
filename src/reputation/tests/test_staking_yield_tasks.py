@@ -18,6 +18,7 @@ from reputation.tests.helpers import create_deposit
 from user.tests.helpers import create_random_default_user
 
 
+@override_settings(STAGING=True)
 class CreateDailyStakingSnapshotTaskTest(TestCase):
     def setUp(self):
         self.release_date = datetime.now(timezone.utc).date() - timedelta(days=2)
