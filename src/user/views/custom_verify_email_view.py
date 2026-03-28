@@ -1,6 +1,10 @@
 import logging
 
-from allauth.account.models import EmailConfirmation, EmailConfirmationHMAC
+from allauth.account.models import (
+    EmailAddress,
+    EmailConfirmation,
+    EmailConfirmationHMAC,
+)
 from dj_rest_auth.registration.views import VerifyEmailView
 from django.contrib.auth import get_user_model
 from rest_framework.authtoken.models import Token
@@ -27,6 +31,7 @@ class CustomVerifyEmailView(VerifyEmailView):
         # Store user info BEFORE calling parent method
         # because the parent method will override it
         user_id = None
+        is_email_change = False
 
         confirmation = EmailConfirmationHMAC.from_key(key)
 
@@ -36,6 +41,15 @@ class CustomVerifyEmailView(VerifyEmailView):
         if confirmation:
             user = confirmation.email_address.user
             user_id = user.id
+            # Detect if this is an email change: user already has a verified
+            # primary email that differs from the one being confirmed.
+            primary = EmailAddress.objects.get_primary(user)
+            if (
+                primary
+                and primary.verified
+                and primary.email != confirmation.email_address.email
+            ):
+                is_email_change = True
 
         # Call parent method to handle verification
         parent_response = super().post(request, *args, **kwargs)
@@ -47,16 +61,17 @@ class CustomVerifyEmailView(VerifyEmailView):
             user = User.objects.get(id=user_id)
             token, _ = Token.objects.get_or_create(user=user)
 
-            # Return the response with token
-            return Response(
-                {
-                    "detail": "ok",
-                    "key": token.key,
-                    "user": {
-                        "id": user_id,
-                    },
-                }
-            )
+            response_data = {
+                "detail": "ok",
+                "key": token.key,
+                "user": {
+                    "id": user_id,
+                },
+            }
+            if is_email_change:
+                response_data["email_changed"] = True
+
+            return Response(response_data)
         except Exception as e:
             logger.error(f"Could not generate token response: {str(e)}")
 
