@@ -29,6 +29,7 @@ def get_document_invite_candidates_for_email(normalized_email, date_joined):
             created_date__gte=window_start,
             created_date__lte=window_end,
         )
+        .exclude(status=GeneratedEmail.Status.CLOSED)
         .select_related("expert_search")
         .only("id", "created_date", "expert_search_id")
         .order_by("created_date")

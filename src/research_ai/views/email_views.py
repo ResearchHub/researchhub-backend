@@ -20,6 +20,7 @@ from research_ai.serializers import (
 )
 from research_ai.services.email_generator_service import generate_expert_email
 from research_ai.services.email_sending_service import send_plain_email
+from research_ai.services.email_template_variables import format_expert_name_from_raw
 from research_ai.services.rfp_email_context import resolve_expert_from_search
 from research_ai.tasks import process_bulk_generate_emails_task, send_queued_emails_task
 from user.permissions import IsModerator, UserIsEditor
@@ -167,7 +168,7 @@ class GenerateEmailView(APIView):
         email_record = GeneratedEmail.objects.create(
             created_by=request.user,
             expert_search=expert_search,
-            expert_name=(resolved.get("name") or "").strip(),
+            expert_name=format_expert_name_from_raw(resolved.get("name") or ""),
             expert_title=resolved.get("title") or "",
             expert_affiliation=resolved.get("affiliation") or "",
             expert_email=(resolved.get("email") or "").strip(),
@@ -220,7 +221,7 @@ class BulkGenerateEmailView(APIView):
                     email_record = GeneratedEmail.objects.create(
                         created_by=request.user,
                         expert_search=expert_search,
-                        expert_name=(resolved.get("name") or "").strip(),
+                        expert_name=format_expert_name_from_raw(resolved.get("name") or ""),
                         expert_title=resolved.get("title") or "",
                         expert_affiliation=resolved.get("affiliation") or "",
                         expert_email=(resolved.get("email") or "").strip(),
@@ -282,6 +283,7 @@ class PreviewEmailView(APIView):
         )
 
         ids = data["generated_email_ids"]
+        reply_to = (data["reply_to"] or "").strip()
         qs = GeneratedEmail.objects.filter(id__in=ids).exclude(
             status=GeneratedEmail.Status.PROCESSING
         )
@@ -292,7 +294,7 @@ class PreviewEmailView(APIView):
                     [recipient],
                     rec.email_subject,
                     rec.email_body,
-                    reply_to=recipient,
+                    reply_to=reply_to,
                     from_email=from_email,
                 )
                 sent += 1

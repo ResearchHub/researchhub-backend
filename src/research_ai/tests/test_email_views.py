@@ -60,7 +60,7 @@ class GenerateEmailViewTests(APITestCase):
             self.moderator,
             expert_results=[
                 {
-                    "name": "Dr. Jane Smith",
+                    "name": "Dr. Jane Marie Smith",
                     "email": "jane@example.com",
                     "title": "Professor",
                     "affiliation": "MIT",
@@ -119,7 +119,11 @@ class GenerateEmailViewTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         data = response.json()
-        self.assertEqual(data["expert_name"], "Dr. Jane Smith")
+        self.assertEqual(
+            data["expert_name"],
+            "Dr. Smith",
+            msg="Middle name trimmed from stored expert_name (first + last token)",
+        )
         self.assertEqual(data["email_subject"], "Subject here")
         self.assertEqual(data["email_body"], "Body here")
         self.assertEqual(data["status"], "draft")
@@ -593,6 +597,19 @@ class GeneratedEmailDetailViewTests(APITestCase):
         email.refresh_from_db()
         self.assertEqual(email.email_body, "Updated body")
 
+    def test_patch_can_set_status_closed(self):
+        email = self._create_email()
+        self.client.force_authenticate(self.moderator)
+        response = self.client.patch(
+            f"/api/research_ai/expert-finder/emails/{email.id}/",
+            {"status": "closed"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["status"], "closed")
+        email.refresh_from_db()
+        self.assertEqual(email.status, "closed")
+
     def test_patch_returns_200_for_other_users_email(self):
         """Generated emails are shared: any editor can update any email."""
         email = self._create_email(created_by=self.user)
@@ -818,14 +835,34 @@ class PreviewEmailViewTests(APITestCase):
         self.client.force_authenticate(user)
         response = self.client.post(
             self.url,
-            {"generated_email_ids": [email_rec.id]},
+            {
+                "generated_email_ids": [email_rec.id],
+                "reply_to": "replies@example.com",
+            },
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("email", response.json().get("detail", "").lower())
 
+    def test_preview_without_reply_to_returns_400(self):
+        email_rec = GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_name="Dr. X",
+            email_subject="Subj",
+            email_body="Body",
+        )
+        self.client.force_authenticate(self.moderator)
+        response = self.client.post(
+            self.url,
+            {"generated_email_ids": [email_rec.id]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("reply_to", response.json())
+
     @patch("research_ai.views.email_views.send_plain_email")
     def test_preview_by_ids_sends_to_current_user(self, mock_send):
+        reply_to_email = "sender-replies@example.com"
         email_rec = GeneratedEmail.objects.create(
             created_by=self.moderator,
             expert_name="Dr. X",
@@ -835,14 +872,17 @@ class PreviewEmailViewTests(APITestCase):
         self.client.force_authenticate(self.moderator)
         response = self.client.post(
             self.url,
-            {"generated_email_ids": [email_rec.id]},
+            {
+                "generated_email_ids": [email_rec.id],
+                "reply_to": reply_to_email,
+            },
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.json().get("sent"), 1)
         mock_send.assert_called_once()
         call_kw = mock_send.call_args[1]
-        self.assertEqual(call_kw["reply_to"], self.moderator.email)
+        self.assertEqual(call_kw["reply_to"], reply_to_email)
         self.assertIn(settings.EXPERT_FINDER_FROM_EMAIL, call_kw["from_email"])
 
 

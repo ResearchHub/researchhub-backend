@@ -59,6 +59,30 @@ class GetDocumentInviteCandidatesForEmailTests(TestCase):
         self.assertEqual(es_id, search.id)
         self.assertEqual(ge_id, ge.id)
 
+    def test_closed_generated_email_excluded_from_candidates(self):
+        first_seen = timezone.now() - timedelta(days=2)
+        search = ExpertSearch.objects.create(
+            created_by=self.user,
+            unified_document_id=self.ud_id,
+            query="Test",
+            status=ExpertSearch.Status.COMPLETED,
+            completed_at=first_seen,
+            expert_results=[],
+        )
+        GeneratedEmail.objects.create(
+            created_by=self.user,
+            expert_search=search,
+            expert_email="closed@example.com",
+            created_date=first_seen,
+            status=GeneratedEmail.Status.CLOSED,
+        )
+        self.assertEqual(
+            get_document_invite_candidates_for_email(
+                "closed@example.com", timezone.now()
+            ),
+            [],
+        )
+
     def test_case_insensitive_email_match(self):
         first_seen = timezone.now() - timedelta(days=2)
         search = ExpertSearch.objects.create(
