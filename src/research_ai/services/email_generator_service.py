@@ -36,31 +36,33 @@ def _normalize_signature_dict(data: dict | None) -> dict:
     }
 
 
-def normalize_llm_text_to_html(text: str, *, wrap_in_paragraphs: bool = True) -> str:
+def normalize_llm_text_for_subject(text: str) -> str:
     """
-    Normalize LLM-generated plain text for HTML display.
+    Normalize LLM subject line to plain text: literal backslash-n sequences from the
+    LLM become newlines, then all whitespace collapses to single spaces (subjects
+    must not contain HTML).
+    """
+    if not text:
+        return text
+    s = str(text).replace("\\n", "\n")
+    return re.sub(r"\s+", " ", s).strip()
 
-    - Replaces literal '\\n' (backslash-n) with real newlines.
-    - When wrap_in_paragraphs is True (email body): splits on 2+ newlines into
-      paragraphs; each paragraph is wrapped in <p>...</p>, empty segments use
-      <p></p>; single newlines inside a paragraph become <br />.
-    - When wrap_in_paragraphs is False (email subject): newlines and runs of
-      whitespace collapse to a single space (plain text).
+
+def normalize_llm_text_to_html(text: str) -> str:
+    """
+    Normalize LLM-generated email body for HTML: normalize literal backslash-n from
+    the LLM to real newlines, then each line becomes its own <p>...</p>; blank lines
+    become <p></p>.
     """
     if not text:
         return text
     result = text.replace("\\n", "\n")
-    if not wrap_in_paragraphs:
-        result = re.sub(r"\s+", " ", result).strip()
-        return result
-    parts = re.split(r"\n{2,}", result)
     out: list[str] = []
-    for part in parts:
-        inner = part.replace("\n", "<br />")
-        if inner.strip() == "":
+    for part in result.split("\n"):
+        if part.strip() == "":
             out.append("<p></p>")
         else:
-            out.append(f"<p>{inner}</p>")
+            out.append(f"<p>{part}</p>")
     return "".join(out)
 
 
@@ -320,7 +322,7 @@ def _generate_with_llm(
         if sig:
             text = text.rstrip() + sig
     subject, body = _parse_subject_and_body(text)
-    subject = normalize_llm_text_to_html(subject, wrap_in_paragraphs=False)
+    subject = normalize_llm_text_for_subject(subject)
     body = normalize_llm_text_to_html(body)
     return subject, body
 

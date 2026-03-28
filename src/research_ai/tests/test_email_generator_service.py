@@ -11,6 +11,7 @@ from research_ai.services.email_generator_service import (
     _strip_existing_signature,
     _strip_markdown,
     generate_expert_email,
+    normalize_llm_text_for_subject,
     normalize_llm_text_to_html,
 )
 from research_ai.services.expert_search_email_document_context import (
@@ -23,45 +24,51 @@ class NormalizeLlmTextToHtmlTests(TestCase):
         self.assertEqual(normalize_llm_text_to_html(""), "")
         self.assertEqual(normalize_llm_text_to_html(None), None)
 
-    def test_single_newline_becomes_br_inside_paragraph(self):
+    def test_each_newline_is_its_own_paragraph(self):
         self.assertEqual(
             normalize_llm_text_to_html("Line one\nLine two"),
-            "<p>Line one<br />Line two</p>",
+            "<p>Line one</p><p>Line two</p>",
         )
 
-    def test_multiple_newlines_become_paragraph_breaks(self):
+    def test_blank_lines_become_empty_paragraphs(self):
+        self.assertEqual(
+            normalize_llm_text_to_html("A\n\nB"),
+            "<p>A</p><p></p><p>B</p>",
+        )
+
+    def test_multiple_blank_lines(self):
         self.assertEqual(
             normalize_llm_text_to_html("A\n\n\nB"),
-            "<p>A</p><p>B</p>",
+            "<p>A</p><p></p><p></p><p>B</p>",
         )
 
     def test_literal_backslash_n_normalized(self):
         self.assertEqual(
             normalize_llm_text_to_html("Hi\\n\\nThere"),
-            "<p>Hi</p><p>There</p>",
+            "<p>Hi</p><p></p><p>There</p>",
         )
 
     def test_mixed_literal_and_real_newlines(self):
         self.assertEqual(
             normalize_llm_text_to_html("One\nTwo\\n\nThree"),
-            "<p>One<br />Two</p><p>Three</p>",
+            "<p>One</p><p>Two</p><p></p><p>Three</p>",
         )
 
-    def test_empty_paragraph_between_blocks(self):
-        self.assertEqual(
-            normalize_llm_text_to_html("A\n\n\n\nB"),
-            "<p>A</p><p>B</p>",
-        )
 
-    def test_subject_mode_plain_text_no_p_tags(self):
+class NormalizeLlmTextForSubjectTests(TestCase):
+    def test_empty_or_none_passthrough(self):
+        self.assertEqual(normalize_llm_text_for_subject(""), "")
+        self.assertEqual(normalize_llm_text_for_subject(None), None)
+
+    def test_newlines_collapsed_to_spaces(self):
         self.assertEqual(
-            normalize_llm_text_to_html("Line one\nLine two", wrap_in_paragraphs=False),
+            normalize_llm_text_for_subject("Line one\nLine two"),
             "Line one Line two",
         )
 
-    def test_subject_mode_collapses_paragraph_breaks(self):
+    def test_literal_backslash_n_collapsed(self):
         self.assertEqual(
-            normalize_llm_text_to_html("Hi\\n\\nThere", wrap_in_paragraphs=False),
+            normalize_llm_text_for_subject("Hi\\n\\nThere"),
             "Hi There",
         )
 
