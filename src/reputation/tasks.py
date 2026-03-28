@@ -676,7 +676,7 @@ def burn_revenue_rsc(network="BASE"):
     max_retries=3,
     default_retry_delay=60,
 )
-def create_daily_staking_global_snapshot(self):
+def create_daily_staking_snapshots(self):
     """Daily task to create a new StakingGlobalSnapshot with fresh circulating
     supply and aggregate staking stats.
 
@@ -684,17 +684,17 @@ def create_daily_staking_global_snapshot(self):
     up-to-date supply and staking data.
     """
     accrual_date = datetime.now(pytz.UTC).date() - timedelta(days=1)
-    key = lock.name(f"create_daily_staking_global_snapshot_{accrual_date}")
+    key = lock.name(f"create_daily_staking_snapshots_{accrual_date}")
     if not lock.acquire(key):
         logger.warning("Already locked %s, skipping task", key)
         return False
 
     try:
-        result = StakingYieldService.create_daily_snapshot(accrual_date)
+        result = StakingYieldService.create_daily_snapshots(accrual_date)
         return result is not None
     except Exception as exc:
         logger.warning(
-            "create_daily_staking_global_snapshot failed for %s (attempt %d/%d): %s",
+            "create_daily_staking_snapshots failed for %s (attempt %d/%d): %s",
             accrual_date,
             self.request.retries + 1,
             self.max_retries + 1,
@@ -703,7 +703,7 @@ def create_daily_staking_global_snapshot(self):
         if self.request.retries >= self.max_retries:
             log_error(
                 exc,
-                message="create_daily_staking_global_snapshot failed after all retries",
+                message="create_daily_staking_snapshots failed after all retries",
                 json_data={"accrual_date": str(accrual_date)},
             )
             return False

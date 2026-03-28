@@ -93,7 +93,7 @@ class StakingYieldService:
         return record
 
     @staticmethod
-    def create_daily_snapshot(accrual_date):
+    def create_daily_snapshots(accrual_date):
         """Create a StakingGlobalSnapshot with circulating supply and user stakes.
 
         Returns the created StakingGlobalSnapshot, or None if a snapshot

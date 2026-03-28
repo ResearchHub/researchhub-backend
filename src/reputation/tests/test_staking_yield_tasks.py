@@ -13,10 +13,7 @@ from reputation.models import (
     StakingYieldRecord,
 )
 from reputation.services.staking_yield_service import StakingYieldService
-from reputation.tasks import (
-    create_daily_staking_global_snapshot,
-    distribute_staking_yield,
-)
+from reputation.tasks import create_daily_staking_snapshots, distribute_staking_yield
 from reputation.tests.helpers import create_deposit
 from user.tests.helpers import create_random_default_user
 
@@ -40,7 +37,7 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
     )
     def test_creates_new_snapshot(self, mock_supply):
         mock_supply.return_value = Decimal("220000000")
-        result = create_daily_staking_global_snapshot()
+        result = create_daily_staking_snapshots()
 
         self.assertTrue(result)
         latest = StakingGlobalSnapshot.load()
@@ -60,7 +57,7 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
         user.save()
         create_deposit(user, amount="5000")
 
-        create_daily_staking_global_snapshot()
+        create_daily_staking_snapshots()
         latest = StakingGlobalSnapshot.load()
         self.assertEqual(latest.total_staked, Decimal("5000"))
         self.assertEqual(latest.total_weighted_stake, Decimal("5000"))
@@ -90,7 +87,7 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
         suspended.save()
         create_deposit(suspended, amount="5000")
 
-        create_daily_staking_global_snapshot()
+        create_daily_staking_snapshots()
         latest = StakingGlobalSnapshot.load()
         self.assertEqual(latest.total_staked, Decimal("0"))
         self.assertEqual(latest.user_snapshots.count(), 0)
@@ -102,8 +99,8 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
     def test_snapshot_is_idempotent_per_accrual_date(self, mock_supply):
         mock_supply.return_value = Decimal("220000000")
 
-        create_daily_staking_global_snapshot()
-        create_daily_staking_global_snapshot()
+        create_daily_staking_snapshots()
+        create_daily_staking_snapshots()
 
         snapshots = StakingGlobalSnapshot.objects.filter(
             accrual_date=self._expected_accrual_date()
@@ -116,7 +113,7 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
     )
     def test_creates_first_snapshot_without_seed_row(self, mock_supply):
         mock_supply.return_value = Decimal("220000000")
-        result = create_daily_staking_global_snapshot()
+        result = create_daily_staking_snapshots()
 
         self.assertTrue(result)
         self.assertEqual(StakingGlobalSnapshot.objects.count(), 1)
@@ -125,13 +122,13 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
         "reputation.services.rsc_supply_service."
         "RscSupplyService.fetch_circulating_supply"
     )
-    @patch("reputation.tasks.create_daily_staking_global_snapshot.retry")
+    @patch("reputation.tasks.create_daily_staking_snapshots.retry")
     def test_retries_when_supply_fetch_fails(self, mock_retry, mock_supply):
         mock_supply.side_effect = Exception("CoinGecko unavailable")
         mock_retry.side_effect = Retry()
 
         with self.assertRaises(Retry):
-            create_daily_staking_global_snapshot()
+            create_daily_staking_snapshots()
 
         mock_retry.assert_called_once()
         self.assertEqual(StakingGlobalSnapshot.objects.count(), 0)
@@ -141,18 +138,18 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
         "RscSupplyService.fetch_circulating_supply"
     )
     @patch("reputation.tasks.log_error")
-    @patch("reputation.tasks.create_daily_staking_global_snapshot.retry")
+    @patch("reputation.tasks.create_daily_staking_snapshots.retry")
     def test_returns_false_and_logs_error_on_final_attempt(
         self, mock_retry, mock_log_error, mock_supply
     ):
         mock_supply.side_effect = Exception("CoinGecko unavailable")
 
         with patch.object(
-            create_daily_staking_global_snapshot.request,
+            create_daily_staking_snapshots.request,
             "retries",
-            create_daily_staking_global_snapshot.max_retries,
+            create_daily_staking_snapshots.max_retries,
         ):
-            result = create_daily_staking_global_snapshot()
+            result = create_daily_staking_snapshots()
 
         self.assertFalse(result)
         self.assertEqual(StakingGlobalSnapshot.objects.count(), 0)

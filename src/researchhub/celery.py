@@ -158,8 +158,8 @@ app.conf.beat_schedule = {
         "options": {"priority": 3, "queue": QUEUE_CACHES},
     },
     # Daily Staking Snapshot (runs before distribution)
-    "reputation_create-daily-staking-global-snapshot": {
-        "task": "reputation.tasks.create_daily_staking_global_snapshot",
+    "reputation_create-daily-staking-snapshots": {
+        "task": "reputation.tasks.create_daily_staking_snapshots",
         "schedule": crontab(hour=0, minute=0),
         "options": {
             "priority": 2,
