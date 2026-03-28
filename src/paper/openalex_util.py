@@ -267,9 +267,12 @@ def fetch_authors_for_works(openalex_works) -> List[Dict[str, Any]]:
     batch_size = 100
 
     for work in openalex_works:
-        oa_authorships = work.get("authorships", [])
+        oa_authorships = work.get("authorships") or []
         for oa_authorship in oa_authorships:
-            author_openalex_id = oa_authorship.get("author", {}).get("id")
+            author = oa_authorship.get("author") or {}
+            author_openalex_id = author.get("id")
+            if not author_openalex_id:
+                continue
             just_id = author_openalex_id.split("/")[-1]
             all_authors_to_fetch.add(just_id)
 
@@ -288,11 +291,12 @@ def build_oa_authors_by_work_id_dict(
 
     oa_authors_by_work_id = {}
     for work in openalex_works:
-        oa_authorships = work.get("authorships", [])
+        oa_authorships = work.get("authorships") or []
         oa_authors = []
         for oa_authorship in oa_authorships:
-            oa_author_id = oa_authorship.get("author", {}).get("id")
-            if oa_author_id in fetched_oa_authors_by_id:
+            author = oa_authorship.get("author") or {}
+            oa_author_id = author.get("id")
+            if oa_author_id and oa_author_id in fetched_oa_authors_by_id:
                 oa_authors.append(fetched_oa_authors_by_id[oa_author_id])
             else:
                 logging.warning(
@@ -318,9 +322,10 @@ def create_authors(openalex_works) -> List["Author"]:
     ]
 
     all_openalex_author_ids = [
-        oa_authorship.get("author", {}).get("id")
+        (oa_authorship.get("author") or {}).get("id")
         for oa_authorship in openalex_authorships
     ]
+    all_openalex_author_ids = [aid for aid in all_openalex_author_ids if aid]
 
     existing_authors = Author.objects.filter(
         openalex_ids__overlap=all_openalex_author_ids
@@ -330,19 +335,25 @@ def create_authors(openalex_works) -> List["Author"]:
         existing_oa_author_ids.update(author.openalex_ids)
 
     openalex_authors_without_authors = [
-        authorship.get("author", {})
+        authorship.get("author") or {}
         for authorship in openalex_authorships
-        if authorship.get("author", {}).get("id") not in existing_oa_author_ids
+        if (authorship.get("author") or {}).get("id") not in existing_oa_author_ids
     ]
 
     authors_to_create = {}
     for oa_author in openalex_authors_without_authors:
-        author_name_parts = oa_author.get("display_name", "").split()
+        author_name_parts = (oa_author.get("display_name") or "").split()
+        if not author_name_parts:
+            continue
 
-        authors_to_create[oa_author.get("id")] = Author(
+        oa_id = oa_author.get("id")
+        if not oa_id:
+            continue
+
+        authors_to_create[oa_id] = Author(
             first_name=author_name_parts[0],
             last_name=author_name_parts[-1],
-            openalex_ids=[oa_author.get("id")],
+            openalex_ids=[oa_id],
             created_source=Author.SOURCE_OPENALEX,
         )
 
@@ -393,14 +404,15 @@ def create_openalex_authorships_and_institutions(
 
         for oa_authorship in openalex_authorships:
             author_position = oa_authorship.get("author_position")
-            author_openalex_id = oa_authorship.get("author", {}).get("id")
+            author_data = oa_authorship.get("author") or {}
+            author_openalex_id = author_data.get("id")
 
             authors_for_oa_author = authors_by_oa_id.get(author_openalex_id, [])
 
             for author in authors_for_oa_author:
                 # Associate paper with author
                 is_corresponding = oa_authorship.get("is_corresponding")
-                raw_author_name = oa_authorship.get("author", {}).get("display_name")
+                raw_author_name = author_data.get("display_name")
 
                 authorship = Authorship(
                     author=author,
@@ -473,13 +485,12 @@ def merge_openalex_author_with_researchhub_author(openalex_author, researchhub_a
     Merges the OpenAlex author data with the ResearchHub author data. This is necessary because the OpenAlex author data
     """
     # Update basic metadata fields
-    researchhub_author.i10_index = openalex_author.get("summary_stats", {}).get(
-        "i10_index"
+    summary_stats = openalex_author.get("summary_stats") or {}
+    researchhub_author.i10_index = summary_stats.get("i10_index")
+    researchhub_author.h_index = summary_stats.get("h_index")
+    researchhub_author.two_year_mean_citedness = summary_stats.get(
+        "2yr_mean_citedness"
     )
-    researchhub_author.h_index = openalex_author.get("summary_stats", {}).get("h_index")
-    researchhub_author.two_year_mean_citedness = openalex_author.get(
-        "summary_stats", {}
-    ).get("2yr_mean_citedness")
     researchhub_author.orcid_id = openalex_author.get("orcid")
 
     # Associate this openalex id with the author
@@ -508,9 +519,9 @@ def merge_openalex_author_with_researchhub_author(openalex_author, researchhub_a
     # Process affiliations
     affiliations = openalex_author.get("affiliations", [])
     institution_ids = [
-        aff.get("institution", {}).get("id")
+        inst.get("id")
         for aff in affiliations
-        if aff.get("institution")
+        if isinstance((inst := aff.get("institution")), dict) and inst.get("id")
     ]
     existing_institutions = {
         inst.openalex_id: inst

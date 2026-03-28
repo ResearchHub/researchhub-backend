@@ -21,7 +21,7 @@ class PersonDocument(BaseDocument):
     description = es_fields.TextField(attr="description", analyzer=content_analyzer)
     full_name = es_fields.TextField(attr="full_name", analyzer=content_analyzer)
     person_types = es_fields.KeywordField()
-    headline = es_fields.TextField(attr="headline", analyzer=content_analyzer)
+    headline = es_fields.TextField(analyzer=content_analyzer)
     institutions = es_fields.ObjectField(
         properties={
             "id": es_fields.IntegerField(),
@@ -133,6 +133,12 @@ class PersonDocument(BaseDocument):
                 )
 
         return suggestions
+
+    def prepare_headline(self, instance) -> str:
+        headline = instance.headline
+        if headline and isinstance(headline, str):
+            return headline
+        return ""
 
     def get_instances_from_related(
         self,

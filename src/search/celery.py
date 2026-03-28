@@ -1,10 +1,15 @@
+import logging
+
 from celery import shared_task
 from django.apps import apps
 from django.core.cache import cache
 from django_opensearch_dsl.registries import registry
 from django_opensearch_dsl.signals import RealTimeSignalProcessor
+from opensearchpy.exceptions import NotFoundError
 
 import utils.sentry as sentry
+
+logger = logging.getLogger(__name__)
 
 # The debounce period in seconds
 DEBOUNCE_PERIOD = 10
@@ -44,8 +49,14 @@ class CelerySignalProcessor(RealTimeSignalProcessor):
         except LookupError as e:
             sentry.log_error(e)
         except model.DoesNotExist:
-            # No-op: Instance was deleted before it could be updated.
             pass
+        except NotFoundError:
+            pass
+        except Exception as e:
+            if _is_benign_bulk_error(e):
+                logger.info("Ignoring benign bulk index error for %s/%s", model_name, pk)
+            else:
+                raise
 
     @shared_task(ignore_result=True)
     def registry_update_related_task(pk, app_label, model_name):
@@ -56,5 +67,19 @@ class CelerySignalProcessor(RealTimeSignalProcessor):
         except LookupError as e:
             sentry.log_error(e)
         except model.DoesNotExist:
-            # No-op: Instance was deleted before it could be updated.
             pass
+        except NotFoundError:
+            pass
+        except Exception as e:
+            if _is_benign_bulk_error(e):
+                logger.info(
+                    "Ignoring benign bulk index error for %s/%s", model_name, pk
+                )
+            else:
+                raise
+
+
+def _is_benign_bulk_error(exc):
+    """Check if the exception is a benign BulkIndexError (e.g. delete not_found)."""
+    error_str = str(exc)
+    return "BulkIndexError" in type(exc).__name__ and "not_found" in error_str
