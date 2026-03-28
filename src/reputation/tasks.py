@@ -721,10 +721,6 @@ def create_daily_staking_global_snapshot(self):
 )
 def distribute_staking_yield(self):
     """Daily task to distribute staking yield for the previous UTC day."""
-    if not settings.STAGING:
-        logger.info("Staking yield distribution is only enabled in staging")
-        return False
-
     accrual_date = datetime.now(pytz.UTC).date() - timedelta(days=1)
 
     key = lock.name(f"distribute_staking_yield_{accrual_date}")
