@@ -7,6 +7,31 @@ from django.utils.html import strip_tags
 logger = logging.getLogger(__name__)
 
 
+def append_reply_to_audit_note(
+    existing_notes: str | None,
+    reply_to: str | None,
+    *,
+    event: str,
+) -> str:
+    """
+    Append an audit line recording which Reply-To was used on outbound mail.
+    Stored on GeneratedEmail.notes alongside expert-finder notes.
+
+    event: "preview" (message to the sender's inbox) or "sent" (to the expert).
+    """
+    rt = (reply_to or "").strip()
+    if not rt:
+        return (existing_notes or "").rstrip()
+    base = (existing_notes or "").rstrip()
+    if event == "preview":
+        line = f"[Preview email] Reply-To: {rt}"
+    elif event == "sent":
+        line = f"[Sent to expert] Reply-To: {rt}"
+    else:
+        raise ValueError(f"append_reply_to_audit_note: unknown event {event!r}")
+    return line if not base else f"{base}\n\n{line}"
+
+
 def _send_to_recipient(to, subject, plain_body, from_email, html_body):
     try:
         send_mail(

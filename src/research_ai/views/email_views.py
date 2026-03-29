@@ -19,7 +19,10 @@ from research_ai.serializers import (
     SendEmailRequestSerializer,
 )
 from research_ai.services.email_generator_service import generate_expert_email
-from research_ai.services.email_sending_service import send_plain_email
+from research_ai.services.email_sending_service import (
+    append_reply_to_audit_note,
+    send_plain_email,
+)
 from research_ai.services.email_template_variables import format_expert_name_from_raw
 from research_ai.services.rfp_email_context import resolve_expert_from_search
 from research_ai.tasks import process_bulk_generate_emails_task, send_queued_emails_task
@@ -221,7 +224,9 @@ class BulkGenerateEmailView(APIView):
                     email_record = GeneratedEmail.objects.create(
                         created_by=request.user,
                         expert_search=expert_search,
-                        expert_name=format_expert_name_from_raw(resolved.get("name") or ""),
+                        expert_name=format_expert_name_from_raw(
+                            resolved.get("name") or ""
+                        ),
                         expert_title=resolved.get("title") or "",
                         expert_affiliation=resolved.get("affiliation") or "",
                         expert_email=(resolved.get("email") or "").strip(),
@@ -297,6 +302,10 @@ class PreviewEmailView(APIView):
                     reply_to=reply_to,
                     from_email=from_email,
                 )
+                rec.notes = append_reply_to_audit_note(
+                    rec.notes, reply_to, event="preview"
+                )
+                rec.save(update_fields=["notes"])
                 sent += 1
             except Exception as e:
                 logger.exception("Preview send failed for email id=%s: %s", rec.id, e)

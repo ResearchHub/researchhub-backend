@@ -5,4 +5,4 @@ Based on the following research description, please kindly provide me with up to
 
 **IMPORTANT**: Generate the expert recommendations table immediately. Do NOT ask follow-up questions, request clarifications, or seek additional information. Work with the information provided above and generate results now.
 
-Please generate your expert recommendations table now, following all verification requirements and using only plain text formatting (no bold, no asterisks).
+Please generate your expert recommendations table now, following all verification requirements and using only plain text formatting (no bold, no asterisks). In the **Name** column use **only** the expert's given name and family name (two words, no middle name, no honorifics, no PhD/MD or other degrees).

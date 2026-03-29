@@ -14,7 +14,6 @@ from research_ai.tasks import (
 )
 from user.tests.helpers import create_random_authenticated_user
 
-
 # --- _maybe_obfuscate_expert_emails_for_non_production ---
 
 
@@ -143,7 +142,9 @@ class ProcessExpertSearchTaskTests(TestCase):
         )
 
     @patch("research_ai.tasks.ExpertFinderService")
-    def test_process_expert_search_when_service_returns_failed_saves_error(self, mock_service_class):
+    def test_process_expert_search_when_service_returns_failed_saves_error(
+        self, mock_service_class
+    ):
         mock_instance = mock_service_class.return_value
         mock_instance.process_expert_search.return_value = {
             "status": ExpertSearch.Status.FAILED,
@@ -169,7 +170,9 @@ class ProcessExpertSearchTaskTests(TestCase):
         self.assertEqual(result["status"], ExpertSearch.Status.FAILED)
 
     @patch("research_ai.tasks.ExpertFinderService")
-    def test_process_expert_search_exception_updates_status_and_reraises(self, mock_service_class):
+    def test_process_expert_search_exception_updates_status_and_reraises(
+        self, mock_service_class
+    ):
         mock_instance = mock_service_class.return_value
         mock_instance.process_expert_search.side_effect = RuntimeError("LLM error")
         with self.assertRaises(RuntimeError):
@@ -281,7 +284,9 @@ class ProcessBulkGenerateEmailsTaskTests(TestCase):
 
     @patch("research_ai.tasks.sentry")
     @patch("research_ai.tasks.generate_expert_email")
-    def test_process_bulk_one_fails_marks_failed_and_logs_sentry(self, mock_generate, mock_sentry):
+    def test_process_bulk_one_fails_marks_failed_and_logs_sentry(
+        self, mock_generate, mock_sentry
+    ):
         rec_ok = GeneratedEmail.objects.create(
             created_by=self.user,
             expert_search=self.expert_search,
@@ -298,10 +303,12 @@ class ProcessBulkGenerateEmailsTaskTests(TestCase):
             template="collaboration",
             status=GeneratedEmail.Status.PROCESSING,
         )
+
         def side_effect(*args, **kwargs):
             if kwargs.get("resolved_expert", {}).get("email") == "b@example.com":
                 raise ValueError("Generation failed")
             return ("Subj", "Body")
+
         mock_generate.side_effect = side_effect
         result = process_bulk_generate_emails_task.apply(
             kwargs={
@@ -334,7 +341,9 @@ class ProcessBulkGenerateEmailsTaskTests(TestCase):
             status=GeneratedEmail.Status.PROCESSING,
         )
         mock_generate.return_value = ("Subj", "Body")
-        with patch("research_ai.tasks.User.objects.get", side_effect=RuntimeError("DB error")):
+        with patch(
+            "research_ai.tasks.User.objects.get", side_effect=RuntimeError("DB error")
+        ):
             with self.assertRaises(RuntimeError):
                 process_bulk_generate_emails_task.apply(
                     kwargs={
@@ -379,6 +388,33 @@ class SendQueuedEmailsTaskTests(TestCase):
         rec.refresh_from_db()
         self.assertEqual(rec.status, GeneratedEmail.Status.SEND_FAILED)
         mock_send.assert_not_called()
+
+    @patch("research_ai.tasks.send_plain_email")
+    def test_send_queued_appends_reply_to_to_notes_on_success(self, mock_send):
+        rec = GeneratedEmail.objects.create(
+            created_by=self.user,
+            expert_name="Dr. Y",
+            expert_email="y@example.com",
+            email_subject="Subj",
+            email_body="Body",
+            notes="Expert finder note.",
+            status=GeneratedEmail.Status.SENDING,
+        )
+        reply_addr = "replies@example.com"
+        result = send_queued_emails_task.apply(
+            kwargs={
+                "generated_email_ids": [rec.id],
+                "reply_to": reply_addr,
+                "cc": None,
+                "from_email": None,
+            }
+        ).get()
+        self.assertEqual(result["sent"], 1)
+        rec.refresh_from_db()
+        self.assertEqual(rec.status, GeneratedEmail.Status.SENT)
+        self.assertIn("Expert finder note.", rec.notes)
+        self.assertIn(reply_addr, rec.notes)
+        self.assertIn("[Sent to expert]", rec.notes)
 
     @patch("research_ai.tasks.send_plain_email")
     def test_send_queued_send_raises_marks_send_failed(self, mock_send):
