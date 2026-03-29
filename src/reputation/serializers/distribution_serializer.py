@@ -55,6 +55,7 @@ class DynamicDistributionSerializer(DynamicModelFieldSerializer):
         fields = "__all__"
 
     def get_recipient(self, distribution):
+        # Avoid circular import
         from user.serializers import DynamicUserSerializer
 
         context = self.context
