@@ -346,6 +346,7 @@ class PreviewEmailRequestSerializer(serializers.Serializer):
         min_length=1,
         max_length=100,
     )
+    reply_to = serializers.EmailField(required=True)
 
 
 class SendEmailRequestSerializer(serializers.Serializer):

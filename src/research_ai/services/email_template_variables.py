@@ -26,6 +26,17 @@ PROPOSAL_VARIABLES = (
 )
 EXPERT_VARIABLES = ("name", "title", "affiliation", "email", "expertise")
 
+
+def format_expert_name_from_raw(raw: str) -> str:
+    """Stored expert_name and {{expert.name}}: first and last word only, middle dropped."""
+    s = " ".join((raw or "").split())
+    if not s:
+        return ""
+    tokens = s.split()
+    if len(tokens) == 1:
+        return tokens[0]
+    return f"{tokens[0]} {tokens[-1]}"
+
 # Regex for {{entity.field}} placeholders.
 VARIABLE_PATTERN = re.compile(r"\{\{(\w+)\.(\w+)\}\}")
 
@@ -99,7 +110,7 @@ def _build_expert_context(resolved_expert: dict | None) -> dict[str, str]:
     if not resolved_expert:
         return dict.fromkeys(EXPERT_VARIABLES, "")
     return {
-        "name": (resolved_expert.get("name") or "").strip(),
+        "name": format_expert_name_from_raw(resolved_expert.get("name") or ""),
         "title": (resolved_expert.get("title") or "").strip(),
         "affiliation": (resolved_expert.get("affiliation") or "").strip(),
         "email": (resolved_expert.get("email") or "").strip(),
