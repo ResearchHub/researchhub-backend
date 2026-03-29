@@ -157,6 +157,24 @@ app.conf.beat_schedule = {
         "schedule": crontab(hour="*/6", minute=0),
         "options": {"priority": 3, "queue": QUEUE_CACHES},
     },
+    # Daily Staking Snapshot (runs before distribution)
+    "reputation_create-daily-staking-snapshots": {
+        "task": "reputation.tasks.create_daily_staking_snapshots",
+        "schedule": crontab(hour=0, minute=0),
+        "options": {
+            "priority": 2,
+            "queue": QUEUE_PURCHASES,
+        },
+    },
+    # Daily Staking Yield
+    "reputation_distribute-staking-yield": {
+        "task": "reputation.tasks.distribute_staking_yield",
+        "schedule": crontab(hour=1, minute=0),
+        "options": {
+            "priority": 2,
+            "queue": QUEUE_PURCHASES,
+        },
+    },
     # Weekly RSC Burning
     "reputation_burn-revenue-rsc": {
         "task": "reputation.tasks.burn_revenue_rsc",

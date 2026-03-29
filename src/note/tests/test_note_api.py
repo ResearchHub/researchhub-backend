@@ -1120,7 +1120,7 @@ class NoteTests(APITestCase):
         self.assertEqual(
             grant_data["description"], "Research grant for AI applications"
         )
-        self.assertEqual(grant_data["status"], "OPEN")
+        self.assertEqual(grant_data["status"], "PENDING")
         self.assertIn("created_by", grant_data)
 
     def test_note_with_grant_post_includes_contacts_and_applications(self):

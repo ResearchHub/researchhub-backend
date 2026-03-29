@@ -110,6 +110,7 @@ class GeneratedEmail(DefaultModel):
         FAILED = "failed", "failed"
         SENDING = "sending", "sending"
         SEND_FAILED = "send_failed", "send_failed"
+        CLOSED = "closed", "closed"
 
     created_by = models.ForeignKey(
         "user.User",
@@ -134,6 +135,9 @@ class GeneratedEmail(DefaultModel):
         max_length=32,
         choices=EmailTemplateType.choices,
         default=EmailTemplateType.CUSTOM,
+        null=True,
+        blank=True,
+        db_comment="LLM prompt key; null when placeholder is for fixed {{}} template only.",
     )
     status = models.CharField(
         max_length=16,
@@ -213,14 +217,8 @@ class DocumentInvitedExpert(DefaultModel):
 
 class EmailTemplate(DefaultModel):
     """
-    User-defined template for outreach emails.
-    Stores name, contact info, and outreach context for placeholder replacement
-    and signature block when generating emails.
+    User-defined variable template for outreach emails ({{entity.field}} placeholders).
     """
-
-    class TemplateType(models.TextChoices):
-        PROMPT_CONTEXT = "prompt-context", "Prompt context"
-        FIXED = "fixed-template", "Fixed template"
 
     created_by = models.ForeignKey(
         "user.User",
@@ -231,30 +229,13 @@ class EmailTemplate(DefaultModel):
         max_length=255,
         db_comment="User-defined template name.",
     )
-    contact_name = models.CharField(max_length=255, blank=True)
-    contact_title = models.CharField(max_length=255, blank=True)
-    contact_institution = models.CharField(max_length=512, blank=True)
-    contact_email = models.CharField(max_length=255, blank=True)
-    contact_phone = models.CharField(max_length=64, blank=True)
-    contact_website = models.CharField(max_length=512, blank=True)
-    outreach_context = models.TextField(
-        blank=True,
-        db_comment="Context provided to the LLM when generating emails.",
-    )
-
-    template_type = models.CharField(
-        max_length=32,
-        choices=TemplateType.choices,
-        default=TemplateType.PROMPT_CONTEXT,
-        db_comment="prompt-context (LLM) or fixed-template (variable substitution).",
-    )
     email_subject = models.TextField(
         blank=True,
-        db_comment="Subject for fixed-template; may contain {{entity.field}}.",
+        db_comment="Subject; may contain {{entity.field}}.",
     )
     email_body = models.TextField(
         blank=True,
-        db_comment="Body for fixed-template; may contain {{entity.field}}.",
+        db_comment="Body; may contain {{entity.field}}.",
     )
 
     class Meta:

@@ -13,6 +13,31 @@ from research_ai.models import (
 from research_ai.services.proposal_review_scoring import dimension_overall_scores
 from researchhub_document.related_models.constants.document_type import PAPER
 from researchhub_document.serializers import ResearchhubPostSerializer
+from user.models import Author
+
+
+def _apply_generate_template_rules(attrs, initial_data):
+    """
+    Expert-finder generate endpoints: explicit JSON null ``template`` requires
+    ``template_id`` (fixed path). Other values are stripped; whitespace-only is invalid.
+    If ``template`` is omitted from the body, ``attrs`` is unchanged.
+    """
+    initial = initial_data or {}
+    if "template" not in initial:
+        return attrs
+    raw = initial["template"]
+    if raw is None:
+        if not attrs.get("template_id"):
+            raise serializers.ValidationError(
+                {"template_id": "This field is required when template is null."}
+            )
+        attrs["template"] = None
+        return attrs
+    s = str(raw).strip()
+    if not s:
+        raise serializers.ValidationError({"template": "This field may not be blank."})
+    attrs["template"] = s
+    return attrs
 
 
 class ExpertSearchConfigSerializer(serializers.Serializer):
@@ -101,6 +126,38 @@ class ExpertResultSerializer(serializers.Serializer):
     sources = serializers.ListField(required=False, allow_null=True)
 
 
+class ResearchAIAuthorSerializer(serializers.ModelSerializer):
+    """Author (creator) for research_ai list/detail responses; no nested user."""
+
+    profile_image = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Author
+        fields = ["id", "first_name", "last_name", "profile_image", "headline"]
+
+    def get_profile_image(self, obj):
+        try:
+            if (
+                hasattr(obj, "profile_image")
+                and obj.profile_image
+                and obj.profile_image.name
+            ):
+                return obj.profile_image.url
+        except Exception:
+            pass
+        return None
+
+
+def _get_created_by_payload(obj):
+    """
+    Build { user_id: int, author: {...} } for list/detail responses.
+    """
+    created_by = obj.created_by
+    author = getattr(created_by, "author_profile", None)
+    author_data = ResearchAIAuthorSerializer(author).data if author else None
+    return {"user_id": created_by.id, "author": author_data}
+
+
 def resolve_work_for_unified_document(unified_doc, context=None):
     """
     Resolve a unified document to work payload (paper or post) using paper/post serializers.
@@ -138,6 +195,7 @@ def _resolve_expert_search_work(expert_search, context=None):
 class ExpertSearchSerializer(serializers.ModelSerializer):
 
     search_id = serializers.IntegerField(source="id", read_only=True)
+    created_by = serializers.SerializerMethodField()
     expert_names = serializers.SerializerMethodField()
     report_urls = serializers.SerializerMethodField()
     work = serializers.SerializerMethodField()
@@ -148,6 +206,7 @@ class ExpertSearchSerializer(serializers.ModelSerializer):
         model = ExpertSearch
         fields = [
             "search_id",
+            "created_by",
             "name",
             "query",
             "work",
@@ -172,6 +231,9 @@ class ExpertSearchSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
+    def get_created_by(self, obj):
+        return _get_created_by_payload(obj)
+
     def get_work(self, obj):
         return _resolve_expert_search_work(obj, context=self.context)
 
@@ -193,6 +255,7 @@ class ExpertSearchSerializer(serializers.ModelSerializer):
 class ExpertSearchListItemSerializer(serializers.ModelSerializer):
 
     search_id = serializers.IntegerField(source="id", read_only=True)
+    created_by = serializers.SerializerMethodField()
     expert_names = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(source="created_date", read_only=True)
 
@@ -200,6 +263,7 @@ class ExpertSearchListItemSerializer(serializers.ModelSerializer):
         model = ExpertSearch
         fields = [
             "search_id",
+            "created_by",
             "name",
             "query",
             "status",
@@ -209,6 +273,9 @@ class ExpertSearchListItemSerializer(serializers.ModelSerializer):
             "completed_at",
         ]
         read_only_fields = fields
+
+    def get_created_by(self, obj):
+        return _get_created_by_payload(obj)
 
     def get_expert_names(self, obj):
         if not obj.expert_results:
@@ -249,13 +316,11 @@ class GenerateEmailRequestSerializer(serializers.Serializer):
 
     expert_search_id = serializers.IntegerField()
     expert_email = serializers.EmailField()
-    template = serializers.CharField(required=True)
+    template = serializers.CharField(required=False, allow_null=True)
     template_id = serializers.IntegerField(required=False, allow_null=True)
 
-    def validate_template(self, value):
-        if not value or not value.strip():
-            raise serializers.ValidationError("template is required")
-        return value.strip()
+    def validate(self, attrs):
+        return _apply_generate_template_rules(attrs, self.initial_data)
 
 
 class BulkGenerateEmailExpertSerializer(serializers.Serializer):
@@ -273,13 +338,11 @@ class BulkGenerateEmailRequestSerializer(serializers.Serializer):
         min_length=1,
         max_length=100,
     )
-    template = serializers.CharField(required=True)
+    template = serializers.CharField(required=False, allow_null=True)
     template_id = serializers.IntegerField(required=False, allow_null=True)
 
-    def validate_template(self, value):
-        if not value or not value.strip():
-            raise serializers.ValidationError("template is required")
-        return value.strip()
+    def validate(self, attrs):
+        return _apply_generate_template_rules(attrs, self.initial_data)
 
 
 class PreviewEmailRequestSerializer(serializers.Serializer):
@@ -290,6 +353,7 @@ class PreviewEmailRequestSerializer(serializers.Serializer):
         min_length=1,
         max_length=100,
     )
+    reply_to = serializers.EmailField(required=True)
 
 
 class SendEmailRequestSerializer(serializers.Serializer):
@@ -300,6 +364,7 @@ class SendEmailRequestSerializer(serializers.Serializer):
         min_length=1,
         max_length=100,
     )
+    reply_to = serializers.EmailField(required=True)
     cc = serializers.ListField(
         child=serializers.EmailField(),
         required=False,
@@ -308,6 +373,7 @@ class SendEmailRequestSerializer(serializers.Serializer):
 
 
 class GeneratedEmailSerializer(serializers.ModelSerializer):
+    created_by = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(source="created_date", read_only=True)
     updated_at = serializers.DateTimeField(source="updated_date", read_only=True)
 
@@ -315,6 +381,7 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
         model = GeneratedEmail
         fields = [
             "id",
+            "created_by",
             "expert_search",
             "expert_name",
             "expert_title",
@@ -330,6 +397,9 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
+
+    def get_created_by(self, obj):
+        return _get_created_by_payload(obj)
 
 
 class GeneratedEmailCreateUpdateSerializer(serializers.ModelSerializer):
@@ -368,20 +438,14 @@ class GeneratedEmailCreateUpdateSerializer(serializers.ModelSerializer):
 class EmailTemplateSerializer(serializers.ModelSerializer):
     """List/detail serializer for EmailTemplate."""
 
+    created_by = serializers.SerializerMethodField()
+
     class Meta:
         model = EmailTemplate
         fields = [
             "id",
             "created_by",
             "name",
-            "contact_name",
-            "contact_title",
-            "contact_institution",
-            "contact_email",
-            "contact_phone",
-            "contact_website",
-            "outreach_context",
-            "template_type",
             "email_subject",
             "email_body",
             "created_date",
@@ -389,27 +453,14 @@ class EmailTemplateSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "created_by", "created_date", "updated_date"]
 
+    def get_created_by(self, obj):
+        return _get_created_by_payload(obj)
+
 
 class EmailTemplateCreateSerializer(serializers.Serializer):
     """Create a new EmailTemplate. name required; rest optional."""
 
     name = serializers.CharField(max_length=255, allow_blank=False)
-    contact_name = serializers.CharField(max_length=255, required=False, default="")
-    contact_title = serializers.CharField(max_length=255, required=False, default="")
-    contact_institution = serializers.CharField(
-        max_length=512, required=False, default=""
-    )
-    contact_email = serializers.CharField(max_length=255, required=False, default="")
-    contact_phone = serializers.CharField(max_length=64, required=False, default="")
-    contact_website = serializers.CharField(max_length=512, required=False, default="")
-    outreach_context = serializers.CharField(
-        required=False, default="", allow_blank=True
-    )
-    template_type = serializers.ChoiceField(
-        choices=EmailTemplate.TemplateType.choices,
-        required=False,
-        default=EmailTemplate.TemplateType.PROMPT_CONTEXT,
-    )
     email_subject = serializers.CharField(required=False, default="", allow_blank=True)
     email_body = serializers.CharField(required=False, default="", allow_blank=True)
 
@@ -418,25 +469,6 @@ class EmailTemplateUpdateSerializer(serializers.Serializer):
     """Partial update for EmailTemplate."""
 
     name = serializers.CharField(max_length=255, required=False, allow_blank=False)
-    contact_name = serializers.CharField(
-        max_length=255, required=False, allow_blank=True
-    )
-    contact_title = serializers.CharField(
-        max_length=255, required=False, allow_blank=True
-    )
-    contact_institution = serializers.CharField(
-        max_length=512, required=False, allow_blank=True
-    )
-    contact_email = serializers.CharField(
-        max_length=255, required=False, allow_blank=True
-    )
-    contact_phone = serializers.CharField(
-        max_length=64, required=False, allow_blank=True
-    )
-    contact_website = serializers.CharField(
-        max_length=512, required=False, allow_blank=True
-    )
-    outreach_context = serializers.CharField(required=False, allow_blank=True)
     email_subject = serializers.CharField(required=False, allow_blank=True)
     email_body = serializers.CharField(required=False, allow_blank=True)
 

@@ -435,7 +435,7 @@ class FundraiseViewTests(APITestCase):
         # Should create 2 distributions (one for referrer, one for referred user)
         # Note: Other distributions (fundraise payout, fees) are also created
         referral_bonus_distributions = Distribution.objects.filter(
-            distribution_type=Balance.LockType.REFERRAL_BONUS,
+            distribution_type="REFERRAL_BONUS",
             created_date__gte=datetime.now(pytz.UTC) - timedelta(seconds=10),
         )
 
@@ -448,29 +448,26 @@ class FundraiseViewTests(APITestCase):
 
         referrer_distribution = Distribution.objects.filter(
             recipient=referrer,
-            distribution_type=Balance.LockType.REFERRAL_BONUS,
+            distribution_type="REFERRAL_BONUS",
             amount=expected_bonus,
         ).first()
         self.assertIsNotNone(referrer_distribution)
 
         referred_distribution = Distribution.objects.filter(
             recipient=referred_user,
-            distribution_type=Balance.LockType.REFERRAL_BONUS,
+            distribution_type="REFERRAL_BONUS",
             amount=expected_bonus,
         ).first()
         self.assertIsNotNone(referred_distribution)
 
         # Check that locked balances were created
-        referrer_balance = Balance.objects.filter(
-            user=referrer, is_locked=True, lock_type=Balance.LockType.REFERRAL_BONUS
-        ).first()
+        referrer_balance = Balance.objects.filter(user=referrer, is_locked=True).first()
         self.assertIsNotNone(referrer_balance)
         self.assertEqual(float(referrer_balance.amount), expected_bonus)
 
         referred_balance = Balance.objects.filter(
             user=referred_user,
             is_locked=True,
-            lock_type=Balance.LockType.REFERRAL_BONUS,
         ).first()
         self.assertIsNotNone(referred_balance)
         self.assertEqual(float(referred_balance.amount), expected_bonus)
@@ -499,7 +496,6 @@ class FundraiseViewTests(APITestCase):
             user=user,
             content_type=ContentType.objects.get(model="distribution"),
             is_locked=True,
-            lock_type=Balance.LockType.REFERRAL_BONUS,
         )
 
         # Verify user's balance situation
@@ -538,9 +534,6 @@ class FundraiseViewTests(APITestCase):
         locked_amount_balance = amount_balances.filter(is_locked=True).first()
         self.assertIsNotNone(locked_amount_balance)
         self.assertEqual(float(locked_amount_balance.amount), -100.0)
-        self.assertEqual(
-            locked_amount_balance.lock_type, Balance.LockType.REFERRAL_BONUS
-        )
 
         # Should have 1 fee balance record: 9 from regular (no locked left)
         fee_balances = Balance.objects.filter(user=user, content_type=fee_content_type)
@@ -576,7 +569,6 @@ class FundraiseViewTests(APITestCase):
             user=user,
             content_type=ContentType.objects.get(model="distribution"),
             is_locked=True,
-            lock_type=Balance.LockType.REFERRAL_BONUS,
         )
 
         # Total balance is 80, but contribution of 100 + 9 fees = 109 total cost
@@ -606,7 +598,6 @@ class FundraiseViewTests(APITestCase):
             user=user,
             content_type=ContentType.objects.get(model="distribution"),
             is_locked=True,
-            lock_type=Balance.LockType.REFERRAL_BONUS,
         )
 
         # Verify user's balance situation
@@ -662,7 +653,6 @@ class FundraiseViewTests(APITestCase):
             user=user,
             content_type=ContentType.objects.get(model="distribution"),
             is_locked=True,
-            lock_type=Balance.LockType.REFERRAL_BONUS,
         )
 
         # Give user regular balance to cover the rest

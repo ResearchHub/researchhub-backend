@@ -151,7 +151,7 @@ class PaymentService:
             timestamp=timezone.now().timestamp(),
             giver=None,  # Platform gives the RSC
         )
-        distributor.distribute_locked_balance(lock_type=Balance.LockType.RSC_PURCHASE)
+        distributor.distribute_locked_balance()
 
         return payment
 
@@ -428,7 +428,7 @@ class PaymentService:
             timestamp=timezone.now().timestamp(),
             giver=None,
         )
-        distributor.distribute_locked_balance(lock_type=Balance.LockType.RSC_PURCHASE)
+        distributor.distribute_locked_balance()
 
         # Deduct the RSC purchase fees and distribute to revenue/dao accounts
         deduct_rsc_purchase_fees(payment.user, rsc_fee, rh_fee, dao_fee, fee_obj)
@@ -440,7 +440,6 @@ class PaymentService:
             object_id=fee_obj.id,
             amount=f"-{rsc_fee}",
             is_locked=True,
-            lock_type=Balance.LockType.RSC_PURCHASE,
         )
 
         return payment, rsc_amount

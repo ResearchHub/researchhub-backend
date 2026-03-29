@@ -8,6 +8,7 @@ from django.dispatch import receiver
 from feed.models import FeedEntry
 from feed.tasks import create_feed_entry
 from researchhub_document.models import ResearchhubPost
+from researchhub_document.related_models.constants.document_type import GRANT
 
 """
 Signal handlers for ResearchhubPost model.
@@ -17,6 +18,8 @@ when posts are created and deleted, respectively.
 
 A post is created after hubs are added to the unified document that the post is associated with
 so we need to create a feed entry for the post when it is created instead.
+
+Grant posts skip feed entry creation here; they get entries upon moderator approval.
 """
 
 logger = logging.getLogger(__name__)
@@ -24,10 +27,10 @@ logger = logging.getLogger(__name__)
 
 @receiver(post_save, sender=ResearchhubPost, dispatch_uid="post_create_feed_entry")
 def handle_post_create_feed_entry(sender, instance, **kwargs):
-    """
-    When a post is created, create feed entries for all hubs associated with the
-    researchhub document that the post is associated with.
-    """
+    """Create feed entries for a new post. Skips Grants (deferred to approval)."""
+    if instance.document_type == GRANT:
+        return
+
     try:
         _create_post_feed_entries(instance)
     except Exception as e:

@@ -47,7 +47,7 @@ class GrantModelTests(TestCase):
         self.assertEqual(grant.currency, "USD")
         self.assertEqual(grant.organization, "Test Foundation")
         self.assertEqual(grant.description, "Test grant description")
-        self.assertEqual(grant.status, Grant.OPEN)  # Default status
+        self.assertEqual(grant.status, Grant.PENDING)  # Default status
 
     def test_grant_str_representation(self):
         """Test the string representation of a grant"""
@@ -169,7 +169,7 @@ class GrantModelTests(TestCase):
         self.assertEqual(grant.currency, "USD")
 
         # Test default status
-        self.assertEqual(grant.status, Grant.OPEN)
+        self.assertEqual(grant.status, Grant.PENDING)
 
         # Test that start_date is auto-set
         self.assertIsNotNone(grant.start_date)
@@ -187,6 +187,7 @@ class GrantModelTests(TestCase):
             currency="USD",
             organization="Test Foundation",
             description="Test grant with deadline",
+            status=Grant.OPEN,
             end_date=end_date,
         )
 
@@ -226,3 +227,35 @@ class GrantModelTests(TestCase):
 
         for expected in expected_fields:
             self.assertIn(expected, index_fields)
+
+
+class GrantPendingModelTests(TestCase):
+    def setUp(self):
+        self.user = create_random_authenticated_user("pending_model")
+        self.post = create_post(created_by=self.user, document_type=GRANT)
+        self.grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=self.post.unified_document,
+            amount=Decimal("25000.00"),
+            description="Test pending grant",
+        )
+
+    def test_default_status_is_pending(self):
+        self.assertEqual(self.grant.status, Grant.PENDING)
+
+    def test_pending_grant_is_not_active(self):
+        self.assertFalse(self.grant.is_active())
+
+    def test_declined_grant_is_not_active(self):
+        # Arrange
+        self.grant.status = Grant.DECLINED
+        self.grant.save()
+
+        # Assert
+        self.assertFalse(self.grant.is_active())
+
+    def test_pending_and_declined_are_valid_status_choices(self):
+        for val in (Grant.PENDING, Grant.DECLINED):
+            self.grant.status = val
+            self.grant.full_clean()
+

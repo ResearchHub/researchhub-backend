@@ -586,3 +586,59 @@ class GrantFeedViewTests(APITestCase):
 
         # Assert
         self.assertEqual(len(response.data["results"]), 0)
+
+    def test_pending_and_declined_excluded_from_feed(self):
+        """PENDING and DECLINED grants are excluded from the default feed."""
+        # Arrange
+        pending_post = create_post(
+            created_by=self.moderator, document_type=GRANT, title="Pending Grant"
+        )
+        Grant.objects.create(
+            created_by=self.moderator,
+            unified_document=pending_post.unified_document,
+            amount=Decimal("10000.00"),
+            status=Grant.PENDING,
+        )
+        declined_post = create_post(
+            created_by=self.moderator, document_type=GRANT, title="Declined Grant"
+        )
+        declined_post.unified_document.is_removed = True
+        declined_post.unified_document.save()
+        Grant.objects.create(
+            created_by=self.moderator,
+            unified_document=declined_post.unified_document,
+            amount=Decimal("10000.00"),
+            status=Grant.DECLINED,
+        )
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self.client.get("/api/grant_feed/")
+
+        # Assert
+        titles = [r["content_object"]["title"] for r in response.data["results"]]
+        self.assertNotIn("Pending Grant", titles)
+        self.assertNotIn("Declined Grant", titles)
+        self.assertEqual(len(titles), 3)
+
+    def test_pending_status_filter(self):
+        """?status=PENDING returns only pending grants."""
+        # Arrange
+        pending_post = create_post(
+            created_by=self.moderator, document_type=GRANT, title="Pending Grant"
+        )
+        Grant.objects.create(
+            created_by=self.moderator,
+            unified_document=pending_post.unified_document,
+            amount=Decimal("10000.00"),
+            status=Grant.PENDING,
+        )
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self.client.get("/api/grant_feed/?status=PENDING")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        titles = [r["content_object"]["title"] for r in response.data["results"]]
+        self.assertEqual(titles, ["Pending Grant"])

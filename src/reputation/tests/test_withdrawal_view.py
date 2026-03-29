@@ -5,6 +5,7 @@ from unittest import mock
 import pytz
 from django.conf import settings
 from django.contrib.admin.models import LogEntry
+from django.contrib.contenttypes.models import ContentType
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APITestCase
@@ -246,6 +247,81 @@ class WithdrawalViewSetTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         # In the actual implementation, the minimum withdrawal check happens first
         self.assertIn("below the withdrawal minimum", response.data)
+
+    def test_locked_balance_cannot_be_withdrawn(self):
+        """Test that locked balance is excluded from user withdrawals."""
+        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
+        user.save()
+
+        Balance.objects.create(
+            user=user,
+            content_type=ContentType.objects.get(model="distribution"),
+            amount=str(WITHDRAWAL_MINIMUM + 100),
+            is_locked=True,
+        )
+
+        self.client.force_authenticate(user)
+
+        with mock.patch.object(
+            WithdrawalViewSet,
+            "_check_hotwallet_balance",
+            return_value=(True, None),
+        ):
+            response = self.client.post(
+                self.withdrawal_url,
+                {
+                    "amount": str(WITHDRAWAL_MINIMUM + 10),
+                    "to_address": "0xabcdef1234567890abcdef1234567890abcdef12",
+                },
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.data,
+            "You do not have enough RSC to make this withdrawal",
+        )
+        self.assertEqual(
+            user.get_locked_balance(),
+            WITHDRAWAL_MINIMUM + decimal.Decimal("100"),
+        )
+
+    def test_withdrawal_does_not_consume_locked_balance(self):
+        """Test that successful withdrawals only reduce unlocked balance."""
+        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
+        user.save()
+
+        deposit_amount = WITHDRAWAL_MINIMUM * 2
+        create_deposit(user, amount=str(deposit_amount))
+        Balance.objects.create(
+            user=user,
+            content_type=ContentType.objects.get(model="distribution"),
+            amount="75.0",
+            is_locked=True,
+        )
+        initial_locked_balance = user.get_locked_balance()
+
+        self.client.force_authenticate(user)
+
+        with mock.patch.object(
+            WithdrawalViewSet,
+            "_check_hotwallet_balance",
+            return_value=(True, None),
+        ):
+            response = self.client.post(
+                self.withdrawal_url,
+                {
+                    "amount": str(WITHDRAWAL_MINIMUM + 10),
+                    "to_address": "0xabcdef1234567890abcdef1234567890abcdef12",
+                },
+            )
+
+        self.assertEqual(response.status_code, 201)
+        user.refresh_from_db()
+        self.assertEqual(user.get_locked_balance(), initial_locked_balance)
 
     def test_withdrawal_suspended(self):
         """Test that withdrawals are blocked when the withdrawal switch is on."""

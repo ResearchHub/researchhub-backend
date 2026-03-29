@@ -294,7 +294,6 @@ class PaymentServiceTest(TestCase):
         self.assertEqual(balance.amount, "50.0")
         self.assertEqual(balance.user_id, self.user.id)
         self.assertTrue(balance.is_locked)
-        self.assertEqual(balance.lock_type, Balance.LockType.RSC_PURCHASE)
 
     def test_get_name_for_purpose(self):
         # Test APC
@@ -597,9 +596,7 @@ class PaymentServiceTest(TestCase):
             call_args = mock_create_dist.call_args
             # The amount should be 109.0 (100 + 2% rsc_fee + 7% bounty_fee)
             self.assertAlmostEqual(call_args[1]["amount"], 109.0, places=1)
-            mock_distributor.distribute_locked_balance.assert_called_once_with(
-                lock_type=Balance.LockType.RSC_PURCHASE
-            )
+            mock_distributor.distribute_locked_balance.assert_called_once_with()
 
             # Verify fee deduction was called
             mock_deduct_fees.assert_called_once()
@@ -659,9 +656,7 @@ class PaymentServiceTest(TestCase):
             mock_create_dist.assert_called_once()
             call_args = mock_create_dist.call_args
             self.assertAlmostEqual(call_args[1]["amount"], 109.0, places=1)
-            mock_distributor.distribute_locked_balance.assert_called_once_with(
-                lock_type=Balance.LockType.RSC_PURCHASE
-            )
+            mock_distributor.distribute_locked_balance.assert_called_once_with()
 
             # Verify fee deduction was called with correct amounts
             mock_deduct_fees.assert_called_once()
@@ -714,9 +709,7 @@ class PaymentServiceTest(TestCase):
         # Refresh user from db and verify locked balance
         # Balance includes bounty fee for future fundraise contribution
         self.user.refresh_from_db()
-        locked_balance = self.user.get_locked_balance(
-            lock_type=Balance.LockType.RSC_PURCHASE
-        )
+        locked_balance = self.user.get_locked_balance()
         self.assertEqual(locked_balance, expected_locked_balance)
 
     @patch("stripe.PaymentIntent.create")
