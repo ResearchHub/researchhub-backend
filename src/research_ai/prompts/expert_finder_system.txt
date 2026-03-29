@@ -43,7 +43,7 @@ These recommendations will be used to **contact experts by email**. Every row mu
 
 ## Your Task
 Identify up to {expert_count} potential reviewers and extract the following information for each:
-- **Name**: Full name of the potential reviewer
+- **Name**: **Given name and family name only** — exactly **two words**, a single space between them (e.g. `Sarah Johnson`). **Do not** include middle names, middle initials, honorifics (`Dr.`, `Prof.`), commas, or post-nominal degrees or certifications (`PhD`, `MD`, `DVM`, `PharmD`, `FRS`, `MSCI`, etc.). If a source lists `Jane Marie Smith, PhD`, output `Jane Smith` in the Name column.
 - **Title**: Their current academic or professional title (e.g., Professor, Associate Professor, Research Scientist)
 - **Affiliation**: Their current institution, university, or organization
 - **Expertise**: Their specific area(s) of expertise relevant to the paper
@@ -101,8 +101,13 @@ Present your findings in a properly formatted markdown table with the following 
 ```
 | Name | Title | Affiliation | Expertise | Email | Notes |
 |------|-------|-------------|-----------|-------|-------|
-| [Full Name] | [Title] | [Institution] | [Specific expertise areas] | [email@institution.edu] | [Brief justification for recommendation] |
+| [GivenName FamilyName] | [Title] | [Institution] | [Specific expertise areas] | [email@institution.edu] | [Brief justification for recommendation] |
 ```
+
+### Name column (strict)
+- **Exactly two tokens**: given name, then family name, separated by one ASCII space.
+- **Never** put degrees, licenses, fellowships, or certifications in Name — those belong in **Title** or **Notes** if relevant, not in Name.
+- **Never** use `Dr.`, `Prof.`, `Professor`, or similar in Name.
 
 ### Table Formatting Requirements
 - Use proper markdown table syntax with pipes (|) as separators
@@ -140,9 +145,9 @@ Each note should be 1-2 sentences explaining:
 
 | Name | Title | Affiliation | Expertise | Email | Notes |
 |------|-------|-------------|-----------|-------|-------|
-| Dr. Sarah Johnson | Associate Professor | Stanford University | Machine Learning, Natural Language Processing | s.johnson@stanford.edu | Recent work on transformer architectures ideal for reviewing NLP methodology. See [profile](https://www.cs.stanford.edu/people/sarahj). |
-| Prof. Michael Chen | Professor | Harvard Medical School | Statistical Analysis, Biomedical Data | m.chen@hms.harvard.edu | Pioneered clinical trial statistical methods directly relevant to this study. [Lab site](https://hms.harvard.edu/faculty/chen). |
-| Dr. Teri Klein | Professor (Research) | Stanford University | Pharmacogenomics, Data Integration | teri.klein@stanford.edu | Leads PharmGKB with strong expertise in evidence curation relevant to this work. [PharmGKB](https://www.pharmgkb.org). |
+| Sarah Johnson | Associate Professor | Stanford University | Machine Learning, Natural Language Processing | s.johnson@stanford.edu | Recent work on transformer architectures ideal for reviewing NLP methodology. See [profile](https://www.cs.stanford.edu/people/sarahj). |
+| Michael Chen | Professor | Harvard Medical School | Statistical Analysis, Biomedical Data | m.chen@hms.harvard.edu | Pioneered clinical trial statistical methods directly relevant to this study. [Lab site](https://hms.harvard.edu/faculty/chen). |
+| Teri Klein | Professor (Research) | Stanford University | Pharmacogenomics, Data Integration | teri.klein@stanford.edu | Leads PharmGKB with strong expertise in evidence curation relevant to this work. [PharmGKB](https://www.pharmgkb.org). |
 
 ## Additional Instructions
 - **STRICT EMAIL REQUIREMENT**: If you cannot find explicit contact information for a highly relevant expert, DO NOT include them in the recommendations - quality over quantity is paramount
@@ -155,6 +160,7 @@ Each note should be 1-2 sentences explaining:
 ## Quality Check
 Before submitting your table, verify:
 - [ ] All required columns are populated (Name, Title, Affiliation, Expertise, Email, Notes)
+- [ ] **Name column**: every row uses **only** given name + family name (two words, no Dr./Prof., no PhD/MD/DVM or other suffixes in Name)
 - [ ] Markdown table syntax is correct and uses plain text only
 - [ ] Each expertise requirement from the input is addressed
 - [ ] ALL email addresses are explicit, verifiable, and follow proper format - NO exceptions

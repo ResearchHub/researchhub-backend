@@ -2,13 +2,16 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.conf import settings
-from django.test import override_settings
+from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from research_ai.models import EmailTemplate, ExpertSearch, GeneratedEmail
-from research_ai.services.email_sending_service import send_plain_email
+from research_ai.services.email_sending_service import (
+    append_reply_to_audit_note,
+    send_plain_email,
+)
 from research_ai.views.email_views import _normalize_template
 from user.tests.helpers import create_random_authenticated_user
 
@@ -816,6 +819,31 @@ class SendPlainEmailTests(APITestCase):
         mock_email_alt.return_value.send.assert_called_once()
 
 
+class AppendReplyToAuditNoteTests(TestCase):
+    def test_empty_reply_to_returns_existing_only(self):
+        self.assertEqual(
+            append_reply_to_audit_note("Expert note", "", event="sent"),
+            "Expert note",
+        )
+        self.assertEqual(append_reply_to_audit_note("Expert note", None, event="sent"), "Expert note")
+
+    def test_appends_sent_line(self):
+        self.assertEqual(
+            append_reply_to_audit_note("Line1", "r@x.com", event="sent"),
+            "Line1\n\n[Sent to expert] Reply-To: r@x.com",
+        )
+
+    def test_appends_preview_line(self):
+        self.assertEqual(
+            append_reply_to_audit_note("", "p@x.com", event="preview"),
+            "[Preview email] Reply-To: p@x.com",
+        )
+
+    def test_unknown_event_raises(self):
+        with self.assertRaises(ValueError):
+            append_reply_to_audit_note("", "a@b.com", event="other")
+
+
 class PreviewEmailViewTests(APITestCase):
     def setUp(self):
         self.moderator = create_random_authenticated_user("mod", moderator=True)
@@ -868,6 +896,7 @@ class PreviewEmailViewTests(APITestCase):
             expert_name="Dr. X",
             email_subject="Subj",
             email_body="Body text",
+            notes="Original expert justification.",
         )
         self.client.force_authenticate(self.moderator)
         response = self.client.post(
@@ -884,6 +913,10 @@ class PreviewEmailViewTests(APITestCase):
         call_kw = mock_send.call_args[1]
         self.assertEqual(call_kw["reply_to"], reply_to_email)
         self.assertIn(settings.EXPERT_FINDER_FROM_EMAIL, call_kw["from_email"])
+        email_rec.refresh_from_db()
+        self.assertIn("Original expert justification.", email_rec.notes)
+        self.assertIn(reply_to_email, email_rec.notes)
+        self.assertIn("[Preview email]", email_rec.notes)
 
 
 class SendEmailViewTests(APITestCase):
