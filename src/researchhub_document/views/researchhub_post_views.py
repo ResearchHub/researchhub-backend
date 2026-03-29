@@ -273,15 +273,21 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 if grant_id and document_type == PREREGISTRATION:
                     try:
                         target_grant = Grant.objects.get(id=grant_id)
-                        if target_grant.is_active():
-                            GrantApplication.objects.create(
-                                grant=target_grant,
-                                preregistration_post=rh_post,
-                                applicant=created_by,
-                            )
-                            GrantCacheMixin.invalidate_grant_feed_cache()
-                    except (Grant.DoesNotExist, ValueError, TypeError):
-                        pass
+                    except Grant.DoesNotExist:
+                        return Response(
+                            {"message": "Grant does not exist"}, status=400
+                        )
+                    if not target_grant.is_active():
+                        return Response(
+                            {"message": "Grant is no longer active"},
+                            status=400,
+                        )
+                    GrantApplication.objects.create(
+                        grant=target_grant,
+                        preregistration_post=rh_post,
+                        applicant=created_by,
+                    )
+                    GrantCacheMixin.invalidate_grant_feed_cache()
 
             response_data = ResearchhubPostSerializer(rh_post).data
             response_data["fundraise"] = (
