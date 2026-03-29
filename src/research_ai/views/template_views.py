@@ -34,7 +34,7 @@ class TemplateListView(APIView):
     def get(self, request):
         limit = max(1, min(100, int(request.query_params.get("limit", 20))))
         offset = max(0, int(request.query_params.get("offset", 0)))
-        qs = list_templates(request.user)
+        qs = list_templates()
         total = qs.count()
         items = list(qs[offset : offset + limit])
         ser = EmailTemplateSerializer(items, many=True)
@@ -54,14 +54,6 @@ class TemplateListView(APIView):
         # Normalize optional strings to empty string for model
         create_data = {
             "name": (data.get("name") or "").strip(),
-            "contact_name": (data.get("contact_name") or "").strip(),
-            "contact_title": (data.get("contact_title") or "").strip(),
-            "contact_institution": (data.get("contact_institution") or "").strip(),
-            "contact_email": (data.get("contact_email") or "").strip(),
-            "contact_phone": (data.get("contact_phone") or "").strip(),
-            "contact_website": (data.get("contact_website") or "").strip(),
-            "outreach_context": (data.get("outreach_context") or "").strip(),
-            "template_type": data.get("template_type"),
             "email_subject": (data.get("email_subject") or "").strip(),
             "email_body": (data.get("email_body") or "").strip(),
         }
@@ -89,7 +81,7 @@ class TemplateDetailView(APIView):
                 {"detail": "Invalid template ID."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        template = get_template(request.user, tid)
+        template = get_template(tid)
         if not template:
             return None, Response(
                 {"detail": "Template not found."},
@@ -115,20 +107,13 @@ class TemplateDetailView(APIView):
         update_data = {}
         for field in (
             "name",
-            "contact_name",
-            "contact_title",
-            "contact_institution",
-            "contact_email",
-            "contact_phone",
-            "contact_website",
-            "outreach_context",
             "email_subject",
             "email_body",
         ):
             if field in data:
                 val = data[field]
                 update_data[field] = (val or "").strip() if val is not None else ""
-        template, not_found = update_template(request.user, template_id, **update_data)
+        template, not_found = update_template(template_id, **update_data)
         if not_found:
             return Response(
                 {"detail": not_found},
@@ -141,5 +126,5 @@ class TemplateDetailView(APIView):
         template, err = self._get_template(request, template_id)
         if err:
             return err
-        delete_template(request.user, template_id)
+        delete_template(template_id)
         return Response(status=status.HTTP_204_NO_CONTENT)

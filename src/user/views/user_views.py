@@ -496,6 +496,24 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
 
     @action(
         detail=False,
+        methods=[RequestMethods.PATCH],
+    )
+    def set_staking_opted_in(self, request):
+        user = request.user
+        user = User.objects.get(pk=user.id)
+        is_opted_in = request.data.get("is_staking_opted_in", False)
+        was_opted_in = user.is_staking_opted_in
+        user.is_staking_opted_in = is_opted_in
+        if is_opted_in and not was_opted_in:
+            user.staking_opted_in_date = timezone.now()
+        elif not is_opted_in:
+            user.staking_opted_in_date = None
+        user.save(update_fields=["is_staking_opted_in", "staking_opted_in_date"])
+        serialized = UserSerializer(user)
+        return Response(serialized.data, status=200)
+
+    @action(
+        detail=False,
         methods=[RequestMethods.POST],
         permission_classes=[IsAuthenticated, Censor],
     )

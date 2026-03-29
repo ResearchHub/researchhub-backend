@@ -132,6 +132,10 @@ router.register(r"deposit", reputation.views.DepositViewSet)
 
 router.register(r"bounty", reputation.views.BountyViewSet)
 
+router.register(
+    r"staking_yield", reputation.views.StakingYieldViewSet, basename="staking_yield"
+)
+
 router.register(r"moderator", moderator_view.ModeratorView, basename="moderator")
 
 router.register(

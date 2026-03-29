@@ -1,7 +1,10 @@
+import logging
 from datetime import datetime
 from decimal import Decimal
 
 from research_ai.constants import BASE_FRONTEND_URL
+
+logger = logging.getLogger(__name__)
 from research_ai.models import ExpertSearch
 
 
@@ -23,6 +26,7 @@ def get_grant_frontend_url(grant) -> str | None:
         base = BASE_FRONTEND_URL
         return f"{base}/grant/{post_id}/{post_slug}"
     except Exception:
+        logger.exception("get_grant_frontend_url failed")
         return None
 
 
@@ -55,6 +59,9 @@ def build_rfp_context(grant, description_snippet_length: int = 500) -> dict:
     """
     Build RFP context dict from a Grant for email templates and prompts.
     Returns: amount, deadline, title, url, description_snippet, blurb.
+
+    Unexpected errors are logged at ERROR (with traceback) and an empty dict is returned
+    so email generation can continue without RFP placeholders filled.
     """
     if not grant:
         return {}
@@ -77,6 +84,7 @@ def build_rfp_context(grant, description_snippet_length: int = 500) -> dict:
             "blurb": description,
         }
     except Exception:
+        logger.exception("build_rfp_context failed")
         return {}
 
 
@@ -107,4 +115,5 @@ def resolve_grant(*, expert_search: ExpertSearch | None = None):
     try:
         return expert_search.unified_document.grants.first()
     except Exception:
+        logger.exception("resolve_grant failed")
         return None
