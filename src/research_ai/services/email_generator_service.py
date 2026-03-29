@@ -36,23 +36,34 @@ def _normalize_signature_dict(data: dict | None) -> dict:
     }
 
 
-def normalize_llm_text_to_html(text: str) -> str:
+def normalize_llm_text_for_subject(text: str) -> str:
     """
-    Normalize LLM-generated plain text for HTML display.
-
-    - Replaces literal '\\n' (backslash-n) with newline so both are handled.
-    - Collapses multiple newlines (e.g. \\n\\n, \\n\\n\\n) to a single newline.
-    - Replaces newlines with <br /> so line breaks render correctly in HTML.
+    Normalize LLM subject line to plain text: literal backslash-n sequences from the
+    LLM become newlines, then all whitespace collapses to single spaces (subjects
+    must not contain HTML).
     """
     if not text:
         return text
-    # Handle literal \n (two characters) from LLM output
+    s = str(text).replace("\\n", "\n")
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def normalize_llm_text_to_html(text: str) -> str:
+    """
+    Normalize LLM-generated email body for HTML: normalize literal backslash-n from
+    the LLM to real newlines, then each line becomes its own <p>...</p>; blank lines
+    become <p></p>.
+    """
+    if not text:
+        return text
     result = text.replace("\\n", "\n")
-    # Collapse 2+ newlines to a single newline
-    result = re.sub(r"\n{2,}", "\n", result)
-    # Convert newlines to HTML line breaks
-    result = result.replace("\n", "<br />")
-    return result
+    out: list[str] = []
+    for part in result.split("\n"):
+        if part.strip() == "":
+            out.append("<p></p>")
+        else:
+            out.append(f"<p>{part}</p>")
+    return "".join(out)
 
 
 def _strip_markdown(text: str) -> str:
@@ -311,7 +322,7 @@ def _generate_with_llm(
         if sig:
             text = text.rstrip() + sig
     subject, body = _parse_subject_and_body(text)
-    subject = normalize_llm_text_to_html(subject)
+    subject = normalize_llm_text_for_subject(subject)
     body = normalize_llm_text_to_html(body)
     return subject, body
 

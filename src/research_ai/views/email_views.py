@@ -20,11 +20,55 @@ from research_ai.serializers import (
 )
 from research_ai.services.email_generator_service import generate_expert_email
 from research_ai.services.email_sending_service import send_plain_email
+from research_ai.services.email_template_variables import format_expert_name_from_raw
 from research_ai.services.rfp_email_context import resolve_expert_from_search
 from research_ai.tasks import process_bulk_generate_emails_task, send_queued_emails_task
 from user.permissions import IsModerator, UserIsEditor
 
 logger = logging.getLogger(__name__)
+
+
+def _generated_email_list_sequence_queryset(expert_search_id):
+    """
+    Same default ordering and search scope as GET expert-finder/emails/:
+    order by -created_date; if expert_search_id is not None, filter to that search
+    (equivalent to ?search_id=<id>). If None, no expert_search filter (full list).
+    """
+    qs = GeneratedEmail.objects.order_by("-created_date")
+    if expert_search_id is not None:
+        qs = qs.filter(expert_search_id=expert_search_id)
+    return qs
+
+
+def _list_navigation_for_generated_email(email):
+    """
+    Adjacent rows in the same order as the paginated list for this email's search
+    (or the unfiltered list when expert_search is null).
+    """
+    qs = _generated_email_list_sequence_queryset(email.expert_search_id)
+    ids = list(qs.values_list("id", flat=True))
+    try:
+        idx = ids.index(email.id)
+    except ValueError:
+        return {
+            "total": len(ids),
+            "position": 1,
+            "previous_id": None,
+            "next_id": None,
+        }
+    n = len(ids)
+    return {
+        "total": n,
+        "position": idx + 1,
+        "previous_id": ids[idx - 1] if idx > 0 else None,
+        "next_id": ids[idx + 1] if idx < n - 1 else None,
+    }
+
+
+def _generated_email_detail_response(email):
+    data = GeneratedEmailSerializer(email).data
+    data["list_navigation"] = _list_navigation_for_generated_email(email)
+    return data
 
 
 def _normalize_template(template: str) -> tuple[str, str | None]:
@@ -124,7 +168,7 @@ class GenerateEmailView(APIView):
         email_record = GeneratedEmail.objects.create(
             created_by=request.user,
             expert_search=expert_search,
-            expert_name=(resolved.get("name") or "").strip(),
+            expert_name=format_expert_name_from_raw(resolved.get("name") or ""),
             expert_title=resolved.get("title") or "",
             expert_affiliation=resolved.get("affiliation") or "",
             expert_email=(resolved.get("email") or "").strip(),
@@ -177,7 +221,7 @@ class BulkGenerateEmailView(APIView):
                     email_record = GeneratedEmail.objects.create(
                         created_by=request.user,
                         expert_search=expert_search,
-                        expert_name=(resolved.get("name") or "").strip(),
+                        expert_name=format_expert_name_from_raw(resolved.get("name") or ""),
                         expert_title=resolved.get("title") or "",
                         expert_affiliation=resolved.get("affiliation") or "",
                         expert_email=(resolved.get("email") or "").strip(),
@@ -239,6 +283,7 @@ class PreviewEmailView(APIView):
         )
 
         ids = data["generated_email_ids"]
+        reply_to = (data["reply_to"] or "").strip()
         qs = GeneratedEmail.objects.filter(id__in=ids).exclude(
             status=GeneratedEmail.Status.PROCESSING
         )
@@ -249,7 +294,7 @@ class PreviewEmailView(APIView):
                     [recipient],
                     rec.email_subject,
                     rec.email_body,
-                    reply_to=recipient,
+                    reply_to=reply_to,
                     from_email=from_email,
                 )
                 sent += 1
@@ -328,9 +373,11 @@ class GeneratedEmailListView(APIView):
         search_id = request.query_params.get("search_id")
         if search_id is not None:
             try:
-                qs = qs.filter(expert_search_id=int(search_id))
+                sid = int(search_id)
             except (ValueError, TypeError):
                 qs = qs.none()
+            else:
+                qs = qs.filter(expert_search_id=sid)
         total = qs.count()
         items = list(qs[offset : offset + limit])
         ser = GeneratedEmailSerializer(items, many=True)
@@ -379,8 +426,7 @@ class GeneratedEmailDetailView(APIView):
         email, err = self._get_email(request, email_id)
         if err:
             return err
-        ser = GeneratedEmailSerializer(email)
-        return Response(ser.data)
+        return Response(_generated_email_detail_response(email))
 
     def patch(self, request, email_id):
         email, err = self._get_email(request, email_id)
@@ -391,8 +437,7 @@ class GeneratedEmailDetailView(APIView):
         )
         ser.is_valid(raise_exception=True)
         ser.save()
-        out = GeneratedEmailSerializer(email)
-        return Response(out.data)
+        return Response(_generated_email_detail_response(email))
 
     def delete(self, request, email_id):
         email, err = self._get_email(request, email_id)
