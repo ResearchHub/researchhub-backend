@@ -58,6 +58,7 @@ WEB3_BASE_PROVIDER_URL = os.environ.get("WEB3_BASE_PROVIDER_URL", "")
 
 TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", "")
 OPENALEX_KEY = os.environ.get("OPENALEX_KEY", "")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 SEGMENT_WRITE_KEY = os.environ.get("SEGMENT_WRITE_KEY", "")
 
 ETHERSCAN_API_KEY = os.environ.get("ETHERSCAN_API_KEY", "")

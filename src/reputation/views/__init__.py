@@ -21,6 +21,7 @@ from reputation.models import PaidStatusModelMixin, Withdrawal
 # Used for urls.py
 from reputation.views.bounty_view import BountyViewSet
 from reputation.views.deposit_view import DepositViewSet
+from reputation.views.staking_yield_view import StakingYieldViewSet
 from reputation.views.withdrawal_view import WithdrawalViewSet
 from researchhub.settings import APP_ENV, TRANSPOSE_KEY, WEB3_RSC_ADDRESS
 from user.models import User

@@ -20,4 +20,8 @@ from reputation.serializers.escrow_serializer import (
     DynamicEscrowSerializer,
     EscrowSerializer,
 )
+from reputation.serializers.staking_yield_serializer import (
+    StakingYieldDetailsSerializer,
+    StakingYieldEarnedSinceSerializer,
+)
 from reputation.serializers.withdrawal_serializer import WithdrawalSerializer

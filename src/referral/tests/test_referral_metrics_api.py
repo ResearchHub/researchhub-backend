@@ -116,7 +116,6 @@ class ReferralMetricsAPITest(TestCase):
             object_id=self.distribution1.id,
             amount="100",
             is_locked=True,
-            lock_type="REFERRAL_BONUS",
         )
 
         self.balance2 = Balance.objects.create(
@@ -125,7 +124,6 @@ class ReferralMetricsAPITest(TestCase):
             object_id=self.distribution2.id,
             amount="100",
             is_locked=True,
-            lock_type="REFERRAL_BONUS",
         )
 
     def test_get_my_referral_metrics(self):

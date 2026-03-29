@@ -427,6 +427,14 @@ if STAGING or PRODUCTION:
 SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
 SOCIALACCOUNT_EMAIL_REQUIRED = False
 SOCIALACCOUNT_QUERY_EMAIL = True
+# Let Google sign-ins attach to an existing account when the email matches.
+# See: https://docs.allauth.org/en/dev/socialaccount/configuration.html
+SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
+SOCIALACCOUNT_PROVIDERS = {
+    "google": {
+        "EMAIL_AUTHENTICATION": True,
+    },
+}
 
 
 GOOGLE_REDIRECT_URL = "http://localhost:8000/auth/google/login/callback/"
@@ -545,6 +553,11 @@ BEDROCK_PROCESSING_ENABLED = (
         getattr(keys, "BEDROCK_PROCESSING_ENABLED", "false"),
     ).lower()
     == "true"
+)
+
+OPENAI_API_KEY = os.environ.get(
+    "OPENAI_API_KEY",
+    getattr(keys, "OPENAI_API_KEY", ""),
 )
 
 if not (CLOUD or TESTING) and os.environ.get("AWS_PROFILE") is None:

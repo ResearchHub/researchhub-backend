@@ -88,12 +88,12 @@ class ReferralBonusServiceTest(TestCase):
 
         # Check locked balances were created
         referrer_balance = Balance.objects.filter(
-            user=self.referrer, is_locked=True, lock_type="REFERRAL_BONUS"
+            user=self.referrer, is_locked=True
         ).first()
         self.assertIsNotNone(referrer_balance)
 
         referred_balance = Balance.objects.filter(
-            user=self.referred_user, is_locked=True, lock_type="REFERRAL_BONUS"
+            user=self.referred_user, is_locked=True
         ).first()
         self.assertIsNotNone(referred_balance)
 

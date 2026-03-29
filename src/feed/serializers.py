@@ -515,6 +515,7 @@ class FundraiseContributionContentSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     amount = serializers.SerializerMethodField()
     currency = serializers.SerializerMethodField()
+    post_id = serializers.SerializerMethodField()
     proposal_title = serializers.SerializerMethodField()
     proposal_slug = serializers.SerializerMethodField()
     unified_document_id = serializers.SerializerMethodField()
@@ -553,6 +554,14 @@ class FundraiseContributionContentSerializer(serializers.Serializer):
         if hasattr(obj, "amount_cents"):
             return "USD"
         return "RSC"
+
+    def get_post_id(self, obj):
+        ud = self._get_unified_document(obj)
+        if ud and hasattr(ud, "posts"):
+            post = ud.posts.first()
+            if post:
+                return post.id
+        return None
 
     def get_proposal_title(self, obj):
         ud = self._get_unified_document(obj)

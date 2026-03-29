@@ -243,7 +243,6 @@ class FundingActivityServiceTests(TestCase):
             amount="50",
             content_type=ct_balance,
             is_locked=True,
-            lock_type=Balance.LockType.REFERRAL_BONUS,
         )
         uni_doc = ResearchhubUnifiedDocument.objects.create(
             document_type="PREREGISTRATION",

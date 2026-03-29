@@ -24,7 +24,7 @@ class TemplateListViewTests(APITestCase):
         EmailTemplate.objects.create(
             created_by=self.moderator,
             name="My Template",
-            contact_name="Jane",
+            email_subject="Hello",
         )
         self.client.force_authenticate(self.moderator)
         response = self.client.get(self.url)
@@ -37,7 +37,7 @@ class TemplateListViewTests(APITestCase):
         self.assertEqual(data["total"], 1)
         self.assertEqual(len(data["templates"]), 1)
         self.assertEqual(data["templates"][0]["name"], "My Template")
-        self.assertEqual(data["templates"][0]["contact_name"], "Jane")
+        self.assertEqual(data["templates"][0]["email_subject"], "Hello")
 
     def test_get_respects_limit_and_offset(self):
         for i in range(5):
@@ -54,7 +54,8 @@ class TemplateListViewTests(APITestCase):
         self.assertEqual(data["offset"], 1)
         self.assertEqual(len(data["templates"]), 2)
 
-    def test_get_only_returns_own_templates(self):
+    def test_get_returns_all_templates_shared(self):
+        """Templates are shared: all editors/moderators see every template."""
         EmailTemplate.objects.create(
             created_by=self.moderator,
             name="Mine",
@@ -66,8 +67,9 @@ class TemplateListViewTests(APITestCase):
         self.client.force_authenticate(self.moderator)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.json()["total"], 1)
-        self.assertEqual(response.json()["templates"][0]["name"], "Mine")
+        self.assertEqual(response.json()["total"], 2)
+        names = {t["name"] for t in response.json()["templates"]}
+        self.assertEqual(names, {"Mine", "Theirs"})
 
     def test_post_requires_authentication(self):
         response = self.client.post(
@@ -92,20 +94,16 @@ class TemplateListViewTests(APITestCase):
             self.url,
             {
                 "name": "Conference Invite",
-                "contact_name": "Jane Doe",
-                "contact_title": "Prof",
-                "contact_institution": "MIT",
-                "contact_email": "jane@mit.edu",
-                "outreach_context": "Annual conference 2025",
+                "email_subject": "Join us",
+                "email_body": "Hi {{expert.name}}",
             },
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         data = response.json()
         self.assertEqual(data["name"], "Conference Invite")
-        self.assertEqual(data["contact_name"], "Jane Doe")
-        self.assertEqual(data["contact_institution"], "MIT")
-        self.assertEqual(data["outreach_context"], "Annual conference 2025")
+        self.assertEqual(data["email_subject"], "Join us")
+        self.assertEqual(data["email_body"], "Hi {{expert.name}}")
         self.assertEqual(EmailTemplate.objects.count(), 1)
         t = EmailTemplate.objects.get()
         self.assertEqual(t.created_by, self.moderator)
@@ -114,7 +112,7 @@ class TemplateListViewTests(APITestCase):
         self.client.force_authenticate(self.moderator)
         response = self.client.post(
             self.url,
-            {"contact_name": "Jane"},
+            {"email_subject": "Only subject"},
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -130,8 +128,8 @@ class TemplateDetailViewTests(APITestCase):
         return EmailTemplate.objects.create(
             created_by=created_by,
             name=name,
-            contact_name="Jane",
-            contact_institution="MIT",
+            email_subject="Subj",
+            email_body="Body {{expert.name}}",
         )
 
     def test_get_requires_authentication(self):
@@ -159,7 +157,7 @@ class TemplateDetailViewTests(APITestCase):
         data = response.json()
         self.assertEqual(data["id"], t.id)
         self.assertEqual(data["name"], "My Template")
-        self.assertEqual(data["contact_institution"], "MIT")
+        self.assertEqual(data["email_body"], "Body {{expert.name}}")
 
     def test_get_returns_404_for_nonexistent(self):
         self.client.force_authenticate(self.moderator)
@@ -169,41 +167,45 @@ class TemplateDetailViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertIn("not found", response.json().get("detail", "").lower())
 
-    def test_get_returns_404_for_other_users_template(self):
+    def test_get_returns_200_for_other_users_template(self):
+        """Templates are shared: any editor can retrieve any template."""
         t = self._create_template(created_by=self.user)
         self.client.force_authenticate(self.moderator)
         response = self.client.get(
             f"/api/research_ai/expert-finder/templates/{t.id}/"
         )
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["id"], t.id)
+        self.assertEqual(response.json()["name"], "Test Template")
 
     def test_patch_updates_and_returns_200(self):
         t = self._create_template(name="Original")
         self.client.force_authenticate(self.moderator)
         response = self.client.patch(
             f"/api/research_ai/expert-finder/templates/{t.id}/",
-            {"name": "Updated Name", "contact_email": "new@mit.edu"},
+            {"name": "Updated Name", "email_subject": "New subj"},
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.json()
         self.assertEqual(data["name"], "Updated Name")
-        self.assertEqual(data["contact_email"], "new@mit.edu")
+        self.assertEqual(data["email_subject"], "New subj")
         t.refresh_from_db()
         self.assertEqual(t.name, "Updated Name")
-        self.assertEqual(t.contact_email, "new@mit.edu")
+        self.assertEqual(t.email_subject, "New subj")
 
-    def test_patch_returns_404_for_other_users_template(self):
+    def test_patch_returns_200_for_other_users_template(self):
+        """Templates are shared: any editor can update any template."""
         t = self._create_template(created_by=self.user)
         self.client.force_authenticate(self.moderator)
         response = self.client.patch(
             f"/api/research_ai/expert-finder/templates/{t.id}/",
-            {"name": "Hacked"},
+            {"name": "Updated By Moderator"},
             format="json",
         )
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         t.refresh_from_db()
-        self.assertEqual(t.name, "Test Template")
+        self.assertEqual(t.name, "Updated By Moderator")
 
     def test_delete_returns_204_and_removes_template(self):
         t = self._create_template()
@@ -214,11 +216,12 @@ class TemplateDetailViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(EmailTemplate.objects.filter(pk=t.id).exists())
 
-    def test_delete_returns_404_for_other_users_template(self):
+    def test_delete_returns_204_for_other_users_template(self):
+        """Templates are shared: any editor can delete any template."""
         t = self._create_template(created_by=self.user)
         self.client.force_authenticate(self.moderator)
         response = self.client.delete(
             f"/api/research_ai/expert-finder/templates/{t.id}/"
         )
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-        self.assertTrue(EmailTemplate.objects.filter(pk=t.id).exists())
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(EmailTemplate.objects.filter(pk=t.id).exists())

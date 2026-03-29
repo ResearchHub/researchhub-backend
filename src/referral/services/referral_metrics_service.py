@@ -131,8 +131,8 @@ class ReferralMetricsService:
         )["total"] or Decimal("0")
 
         # Get available balance (locked referral bonus balance)
-        available = Balance.objects.filter(
-            user=self.user, is_locked=True, lock_type="REFERRAL_BONUS"
+        available = Balance.locked_by_referral_bonus(
+            Balance.objects.filter(user=self.user)
         ).aggregate(
             total=Sum(Cast("amount", DecimalField(max_digits=19, decimal_places=8)))
         )[
@@ -231,8 +231,8 @@ class ReferralMetricsService:
         )
 
         # Then get current locked balance
-        locked_balance = Balance.objects.filter(
-            user=self.user, is_locked=True, lock_type="REFERRAL_BONUS"
+        locked_balance = Balance.locked_by_referral_bonus(
+            Balance.objects.filter(user=self.user)
         ).aggregate(
             total=Sum(Cast("amount", DecimalField(max_digits=19, decimal_places=8)))
         )[
@@ -247,8 +247,8 @@ class ReferralMetricsService:
 
     def _get_available_referral_credits(self):
         """Get available (locked) referral bonus credits for the user."""
-        return Balance.objects.filter(
-            user=self.user, is_locked=True, lock_type="REFERRAL_BONUS"
+        return Balance.locked_by_referral_bonus(
+            Balance.objects.filter(user=self.user)
         ).aggregate(
             total=Sum(Cast("amount", DecimalField(max_digits=19, decimal_places=8)))
         )[
@@ -263,8 +263,8 @@ class ReferralMetricsService:
             referrer=self.user
         ).values_list("referred_id", flat=True)
 
-        return Balance.objects.filter(
-            user_id__in=referred_user_ids, is_locked=True, lock_type="REFERRAL_BONUS"
+        return Balance.locked_by_referral_bonus(
+            Balance.objects.filter(user_id__in=referred_user_ids)
         ).aggregate(
             total=Sum(Cast("amount", DecimalField(max_digits=19, decimal_places=8)))
         )[

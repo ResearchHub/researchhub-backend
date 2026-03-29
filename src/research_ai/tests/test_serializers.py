@@ -1,13 +1,18 @@
+from unittest.mock import MagicMock, PropertyMock
+
 from django.test import TestCase
 
 from research_ai.constants import ExpertiseLevel, Gender, Region
-from research_ai.models import ExpertSearch
+from research_ai.models import EmailTemplate, ExpertSearch, GeneratedEmail
 from research_ai.serializers import (
+    EmailTemplateSerializer,
     ExpertSearchConfigSerializer,
     ExpertSearchCreateSerializer,
     ExpertSearchListItemSerializer,
     ExpertSearchSerializer,
     GeneratedEmailSerializer,
+    ResearchAIAuthorSerializer,
+    _get_created_by_payload,
 )
 from user.tests.helpers import create_random_authenticated_user
 
@@ -173,6 +178,14 @@ class ExpertSearchSerializerTests(TestCase):
         ser = ExpertSearchSerializer(self.search)
         self.assertIsNone(ser.data["report_urls"])
 
+    def test_created_by_payload_has_user_id_and_author_key(self):
+        ser = ExpertSearchSerializer(self.search)
+        created_by = ser.data["created_by"]
+        self.assertEqual(created_by["user_id"], self.user.id)
+        self.assertIn("author", created_by)
+        if created_by["author"] is not None:
+            self.assertIn("id", created_by["author"])
+
     def test_work_is_none_when_no_unified_document(self):
         """ExpertSearch without unified_document has work=None."""
         ser = ExpertSearchSerializer(self.search)
@@ -221,6 +234,12 @@ class ExpertSearchListItemSerializerTests(TestCase):
         self.assertEqual(ser.data["query"], "List test")
         self.assertEqual(ser.data["expert_names"], ["X"])
 
+    def test_created_by_payload_has_user_id_and_author_key(self):
+        ser = ExpertSearchListItemSerializer(self.search)
+        created_by = ser.data["created_by"]
+        self.assertEqual(created_by["user_id"], self.user.id)
+        self.assertIn("author", created_by)
+
 
 class GeneratedEmailSerializerTests(TestCase):
     def setUp(self):
@@ -232,8 +251,6 @@ class GeneratedEmailSerializerTests(TestCase):
         )
 
     def test_serialize_generated_email(self):
-        from research_ai.models import GeneratedEmail
-
         email = GeneratedEmail.objects.create(
             created_by=self.user,
             expert_search=self.search,
@@ -245,3 +262,71 @@ class GeneratedEmailSerializerTests(TestCase):
         ser = GeneratedEmailSerializer(email)
         self.assertEqual(ser.data["expert_name"], "Dr. Foo")
         self.assertEqual(ser.data["expert_email"], "foo@bar.com")
+
+    def test_created_by_payload_has_user_id_and_author_key(self):
+        email = GeneratedEmail.objects.create(
+            created_by=self.user,
+            expert_search=self.search,
+            expert_name="Dr. Foo",
+            expert_email="foo@bar.com",
+        )
+        ser = GeneratedEmailSerializer(email)
+        created_by = ser.data["created_by"]
+        self.assertEqual(created_by["user_id"], self.user.id)
+        self.assertIn("author", created_by)
+
+
+class EmailTemplateSerializerTests(TestCase):
+    def setUp(self):
+        self.user = create_random_authenticated_user("tmpl_ser")
+
+    def test_created_by_payload_has_user_id_and_author_key(self):
+        template = EmailTemplate.objects.create(
+            created_by=self.user,
+            name="T",
+        )
+        ser = EmailTemplateSerializer(template)
+        created_by = ser.data["created_by"]
+        self.assertEqual(created_by["user_id"], self.user.id)
+        self.assertIn("author", created_by)
+
+
+class ResearchAIAuthorSerializerTests(TestCase):
+    def setUp(self):
+        self.serializer = ResearchAIAuthorSerializer()
+
+    def test_profile_image_returns_url_when_set(self):
+        author = MagicMock()
+        author.profile_image = MagicMock()
+        author.profile_image.name = "avatars/x.png"
+        author.profile_image.url = "https://example.com/media/avatars/x.png"
+        self.assertEqual(
+            self.serializer.get_profile_image(author),
+            "https://example.com/media/avatars/x.png",
+        )
+
+    def test_profile_image_returns_none_when_missing_name(self):
+        author = MagicMock()
+        author.profile_image = MagicMock()
+        author.profile_image.name = ""
+        self.assertIsNone(self.serializer.get_profile_image(author))
+
+    def test_profile_image_returns_none_when_url_raises(self):
+        author = MagicMock()
+        img = MagicMock()
+        img.name = "a.png"
+        type(img).url = PropertyMock(side_effect=OSError("storage error"))
+        author.profile_image = img
+        self.assertIsNone(self.serializer.get_profile_image(author))
+
+
+class GetCreatedByPayloadTests(TestCase):
+    def test_author_none_when_user_has_no_author_profile(self):
+        obj = MagicMock()
+        user = MagicMock()
+        user.id = 42
+        user.author_profile = None
+        obj.created_by = user
+        payload = _get_created_by_payload(obj)
+        self.assertEqual(payload["user_id"], 42)
+        self.assertIsNone(payload["author"])

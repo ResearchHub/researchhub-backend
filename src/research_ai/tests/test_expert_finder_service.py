@@ -10,6 +10,7 @@ from research_ai.services.expert_finder_service import (
     _extract_text_from_pdf_bytes,
     _get_paper_pdf_bytes,
 )
+from research_ai.services.openai_expert_finder_service import OPENAI_EXPERT_FINDER_MODEL
 
 
 class GetDocumentContentTests(TestCase):
@@ -308,6 +309,53 @@ class ExpertFinderServiceParseTests(TestCase):
             service._expert_name_matches_excluded("Jane Doe", ["Jane"])
         )
 
+    def test_expert_row_suggests_deceased_common_phrases(self):
+        service = ExpertFinderService()
+        self.assertTrue(
+            service._expert_row_suggests_deceased(
+                {
+                    "name": "Late Prof. Ada Smith",
+                    "title": "",
+                    "affiliation": "",
+                    "expertise": "",
+                    "notes": "",
+                }
+            )
+        )
+        self.assertTrue(
+            service._expert_row_suggests_deceased(
+                {
+                    "name": "Bob Jones",
+                    "title": "Professor",
+                    "affiliation": "MIT",
+                    "expertise": "ML",
+                    "notes": "Leading researcher, deceased 2021.",
+                }
+            )
+        )
+        self.assertTrue(
+            service._expert_row_suggests_deceased(
+                {
+                    "name": "Ann Lee (d. 2019)",
+                    "title": "",
+                    "affiliation": "",
+                    "expertise": "",
+                    "notes": "",
+                }
+            )
+        )
+        self.assertFalse(
+            service._expert_row_suggests_deceased(
+                {
+                    "name": "Carol Wu",
+                    "title": "Associate Professor",
+                    "affiliation": "Berkeley",
+                    "expertise": "NLP",
+                    "notes": "Recent work on transformers.",
+                }
+            )
+        )
+
     def test_extract_citations_skips_empty_url(self):
         service = ExpertFinderService()
         text = "See [empty]() and [real](https://x.com) here."
@@ -357,7 +405,68 @@ class ExpertFinderServiceParseTests(TestCase):
         self.assertEqual(len(experts), 1)
         self.assertEqual(experts[0]["name"], "John")
 
-    @patch("research_ai.services.expert_finder_service.BedrockLLMService")
+    def test_dedupe_experts_keeps_first_and_normalizes_email(self):
+        experts = [
+            {
+                "name": "First",
+                "title": "Prof",
+                "affiliation": "MIT",
+                "expertise": "AI",
+                "email": "Person@MIT.EDU",
+                "notes": "a",
+                "sources": [],
+            },
+            {
+                "name": "Second",
+                "title": "Dr",
+                "affiliation": "MIT",
+                "expertise": "AI",
+                "email": " person@mit.edu ",
+                "notes": "b",
+                "sources": [],
+            },
+            {
+                "name": "Other",
+                "title": "Dr",
+                "affiliation": "Stanford",
+                "expertise": "NLP",
+                "email": "other@stanford.edu",
+                "notes": "c",
+                "sources": [],
+            },
+        ]
+        out = ExpertFinderService._dedupe_experts_by_normalized_email(experts)
+        self.assertEqual(len(out), 2)
+        self.assertEqual(out[0]["name"], "First")
+        self.assertEqual(out[0]["email"], "person@mit.edu")
+        self.assertEqual(out[1]["email"], "other@stanford.edu")
+
+    def test_dedupe_experts_skips_empty_email(self):
+        experts = [
+            {
+                "name": "X",
+                "email": "",
+                "title": "t",
+                "affiliation": "a",
+                "expertise": "e",
+                "notes": "",
+                "sources": [],
+            },
+            {
+                "name": "Y",
+                "email": "y@y.edu",
+                "title": "t",
+                "affiliation": "a",
+                "expertise": "e",
+                "notes": "",
+                "sources": [],
+            },
+        ]
+        out = ExpertFinderService._dedupe_experts_by_normalized_email(experts)
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["email"], "y@y.edu")
+
+    @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
     @patch("research_ai.services.expert_finder_service.ProgressService")
     @patch(
         "research_ai.services.expert_finder_service.generate_pdf_report",
@@ -377,16 +486,16 @@ class ExpertFinderServiceParseTests(TestCase):
         mock_csv,
         mock_pdf,
         mock_progress,
-        mock_bedrock,
+        mock_openai,
     ):
-        mock_llm = MagicMock()
-        mock_llm.invoke.return_value = """
+        mock_openai_llm = MagicMock()
+        mock_openai_llm.invoke.return_value = """
         | Name | Title | Affiliation | Expertise | Email |
         |------|-------|-------------|-----------|-------|
         | Alice | Prof | MIT | AI | alice@mit.edu |
         """
-        mock_llm.model_id = "test-model"
-        mock_bedrock.return_value = mock_llm
+        mock_openai_llm.model_id = OPENAI_EXPERT_FINDER_MODEL
+        mock_openai.return_value = mock_openai_llm
         mock_progress.return_value.publish_progress_sync = MagicMock()
 
         service = ExpertFinderService()
@@ -400,8 +509,305 @@ class ExpertFinderServiceParseTests(TestCase):
         self.assertEqual(result["experts"][0]["name"], "Alice")
         self.assertIn("pdf", result["report_urls"])
         self.assertIn("csv", result["report_urls"])
+        self.assertEqual(result["llm_model"], OPENAI_EXPERT_FINDER_MODEL)
 
-    @patch("research_ai.services.expert_finder_service.BedrockLLMService")
+    @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
+    @patch("research_ai.services.expert_finder_service.ProgressService")
+    @patch(
+        "research_ai.services.expert_finder_service.generate_pdf_report",
+        return_value=b"pdf",
+    )
+    @patch(
+        "research_ai.services.expert_finder_service.generate_csv_file",
+        return_value=b"csv",
+    )
+    @patch(
+        "research_ai.services.expert_finder_service.upload_report_to_storage",
+        side_effect=lambda sid, content, ext, ct: f"https://storage/{sid}.{ext}",
+    )
+    def test_process_expert_search_filters_deceased_rows(
+        self,
+        mock_upload,
+        mock_csv,
+        mock_pdf,
+        mock_progress,
+        mock_openai,
+    ):
+        """Rows matching deceased heuristics are dropped before merge/dedupe."""
+        mock_openai_llm = MagicMock()
+        mock_openai_llm.invoke.return_value = """
+        | Name | Title | Affiliation | Expertise | Email |
+        |------|-------|-------------|-----------|-------|
+        | Late Prof. Old Name | Prof | MIT | AI | old@mit.edu |
+        | Pat Lee | Prof | Stanford | ML | pat@stanford.edu |
+        """
+        mock_openai_llm.model_id = OPENAI_EXPERT_FINDER_MODEL
+        mock_openai.return_value = mock_openai_llm
+        mock_progress.return_value.publish_progress_sync = MagicMock()
+
+        service = ExpertFinderService()
+        result = service.process_expert_search(
+            search_id="deceased-filter",
+            query="AI research",
+            config={"expert_count": 10},
+        )
+        self.assertEqual(result["status"], ExpertSearch.Status.COMPLETED)
+        self.assertEqual(result["expert_count"], 1)
+        self.assertEqual(result["experts"][0]["name"], "Pat Lee")
+        self.assertEqual(result["experts"][0]["email"], "pat@stanford.edu")
+
+    @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
+    @patch("research_ai.services.expert_finder_service.ProgressService")
+    @patch(
+        "research_ai.services.expert_finder_service.generate_pdf_report",
+        return_value=b"pdf",
+    )
+    @patch(
+        "research_ai.services.expert_finder_service.generate_csv_file",
+        return_value=b"csv",
+    )
+    @patch(
+        "research_ai.services.expert_finder_service.upload_report_to_storage",
+        side_effect=lambda sid, content, ext, ct: f"https://storage/{sid}.{ext}",
+    )
+    def test_process_expert_search_dedupes_identical_emails(
+        self,
+        mock_upload,
+        mock_csv,
+        mock_pdf,
+        mock_progress,
+        mock_openai,
+    ):
+        mock_openai_llm = MagicMock()
+        mock_openai_llm.invoke.return_value = """
+        | Name | Title | Affiliation | Expertise | Email |
+        |------|-------|-------------|-----------|-------|
+        | Alpha | Prof | MIT | AI | alpha@mit.edu |
+        | Beta | Dr | MIT | ML | ALPHA@mit.edu |
+        | Gamma | Dr | Stanford | NLP | gamma@stanford.edu |
+        """
+        mock_openai_llm.model_id = OPENAI_EXPERT_FINDER_MODEL
+        mock_openai.return_value = mock_openai_llm
+        mock_progress.return_value.publish_progress_sync = MagicMock()
+
+        service = ExpertFinderService()
+        result = service.process_expert_search(
+            search_id="1",
+            query="Q",
+            config={"expert_count": 50},
+        )
+        self.assertEqual(result["status"], ExpertSearch.Status.COMPLETED)
+        self.assertEqual(result["expert_count"], 2)
+        self.assertEqual(result["experts"][0]["name"], "Alpha")
+        self.assertEqual(result["experts"][0]["email"], "alpha@mit.edu")
+        self.assertEqual(result["experts"][1]["email"], "gamma@stanford.edu")
+
+    @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
+    @patch("research_ai.services.expert_finder_service.ProgressService")
+    @patch(
+        "research_ai.services.expert_finder_service.generate_pdf_report",
+        return_value=b"pdf",
+    )
+    @patch(
+        "research_ai.services.expert_finder_service.generate_csv_file",
+        return_value=b"csv",
+    )
+    @patch(
+        "research_ai.services.expert_finder_service.upload_report_to_storage",
+        side_effect=lambda sid, content, ext, ct: f"https://storage/{sid}.{ext}",
+    )
+    def test_process_expert_search_caps_to_expert_count(
+        self,
+        mock_upload,
+        mock_csv,
+        mock_pdf,
+        mock_progress,
+        mock_openai,
+    ):
+        mock_openai_llm = MagicMock()
+        mock_openai_llm.invoke.return_value = """
+        | Name | Title | Affiliation | Expertise | Email |
+        |------|-------|-------------|-----------|-------|
+        | E1 | Prof | MIT | AI | e1@mit.edu |
+        | E2 | Prof | MIT | AI | e2@mit.edu |
+        | E3 | Prof | MIT | AI | e3@mit.edu |
+        | E4 | Prof | MIT | AI | e4@mit.edu |
+        """
+        mock_openai_llm.model_id = OPENAI_EXPERT_FINDER_MODEL
+        mock_openai.return_value = mock_openai_llm
+        mock_progress.return_value.publish_progress_sync = MagicMock()
+
+        service = ExpertFinderService()
+        result = service.process_expert_search(
+            search_id="1",
+            query="Q",
+            config={"expert_count": 2},
+        )
+        self.assertEqual(result["status"], ExpertSearch.Status.COMPLETED)
+        self.assertEqual(result["expert_count"], 2)
+        self.assertEqual(len(result["experts"]), 2)
+        self.assertEqual(result["experts"][0]["email"], "e1@mit.edu")
+        self.assertEqual(result["experts"][1]["email"], "e2@mit.edu")
+
+    @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
+    @patch("research_ai.services.expert_finder_service.ProgressService")
+    @patch(
+        "research_ai.services.expert_finder_service.generate_pdf_report",
+        return_value=b"pdf",
+    )
+    @patch(
+        "research_ai.services.expert_finder_service.generate_csv_file",
+        return_value=b"csv",
+    )
+    @patch(
+        "research_ai.services.expert_finder_service.upload_report_to_storage",
+        side_effect=lambda sid, content, ext, ct: f"https://storage/{sid}.{ext}",
+    )
+    def test_process_expert_search_iterative_fill_second_invoke_when_short(
+        self,
+        mock_upload,
+        mock_csv,
+        mock_pdf,
+        mock_progress,
+        mock_openai,
+    ):
+        """Duplicate emails in round 1 leave us short; round 2 fills to target."""
+        table_r1 = """
+        | Name | Title | Affiliation | Expertise | Email |
+        |------|-------|-------------|-----------|-------|
+        | A1 | Prof | MIT | AI | dup@mit.edu |
+        | A2 | Prof | MIT | AI | dup@mit.edu |
+        | B | Prof | Stanford | ML | b@stanford.edu |
+        """
+        table_r2 = """
+        | Name | Title | Affiliation | Expertise | Email |
+        |------|-------|-------------|-----------|-------|
+        | C | Prof | Berkeley | CV | c@berkeley.edu |
+        """
+        mock_openai_llm = MagicMock()
+        mock_openai_llm.invoke.side_effect = [table_r1, table_r2]
+        mock_openai_llm.model_id = OPENAI_EXPERT_FINDER_MODEL
+        mock_openai.return_value = mock_openai_llm
+        mock_progress.return_value.publish_progress_sync = MagicMock()
+
+        service = ExpertFinderService()
+        result = service.process_expert_search(
+            search_id="iter1",
+            query="Q",
+            config={"expert_count": 3},
+        )
+        self.assertEqual(result["status"], ExpertSearch.Status.COMPLETED)
+        self.assertEqual(result["expert_count"], 3)
+        self.assertEqual(mock_openai_llm.invoke.call_count, 2)
+        emails = {e["email"].lower() for e in result["experts"]}
+        self.assertEqual(emails, {"dup@mit.edu", "b@stanford.edu", "c@berkeley.edu"})
+
+    @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
+    @patch("research_ai.services.expert_finder_service.ProgressService")
+    @patch(
+        "research_ai.services.expert_finder_service.generate_pdf_report",
+        return_value=b"pdf",
+    )
+    @patch(
+        "research_ai.services.expert_finder_service.generate_csv_file",
+        return_value=b"csv",
+    )
+    @patch(
+        "research_ai.services.expert_finder_service.upload_report_to_storage",
+        side_effect=lambda sid, content, ext, ct: f"https://storage/{sid}.{ext}",
+    )
+    def test_process_expert_search_stops_without_second_invoke_within_tolerance(
+        self,
+        mock_upload,
+        mock_csv,
+        mock_pdf,
+        mock_progress,
+        mock_openai,
+    ):
+        """When remaining <= tolerance after round 1, do not call OpenAI again."""
+        from research_ai.services import expert_finder_service as efs
+
+        table_r1 = """
+        | Name | Title | Affiliation | Expertise | Email |
+        |------|-------|-------------|-----------|-------|
+        | E1 | Prof | MIT | AI | e1@mit.edu |
+        | E2 | Prof | MIT | AI | e2@mit.edu |
+        | E3 | Prof | MIT | AI | e3@mit.edu |
+        """
+        mock_openai_llm = MagicMock()
+        mock_openai_llm.invoke.return_value = table_r1
+        mock_openai_llm.model_id = OPENAI_EXPERT_FINDER_MODEL
+        mock_openai.return_value = mock_openai_llm
+        mock_progress.return_value.publish_progress_sync = MagicMock()
+
+        service = ExpertFinderService()
+        old_tol = efs.EXPERT_FILL_TOLERANCE_SHORT
+        try:
+            efs.EXPERT_FILL_TOLERANCE_SHORT = 2
+            result = service.process_expert_search(
+                search_id="tol1",
+                query="Q",
+                config={"expert_count": 5},
+            )
+        finally:
+            efs.EXPERT_FILL_TOLERANCE_SHORT = old_tol
+
+        self.assertEqual(result["status"], ExpertSearch.Status.COMPLETED)
+        self.assertEqual(result["expert_count"], 3)
+        mock_openai_llm.invoke.assert_called_once()
+
+    @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
+    @patch("research_ai.services.expert_finder_service.ProgressService")
+    @patch(
+        "research_ai.services.expert_finder_service.generate_pdf_report",
+        return_value=b"pdf",
+    )
+    @patch(
+        "research_ai.services.expert_finder_service.generate_csv_file",
+        return_value=b"csv",
+    )
+    @patch(
+        "research_ai.services.expert_finder_service.upload_report_to_storage",
+        side_effect=lambda sid, content, ext, ct: f"https://storage/{sid}.{ext}",
+    )
+    def test_process_expert_search_stops_when_second_round_adds_no_new_uniques(
+        self,
+        mock_upload,
+        mock_csv,
+        mock_pdf,
+        mock_progress,
+        mock_openai,
+    ):
+        """If a follow-up round merges zero new emails, stop with partial list."""
+        table_r1 = """
+        | Name | Title | Affiliation | Expertise | Email |
+        |------|-------|-------------|-----------|-------|
+        | A | Prof | MIT | AI | a@mit.edu |
+        | B | Prof | MIT | AI | b@mit.edu |
+        """
+        table_r2 = """
+        | Name | Title | Affiliation | Expertise | Email |
+        |------|-------|-------------|-----------|-------|
+        | A | Prof | MIT | AI | a@mit.edu |
+        | B | Prof | MIT | AI | b@mit.edu |
+        """
+        mock_openai_llm = MagicMock()
+        mock_openai_llm.invoke.side_effect = [table_r1, table_r2]
+        mock_openai_llm.model_id = OPENAI_EXPERT_FINDER_MODEL
+        mock_openai.return_value = mock_openai_llm
+        mock_progress.return_value.publish_progress_sync = MagicMock()
+
+        service = ExpertFinderService()
+        result = service.process_expert_search(
+            search_id="znew",
+            query="Q",
+            config={"expert_count": 5},
+        )
+        self.assertEqual(result["status"], ExpertSearch.Status.COMPLETED)
+        self.assertEqual(result["expert_count"], 2)
+        self.assertEqual(mock_openai_llm.invoke.call_count, 2)
+
+    @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
     @patch("research_ai.services.expert_finder_service.ProgressService")
     @patch(
         "research_ai.services.expert_finder_service.generate_pdf_report",
@@ -421,16 +827,16 @@ class ExpertFinderServiceParseTests(TestCase):
         mock_csv,
         mock_pdf,
         mock_progress,
-        mock_bedrock,
+        mock_openai,
     ):
-        mock_llm = MagicMock()
-        mock_llm.invoke.return_value = """
+        mock_openai_llm = MagicMock()
+        mock_openai_llm.invoke.return_value = """
         | Name | Title | Affiliation | Expertise | Email |
         |------|-------|-------------|-----------|-------|
         | Alice | Prof | MIT | AI | alice@mit.edu |
         """
-        mock_llm.model_id = "test-model"
-        mock_bedrock.return_value = mock_llm
+        mock_openai_llm.model_id = OPENAI_EXPERT_FINDER_MODEL
+        mock_openai.return_value = mock_openai_llm
         mock_progress.return_value.publish_progress_sync = MagicMock()
         callback = MagicMock()
 
@@ -448,19 +854,20 @@ class ExpertFinderServiceParseTests(TestCase):
         self.assertEqual(final_call[0][1], 100)
         self.assertIn("complete", final_call[0][2].lower())
 
-    @patch("research_ai.services.expert_finder_service.BedrockLLMService")
+    @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
     @patch("research_ai.services.expert_finder_service.ProgressService")
     def test_process_expert_search_returns_failed_when_no_table_parsed(
-        self, mock_progress, mock_bedrock
+        self, mock_progress, mock_openai
     ):
         """When LLM returns prose instead of a table, result is FAILED with error_message."""
-        mock_llm = MagicMock()
-        mock_llm.invoke.return_value = (
+        openai_bad_response = (
             "I cannot proceed. The input contains only placeholder text. "
             "Please provide the actual research description."
         )
-        mock_llm.model_id = "test-model"
-        mock_bedrock.return_value = mock_llm
+        mock_openai_llm = MagicMock()
+        mock_openai_llm.invoke.return_value = openai_bad_response
+        mock_openai_llm.model_id = OPENAI_EXPERT_FINDER_MODEL
+        mock_openai.return_value = mock_openai_llm
         publish = MagicMock()
         mock_progress.return_value.publish_progress_sync = publish
 
@@ -475,26 +882,26 @@ class ExpertFinderServiceParseTests(TestCase):
         self.assertEqual(result["experts"], [])
         self.assertEqual(result["report_urls"], {})
         self.assertIn("placeholder text", result["error_message"])
-        self.assertEqual(result["error_message"], mock_llm.invoke.return_value)
+        self.assertEqual(result["error_message"], openai_bad_response)
         failed_call = next(
             c for c in publish.call_args_list
             if c[0][2].get("status") == ExpertSearch.Status.FAILED
         )
         self.assertIsNotNone(failed_call)
 
-    @patch("research_ai.services.expert_finder_service.BedrockLLMService")
+    @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
     @patch("research_ai.services.expert_finder_service.ProgressService")
     def test_process_expert_search_error_message_truncated_when_llm_response_long(
-        self, mock_progress, mock_bedrock
+        self, mock_progress, mock_openai
     ):
         """When LLM returns non-table response, error_message is truncated to MAX_ERROR_MESSAGE_LENGTH."""
         from research_ai.services.expert_finder_service import MAX_ERROR_MESSAGE_LENGTH
 
         long_response = "No table here. " + "x" * (MAX_ERROR_MESSAGE_LENGTH + 1000)
-        mock_llm = MagicMock()
-        mock_llm.invoke.return_value = long_response
-        mock_llm.model_id = "test-model"
-        mock_bedrock.return_value = mock_llm
+        mock_openai_llm = MagicMock()
+        mock_openai_llm.invoke.return_value = long_response
+        mock_openai_llm.model_id = OPENAI_EXPERT_FINDER_MODEL
+        mock_openai.return_value = mock_openai_llm
         mock_progress.return_value.publish_progress_sync = MagicMock()
 
         service = ExpertFinderService()
@@ -506,14 +913,14 @@ class ExpertFinderServiceParseTests(TestCase):
         self.assertEqual(result["status"], ExpertSearch.Status.FAILED)
         self.assertEqual(len(result["error_message"]), MAX_ERROR_MESSAGE_LENGTH)
 
-    @patch("research_ai.services.expert_finder_service.BedrockLLMService")
+    @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
     @patch("research_ai.services.expert_finder_service.ProgressService")
     def test_process_expert_search_on_exception_publishes_failed_and_reraises(
-        self, mock_progress, mock_bedrock
+        self, mock_progress, mock_openai
     ):
-        mock_llm = MagicMock()
-        mock_llm.invoke.side_effect = RuntimeError("LLM down")
-        mock_bedrock.return_value = mock_llm
+        mock_openai_llm = MagicMock()
+        mock_openai_llm.invoke.side_effect = RuntimeError("LLM down")
+        mock_openai.return_value = mock_openai_llm
         publish = MagicMock()
         mock_progress.return_value.publish_progress_sync = publish
 
@@ -530,7 +937,7 @@ class ExpertFinderServiceParseTests(TestCase):
         )
         self.assertIsNotNone(failed_call)
 
-    @patch("research_ai.services.expert_finder_service.BedrockLLMService")
+    @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
     @patch("research_ai.services.expert_finder_service.ProgressService")
     @patch(
         "research_ai.services.expert_finder_service.generate_pdf_report",
@@ -545,16 +952,16 @@ class ExpertFinderServiceParseTests(TestCase):
         side_effect=lambda sid, content, ext, ct: f"https://storage/{sid}.{ext}",
     )
     def test_process_expert_search_config_expert_count_alternate_keys(
-        self, mock_upload, mock_csv, mock_pdf, mock_progress, mock_bedrock
+        self, mock_upload, mock_csv, mock_pdf, mock_progress, mock_openai
     ):
-        mock_llm = MagicMock()
-        mock_llm.invoke.return_value = """
+        mock_openai_llm = MagicMock()
+        mock_openai_llm.invoke.return_value = """
         | Name | Title | Affiliation | Expertise | Email |
         |------|-------|-------------|-----------|-------|
         | Alice | Prof | MIT | AI | alice@mit.edu |
         """
-        mock_llm.model_id = "model"
-        mock_bedrock.return_value = mock_llm
+        mock_openai_llm.model_id = OPENAI_EXPERT_FINDER_MODEL
+        mock_openai.return_value = mock_openai_llm
         mock_progress.return_value.publish_progress_sync = MagicMock()
 
         service = ExpertFinderService()
@@ -565,7 +972,7 @@ class ExpertFinderServiceParseTests(TestCase):
         )
         self.assertEqual(result["status"], ExpertSearch.Status.COMPLETED)
 
-    @patch("research_ai.services.expert_finder_service.BedrockLLMService")
+    @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
     @patch("research_ai.services.expert_finder_service.ProgressService")
     @patch(
         "research_ai.services.expert_finder_service.generate_pdf_report",
@@ -580,18 +987,18 @@ class ExpertFinderServiceParseTests(TestCase):
         side_effect=lambda sid, content, ext, ct: f"https://storage/{sid}.{ext}",
     )
     def test_process_expert_search_expertise_level_string_and_list(
-        self, mock_upload, mock_csv, mock_pdf, mock_progress, mock_bedrock
+        self, mock_upload, mock_csv, mock_pdf, mock_progress, mock_openai
     ):
         from research_ai.constants import ExpertiseLevel
 
-        mock_llm = MagicMock()
-        mock_llm.invoke.return_value = """
+        mock_openai_llm = MagicMock()
+        mock_openai_llm.invoke.return_value = """
         | Name | Title | Affiliation | Expertise | Email |
         |------|-------|-------------|-----------|-------|
         | Alice | Prof | MIT | AI | alice@mit.edu |
         """
-        mock_llm.model_id = "model"
-        mock_bedrock.return_value = mock_llm
+        mock_openai_llm.model_id = OPENAI_EXPERT_FINDER_MODEL
+        mock_openai.return_value = mock_openai_llm
         mock_progress.return_value.publish_progress_sync = MagicMock()
 
         service = ExpertFinderService()
@@ -602,7 +1009,7 @@ class ExpertFinderServiceParseTests(TestCase):
         )
         self.assertEqual(result["status"], ExpertSearch.Status.COMPLETED)
 
-    @patch("research_ai.services.expert_finder_service.BedrockLLMService")
+    @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
     @patch("research_ai.services.expert_finder_service.ProgressService")
     @patch(
         "research_ai.services.expert_finder_service.generate_pdf_report",
@@ -617,11 +1024,11 @@ class ExpertFinderServiceParseTests(TestCase):
         side_effect=lambda sid, content, ext, ct: f"https://storage/{sid}.{ext}",
     )
     def test_process_expert_search_exception_calls_progress_callback(
-        self, mock_upload, mock_csv, mock_pdf, mock_progress, mock_bedrock
+        self, mock_upload, mock_csv, mock_pdf, mock_progress, mock_openai
     ):
-        mock_llm = MagicMock()
-        mock_llm.invoke.side_effect = ValueError("fail")
-        mock_bedrock.return_value = mock_llm
+        mock_openai_llm = MagicMock()
+        mock_openai_llm.invoke.side_effect = ValueError("fail")
+        mock_openai.return_value = mock_openai_llm
         mock_progress.return_value.publish_progress_sync = MagicMock()
         callback = MagicMock()
 

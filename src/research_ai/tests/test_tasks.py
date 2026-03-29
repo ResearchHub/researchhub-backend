@@ -254,6 +254,31 @@ class ProcessBulkGenerateEmailsTaskTests(TestCase):
         self.assertEqual(rec.email_subject, "Subject line")
         self.assertEqual(rec.email_body, "Body text")
 
+    @patch("research_ai.tasks.generate_expert_email")
+    def test_process_bulk_fixed_stored_template_passes_null_llm_key(
+        self, mock_generate
+    ):
+        mock_generate.return_value = ("Subj fixed", "Body fixed")
+        rec = GeneratedEmail.objects.create(
+            created_by=self.user,
+            expert_search=self.expert_search,
+            expert_name="Dr. X",
+            expert_email="x@example.com",
+            template=None,
+            status=GeneratedEmail.Status.PROCESSING,
+        )
+        result = process_bulk_generate_emails_task.apply(
+            kwargs={
+                "generated_email_ids": [rec.id],
+                "template_id": 99,
+                "created_by_id": self.user.id,
+            }
+        ).get()
+        self.assertEqual(result["processed"], 1)
+        kw = mock_generate.call_args[1]
+        self.assertIsNone(kw["template"])
+        self.assertEqual(kw["template_id"], 99)
+
     @patch("research_ai.tasks.sentry")
     @patch("research_ai.tasks.generate_expert_email")
     def test_process_bulk_one_fails_marks_failed_and_logs_sentry(self, mock_generate, mock_sentry):

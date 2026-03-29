@@ -35,6 +35,7 @@ class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ModelViewSet):
     pagination_class = FeedPagination
     filter_backends = [DjangoFilterBackend, FundOrderingFilter]
     is_grant_view = True
+    DEFAULT_CACHE_TIMEOUT = 60 * 60 * 12
     ordering_fields = ["newest", "upvotes", "most_applicants", "amount_raised"]
     ordering = "newest"  # Default ordering
 
@@ -131,9 +132,7 @@ class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ModelViewSet):
         )
 
         if status and status.upper() == Grant.PENDING:
-            queryset = queryset.filter(
-                unified_document__grants__status=Grant.PENDING
-            )
+            queryset = queryset.filter(unified_document__grants__status=Grant.PENDING)
         else:
             queryset = queryset.exclude(
                 unified_document__grants__status__in=[Grant.PENDING, Grant.DECLINED]
