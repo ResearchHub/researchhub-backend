@@ -8,7 +8,10 @@ from django.utils import timezone
 from research_ai.constants import VALID_EMAIL_TEMPLATE_KEYS
 from research_ai.models import ExpertSearch, GeneratedEmail
 from research_ai.services.email_generator_service import generate_expert_email
-from research_ai.services.email_sending_service import send_plain_email
+from research_ai.services.email_sending_service import (
+    append_reply_to_audit_note,
+    send_plain_email,
+)
 from research_ai.services.expert_finder_service import ExpertFinderService
 from researchhub.celery import app
 from user.models import User
@@ -377,9 +380,14 @@ def send_queued_emails_task(
                 cc=cc_list if cc_list else None,
                 from_email=from_email,
             )
+            now = timezone.now()
+            new_notes = append_reply_to_audit_note(
+                rec.notes, reply_to_stripped, event="sent"
+            )
             GeneratedEmail.objects.filter(id=rec.id).update(
                 status=GeneratedEmail.Status.SENT,
-                updated_date=timezone.now(),
+                notes=new_notes,
+                updated_date=now,
             )
             sent += 1
         except Exception as e:
