@@ -34,16 +34,26 @@ class ReviewViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
     @track_event
     def create(self, request, *args, **kwargs):
-        unified_document = ResearchhubUnifiedDocument.objects.get(id=args[0])
+        try:
+            unified_document = ResearchhubUnifiedDocument.objects.get(id=args[0])
+        except (ResearchhubUnifiedDocument.DoesNotExist, IndexError, ValueError):
+            return Response(
+                {"detail": "Unified document not found"}, status=404
+            )
+
         request.data["created_by"] = request.user.id
         request.data["unified_document"] = unified_document.id
 
-        if request.data.get("content_type") not in self.ALLOWED_CONTENT_TYPES:
+        content_type_name = request.data.get("content_type")
+        if content_type_name not in self.ALLOWED_CONTENT_TYPES:
             return Response({"detail": "Invalid content type"}, status=400)
 
-        request.data["content_type"] = ContentType.objects.get(
-            model=request.data.get("content_type", None)
-        ).id
+        try:
+            request.data["content_type"] = ContentType.objects.get(
+                model=content_type_name
+            ).id
+        except ContentType.DoesNotExist:
+            return Response({"detail": "Content type not found"}, status=400)
 
         response = super().create(request, *args, **kwargs)
         unified_document.update_filter(FILTER_PEER_REVIEWED)

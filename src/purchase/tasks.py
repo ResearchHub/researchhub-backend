@@ -153,61 +153,56 @@ def send_support_email(
 ):
     paper_data = {}
     object_supported = "profile"
-    if content_type == "paper":
-        paper = Paper.objects.get(id=object_id)
-        url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}"
-        paper_data["title"] = paper.title
-        paper_summary = f"From Paper: {paper.summary}" if paper.summary else ""
-        paper_data["summary"] = paper_summary
-        paper_data["uploaded_by"] = paper.uploaded_by.full_name()
-        paper_data["discussion_count"] = paper.discussion_count
-        paper_data["paper_type"] = "".join(paper.paper_type.split("_")).capitalize()
-        paper_data["url"] = url
-        object_supported = "paper"
-    elif content_type == "rhcommentmodel":
-        paper = Paper.objects.get(id=paper_id)
-        url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#comments"
-        object_supported = f"""
-            <a href="{url}" class="header-link">thread</a>
-        """
-        object_supported = "thread"
-    elif content_type == "thread":
-        paper = Paper.objects.get(id=paper_id)
-        url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#comments"
-        object_supported = f"""
-            <a href="{url}" class="header-link">thread</a>
-        """
-        object_supported = "thread"
-    elif content_type == "comment":
-        paper = Paper.objects.get(id=paper_id)
-        url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#comments"
-        object_supported = f"""
-            <a href="{url}" class="header-link">comment</a>
-        """
-    elif content_type == "reply":
-        paper = Paper.objects.get(id=paper_id)
-        url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#comments"
-        object_supported = f"""
-            <a href="{url}" class="header-link">reply</a>
-        """
-    elif content_type == "summary":
-        paper = Paper.objects.get(id=paper_id)
-        url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#summary"
-        object_supported = f"""
-            <a href="{url}" class="header-link">summary</a>
-        """
-    elif content_type == "bulletpoint":
-        paper = Paper.objects.get(id=paper_id)
-        url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#takeaways"
-        object_supported = f"""
-            <a href="{url}" class="header-link">key takeaway</a>
-        """
-    elif content_type == "researchhubpost":
-        post = ResearchhubPost.objects.get(id=object_id)
-        url = f"{BASE_FRONTEND_URL}/post/{post.id}/{post.slug}"
-        object_supported = f"""
-            <a href="{url}" class="header-link">key takeaway</a>
-        """
+    url = profile_url
+    try:
+        if content_type == "paper":
+            paper = Paper.objects.get(id=object_id)
+            url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}"
+            paper_data["title"] = paper.title
+            paper_summary = f"From Paper: {paper.summary}" if paper.summary else ""
+            paper_data["summary"] = paper_summary
+            paper_data["uploaded_by"] = paper.uploaded_by.full_name() if paper.uploaded_by else ""
+            paper_data["discussion_count"] = paper.discussion_count
+            paper_type = paper.paper_type or ""
+            paper_data["paper_type"] = "".join(paper_type.split("_")).capitalize()
+            paper_data["url"] = url
+            object_supported = "paper"
+        elif content_type == "rhcommentmodel":
+            paper = Paper.objects.get(id=paper_id)
+            url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#comments"
+            object_supported = "thread"
+        elif content_type == "thread":
+            paper = Paper.objects.get(id=paper_id)
+            url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#comments"
+            object_supported = "thread"
+        elif content_type == "comment":
+            paper = Paper.objects.get(id=paper_id)
+            url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#comments"
+            object_supported = "comment"
+        elif content_type == "reply":
+            paper = Paper.objects.get(id=paper_id)
+            url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#comments"
+            object_supported = "reply"
+        elif content_type == "summary":
+            paper = Paper.objects.get(id=paper_id)
+            url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#summary"
+            object_supported = "summary"
+        elif content_type == "bulletpoint":
+            paper = Paper.objects.get(id=paper_id)
+            url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#takeaways"
+            object_supported = "key takeaway"
+        elif content_type == "researchhubpost":
+            post = ResearchhubPost.objects.get(id=object_id)
+            url = f"{BASE_FRONTEND_URL}/post/{post.id}/{post.slug}"
+            object_supported = "post"
+    except (Paper.DoesNotExist, ResearchhubPost.DoesNotExist):
+        logger.warning(
+            "send_support_email: object not found content_type=%s object_id=%s paper_id=%s",
+            content_type,
+            object_id,
+            paper_id,
+        )
+        return
 
     if payment_type == Support.PAYPAL:
         payment_type = "Paypal"
