@@ -123,7 +123,10 @@ def create_and_update_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
         # If this is the case, we need to fetch the full work
         # https://docs.openalex.org/api-entities/authors/limitations
         if work.get("is_authors_truncated", False):
-            just_id = work.get("id").split("/")[-1]
+            work_id = work.get("id")
+            if not work_id:
+                continue
+            just_id = work_id.split("/")[-1]
             work = open_alex.get_work(just_id)
 
         doi = work.get("doi")

@@ -908,7 +908,13 @@ class PaperViewSet(
         methods=["get"],
     )
     def check_user_vote(self, request):
-        paper_ids = request.query_params["paper_ids"].split(",")
+        paper_ids_param = request.query_params.get("paper_ids")
+        if not paper_ids_param:
+            return Response(
+                {"detail": "paper_ids query parameter is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        paper_ids = paper_ids_param.split(",")
         user = request.user
         response = {}
 
@@ -945,8 +951,9 @@ class PaperViewSet(
         if not paper_id:
             return Response("paper_id is required", status=400)
 
-        paper = Paper.objects.get(id=paper_id)
-        if not paper:
+        try:
+            paper = Paper.objects.get(id=paper_id)
+        except Paper.DoesNotExist:
             return Response("Paper not found", status=404)
 
         try:

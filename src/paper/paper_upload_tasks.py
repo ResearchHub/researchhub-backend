@@ -388,7 +388,10 @@ def celery_crossref(self, celery_data):
 
             abstract = clean_abstract(results.get("abstract", ""))
             raw_authors = results.get("author", [])
-            title = normalize("NFKD", results.get("title", [])[0])
+            title_list = results.get("title", [])
+            if not title_list:
+                return celery_data
+            title = normalize("NFKD", title_list[0])
 
             data = {
                 "doi": doi,
