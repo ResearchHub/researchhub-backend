@@ -5,8 +5,8 @@ from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from research_ai.constants import ReviewStatus
-from research_ai.models import ProposalReview, RFPSummary
+from ai_peer_review.constants import ReviewStatus
+from ai_peer_review.models import ProposalReview, RFPSummary
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
@@ -47,10 +47,10 @@ class ProposalReviewAPITests(APITestCase):
             preregistration_post=self.prop_post,
             applicant=self.user,
         )
-        self.create_url = "/api/research_ai/proposal-review/"
-        self.detail_url = lambda rid: f"/api/research_ai/proposal-review/{rid}/"
+        self.create_url = "/api/ai_peer_review/proposal-review/"
+        self.detail_url = lambda rid: f"/api/ai_peer_review/proposal-review/{rid}/"
         self.grant_list_url = (
-            f"/api/research_ai/proposal-review/grant/{self.grant.id}/"
+            f"/api/ai_peer_review/proposal-review/grant/{self.grant.id}/"
         )
 
     def test_create_requires_auth(self):
@@ -70,7 +70,7 @@ class ProposalReviewAPITests(APITestCase):
         )
         self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
 
-    @patch("research_ai.tasks.process_proposal_review_task.delay")
+    @patch("ai_peer_review.tasks.process_proposal_review_task.delay")
     def test_create_returns_202_and_enqueues(self, mock_delay):
         self.client.force_authenticate(self.moderator)
         r = self.client.post(
@@ -86,7 +86,7 @@ class ProposalReviewAPITests(APITestCase):
         self.assertEqual(pr.created_by, self.moderator)
 
     @patch(
-        "research_ai.services.proposal_review_service.BedrockLLMService.invoke",
+        "ai_peer_review.services.proposal_review_service.BedrockLLMService.invoke",
         return_value="not valid json {{{",
     )
     def test_proposal_review_task_marks_failed_on_bad_llm_output(self, _mock):
@@ -114,7 +114,7 @@ class ProposalReviewAPITests(APITestCase):
             result_data={"fundability": {"overall_score": "Medium"}},
         )
         self.client.force_authenticate(self.moderator)
-        with patch("research_ai.tasks.process_proposal_review_task.delay") as m:
+        with patch("ai_peer_review.tasks.process_proposal_review_task.delay") as m:
             r = self.client.post(
                 self.create_url,
                 {"unified_document_id": self.ud.id, "grant_id": self.grant.id},
@@ -222,10 +222,10 @@ class RFPSummaryAPITests(APITestCase):
             description="RFP body",
             status=Grant.OPEN,
         )
-        self.summary_url = "/api/research_ai/rfp-summary/"
-        self.summary_get = f"/api/research_ai/rfp-summary/{self.grant.id}/"
+        self.summary_url = "/api/ai_peer_review/rfp-summary/"
+        self.summary_get = f"/api/ai_peer_review/rfp-summary/{self.grant.id}/"
 
-    @patch("research_ai.tasks.process_rfp_summary_task.delay")
+    @patch("ai_peer_review.tasks.process_rfp_summary_task.delay")
     def test_post_rfp_summary(self, mock_delay):
         self.client.force_authenticate(self.moderator)
         r = self.client.post(
@@ -287,10 +287,10 @@ class GrantExecutiveSummaryAPITests(APITestCase):
                 "reproducibility": {"overall_score": "Medium"},
             },
         )
-        self.url = "/api/research_ai/grant-executive-summary/"
+        self.url = "/api/ai_peer_review/grant-executive-summary/"
 
     @patch(
-        "research_ai.services.rfp_summary_service.BedrockLLMService.invoke",
+        "ai_peer_review.services.rfp_summary_service.BedrockLLMService.invoke",
         return_value="## Summary\nCompared proposals.",
     )
     def test_post_executive_summary(self, _mock_invoke):

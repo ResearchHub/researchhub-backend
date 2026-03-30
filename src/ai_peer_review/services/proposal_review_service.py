@@ -6,14 +6,14 @@ import logging
 import time
 
 from django.conf import settings
-from research_ai.constants import ReviewStatus
-from research_ai.models import ProposalReview
-from research_ai.prompts.proposal_review_prompts import (
+from ai_peer_review.constants import ReviewStatus
+from ai_peer_review.models import ProposalReview
+from ai_peer_review.prompts.proposal_review_prompts import (
     build_proposal_review_user_prompt,
     get_proposal_review_system_prompt,
 )
-from research_ai.services.bedrock_llm_service import BEDROCK_MODEL_ID, BedrockLLMService
-from research_ai.services.proposal_review_scoring import (
+from ai_peer_review.services.bedrock_llm_service import BedrockLLMService
+from ai_peer_review.services.proposal_review_scoring import (
     compute_overall_rating,
     normalize_scores_from_answers,
     parse_json_response,
@@ -23,6 +23,17 @@ from researchhub_document.models import ResearchhubUnifiedDocument
 from purchase.models import Grant, GrantApplication
 
 logger = logging.getLogger(__name__)
+
+
+def _proposal_review_max_tokens() -> int:
+    return min(
+        16384,
+        getattr(
+            settings,
+            "AI_PEER_REVIEW_PROPOSAL_REVIEW_MAX_TOKENS",
+            getattr(settings, "RESEARCH_AI_PROPOSAL_REVIEW_MAX_TOKENS", 16384),
+        ),
+    )
 
 
 def get_proposal_markdown(unified_document: ResearchhubUnifiedDocument) -> str:
@@ -104,7 +115,7 @@ def run_proposal_review(review_id: int) -> None:
         raw = llm.invoke(
             system,
             user,
-            max_tokens=min(16384, getattr(settings, "RESEARCH_AI_PROPOSAL_REVIEW_MAX_TOKENS", 16384)),
+            max_tokens=_proposal_review_max_tokens(),
             temperature=0.0,
         )
         review.progress = 70
@@ -122,9 +133,7 @@ def run_proposal_review(review_id: int) -> None:
         review.overall_rating = rating
         review.overall_score_numeric = numeric_total
         review.result_data = review_dict
-        review.llm_model = getattr(
-            settings, "RESEARCH_AI_BEDROCK_MODEL_ID", BEDROCK_MODEL_ID
-        )
+        review.llm_model = llm.model_id
         review.processing_time = elapsed
         review.progress = 100
         review.current_step = "Complete"

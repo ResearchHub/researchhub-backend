@@ -6,10 +6,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from research_ai.constants import ReviewStatus
-from research_ai.models import ProposalReview, RFPSummary
-from research_ai.permissions import ResearchAIPermission
-from research_ai.serializers import (
+from ai_peer_review.constants import ReviewStatus
+from ai_peer_review.models import ProposalReview, RFPSummary
+from ai_peer_review.permissions import AIPeerReviewPermission
+from ai_peer_review.serializers import (
     GrantExecutiveSummaryRequestSerializer,
     GrantRfpSummaryRequestSerializer,
     ProposalReviewCreateSerializer,
@@ -17,11 +17,11 @@ from research_ai.serializers import (
     RFPSummarySerializer,
     build_proposal_comparison_row,
 )
-from research_ai.services.proposal_review_service import (
+from ai_peer_review.services.proposal_review_service import (
     validate_grant_application,
 )
-from research_ai.services.rfp_summary_service import run_executive_comparison
-from research_ai.tasks import process_proposal_review_task, process_rfp_summary_task
+from ai_peer_review.services.rfp_summary_service import run_executive_comparison
+from ai_peer_review.tasks import process_proposal_review_task, process_rfp_summary_task
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import GRANT, PREREGISTRATION
 from purchase.models import Grant, GrantApplication
@@ -29,7 +29,7 @@ from user.permissions import IsModerator, UserIsEditor
 
 logger = logging.getLogger(__name__)
 
-_EDITOR_PERMS = [IsAuthenticated, ResearchAIPermission, UserIsEditor | IsModerator]
+_EDITOR_PERMS = [IsAuthenticated, AIPeerReviewPermission, UserIsEditor | IsModerator]
 
 
 def _proposal_title(ud: ResearchhubUnifiedDocument) -> str:

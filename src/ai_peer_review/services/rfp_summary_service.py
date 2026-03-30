@@ -5,18 +5,17 @@ RFP (grant) summary and executive comparison via Bedrock.
 import logging
 import time
 
-from django.conf import settings
 from django.utils import timezone
 
-from research_ai.constants import ReviewStatus
-from research_ai.models import RFPSummary
-from research_ai.prompts.rfp_summary_prompts import (
+from ai_peer_review.constants import ReviewStatus
+from ai_peer_review.models import ProposalReview, RFPSummary
+from ai_peer_review.prompts.rfp_summary_prompts import (
     build_rfp_summary_user_prompt,
     get_grant_executive_summary_system_prompt,
     get_rfp_summary_system_prompt,
 )
-from research_ai.services.bedrock_llm_service import BEDROCK_MODEL_ID, BedrockLLMService
-from research_ai.services.proposal_review_scoring import dimension_overall_scores
+from ai_peer_review.services.bedrock_llm_service import BedrockLLMService
+from ai_peer_review.services.proposal_review_scoring import dimension_overall_scores
 from purchase.models import Grant
 
 logger = logging.getLogger(__name__)
@@ -58,9 +57,7 @@ def run_rfp_summary(rfp_summary_id: int) -> None:
         )
         obj.summary_content = out.strip()
         obj.status = ReviewStatus.COMPLETED
-        obj.llm_model = getattr(
-            settings, "RESEARCH_AI_BEDROCK_MODEL_ID", BEDROCK_MODEL_ID
-        )
+        obj.llm_model = llm.model_id
         obj.processing_time = time.monotonic() - t0
         obj.save()
     except Exception as e:
@@ -72,8 +69,6 @@ def run_rfp_summary(rfp_summary_id: int) -> None:
 
 
 def run_executive_comparison(grant_id: int, created_by_id: int) -> RFPSummary:
-    from research_ai.models import ProposalReview
-
     grant = Grant.objects.get(pk=grant_id)
     reviews = (
         ProposalReview.objects.filter(

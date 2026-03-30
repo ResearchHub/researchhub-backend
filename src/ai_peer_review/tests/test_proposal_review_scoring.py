@@ -1,7 +1,7 @@
 from django.test import SimpleTestCase
 
-from research_ai.constants import OverallRating
-from research_ai.services.proposal_review_scoring import (
+from ai_peer_review.constants import OverallRating
+from ai_peer_review.services.proposal_review_scoring import (
     compute_overall_rating,
     normalize_scores_from_answers,
     parse_json_response,

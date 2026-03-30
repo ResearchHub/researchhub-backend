@@ -6,7 +6,7 @@ import json
 import re
 from typing import Optional
 
-from research_ai.constants import OverallRating
+from ai_peer_review.constants import OverallRating
 
 SCORE_MAP = {"High": 3, "Medium": 2, "Low": 1}
 DIMENSION_KEYS = [
