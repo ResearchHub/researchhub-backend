@@ -441,7 +441,7 @@ def check_hotwallet():
     Alerts admins if the hotwallet is low on eth or RSC on either network
     """
     messages = []
-    send_email = False
+    should_send = False
 
     # Check Ethereum network
     eth_rsc_balance = get_hotwallet_rsc_balance("ETHEREUM")
@@ -454,13 +454,13 @@ def check_hotwallet():
         messages.append(
             f"RSC is running low in the Ethereum hotwallet: {eth_rsc_balance:,}"
         )
-        send_email = True
+        should_send = True
 
     if eth_balance_eth < 0.08:
         messages.append(
             f"ETH is running low in the Ethereum hotwallet: {eth_balance_eth:,}"
         )
-        send_email = True
+        should_send = True
 
     # Check Base network
     base_rsc_balance = get_hotwallet_rsc_balance("BASE")
@@ -471,15 +471,15 @@ def check_hotwallet():
         messages.append(
             f"RSC is running low in the Base hotwallet: {base_rsc_balance:,}"
         )
-        send_email = True
+        should_send = True
 
     if base_balance_eth < 0.001:
         messages.append(
             f"ETH is running low in the Base hotwallet: {base_balance_eth:,}"
         )
-        send_email = True
+        should_send = True
 
-    if send_email:
+    if should_send:
         context = {**base_email_context}
         context["action"] = {"message": "\n\n".join(messages)}
         context["subject"] = "Hotwallet Balance Alert"
