@@ -479,6 +479,8 @@ class SuggestView(APIView):
         results_by_type = {}
         seen_dois = set()  # For deduplicating paper results
 
+        if not indexes:
+            return {}
         limit_per_index = math.ceil(limit / len(indexes))
 
         # Process each index
