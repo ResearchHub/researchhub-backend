@@ -63,13 +63,15 @@ jobs:
       - name: Run Tests
         env:
           APP_ENV: test
+          COVERAGE_PROCESS_START: ../pyproject.toml
         working-directory: ./src
         run: |
           cp config/ci/* config
           uv run python manage.py migrate
           uv run python manage.py collectstatic --noinput
           uv run python manage.py opensearch index rebuild --force
-          uv run coverage run manage.py test --keepdb --verbosity=2
+          uv run coverage run manage.py test --keepdb --verbosity=2 --parallel auto
+          uv run coverage combine
           uv run coverage xml -o coverage.xml
 
       - name: Upload Coverage Report to Codecov
