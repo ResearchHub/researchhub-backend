@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import pytz
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase
 
 from notification.models import Notification
@@ -25,6 +26,8 @@ User = get_user_model()
 
 class FundraiseTasksTest(TestCase):
     def setUp(self):
+        cache.clear()
+
         # Create a moderator user
         self.user = create_random_authenticated_user("fundraise_tasks", moderator=True)
 
@@ -43,6 +46,12 @@ class FundraiseTasksTest(TestCase):
             price_source="COIN_GECKO",
             target_currency="USD",
         )
+        self.exchange_rate_patcher = patch(
+            "purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest_exchange_rate",
+            return_value=self.rsc_exchange_rate.rate,
+        )
+        self.exchange_rate_patcher.start()
+        self.addCleanup(self.exchange_rate_patcher.stop)
 
         # Create required bounty fee for fee calculations
         from reputation.models import BountyFee
