@@ -1,12 +1,17 @@
-from django.db import models
-
 from django.core.cache import cache
+from django.db import models
 from purchase.related_models.constants.rsc_exchange_currency import (
     MORALIS,
     PRICE_SOURCES,
     RSC_EXCHANGE_CURRENCY,
 )
 from utils.models import DefaultModel
+
+LATEST_EXCHANGE_RATE_CACHE_KEY = "latest_exchange_rate"
+
+
+def invalidate_latest_exchange_rate_cache():
+    cache.delete(LATEST_EXCHANGE_RATE_CACHE_KEY)
 
 
 class RscExchangeRate(DefaultModel):
@@ -48,11 +53,21 @@ class RscExchangeRate(DefaultModel):
     def get_latest_exchange_rate(
         force_refresh=False,
     ):
-        rate = cache.get('latest_exchange_rate')
+        rate = cache.get(LATEST_EXCHANGE_RATE_CACHE_KEY)
         if rate is None or force_refresh:
             rate = RscExchangeRate.objects.last().rate
-            cache.set('latest_exchange_rate', rate, timeout=60 * 5) # 5 minutes
+            cache.set(LATEST_EXCHANGE_RATE_CACHE_KEY, rate, timeout=60 * 5)  # 5 minutes
         return rate
+
+    def save(self, *args, **kwargs):
+        result = super().save(*args, **kwargs)
+        invalidate_latest_exchange_rate_cache()
+        return result
+
+    def delete(self, *args, **kwargs):
+        result = super().delete(*args, **kwargs)
+        invalidate_latest_exchange_rate_cache()
+        return result
 
     @staticmethod
     def eth_to_rsc(eth_amount):
