@@ -4,9 +4,9 @@ from typing import Any
 
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
-from django.db.models import Q
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
+from mailing_list.models import EmailRecipient
 from sentry_sdk import capture_exception
 
 logger = logging.getLogger(__name__)
@@ -16,22 +16,6 @@ def is_valid_email(email: str) -> bool:
     if settings.TESTING or settings.PRODUCTION:
         return True
     return email in settings.EMAIL_WHITELIST
-
-
-def get_suppressed_emails(emails: list[str]) -> set[str]:
-    """Return the subset of *emails* that should not receive mail.
-
-    An address is suppressed when its ``EmailRecipient`` record has
-    ``do_not_email=True`` (bounced / complained) or ``is_opted_out=True``.
-    """
-    from mailing_list.models import EmailRecipient
-
-    return set(
-        EmailRecipient.objects.filter(
-            Q(do_not_email=True) | Q(is_opted_out=True),
-            email__in=emails,
-        ).values_list("email", flat=True)
-    )
 
 
 def _filter_recipients(recipients: list[str]) -> tuple[list[str], list[str]]:
@@ -44,7 +28,7 @@ def _filter_recipients(recipients: list[str]) -> tuple[list[str], list[str]]:
     excluded = list(set(recipients) - set(sendable))
 
     if sendable:
-        suppressed = get_suppressed_emails(sendable)
+        suppressed = EmailRecipient.get_suppressed_emails(sendable)
         excluded.extend(suppressed)
         sendable = [r for r in sendable if r not in suppressed]
 

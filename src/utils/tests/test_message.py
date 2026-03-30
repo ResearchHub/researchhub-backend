@@ -2,7 +2,7 @@ from django.core import mail
 from django.test import TestCase, override_settings
 
 from mailing_list.models import EmailRecipient
-from utils.message import get_suppressed_emails, is_valid_email, send_email_message
+from utils.message import is_valid_email, send_email_message
 
 TEMPLATE_TXT = "general_email_message.txt"
 TEMPLATE_HTML = "general_email_message.html"
@@ -30,7 +30,7 @@ class GetSuppressedEmailsTests(TestCase):
         EmailRecipient.objects.create(email="good@example.com")
 
         # Act
-        result = get_suppressed_emails(
+        result = EmailRecipient.get_suppressed_emails(
             ["bounced@example.com", "optout@example.com", "good@example.com"]
         )
 
@@ -39,7 +39,7 @@ class GetSuppressedEmailsTests(TestCase):
 
     def test_returns_empty_set_for_unknown_emails(self):
         # Act
-        result = get_suppressed_emails(["unknown@example.com"])
+        result = EmailRecipient.get_suppressed_emails(["unknown@example.com"])
 
         # Assert
         self.assertEqual(result, set())
