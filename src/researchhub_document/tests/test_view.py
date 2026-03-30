@@ -1861,12 +1861,14 @@ class PreregistrationGrantAutoAttachTests(APITestCase):
     def test_create_preregistration_with_invalid_grant_id_returns_400(self):
         # Arrange
         self.client.force_authenticate(self.user)
+        doc_count_before = ResearchhubUnifiedDocument.objects.count()
 
         # Act
         response = self._create_post(extra_data={"grant_id": 999999})
 
         # Assert
         self.assertEqual(response.status_code, 400)
+        self.assertEqual(ResearchhubUnifiedDocument.objects.count(), doc_count_before)
         self.assertFalse(GrantApplication.objects.exists())
 
     def test_create_preregistration_with_closed_grant_returns_400(self):
@@ -1874,12 +1876,14 @@ class PreregistrationGrantAutoAttachTests(APITestCase):
         self.grant.status = Grant.CLOSED
         self.grant.save()
         self.client.force_authenticate(self.user)
+        doc_count_before = ResearchhubUnifiedDocument.objects.count()
 
         # Act
         response = self._create_post(extra_data={"grant_id": self.grant.id})
 
         # Assert
         self.assertEqual(response.status_code, 400)
+        self.assertEqual(ResearchhubUnifiedDocument.objects.count(), doc_count_before)
         self.assertFalse(GrantApplication.objects.exists())
 
     def test_grant_id_ignored_for_non_preregistration_types(self):

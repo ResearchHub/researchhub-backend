@@ -261,14 +261,13 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 if grant_id and document_type == PREREGISTRATION:
                     try:
                         target_grant = Grant.objects.get(id=grant_id)
-                    except Grant.DoesNotExist:
-                        return Response(
-                            {"message": "Grant does not exist"}, status=400
+                    except (Grant.DoesNotExist, ValueError, TypeError):
+                        raise serializers.ValidationError(
+                            "Grant not found"
                         )
                     if not target_grant.is_active():
-                        return Response(
-                            {"message": "Grant is no longer active"},
-                            status=400,
+                        raise serializers.ValidationError(
+                            "Grant is no longer accepting applications"
                         )
                     GrantApplication.objects.create(
                         grant=target_grant,
@@ -335,6 +334,8 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             )
             return Response(response_data, status=200)
 
+        except serializers.ValidationError as e:
+            return Response({"error": e.detail}, status=400)
         except (KeyError, TypeError) as exception:
             log_error(exception)
             return Response({"error": str(exception)}, status=400)
