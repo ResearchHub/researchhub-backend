@@ -175,6 +175,7 @@ class BountyViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["item_content_type__model", "item_object_id", "status"]
 
+    DEFAULT_SORT = "-created_date"
     ALLOWED_CREATE_CONTENT_TYPES = ("rhcommentmodel", "thread", "researchhubpost")
     ALLOWED_APPROVE_CONTENT_TYPES = ("rhcommentmodel", "thread", "comment", "reply")
 
@@ -644,7 +645,7 @@ class BountyViewSet(viewsets.ModelViewSet):
 
     @staticmethod
     def _prioritize_preregistration_bounties(queryset):
-        """Annotate and sort so REVIEW bounties on proposals appear first."""
+        """Annotate queryset so REVIEW bounties on proposals can be sorted first."""
         return queryset.annotate(
             preregistration_first=Case(
                 When(
@@ -658,11 +659,10 @@ class BountyViewSet(viewsets.ModelViewSet):
         )
 
     def list(self, request, *args, **kwargs):
-        sort = self.request.query_params.get("sort", "-created_date")
+        sort = self.request.query_params.get("sort", self.DEFAULT_SORT)
 
-        # If sort is personalized but user is logged out, default to created_date
         if sort == "personalized" and not request.user.is_authenticated:
-            sort = "-created_date"
+            sort = self.DEFAULT_SORT
 
         if sort == "personalized":
             bounties = Bounty.find_bounties_for_user(
@@ -673,13 +673,12 @@ class BountyViewSet(viewsets.ModelViewSet):
             queryset = Bounty.objects.filter(id__in=[b.id for b in bounties])
             queryset = self.filter_queryset(queryset)
             queryset = self._prioritize_preregistration_bounties(queryset)
-            queryset = queryset.order_by("preregistration_first", "-created_date")
+            queryset = queryset.order_by("preregistration_first", self.DEFAULT_SORT)
         else:
             queryset = self.filter_queryset(self.get_queryset())
 
             # Sorting by amount requires calculating total including child bounties
             if sort == "-total_amount":
-                # Subquery to calculate the sum of children amounts
                 children_sum = (
                     Bounty.objects.filter(parent=OuterRef("pk"))
                     .values("parent")
@@ -697,7 +696,6 @@ class BountyViewSet(viewsets.ModelViewSet):
                     .values("sum")
                 )
 
-                # Annotate queryset with total_amount for all cases
                 queryset = queryset.annotate(
                     total_amount=F("amount")
                     + Coalesce(
@@ -709,8 +707,11 @@ class BountyViewSet(viewsets.ModelViewSet):
                     )
                 )
 
-            queryset = self._prioritize_preregistration_bounties(queryset)
-            queryset = queryset.order_by("preregistration_first", sort)
+            if sort == self.DEFAULT_SORT:
+                queryset = self._prioritize_preregistration_bounties(queryset)
+                queryset = queryset.order_by("preregistration_first", sort)
+            else:
+                queryset = queryset.order_by(sort)
 
         page = self.paginate_queryset(queryset)
         context = self._get_retrieve_context()

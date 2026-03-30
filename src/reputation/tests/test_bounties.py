@@ -1752,15 +1752,12 @@ class BountyViewTests(APITestCase):
             "Proposal review bounties should appear first in get_bounties",
         )
 
-    def test_preregistration_first_with_personalized_sort(self):
-        """Personalized sort should still prioritize proposal reviews."""
-        # Arrange
-        self.client.force_authenticate(self.user)
-
+    def _create_paper_and_proposal_bounties(self, paper_amount=100, proposal_amount=100):
+        """Create a regular review bounty and a preregistration review bounty."""
         paper_bounty_res = self.client.post(
             "/api/bounty/",
             {
-                "amount": 100,
+                "amount": paper_amount,
                 "item_content_type": self.comment._meta.model_name,
                 "item_object_id": self.comment.id,
                 "bounty_type": Bounty.Type.REVIEW,
@@ -1781,7 +1778,7 @@ class BountyViewTests(APITestCase):
         proposal_bounty_res = self.client.post(
             "/api/bounty/",
             {
-                "amount": 100,
+                "amount": proposal_amount,
                 "item_content_type": prereg_comment._meta.model_name,
                 "item_object_id": prereg_comment.id,
                 "bounty_type": Bounty.Type.REVIEW,
@@ -1789,22 +1786,48 @@ class BountyViewTests(APITestCase):
         )
         self.assertEqual(proposal_bounty_res.status_code, 201)
 
+        return paper_bounty_res.data["id"], proposal_bounty_res.data["id"]
+
+    def test_preregistration_first_with_personalized_sort(self):
+        """Personalized sort should prioritize proposal reviews."""
+        # Arrange
+        self.client.force_authenticate(self.user)
+        paper_id, proposal_id = self._create_paper_and_proposal_bounties()
+
         # Act
-        res = self.client.get(
-            "/api/bounty/",
-            {"sort": "personalized"},
-        )
+        res = self.client.get("/api/bounty/", {"sort": "personalized"})
 
         # Assert
-        self.assertEqual(res.status_code, 200)
         ids = [b["id"] for b in res.data["results"]]
-        proposal_idx = ids.index(proposal_bounty_res.data["id"])
-        paper_idx = ids.index(paper_bounty_res.data["id"])
-        self.assertLess(
-            proposal_idx,
-            paper_idx,
-            "Proposal review bounties should appear first with personalized sort",
+        self.assertLess(ids.index(proposal_id), ids.index(paper_id))
+
+    def test_preregistration_first_with_default_sort(self):
+        """Default sort (-created_date) should prioritize proposal reviews."""
+        # Arrange
+        self.client.force_authenticate(self.user)
+        paper_id, proposal_id = self._create_paper_and_proposal_bounties()
+
+        # Act
+        res = self.client.get("/api/bounty/")
+
+        # Assert
+        ids = [b["id"] for b in res.data["results"]]
+        self.assertLess(ids.index(proposal_id), ids.index(paper_id))
+
+    def test_no_preregistration_priority_with_amount_sort(self):
+        """Sorting by amount should not prioritize proposal reviews."""
+        # Arrange
+        self.client.force_authenticate(self.user)
+        paper_id, proposal_id = self._create_paper_and_proposal_bounties(
+            paper_amount=500, proposal_amount=100
         )
+
+        # Act
+        res = self.client.get("/api/bounty/", {"sort": "-total_amount"})
+
+        # Assert
+        ids = [b["id"] for b in res.data["results"]]
+        self.assertLess(ids.index(paper_id), ids.index(proposal_id))
 
 
 class BountyAssessmentPhaseTests(APITestCase):
