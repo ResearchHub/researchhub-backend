@@ -12,11 +12,10 @@ from web3 import Web3
 import ethereum.lib
 import ethereum.utils
 from ethereum.lib import RSC_CONTRACT_ADDRESS, execute_erc20_transfer, get_private_key
-from mailing_list.lib import base_email_context
+from mailing_list.lib import base_email_context, send_email
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import Withdrawal
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
-from utils.message import send_email_message
 from utils.sentry import log_error
 from utils.web3_utils import web3_provider
 
@@ -484,7 +483,7 @@ def check_hotwallet():
         context = {**base_email_context}
         context["action"] = {"message": "\n\n".join(messages)}
         context["subject"] = "Hotwallet Balance Alert"
-        send_email_message(
+        send_email(
             ["pat@researchhub.com", "tyler@researchhub.com", "dev@researchhub.com"],
             "general_email_message.txt",
             "Hotwallet Balance Alert",

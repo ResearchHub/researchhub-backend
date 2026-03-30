@@ -1849,7 +1849,7 @@ class BountyAssessmentPhaseTests(APITestCase):
         response = self.client.post("/api/bounty/", data)
         return response
 
-    @patch("reputation.tasks.send_email_message")
+    @patch("reputation.tasks.send_email")
     def test_bounty_transitions_to_assessment_when_expiration_passes(
         self, mock_send_email
     ):
@@ -2128,7 +2128,7 @@ class BountyAssessmentPhaseTests(APITestCase):
         bounty.refresh_from_db()
         self.assertEqual(bounty.status, Bounty.ASSESSMENT)
 
-    @patch("reputation.tasks.send_email_message")
+    @patch("reputation.tasks.send_email")
     def test_child_bounties_also_transition_to_assessment(self, mock_send_email):
         """Test that child bounties transition with parent bounty."""
         self.client.force_authenticate(self.user)
@@ -2217,7 +2217,7 @@ class BountyNotificationTests(APITestCase):
         response = self.client.post("/api/bounty/", data)
         return response
 
-    @patch("reputation.tasks.send_email_message")
+    @patch("reputation.tasks.send_email")
     def test_bounty_expiring_soon_notification_sent(self, mock_send_email):
         """Test that BOUNTY_EXPIRING_SOON notification is sent 24h before expiration."""
         self.client.force_authenticate(self.user)
@@ -2249,7 +2249,7 @@ class BountyNotificationTests(APITestCase):
             notification.notification_type, Notification.BOUNTY_EXPIRING_SOON
         )
 
-    @patch("reputation.tasks.send_email_message")
+    @patch("reputation.tasks.send_email")
     def test_bounty_expiring_soon_notification_not_sent_twice(self, mock_send_email):
         """Test that BOUNTY_EXPIRING_SOON notification is not sent twice."""
         self.client.force_authenticate(self.user)
@@ -2282,7 +2282,7 @@ class BountyNotificationTests(APITestCase):
         self.assertEqual(notification_count_before, notification_count_after)
         self.assertEqual(notification_count_before, 1)
 
-    @patch("reputation.tasks.send_email_message")
+    @patch("reputation.tasks.send_email")
     def test_bounty_entered_assessment_notification_sent_to_creator(
         self, mock_send_email
     ):
@@ -2317,7 +2317,7 @@ class BountyNotificationTests(APITestCase):
             notification.notification_type, Notification.BOUNTY_ENTERED_ASSESSMENT
         )
 
-    @patch("reputation.tasks.send_email_message")
+    @patch("reputation.tasks.send_email")
     def test_bounty_solution_in_assessment_notification_sent_to_reviewers(
         self, mock_send_email
     ):
@@ -2393,7 +2393,7 @@ class BountyNotificationTests(APITestCase):
         self.assertEqual(reviewer_2_notification.recipient, self.user_2)
         self.assertEqual(reviewer_3_notification.recipient, self.user_3)
 
-    @patch("reputation.tasks.send_email_message")
+    @patch("reputation.tasks.send_email")
     def test_bounty_solution_notification_not_sent_to_creator(self, mock_send_email):
         """Test reviewers get notification, creator doesn't get it."""
         self.client.force_authenticate(self.user)
@@ -2443,7 +2443,7 @@ class BountyNotificationTests(APITestCase):
 
         self.assertFalse(creator_reviewer_notification)
 
-    @patch("reputation.tasks.send_email_message")
+    @patch("reputation.tasks.send_email")
     def test_bounty_assessment_expiring_soon_notification_sent(self, mock_send_email):
         """Test BOUNTY_ASSESSMENT_EXPIRING_SOON sent 24h before assessment ends."""
         self.client.force_authenticate(self.user)
@@ -2479,7 +2479,7 @@ class BountyNotificationTests(APITestCase):
             notification.notification_type, Notification.BOUNTY_ASSESSMENT_EXPIRING_SOON
         )
 
-    @patch("reputation.tasks.send_email_message")
+    @patch("reputation.tasks.send_email")
     def test_bounty_assessment_expiring_notification_not_sent_twice(
         self, mock_send_email
     ):
@@ -2546,7 +2546,7 @@ class BountyNotificationTests(APITestCase):
 
         self.assertFalse(notification)
 
-    @patch("reputation.tasks.send_email_message")
+    @patch("reputation.tasks.send_email")
     def test_all_peer_reviewers_get_notification(self, mock_send_email):
         """Test that all peer reviewers get notified when bounty enters assessment."""
         self.client.force_authenticate(self.user)
@@ -2617,7 +2617,7 @@ class BountyNotificationTests(APITestCase):
         self.assertTrue(user_2_notification)
         self.assertTrue(user_3_notification)
 
-    @patch("reputation.tasks.send_email_message")
+    @patch("reputation.tasks.send_email")
     def test_solution_submitters_also_get_notification(self, mock_send_email):
         """Test that solution submitters with SUBMITTED status also get notified."""
         self.client.force_authenticate(self.user)

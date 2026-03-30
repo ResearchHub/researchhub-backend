@@ -10,7 +10,7 @@ from discussion.constants.flag_reasons import FLAG_REASON_CHOICES, NOT_SPECIFIED
 from discussion.models import Flag
 from discussion.serializers import DynamicFlagSerializer, FlagSerializer
 from discussion.views import censor
-from mailing_list.lib import base_email_context
+from mailing_list.lib import base_email_context, send_email
 from notification.models import Notification
 from researchhub.settings import EMAIL_DOMAIN
 from researchhub_comment.models import RhCommentModel
@@ -20,7 +20,6 @@ from user.models import Action, User
 from user.permissions import IsModerator, UserIsEditor
 from user.serializers import DynamicActionSerializer, VerdictSerializer
 from utils import sentry
-from utils.message import send_email_message
 from utils.models import SoftDeletableModel
 
 
@@ -460,7 +459,7 @@ class AuditViewSet(viewsets.GenericViewSet):
 
         recipient = [receiver.email]
         subject = "ResearchHub | Notice of Flagged and Removed Content"
-        send_email_message(
+        send_email(
             recipient,
             "flagged_and_removed_content.txt",
             subject,

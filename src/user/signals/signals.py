@@ -8,7 +8,7 @@ from django.utils.crypto import get_random_string
 from django.utils.text import slugify
 
 from discussion.models import Vote
-from mailing_list.lib import base_email_context
+from mailing_list.lib import base_email_context, send_email
 from paper.models import Paper, PaperSubmission
 from reputation.models import Bounty
 from researchhub_access_group.constants import ADMIN
@@ -17,7 +17,6 @@ from researchhub_comment.models import RhCommentModel
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.constants.organization_constants import PERSONAL
 from user.models import Action, Author, Organization, User
-from utils.message import send_email_message
 from utils.sentry import log_error
 
 
@@ -103,7 +102,7 @@ def send_discussion_email_notification(instance, sender, action):
                         **base_email_context,
                         "actions": [action.email_context()],
                     }
-                    send_email_message(
+                    send_email(
                         recipient.email,
                         "notification_email.txt",
                         subject,

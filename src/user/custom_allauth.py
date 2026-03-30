@@ -6,7 +6,7 @@ from django.conf import settings
 from django.http import HttpRequest
 from django.utils.safestring import mark_safe
 
-from utils.message import send_email_message
+from mailing_list.lib import send_email
 
 BRANDED_TEMPLATE = "general_branded_email.html"
 
@@ -18,7 +18,7 @@ class CustomAccountAdapter(DefaultAccountAdapter):
     def send_confirmation_mail(self, request: HttpRequest, emailconfirmation, signup: bool) -> None:
         activate_url = self.get_email_confirmation_url(request, emailconfirmation)
         subject = "Confirm Your Email Address"
-        send_email_message(
+        send_email(
             emailconfirmation.email_address.email,
             None,
             subject,
@@ -54,7 +54,7 @@ class CustomResetPasswordForm(ResetPasswordForm):
             token = token_generator.make_token(user)
             reset_url = f"{settings.BASE_FRONTEND_URL}/reset/{uid}/{token}"
             subject = "Reset Your Password"
-            send_email_message(
+            send_email(
                 email,
                 None,
                 subject,

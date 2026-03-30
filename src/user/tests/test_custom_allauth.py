@@ -38,7 +38,7 @@ class CustomAccountAdapterTests(SimpleTestCase):
         self.assertEqual(url, "https://www.researchhub.com/verify/abc123")
 
     @override_settings(**SETTINGS)
-    @patch("user.custom_allauth.send_email_message")
+    @patch("user.custom_allauth.send_email")
     def test_send_confirmation_mail(self, mock_send):
         # Act
         confirm = DummyEmailConfirmation("key1", email="user@example.com")
@@ -55,7 +55,7 @@ class CustomAccountAdapterTests(SimpleTestCase):
 
 class CustomResetPasswordFormTests(TestCase):
     @override_settings(**SETTINGS)
-    @patch("user.custom_allauth.send_email_message")
+    @patch("user.custom_allauth.send_email")
     def test_save_sends_reset_email_and_returns_email(self, mock_send):
         # Arrange
         form = CustomResetPasswordForm.__new__(CustomResetPasswordForm)

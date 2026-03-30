@@ -6,7 +6,6 @@ from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
-from mailing_list.models import EmailRecipient
 from sentry_sdk import capture_exception
 
 logger = logging.getLogger(__name__)
@@ -18,8 +17,15 @@ def is_valid_email(email: str) -> bool:
     return email in settings.EMAIL_WHITELIST
 
 
-def _filter_recipients(recipients: list[str]) -> tuple[list[str], list[str]]:
+def _filter_recipients(
+    recipients: list[str],
+    suppressed_emails: set[str] | None = None,
+) -> tuple[list[str], list[str]]:
     """Partition recipients into sendable and excluded lists.
+
+    Args:
+        recipients: List of email addresses to filter.
+        suppressed_emails: Optional pre-computed set of emails to exclude.
 
     Returns:
         (sendable, excluded) – two lists of email addresses.
@@ -27,10 +33,9 @@ def _filter_recipients(recipients: list[str]) -> tuple[list[str], list[str]]:
     sendable = [r for r in recipients if is_valid_email(r)]
     excluded = list(set(recipients) - set(sendable))
 
-    if sendable:
-        suppressed = EmailRecipient.get_suppressed_emails(sendable)
-        excluded.extend(suppressed)
-        sendable = [r for r in sendable if r not in suppressed]
+    if sendable and suppressed_emails:
+        excluded.extend(suppressed_emails & set(sendable))
+        sendable = [r for r in sendable if r not in suppressed_emails]
 
     return sendable, excluded
 
@@ -63,7 +68,7 @@ def _build_headers(opt_out_url: str | None = None) -> dict[str, str]:
     return headers
 
 
-def send_email_message(
+def deliver_email(
     recipients: str | list[str],
     template: str | None,
     subject: str,
@@ -72,8 +77,12 @@ def send_email_message(
     sender: str = f"ResearchHub <{settings.DEFAULT_FROM_EMAIL}>",
     reply_to: str | None = None,
     cc: list[str] | None = None,
+    suppressed_emails: set[str] | None = None,
 ) -> dict[str, list[str]]:
-    """Send a branded email to one or more recipients.
+    """Low-level email delivery: render templates, set headers, and send.
+
+    Callers should prefer ``mailing_list.lib.send_email`` which automatically
+    looks up suppressed addresses before delegating here.
 
     Args:
         recipients: Email address string or list of addresses.
@@ -86,6 +95,7 @@ def send_email_message(
         sender: From address.
         reply_to: Optional reply-to address.
         cc: Optional list of CC addresses.
+        suppressed_emails: Optional set of email addresses to exclude.
 
     Returns:
         ``{"success": [...], "failure": [...], "exclude": [...]}``.
@@ -98,7 +108,7 @@ def send_email_message(
     if not settings.PRODUCTION:
         subject = "[Staging] " + subject
 
-    sendable, excluded = _filter_recipients(recipients)
+    sendable, excluded = _filter_recipients(recipients, suppressed_emails)
     result = {"success": [], "failure": [], "exclude": excluded}
 
     if not sendable:

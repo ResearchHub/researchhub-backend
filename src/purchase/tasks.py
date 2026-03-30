@@ -5,7 +5,7 @@ import pytz
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 
-from mailing_list.lib import base_email_context
+from mailing_list.lib import base_email_context, send_email
 from notification.models import Notification
 from paper.models import Paper
 from purchase.circle.service import CircleWalletService
@@ -16,7 +16,6 @@ from reputation.models import Deposit
 from researchhub.celery import QUEUE_NOTIFICATION, QUEUE_PURCHASES, app
 from researchhub.settings import BASE_FRONTEND_URL
 from researchhub_document.models import ResearchhubPost
-from utils.message import send_email_message
 from utils.sentry import log_error, log_info
 
 logger = logging.getLogger(__name__)
@@ -237,7 +236,7 @@ def send_support_email(
 
     if email_type == "sender":
         subject = "Receipt From ResearchHub"
-        send_email_message(
+        send_email(
             email,
             "support_receipt.txt",
             subject,
@@ -246,7 +245,7 @@ def send_support_email(
         )
     elif email_type == "recipient":
         subject = "Someone Sent You RSC on ResearchHub!"
-        send_email_message(
+        send_email(
             email,
             "support_receipt.txt",
             subject,
