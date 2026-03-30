@@ -1788,6 +1788,20 @@ class BountyViewTests(APITestCase):
 
         return paper_bounty_res.data["id"], proposal_bounty_res.data["id"]
 
+    def test_personalized_sort_falls_back_to_default_when_logged_out(self):
+        """Logged-out user requesting personalized sort gets default sort."""
+        # Arrange
+        self.client.force_authenticate(self.user)
+        paper_id, proposal_id = self._create_paper_and_proposal_bounties()
+        self.client.logout()
+
+        # Act
+        res = self.client.get("/api/bounty/", {"sort": "personalized"})
+
+        # Assert
+        ids = [b["id"] for b in res.data["results"]]
+        self.assertLess(ids.index(proposal_id), ids.index(paper_id))
+
     def test_preregistration_first_with_personalized_sort(self):
         """Personalized sort should prioritize proposal reviews."""
         # Arrange
