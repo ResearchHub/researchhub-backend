@@ -8,9 +8,9 @@ from rest_framework.viewsets import ModelViewSet
 
 from analytics.amplitude import track_event
 from discussion.views import ReactionViewActionMixin
+from feed.views.grant_cache_mixin import GrantCacheMixin
 from hub.models import Hub
-from note.related_models.note_model import Note
-from purchase.models import Grant
+from purchase.models import Grant, GrantApplication
 from purchase.related_models.constants.currency import USD
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
@@ -24,6 +24,7 @@ from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_OPEN,
     FILTER_HAS_BOUNTY,
     GRANT,
+    PREREGISTRATION,
     RESEARCHHUB_POST_DOCUMENT_TYPES,
     SORT_BOUNTY_EXPIRATION_DATE,
     SORT_BOUNTY_TOTAL_AMOUNT,
@@ -34,7 +35,6 @@ from researchhub_document.serializers.researchhub_post_serializer import (
 )
 from user.models import User
 from user.permissions import IsVerifiedUser
-from user.related_models.author_model import Author
 from utils.doi import DOI
 from utils.sentry import log_error
 from utils.throttles import THROTTLE_CLASSES
@@ -98,13 +98,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         except (KeyError, TypeError) as exception:
             return Response(exception, status=400)
 
-    def _check_authors_in_org(self, authors, organization):
-        for author_id in authors:
-            author = Author.objects.select_related("user").get(id=author_id)
-            if not organization.org_has_user(author.user):
-                return False
-        return True
-
     def create_researchhub_post(self, request):
         data = request.data
         authors = data.get("authors", [])
@@ -115,15 +108,13 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         assign_doi = data.get("assign_doi", False)
         renderable_text = data.get("renderable_text", "")
         grant_amount = data.get("grant_amount")
+        grant_id = data.get("grant_id")
 
-        # If a note is provided, check if all given authors are in the same organization
-        if note_id is not None:
-            note = Note.objects.get(id=note_id)
-            organization = note.organization
-            if not self._check_authors_in_org(authors, organization):
-                return Response(
-                    "No permission to create note for organization", status=403
-                )
+        if authors and request.user.author_profile.id not in authors:
+            return Response(
+                {"msg": "You must include yourself in the authors list"},
+                status=400,
+            )
 
         if type(title) is not str or len(title) < MIN_POST_TITLE_LENGTH:
             return Response(
@@ -267,6 +258,24 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     )
                 )
 
+                if grant_id and document_type == PREREGISTRATION:
+                    try:
+                        target_grant = Grant.objects.get(id=grant_id)
+                    except (Grant.DoesNotExist, ValueError, TypeError):
+                        raise serializers.ValidationError(
+                            "Grant not found"
+                        )
+                    if not target_grant.is_active():
+                        raise serializers.ValidationError(
+                            "Grant is no longer accepting applications"
+                        )
+                    GrantApplication.objects.create(
+                        grant=target_grant,
+                        preregistration_post=rh_post,
+                        applicant=created_by,
+                    )
+                    GrantCacheMixin.invalidate_grant_feed_cache()
+
             response_data = ResearchhubPostSerializer(rh_post).data
             response_data["fundraise"] = (
                 DynamicFundraiseSerializer(fundraise).data if fundraise else None
@@ -325,6 +334,8 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             )
             return Response(response_data, status=200)
 
+        except serializers.ValidationError as e:
+            return Response({"error": e.detail}, status=400)
         except (KeyError, TypeError) as exception:
             log_error(exception)
             return Response({"error": str(exception)}, status=400)
@@ -337,14 +348,11 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             rh_post_id = data.get("post_id", None)
             rh_post = ResearchhubPost.objects.get(id=rh_post_id)
 
-            # Check if all given authors are in the same organization
-            if rh_post.note_id:
-                note = Note.objects.get(id=rh_post.note_id)
-                organization = note.organization
-                if not self._check_authors_in_org(authors, organization):
-                    return Response(
-                        "No permission to update post for organization", status=403
-                    )
+            if authors and request.user.author_profile.id not in authors:
+                return Response(
+                    {"msg": "You must include yourself in the authors list"},
+                    status=400,
+                )
 
             created_by = request.user
             created_by_author = created_by.author_profile

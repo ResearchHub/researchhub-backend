@@ -11,7 +11,7 @@ from hub.models import Hub
 from hub.tests.helpers import create_hub
 from note.tests.helpers import create_note
 from paper.tests.helpers import create_paper
-from purchase.models import Grant
+from purchase.models import Grant, GrantApplication
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.distributions import Distribution
 from reputation.distributor import Distributor
@@ -420,7 +420,7 @@ class ViewTests(APITestCase):
 
         self.assertEqual(doc_response.status_code, 200)
 
-    def test_user_cannot_create_post_with_non_members(self):
+    def test_user_can_create_post_with_non_members(self):
         note = create_note(self.admin_user, self.organization)
 
         self.client.force_authenticate(self.admin_user)
@@ -440,7 +440,31 @@ class ViewTests(APITestCase):
             },
         )
 
-        self.assertEqual(doc_response.status_code, 403)
+        self.assertEqual(doc_response.status_code, 200)
+
+    def test_user_cannot_create_post_without_self_in_authors(self):
+        # Arrange
+        note = create_note(self.admin_user, self.organization)
+        self.client.force_authenticate(self.admin_user)
+
+        # Act
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "authors": [self.member_author.id],
+                "created_by": self.admin_user.id,
+                "document_type": "DISCUSSION",
+                "full_src": "body",
+                "hubs": [self.hub.id],
+                "is_public": True,
+                "note_id": note[0].id,
+                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
+                "title": "sufficiently long title. sufficiently long title.",
+            },
+        )
+
+        # Assert
+        self.assertEqual(doc_response.status_code, 400)
 
     def test_author_can_update_post(self):
         note = create_note(self.admin_user, self.organization)
@@ -485,7 +509,7 @@ class ViewTests(APITestCase):
         )
         self.assertEqual(updated_response.data["image_url"], "/updatedImagePath1")
 
-    def test_author_cannot_update_post_with_non_members(self):
+    def test_author_can_update_post_with_non_members(self):
         note = create_note(self.admin_user, self.organization)
 
         self.client.force_authenticate(self.admin_user)
@@ -521,7 +545,45 @@ class ViewTests(APITestCase):
             },
         )
 
-        self.assertEqual(updated_response.status_code, 403)
+        self.assertEqual(updated_response.status_code, 200)
+
+    def test_author_cannot_update_post_without_self_in_authors(self):
+        # Arrange
+        note = create_note(self.admin_user, self.organization)
+        self.client.force_authenticate(self.admin_user)
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "DISCUSSION",
+                "created_by": self.admin_user.id,
+                "full_src": "body",
+                "is_public": True,
+                "note_id": note[0].id,
+                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
+                "title": "sufficiently long title. sufficiently long title.",
+                "hubs": [self.hub.id],
+            },
+        )
+        self.assertEqual(doc_response.status_code, 200)
+
+        # Act
+        updated_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "authors": [self.member_author.id],
+                "post_id": doc_response.data["id"],
+                "document_type": "DISCUSSION",
+                "created_by": self.admin_user.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
+                "title": "sufficiently long title. sufficiently long title.",
+                "hubs": [self.hub.id],
+            },
+        )
+
+        # Assert
+        self.assertEqual(updated_response.status_code, 400)
 
     def test_non_author_cannot_update_post(self):
         hub = create_hub()
@@ -1729,3 +1791,111 @@ class ViewTests(APITestCase):
 
         # Should return no posts
         self.assertEqual(len(empty_results), 0)
+
+
+class PreregistrationGrantAutoAttachTests(APITestCase):
+    def setUp(self):
+        self.user = create_random_default_user("prereg_user")
+        make_user_verified(self.user)
+        self.hub = create_hub("test_hub")
+
+        self.moderator = create_random_default_user("grant_mod")
+        make_user_verified(self.moderator)
+        grant_post = create_post(created_by=self.moderator, document_type=GRANT)
+        self.grant = Grant.objects.create(
+            created_by=self.moderator,
+            unified_document=grant_post.unified_document,
+            amount=Decimal("10000.00"),
+            currency="USD",
+            organization="Test Foundation",
+            description="Test grant",
+            status=Grant.OPEN,
+        )
+
+    def _create_post(self, document_type="PREREGISTRATION", extra_data=None):
+        payload = {
+            "document_type": document_type,
+            "created_by": self.user.id,
+            "full_src": "post body content",
+            "is_public": True,
+            "renderable_text": "x" * MIN_POST_BODY_LENGTH,
+            "title": "x" * MIN_POST_TITLE_LENGTH,
+            "hubs": [self.hub.id],
+        }
+        if extra_data:
+            payload.update(extra_data)
+        return self.client.post("/api/researchhubpost/", payload)
+
+    def test_create_preregistration_with_grant_id_auto_attaches(self):
+        # Arrange
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self._create_post(extra_data={"grant_id": self.grant.id})
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(
+            GrantApplication.objects.filter(
+                grant=self.grant,
+                preregistration_post_id=response.data["id"],
+                applicant=self.user,
+            ).exists()
+        )
+
+    def test_create_preregistration_without_grant_id_does_not_attach(self):
+        # Arrange
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self._create_post()
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(
+            GrantApplication.objects.filter(
+                preregistration_post_id=response.data["id"],
+            ).exists()
+        )
+
+    def test_create_preregistration_with_invalid_grant_id_returns_400(self):
+        # Arrange
+        self.client.force_authenticate(self.user)
+        doc_count_before = ResearchhubUnifiedDocument.objects.count()
+
+        # Act
+        response = self._create_post(extra_data={"grant_id": 999999})
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(ResearchhubUnifiedDocument.objects.count(), doc_count_before)
+        self.assertFalse(GrantApplication.objects.exists())
+
+    def test_create_preregistration_with_closed_grant_returns_400(self):
+        # Arrange
+        self.grant.status = Grant.CLOSED
+        self.grant.save()
+        self.client.force_authenticate(self.user)
+        doc_count_before = ResearchhubUnifiedDocument.objects.count()
+
+        # Act
+        response = self._create_post(extra_data={"grant_id": self.grant.id})
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(ResearchhubUnifiedDocument.objects.count(), doc_count_before)
+        self.assertFalse(GrantApplication.objects.exists())
+
+    def test_grant_id_ignored_for_non_preregistration_types(self):
+        # Arrange
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self._create_post(
+            document_type="DISCUSSION",
+            extra_data={"grant_id": self.grant.id},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(GrantApplication.objects.exists())
