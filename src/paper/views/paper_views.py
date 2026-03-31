@@ -89,7 +89,6 @@ class PaperViewSet(
             "unified_document__hubs__subscribers",
             "votes",
             "flags",
-            "peer_reviews",
             "purchases",
             "figures",
         )
@@ -753,6 +752,23 @@ class PaperViewSet(
                     "expiration_date",
                     "id",
                     "status",
+                ]
+            },
+            "pap_dps_get_peer_reviews": {
+                "_include_fields": [
+                    "id",
+                    "score",
+                    "created_by",
+                    "created_date",
+                    "updated_date",
+                ]
+            },
+            "rev_drs_get_created_by": {
+                "_include_fields": [
+                    "id",
+                    "author_profile",
+                    "first_name",
+                    "last_name",
                 ]
             },
             "pap_dps_get_purchases": {"_include_fields": ["amount", "user"]},
