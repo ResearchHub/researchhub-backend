@@ -1,3 +1,5 @@
+from typing import override
+
 from django.core.cache import cache
 from django.db import models
 
@@ -46,6 +48,11 @@ class RscExchangeRate(DefaultModel):
         max_length=255,
         null=False,
     )
+
+    @override
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        cache.delete(self._LATEST_EXCHANGE_RATE_CACHE_KEY)
 
     @classmethod
     def get_latest_exchange_rate(cls, force_refresh=False):
