@@ -44,14 +44,12 @@ class RscExchangeRate(DefaultModel):
         null=False,
     )
 
-    @staticmethod
-    def get_latest_exchange_rate(
-        force_refresh=False,
-    ):
-        rate = cache.get('latest_exchange_rate')
+    @classmethod
+    def get_latest_exchange_rate(cls, force_refresh=False):
+        rate = cache.get("latest_exchange_rate")
         if rate is None or force_refresh:
-            rate = RscExchangeRate.objects.last().rate
-            cache.set('latest_exchange_rate', rate, timeout=60 * 5) # 5 minutes
+            rate = cls.objects.last().rate
+            cache.set("latest_exchange_rate", rate, timeout=60 * 5)  # 5 minutes
         return rate
 
     @staticmethod
@@ -61,14 +59,14 @@ class RscExchangeRate(DefaultModel):
         eth_to_rsc_conversion = get_rsc_eth_conversion().get("rate")
         return eth_amount / eth_to_rsc_conversion
 
-    @staticmethod
-    def usd_to_rsc(usd_amount, force_refresh=False):
-        latest_exchange_rate = RscExchangeRate.get_latest_exchange_rate(force_refresh=force_refresh)
+    @classmethod
+    def usd_to_rsc(cls, usd_amount, force_refresh=False):
+        latest_exchange_rate = cls.get_latest_exchange_rate(force_refresh=force_refresh)
         return usd_amount / latest_exchange_rate
 
-    @staticmethod
-    def rsc_to_usd(rsc_amount, force_refresh=False):
-        latest_exchange_rate = RscExchangeRate.get_latest_exchange_rate(force_refresh=force_refresh)
+    @classmethod
+    def rsc_to_usd(cls, rsc_amount, force_refresh=False):
+        latest_exchange_rate = cls.get_latest_exchange_rate(force_refresh=force_refresh)
         return rsc_amount * latest_exchange_rate
 
     @staticmethod
