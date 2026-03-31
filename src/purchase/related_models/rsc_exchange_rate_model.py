@@ -13,8 +13,8 @@ from utils.models import DefaultModel
 
 class RscExchangeRate(DefaultModel):
 
-    _LATEST_EXCHANGE_RATE_CACHE_KEY = "latest_exchange_rate"
-    _CACHE_TIMEOUT = 60 * 5  # 5 minutes
+    _LATEST_EXCHANGE_RATE_CACHE_KEY: str = "latest_exchange_rate"
+    _CACHE_TIMEOUT: int = 60 * 60 * 2  # 2 hours
 
     price_source = models.CharField(
         blank=False,
