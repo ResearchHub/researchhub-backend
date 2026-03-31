@@ -57,14 +57,16 @@ class RscExchangeRate(DefaultModel):
 
     @classmethod
     def get_latest_exchange_rate(cls, force_refresh: bool = False) -> float:
-        rate = cache.get(cls._LATEST_EXCHANGE_RATE_CACHE_KEY)
-        if rate is None or force_refresh:
-            rate = cls.objects.last().rate
-            cache.set(
-                cls._LATEST_EXCHANGE_RATE_CACHE_KEY,
-                rate,
-                timeout=cls._CACHE_TIMEOUT,
-            )
+        if not force_refresh:
+            cached_rate = cache.get(cls._LATEST_EXCHANGE_RATE_CACHE_KEY)
+            if cached_rate is not None:
+                return cached_rate
+        rate = cls.objects.last().rate
+        cache.set(
+            cls._LATEST_EXCHANGE_RATE_CACHE_KEY,
+            rate,
+            timeout=cls._CACHE_TIMEOUT,
+        )
         return rate
 
     @staticmethod
