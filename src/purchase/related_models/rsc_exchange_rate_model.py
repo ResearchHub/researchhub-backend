@@ -1,6 +1,8 @@
-from django.db import models
+from typing import override
 
 from django.core.cache import cache
+from django.db import models
+
 from purchase.related_models.constants.rsc_exchange_currency import (
     MORALIS,
     PRICE_SOURCES,
@@ -45,6 +47,11 @@ class RscExchangeRate(DefaultModel):
         max_length=255,
         null=False,
     )
+
+    @override
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        cache.delete(LATEST_EXCHANGE_RATE_CACHE_KEY)
 
     @staticmethod
     def get_latest_exchange_rate(
