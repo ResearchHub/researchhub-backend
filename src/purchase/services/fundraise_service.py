@@ -13,6 +13,7 @@ from purchase.models import (
     EndaomentAccount,
     Fundraise,
     Purchase,
+    RscExchangeRate,
     UsdFundraiseContribution,
 )
 from purchase.related_models.constants import (
@@ -233,6 +234,7 @@ class FundraiseService:
                 purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
                 paid_status=Purchase.PAID,
                 amount=amount,
+                rsc_usd_rate=RscExchangeRate.get_latest_exchange_rate(),
             )
 
             # Deduct fees
