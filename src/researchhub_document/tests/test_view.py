@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import pytz
 from django.contrib.contenttypes.models import ContentType
+from django.test import TestCase
 from rest_framework.test import APITestCase
 
 from hub.models import Hub
@@ -20,10 +21,14 @@ from researchhub_access_group.models import Permission
 from researchhub_document.helpers import create_post
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import GRANT
+from researchhub_document.serializers.researchhub_post_serializer import (
+    ResearchhubPostSerializer,
+)
 from researchhub_document.views.researchhub_post_views import (
     MIN_POST_BODY_LENGTH,
     MIN_POST_TITLE_LENGTH,
 )
+from review.models import Review
 from user.models import UserVerification
 from user.related_models.author_model import Author
 from user.related_models.organization_model import Organization
@@ -1899,3 +1904,76 @@ class PreregistrationGrantAutoAttachTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, 200)
         self.assertFalse(GrantApplication.objects.exists())
+
+
+class PostPeerReviewTests(TestCase):
+    def test_peer_reviews_included_in_serialized_output(self):
+        user1 = create_random_default_user("reviewer1")
+        user2 = create_random_default_user("reviewer2")
+        post = create_post(
+            title="Post with reviews",
+            created_by=user1,
+        )
+        post_ct = ContentType.objects.get_for_model(post)
+
+        review1 = Review.objects.create(
+            created_by=user1,
+            unified_document=post.unified_document,
+            content_type=post_ct,
+            object_id=post.id,
+            score=9,
+        )
+        review2 = Review.objects.create(
+            created_by=user2,
+            unified_document=post.unified_document,
+            content_type=post_ct,
+            object_id=post.id,
+            score=7,
+        )
+
+        data = ResearchhubPostSerializer(post).data
+
+        self.assertEqual(len(data["peer_reviews"]), 2)
+        review_ids = {r["id"] for r in data["peer_reviews"]}
+        self.assertEqual(review_ids, {review1.id, review2.id})
+
+    def test_peer_reviews_excludes_removed(self):
+        user1 = create_random_default_user("active_reviewer")
+        user2 = create_random_default_user("removed_reviewer")
+        post = create_post(
+            title="Post with removed review",
+            created_by=user1,
+        )
+        post_ct = ContentType.objects.get_for_model(post)
+
+        active_review = Review.objects.create(
+            created_by=user1,
+            unified_document=post.unified_document,
+            content_type=post_ct,
+            object_id=post.id,
+            score=8,
+        )
+        Review.objects.create(
+            created_by=user2,
+            unified_document=post.unified_document,
+            content_type=post_ct,
+            object_id=post.id,
+            score=4,
+            is_removed=True,
+        )
+
+        data = ResearchhubPostSerializer(post).data
+
+        self.assertEqual(len(data["peer_reviews"]), 1)
+        self.assertEqual(data["peer_reviews"][0]["id"], active_review.id)
+
+    def test_peer_reviews_empty_when_none_exist(self):
+        user = create_random_default_user("post_author")
+        post = create_post(
+            title="Post without reviews",
+            created_by=user,
+        )
+
+        data = ResearchhubPostSerializer(post).data
+
+        self.assertEqual(data["peer_reviews"], [])
