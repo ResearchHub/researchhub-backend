@@ -1,3 +1,5 @@
+from typing import override
+
 from django.core.cache import cache
 from django.db import models
 
@@ -47,6 +49,11 @@ class RscExchangeRate(DefaultModel):
         null=False,
     )
 
+    @override
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        cache.delete(self._LATEST_EXCHANGE_RATE_CACHE_KEY)
+
     @classmethod
     def get_latest_exchange_rate(cls, force_refresh: bool = False) -> float:
         if not force_refresh:
@@ -55,7 +62,7 @@ class RscExchangeRate(DefaultModel):
                 return rate
         latest = cls.objects.last()
         if latest is None:
-            raise cls.DoesNotExist("No exchange rate records found.")
+            raise cls.DoesNotExist("No exchange rate records found")
         rate = latest.rate
         cache.set(
             cls._LATEST_EXCHANGE_RATE_CACHE_KEY,
