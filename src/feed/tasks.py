@@ -64,7 +64,8 @@ def create_feed_entry(
 
     action_date = item.created_date
     if action == FeedEntry.PUBLISH and item_content_type.model == "paper":
-        action_date = item.paper_publish_date
+        if item.paper_publish_date and item.paper_publish_date <= timezone.now():
+            action_date = item.paper_publish_date
 
     # Get authors for the item
     authors = _get_authors_for_item(item, item_content_type)
@@ -199,9 +200,9 @@ def _get_unified_document(
             from purchase.models import Fundraise
 
             try:
-                fundraise = Fundraise.objects.select_related(
-                    "unified_document"
-                ).get(id=item.object_id)
+                fundraise = Fundraise.objects.select_related("unified_document").get(
+                    id=item.object_id
+                )
                 doc = fundraise.unified_document
             except Fundraise.DoesNotExist:
                 doc = None
