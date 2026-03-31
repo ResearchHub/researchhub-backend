@@ -13,7 +13,10 @@ from feed.views.grant_cache_mixin import GrantCacheMixin
 from user.related_models.verdict_model import Verdict
 from notification.models import Notification
 from purchase.models import Grant, GrantApplication
-from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from purchase.related_models.rsc_exchange_rate_model import (
+    LATEST_EXCHANGE_RATE_CACHE_KEY,
+    RscExchangeRate,
+)
 from purchase.services.grant_service import GrantModerationService
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
@@ -25,6 +28,13 @@ from user.tests.helpers import create_random_authenticated_user
 
 class GrantViewTests(APITestCase):
     def setUp(self):
+        RscExchangeRate.objects.get_or_create(
+            rate=0.5,
+            target_currency="USD",
+            defaults={"real_rate": 0.5, "price_source": "COIN_GECKO"},
+        )
+        cache.delete(LATEST_EXCHANGE_RATE_CACHE_KEY)
+
         # Create users
         self.moderator = create_random_authenticated_user(
             "grant_moderator", moderator=True
@@ -768,6 +778,13 @@ class AvailableFundingTests(APITestCase):
 
 class GrantModerationTests(APITestCase):
     def setUp(self):
+        RscExchangeRate.objects.get_or_create(
+            rate=0.5,
+            target_currency="USD",
+            defaults={"real_rate": 0.5, "price_source": "COIN_GECKO"},
+        )
+        cache.delete(LATEST_EXCHANGE_RATE_CACHE_KEY)
+
         self.moderator = create_random_authenticated_user("mod_test", moderator=True)
         self.user = create_random_authenticated_user("regular_test")
         self.author = create_random_authenticated_user("author_test")
