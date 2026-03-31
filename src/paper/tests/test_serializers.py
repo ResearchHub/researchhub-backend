@@ -1,6 +1,7 @@
 from io import BytesIO
 from unittest.mock import patch
 
+from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import FileSystemStorage
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.forms.models import model_to_dict
@@ -12,7 +13,7 @@ from hub.tests.helpers import create_hub
 from paper.models import Figure, PaperVersion
 from paper.serializers import DynamicPaperSerializer, PaperSerializer
 from paper.tests import helpers
-from review.models.peer_review_model import PeerReview
+from review.models import Review
 from user.tests.helpers import create_random_default_user
 
 test_storage = FileSystemStorage()
@@ -191,22 +192,110 @@ class PaperSerializersTests(TestCase):
             ],
         )
 
+    def _get_peer_review_context(self):
+        return {
+            "pap_dps_get_peer_reviews": {
+                "_include_fields": [
+                    "id",
+                    "score",
+                    "created_by",
+                    "created_date",
+                    "updated_date",
+                ]
+            },
+            "rev_drs_get_created_by": {
+                "_include_fields": [
+                    "id",
+                    "author_profile",
+                    "first_name",
+                    "last_name",
+                ]
+            },
+            "usr_dus_get_author_profile": {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "profile_image",
+                ]
+            },
+        }
+
     def test_peer_reviews(self):
-        # Arrange
         paper = helpers.create_paper(title="paper1")
         user1 = create_random_default_user("user1")
         user2 = create_random_default_user("user2")
-        peer_review1 = PeerReview.objects.create(paper=paper, user=user1)
-        peer_review2 = PeerReview.objects.create(paper=paper, user=user2)
+        paper_ct = ContentType.objects.get_for_model(paper)
 
-        # Act
-        actual = DynamicPaperSerializer(paper)
+        review1 = Review.objects.create(
+            created_by=user1,
+            unified_document=paper.unified_document,
+            content_type=paper_ct,
+            object_id=paper.id,
+            score=8,
+        )
+        review2 = Review.objects.create(
+            created_by=user2,
+            unified_document=paper.unified_document,
+            content_type=paper_ct,
+            object_id=paper.id,
+            score=6,
+        )
 
-        # Assert
-        self.assertTrue(len(actual.data["peer_reviews"]) == 2)
-        peer_review_ids = {review["id"] for review in actual.data["peer_reviews"]}
-        expected_ids = {peer_review1.id, peer_review2.id}
-        self.assertEqual(peer_review_ids, expected_ids)
+        context = self._get_peer_review_context()
+        actual = DynamicPaperSerializer(
+            paper,
+            context=context,
+            _include_fields=["id", "peer_reviews"],
+        )
+
+        self.assertEqual(len(actual.data["peer_reviews"]), 2)
+        review_ids = {r["id"] for r in actual.data["peer_reviews"]}
+        self.assertEqual(review_ids, {review1.id, review2.id})
+
+    def test_peer_reviews_excludes_removed(self):
+        paper = helpers.create_paper(title="paper_removed_review")
+        user1 = create_random_default_user("user_active")
+        user2 = create_random_default_user("user_removed")
+        paper_ct = ContentType.objects.get_for_model(paper)
+
+        active_review = Review.objects.create(
+            created_by=user1,
+            unified_document=paper.unified_document,
+            content_type=paper_ct,
+            object_id=paper.id,
+            score=7,
+        )
+        Review.objects.create(
+            created_by=user2,
+            unified_document=paper.unified_document,
+            content_type=paper_ct,
+            object_id=paper.id,
+            score=3,
+            is_removed=True,
+        )
+
+        context = self._get_peer_review_context()
+        actual = DynamicPaperSerializer(
+            paper,
+            context=context,
+            _include_fields=["id", "peer_reviews"],
+        )
+
+        self.assertEqual(len(actual.data["peer_reviews"]), 1)
+        self.assertEqual(actual.data["peer_reviews"][0]["id"], active_review.id)
+
+    def test_peer_reviews_empty_when_none_exist(self):
+        paper = helpers.create_paper(title="paper_no_reviews")
+
+        context = self._get_peer_review_context()
+        actual = DynamicPaperSerializer(
+            paper,
+            context=context,
+            _include_fields=["id", "peer_reviews"],
+        )
+
+        self.assertEqual(actual.data["peer_reviews"], [])
 
     def test_update_with_hubs(self):
         """
