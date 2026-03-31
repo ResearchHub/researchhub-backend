@@ -6,7 +6,7 @@ from django.test import TestCase
 from rest_framework.test import APITestCase
 
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
-from purchase.models import Balance, Fundraise, Purchase
+from purchase.models import Balance, Fundraise, Purchase, RscExchangeRate
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.usd_fundraise_contribution_model import (
     UsdFundraiseContribution,
@@ -206,6 +206,11 @@ class CloseFundraiseTests(TestCase):
         # Set up bounty fee for calculations
         self.bounty_fee = BountyFee.objects.create(rh_pct=0.07, dao_pct=0.02)
 
+        # Set up exchange rate
+        RscExchangeRate.objects.create(
+            rate=0.5, real_rate=0.5, target_currency="USD",
+        )
+
     def _create_rsc_contribution(self, fundraise, user, amount=100):
         """Helper method to create an RSC contribution to a fundraise"""
         purchase = Purchase.objects.create(
@@ -351,10 +356,11 @@ class CloseFundraiseTests(TestCase):
         self._give_user_rsc_balance(contributor, 1000)
 
         contribution_amount = Decimal("100")
-        _, error = self.fundraise_service.create_rsc_contribution(
+        purchase, error = self.fundraise_service.create_rsc_contribution(
             contributor, self.fundraise, contribution_amount
         )
         self.assertIsNone(error)
+        self.assertEqual(purchase.rsc_usd_rate, 0.5)
 
         fee, rh_fee, dao_fee, fee_object = calculate_bounty_fees(contribution_amount)
         initial_balance_count = Balance.objects.filter(user=contributor).count()

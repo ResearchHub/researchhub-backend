@@ -3,7 +3,7 @@ from django.test import TestCase
 from rest_framework.test import APITestCase
 
 from paper.tests.helpers import create_paper
-from purchase.models import Balance
+from purchase.models import Balance, RscExchangeRate
 from reputation.models import BountyFee, Escrow, SupportFee
 from researchhub_comment.tests.helpers import create_rh_comment
 from researchhub_document.helpers import create_post
@@ -30,6 +30,12 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
         self.bountyFee = BountyFee.objects.create(rh_pct=0.07, dao_pct=0.02)
         self.supportFee = SupportFee.objects.create(rh_pct=0.03, dao_pct=0.00)
         self.recipient = create_random_default_user("recipient")
+
+        RscExchangeRate.objects.create(
+            rate=0.5,
+            real_rate=0.5,
+            target_currency="USD",
+        )
 
     def test_list_purchases(self):
         purchaser = create_random_authenticated_user("rep_user")

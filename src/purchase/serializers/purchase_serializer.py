@@ -29,6 +29,7 @@ class PurchaseSerializer(serializers.ModelSerializer):
             "boost_time",
             "group",
             "updated_date",
+            "rsc_usd_rate",
         ]
 
     def get_source(self, purchase):

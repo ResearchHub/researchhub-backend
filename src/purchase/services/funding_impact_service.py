@@ -41,7 +41,7 @@ class FundingImpactService:
             .prefetch_related("unified_document__hubs")
         )
 
-        exchange_rate = RscExchangeRate.get_latest_exchange_rate()
+        exchange_rate = RscExchangeRate.get_latest()
         contributions = self._get_contributions_by_fundraise(user, funded_ids, exchange_rate)
 
         return {

@@ -45,9 +45,7 @@ class GetAmountRaisedTests(TestCase):
             fee_cents=int(amount_cents * 0.09),
         )
 
-    @patch(
-        "purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest_exchange_rate"
-    )
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest")
     def test_get_amount_raised_usd_only(self, mock_exchange_rate):
         """Test get_amount_raised returns correct USD amount from USD contributions only."""
         mock_exchange_rate.return_value = 0.01  # 1 RSC = $0.01
@@ -60,9 +58,7 @@ class GetAmountRaisedTests(TestCase):
 
         self.assertEqual(amount, 150.0)
 
-    @patch(
-        "purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest_exchange_rate"
-    )
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest")
     def test_get_amount_raised_rsc_only(self, mock_exchange_rate):
         """Test get_amount_raised returns correct amount from RSC (escrow) only."""
         mock_exchange_rate.return_value = 0.01  # 1 RSC = $0.01
@@ -79,9 +75,7 @@ class GetAmountRaisedTests(TestCase):
         # RSC amount should be the escrow amount
         self.assertEqual(amount_rsc, 500.0)
 
-    @patch(
-        "purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest_exchange_rate"
-    )
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest")
     def test_get_amount_raised_combined_rsc_and_usd(self, mock_exchange_rate):
         """Test get_amount_raised combines RSC and USD contributions correctly."""
         mock_exchange_rate.return_value = 0.01  # 1 RSC = $0.01
@@ -98,9 +92,7 @@ class GetAmountRaisedTests(TestCase):
         # $10 (from RSC) + $50 (from USD) = $60
         self.assertEqual(amount_usd, 60.0)
 
-    @patch(
-        "purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest_exchange_rate"
-    )
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest")
     def test_get_amount_raised_in_rsc_currency(self, mock_exchange_rate):
         """Test get_amount_raised returns correct RSC amount with USD contributions."""
         mock_exchange_rate.return_value = 0.01  # 1 RSC = $0.01
@@ -117,9 +109,7 @@ class GetAmountRaisedTests(TestCase):
         # 1000 RSC + 5000 RSC (from $50) = 6000 RSC
         self.assertEqual(amount_rsc, 6000.0)
 
-    @patch(
-        "purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest_exchange_rate"
-    )
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest")
     def test_get_amount_raised_no_contributions(self, mock_exchange_rate):
         """Test get_amount_raised returns 0 when there are no contributions."""
         mock_exchange_rate.return_value = 0.01
@@ -128,9 +118,7 @@ class GetAmountRaisedTests(TestCase):
 
         self.assertEqual(amount, 0.0)
 
-    @patch(
-        "purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest_exchange_rate"
-    )
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest")
     def test_get_amount_raised_multiple_usd_contributors(self, mock_exchange_rate):
         """Test get_amount_raised sums contributions from multiple users."""
         mock_exchange_rate.return_value = 0.01
@@ -150,9 +138,7 @@ class GetAmountRaisedTests(TestCase):
         "purchase.related_models.fundraise_model.RscExchangeRate.rsc_to_eth",
         return_value=0.0005,
     )
-    @patch(
-        "purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest_exchange_rate"
-    )
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest")
     def test_get_amount_raised_in_ether_currency(
         self, mock_exchange_rate, mock_rsc_to_eth
     ):
@@ -179,9 +165,7 @@ class GetAmountRaisedTests(TestCase):
 
         self.assertEqual(str(context.exception), "Invalid currency")
 
-    @patch(
-        "purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest_exchange_rate"
-    )
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest")
     def test_get_amount_raised_excludes_refunded_contributions(
         self, mock_exchange_rate
     ):
