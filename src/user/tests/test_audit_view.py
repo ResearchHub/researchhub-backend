@@ -1,8 +1,12 @@
+from datetime import timedelta
+
 from django.contrib.admin.options import get_content_type_for_model
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from discussion.constants.flag_reasons import SPAM
 from paper.tests.helpers import create_paper
+from reputation.models import Distribution
 from researchhub_document.helpers import create_post
 from user.tests.helpers import (
     create_hub_editor,
@@ -10,6 +14,7 @@ from user.tests.helpers import (
     create_user,
 )
 
+AUTO_PAYMENTS_URL = "/api/audit/auto_payments/"
 DISMISS_FLAGGED_CONTENT_URL = "/api/audit/dismiss_flagged_content/"
 FLAG_AND_REMOVE_URL = "/api/audit/flag_and_remove/"
 REMOVE_FLAGGED_CONTENT = "api/audit/remove_flagged_content/"
@@ -140,3 +145,138 @@ class AuditViewTests(APITestCase):
             DISMISS_FLAGGED_CONTENT_URL, {"flag_ids": [target_flag.id]}
         )
         self.assertEqual(http_response.status_code, 403)
+
+
+class AutoPaymentAuditTests(APITestCase):
+    def setUp(self):
+        self.community_user = create_user(email="main@researchhub.foundation")
+        self.recipient = create_random_authenticated_user("recipient_user")
+        self.reg_user = create_random_authenticated_user("test_reg_user")
+        [self.editor, self.editor_hub] = create_hub_editor(
+            unique_value="auto_pay_editor",
+            hub_name="auto_pay_hub",
+            moderator=False,
+        )
+
+        self.editor_payout = Distribution.objects.create(
+            recipient=self.recipient,
+            amount=5000,
+            distribution_type="EDITOR_PAYOUT",
+        )
+        self.editor_payout.set_distributed()
+
+        self.editor_compensation = Distribution.objects.create(
+            recipient=self.recipient,
+            amount=3000,
+            distribution_type="EDITOR_COMPENSATION",
+        )
+        self.editor_compensation.set_distributed()
+
+        self.author_reward = Distribution.objects.create(
+            recipient=self.recipient,
+            amount=2500,
+            distribution_type="PREREGISTRATION_UPDATE_REWARD",
+        )
+        self.author_reward.set_distributed()
+
+        Distribution.objects.create(
+            recipient=self.recipient,
+            amount=100,
+            distribution_type="PURCHASE",
+        )
+
+    def test_editor_can_view_auto_payments(self):
+        # Arrange
+        self.client.force_authenticate(self.editor)
+
+        # Act
+        response = self.client.get(AUTO_PAYMENTS_URL)
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 3)
+        types = {r["distribution_type"] for r in response.data["results"]}
+        self.assertEqual(
+            types,
+            {"EDITOR_PAYOUT", "EDITOR_COMPENSATION", "PREREGISTRATION_UPDATE_REWARD"},
+        )
+
+    def test_reg_user_cannot_view_auto_payments(self):
+        # Arrange
+        self.client.force_authenticate(self.reg_user)
+
+        # Act
+        response = self.client.get(AUTO_PAYMENTS_URL)
+
+        # Assert
+        self.assertEqual(response.status_code, 403)
+
+    def test_filter_by_distribution_type(self):
+        # Arrange
+        self.client.force_authenticate(self.editor)
+
+        # Act
+        response = self.client.get(
+            AUTO_PAYMENTS_URL, {"distribution_type": "EDITOR_PAYOUT"}
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 2)
+        types = {r["distribution_type"] for r in response.data["results"]}
+        self.assertEqual(types, {"EDITOR_PAYOUT", "EDITOR_COMPENSATION"})
+
+    def test_filter_by_recipient(self):
+        # Arrange
+        self.client.force_authenticate(self.editor)
+
+        # Act
+        response = self.client.get(
+            AUTO_PAYMENTS_URL, {"recipient": self.recipient.id}
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 3)
+
+    def test_response_includes_recipient_info(self):
+        # Arrange
+        self.client.force_authenticate(self.editor)
+
+        # Act
+        response = self.client.get(AUTO_PAYMENTS_URL)
+
+        # Assert
+        result = response.data["results"][0]
+        self.assertIn("recipient", result)
+        self.assertIn("id", result["recipient"])
+        self.assertIn("first_name", result["recipient"])
+        self.assertIn("author_profile", result["recipient"])
+
+    def test_filter_by_date_range_includes_today(self):
+        # Arrange
+        self.client.force_authenticate(self.editor)
+        start_of_day = timezone.now().replace(hour=0, minute=0, second=0).isoformat()
+        end_of_day = timezone.now().replace(hour=23, minute=59, second=59).isoformat()
+
+        # Act
+        response = self.client.get(
+            AUTO_PAYMENTS_URL,
+            {"created_after": start_of_day, "created_before": end_of_day},
+        )
+
+        # Assert
+        self.assertEqual(response.data["count"], 3)
+
+    def test_filter_by_date_range_excludes_future(self):
+        # Arrange
+        self.client.force_authenticate(self.editor)
+        tomorrow = (timezone.now() + timedelta(days=1)).isoformat()
+
+        # Act
+        response = self.client.get(
+            AUTO_PAYMENTS_URL, {"created_after": tomorrow}
+        )
+
+        # Assert
+        self.assertEqual(response.data["count"], 0)
