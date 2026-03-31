@@ -13,8 +13,8 @@ from utils.models import DefaultModel
 
 class RscExchangeRate(DefaultModel):
 
-    _CACHE_TIMEOUT = 60 * 75  # 75 minutes
-    _LATEST_EXCHANGE_RATE_CACHE_KEY = "latest_exchange_rate"
+    _CACHE_TIMEOUT: int = 60 * 75  # 75 minutes
+    _LATEST_EXCHANGE_RATE_CACHE_KEY: str = "latest_exchange_rate"
 
     price_source = models.CharField(
         blank=False,
@@ -56,7 +56,7 @@ class RscExchangeRate(DefaultModel):
         cache.delete(self._LATEST_EXCHANGE_RATE_CACHE_KEY)
 
     @classmethod
-    def get_latest_exchange_rate(cls, force_refresh=False):
+    def get_latest_exchange_rate(cls, force_refresh: bool = False) -> float:
         rate = cache.get(cls._LATEST_EXCHANGE_RATE_CACHE_KEY)
         if rate is None or force_refresh:
             rate = cls.objects.last().rate
