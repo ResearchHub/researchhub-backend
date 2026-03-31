@@ -13,6 +13,7 @@ from utils.models import DefaultModel
 
 class RscExchangeRate(DefaultModel):
 
+    _CACHE_TIMEOUT = 60 * 5  # 5 minutes
     _LATEST_EXCHANGE_RATE_CACHE_KEY = "latest_exchange_rate"
 
     price_source = models.CharField(
@@ -62,7 +63,7 @@ class RscExchangeRate(DefaultModel):
             cache.set(
                 cls._LATEST_EXCHANGE_RATE_CACHE_KEY,
                 rate,
-                timeout=60 * 5,  # 5 minutes
+                timeout=cls._CACHE_TIMEOUT,
             )
         return rate
 
