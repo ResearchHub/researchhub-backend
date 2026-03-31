@@ -164,7 +164,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                     priority=1,
                 )
 
-            purchase.rsc_usd_rate = RscExchangeRate.get_latest_exchange_rate()
+            purchase.rsc_usd_rate = RscExchangeRate.get_latest()
             purchase_hash = purchase.hash()
             purchase.purchase_hash = purchase_hash
             purchase_boost_time = purchase.get_boost_time(amount)

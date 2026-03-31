@@ -47,7 +47,7 @@ class FundraiseTasksTest(TestCase):
             target_currency="USD",
         )
         self.exchange_rate_patcher = patch(
-            "purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest_exchange_rate",
+            "purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest",
             return_value=self.rsc_exchange_rate.rate,
         )
         self.exchange_rate_patcher.start()

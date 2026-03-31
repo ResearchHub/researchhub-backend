@@ -56,7 +56,7 @@ class RscExchangeRate(DefaultModel):
         cache.delete(self._LATEST_EXCHANGE_RATE_CACHE_KEY)
 
     @classmethod
-    def get_latest_exchange_rate(cls, force_refresh: bool = False) -> float:
+    def get_latest(cls, force_refresh: bool = False) -> float:
         if not force_refresh:
             cached_rate = cache.get(cls._LATEST_EXCHANGE_RATE_CACHE_KEY)
             if cached_rate is not None:
@@ -78,12 +78,12 @@ class RscExchangeRate(DefaultModel):
 
     @classmethod
     def usd_to_rsc(cls, usd_amount, force_refresh=False):
-        latest_exchange_rate = cls.get_latest_exchange_rate(force_refresh=force_refresh)
+        latest_exchange_rate = cls.get_latest(force_refresh=force_refresh)
         return usd_amount / latest_exchange_rate
 
     @classmethod
     def rsc_to_usd(cls, rsc_amount, force_refresh=False):
-        latest_exchange_rate = cls.get_latest_exchange_rate(force_refresh=force_refresh)
+        latest_exchange_rate = cls.get_latest(force_refresh=force_refresh)
         return rsc_amount * latest_exchange_rate
 
     @staticmethod

@@ -234,7 +234,7 @@ class FundraiseService:
                 purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
                 paid_status=Purchase.PAID,
                 amount=amount,
-                rsc_usd_rate=RscExchangeRate.get_latest_exchange_rate(),
+                rsc_usd_rate=RscExchangeRate.get_latest(),
             )
 
             # Deduct fees
