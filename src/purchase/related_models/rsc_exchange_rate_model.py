@@ -49,17 +49,19 @@ class RscExchangeRate(DefaultModel):
 
     @classmethod
     def get_latest_exchange_rate(cls, force_refresh: bool = False) -> float:
-        rate = cache.get(cls._LATEST_EXCHANGE_RATE_CACHE_KEY)
-        if rate is None or force_refresh:
-            latest = cls.objects.last()
-            if latest is None:
-                raise cls.DoesNotExist("No exchange rate records found.")
-            rate = latest.rate
-            cache.set(
-                cls._LATEST_EXCHANGE_RATE_CACHE_KEY,
-                rate,
-                timeout=60 * 5,  # 5 minutes
-            )
+        if not force_refresh:
+            rate = cache.get(cls._LATEST_EXCHANGE_RATE_CACHE_KEY)
+            if rate is not None:
+                return rate
+        latest = cls.objects.last()
+        if latest is None:
+            raise cls.DoesNotExist("No exchange rate records found.")
+        rate = latest.rate
+        cache.set(
+            cls._LATEST_EXCHANGE_RATE_CACHE_KEY,
+            rate,
+            timeout=60 * 5,  # 5 minutes
+        )
         return rate
 
     @staticmethod
