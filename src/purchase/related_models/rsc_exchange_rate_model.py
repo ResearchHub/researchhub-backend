@@ -10,10 +10,11 @@ from purchase.related_models.constants.rsc_exchange_currency import (
 )
 from utils.models import DefaultModel
 
-LATEST_EXCHANGE_RATE_CACHE_KEY = "latest_exchange_rate"
-
 
 class RscExchangeRate(DefaultModel):
+
+    _LATEST_EXCHANGE_RATE_CACHE_KEY = "latest_exchange_rate"
+
     price_source = models.CharField(
         blank=False,
         choices=PRICE_SOURCES,
@@ -51,15 +52,13 @@ class RscExchangeRate(DefaultModel):
     @override
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
-        cache.delete(LATEST_EXCHANGE_RATE_CACHE_KEY)
+        cache.delete(self._LATEST_EXCHANGE_RATE_CACHE_KEY)
 
-    @staticmethod
-    def get_latest_exchange_rate(
-        force_refresh=False,
-    ):
-        rate = cache.get(LATEST_EXCHANGE_RATE_CACHE_KEY)
+    @classmethod
+    def get_latest_exchange_rate(cls, force_refresh=False):
+        rate = cache.get(cls._LATEST_EXCHANGE_RATE_CACHE_KEY)
         if rate is None or force_refresh:
-            cache.set(LATEST_EXCHANGE_RATE_CACHE_KEY, rate, timeout=60 * 5)
+            cache.set(cls._LATEST_EXCHANGE_RATE_CACHE_KEY, rate, timeout=60 * 5)
         return rate
 
     @staticmethod
