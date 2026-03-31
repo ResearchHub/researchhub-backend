@@ -10,6 +10,9 @@ from utils.models import DefaultModel
 
 
 class RscExchangeRate(DefaultModel):
+
+    _LATEST_EXCHANGE_RATE_CACHE_KEY = "latest_exchange_rate"
+
     price_source = models.CharField(
         blank=False,
         choices=PRICE_SOURCES,
@@ -46,10 +49,14 @@ class RscExchangeRate(DefaultModel):
 
     @classmethod
     def get_latest_exchange_rate(cls, force_refresh=False):
-        rate = cache.get("latest_exchange_rate")
+        rate = cache.get(cls._LATEST_EXCHANGE_RATE_CACHE_KEY)
         if rate is None or force_refresh:
             rate = cls.objects.last().rate
-            cache.set("latest_exchange_rate", rate, timeout=60 * 5)  # 5 minutes
+            cache.set(
+                cls._LATEST_EXCHANGE_RATE_CACHE_KEY,
+                rate,
+                timeout=60 * 5,  # 5 minutes
+            )
         return rate
 
     @staticmethod
