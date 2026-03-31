@@ -275,7 +275,7 @@ urlpatterns = [
     ),
     path("api/permissions/", researchhub.views.permissions, name="permissions"),
     path("api/search/", include(search.urls)),
-    path("api/research_ai/", include("research_ai.urls")),
+    path("api/ai_expert_finder/", include("ai_expert_finder.urls")),
     # Referral endpoints
     path("api/referral/", include("referral.urls")),
     # Organization endpoints

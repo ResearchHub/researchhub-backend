@@ -14,7 +14,7 @@ Django REST API backend for ResearchHub. The main application lives in `src/`.
 - `src/manage.py` - Django entrypoint
 - `src/researchhub/` - project settings, URLs, and shared Django config
 - `src/config_local/` - local config files and secrets
-- Major domain apps include `paper`, `feed`, `discussion`, `hub`, `search`, `review`, `reputation`, `purchase`, `researchhub_document`, and `research_ai`
+- Major domain apps include `paper`, `feed`, `discussion`, `hub`, `search`, `review`, `reputation`, `purchase`, `researchhub_document`, and `ai_expert_finder`
 
 ## Common Commands
 Run Django commands from the repository root with `cd src && uv run python manage.py ...`.
