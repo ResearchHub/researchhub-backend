@@ -16,7 +16,7 @@ from analytics.tasks import track_revenue_event
 from notification.models import Notification
 from paper.models import Paper
 from paper.utils import get_cache_key
-from purchase.models import AggregatePurchase, Balance, Purchase
+from purchase.models import AggregatePurchase, Balance, Purchase, RscExchangeRate
 from purchase.related_models.constants.support import (
     MAXIMUM_SUPPORT_AMOUNT_RSC,
     MINIMUM_SUPPORT_AMOUNT_RSC,
@@ -164,6 +164,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                     priority=1,
                 )
 
+            purchase.rsc_usd_rate = RscExchangeRate.get_latest_exchange_rate()
             purchase_hash = purchase.hash()
             purchase.purchase_hash = purchase_hash
             purchase_boost_time = purchase.get_boost_time(amount)
