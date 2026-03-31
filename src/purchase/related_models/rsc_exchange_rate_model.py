@@ -1,6 +1,6 @@
+from django.core.cache import cache
 from django.db import models
 
-from django.core.cache import cache
 from purchase.related_models.constants.rsc_exchange_currency import (
     MORALIS,
     PRICE_SOURCES,
