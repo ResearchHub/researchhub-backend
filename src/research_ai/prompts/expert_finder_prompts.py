@@ -168,6 +168,17 @@ def build_system_prompt(
     )
 
 
+def format_additional_context_section(additional_context: str | None) -> str:
+    """
+    Markdown block inserted after the main query/paper body in the user prompt.
+    User text is not passed through str.format (avoids brace issues in content).
+    """
+    stripped = (additional_context or "").strip()
+    if not stripped:
+        return ""
+    return "\n\n## Additional guidance from the requester\n" f"{stripped}\n"
+
+
 def build_user_prompt(
     query: str,
     expert_count: int,
@@ -175,6 +186,7 @@ def build_user_prompt(
     region_filter: str,
     gender_filter: str = "all_genders",
     is_pdf: bool = False,
+    additional_context: str | None = None,
 ) -> str:
     """
     Build the user prompt for expert search.
@@ -187,6 +199,7 @@ def build_user_prompt(
         if region_filter == Region.ALL_REGIONS
         else f" from the {region_label} region"
     )
+    additional_context_section = format_additional_context_section(additional_context)
     if is_pdf:
         template = _load_template("expert_finder_user_pdf.txt")
         return template.format(
@@ -194,6 +207,7 @@ def build_user_prompt(
             expert_count=expert_count,
             expertise_level=expertise_level_display,
             region_text=region_text,
+            additional_context_section=additional_context_section,
         )
     template = _load_template("expert_finder_user_query.txt")
     return template.format(
@@ -201,4 +215,5 @@ def build_user_prompt(
         expert_count=expert_count,
         expertise_level=expertise_level_display,
         region_text=region_text,
+        additional_context_section=additional_context_section,
     )

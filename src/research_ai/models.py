@@ -61,6 +61,13 @@ class ExpertSearch(DefaultModel):
         blank=True,
         db_comment="Expert full names to exclude (multiple runs on same doc).",
     )
+    additional_context = models.TextField(
+        blank=True,
+        default="",
+        db_comment=(
+            "Optional user notes to steer expert-finder alongside the RFP/query."
+        ),
+    )
     llm_model = models.CharField(max_length=128, blank=True)
     status = models.CharField(
         max_length=32,

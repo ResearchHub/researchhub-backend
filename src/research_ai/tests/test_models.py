@@ -33,6 +33,23 @@ class ExpertSearchModelTests(TestCase):
         self.assertEqual(search.config["expert_count"], 15)
         self.assertEqual(len(search.expert_results), 1)
 
+    def test_additional_context_optional_defaults_empty(self):
+        search = ExpertSearch.objects.create(
+            created_by=self.user,
+            query="Q",
+            input_type=ExpertSearch.InputType.CUSTOM_QUERY,
+        )
+        self.assertEqual(search.additional_context, "")
+
+    def test_additional_context_persisted(self):
+        search = ExpertSearch.objects.create(
+            created_by=self.user,
+            query="RFP text",
+            additional_context="Steer toward EU labs.",
+            input_type=ExpertSearch.InputType.CUSTOM_QUERY,
+        )
+        self.assertEqual(search.additional_context, "Steer toward EU labs.")
+
     def test_expert_search_str(self):
         search = ExpertSearch.objects.create(
             created_by=self.user,

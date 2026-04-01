@@ -24,11 +24,13 @@ class ExpertSearchEmailDocumentContext:
     For LLM prompts: at most one branch is typically populated.
     Grant / preregistration use structured RFP or proposal dicts.
     Paper uses title + abstract. All other linked doc types share one generic snippet.
+    user_additional_context: optional notes from ExpertSearch.additional_context.
     """
 
     rfp_context_dict: dict | None
     proposal_context_dict: dict | None
     generic_work_context_dict: dict | None
+    user_additional_context: str = ""
 
 
 def _fallback_from_expert_search(expert_search: ExpertSearch | None) -> dict:
@@ -120,6 +122,15 @@ def _nonempty_generic(d: dict) -> dict | None:
     return None
 
 
+def _user_additional_context_from_search(expert_search: ExpertSearch | None) -> str:
+    if not expert_search:
+        return ""
+    raw = getattr(expert_search, "additional_context", None)
+    if raw is None or not isinstance(raw, str):
+        return ""
+    return raw.strip()
+
+
 def resolve_expert_search_email_document_context(
     expert_search: ExpertSearch | None,
 ) -> ExpertSearchEmailDocumentContext:
@@ -127,9 +138,13 @@ def resolve_expert_search_email_document_context(
     GRANT -> rfp dict. PREREGISTRATION -> proposal dict. PAPER -> paper generic dict.
     Any other linked document type -> one shared generic snippet; no document -> search fallback.
     """
+    extra = _user_additional_context_from_search(expert_search)
+
     if not expert_search or not expert_search.unified_document_id:
         fb = _fallback_from_expert_search(expert_search)
-        return ExpertSearchEmailDocumentContext(None, None, _nonempty_generic(fb))
+        return ExpertSearchEmailDocumentContext(
+            None, None, _nonempty_generic(fb), extra
+        )
 
     udoc = expert_search.unified_document
     dtype = udoc.document_type
@@ -138,31 +153,37 @@ def resolve_expert_search_email_document_context(
         grant = resolve_grant(expert_search=expert_search)
         rfp_d = build_rfp_context(grant) if grant else None
         if rfp_d and (rfp_d.get("title") or rfp_d.get("blurb")):
-            return ExpertSearchEmailDocumentContext(rfp_d, None, None)
+            return ExpertSearchEmailDocumentContext(rfp_d, None, None, extra)
         fb = _fallback_from_expert_search(expert_search)
-        return ExpertSearchEmailDocumentContext(None, None, _nonempty_generic(fb))
+        return ExpertSearchEmailDocumentContext(
+            None, None, _nonempty_generic(fb), extra
+        )
 
     if dtype == PREREGISTRATION:
         proposal_d = build_proposal_context(udoc) or build_proposal_context(
             _safe_get_document(udoc)
         )
         if proposal_d and (proposal_d.get("title") or proposal_d.get("blurb")):
-            return ExpertSearchEmailDocumentContext(None, proposal_d, None)
+            return ExpertSearchEmailDocumentContext(None, proposal_d, None, extra)
         fb = _fallback_from_expert_search(expert_search)
-        return ExpertSearchEmailDocumentContext(None, None, _nonempty_generic(fb))
+        return ExpertSearchEmailDocumentContext(
+            None, None, _nonempty_generic(fb), extra
+        )
 
     if dtype == PAPER:
         g = _build_paper_generic(udoc)
         if _nonempty_generic(g):
-            return ExpertSearchEmailDocumentContext(None, None, g)
+            return ExpertSearchEmailDocumentContext(None, None, g, extra)
         fb = _fallback_from_expert_search(expert_search)
-        return ExpertSearchEmailDocumentContext(None, None, _nonempty_generic(fb))
+        return ExpertSearchEmailDocumentContext(
+            None, None, _nonempty_generic(fb), extra
+        )
 
     g = _build_generic_linked_document(udoc)
     if _nonempty_generic(g):
-        return ExpertSearchEmailDocumentContext(None, None, g)
+        return ExpertSearchEmailDocumentContext(None, None, g, extra)
     fb = _fallback_from_expert_search(expert_search)
-    return ExpertSearchEmailDocumentContext(None, None, _nonempty_generic(fb))
+    return ExpertSearchEmailDocumentContext(None, None, _nonempty_generic(fb), extra)
 
 
 def _format_grant_narrative(r: dict) -> str:
@@ -233,9 +254,20 @@ def _format_generic_work_narrative(g: dict) -> str:
 def format_document_context_for_llm(ctx: ExpertSearchEmailDocumentContext) -> str:
     """Plain-language block for the LLM (replaces old template outreach_context)."""
     if ctx.rfp_context_dict:
-        return _format_grant_narrative(ctx.rfp_context_dict)
-    if ctx.proposal_context_dict:
-        return _format_proposal_narrative(ctx.proposal_context_dict)
-    if ctx.generic_work_context_dict:
-        return _format_generic_work_narrative(ctx.generic_work_context_dict)
-    return ""
+        base = _format_grant_narrative(ctx.rfp_context_dict)
+    elif ctx.proposal_context_dict:
+        base = _format_proposal_narrative(ctx.proposal_context_dict)
+    elif ctx.generic_work_context_dict:
+        base = _format_generic_work_narrative(ctx.generic_work_context_dict)
+    else:
+        base = ""
+    extra = (ctx.user_additional_context or "").strip()
+    if not extra:
+        return base
+    guidance = (
+        "The requester provided additional guidance when running this expert search:\n"
+        f"{extra}"
+    )
+    if base:
+        return f"{base}\n\n{guidance}"
+    return guidance

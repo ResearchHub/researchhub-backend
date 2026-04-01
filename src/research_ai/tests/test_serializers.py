@@ -5,6 +5,7 @@ from django.test import TestCase
 from research_ai.constants import ExpertiseLevel, Gender, Region
 from research_ai.models import EmailTemplate, ExpertSearch, GeneratedEmail
 from research_ai.serializers import (
+    ADDITIONAL_CONTEXT_MAX_LENGTH,
     EmailTemplateSerializer,
     ExpertSearchConfigSerializer,
     ExpertSearchCreateSerializer,
@@ -133,6 +134,36 @@ class ExpertSearchCreateSerializerTests(TestCase):
         # When omitted, name may be absent (None) or "" depending on serializer
         self.assertFalse(ser.validated_data.get("name"))
 
+    def test_additional_context_optional_with_query(self):
+        ser = ExpertSearchCreateSerializer(
+            data={"query": "Q", "additional_context": "Extra hints for the model."}
+        )
+        self.assertTrue(ser.is_valid())
+        self.assertEqual(
+            ser.validated_data["additional_context"], "Extra hints for the model."
+        )
+
+    def test_additional_context_optional_with_document(self):
+        ser = ExpertSearchCreateSerializer(
+            data={
+                "unified_document_id": 42,
+                "input_type": "abstract",
+                "additional_context": "RFP nuance here.",
+            }
+        )
+        self.assertTrue(ser.is_valid())
+        self.assertEqual(ser.validated_data["additional_context"], "RFP nuance here.")
+
+    def test_additional_context_max_length(self):
+        ser = ExpertSearchCreateSerializer(
+            data={
+                "query": "q",
+                "additional_context": "x" * (ADDITIONAL_CONTEXT_MAX_LENGTH + 1),
+            }
+        )
+        self.assertFalse(ser.is_valid())
+        self.assertIn("additional_context", ser.errors)
+
 
 class ExpertSearchSerializerTests(TestCase):
     def setUp(self):
@@ -153,6 +184,12 @@ class ExpertSearchSerializerTests(TestCase):
     def test_serializer_includes_name(self):
         ser = ExpertSearchSerializer(self.search)
         self.assertEqual(ser.data["name"], "Test search")
+
+    def test_serializer_includes_additional_context(self):
+        self.search.additional_context = "User notes"
+        self.search.save(update_fields=["additional_context"])
+        ser = ExpertSearchSerializer(self.search)
+        self.assertEqual(ser.data["additional_context"], "User notes")
 
     def test_get_expert_names(self):
         ser = ExpertSearchSerializer(self.search)
