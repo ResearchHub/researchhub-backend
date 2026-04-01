@@ -1,12 +1,18 @@
 from decimal import Decimal
 from unittest.mock import patch
 
+from django.contrib.contenttypes.models import ContentType
 from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from ai_peer_review.constants import ReviewStatus
-from ai_peer_review.models import ProposalReview, RFPSummary
+from ai_peer_review.models import ProposalReview, ReportEntitlement, RFPSummary
+from purchase.models import Purchase
+from purchase.related_models.fundraise_model import Fundraise
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
@@ -202,6 +208,199 @@ class ProposalReviewAPITests(APITestCase):
         self.assertEqual(row["review_id"], pr.id)
         self.assertEqual(row["fundability"], "High")
         self.assertEqual(data["executive_summary"], "Exec text")
+        self.assertIn("editorial_feedbacks", row)
+        self.assertEqual(row["editorial_feedbacks"], [])
+
+    def test_get_detail_proposal_author_allowed(self):
+        pr = ProposalReview.objects.create(
+            created_by=self.moderator,
+            unified_document=self.ud,
+            grant=self.grant,
+            status=ReviewStatus.COMPLETED,
+            overall_rating="good",
+            overall_score_numeric=10,
+            result_data={"fundability": {"overall_score": "High"}},
+        )
+        self.client.force_authenticate(self.user)
+        r = self.client.get(self.detail_url(pr.id))
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertEqual(r.json()["overall_rating"], "good")
+
+    def test_get_detail_stranger_forbidden(self):
+        pr = ProposalReview.objects.create(
+            created_by=self.moderator,
+            unified_document=self.ud,
+            grant=self.grant,
+            status=ReviewStatus.COMPLETED,
+            overall_rating="good",
+            overall_score_numeric=10,
+            result_data={},
+        )
+        other = create_random_authenticated_user("pr_stranger")
+        self.client.force_authenticate(other)
+        r = self.client.get(self.detail_url(pr.id))
+        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_get_detail_entitlement_allows_viewer(self):
+        pr = ProposalReview.objects.create(
+            created_by=self.moderator,
+            unified_document=self.ud,
+            grant=self.grant,
+            status=ReviewStatus.COMPLETED,
+            overall_rating="good",
+            overall_score_numeric=10,
+            result_data={},
+        )
+        buyer = create_random_authenticated_user("pr_buyer")
+        uni = ResearchhubUnifiedDocument.objects.create(document_type=PREREGISTRATION)
+        ct = ContentType.objects.get_for_model(Fundraise)
+        fr = Fundraise.objects.create(
+            created_by=buyer,
+            status=Fundraise.CLOSED,
+            unified_document=uni,
+        )
+        purchase = Purchase.objects.create(
+            user=buyer,
+            content_type=ct,
+            object_id=fr.id,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            paid_status=Purchase.PAID,
+            amount="1",
+            purchase_method=Purchase.OFF_CHAIN,
+        )
+        ReportEntitlement.objects.create(
+            user=buyer,
+            proposal_review=pr,
+            purchase=purchase,
+        )
+        self.client.force_authenticate(buyer)
+        r = self.client.get(self.detail_url(pr.id))
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+
+    def test_grant_comparison_forbidden_for_applicant(self):
+        pr = ProposalReview.objects.create(
+            created_by=self.moderator,
+            unified_document=self.ud,
+            grant=self.grant,
+            status=ReviewStatus.COMPLETED,
+            overall_rating="good",
+            overall_score_numeric=10,
+            result_data={
+                "fundability": {"overall_score": "High"},
+                "feasibility": {"overall_score": "High"},
+                "novelty": {"overall_score": "High"},
+                "impact": {"overall_score": "High"},
+                "reproducibility": {"overall_score": "High"},
+            },
+        )
+        self.client.force_authenticate(self.user)
+        r = self.client.get(self.grant_list_url)
+        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_grant_comparison_allowed_for_grant_owner(self):
+        funder = create_random_authenticated_user("pr_funder")
+        grant_post = create_post(created_by=funder, document_type=GRANT)
+        g2 = Grant.objects.create(
+            created_by=funder,
+            unified_document=grant_post.unified_document,
+            amount=Decimal("1000.00"),
+            currency="USD",
+            organization="Funder Org",
+            description="RFP",
+            status=Grant.OPEN,
+        )
+        prop2 = create_post(
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            title="App",
+        )
+        GrantApplication.objects.create(
+            grant=g2,
+            preregistration_post=prop2,
+            applicant=self.user,
+        )
+        pr2 = ProposalReview.objects.create(
+            created_by=self.moderator,
+            unified_document=prop2.unified_document,
+            grant=g2,
+            status=ReviewStatus.COMPLETED,
+            overall_rating="good",
+            overall_score_numeric=11,
+            result_data={
+                "fundability": {"overall_score": "Medium"},
+                "feasibility": {"overall_score": "High"},
+                "novelty": {"overall_score": "High"},
+                "impact": {"overall_score": "High"},
+                "reproducibility": {"overall_score": "High"},
+            },
+        )
+        self.client.force_authenticate(funder)
+        url = f"/api/ai_peer_review/proposal-review/grant/{g2.id}/"
+        r = self.client.get(url)
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertEqual(r.json()["proposals"][0]["review_id"], pr2.id)
+
+    def test_pdf_returns_file_when_complete(self):
+        pr = ProposalReview.objects.create(
+            created_by=self.moderator,
+            unified_document=self.ud,
+            grant=self.grant,
+            status=ReviewStatus.COMPLETED,
+            overall_rating="good",
+            overall_score_numeric=10,
+            result_data={
+                "editorial_summary": {"consensus_summary": "Ok."},
+                "fundability": {"overall_score": "High", "overall_rationale": "x"},
+                "feasibility": {"overall_score": "High"},
+                "novelty": {"overall_score": "High"},
+                "impact": {"overall_score": "High"},
+                "reproducibility": {"overall_score": "High"},
+            },
+        )
+        self.client.force_authenticate(self.moderator)
+        r = self.client.get(f"/api/ai_peer_review/proposal-review/{pr.id}/pdf/")
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertEqual(r["Content-Type"], "application/pdf")
+        self.assertGreater(len(r.content), 100)
+
+    def test_editorial_feedback_create_and_listed_on_grant_row(self):
+        pr = ProposalReview.objects.create(
+            created_by=self.moderator,
+            unified_document=self.ud,
+            grant=self.grant,
+            status=ReviewStatus.COMPLETED,
+            overall_rating="good",
+            overall_score_numeric=10,
+            result_data={"fundability": {"overall_score": "High"}},
+        )
+        self.client.force_authenticate(self.moderator)
+        body = {
+            "proposal_review_id": pr.id,
+            "fundability_expert": "high",
+            "feasibility_expert": "medium",
+            "novelty_expert": "low",
+            "impact_expert": "high",
+            "reproducibility_expert": "medium",
+            "expert_insights": "Strong team.",
+        }
+        r = self.client.post(
+            "/api/ai_peer_review/editorial-feedback/", body, format="json"
+        )
+        self.assertEqual(r.status_code, status.HTTP_201_CREATED)
+        fid = r.json()["id"]
+        r2 = self.client.get(self.grant_list_url)
+        self.assertEqual(r2.status_code, status.HTTP_200_OK)
+        row = r2.json()["proposals"][0]
+        self.assertEqual(len(row["editorial_feedbacks"]), 1)
+        self.assertEqual(row["editorial_feedbacks"][0]["id"], fid)
+
+        r3 = self.client.patch(
+            f"/api/ai_peer_review/editorial-feedback/{fid}/",
+            {"expert_insights": "Updated."},
+            format="json",
+        )
+        self.assertEqual(r3.status_code, status.HTTP_200_OK)
+        self.assertEqual(r3.json()["expert_insights"], "Updated.")
 
 
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True)

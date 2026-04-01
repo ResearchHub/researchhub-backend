@@ -6,21 +6,23 @@ import logging
 import time
 
 from django.conf import settings
+
 from ai_peer_review.constants import ReviewStatus
 from ai_peer_review.models import ProposalReview
 from ai_peer_review.prompts.proposal_review_prompts import (
     build_proposal_review_user_prompt,
     get_proposal_review_system_prompt,
 )
+from ai_peer_review.services.author_context import build_author_context_snippet
 from ai_peer_review.services.bedrock_llm_service import BedrockLLMService
 from ai_peer_review.services.proposal_review_scoring import (
     compute_overall_rating,
     normalize_scores_from_answers,
     parse_json_response,
 )
-from researchhub_document.related_models.constants.document_type import PREREGISTRATION
-from researchhub_document.models import ResearchhubUnifiedDocument
 from purchase.models import Grant, GrantApplication
+from researchhub_document.models import ResearchhubUnifiedDocument
+from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +40,7 @@ def _proposal_review_max_tokens() -> int:
 
 def get_proposal_markdown(unified_document: ResearchhubUnifiedDocument) -> str:
     if unified_document.document_type != PREREGISTRATION:
-        raise ValueError(
-            "Unified document must be a preregistration (proposal)."
-        )
+        raise ValueError("Unified document must be a preregistration (proposal).")
     post = unified_document.posts.first()
     if not post:
         raise ValueError("Proposal post not found.")
@@ -65,9 +65,7 @@ def get_grant_context_text(grant: Grant) -> str:
     return "\n\n".join(p for p in parts if p).strip()
 
 
-def validate_grant_application(
-    grant_id: int, unified_document_id: int
-) -> None:
+def validate_grant_application(grant_id: int, unified_document_id: int) -> None:
     if not GrantApplication.objects.filter(
         grant_id=grant_id,
         preregistration_post__unified_document_id=unified_document_id,
@@ -77,6 +75,7 @@ def validate_grant_application(
         )
 
 
+# TODO: we should probably use websearch here to get the info from ORCID, etc.so LLM can access it.
 def run_proposal_review(review_id: int) -> None:
     review = ProposalReview.objects.select_related(
         "unified_document", "grant", "created_by"
@@ -106,11 +105,14 @@ def run_proposal_review(review_id: int) -> None:
             rfp_context = get_grant_context_text(review.grant)
         review.progress = 40
         review.current_step = "Running AI assessment"
-        review.save(
-            update_fields=["progress", "current_step", "updated_date"]
-        )
+        review.save(update_fields=["progress", "current_step", "updated_date"])
         system = get_proposal_review_system_prompt()
-        user = build_proposal_review_user_prompt(proposal_text, rfp_context)
+        author_ctx = build_author_context_snippet(review.unified_document)
+        user = build_proposal_review_user_prompt(
+            proposal_text,
+            rfp_context,
+            author_context=author_ctx or None,
+        )
         llm = BedrockLLMService()
         raw = llm.invoke(
             system,
@@ -120,9 +122,7 @@ def run_proposal_review(review_id: int) -> None:
         )
         review.progress = 70
         review.current_step = "Normalizing scores"
-        review.save(
-            update_fields=["progress", "current_step", "updated_date"]
-        )
+        review.save(update_fields=["progress", "current_step", "updated_date"])
         review_dict = parse_json_response(raw)
         normalize_scores_from_answers(review_dict)
         rating, numeric_total = compute_overall_rating(review_dict)
@@ -145,4 +145,6 @@ def run_proposal_review(review_id: int) -> None:
         review.progress = 0
         review.current_step = "Failed"
         review.processing_time = time.monotonic() - t0
+        review.save()
+        review.save()
         review.save()

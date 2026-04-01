@@ -19,12 +19,20 @@ def get_proposal_review_system_prompt() -> str:
 def build_proposal_review_user_prompt(
     proposal_text: str,
     rfp_context: str | None = None,
+    author_context: str | None = None,
 ) -> str:
     ctx = ""
     if rfp_context and rfp_context.strip():
         ctx = (
             "\n\nRFP CONTEXT (from funding opportunity, align your review with this):\n"
             f"{rfp_context.strip()[:8000]}\n"
+        )
+    author = ""
+    if author_context and author_context.strip():
+        author = (
+            "\n\nAUTHOR CONTEXT (from ResearchHub profile; use for feasibility / "
+            "track record where relevant, do not invent facts beyond this):\n"
+            f"{author_context.strip()}\n"
         )
     text = (proposal_text or "").strip()
     if len(text) > 120000:
@@ -35,5 +43,6 @@ def build_proposal_review_user_prompt(
         "feasibility_timeline_notes, budget_notes).\n\n"
         "PROPOSAL TEXT:\n"
         f"{text}"
+        f"{author}"
         f"{ctx}"
     )

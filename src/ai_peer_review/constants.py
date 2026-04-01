@@ -16,3 +16,11 @@ class OverallRating(models.TextChoices):
     EXCELLENT = "excellent", "excellent"
     GOOD = "good", "good"
     POOR = "poor", "poor"
+
+
+class ExpertDimensionScore(models.TextChoices):
+    """Human editorial assessment per dimension (Table 4)."""
+
+    HIGH = "high", "high"
+    MEDIUM = "medium", "medium"
+    LOW = "low", "low"

@@ -1,15 +1,17 @@
 import logging
 
 from django.db import IntegrityError
+from django.http import HttpResponse
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from ai_peer_review.constants import ReviewStatus
-from ai_peer_review.models import ProposalReview, RFPSummary
+from ai_peer_review.models import EditorialFeedback, ProposalReview, RFPSummary
 from ai_peer_review.permissions import AIPeerReviewPermission
 from ai_peer_review.serializers import (
+    EditorialFeedbackSerializer,
     GrantExecutiveSummaryRequestSerializer,
     GrantRfpSummaryRequestSerializer,
     ProposalReviewCreateSerializer,
@@ -17,8 +19,16 @@ from ai_peer_review.serializers import (
     RFPSummarySerializer,
     build_proposal_comparison_row,
 )
+from ai_peer_review.services.proposal_review_pdf import (
+    build_proposal_review_pdf_bytes,
+    merged_review_payload,
+)
 from ai_peer_review.services.proposal_review_service import (
     validate_grant_application,
+)
+from ai_peer_review.services.report_access import (
+    user_can_view_grant_comparison,
+    user_can_view_proposal_review,
 )
 from ai_peer_review.services.rfp_summary_service import run_executive_comparison
 from ai_peer_review.tasks import process_proposal_review_task, process_rfp_summary_task
@@ -133,22 +143,69 @@ class ProposalReviewCreateView(APIView):
 
 
 class ProposalReviewDetailView(APIView):
-    permission_classes = _EDITOR_PERMS
+    permission_classes = [IsAuthenticated, AIPeerReviewPermission]
 
     def get(self, request, review_id):
         try:
-            review = ProposalReview.objects.get(pk=review_id)
+            review = (
+                ProposalReview.objects.select_related(
+                    "unified_document", "grant"
+                )
+                .prefetch_related("editorial_feedbacks")
+                .get(pk=review_id)
+            )
         except ProposalReview.DoesNotExist:
             return Response(
                 {"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND
             )
+        if not user_can_view_proposal_review(request.user, review):
+            return Response(
+                {"detail": "Not allowed."}, status=status.HTTP_403_FORBIDDEN
+            )
         return Response(ProposalReviewSerializer(review).data)
+
+
+class ProposalReviewPdfView(APIView):
+    permission_classes = [IsAuthenticated, AIPeerReviewPermission]
+
+    def get(self, request, review_id):
+        try:
+            review = ProposalReview.objects.select_related(
+                "unified_document", "grant"
+            ).get(pk=review_id)
+        except ProposalReview.DoesNotExist:
+            return Response(
+                {"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+        if not user_can_view_proposal_review(request.user, review):
+            return Response(
+                {"detail": "Not allowed."}, status=status.HTTP_403_FORBIDDEN
+            )
+        if review.status != ReviewStatus.COMPLETED:
+            return Response(
+                {"detail": "Review is not complete yet."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        payload = merged_review_payload(
+            review.result_data,
+            review.overall_rating,
+            review.overall_score_numeric,
+        )
+        title = _proposal_title(review.unified_document)
+        pdf_bytes = build_proposal_review_pdf_bytes(
+            payload, title or f"review-{review.id}"
+        )
+        response = HttpResponse(pdf_bytes, content_type="application/pdf")
+        response["Content-Disposition"] = (
+            f'attachment; filename="proposal-review-{review.id}.pdf"'
+        )
+        return response
 
 
 class ProposalReviewByGrantView(APIView):
     """Comparison table: all applications to a grant + optional executive summary."""
 
-    permission_classes = _EDITOR_PERMS
+    permission_classes = [IsAuthenticated, AIPeerReviewPermission]
 
     def get(self, request, grant_id):
         try:
@@ -157,6 +214,10 @@ class ProposalReviewByGrantView(APIView):
             return Response(
                 {"detail": "Grant not found."},
                 status=status.HTTP_404_NOT_FOUND,
+            )
+        if not user_can_view_grant_comparison(request.user, grant):
+            return Response(
+                {"detail": "Not allowed."}, status=status.HTTP_403_FORBIDDEN
             )
         applications = GrantApplication.objects.filter(grant=grant).select_related(
             "preregistration_post__unified_document"
@@ -167,13 +228,27 @@ class ProposalReviewByGrantView(APIView):
                 grant_id=grant_id,
             )
         }
+        review_ids = [r.id for r in reviews.values() if r is not None]
+        feedback_by_review: dict[int, list] = {}
+        if review_ids:
+            for fb in EditorialFeedback.objects.filter(
+                proposal_review_id__in=review_ids
+            ).order_by("created_date"):
+                feedback_by_review.setdefault(fb.proposal_review_id, []).append(
+                    EditorialFeedbackSerializer(fb).data
+                )
         proposals = []
         for app in applications:
             ud = app.preregistration_post.unified_document
             rev = reviews.get(ud.id)
+            ef = (
+                feedback_by_review.get(rev.id, [])
+                if rev is not None
+                else []
+            )
             proposals.append(
                 build_proposal_comparison_row(
-                    rev, ud.id, _proposal_title(ud)
+                    rev, ud.id, _proposal_title(ud), ef
                 )
             )
         executive = ""

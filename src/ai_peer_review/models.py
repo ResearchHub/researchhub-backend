@@ -1,7 +1,7 @@
 from django.db import models
 from django.db.models import Q
 
-from ai_peer_review.constants import OverallRating, ReviewStatus
+from ai_peer_review.constants import ExpertDimensionScore, OverallRating, ReviewStatus
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -115,3 +115,98 @@ class RFPSummary(DefaultModel):
 
     def __str__(self):
         return f"RFPSummary grant={self.grant_id} ({self.status})"
+
+
+class ReportEntitlement(DefaultModel):
+    """
+    Table 3: user may view an AI proposal report after a successful purchase.
+    """
+
+    user = models.ForeignKey(
+        "user.User",
+        on_delete=models.CASCADE,
+        related_name="ai_peer_review_report_entitlements",
+    )
+    proposal_review = models.ForeignKey(
+        ProposalReview,
+        on_delete=models.CASCADE,
+        related_name="report_entitlements",
+    )
+    purchase = models.ForeignKey(
+        "purchase.Purchase",
+        on_delete=models.CASCADE,
+        related_name="ai_peer_review_report_entitlements",
+    )
+
+    class Meta:
+        db_table = "ai_peer_review_report_entitlement"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "proposal_review"],
+                name="ai_peer_review_report_ent_user_pr",
+            ),
+        ]
+
+    def __str__(self):
+        return f"ReportEntitlement user={self.user_id} pr={self.proposal_review_id}"
+
+
+class EditorialFeedback(DefaultModel):
+    """
+    Table 4: human editorial scores per dimension plus free-text expert insights.
+    """
+
+    proposal_review = models.ForeignKey(
+        ProposalReview,
+        on_delete=models.CASCADE,
+        related_name="editorial_feedbacks",
+    )
+    unified_document = models.ForeignKey(
+        ResearchhubUnifiedDocument,
+        on_delete=models.CASCADE,
+        related_name="ai_editorial_feedbacks",
+        db_comment="Denormalized from proposal_review for querying.",
+    )
+    user = models.ForeignKey(
+        "user.User",
+        on_delete=models.CASCADE,
+        related_name="ai_peer_review_editorial_feedbacks",
+    )
+    fundability_expert = models.CharField(
+        max_length=16,
+        choices=ExpertDimensionScore.choices,
+    )
+    feasibility_expert = models.CharField(
+        max_length=16,
+        choices=ExpertDimensionScore.choices,
+    )
+    novelty_expert = models.CharField(
+        max_length=16,
+        choices=ExpertDimensionScore.choices,
+    )
+    impact_expert = models.CharField(
+        max_length=16,
+        choices=ExpertDimensionScore.choices,
+    )
+    reproducibility_expert = models.CharField(
+        max_length=16,
+        choices=ExpertDimensionScore.choices,
+    )
+    expert_insights = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "ai_peer_review_editorial_feedback"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "proposal_review"],
+                name="ai_peer_review_edit_fb_user_pr",
+            ),
+        ]
+
+    def __str__(self):
+        return f"EditorialFeedback pr={self.proposal_review_id} by={self.user_id}"
+
+    def save(self, *args, **kwargs):
+        if self.proposal_review_id and not self.unified_document_id:
+            self.unified_document_id = self.proposal_review.unified_document_id
+        super().save(*args, **kwargs)
