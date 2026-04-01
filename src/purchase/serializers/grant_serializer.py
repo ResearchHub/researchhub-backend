@@ -174,6 +174,7 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
                     "profile_image": profile_image,
                     "total_contribution": {
                         "rsc": entry.total_rsc,
+                        "rsc_cost_basis": entry.total_rsc_cost_basis,
                         "usd": entry.total_usd,
                     },
                 }
