@@ -42,6 +42,7 @@ class FundraiseContributorSummary:
     user: User
     total_rsc: float
     total_usd: float
+    total_rsc_cost_basis: float
     contributions: list[FundraiseContributionEvent]
 
 
@@ -151,13 +152,19 @@ class Fundraise(DefaultModel):
                 user_data[user_id] = {
                     "user": contribution.user,
                     "total_rsc": 0,
+                    "total_rsc_cost_basis": 0,
                     "total_usd": 0,
                     "contributions": [],
                 }
 
         for contribution in rsc_contributions:
             amount = float(contribution.amount)
+            if contribution.rsc_usd_rate is not None:
+                usd_value = amount * contribution.rsc_usd_rate
+            else:
+                usd_value = RscExchangeRate.rsc_to_usd(amount)
             user_data[contribution.user_id]["total_rsc"] += amount
+            user_data[contribution.user_id]["total_rsc_cost_basis"] += usd_value
             user_data[contribution.user_id]["contributions"].append(
                 FundraiseContributionEvent(
                     amount=amount,
@@ -184,6 +191,7 @@ class Fundraise(DefaultModel):
                     user=data["user"],
                     total_rsc=data["total_rsc"],
                     total_usd=data["total_usd"],
+                    total_rsc_cost_basis=data["total_rsc_cost_basis"],
                     contributions=sorted(
                         data["contributions"],
                         key=lambda x: x.date,
