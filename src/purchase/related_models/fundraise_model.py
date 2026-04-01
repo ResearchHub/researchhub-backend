@@ -41,8 +41,20 @@ class FundraiseContributorSummary:
 
     user: User
     total_rsc: float
-    total_usd: float
+    """
+    The total amount of RSC contributed by the user.
+    """
     total_rsc_cost_basis: float
+    """
+    The total cost basis amount in USD for the RSC contributions.
+    The cost basis is calculated with the RSC to USD exchange rate
+    at the time of each contribution.
+    """
+    total_usd: float
+    """
+    The total amount of USD contributed by the user.
+    This does not include the cost basis of any RSC contributions.
+    """
     contributions: list[FundraiseContributionEvent]
 
 
