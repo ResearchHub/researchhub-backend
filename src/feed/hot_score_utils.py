@@ -550,4 +550,14 @@ def get_age_hours_from_content(
     # For papers: action_date = paper_publish_date
     # For posts: action_date = created_date
     age = now - feed_entry.action_date
-    return max(0, age.total_seconds() / 3600)
+    age_hours = age.total_seconds() / 3600
+
+    if age_hours < 0:
+        logger.warning(
+            f"FeedEntry {getattr(feed_entry, 'id', '?')} has future action_date "
+            f"({feed_entry.action_date}), falling back to created_date"
+        )
+        age = now - feed_entry.created_date
+        age_hours = age.total_seconds() / 3600
+
+    return max(0, age_hours)

@@ -1,7 +1,9 @@
+from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
+from django.utils import timezone
 
 from feed.models import FeedEntry
 from feed.tasks import (
@@ -73,6 +75,50 @@ class FeedTasksTest(AWSMockTestCase):
         self.assertEqual(feed_entry.item, self.paper)
         self.assertEqual(feed_entry.hubs.first(), self.hub)
         self.assertEqual(feed_entry.unified_document, self.paper.unified_document)
+
+    def test_create_feed_entry_future_publish_date_falls_back_to_created_date(self):
+        """Paper with a future paper_publish_date should use created_date instead."""
+        now = timezone.now()
+        future_date = now + timedelta(days=180)
+
+        unified_doc = ResearchhubUnifiedDocument.objects.create()
+        paper = Paper.objects.create(
+            title="Future Publish Date Paper",
+            paper_publish_date=future_date,
+            unified_document=unified_doc,
+        )
+
+        feed_entry = create_feed_entry(
+            item_id=paper.id,
+            item_content_type_id=self.paper_content_type.id,
+            action=FeedEntry.PUBLISH,
+            hub_ids=[self.hub.id],
+            user_id=self.user.id,
+        )
+
+        self.assertEqual(feed_entry.action_date, paper.created_date)
+        self.assertLessEqual(feed_entry.action_date, now + timedelta(seconds=5))
+
+    def test_create_feed_entry_past_publish_date_uses_publish_date(self):
+        """Paper with a past paper_publish_date should use it as action_date."""
+        past_date = timezone.now() - timedelta(days=30)
+
+        unified_doc = ResearchhubUnifiedDocument.objects.create()
+        paper = Paper.objects.create(
+            title="Past Publish Date Paper",
+            paper_publish_date=past_date,
+            unified_document=unified_doc,
+        )
+
+        feed_entry = create_feed_entry(
+            item_id=paper.id,
+            item_content_type_id=self.paper_content_type.id,
+            action=FeedEntry.PUBLISH,
+            hub_ids=[self.hub.id],
+            user_id=self.user.id,
+        )
+
+        self.assertEqual(feed_entry.action_date, paper.paper_publish_date)
 
     def test_create_feed_entry_skips_unsupported_content_type(self):
         """Test that creating a feed entry with an unsupported content type
