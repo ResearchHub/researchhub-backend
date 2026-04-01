@@ -7,7 +7,6 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('reputation', '0056_bounty_escrow_term'),
-        ('researchhub_case', '0016_auto_20220705_2312')
     ]
 
     operations = [
