@@ -102,7 +102,7 @@ class GetContributorsTests(TestCase):
         self.assertEqual(top[0]["total_contribution"]["rsc"], 150.0)
         self.assertEqual(top[0]["total_contribution"]["usd"], 0)
         # 100 * 0.05 + 50 * 0.10 = 5.0 + 5.0 = 10.0
-        self.assertAlmostEqual(top[0]["total_contribution"]["rsc_cost_basis"], 10.0)
+        self.assertAlmostEqual(top[0]["total_contribution"]["rsc_usd_snapshot"], 10.0)
         self.assertEqual(len(top[0]["contributions"]), 2)
 
     def test_usd_contributions_only(self):
@@ -117,7 +117,7 @@ class GetContributorsTests(TestCase):
         top = result["top"]
         self.assertEqual(top[0]["total_contribution"]["usd"], 100.0)
         self.assertEqual(top[0]["total_contribution"]["rsc"], 0)
-        self.assertEqual(top[0]["total_contribution"]["rsc_cost_basis"], 0)
+        self.assertEqual(top[0]["total_contribution"]["rsc_usd_snapshot"], 0)
 
     def test_mixed_rsc_and_usd_from_same_user(self):
         # Arrange
@@ -133,7 +133,7 @@ class GetContributorsTests(TestCase):
         self.assertEqual(top[0]["total_contribution"]["rsc"], 200.0)
         self.assertEqual(top[0]["total_contribution"]["usd"], 50.0)
         # 200 * 0.01 = 2.0
-        self.assertAlmostEqual(top[0]["total_contribution"]["rsc_cost_basis"], 2.0)
+        self.assertAlmostEqual(top[0]["total_contribution"]["rsc_usd_snapshot"], 2.0)
         self.assertEqual(len(top[0]["contributions"]), 2)
 
     @patch(

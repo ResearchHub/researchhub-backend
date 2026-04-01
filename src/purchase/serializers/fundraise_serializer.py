@@ -75,7 +75,7 @@ class DynamicFundraiseSerializer(DynamicModelFieldSerializer):
             user_result = serializer.data
             user_result["total_contribution"] = {
                 "rsc": entry.total_rsc,
-                "rsc_cost_basis": entry.total_rsc_cost_basis,
+                "rsc_usd_snapshot": entry.total_rsc_usd_snapshot,
                 "usd": entry.total_usd,
             }
             user_result["contributions"] = [

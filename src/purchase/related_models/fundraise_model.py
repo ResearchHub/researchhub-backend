@@ -44,11 +44,10 @@ class FundraiseContributorSummary:
     """
     The total amount of RSC contributed by the user.
     """
-    total_rsc_cost_basis: float
+    total_rsc_usd_snapshot: float
     """
-    The total cost basis amount in USD for the RSC contributions.
-    The cost basis is calculated with the RSC to USD exchange rate
-    at the time of each contribution.
+    The USD value of the RSC contributions, captured at the time
+    of each contribution using the RSC-to-USD exchange rate.
     """
     total_usd: float
     """
@@ -164,7 +163,7 @@ class Fundraise(DefaultModel):
                 user_data[user_id] = {
                     "user": contribution.user,
                     "total_rsc": 0,
-                    "total_rsc_cost_basis": 0,
+                    "total_rsc_usd_snapshot": 0,
                     "total_usd": 0,
                     "contributions": [],
                 }
@@ -176,7 +175,7 @@ class Fundraise(DefaultModel):
             else:
                 usd_value = RscExchangeRate.rsc_to_usd(amount)
             user_data[contribution.user_id]["total_rsc"] += amount
-            user_data[contribution.user_id]["total_rsc_cost_basis"] += usd_value
+            user_data[contribution.user_id]["total_rsc_usd_snapshot"] += usd_value
             user_data[contribution.user_id]["contributions"].append(
                 FundraiseContributionEvent(
                     amount=amount,
@@ -203,7 +202,7 @@ class Fundraise(DefaultModel):
                     user=data["user"],
                     total_rsc=data["total_rsc"],
                     total_usd=data["total_usd"],
-                    total_rsc_cost_basis=data["total_rsc_cost_basis"],
+                    total_rsc_usd_snapshot=data["total_rsc_usd_snapshot"],
                     contributions=sorted(
                         data["contributions"],
                         key=lambda x: x.date,
