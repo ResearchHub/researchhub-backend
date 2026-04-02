@@ -12,10 +12,9 @@ from ai_peer_review.models import EditorialFeedback, ProposalReview, RFPSummary
 from ai_peer_review.permissions import AIPeerReviewPermission
 from ai_peer_review.serializers import (
     EditorialFeedbackSerializer,
-    GrantExecutiveSummaryRequestSerializer,
-    GrantRfpSummaryRequestSerializer,
     ProposalReviewCreateSerializer,
     ProposalReviewSerializer,
+    RfpBriefRefreshSerializer,
     RFPSummarySerializer,
     build_proposal_comparison_row,
 )
@@ -23,18 +22,19 @@ from ai_peer_review.services.proposal_review_pdf import (
     build_proposal_review_pdf_bytes,
     merged_review_payload,
 )
-from ai_peer_review.services.proposal_review_service import (
-    validate_grant_application,
-)
+from ai_peer_review.services.proposal_review_service import validate_grant_application
 from ai_peer_review.services.report_access import (
     user_can_view_grant_comparison,
     user_can_view_proposal_review,
 )
 from ai_peer_review.services.rfp_summary_service import run_executive_comparison
 from ai_peer_review.tasks import process_proposal_review_task, process_rfp_summary_task
-from researchhub_document.models import ResearchhubUnifiedDocument
-from researchhub_document.related_models.constants.document_type import GRANT, PREREGISTRATION
 from purchase.models import Grant, GrantApplication
+from researchhub_document.models import ResearchhubUnifiedDocument
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+)
 from user.permissions import IsModerator, UserIsEditor
 
 logger = logging.getLogger(__name__)
@@ -266,16 +266,36 @@ class ProposalReviewByGrantView(APIView):
         )
 
 
-class RFPSummaryCreateView(APIView):
+class RFPSummaryView(APIView):
+    """
+    RFP grant brief (table 2): GET current row; POST enqueue or refresh (~500w summary).
+    Grant id is always in the URL path.
+    """
+
     permission_classes = _EDITOR_PERMS
 
-    def post(self, request):
-        ser = GrantRfpSummaryRequestSerializer(data=request.data)
+    def get(self, request, grant_id):
+        try:
+            obj = RFPSummary.objects.get(grant_id=grant_id)
+        except RFPSummary.DoesNotExist:
+            return Response(
+                {
+                    "grant_id": grant_id,
+                    "status": None,
+                    "summary_content": "",
+                    "executive_comparison_summary": "",
+                    "detail": "No RFP summary yet.",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        return Response(RFPSummarySerializer(obj).data)
+
+    def post(self, request, grant_id):
+        ser = RfpBriefRefreshSerializer(data=request.data or {})
         ser.is_valid(raise_exception=True)
-        gid = ser.validated_data["grant_id"]
         force = ser.validated_data.get("force") or False
         try:
-            grant = Grant.objects.get(pk=gid)
+            grant = Grant.objects.get(pk=grant_id)
         except Grant.DoesNotExist:
             return Response(
                 {"detail": "Grant not found."},
@@ -318,54 +338,35 @@ class RFPSummaryCreateView(APIView):
         )
 
 
-class RFPSummaryDetailView(APIView):
-    permission_classes = _EDITOR_PERMS
-
-    def get(self, request, grant_id):
-        try:
-            obj = RFPSummary.objects.get(grant_id=grant_id)
-        except RFPSummary.DoesNotExist:
-            return Response(
-                {
-                    "grant_id": grant_id,
-                    "status": None,
-                    "summary_content": "",
-                    "executive_comparison_summary": "",
-                    "detail": "No RFP summary yet.",
-                },
-                status=status.HTTP_404_NOT_FOUND,
-            )
-        return Response(RFPSummarySerializer(obj).data)
-
-
 class GrantExecutiveSummaryView(APIView):
+    """POST generates funder comparison text; grant id is in the URL path."""
+
     permission_classes = _EDITOR_PERMS
 
-    def post(self, request):
-        ser = GrantExecutiveSummaryRequestSerializer(data=request.data)
-        ser.is_valid(raise_exception=True)
-        gid = ser.validated_data["grant_id"]
+    def post(self, request, grant_id):
         try:
-            Grant.objects.get(pk=gid)
+            Grant.objects.get(pk=grant_id)
         except Grant.DoesNotExist:
             return Response(
                 {"detail": "Grant not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
         try:
-            obj = run_executive_comparison(gid, request.user.id)
+            obj = run_executive_comparison(grant_id, request.user.id)
         except ValueError as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            logger.exception("Executive summary failed grant=%s", gid)
+            logger.exception("Executive summary failed grant=%s", grant_id)
             return Response(
                 {"detail": str(e)},
                 status=status.HTTP_502_BAD_GATEWAY,
             )
         return Response(
             {
-                "grant_id": gid,
+                "grant_id": grant_id,
                 "executive_summary": obj.executive_comparison_summary,
                 "updated_date": obj.executive_comparison_updated_date,
             }
+        )
+        )
         )

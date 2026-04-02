@@ -8,18 +8,17 @@ from rest_framework.test import APITestCase
 
 from ai_peer_review.constants import ReviewStatus
 from ai_peer_review.models import ProposalReview, ReportEntitlement, RFPSummary
-from purchase.models import Purchase
+from purchase.models import Grant, GrantApplication, Purchase
 from purchase.related_models.fundraise_model import Fundraise
-from researchhub_document.related_models.researchhub_unified_document_model import (
-    ResearchhubUnifiedDocument,
-)
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     GRANT,
     PREREGISTRATION,
 )
-from purchase.models import Grant, GrantApplication
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from user.tests.helpers import create_random_authenticated_user
 
 
@@ -30,9 +29,7 @@ class ProposalReviewAPITests(APITestCase):
             "pr_moderator", moderator=True
         )
         self.user = create_random_authenticated_user("pr_user", moderator=False)
-        self.grant_post = create_post(
-            created_by=self.moderator, document_type=GRANT
-        )
+        self.grant_post = create_post(created_by=self.moderator, document_type=GRANT)
         self.grant = Grant.objects.create(
             created_by=self.moderator,
             unified_document=self.grant_post.unified_document,
@@ -86,9 +83,7 @@ class ProposalReviewAPITests(APITestCase):
         )
         self.assertEqual(r.status_code, status.HTTP_202_ACCEPTED)
         mock_delay.assert_called_once()
-        pr = ProposalReview.objects.get(
-            unified_document=self.ud, grant=self.grant
-        )
+        pr = ProposalReview.objects.get(unified_document=self.ud, grant=self.grant)
         self.assertEqual(pr.created_by, self.moderator)
 
     @patch(
@@ -103,9 +98,7 @@ class ProposalReviewAPITests(APITestCase):
             format="json",
         )
         self.assertEqual(r.status_code, status.HTTP_202_ACCEPTED)
-        pr = ProposalReview.objects.get(
-            unified_document=self.ud, grant=self.grant
-        )
+        pr = ProposalReview.objects.get(unified_document=self.ud, grant=self.grant)
         self.assertEqual(pr.status, ReviewStatus.FAILED)
         self.assertTrue(pr.error_message)
 
@@ -406,12 +399,8 @@ class ProposalReviewAPITests(APITestCase):
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
 class RFPSummaryAPITests(APITestCase):
     def setUp(self):
-        self.moderator = create_random_authenticated_user(
-            "rfp_mod", moderator=True
-        )
-        self.grant_post = create_post(
-            created_by=self.moderator, document_type=GRANT
-        )
+        self.moderator = create_random_authenticated_user("rfp_mod", moderator=True)
+        self.grant_post = create_post(created_by=self.moderator, document_type=GRANT)
         self.grant = Grant.objects.create(
             created_by=self.moderator,
             unified_document=self.grant_post.unified_document,
@@ -421,36 +410,27 @@ class RFPSummaryAPITests(APITestCase):
             description="RFP body",
             status=Grant.OPEN,
         )
-        self.summary_url = "/api/ai_peer_review/rfp-summary/"
-        self.summary_get = f"/api/ai_peer_review/rfp-summary/{self.grant.id}/"
+        self.rfp_grant_url = f"/api/ai_peer_review/rfp/{self.grant.id}/"
 
     @patch("ai_peer_review.tasks.process_rfp_summary_task.delay")
     def test_post_rfp_summary(self, mock_delay):
         self.client.force_authenticate(self.moderator)
-        r = self.client.post(
-            self.summary_url, {"grant_id": self.grant.id}, format="json"
-        )
+        r = self.client.post(self.rfp_grant_url, {}, format="json")
         self.assertEqual(r.status_code, status.HTTP_202_ACCEPTED)
         mock_delay.assert_called_once()
-        self.assertTrue(
-            RFPSummary.objects.filter(grant_id=self.grant.id).exists()
-        )
+        self.assertTrue(RFPSummary.objects.filter(grant_id=self.grant.id).exists())
 
     def test_get_rfp_summary_404_when_missing(self):
         self.client.force_authenticate(self.moderator)
-        r = self.client.get(self.summary_get)
+        r = self.client.get(self.rfp_grant_url)
         self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
 
 
 class GrantExecutiveSummaryAPITests(APITestCase):
     def setUp(self):
-        self.moderator = create_random_authenticated_user(
-            "exec_mod", moderator=True
-        )
+        self.moderator = create_random_authenticated_user("exec_mod", moderator=True)
         self.user = create_random_authenticated_user("exec_user")
-        self.grant_post = create_post(
-            created_by=self.moderator, document_type=GRANT
-        )
+        self.grant_post = create_post(created_by=self.moderator, document_type=GRANT)
         self.grant = Grant.objects.create(
             created_by=self.moderator,
             unified_document=self.grant_post.unified_document,
@@ -486,7 +466,7 @@ class GrantExecutiveSummaryAPITests(APITestCase):
                 "reproducibility": {"overall_score": "Medium"},
             },
         )
-        self.url = "/api/ai_peer_review/grant-executive-summary/"
+        self.url = f"/api/ai_peer_review/rfp/{self.grant.id}/executive-summary/"
 
     @patch(
         "ai_peer_review.services.rfp_summary_service.BedrockLLMService.invoke",
@@ -494,9 +474,7 @@ class GrantExecutiveSummaryAPITests(APITestCase):
     )
     def test_post_executive_summary(self, _mock_invoke):
         self.client.force_authenticate(self.moderator)
-        r = self.client.post(
-            self.url, {"grant_id": self.grant.id}, format="json"
-        )
+        r = self.client.post(self.url, {}, format="json")
         self.assertEqual(r.status_code, status.HTTP_200_OK)
         data = r.json()
         self.assertIn("executive_summary", data)
@@ -507,7 +485,5 @@ class GrantExecutiveSummaryAPITests(APITestCase):
     def test_post_executive_no_reviews(self):
         ProposalReview.objects.all().delete()
         self.client.force_authenticate(self.moderator)
-        r = self.client.post(
-            self.url, {"grant_id": self.grant.id}, format="json"
-        )
+        r = self.client.post(self.url, {}, format="json")
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)

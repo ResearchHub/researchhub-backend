@@ -10,8 +10,7 @@ from ai_peer_review.views.proposal_review_views import (
     ProposalReviewCreateView,
     ProposalReviewDetailView,
     ProposalReviewPdfView,
-    RFPSummaryCreateView,
-    RFPSummaryDetailView,
+    RFPSummaryView,
 )
 
 urlpatterns = [
@@ -27,7 +26,9 @@ urlpatterns = [
         "editorial-feedback/<int:feedback_id>/",
         EditorialFeedbackUpdateView.as_view(),
     ),
-    path("rfp-summary/<int:grant_id>/", RFPSummaryDetailView.as_view()),
-    path("rfp-summary/", RFPSummaryCreateView.as_view()),
-    path("grant-executive-summary/", GrantExecutiveSummaryView.as_view()),
+    path(
+        "rfp/<int:grant_id>/executive-summary/",
+        GrantExecutiveSummaryView.as_view(),
+    ),
+    path("rfp/<int:grant_id>/", RFPSummaryView.as_view()),
 ]

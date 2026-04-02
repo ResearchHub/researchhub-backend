@@ -58,12 +58,9 @@ class RFPSummarySerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
-class GrantExecutiveSummaryRequestSerializer(serializers.Serializer):
-    grant_id = serializers.IntegerField()
+class RfpBriefRefreshSerializer(serializers.Serializer):
+    """POST body for `POST /api/ai_peer_review/rfp/<grant_id>/` (optional)."""
 
-
-class GrantRfpSummaryRequestSerializer(serializers.Serializer):
-    grant_id = serializers.IntegerField()
     force = serializers.BooleanField(required=False, default=False)
 
 
