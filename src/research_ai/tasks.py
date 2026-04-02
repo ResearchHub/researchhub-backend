@@ -65,6 +65,7 @@ def process_expert_search_task(
     *,
     excluded_expert_names: list | None = None,
     is_pdf: bool = False,
+    additional_context: str | None = None,
 ):
     """
     Background task to process an expert search.
@@ -75,6 +76,7 @@ def process_expert_search_task(
         config: Dict with expert_count, expertise_level, region, state, gender.
         excluded_expert_names: Optional list of expert names to exclude.
         is_pdf: True if query was extracted from PDF.
+        additional_context: Optional user notes to steer the model alongside query.
     """
 
     def progress_callback(sid: str, percent: int, message: str):
@@ -109,6 +111,7 @@ def process_expert_search_task(
             config=config,
             excluded_expert_names=excluded_expert_names or [],
             is_pdf=is_pdf,
+            additional_context=additional_context,
             progress_callback=progress_callback,
         )
 

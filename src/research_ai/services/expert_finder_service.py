@@ -164,6 +164,7 @@ class ExpertFinderService:
         *,
         excluded_expert_names: list[str] | None = None,
         is_pdf: bool = False,
+        additional_context: str | None = None,
         progress_callback: Callable[[str, int, str], None] | None = None,
     ) -> dict[str, Any]:
         """
@@ -173,6 +174,7 @@ class ExpertFinderService:
         to Redis and optionally to progress_callback(search_id, percent, message).
 
         is_pdf: Set True when query text was extracted from a PDF (affects prompt wording).
+        additional_context: Optional user notes appended to the user prompt for the model.
         """
 
         def publish_progress_update(
@@ -288,6 +290,7 @@ class ExpertFinderService:
                     region_filter=region_filter,
                     gender_filter=gender_filter,
                     is_pdf=is_pdf,
+                    additional_context=additional_context,
                 )
 
                 publish_progress_update(

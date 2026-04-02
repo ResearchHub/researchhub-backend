@@ -64,6 +64,7 @@ class ExpertSearchCreateView(APIView):
 
         unified_document_id = data.get("unified_document_id")
         query_text = (data.get("query") or "").strip()
+        additional_context = (data.get("additional_context") or "").strip()
         search_name = (data.get("name") or "").strip()
         input_type = data.get("input_type")
         config = data.get("config") or {}
@@ -112,6 +113,7 @@ class ExpertSearchCreateView(APIView):
             unified_document_id=unified_document_id or None,
             name=search_name,
             query=query_text,
+            additional_context=additional_context,
             input_type=effective_input_type,
             config=search_config,
             excluded_expert_names=excluded_expert_names,
@@ -129,6 +131,7 @@ class ExpertSearchCreateView(APIView):
                 excluded_expert_names if excluded_expert_names else None
             ),
             is_pdf=is_pdf,
+            additional_context=additional_context or None,
         )
 
         sse_url = _get_sse_url(request, str(search_id))
