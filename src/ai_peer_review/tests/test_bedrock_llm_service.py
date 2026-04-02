@@ -19,7 +19,7 @@ class BedrockLLMServiceTests(SimpleTestCase):
             }
         }
         with patch(
-            "ai_peer_review.services.bedrock_llm_service.create_client",
+            "ai_peer_review.services.bedrock_llm_service.bedrock_runtime_client",
             return_value=mock_client,
         ):
             svc = BedrockLLMService()
@@ -33,7 +33,7 @@ class BedrockLLMServiceTests(SimpleTestCase):
             "output": {"message": {"content": []}}
         }
         with patch(
-            "ai_peer_review.services.bedrock_llm_service.create_client",
+            "ai_peer_review.services.bedrock_llm_service.bedrock_runtime_client",
             return_value=mock_client,
         ):
             svc = BedrockLLMService()
@@ -44,7 +44,7 @@ class BedrockLLMServiceTests(SimpleTestCase):
         mock_client = MagicMock()
         mock_client.converse.side_effect = OSError("network")
         with patch(
-            "ai_peer_review.services.bedrock_llm_service.create_client",
+            "ai_peer_review.services.bedrock_llm_service.bedrock_runtime_client",
             return_value=mock_client,
         ):
             svc = BedrockLLMService()
@@ -56,7 +56,7 @@ class BedrockLLMServiceTests(SimpleTestCase):
         mock_client = MagicMock()
         mock_client.converse.return_value = {"output": {}}
         with patch(
-            "ai_peer_review.services.bedrock_llm_service.create_client",
+            "ai_peer_review.services.bedrock_llm_service.bedrock_runtime_client",
             return_value=mock_client,
         ):
             svc = BedrockLLMService()

@@ -1,23 +1,17 @@
 import logging
 
-from django.conf import settings
-
 from utils import sentry
-from utils.aws import create_client
+from utils.aws import bedrock_runtime_client
 
 logger = logging.getLogger(__name__)
 
-BEDROCK_MODEL_ID = getattr(
-    settings,
-    "AI_PEER_REVIEW_BEDROCK_MODEL_ID",
-    "us.anthropic.claude-haiku-4-5-20251001-v1:0",
-)
+BEDROCK_MODEL_ID = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
 
 
 class BedrockLLMService:
 
     def __init__(self):
-        self.bedrock_client = create_client("bedrock-runtime")
+        self.bedrock_client = bedrock_runtime_client()
         self.model_id = BEDROCK_MODEL_ID
 
     def invoke(
@@ -44,7 +38,9 @@ class BedrockLLMService:
                 },
             )
         except Exception as e:
-            sentry.log_error(e, message="Bedrock Converse API call failed (ai_peer_review)")
+            sentry.log_error(
+                e, message="Bedrock Converse API call failed (ai_peer_review)"
+            )
             logger.exception("Bedrock invoke failed")
             raise RuntimeError(f"Bedrock invoke failed: {e}") from e
 
