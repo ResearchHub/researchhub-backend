@@ -1,4 +1,6 @@
-from django.db import IntegrityError
+import logging
+
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -7,55 +9,77 @@ from rest_framework.views import APIView
 from ai_peer_review.models import EditorialFeedback
 from ai_peer_review.permissions import AIPeerReviewPermission
 from ai_peer_review.serializers import (
-    EditorialFeedbackCreateSerializer,
     EditorialFeedbackSerializer,
-    EditorialFeedbackUpdateSerializer,
+    EditorialFeedbackUpsertSerializer,
 )
+from researchhub_document.models import ResearchhubUnifiedDocument
+from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from user.permissions import IsModerator, UserIsEditor
+
+logger = logging.getLogger(__name__)
 
 _EDITOR_PERMS = [IsAuthenticated, AIPeerReviewPermission, UserIsEditor | IsModerator]
 
 
-class EditorialFeedbackCreateView(APIView):
+class EditorialFeedbackUpsertView(APIView):
+    """
+    One editorial row per proposal (unified document). Editors/moderators create or update.
+    PUT: full replace. PATCH/POST: partial update when row exists; when creating, all five
+    dimension scores are required (POST/PATCH behave like PUT for the initial create).
+    """
+
     permission_classes = _EDITOR_PERMS
 
-    def post(self, request):
-        ser = EditorialFeedbackCreateSerializer(
-            data=request.data, context={"request": request}
-        )
-        ser.is_valid(raise_exception=True)
+    def put(self, request, unified_document_id):
+        return self._upsert(request, unified_document_id, partial=False)
+
+    def patch(self, request, unified_document_id):
+        return self._upsert(request, unified_document_id, partial=True)
+
+    def post(self, request, unified_document_id):
+        return self._upsert(request, unified_document_id, partial=True)
+
+    def _upsert(self, request, unified_document_id, partial):
         try:
-            obj = ser.save()
-        except IntegrityError:
+            ud = ResearchhubUnifiedDocument.objects.get(pk=unified_document_id)
+        except ResearchhubUnifiedDocument.DoesNotExist:
             return Response(
-                {"detail": "Feedback already exists for this review and user."},
+                {"detail": "Unified document not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        if ud.document_type != PREREGISTRATION:
+            return Response(
+                {"detail": "Document must be a preregistration (proposal)."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        return Response(
-            EditorialFeedbackSerializer(obj).data,
-            status=status.HTTP_201_CREATED,
-        )
-
-
-class EditorialFeedbackUpdateView(APIView):
-    permission_classes = _EDITOR_PERMS
-
-    def patch(self, request, feedback_id):
         try:
-            fb = EditorialFeedback.objects.get(pk=feedback_id)
-        except EditorialFeedback.DoesNotExist:
-            return Response(
-                {"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND
+            existing = ud.ai_peer_review_editorial_feedback
+        except ObjectDoesNotExist:
+            existing = None
+
+        if existing is None:
+            ser = EditorialFeedbackUpsertSerializer(data=request.data, partial=False)
+        else:
+            ser = EditorialFeedbackUpsertSerializer(
+                existing,
+                data=request.data,
+                partial=partial,
             )
-        if fb.user_id != request.user.id and not getattr(
-            request.user, "moderator", False
-        ):
-            return Response(
-                {"detail": "Not allowed."}, status=status.HTTP_403_FORBIDDEN
-            )
-        ser = EditorialFeedbackUpdateSerializer(
-            fb, data=request.data, partial=True
-        )
         ser.is_valid(raise_exception=True)
-        ser.save()
-        return Response(EditorialFeedbackSerializer(fb).data)
+
+        if existing is None:
+            fb = EditorialFeedback.objects.create(
+                unified_document=ud,
+                created_by=request.user,
+                updated_by=request.user,
+                **ser.validated_data,
+            )
+            return Response(
+                EditorialFeedbackSerializer(fb).data,
+                status=status.HTTP_201_CREATED,
+            )
+        for attr, value in ser.validated_data.items():
+            setattr(existing, attr, value)
+        existing.updated_by = request.user
+        existing.save()
+        return Response(EditorialFeedbackSerializer(existing).data)

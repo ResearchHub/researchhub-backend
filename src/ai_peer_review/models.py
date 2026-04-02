@@ -11,11 +11,14 @@ from utils.models import DefaultModel
 class ProposalReview(DefaultModel):
     """
     AI 5-dimension review for a preregistration (proposal), optionally for a Grant (RFP).
+    ``created_by`` is null when the job was started by automation (e.g. Celery) without a user.
     """
 
     created_by = models.ForeignKey(
         "user.User",
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="created_proposal_reviews",
     )
     unified_document = models.ForeignKey(
@@ -53,24 +56,24 @@ class ProposalReview(DefaultModel):
     processing_time = models.FloatField(null=True, blank=True)
 
     class Meta:
-        db_table = "research_ai_proposal_review"
+        db_table = "ai_peer_review_proposalreview"
         ordering = ["-created_date"]
         constraints = [
             models.UniqueConstraint(
                 fields=["unified_document", "grant"],
                 condition=Q(grant__isnull=False),
-                name="research_ai_pr_ud_grant_nn",
+                name="ai_peer_review_pr_ud_grant_nn",
             ),
             models.UniqueConstraint(
                 fields=["unified_document"],
                 condition=Q(grant__isnull=True),
-                name="research_ai_pr_ud_standalone",
+                name="ai_peer_review_pr_ud_standalone",
             ),
         ]
         indexes = [
             models.Index(
                 fields=["grant", "status"],
-                name="research_ai_pr_grant_status",
+                name="ai_peer_review_pr_grant_status",
             ),
         ]
 
@@ -86,7 +89,7 @@ class RFPSummary(DefaultModel):
     grant = models.OneToOneField(
         "purchase.Grant",
         on_delete=models.CASCADE,
-        related_name="research_ai_rfp_summary",
+        related_name="ai_peer_review_rfp_summary",
     )
     created_by = models.ForeignKey(
         "user.User",
@@ -110,7 +113,7 @@ class RFPSummary(DefaultModel):
     processing_time = models.FloatField(null=True, blank=True)
 
     class Meta:
-        db_table = "research_ai_rfp_summary"
+        db_table = "ai_peer_review_rfp_summary"
         ordering = ["-updated_date"]
 
     def __str__(self):
@@ -153,24 +156,31 @@ class ReportEntitlement(DefaultModel):
 
 class EditorialFeedback(DefaultModel):
     """
-    Table 4: human editorial scores per dimension plus free-text expert insights.
+    Table 4: one human editorial assessment per proposal (unified document).
+    Any hub editor or moderator may create or update the single row.
     """
 
-    proposal_review = models.ForeignKey(
-        ProposalReview,
-        on_delete=models.CASCADE,
-        related_name="editorial_feedbacks",
-    )
-    unified_document = models.ForeignKey(
+    unified_document = models.OneToOneField(
         ResearchhubUnifiedDocument,
         on_delete=models.CASCADE,
-        related_name="ai_editorial_feedbacks",
-        db_comment="Denormalized from proposal_review for querying.",
+        related_name="ai_peer_review_editorial_feedback",
+        db_comment="At most one editorial feedback row per unified document.",
     )
-    user = models.ForeignKey(
+    created_by = models.ForeignKey(
         "user.User",
-        on_delete=models.CASCADE,
-        related_name="ai_peer_review_editorial_feedbacks",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ai_peer_review_editorial_feedbacks_created",
+        db_comment="Editor who first created this feedback row.",
+    )
+    updated_by = models.ForeignKey(
+        "user.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ai_peer_review_editorial_feedbacks_updated",
+        db_comment="Editor who last saved changes.",
     )
     fundability_expert = models.CharField(
         max_length=16,
@@ -196,17 +206,6 @@ class EditorialFeedback(DefaultModel):
 
     class Meta:
         db_table = "ai_peer_review_editorial_feedback"
-        constraints = [
-            models.UniqueConstraint(
-                fields=["user", "proposal_review"],
-                name="ai_peer_review_edit_fb_user_pr",
-            ),
-        ]
 
     def __str__(self):
-        return f"EditorialFeedback pr={self.proposal_review_id} by={self.user_id}"
-
-    def save(self, *args, **kwargs):
-        if self.proposal_review_id and not self.unified_document_id:
-            self.unified_document_id = self.proposal_review.unified_document_id
-        super().save(*args, **kwargs)
+        return f"EditorialFeedback ud={self.unified_document_id}"

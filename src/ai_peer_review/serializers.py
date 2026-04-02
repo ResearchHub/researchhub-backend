@@ -1,3 +1,4 @@
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 
 from ai_peer_review.constants import ReviewStatus
@@ -11,7 +12,7 @@ class ProposalReviewCreateSerializer(serializers.Serializer):
 
 
 class ProposalReviewSerializer(serializers.ModelSerializer):
-    editorial_feedbacks = serializers.SerializerMethodField()
+    editorial_feedback = serializers.SerializerMethodField()
 
     class Meta:
         model = ProposalReview
@@ -19,6 +20,7 @@ class ProposalReviewSerializer(serializers.ModelSerializer):
             "id",
             "unified_document_id",
             "grant_id",
+            "created_by_id",
             "status",
             "overall_rating",
             "overall_score_numeric",
@@ -30,13 +32,16 @@ class ProposalReviewSerializer(serializers.ModelSerializer):
             "processing_time",
             "created_date",
             "updated_date",
-            "editorial_feedbacks",
+            "editorial_feedback",
         ]
         read_only_fields = fields
 
-    def get_editorial_feedbacks(self, obj):
-        qs = obj.editorial_feedbacks.all().order_by("created_date")
-        return EditorialFeedbackSerializer(qs, many=True).data
+    def get_editorial_feedback(self, obj):
+        try:
+            fb = obj.unified_document.ai_peer_review_editorial_feedback
+        except ObjectDoesNotExist:
+            return None
+        return EditorialFeedbackSerializer(fb).data
 
 
 class RFPSummarySerializer(serializers.ModelSerializer):
@@ -65,15 +70,13 @@ class RfpBriefRefreshSerializer(serializers.Serializer):
 
 
 class EditorialFeedbackSerializer(serializers.ModelSerializer):
-    user_id = serializers.IntegerField(source="user.id", read_only=True)
-
     class Meta:
         model = EditorialFeedback
         fields = [
             "id",
-            "proposal_review_id",
             "unified_document_id",
-            "user_id",
+            "created_by_id",
+            "updated_by_id",
             "fundability_expert",
             "feasibility_expert",
             "novelty_expert",
@@ -85,39 +88,20 @@ class EditorialFeedbackSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             "id",
-            "proposal_review_id",
             "unified_document_id",
-            "user_id",
+            "created_by_id",
+            "updated_by_id",
             "created_date",
             "updated_date",
         ]
 
 
-class EditorialFeedbackCreateSerializer(serializers.ModelSerializer):
-    proposal_review_id = serializers.PrimaryKeyRelatedField(
-        queryset=ProposalReview.objects.all(),
-        source="proposal_review",
-        write_only=True,
-    )
+class EditorialFeedbackUpsertSerializer(serializers.ModelSerializer):
+    """
+    Create: use partial=False (all five dimension scores required).
+    Update: partial=True (PATCH) or partial=False (PUT) as appropriate.
+    """
 
-    class Meta:
-        model = EditorialFeedback
-        fields = [
-            "proposal_review_id",
-            "fundability_expert",
-            "feasibility_expert",
-            "novelty_expert",
-            "impact_expert",
-            "reproducibility_expert",
-            "expert_insights",
-        ]
-
-    def create(self, validated_data):
-        validated_data["user"] = self.context["request"].user
-        return super().create(validated_data)
-
-
-class EditorialFeedbackUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = EditorialFeedback
         fields = [
@@ -129,12 +113,7 @@ class EditorialFeedbackUpdateSerializer(serializers.ModelSerializer):
             "expert_insights",
         ]
         extra_kwargs = {
-            "fundability_expert": {"required": False},
-            "feasibility_expert": {"required": False},
-            "novelty_expert": {"required": False},
-            "impact_expert": {"required": False},
-            "reproducibility_expert": {"required": False},
-            "expert_insights": {"required": False},
+            "expert_insights": {"required": False, "allow_blank": True},
         }
 
 
@@ -142,7 +121,7 @@ def build_proposal_comparison_row(
     review: ProposalReview | None,
     ud_id: int,
     title: str,
-    editorial_feedbacks: list | None = None,
+    editorial_feedback: dict | None = None,
 ):
     row = {
         "unified_document_id": ud_id,
@@ -156,7 +135,7 @@ def build_proposal_comparison_row(
         "novelty": None,
         "impact": None,
         "reproducibility": None,
-        "editorial_feedbacks": editorial_feedbacks or [],
+        "editorial_feedback": editorial_feedback,
     }
     if review is None:
         return row

@@ -7,7 +7,12 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from ai_peer_review.constants import ReviewStatus
-from ai_peer_review.models import ProposalReview, ReportEntitlement, RFPSummary
+from ai_peer_review.models import (
+    EditorialFeedback,
+    ProposalReview,
+    ReportEntitlement,
+    RFPSummary,
+)
 from purchase.models import Grant, GrantApplication, Purchase
 from purchase.related_models.fundraise_model import Fundraise
 from researchhub_document.helpers import create_post
@@ -201,8 +206,8 @@ class ProposalReviewAPITests(APITestCase):
         self.assertEqual(row["review_id"], pr.id)
         self.assertEqual(row["fundability"], "High")
         self.assertEqual(data["executive_summary"], "Exec text")
-        self.assertIn("editorial_feedbacks", row)
-        self.assertEqual(row["editorial_feedbacks"], [])
+        self.assertIn("editorial_feedback", row)
+        self.assertIsNone(row["editorial_feedback"])
 
     def test_get_detail_proposal_author_allowed(self):
         pr = ProposalReview.objects.create(
@@ -357,7 +362,7 @@ class ProposalReviewAPITests(APITestCase):
         self.assertGreater(len(r.content), 100)
 
     def test_editorial_feedback_create_and_listed_on_grant_row(self):
-        pr = ProposalReview.objects.create(
+        ProposalReview.objects.create(
             created_by=self.moderator,
             unified_document=self.ud,
             grant=self.grant,
@@ -368,7 +373,6 @@ class ProposalReviewAPITests(APITestCase):
         )
         self.client.force_authenticate(self.moderator)
         body = {
-            "proposal_review_id": pr.id,
             "fundability_expert": "high",
             "feasibility_expert": "medium",
             "novelty_expert": "low",
@@ -376,24 +380,71 @@ class ProposalReviewAPITests(APITestCase):
             "reproducibility_expert": "medium",
             "expert_insights": "Strong team.",
         }
-        r = self.client.post(
-            "/api/ai_peer_review/editorial-feedback/", body, format="json"
-        )
+        url = f"/api/ai_peer_review/editorial-feedback/{self.ud.id}/"
+        r = self.client.post(url, body, format="json")
         self.assertEqual(r.status_code, status.HTTP_201_CREATED)
         fid = r.json()["id"]
         r2 = self.client.get(self.grant_list_url)
         self.assertEqual(r2.status_code, status.HTTP_200_OK)
         row = r2.json()["proposals"][0]
-        self.assertEqual(len(row["editorial_feedbacks"]), 1)
-        self.assertEqual(row["editorial_feedbacks"][0]["id"], fid)
+        self.assertIsNotNone(row["editorial_feedback"])
+        self.assertEqual(row["editorial_feedback"]["id"], fid)
 
         r3 = self.client.patch(
-            f"/api/ai_peer_review/editorial-feedback/{fid}/",
+            url,
             {"expert_insights": "Updated."},
             format="json",
         )
         self.assertEqual(r3.status_code, status.HTTP_200_OK)
         self.assertEqual(r3.json()["expert_insights"], "Updated.")
+
+    def test_editorial_feedback_visible_to_entitled_user_on_detail(self):
+        pr = ProposalReview.objects.create(
+            created_by=self.moderator,
+            unified_document=self.ud,
+            grant=self.grant,
+            status=ReviewStatus.COMPLETED,
+            overall_rating="good",
+            overall_score_numeric=10,
+            result_data={},
+        )
+        EditorialFeedback.objects.create(
+            unified_document=self.ud,
+            created_by=self.moderator,
+            updated_by=self.moderator,
+            fundability_expert="high",
+            feasibility_expert="high",
+            novelty_expert="high",
+            impact_expert="high",
+            reproducibility_expert="high",
+            expert_insights="Note.",
+        )
+        buyer = create_random_authenticated_user("pr_edit_viewer")
+        uni = ResearchhubUnifiedDocument.objects.create(document_type=PREREGISTRATION)
+        ct = ContentType.objects.get_for_model(Fundraise)
+        fr = Fundraise.objects.create(
+            created_by=buyer,
+            status=Fundraise.CLOSED,
+            unified_document=uni,
+        )
+        purchase = Purchase.objects.create(
+            user=buyer,
+            content_type=ct,
+            object_id=fr.id,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            paid_status=Purchase.PAID,
+            amount="1",
+            purchase_method=Purchase.OFF_CHAIN,
+        )
+        ReportEntitlement.objects.create(
+            user=buyer,
+            proposal_review=pr,
+            purchase=purchase,
+        )
+        self.client.force_authenticate(buyer)
+        r = self.client.get(self.detail_url(pr.id))
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertEqual(r.json()["editorial_feedback"]["expert_insights"], "Note.")
 
 
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True)

@@ -1,6 +1,7 @@
 import logging
 
 from django.db import IntegrityError
+from django.db.models import Prefetch
 from django.http import HttpResponse
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -98,9 +99,7 @@ class ProposalReviewCreateView(APIView):
                 },
             )
         except IntegrityError:
-            review = ProposalReview.objects.get(
-                unified_document=ud, grant=grant
-            )
+            review = ProposalReview.objects.get(unified_document=ud, grant=grant)
             created = False
         if not created:
             if review.status == ReviewStatus.COMPLETED:
@@ -148,16 +147,19 @@ class ProposalReviewDetailView(APIView):
     def get(self, request, review_id):
         try:
             review = (
-                ProposalReview.objects.select_related(
-                    "unified_document", "grant"
+                ProposalReview.objects.select_related("grant")
+                .prefetch_related(
+                    Prefetch(
+                        "unified_document",
+                        queryset=ResearchhubUnifiedDocument.objects.select_related(
+                            "ai_peer_review_editorial_feedback"
+                        ),
+                    )
                 )
-                .prefetch_related("editorial_feedbacks")
                 .get(pk=review_id)
             )
         except ProposalReview.DoesNotExist:
-            return Response(
-                {"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
         if not user_can_view_proposal_review(request.user, review):
             return Response(
                 {"detail": "Not allowed."}, status=status.HTTP_403_FORBIDDEN
@@ -174,9 +176,7 @@ class ProposalReviewPdfView(APIView):
                 "unified_document", "grant"
             ).get(pk=review_id)
         except ProposalReview.DoesNotExist:
-            return Response(
-                {"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
         if not user_can_view_proposal_review(request.user, review):
             return Response(
                 {"detail": "Not allowed."}, status=status.HTTP_403_FORBIDDEN
@@ -228,28 +228,18 @@ class ProposalReviewByGrantView(APIView):
                 grant_id=grant_id,
             )
         }
-        review_ids = [r.id for r in reviews.values() if r is not None]
-        feedback_by_review: dict[int, list] = {}
-        if review_ids:
-            for fb in EditorialFeedback.objects.filter(
-                proposal_review_id__in=review_ids
-            ).order_by("created_date"):
-                feedback_by_review.setdefault(fb.proposal_review_id, []).append(
-                    EditorialFeedbackSerializer(fb).data
-                )
+        ud_ids = [app.preregistration_post.unified_document_id for app in applications]
+        feedback_by_ud = {
+            fb.unified_document_id: EditorialFeedbackSerializer(fb).data
+            for fb in EditorialFeedback.objects.filter(unified_document_id__in=ud_ids)
+        }
         proposals = []
         for app in applications:
             ud = app.preregistration_post.unified_document
             rev = reviews.get(ud.id)
-            ef = (
-                feedback_by_review.get(rev.id, [])
-                if rev is not None
-                else []
-            )
+            ef = feedback_by_ud.get(ud.id)
             proposals.append(
-                build_proposal_comparison_row(
-                    rev, ud.id, _proposal_title(ud), ef
-                )
+                build_proposal_comparison_row(rev, ud.id, _proposal_title(ud), ef)
             )
         executive = ""
         try:
@@ -367,6 +357,4 @@ class GrantExecutiveSummaryView(APIView):
                 "executive_summary": obj.executive_comparison_summary,
                 "updated_date": obj.executive_comparison_updated_date,
             }
-        )
-        )
         )
