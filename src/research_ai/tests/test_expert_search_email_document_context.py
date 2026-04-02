@@ -149,9 +149,10 @@ class BuildGenericLinkedDocumentTests(SimpleTestCase):
         self.assertEqual(d["blurb"], "12345")
 
 
-def _mock_expert_search_with_udoc(document_type):
+def _mock_expert_search_with_udoc(document_type, additional_context=""):
     es = MagicMock()
     es.unified_document_id = 1
+    es.additional_context = additional_context
     udoc = MagicMock()
     udoc.document_type = document_type
     es.unified_document = udoc
@@ -180,13 +181,14 @@ class ResolveExpertSearchEmailDocumentContextTests(SimpleTestCase):
     )
     @patch("research_ai.services.expert_search_email_document_context.resolve_grant")
     def test_grant_with_rfp_context(self, mock_resolve, mock_build_rfp):
-        es, _ = _mock_expert_search_with_udoc(GRANT)
+        es, _ = _mock_expert_search_with_udoc(GRANT, additional_context="More nuance")
         mock_resolve.return_value = MagicMock()
         mock_build_rfp.return_value = {"title": "RFP X", "blurb": "About the grant"}
         ctx = resolve_expert_search_email_document_context(es)
         self.assertEqual(ctx.rfp_context_dict["title"], "RFP X")
         self.assertIsNone(ctx.proposal_context_dict)
         self.assertIsNone(ctx.generic_work_context_dict)
+        self.assertEqual(ctx.user_additional_context, "More nuance")
 
     @patch(
         "research_ai.services.expert_search_email_document_context.build_rfp_context"
@@ -345,3 +347,30 @@ class FormatDocumentContextForLlmTests(SimpleTestCase):
         s = format_document_context_for_llm(ctx)
         self.assertIn("hypothesis", s)
         self.assertIn("ResearchHub post or document", s)
+
+    def test_appends_user_additional_context_after_grant_narrative(self):
+        ctx = ExpertSearchEmailDocumentContext(
+            {"title": "G", "blurb": "B"},
+            None,
+            None,
+            user_additional_context="Extra from user",
+        )
+        s = format_document_context_for_llm(ctx)
+        self.assertIn("grant or funding opportunity", s)
+        self.assertIn("additional guidance when running this expert search", s)
+        self.assertIn("Extra from user", s)
+        self.assertLess(s.index("G"), s.index("Extra from user"))
+
+    def test_user_additional_context_only_when_no_document_branch(self):
+        ctx = ExpertSearchEmailDocumentContext(
+            None,
+            None,
+            None,
+            user_additional_context="Query-only hints",
+        )
+        s = format_document_context_for_llm(ctx)
+        self.assertEqual(
+            s,
+            "The requester provided additional guidance when running this expert "
+            "search:\nQuery-only hints",
+        )

@@ -8,6 +8,8 @@ from researchhub_document.related_models.constants.document_type import PAPER
 from researchhub_document.serializers import ResearchhubPostSerializer
 from user.models import Author
 
+ADDITIONAL_CONTEXT_MAX_LENGTH = 10_000
+
 
 def _apply_generate_template_rules(attrs, initial_data):
     """
@@ -76,6 +78,11 @@ class ExpertSearchCreateSerializer(serializers.Serializer):
 
     unified_document_id = serializers.IntegerField(required=False, allow_null=True)
     query = serializers.CharField(required=False, allow_blank=True)
+    additional_context = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=ADDITIONAL_CONTEXT_MAX_LENGTH,
+    )
     name = serializers.CharField(required=False, allow_blank=True, max_length=512)
     input_type = serializers.ChoiceField(
         choices=ExpertSearch.InputType.choices,
@@ -202,6 +209,7 @@ class ExpertSearchSerializer(serializers.ModelSerializer):
             "created_by",
             "name",
             "query",
+            "additional_context",
             "work",
             "input_type",
             "config",

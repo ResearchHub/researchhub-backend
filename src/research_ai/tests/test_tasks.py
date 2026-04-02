@@ -14,7 +14,6 @@ from research_ai.tasks import (
 )
 from user.tests.helpers import create_random_authenticated_user
 
-
 # --- _maybe_obfuscate_expert_emails_for_non_production ---
 
 
@@ -143,7 +142,9 @@ class ProcessExpertSearchTaskTests(TestCase):
         )
 
     @patch("research_ai.tasks.ExpertFinderService")
-    def test_process_expert_search_when_service_returns_failed_saves_error(self, mock_service_class):
+    def test_process_expert_search_when_service_returns_failed_saves_error(
+        self, mock_service_class
+    ):
         mock_instance = mock_service_class.return_value
         mock_instance.process_expert_search.return_value = {
             "status": ExpertSearch.Status.FAILED,
@@ -169,7 +170,35 @@ class ProcessExpertSearchTaskTests(TestCase):
         self.assertEqual(result["status"], ExpertSearch.Status.FAILED)
 
     @patch("research_ai.tasks.ExpertFinderService")
-    def test_process_expert_search_exception_updates_status_and_reraises(self, mock_service_class):
+    def test_process_expert_search_passes_additional_context_to_service(
+        self, mock_service_class
+    ):
+        mock_instance = mock_service_class.return_value
+        mock_instance.process_expert_search.return_value = {
+            "status": ExpertSearch.Status.COMPLETED,
+            "experts": [{"name": "Dr. A", "email": "a@lab.org"}],
+            "expert_count": 1,
+            "report_urls": {"pdf": "/r/1.pdf", "csv": "/r/1.csv"},
+            "llm_model": "test-model",
+        }
+        process_expert_search_task.apply(
+            kwargs={
+                "search_id": str(self.search.id),
+                "query": self.search.query,
+                "config": {},
+                "excluded_expert_names": None,
+                "is_pdf": False,
+                "additional_context": "Focus on cardiology.",
+            }
+        ).get()
+        mock_instance.process_expert_search.assert_called_once()
+        call_kw = mock_instance.process_expert_search.call_args.kwargs
+        self.assertEqual(call_kw.get("additional_context"), "Focus on cardiology.")
+
+    @patch("research_ai.tasks.ExpertFinderService")
+    def test_process_expert_search_exception_updates_status_and_reraises(
+        self, mock_service_class
+    ):
         mock_instance = mock_service_class.return_value
         mock_instance.process_expert_search.side_effect = RuntimeError("LLM error")
         with self.assertRaises(RuntimeError):
@@ -281,7 +310,9 @@ class ProcessBulkGenerateEmailsTaskTests(TestCase):
 
     @patch("research_ai.tasks.sentry")
     @patch("research_ai.tasks.generate_expert_email")
-    def test_process_bulk_one_fails_marks_failed_and_logs_sentry(self, mock_generate, mock_sentry):
+    def test_process_bulk_one_fails_marks_failed_and_logs_sentry(
+        self, mock_generate, mock_sentry
+    ):
         rec_ok = GeneratedEmail.objects.create(
             created_by=self.user,
             expert_search=self.expert_search,
@@ -298,10 +329,12 @@ class ProcessBulkGenerateEmailsTaskTests(TestCase):
             template="collaboration",
             status=GeneratedEmail.Status.PROCESSING,
         )
+
         def side_effect(*args, **kwargs):
             if kwargs.get("resolved_expert", {}).get("email") == "b@example.com":
                 raise ValueError("Generation failed")
             return ("Subj", "Body")
+
         mock_generate.side_effect = side_effect
         result = process_bulk_generate_emails_task.apply(
             kwargs={
@@ -334,7 +367,9 @@ class ProcessBulkGenerateEmailsTaskTests(TestCase):
             status=GeneratedEmail.Status.PROCESSING,
         )
         mock_generate.return_value = ("Subj", "Body")
-        with patch("research_ai.tasks.User.objects.get", side_effect=RuntimeError("DB error")):
+        with patch(
+            "research_ai.tasks.User.objects.get", side_effect=RuntimeError("DB error")
+        ):
             with self.assertRaises(RuntimeError):
                 process_bulk_generate_emails_task.apply(
                     kwargs={

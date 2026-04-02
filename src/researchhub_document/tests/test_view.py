@@ -5,13 +5,14 @@ from unittest.mock import patch
 
 import pytz
 from django.contrib.contenttypes.models import ContentType
+from django.test import TestCase
 from rest_framework.test import APITestCase
 
 from hub.models import Hub
 from hub.tests.helpers import create_hub
 from note.tests.helpers import create_note
 from paper.tests.helpers import create_paper
-from purchase.models import Grant
+from purchase.models import Grant, GrantApplication
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.distributions import Distribution
 from reputation.distributor import Distributor
@@ -20,10 +21,14 @@ from researchhub_access_group.models import Permission
 from researchhub_document.helpers import create_post
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import GRANT
+from researchhub_document.serializers.researchhub_post_serializer import (
+    ResearchhubPostSerializer,
+)
 from researchhub_document.views.researchhub_post_views import (
     MIN_POST_BODY_LENGTH,
     MIN_POST_TITLE_LENGTH,
 )
+from review.models import Review
 from user.models import UserVerification
 from user.related_models.author_model import Author
 from user.related_models.organization_model import Organization
@@ -1791,3 +1796,184 @@ class ViewTests(APITestCase):
 
         # Should return no posts
         self.assertEqual(len(empty_results), 0)
+
+
+class PreregistrationGrantAutoAttachTests(APITestCase):
+    def setUp(self):
+        self.user = create_random_default_user("prereg_user")
+        make_user_verified(self.user)
+        self.hub = create_hub("test_hub")
+
+        self.moderator = create_random_default_user("grant_mod")
+        make_user_verified(self.moderator)
+        grant_post = create_post(created_by=self.moderator, document_type=GRANT)
+        self.grant = Grant.objects.create(
+            created_by=self.moderator,
+            unified_document=grant_post.unified_document,
+            amount=Decimal("10000.00"),
+            currency="USD",
+            organization="Test Foundation",
+            description="Test grant",
+            status=Grant.OPEN,
+        )
+
+    def _create_post(self, document_type="PREREGISTRATION", extra_data=None):
+        payload = {
+            "document_type": document_type,
+            "created_by": self.user.id,
+            "full_src": "post body content",
+            "is_public": True,
+            "renderable_text": "x" * MIN_POST_BODY_LENGTH,
+            "title": "x" * MIN_POST_TITLE_LENGTH,
+            "hubs": [self.hub.id],
+        }
+        if extra_data:
+            payload.update(extra_data)
+        return self.client.post("/api/researchhubpost/", payload)
+
+    def test_create_preregistration_with_grant_id_auto_attaches(self):
+        # Arrange
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self._create_post(extra_data={"grant_id": self.grant.id})
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(
+            GrantApplication.objects.filter(
+                grant=self.grant,
+                preregistration_post_id=response.data["id"],
+                applicant=self.user,
+            ).exists()
+        )
+
+    def test_create_preregistration_without_grant_id_does_not_attach(self):
+        # Arrange
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self._create_post()
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(
+            GrantApplication.objects.filter(
+                preregistration_post_id=response.data["id"],
+            ).exists()
+        )
+
+    def test_create_preregistration_with_invalid_grant_id_returns_400(self):
+        # Arrange
+        self.client.force_authenticate(self.user)
+        doc_count_before = ResearchhubUnifiedDocument.objects.count()
+
+        # Act
+        response = self._create_post(extra_data={"grant_id": 999999})
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(ResearchhubUnifiedDocument.objects.count(), doc_count_before)
+        self.assertFalse(GrantApplication.objects.exists())
+
+    def test_create_preregistration_with_closed_grant_returns_400(self):
+        # Arrange
+        self.grant.status = Grant.CLOSED
+        self.grant.save()
+        self.client.force_authenticate(self.user)
+        doc_count_before = ResearchhubUnifiedDocument.objects.count()
+
+        # Act
+        response = self._create_post(extra_data={"grant_id": self.grant.id})
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(ResearchhubUnifiedDocument.objects.count(), doc_count_before)
+        self.assertFalse(GrantApplication.objects.exists())
+
+    def test_grant_id_ignored_for_non_preregistration_types(self):
+        # Arrange
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self._create_post(
+            document_type="DISCUSSION",
+            extra_data={"grant_id": self.grant.id},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(GrantApplication.objects.exists())
+
+
+class PostPeerReviewTests(TestCase):
+    def test_peer_reviews_included_in_serialized_output(self):
+        user1 = create_random_default_user("reviewer1")
+        user2 = create_random_default_user("reviewer2")
+        post = create_post(
+            title="Post with reviews",
+            created_by=user1,
+        )
+        post_ct = ContentType.objects.get_for_model(post)
+
+        review1 = Review.objects.create(
+            created_by=user1,
+            unified_document=post.unified_document,
+            content_type=post_ct,
+            object_id=post.id,
+            score=9,
+        )
+        review2 = Review.objects.create(
+            created_by=user2,
+            unified_document=post.unified_document,
+            content_type=post_ct,
+            object_id=post.id,
+            score=7,
+        )
+
+        data = ResearchhubPostSerializer(post).data
+
+        self.assertEqual(len(data["peer_reviews"]), 2)
+        review_ids = {r["id"] for r in data["peer_reviews"]}
+        self.assertEqual(review_ids, {review1.id, review2.id})
+
+    def test_peer_reviews_excludes_removed(self):
+        user1 = create_random_default_user("active_reviewer")
+        user2 = create_random_default_user("removed_reviewer")
+        post = create_post(
+            title="Post with removed review",
+            created_by=user1,
+        )
+        post_ct = ContentType.objects.get_for_model(post)
+
+        active_review = Review.objects.create(
+            created_by=user1,
+            unified_document=post.unified_document,
+            content_type=post_ct,
+            object_id=post.id,
+            score=8,
+        )
+        Review.objects.create(
+            created_by=user2,
+            unified_document=post.unified_document,
+            content_type=post_ct,
+            object_id=post.id,
+            score=4,
+            is_removed=True,
+        )
+
+        data = ResearchhubPostSerializer(post).data
+
+        self.assertEqual(len(data["peer_reviews"]), 1)
+        self.assertEqual(data["peer_reviews"][0]["id"], active_review.id)
+
+    def test_peer_reviews_empty_when_none_exist(self):
+        user = create_random_default_user("post_author")
+        post = create_post(
+            title="Post without reviews",
+            created_by=user,
+        )
+
+        data = ResearchhubPostSerializer(post).data
+
+        self.assertEqual(data["peer_reviews"], [])

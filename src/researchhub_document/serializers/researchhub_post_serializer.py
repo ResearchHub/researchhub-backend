@@ -13,6 +13,7 @@ from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.document_type import (
     RESEARCHHUB_POST_DOCUMENT_TYPES,
 )
+from review.serializers.review_serializer import DynamicReviewSerializer
 from user.serializers import (
     AuthorSerializer,
     DynamicAuthorSerializer,
@@ -45,6 +46,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             "is_removed",
             "is_root_version",
             "note",
+            "peer_reviews",
             "post_src",
             "preview_img",
             "renderable_text",
@@ -84,6 +86,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
     # local
     authors = SerializerMethodField()
     created_by = SerializerMethodField(method_name="get_created_by")
+    peer_reviews = SerializerMethodField()
     full_markdown = SerializerMethodField(method_name="get_full_markdown")
     hubs = SerializerMethodField(method_name="get_hubs")
     image = CharField(write_only=True, required=False, allow_null=True)
@@ -202,6 +205,48 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
     def get_hubs(self, instance):
         return SimpleHubSerializer(instance.unified_document.hubs, many=True).data
 
+    def get_peer_reviews(self, instance):
+        from review.models import Review
+
+        unified_document = instance.unified_document
+        if not unified_document:
+            return []
+
+        reviews = Review.objects.filter(
+            unified_document=unified_document,
+            is_removed=False,
+        )
+        serializer = DynamicReviewSerializer(
+            reviews,
+            many=True,
+            _include_fields=[
+                "id",
+                "score",
+                "created_by",
+                "created_date",
+                "updated_date",
+            ],
+            context={
+                "rev_drs_get_created_by": {
+                    "_include_fields": [
+                        "id",
+                        "author_profile",
+                        "first_name",
+                        "last_name",
+                    ]
+                },
+                "usr_dus_get_author_profile": {
+                    "_include_fields": [
+                        "id",
+                        "first_name",
+                        "last_name",
+                        "profile_image",
+                    ]
+                },
+            },
+        )
+        return serializer.data
+
     def get_promoted_score(self, instance):
         return instance.get_promoted_score()
 
@@ -218,6 +263,7 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
     discussion_aggregates = SerializerMethodField()
     hubs = SerializerMethodField()
     note = SerializerMethodField()
+    peer_reviews = SerializerMethodField()
     purchases = SerializerMethodField()
     score = SerializerMethodField()
     unified_document = SerializerMethodField()
@@ -293,6 +339,27 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
         _context_fields = context.get("doc_dps_get_note", {})
         serializer = DynamicNoteSerializer(
             post.note, context=context, **_context_fields
+        )
+        return serializer.data
+
+    def get_peer_reviews(self, post):
+        from review.models import Review
+
+        context = self.context
+        _context_fields = context.get("doc_dps_get_peer_reviews", {})
+        unified_document = post.unified_document
+        if not unified_document:
+            return []
+
+        reviews = Review.objects.filter(
+            unified_document=unified_document,
+            is_removed=False,
+        )
+        serializer = DynamicReviewSerializer(
+            reviews,
+            many=True,
+            context=context,
+            **_context_fields,
         )
         return serializer.data
 

@@ -2,7 +2,6 @@ from django.db import models
 from django.db.models import UniqueConstraint
 from django.utils.translation import gettext_lazy as _
 
-from researchhub_case.constants.case_constants import APPROVED
 from utils.models import DefaultModel, SoftDeletableModel
 
 
@@ -18,7 +17,7 @@ class PeerReview(SoftDeletableModel, DefaultModel):
         Represents the status of a peer review, from pending to approved.
         """
 
-        APPROVED = APPROVED, _("Approved")
+        APPROVED = "APPROVED", _("Approved")
         CHANGES_REQUESTED = "CHANGES_REQUESTED", _("Changes Requested")
         PENDING = "PENDING", _("Pending")
 

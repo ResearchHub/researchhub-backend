@@ -112,7 +112,7 @@ class GrantOverviewService(OverviewMixin):
         user_funded_ids = get_funded_fundraise_ids(user.id)
         funded_fundraise_ids = list(set(fundraise_ids) & user_funded_ids)
 
-        exchange_rate = RscExchangeRate.get_latest_exchange_rate()
+        exchange_rate = RscExchangeRate.get_latest()
 
         return {
             "budget_used_usd": round(

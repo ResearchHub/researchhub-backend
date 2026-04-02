@@ -221,6 +221,38 @@ class TestHotScoreUtils(AWSMockTestCase):
         # Assert: Age should be ~180 days (4320 hours), not 0
         self.assertAlmostEqual(age_hours, 180 * 24, delta=1)
 
+    def test_future_action_date_falls_back_to_created_date(self):
+        """A future action_date should fall back to created_date for age calculation."""
+        now = datetime.now(timezone.utc)
+        future_action_date = now + timedelta(days=180)
+        created_date = now - timedelta(days=7)
+
+        feed_entry = Mock()
+        feed_entry.id = 999
+        feed_entry.action_date = future_action_date
+        feed_entry.created_date = created_date
+
+        content = {}
+
+        age_hours = get_age_hours_from_content(content, feed_entry)
+
+        # Should use created_date (~7 days = 168 hours), not 0
+        self.assertAlmostEqual(age_hours, 7 * 24, delta=1)
+        self.assertGreater(age_hours, 0)
+
+    def test_future_action_date_never_returns_zero(self):
+        """Ensure a future action_date never yields an artificially low age."""
+        now = datetime.now(timezone.utc)
+        feed_entry = Mock()
+        feed_entry.id = 1000
+        feed_entry.action_date = now + timedelta(days=30)
+        feed_entry.created_date = now - timedelta(hours=12)
+
+        age_hours = get_age_hours_from_content({}, feed_entry)
+
+        # Should reflect the created_date age (~12 hours), not 0
+        self.assertAlmostEqual(age_hours, 12, delta=1)
+
     def test_calculate_x_engagement(self):
         """Test extracting X/Twitter engagement score."""
         x_data = {
