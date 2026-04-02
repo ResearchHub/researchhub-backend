@@ -23,9 +23,7 @@ _EDITOR_PERMS = [IsAuthenticated, AIPeerReviewPermission, UserIsEditor | IsModer
 
 class EditorialFeedbackUpsertView(APIView):
     """
-    One editorial row per proposal (unified document). Editors/moderators create or update.
-    PUT: full replace. PATCH/POST: partial update when row exists; when creating, all five
-    dimension scores are required (POST/PATCH behave like PUT for the initial create).
+    POST/PUT/PATCH /api/ai_peer_review/editorial-feedback/<unified_document_id>/.
     """
 
     permission_classes = _EDITOR_PERMS

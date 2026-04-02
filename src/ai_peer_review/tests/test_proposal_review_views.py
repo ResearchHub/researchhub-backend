@@ -446,6 +446,205 @@ class ProposalReviewAPITests(APITestCase):
         self.assertEqual(r.status_code, status.HTTP_200_OK)
         self.assertEqual(r.json()["editorial_feedback"]["expert_insights"], "Note.")
 
+    def test_get_detail_not_found(self):
+        self.client.force_authenticate(self.moderator)
+        r = self.client.get("/api/ai_peer_review/proposal-review/999999999/")
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_grant_comparison_grant_not_found(self):
+        self.client.force_authenticate(self.moderator)
+        r = self.client.get("/api/ai_peer_review/proposal-review/grant/999999999/")
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_create_unified_document_not_found(self):
+        self.client.force_authenticate(self.moderator)
+        r = self.client.post(
+            self.create_url,
+            {"unified_document_id": 999999999, "grant_id": self.grant.id},
+            format="json",
+        )
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_create_grant_not_found(self):
+        self.client.force_authenticate(self.moderator)
+        r = self.client.post(
+            self.create_url,
+            {"unified_document_id": self.ud.id, "grant_id": 999999999},
+            format="json",
+        )
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_create_grant_invalid_unified_document_type(self):
+        bad_ud = ResearchhubUnifiedDocument.objects.create(document_type=DISCUSSION)
+        bad_grant = Grant.objects.create(
+            created_by=self.moderator,
+            unified_document=bad_ud,
+            amount=Decimal("1.00"),
+            currency="USD",
+            organization="X",
+            description="Y",
+            status=Grant.OPEN,
+        )
+        self.client.force_authenticate(self.moderator)
+        r = self.client.post(
+            self.create_url,
+            {"unified_document_id": self.ud.id, "grant_id": bad_grant.id},
+            format="json",
+        )
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @patch("ai_peer_review.tasks.process_proposal_review_task.delay")
+    def test_create_without_grant_id(self, mock_delay):
+        self.client.force_authenticate(self.moderator)
+        r = self.client.post(
+            self.create_url,
+            {"unified_document_id": self.ud.id},
+            format="json",
+        )
+        self.assertEqual(r.status_code, status.HTTP_202_ACCEPTED)
+        mock_delay.assert_called_once()
+        pr = ProposalReview.objects.get(unified_document=self.ud, grant__isnull=True)
+        self.assertEqual(pr.status, ReviewStatus.PENDING)
+
+    @patch("ai_peer_review.tasks.process_proposal_review_task.delay")
+    def test_create_when_pending_returns_202_without_re_enqueuing(self, mock_delay):
+        ProposalReview.objects.create(
+            created_by=self.moderator,
+            unified_document=self.ud,
+            grant=self.grant,
+            status=ReviewStatus.PENDING,
+        )
+        self.client.force_authenticate(self.moderator)
+        mock_delay.reset_mock()
+        r = self.client.post(
+            self.create_url,
+            {"unified_document_id": self.ud.id, "grant_id": self.grant.id},
+            format="json",
+        )
+        self.assertEqual(r.status_code, status.HTTP_202_ACCEPTED)
+        mock_delay.assert_not_called()
+
+    @patch("ai_peer_review.tasks.process_proposal_review_task.delay")
+    def test_create_when_failed_resets_and_re_enqueues(self, mock_delay):
+        ProposalReview.objects.create(
+            created_by=self.moderator,
+            unified_document=self.ud,
+            grant=self.grant,
+            status=ReviewStatus.FAILED,
+            error_message="bad",
+            result_data={"x": 1},
+            overall_rating="poor",
+            overall_score_numeric=1,
+        )
+        self.client.force_authenticate(self.moderator)
+        r = self.client.post(
+            self.create_url,
+            {"unified_document_id": self.ud.id, "grant_id": self.grant.id},
+            format="json",
+        )
+        self.assertEqual(r.status_code, status.HTTP_202_ACCEPTED)
+        mock_delay.assert_called_once()
+        pr = ProposalReview.objects.get(unified_document=self.ud, grant=self.grant)
+        self.assertEqual(pr.status, ReviewStatus.PENDING)
+        self.assertEqual(pr.error_message, "")
+
+    def test_pdf_not_found(self):
+        self.client.force_authenticate(self.moderator)
+        r = self.client.get("/api/ai_peer_review/proposal-review/999999999/pdf/")
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_pdf_incomplete_returns_400(self):
+        pr = ProposalReview.objects.create(
+            created_by=self.moderator,
+            unified_document=self.ud,
+            grant=self.grant,
+            status=ReviewStatus.PENDING,
+            result_data={},
+        )
+        self.client.force_authenticate(self.moderator)
+        r = self.client.get(f"/api/ai_peer_review/proposal-review/{pr.id}/pdf/")
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_pdf_forbidden_for_stranger(self):
+        pr = ProposalReview.objects.create(
+            created_by=self.moderator,
+            unified_document=self.ud,
+            grant=self.grant,
+            status=ReviewStatus.COMPLETED,
+            overall_rating="good",
+            overall_score_numeric=10,
+            result_data={
+                "fundability": {"overall_score": "High"},
+                "feasibility": {"overall_score": "High"},
+                "novelty": {"overall_score": "High"},
+                "impact": {"overall_score": "High"},
+                "reproducibility": {"overall_score": "High"},
+            },
+        )
+        other = create_random_authenticated_user("pr_pdf_stranger")
+        self.client.force_authenticate(other)
+        r = self.client.get(f"/api/ai_peer_review/proposal-review/{pr.id}/pdf/")
+        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_editorial_unified_document_not_found(self):
+        self.client.force_authenticate(self.moderator)
+        r = self.client.post(
+            "/api/ai_peer_review/editorial-feedback/999999999/",
+            {
+                "fundability_expert": "high",
+                "feasibility_expert": "high",
+                "novelty_expert": "high",
+                "impact_expert": "high",
+                "reproducibility_expert": "high",
+            },
+            format="json",
+        )
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_editorial_wrong_document_type(self):
+        paper_ud = create_post(
+            created_by=self.moderator, document_type=DISCUSSION
+        ).unified_document
+        self.client.force_authenticate(self.moderator)
+        r = self.client.post(
+            f"/api/ai_peer_review/editorial-feedback/{paper_ud.id}/",
+            {
+                "fundability_expert": "high",
+                "feasibility_expert": "high",
+                "novelty_expert": "high",
+                "impact_expert": "high",
+                "reproducibility_expert": "high",
+            },
+            format="json",
+        )
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_editorial_put_full_replace(self):
+        self.client.force_authenticate(self.moderator)
+        url = f"/api/ai_peer_review/editorial-feedback/{self.ud.id}/"
+        create_body = {
+            "fundability_expert": "high",
+            "feasibility_expert": "medium",
+            "novelty_expert": "low",
+            "impact_expert": "high",
+            "reproducibility_expert": "medium",
+            "expert_insights": "First.",
+        }
+        r = self.client.post(url, create_body, format="json")
+        self.assertEqual(r.status_code, status.HTTP_201_CREATED)
+        put_body = {
+            "fundability_expert": "low",
+            "feasibility_expert": "low",
+            "novelty_expert": "low",
+            "impact_expert": "low",
+            "reproducibility_expert": "low",
+            "expert_insights": "Replaced.",
+        }
+        r2 = self.client.put(url, put_body, format="json")
+        self.assertEqual(r2.status_code, status.HTTP_200_OK)
+        self.assertEqual(r2.json()["expert_insights"], "Replaced.")
+        self.assertEqual(r2.json()["fundability_expert"], "low")
+
 
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
 class RFPSummaryAPITests(APITestCase):
@@ -475,6 +674,70 @@ class RFPSummaryAPITests(APITestCase):
         self.client.force_authenticate(self.moderator)
         r = self.client.get(self.rfp_grant_url)
         self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_get_rfp_summary_when_exists(self):
+        RFPSummary.objects.create(
+            grant=self.grant,
+            created_by=self.moderator,
+            status=ReviewStatus.COMPLETED,
+            summary_content="Stored brief",
+        )
+        self.client.force_authenticate(self.moderator)
+        r = self.client.get(self.rfp_grant_url)
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertEqual(r.json()["summary_content"], "Stored brief")
+
+    @patch("ai_peer_review.tasks.process_rfp_summary_task.delay")
+    def test_post_rfp_summary_already_completed_returns_200(self, mock_delay):
+        RFPSummary.objects.create(
+            grant=self.grant,
+            created_by=self.moderator,
+            status=ReviewStatus.COMPLETED,
+            summary_content="Done",
+        )
+        self.client.force_authenticate(self.moderator)
+        r = self.client.post(self.rfp_grant_url, {}, format="json")
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertTrue(r.json().get("already_exists"))
+        mock_delay.assert_not_called()
+
+    @patch("ai_peer_review.tasks.process_rfp_summary_task.delay")
+    def test_post_rfp_summary_force_requeues(self, mock_delay):
+        RFPSummary.objects.create(
+            grant=self.grant,
+            created_by=self.moderator,
+            status=ReviewStatus.COMPLETED,
+            summary_content="Done",
+        )
+        self.client.force_authenticate(self.moderator)
+        r = self.client.post(self.rfp_grant_url, {"force": True}, format="json")
+        self.assertEqual(r.status_code, status.HTTP_202_ACCEPTED)
+        mock_delay.assert_called_once()
+
+    def test_post_rfp_summary_grant_not_found(self):
+        self.client.force_authenticate(self.moderator)
+        r = self.client.post(
+            "/api/ai_peer_review/rfp/999999999/",
+            {},
+            format="json",
+        )
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_post_rfp_summary_grant_not_grant_document(self):
+        bad_ud = ResearchhubUnifiedDocument.objects.create(document_type=DISCUSSION)
+        bad_grant = Grant.objects.create(
+            created_by=self.moderator,
+            unified_document=bad_ud,
+            amount=Decimal("1.00"),
+            currency="USD",
+            organization="X",
+            description="Y",
+            status=Grant.OPEN,
+        )
+        url = f"/api/ai_peer_review/rfp/{bad_grant.id}/"
+        self.client.force_authenticate(self.moderator)
+        r = self.client.post(url, {}, format="json")
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 class GrantExecutiveSummaryAPITests(APITestCase):
@@ -538,3 +801,21 @@ class GrantExecutiveSummaryAPITests(APITestCase):
         self.client.force_authenticate(self.moderator)
         r = self.client.post(self.url, {}, format="json")
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_post_executive_grant_not_found(self):
+        self.client.force_authenticate(self.moderator)
+        r = self.client.post(
+            "/api/ai_peer_review/rfp/999999999/executive-summary/",
+            {},
+            format="json",
+        )
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
+
+    @patch(
+        "ai_peer_review.views.proposal_review_views.run_executive_comparison",
+        side_effect=RuntimeError("upstream failure"),
+    )
+    def test_post_executive_summary_502_on_unexpected_error(self, _mock):
+        self.client.force_authenticate(self.moderator)
+        r = self.client.post(self.url, {}, format="json")
+        self.assertEqual(r.status_code, status.HTTP_502_BAD_GATEWAY)

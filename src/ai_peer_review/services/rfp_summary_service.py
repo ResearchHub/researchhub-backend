@@ -1,7 +1,3 @@
-"""
-RFP (grant) summary and executive comparison via Bedrock.
-"""
-
 import logging
 import time
 

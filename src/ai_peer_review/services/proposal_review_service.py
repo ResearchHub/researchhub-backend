@@ -1,13 +1,7 @@
-"""
-Proposal review: load proposal/RFP text, call Bedrock, normalize scores, persist.
-"""
-
 import logging
 import time
 
-from django.conf import settings
-
-from ai_peer_review.constants import ReviewStatus
+from ai_peer_review.constants import PROPOSAL_REVIEW_MAX_OUTPUT_TOKENS, ReviewStatus
 from ai_peer_review.models import ProposalReview
 from ai_peer_review.prompts.proposal_review_prompts import (
     build_proposal_review_user_prompt,
@@ -25,17 +19,6 @@ from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 
 logger = logging.getLogger(__name__)
-
-
-def _proposal_review_max_tokens() -> int:
-    return min(
-        16384,
-        getattr(
-            settings,
-            "AI_PEER_REVIEW_PROPOSAL_REVIEW_MAX_TOKENS",
-            getattr(settings, "RESEARCH_AI_PROPOSAL_REVIEW_MAX_TOKENS", 16384),
-        ),
-    )
 
 
 def get_proposal_markdown(unified_document: ResearchhubUnifiedDocument) -> str:
@@ -117,7 +100,7 @@ def run_proposal_review(review_id: int) -> None:
         raw = llm.invoke(
             system,
             user,
-            max_tokens=_proposal_review_max_tokens(),
+            max_tokens=PROPOSAL_REVIEW_MAX_OUTPUT_TOKENS,
             temperature=0.0,
         )
         review.progress = 70
@@ -145,6 +128,4 @@ def run_proposal_review(review_id: int) -> None:
         review.progress = 0
         review.current_step = "Failed"
         review.processing_time = time.monotonic() - t0
-        review.save()
-        review.save()
         review.save()

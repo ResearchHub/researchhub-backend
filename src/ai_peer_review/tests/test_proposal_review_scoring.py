@@ -158,3 +158,11 @@ class ProposalReviewScoringTests(SimpleTestCase):
         tl = review["fundability"]["timeline_realism"]
         self.assertEqual(tl["go_no_go_gates"], "No")
         self.assertEqual(tl["score"], "Medium")
+
+    def test_parse_json_response_embedded_braces(self):
+        d = parse_json_response('noise {"fundability": {"overall_score": "Low"}} tail')
+        self.assertEqual(d["fundability"]["overall_score"], "Low")
+
+    def test_parse_json_response_invalid_raises(self):
+        with self.assertRaises(ValueError):
+            parse_json_response("no json here")

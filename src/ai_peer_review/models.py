@@ -156,8 +156,8 @@ class ReportEntitlement(DefaultModel):
 
 class EditorialFeedback(DefaultModel):
     """
-    Table 4: one human editorial assessment per proposal (unified document).
-    Any hub editor or moderator may create or update the single row.
+    One human editorial assessment per proposal.
+    Any editor or moderator may create or update the single row.
     """
 
     unified_document = models.OneToOneField(

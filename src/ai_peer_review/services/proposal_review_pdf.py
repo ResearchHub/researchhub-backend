@@ -1,7 +1,3 @@
-"""
-Server-side PDF report from stored proposal review JSON (ReportLab, Artemis-style).
-"""
-
 import io
 from xml.sax.saxutils import escape
 
@@ -19,10 +15,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-from ai_peer_review.services.proposal_review_scoring import (
-    DIMENSION_KEYS,
-    DIMENSION_SUB_AREAS,
-)
+from ai_peer_review.constants import DIMENSION_KEYS, DIMENSION_SUB_AREAS
 
 COLOR_HIGH = colors.HexColor("#27AE60")
 COLOR_MEDIUM = colors.HexColor("#F39C12")
@@ -321,9 +314,7 @@ def build_proposal_review_pdf_bytes(review_dict: dict, document_title: str) -> b
         for sa_key in sub_area_keys:
             sa = dim.get(sa_key) or {}
             sa_score = sa.get("score", "N/A")
-            sa_label = SUB_AREA_LABELS.get(
-                sa_key, sa_key.replace("_", " ").title()
-            )
+            sa_label = SUB_AREA_LABELS.get(sa_key, sa_key.replace("_", " ").title())
             sa_rationale = sa.get("rationale", "")
             sa_flags = sa.get("flags") or []
             flag_text = ""
@@ -395,9 +386,7 @@ def build_proposal_review_pdf_bytes(review_dict: dict, document_title: str) -> b
             for flag in res_flags:
                 elements.append(Paragraph(_xml_text(f"- {flag}"), styles["normal"]))
     else:
-        elements.append(
-            Paragraph("No timeline notes available.", styles["normal"])
-        )
+        elements.append(Paragraph("No timeline notes available.", styles["normal"]))
     elements.append(Spacer(1, 0.05 * inch))
 
     elements += section_header("Section D - Budget Analysis")
@@ -406,9 +395,7 @@ def build_proposal_review_pdf_bytes(review_dict: dict, document_title: str) -> b
         li_flags = bn.get("line_item_flags") or []
         adj = bn.get("recommended_adjustments") or []
         if li_flags:
-            elements.append(
-                Paragraph("<b>Line Item Flags</b>", styles["sub_heading"])
-            )
+            elements.append(Paragraph("<b>Line Item Flags</b>", styles["sub_heading"]))
             for flag in li_flags:
                 elements.append(Paragraph(_xml_text(f"- {flag}"), styles["normal"]))
             elements.append(Spacer(1, 0.05 * inch))
@@ -459,9 +446,7 @@ def build_proposal_review_pdf_bytes(review_dict: dict, document_title: str) -> b
             )
             elements.append(adj_table)
     else:
-        elements.append(
-            Paragraph("No budget analysis available.", styles["normal"])
-        )
+        elements.append(Paragraph("No budget analysis available.", styles["normal"]))
     elements.append(Spacer(1, 0.05 * inch))
 
     elements += section_header("Section E - Issue Table")

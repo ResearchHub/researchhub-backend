@@ -64,7 +64,7 @@ class RFPSummarySerializer(serializers.ModelSerializer):
 
 
 class RfpBriefRefreshSerializer(serializers.Serializer):
-    """POST body for `POST /api/ai_peer_review/rfp/<grant_id>/` (optional)."""
+    """POST body for `POST /api/ai_peer_review/rfp/<grant_id>/`."""
 
     force = serializers.BooleanField(required=False, default=False)
 

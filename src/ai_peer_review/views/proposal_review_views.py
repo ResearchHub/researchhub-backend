@@ -24,10 +24,6 @@ from ai_peer_review.services.proposal_review_pdf import (
     merged_review_payload,
 )
 from ai_peer_review.services.proposal_review_service import validate_grant_application
-from ai_peer_review.services.report_access import (
-    user_can_view_grant_comparison,
-    user_can_view_proposal_review,
-)
 from ai_peer_review.services.rfp_summary_service import run_executive_comparison
 from ai_peer_review.tasks import process_proposal_review_task, process_rfp_summary_task
 from purchase.models import Grant, GrantApplication
@@ -51,6 +47,10 @@ def _proposal_title(ud: ResearchhubUnifiedDocument) -> str:
 
 
 class ProposalReviewCreateView(APIView):
+    """
+    POST /api/ai_peer_review/proposal-review/ - Create or enqueue proposal review.
+    """
+
     permission_classes = _EDITOR_PERMS
 
     def post(self, request):
@@ -142,6 +142,10 @@ class ProposalReviewCreateView(APIView):
 
 
 class ProposalReviewDetailView(APIView):
+    """
+    GET /api/ai_peer_review/proposal-review/<review_id>/ - Proposal review detail.
+    """
+
     permission_classes = [IsAuthenticated, AIPeerReviewPermission]
 
     def get(self, request, review_id):
@@ -160,14 +164,15 @@ class ProposalReviewDetailView(APIView):
             )
         except ProposalReview.DoesNotExist:
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
-        if not user_can_view_proposal_review(request.user, review):
-            return Response(
-                {"detail": "Not allowed."}, status=status.HTTP_403_FORBIDDEN
-            )
+        self.check_object_permissions(request, review)
         return Response(ProposalReviewSerializer(review).data)
 
 
 class ProposalReviewPdfView(APIView):
+    """
+    GET /api/ai_peer_review/proposal-review/<review_id>/pdf/ - PDF export.
+    """
+
     permission_classes = [IsAuthenticated, AIPeerReviewPermission]
 
     def get(self, request, review_id):
@@ -177,10 +182,7 @@ class ProposalReviewPdfView(APIView):
             ).get(pk=review_id)
         except ProposalReview.DoesNotExist:
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
-        if not user_can_view_proposal_review(request.user, review):
-            return Response(
-                {"detail": "Not allowed."}, status=status.HTTP_403_FORBIDDEN
-            )
+        self.check_object_permissions(request, review)
         if review.status != ReviewStatus.COMPLETED:
             return Response(
                 {"detail": "Review is not complete yet."},
@@ -203,7 +205,9 @@ class ProposalReviewPdfView(APIView):
 
 
 class ProposalReviewByGrantView(APIView):
-    """Comparison table: all applications to a grant + optional executive summary."""
+    """
+    GET /api/ai_peer_review/proposal-review/grant/<grant_id>/ - Per-proposal rows, editorial feedback, executive summary snippet.
+    """
 
     permission_classes = [IsAuthenticated, AIPeerReviewPermission]
 
@@ -215,10 +219,7 @@ class ProposalReviewByGrantView(APIView):
                 {"detail": "Grant not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        if not user_can_view_grant_comparison(request.user, grant):
-            return Response(
-                {"detail": "Not allowed."}, status=status.HTTP_403_FORBIDDEN
-            )
+        self.check_object_permissions(request, grant)
         applications = GrantApplication.objects.filter(grant=grant).select_related(
             "preregistration_post__unified_document"
         )
@@ -258,8 +259,8 @@ class ProposalReviewByGrantView(APIView):
 
 class RFPSummaryView(APIView):
     """
-    RFP grant brief (table 2): GET current row; POST enqueue or refresh (~500w summary).
-    Grant id is always in the URL path.
+    GET  /api/ai_peer_review/rfp/<grant_id>/ - RFP summary status and content.
+    POST /api/ai_peer_review/rfp/<grant_id>/ - Create or refresh RFP summary.
     """
 
     permission_classes = _EDITOR_PERMS
@@ -329,7 +330,9 @@ class RFPSummaryView(APIView):
 
 
 class GrantExecutiveSummaryView(APIView):
-    """POST generates funder comparison text; grant id is in the URL path."""
+    """
+    POST /api/ai_peer_review/rfp/<grant_id>/executive-summary/ - Generate executive comparison text.
+    """
 
     permission_classes = _EDITOR_PERMS
 
