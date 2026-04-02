@@ -171,7 +171,6 @@ def build_system_prompt(
 def format_additional_context_section(additional_context: str | None) -> str:
     """
     Markdown block inserted after the main query/paper body in the user prompt.
-    User text is not passed through str.format (avoids brace issues in content).
     """
     stripped = (additional_context or "").strip()
     if not stripped:
