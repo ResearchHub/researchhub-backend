@@ -47,7 +47,7 @@ class GetContributorsTests(TestCase):
             target_currency="USD",
         )
 
-    def _create_rsc_contribution(self, user, amount):
+    def _create_rsc_contribution(self, user, amount, rsc_usd_rate):
         return Purchase.objects.create(
             user=user,
             content_type=self.fundraise_ct,
@@ -56,6 +56,7 @@ class GetContributorsTests(TestCase):
             purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
             amount=str(amount),
             paid_status="PAID",
+            rsc_usd_rate=rsc_usd_rate,
         )
 
     def _create_usd_contribution(self, user, amount_cents):
@@ -88,8 +89,8 @@ class GetContributorsTests(TestCase):
 
     def test_rsc_contributions_only(self):
         # Arrange
-        self._create_rsc_contribution(self.contributor1, 100)
-        self._create_rsc_contribution(self.contributor1, 50)
+        self._create_rsc_contribution(self.contributor1, 100, rsc_usd_rate=0.05)
+        self._create_rsc_contribution(self.contributor1, 50, rsc_usd_rate=0.10)
 
         # Act
         result = self._serialize()
@@ -100,6 +101,8 @@ class GetContributorsTests(TestCase):
         self.assertEqual(len(top), 1)
         self.assertEqual(top[0]["total_contribution"]["rsc"], 150.0)
         self.assertEqual(top[0]["total_contribution"]["usd"], 0)
+        # 100 * 0.05 + 50 * 0.10 = 5.0 + 5.0 = 10.0
+        self.assertAlmostEqual(top[0]["total_contribution"]["rsc_usd_snapshot"], 10.0)
         self.assertEqual(len(top[0]["contributions"]), 2)
 
     def test_usd_contributions_only(self):
@@ -114,10 +117,11 @@ class GetContributorsTests(TestCase):
         top = result["top"]
         self.assertEqual(top[0]["total_contribution"]["usd"], 100.0)
         self.assertEqual(top[0]["total_contribution"]["rsc"], 0)
+        self.assertEqual(top[0]["total_contribution"]["rsc_usd_snapshot"], 0)
 
     def test_mixed_rsc_and_usd_from_same_user(self):
         # Arrange
-        self._create_rsc_contribution(self.contributor1, 200)
+        self._create_rsc_contribution(self.contributor1, 200, rsc_usd_rate=0.01)
         self._create_usd_contribution(self.contributor1, 5000)  # $50
 
         # Act
@@ -128,6 +132,8 @@ class GetContributorsTests(TestCase):
         top = result["top"]
         self.assertEqual(top[0]["total_contribution"]["rsc"], 200.0)
         self.assertEqual(top[0]["total_contribution"]["usd"], 50.0)
+        # 200 * 0.01 = 2.0
+        self.assertAlmostEqual(top[0]["total_contribution"]["rsc_usd_snapshot"], 2.0)
         self.assertEqual(len(top[0]["contributions"]), 2)
 
     @patch(
@@ -137,7 +143,7 @@ class GetContributorsTests(TestCase):
     def test_multiple_users_sorted_by_usd_equivalent(self, _mock):
         # Arrange
         # contributor1: 100 RSC ($1) + $0 USD = $1 equivalent
-        self._create_rsc_contribution(self.contributor1, 100)
+        self._create_rsc_contribution(self.contributor1, 100, rsc_usd_rate=0.01)
         # contributor2: $50 USD + 0 RSC = $50 equivalent
         self._create_usd_contribution(self.contributor2, 5000)
 
@@ -167,8 +173,8 @@ class GetContributorsTests(TestCase):
 
     def test_contributions_sorted_by_date_descending(self):
         # Arrange
-        self._create_rsc_contribution(self.contributor1, 100)
-        self._create_rsc_contribution(self.contributor1, 200)
+        self._create_rsc_contribution(self.contributor1, 100, rsc_usd_rate=0.01)
+        self._create_rsc_contribution(self.contributor1, 200, rsc_usd_rate=0.01)
 
         # Act
         result = self._serialize()
@@ -180,7 +186,7 @@ class GetContributorsTests(TestCase):
 
     def test_contribution_currency_labels(self):
         # Arrange
-        self._create_rsc_contribution(self.contributor1, 100)
+        self._create_rsc_contribution(self.contributor1, 100, rsc_usd_rate=0.01)
         self._create_usd_contribution(self.contributor1, 5000)
 
         # Act
