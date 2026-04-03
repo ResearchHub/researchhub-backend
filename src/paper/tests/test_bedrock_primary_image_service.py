@@ -25,7 +25,7 @@ class BedrockPrimaryImageServiceTests(TestCase):
     def setUp(self):
         """Set up test environment."""
         self.mock_create_client_patcher = patch(
-            "paper.services.bedrock_primary_image_service.bedrock_runtime_client"
+            "paper.services.bedrock_primary_image_service.create_client"
         )
         self.mock_create_client = self.mock_create_client_patcher.start()
 
@@ -131,7 +131,7 @@ class BedrockPrimaryImageServiceTests(TestCase):
         self.assertIn("Test Title", prompt)
         self.assertIn("Test Abstract", prompt)
 
-    @patch("paper.services.bedrock_primary_image_service.bedrock_runtime_client")
+    @patch("paper.services.bedrock_primary_image_service.create_client")
     @patch("django.conf.settings.BEDROCK_PROCESSING_ENABLED", True)
     def test_select_best_from_batch_success(self, mock_create_client):
         """Test successful selection from a batch."""
@@ -176,7 +176,7 @@ class BedrockPrimaryImageServiceTests(TestCase):
         self.assertEqual(selected_id, figure1.id)
         self.assertEqual(score, 75.5)
 
-    @patch("paper.services.bedrock_primary_image_service.bedrock_runtime_client")
+    @patch("paper.services.bedrock_primary_image_service.create_client")
     @patch("django.conf.settings.BEDROCK_PROCESSING_ENABLED", True)
     def test_select_best_from_batch_tool_use_response(self, mock_create_client):
         """Test parsing Tool Use response from Converse API."""
@@ -218,7 +218,7 @@ class BedrockPrimaryImageServiceTests(TestCase):
         self.assertEqual(selected_id, figure2.id)
         self.assertEqual(score, 80.0)
 
-    @patch("paper.services.bedrock_primary_image_service.bedrock_runtime_client")
+    @patch("paper.services.bedrock_primary_image_service.create_client")
     def test_select_best_from_batch_empty_batch(self, mock_create_client):
         """Test handling of empty batch."""
         mock_client = MagicMock()
@@ -233,7 +233,7 @@ class BedrockPrimaryImageServiceTests(TestCase):
         self.assertIsNone(selected_id)
         self.assertIsNone(score)
 
-    @patch("paper.services.bedrock_primary_image_service.bedrock_runtime_client")
+    @patch("paper.services.bedrock_primary_image_service.create_client")
     def test_select_best_from_batch_exceeds_limit(self, mock_create_client):
         """Test that batches exceeding limit are rejected."""
         mock_client = MagicMock()
@@ -297,7 +297,7 @@ class BedrockPrimaryImageServiceTests(TestCase):
         self.assertEqual(selected_id, figure1.id)
         self.assertEqual(score, 75.0)
 
-    @patch("paper.services.bedrock_primary_image_service.bedrock_runtime_client")
+    @patch("paper.services.bedrock_primary_image_service.create_client")
     @patch("django.conf.settings.BEDROCK_PROCESSING_ENABLED", True)
     def test_select_primary_image_batching(self, mock_create_client):
         """Test selection with batching for many figures."""
@@ -353,7 +353,7 @@ class BedrockPrimaryImageServiceTests(TestCase):
         # Should have called Bedrock multiple times (for batches and final selection)
         self.assertGreater(mock_client.converse.call_count, 1)
 
-    @patch("paper.services.bedrock_primary_image_service.bedrock_runtime_client")
+    @patch("paper.services.bedrock_primary_image_service.create_client")
     def test_select_best_from_batch_missing_tool_use(self, mock_create_client):
         """Test handling when Tool Use response is missing."""
         mock_client = MagicMock()
@@ -379,7 +379,7 @@ class BedrockPrimaryImageServiceTests(TestCase):
         self.assertIsNone(selected_id)
         self.assertIsNone(score)
 
-    @patch("paper.services.bedrock_primary_image_service.bedrock_runtime_client")
+    @patch("paper.services.bedrock_primary_image_service.create_client")
     def test_select_best_from_batch_missing_output(self, mock_create_client):
         """Test handling when output is missing from response."""
         mock_client = MagicMock()
