@@ -92,10 +92,20 @@ class ProposalReviewAPITests(APITestCase):
         self.assertEqual(pr.created_by, self.moderator)
 
     @patch(
+        "ai_peer_review.services.proposal_review_service.fetch_proposal_review_web_context",
+        return_value="",
+    )
+    @patch(
+        "ai_peer_review.services.proposal_review_service.build_researcher_external_context",
+        return_value="EXTERNAL_RESEARCHER_CTX_MARKER",
+    )
+    @patch(
         "ai_peer_review.services.proposal_review_service.BedrockLLMService.invoke",
         return_value="not valid json {{{",
     )
-    def test_proposal_review_task_marks_failed_on_bad_llm_output(self, _mock):
+    def test_proposal_review_task_marks_failed_on_bad_llm_output(
+        self, mock_invoke, _ext, _web
+    ):
         self.client.force_authenticate(self.moderator)
         r = self.client.post(
             self.create_url,
@@ -106,6 +116,11 @@ class ProposalReviewAPITests(APITestCase):
         pr = ProposalReview.objects.get(unified_document=self.ud, grant=self.grant)
         self.assertEqual(pr.status, ReviewStatus.FAILED)
         self.assertTrue(pr.error_message)
+        call_args = mock_invoke.call_args
+        self.assertIsNotNone(call_args)
+        user_prompt = call_args[0][1]
+        self.assertIn("EXTERNAL RESEARCHER CONTEXT", user_prompt)
+        self.assertIn("EXTERNAL_RESEARCHER_CTX_MARKER", user_prompt)
 
     def test_create_when_already_completed_returns_200(self):
         ProposalReview.objects.create(

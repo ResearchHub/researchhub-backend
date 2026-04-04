@@ -16,10 +16,17 @@ def get_proposal_review_system_prompt() -> str:
     return _load_template("proposal_review_system.txt")
 
 
+def get_openai_web_context_system_prompt() -> str:
+    """System instructions for OpenAI web search in proposal review."""
+    return _load_template("openai_web_context_system.txt")
+
+
 def build_proposal_review_user_prompt(
     proposal_text: str,
     rfp_context: str | None = None,
     author_context: str | None = None,
+    external_researcher_context: str | None = None,
+    web_search_context: str | None = None,
 ) -> str:
     ctx = ""
     if rfp_context and rfp_context.strip():
@@ -34,6 +41,21 @@ def build_proposal_review_user_prompt(
             "track record where relevant, do not invent facts beyond this):\n"
             f"{author_context.strip()}\n"
         )
+    external = ""
+    if external_researcher_context and external_researcher_context.strip():
+        external = (
+            "\n\nEXTERNAL RESEARCHER CONTEXT (from ORCID public record and OpenAlex; "
+            "factual only—use for feasibility.track_record and to ground expertise; "
+            "do not invent facts beyond this block):\n"
+            f"{external_researcher_context.strip()}\n"
+        )
+    web_ctx = ""
+    if web_search_context and web_search_context.strip():
+        web_ctx = (
+            "\n\nWEB SEARCH NOTES (short bullets from a web search pass; may be incomplete; "
+            "treat as hints with URLs where given; verify against proposal when scoring):\n"
+            f"{web_search_context.strip()[:6000]}\n"
+        )
     text = (proposal_text or "").strip()
     if len(text) > 120000:
         text = text[:120000] + "\n\n[TRUNCATED FOR LENGTH]"
@@ -44,5 +66,7 @@ def build_proposal_review_user_prompt(
         "PROPOSAL TEXT:\n"
         f"{text}"
         f"{author}"
+        f"{external}"
+        f"{web_ctx}"
         f"{ctx}"
     )

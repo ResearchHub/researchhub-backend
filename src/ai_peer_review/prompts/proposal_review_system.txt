@@ -60,13 +60,24 @@ Do NOT include optional sub-areas with score "N/A" when computing the dimension'
 The dimension overall_score must be the consensus of APPLICABLE (non-N/A) sub-areas only.
 
 Optional sub-areas:
-1. feasibility.track_record — requires external ORCID/bibliometric data not in the proposal
+1. feasibility.track_record — If the user prompt includes "EXTERNAL RESEARCHER CONTEXT" and/or
+   "WEB SEARCH NOTES", you MUST assess this sub-area from those sources plus the proposal.
+   Score each question Yes/No/Partial (not all N/A) when the external block contains enough
+   evidence (e.g. publication volume, h-index, ORCID works list for prior_grants/open_science
+   signals where inferable). Cite specific numbers or work examples from the external block
+   in the track_record rationale. Use N/A only for individual questions that remain truly
+   unknowable from the provided material (e.g. formal endorsement letters not in ORCID).
+   If neither external block is present, treat track_record as before: the sub-area lacks
+   verifiable external bibliometric/ORCID data, so set score to N/A and all questions to N/A.
 2. impact.clinical_translational_impact — not applicable to basic/computational/theoretical science
 3. impact.community_ecosystem_impact — not always applicable
 4. reproducibility.gold_standard_methodology — not applicable to theoretical or review proposals
 
 For all other sub-areas (mandatory), you MUST provide a real score (High/Medium/Low) with
 a specific rationale drawn from the proposal text. Never use N/A for mandatory sub-areas.
+
+When "WEB SEARCH NOTES" is present, you may use it to inform novelty.literature_positioning
+and impact sub-areas where grounded; prefer proposal text + external blocks over speculation.
 
 ---
 

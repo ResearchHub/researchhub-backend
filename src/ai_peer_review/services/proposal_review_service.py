@@ -9,10 +9,16 @@ from ai_peer_review.prompts.proposal_review_prompts import (
 )
 from ai_peer_review.services.author_context import build_author_context_snippet
 from ai_peer_review.services.bedrock_llm_service import BedrockLLMService
+from ai_peer_review.services.openai_web_context_service import (
+    fetch_proposal_review_web_context,
+)
 from ai_peer_review.services.proposal_review_scoring import (
     compute_overall_rating,
     normalize_scores_from_answers,
     parse_json_response,
+)
+from ai_peer_review.services.researcher_external_context import (
+    build_researcher_external_context,
 )
 from purchase.models import Grant, GrantApplication
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -58,7 +64,6 @@ def validate_grant_application(grant_id: int, unified_document_id: int) -> None:
         )
 
 
-# TODO: we should probably use websearch here to get the info from ORCID, etc.so LLM can access it.
 def run_proposal_review(review_id: int) -> None:
     review = ProposalReview.objects.select_related(
         "unified_document", "grant", "created_by"
@@ -86,15 +91,25 @@ def run_proposal_review(review_id: int) -> None:
         rfp_context = None
         if review.grant_id:
             rfp_context = get_grant_context_text(review.grant)
+        review.progress = 25
+        review.current_step = "Loading researcher profile"
+        review.save(update_fields=["progress", "current_step", "updated_date"])
+        external_ctx = build_researcher_external_context(review.unified_document)
+        author_ctx = build_author_context_snippet(review.unified_document)
+        web_ctx = fetch_proposal_review_web_context(
+            proposal_text,
+            author_ctx or "",
+        )
         review.progress = 40
         review.current_step = "Running AI assessment"
         review.save(update_fields=["progress", "current_step", "updated_date"])
         system = get_proposal_review_system_prompt()
-        author_ctx = build_author_context_snippet(review.unified_document)
         user = build_proposal_review_user_prompt(
             proposal_text,
             rfp_context,
             author_context=author_ctx or None,
+            external_researcher_context=external_ctx or None,
+            web_search_context=web_ctx or None,
         )
         llm = BedrockLLMService()
         raw = llm.invoke(
