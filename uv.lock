@@ -354,7 +354,7 @@ wheels = [
 
 [[package]]
 name = "cdp-sdk"
-version = "1.37.1"
+version = "1.40.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -370,9 +370,9 @@ dependencies = [
     { name = "urllib3" },
     { name = "web3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f9/42/526f0bc70be3b2ed93e1847ec7971e05681b53bb180e1aee20fafa1b6f47/cdp_sdk-1.37.1.tar.gz", hash = "sha256:6664bf0b20cdc9167666426695265033730b63accbc20be9dea815f8a5654f39", size = 339063, upload-time = "2026-01-20T16:32:36.243Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/85/ee/66024a3a90b9477f81953247ea2ab0d29ecbbb380bab46cfb63284057c29/cdp_sdk-1.40.0.tar.gz", hash = "sha256:964da968062f65aa9ee09f3d92294078c200533a4b6260a4af5870c99e4d480a", size = 361895, upload-time = "2026-03-06T21:42:12.576Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1e/5f/a15535bcc1b79fb9fafe2bf2c56d20c635a18e5cc7657c30443a633e8f2b/cdp_sdk-1.37.1-py3-none-any.whl", hash = "sha256:74af8806f5f8b09546d0a131605eb1b2c34fa84214975410c407145a6298cc4f", size = 865650, upload-time = "2026-01-20T16:32:34.389Z" },
+    { url = "https://files.pythonhosted.org/packages/3e/5d/968f51e8f44f3d4bd15f53f0911cadfc12a1ff4f64f99cc4891f4fbf9e2d/cdp_sdk-1.40.0-py3-none-any.whl", hash = "sha256:45691cc6a36a799a81b74b2cc65d0081352a7c366320cb1e2c59cf86adb72183", size = 940665, upload-time = "2026-03-06T21:42:10.958Z" },
 ]
 
 [[package]]
@@ -2763,7 +2763,7 @@ requires-dist = [
     { name = "authlib", specifier = ">=1.3.0,<2.0.0" },
     { name = "beautifulsoup4", specifier = "==4.12.2" },
     { name = "boto3", specifier = "==1.34.69" },
-    { name = "cdp-sdk", specifier = "==1.37.1" },
+    { name = "cdp-sdk", specifier = "==1.40.0" },
     { name = "celery", specifier = "==5.5.3" },
     { name = "celery-redbeat", specifier = "==2.3.3" },
     { name = "channels", specifier = ">=4.1.0,<5.0.0" },
