@@ -301,14 +301,6 @@ class Author(models.Model):
             },
         }
 
-    @property
-    def is_claimed(self):
-        return (
-            self.user is not None
-            or self.user is None
-            and self.related_claim_cases.filter(status=APPROVED).exists()
-        )
-
     # Gets ranked list of hubs associated with user's interests.
     # We use comments and votes to determine what is the user interested in
     def get_interest_hubs(self, max_results=100, min_relevancy_score=0.2):
