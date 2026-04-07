@@ -309,16 +309,6 @@ class Author(models.Model):
             and self.related_claim_cases.filter(status=APPROVED).exists()
         )
 
-    @property
-    def claimed_by_user_author_id(self):
-        approved_claim_case = self.related_claim_cases.filter(status=APPROVED).first()
-        if self.user is not None:
-            return self.id
-        elif approved_claim_case is not None:
-            return approved_claim_case.requestor.author_profile.id
-        else:
-            return None
-
     # Gets ranked list of hubs associated with user's interests.
     # We use comments and votes to determine what is the user interested in
     def get_interest_hubs(self, max_results=100, min_relevancy_score=0.2):
