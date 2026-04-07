@@ -3,7 +3,7 @@ from django.db import models
 from django.db.models import Case, When
 
 from paper.openalex_util import merge_openalex_author_with_researchhub_author
-from user.aggregates import TenPercentile, TwoPercentile
+from user.aggregates import TenPercentile
 from user.models import Organization, User
 from utils.openalex import OpenAlex
 
@@ -81,14 +81,6 @@ def calculate_show_referral(user):
     reputation = user.reputation
     show_referral = float(reputation) >= percentage
     return show_referral
-
-
-def calculate_eligible_enhanced_upvotes(user):
-    aggregation = User.objects.all().aggregate(TwoPercentile("reputation"))
-    percentage = aggregation["reputation__two-percentile"]
-    reputation = user.reputation
-    eligible = float(reputation) >= percentage
-    return eligible
 
 
 def get_user_organizations(user):
