@@ -172,13 +172,17 @@ class Author(models.Model):
     def is_orcid_connected(self):
         if not self.user:
             return False
-        return SocialAccount.objects.filter(user=self.user, provider=OrcidProvider.id).exists()
+        return SocialAccount.objects.filter(
+            user=self.user, provider=OrcidProvider.id
+        ).exists()
 
     @property
     def orcid_verified_edu_email(self):
         if not self.user:
             return None
-        account = SocialAccount.objects.filter(user=self.user, provider=OrcidProvider.id).first()
+        account = SocialAccount.objects.filter(
+            user=self.user, provider=OrcidProvider.id
+        ).first()
         if not account:
             return None
         emails = account.extra_data.get("verified_edu_emails", [])
@@ -216,13 +220,15 @@ class Author(models.Model):
     def citation_count(self):
         # UNION doesn't support aggregate(), so sum two indexed queries
         direct = (
-            Authorship.objects.filter(author=self)
-            .aggregate(total=Sum("paper__citations"))["total"]
+            Authorship.objects.filter(author=self).aggregate(
+                total=Sum("paper__citations")
+            )["total"]
             or 0
         )
         merged = (
-            Authorship.objects.filter(author__merged_with_author=self)
-            .aggregate(total=Sum("paper__citations"))["total"]
+            Authorship.objects.filter(author__merged_with_author=self).aggregate(
+                total=Sum("paper__citations")
+            )["total"]
             or 0
         )
         return direct + merged
@@ -263,8 +269,9 @@ class Author(models.Model):
             Authorship.objects.filter(author=self).values_list("paper_id", flat=True)
         )
         merged_ids = set(
-            Authorship.objects.filter(author__merged_with_author=self)
-            .values_list("paper_id", flat=True)
+            Authorship.objects.filter(author__merged_with_author=self).values_list(
+                "paper_id", flat=True
+            )
         )
         return len(direct_ids | merged_ids)
 
