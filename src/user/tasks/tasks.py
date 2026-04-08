@@ -34,6 +34,8 @@ def handle_spam_user_task(user_id, requestor=None):
     if not user:
         return
 
+    logger.info(f"Removing content of spam user={user_id}")
+
     # Censor comments and cancel any bounties attached to them
     comments = user.created_researchhub_comment_rhcommentmodel.all()
     for comment in comments.iterator():
@@ -127,15 +129,17 @@ def _resolve_open_flags_for_user(user, requestor=None):
     Flag.objects.filter(id__in=[f.id for f in flags]).update(
         verdict_created_date=timezone.now()
     )
-    Verdict.objects.bulk_create([
-        Verdict(
-            created_by=requestor,
-            flag=flag,
-            verdict_choice=flag.reason_choice or NOT_SPECIFIED,
-            is_content_removed=True,
-        )
-        for flag in flags
-    ])
+    Verdict.objects.bulk_create(
+        [
+            Verdict(
+                created_by=requestor,
+                flag=flag,
+                verdict_choice=flag.reason_choice or NOT_SPECIFIED,
+                is_content_removed=True,
+            )
+            for flag in flags
+        ]
+    )
 
 
 @app.task
@@ -164,9 +168,9 @@ def reinstate_user_task(user_id):
     user.actions.update(display=True, is_removed=False)
 
     # Restore notes
-    ResearchhubUnifiedDocument.all_objects.filter(
-        note__created_by=user
-    ).update(is_removed=False)
+    ResearchhubUnifiedDocument.all_objects.filter(note__created_by=user).update(
+        is_removed=False
+    )
 
     # Restore peer reviews and reviews
     PeerReview.all_objects.filter(user=user).update(
