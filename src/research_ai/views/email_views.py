@@ -367,8 +367,14 @@ class GeneratedEmailListView(APIView):
         ).order_by("-created_date")
 
     def get(self, request):
-        limit = max(1, min(100, int(request.query_params.get("limit", 20))))
-        offset = max(0, int(request.query_params.get("offset", 0)))
+        try:
+            limit = max(1, min(100, int(request.query_params.get("limit", 20))))
+            offset = max(0, int(request.query_params.get("offset", 0)))
+        except (ValueError, TypeError):
+            return Response(
+                {"detail": "limit and offset must be integers"}, status=400
+            )
+
         qs = self.get_queryset()
         search_id = request.query_params.get("search_id")
         if search_id is not None:

@@ -32,8 +32,13 @@ class TemplateListView(APIView):
     ]
 
     def get(self, request):
-        limit = max(1, min(100, int(request.query_params.get("limit", 20))))
-        offset = max(0, int(request.query_params.get("offset", 0)))
+        try:
+            limit = max(1, min(100, int(request.query_params.get("limit", 20))))
+            offset = max(0, int(request.query_params.get("offset", 0)))
+        except (ValueError, TypeError):
+            return Response(
+                {"detail": "limit and offset must be integers"}, status=400
+            )
         qs = list_templates()
         total = qs.count()
         items = list(qs[offset : offset + limit])

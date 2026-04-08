@@ -190,7 +190,12 @@ class NoteViewSet(ModelViewSet):
         note = self.get_object()
         access_type = data.get("access_type")
         recipient_email = data.get("email")
-        time_to_expire = int(data.get("expire", 1440))
+        try:
+            time_to_expire = int(data.get("expire", 1440))
+        except (ValueError, TypeError):
+            return Response(
+                {"detail": "expire must be an integer"}, status=400
+            )
 
         recipient = User.objects.filter(email=recipient_email)
         if recipient.exists():
@@ -492,14 +497,19 @@ class NoteContentViewSet(ModelViewSet):
 @api_view([RequestMethods.POST])
 @permission_classes([AllowAny])
 def ckeditor_webhook_document_removed(request):
-    document = request.data["payload"]["document"]
     try:
+        document = request.data["payload"]["document"]
         document_data = document["data"]
-    except KeyError:
-        return HttpResponse("Missing document data.")
+        document_id = document["id"]
+    except (KeyError, TypeError):
+        return HttpResponse("Missing or malformed document payload.", status=400)
 
-    note_id = document["id"].split("-")[-1]
-    note = Note.objects.get(id=note_id)
+    try:
+        note_id = document_id.split("-")[-1]
+        note = Note.objects.get(id=note_id)
+    except (Note.DoesNotExist, ValueError, AttributeError):
+        return HttpResponse("Note not found.", status=404)
+
     note_content = NoteContent.objects.create(note=note, plain_text=None)
     file_name = f"NOTE-CONTENT-{note_content.id}--WEBHOOK.txt"
     full_src_file = ContentFile(document_data.encode())

@@ -61,10 +61,20 @@ class PersonDocumentSerializer(serializers.ModelSerializer):
     def get_institutions(self, document):
         institutions_data = document.institutions
         if isinstance(institutions_data, AttrList):
-            return [
-                {"id": institution["id"], "name": institution["name"]}
-                for institution in institutions_data
-            ]
+            result = []
+            for institution in institutions_data:
+                if institution is None:
+                    continue
+                try:
+                    result.append(
+                        {
+                            "id": institution.get("id") if hasattr(institution, "get") else None,
+                            "name": institution.get("name", "") if hasattr(institution, "get") else "",
+                        }
+                    )
+                except (KeyError, TypeError, AttributeError):
+                    continue
+            return result
 
     def get_profile_image(self, document):
         if document.profile_image is not None:

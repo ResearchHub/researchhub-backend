@@ -98,7 +98,7 @@ class BioRxivBaseMapper(BaseMapper):
         raw_authors = self._extract_authors(record.get("authors", ""))
 
         # Get the server from the record, or use default
-        server = record.get("server", self.default_server).lower()
+        server = (record.get("server") or self.default_server).lower()
 
         # Create Paper instance
         paper = Paper(

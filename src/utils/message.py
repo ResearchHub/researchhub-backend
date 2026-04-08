@@ -49,12 +49,13 @@ def send_email_message(
 
     result = {"success": [], "failure": [], "exclude": []}
 
-    # Exclude invalid recipients
+    valid_recipients = []
     for recipient in recipients:
-        if not is_valid_email(recipient):
+        if is_valid_email(recipient):
+            valid_recipients.append(recipient)
+        else:
             result["exclude"].append(recipient)
-            recipients.remove(recipient)
-            print("EMAIL NOT IN WHITELIST")
+    recipients = valid_recipients
 
     for recipient in recipients:
         # Build email context

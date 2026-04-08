@@ -260,13 +260,13 @@ class UnifiedSearchService:
     def _extract_document_highlights(self, highlights) -> tuple[str | None, str | None]:
         if not highlights:
             return None, None
-        if hasattr(highlights, "paper_title"):
+        if hasattr(highlights, "paper_title") and highlights.paper_title:
             return highlights.paper_title[0], "title"
-        if hasattr(highlights, "title"):
+        if hasattr(highlights, "title") and highlights.title:
             return highlights.title[0], "title"
-        if hasattr(highlights, "abstract"):
+        if hasattr(highlights, "abstract") and highlights.abstract:
             return highlights.abstract[0], "abstract"
-        if hasattr(highlights, "renderable_text"):
+        if hasattr(highlights, "renderable_text") and highlights.renderable_text:
             return highlights.renderable_text[0], "content"
 
         return None, None

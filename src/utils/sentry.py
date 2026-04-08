@@ -30,7 +30,7 @@ def log_error(e, base_error=None, message=None, json_data=None):
 
     scope = get_isolation_scope()
     if base_error is not None:
-        scope.set_extra("base_error", message)
+        scope.set_extra("base_error", str(base_error))
     if message is not None:
         scope.set_extra("message", message)
     if json_data is not None:
@@ -54,7 +54,8 @@ def log_request_error(response, message, extra=None):
         for k in extra:
             scope.set_extra(k, extra[k])
     scope.set_extra("req_error", response.reason)
-    capture_exception(message)
+    exc = Exception(message) if not isinstance(message, BaseException) else message
+    capture_exception(exc)
 
 
 def log_info(message, error=None):
