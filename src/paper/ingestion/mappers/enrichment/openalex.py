@@ -507,8 +507,9 @@ class OpenAlexMapper(BaseMapper):
             license_info["license_url"] = primary_location.get("license_id")
             license_info["pdf_url"] = primary_location.get("pdf_url")
             license_info["landing_page_url"] = primary_location.get("landing_page_url")
-            license_info["journal_name"] = primary_location.get("source", {}).get(
-                "display_name"
+            source = primary_location.get("source")
+            license_info["journal_name"] = (
+                source.get("display_name") if isinstance(source, dict) else None
             )
 
         return license_info
