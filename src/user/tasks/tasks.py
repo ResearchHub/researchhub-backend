@@ -36,6 +36,14 @@ def handle_spam_user_task(user_id, requestor=None):
         return
 
     with transaction.atomic():
+        # Censor comments and cancel any bounties attached to them
+        comments = user.created_researchhub_comment_rhcommentmodel.all()
+        for comment in comments.iterator():
+            remove_bounties(comment)
+            if requestor:
+                censor(comment)
+                comment.refresh_related_discussion_count()
+
         # Remove papers and their unified documents
         papers = user.papers.all()
         papers.update(is_removed=True)
@@ -49,14 +57,6 @@ def handle_spam_user_task(user_id, requestor=None):
             posts__in=posts
         ).distinct()
         post_unified_docs.update(is_removed=True)
-
-        # Censor comments and cancel any bounties attached to them
-        comments = user.created_researchhub_comment_rhcommentmodel.all()
-        for comment in comments.iterator():
-            remove_bounties(comment)
-            if requestor:
-                censor(comment)
-                comment.refresh_related_discussion_count()
 
         # Hide all activity feed actions
         user.actions.update(display=False, is_removed=True)
