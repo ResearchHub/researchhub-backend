@@ -9,6 +9,7 @@ from research_ai.views.email_views import (
     SendEmailView,
 )
 from research_ai.views.expert_finder_views import (
+    ExpertFinderExpertDetailView,
     ExpertSearchCreateView,
     ExpertSearchDetailView,
     ExpertSearchListView,
@@ -20,6 +21,10 @@ from research_ai.views.template_views import TemplateDetailView, TemplateListVie
 
 urlpatterns = [
     path("expert-finder/search/", ExpertSearchCreateView.as_view()),
+    path(
+        "expert-finder/experts/<int:expert_id>/",
+        ExpertFinderExpertDetailView.as_view(),
+    ),
     path(
         "expert-finder/search/<int:search_id>/",
         ExpertSearchDetailView.as_view(),

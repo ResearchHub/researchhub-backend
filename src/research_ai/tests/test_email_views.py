@@ -7,7 +7,13 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from research_ai.models import EmailTemplate, ExpertSearch, GeneratedEmail
+from research_ai.models import (
+    EmailTemplate,
+    Expert,
+    ExpertSearch,
+    GeneratedEmail,
+    SearchExpert,
+)
 from research_ai.services.email_sending_service import send_plain_email
 from research_ai.views.email_views import _normalize_template
 from user.tests.helpers import create_random_authenticated_user
@@ -39,16 +45,33 @@ class NormalizeTemplateTests(APITestCase):
         )
 
 
-def _make_expert_search(created_by, expert_results=None):
-    return ExpertSearch.objects.create(
+def _make_expert_search(created_by, expert_rows=None):
+    search = ExpertSearch.objects.create(
         created_by=created_by,
         name="Test Search",
         query="ML",
         input_type=ExpertSearch.InputType.CUSTOM_QUERY,
         status=ExpertSearch.Status.COMPLETED,
         progress=100,
-        expert_results=expert_results or [],
+        expert_results=[],
     )
+    if not expert_rows:
+        return search
+    for i, row in enumerate(expert_rows):
+        ex = Expert.objects.create(
+            email=(row["email"] or "").strip().lower(),
+            honorific=row.get("honorific") or "",
+            first_name=row.get("first_name") or "",
+            middle_name=row.get("middle_name") or "",
+            last_name=row.get("last_name") or "",
+            name_suffix=row.get("name_suffix") or "",
+            academic_title=row.get("academic_title") or row.get("title") or "",
+            affiliation=row.get("affiliation") or "",
+            expertise=row.get("expertise") or "",
+            notes=row.get("notes") or "",
+        )
+        SearchExpert.objects.create(expert_search=search, expert=ex, position=i)
+    return search
 
 
 class GenerateEmailViewTests(APITestCase):
@@ -58,11 +81,14 @@ class GenerateEmailViewTests(APITestCase):
         self.url = "/api/research_ai/expert-finder/generate-email/"
         self.expert_search = _make_expert_search(
             self.moderator,
-            expert_results=[
+            expert_rows=[
                 {
-                    "name": "Dr. Jane Marie Smith",
                     "email": "jane@example.com",
-                    "title": "Professor",
+                    "honorific": "Dr",
+                    "first_name": "Jane",
+                    "middle_name": "Marie",
+                    "last_name": "Smith",
+                    "academic_title": "Professor",
                     "affiliation": "MIT",
                     "expertise": "ML",
                     "notes": "",
@@ -188,11 +214,12 @@ class GenerateEmailViewTests(APITestCase):
         mock_generate.return_value = ("S", "B")
         search = _make_expert_search(
             self.moderator,
-            expert_results=[
+            expert_rows=[
                 {
-                    "name": "Dr. A",
                     "email": "a@example.com",
-                    "title": "",
+                    "honorific": "Dr",
+                    "first_name": "A",
+                    "academic_title": "",
                     "affiliation": "",
                     "expertise": "",
                     "notes": "",
@@ -649,19 +676,21 @@ class BulkGenerateEmailViewTests(APITestCase):
         self.url = "/api/research_ai/expert-finder/generate-emails-bulk/"
         self.expert_search = _make_expert_search(
             self.moderator,
-            expert_results=[
+            expert_rows=[
                 {
-                    "name": "Dr. A",
                     "email": "a@x.com",
-                    "title": "",
+                    "honorific": "Dr",
+                    "first_name": "A",
+                    "academic_title": "",
                     "affiliation": "",
                     "expertise": "",
                     "notes": "",
                 },
                 {
-                    "name": "Dr. B",
                     "email": "b@x.com",
-                    "title": "",
+                    "honorific": "Dr",
+                    "first_name": "B",
+                    "academic_title": "",
                     "affiliation": "",
                     "expertise": "",
                     "notes": "",

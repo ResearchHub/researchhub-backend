@@ -48,7 +48,8 @@ class GenerateCsvFileTests(TestCase):
         csv_bytes = generate_csv_file(experts)
         self.assertIsInstance(csv_bytes, bytes)
         content = csv_bytes.decode("utf-8")
-        self.assertIn("name,title,affiliation", content)
+        self.assertIn("honorific,first_name", content)
+        self.assertIn("academic_title", content)
         self.assertIn("Alice", content)
 
     def test_generate_csv_empty_list(self):
