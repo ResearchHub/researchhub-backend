@@ -123,4 +123,7 @@ class RhCommentThreadModel(AbstractGenericRelationModel):
 
     @property
     def unified_document(self):
-        return self.content_object.unified_document
+        content_object = self.content_object
+        if content_object is None:
+            return None
+        return content_object.unified_document
