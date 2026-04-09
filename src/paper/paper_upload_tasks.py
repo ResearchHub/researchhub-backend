@@ -57,7 +57,6 @@ def celery_process_paper(self, submission_id):
 
     paper_submission = PaperSubmission.objects.get(id=submission_id)
     paper_submission.set_processing_status()
-    paper_submission.notify_status()
     uploaded_by_id = None
     if paper_submission.uploaded_by:
         uploaded_by_id = paper_submission.uploaded_by.id
@@ -627,8 +626,6 @@ def celery_create_paper(self, celery_data):
     except Exception as e:
         sentry.log_error(e, message=f"Failed to create paper tags for paper {paper.id}")
 
-    paper_submission.notify_status()
-
     return paper.id
 
 
@@ -790,8 +787,6 @@ def celery_handle_paper_processing_errors(request, exc, traceback):
             paper_submission.set_failed_doi_status()
         else:
             paper_submission.set_failed_status()
-
-        paper_submission.notify_status(**extra_metadata)
     except Exception as e:
         sentry.log_error(e, exc)
 
