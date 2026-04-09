@@ -1020,16 +1020,15 @@ sdist = { url = "https://files.pythonhosted.org/packages/dc/c3/83ded5f87faee7a15
 
 [[package]]
 name = "django-ses"
-version = "3.5.2"
+version = "4.7.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
     { name = "django" },
-    { name = "pytz" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/17/d0/f041ced12a9adf209763a86dd76c713483570eeddcca282d03b415ea855a/django_ses-3.5.2.tar.gz", hash = "sha256:b6d94689bc15de02a11e84f05a5bf4a7895688e570c6f07c21698094debc6ced", size = 45578, upload-time = "2023-12-01T19:36:19.9Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7f/25/25838da8e213c9f125b26a25360f0bb8ac57f07c24977451f3e7a0d63ddd/django_ses-4.7.2.tar.gz", hash = "sha256:a36f2af0e4ce060bf36053ed4c94feac1703ea3351e677c6f6421abd01433a35", size = 71828, upload-time = "2026-02-20T19:22:35.078Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ff/34/78530467d595dc7eca527832d64d2f08b8aedd9e043e111548acb2380bf9/django_ses-3.5.2-py3-none-any.whl", hash = "sha256:90c68cc6ca3467893faa8499981c81ba8ff2bd3f3acb08c06423a4142d6a0fc6", size = 28834, upload-time = "2023-12-01T19:36:17.731Z" },
+    { url = "https://files.pythonhosted.org/packages/84/f2/15d4bd54bd01e68e8a116e0b66243c91cb62a3fa0d780a39d2af6654e8ae/django_ses-4.7.2-py3-none-any.whl", hash = "sha256:f3db567fb6f43c01d7d890f5c991e1ebbfa48220de0be24d497ba6332004abcb", size = 37796, upload-time = "2026-02-20T19:22:32.819Z" },
 ]
 
 [[package]]
@@ -2784,7 +2783,7 @@ requires-dist = [
     { name = "django-health-check", specifier = ">=3.18.3,<4.0.0" },
     { name = "django-mjml", specifier = ">=1.3,<2.0" },
     { name = "django-opensearch-dsl", specifier = "==0.7.0" },
-    { name = "django-ses", specifier = "==3.5.2" },
+    { name = "django-ses", specifier = ">=4.7.2,<5" },
     { name = "django-silk", specifier = "==5.0.2" },
     { name = "django-simple-history", specifier = "==3.7.0" },
     { name = "django-storages", specifier = "==1.10.1" },
