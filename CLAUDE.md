@@ -62,6 +62,38 @@ uv add --dev <package_name>
 - Use `AWSMockTransactionTestCase` when the code under test relies on `transaction.on_commit()`.
 - Test behavior, not implementation details.
 
+## PR Philosophy: Optimize for Continuous Delivery
+
+We optimize for continuous delivery with minimal gate-keeping. Trust in people and tooling over heavy process.
+
+### Small PRs by Default
+- Aim for ~100 lines or less per PR. Small enough for a human to understand in a few minutes.
+- Write a brief, human-readable description of what changed and why.
+- When working on large features, break the work into small incremental PRs using techniques like scaffolding and feature flags.
+- Each PR should be a single logical change: one bug fix, one new endpoint, one refactor step.
+
+### When Large PRs Are Acceptable
+- Frontend changes where CSS/scaffolding naturally inflates line count.
+- Refactoring work that touches many files in a mechanical way (renames, pattern migrations).
+- Auto-generated code (migrations, schema dumps).
+
+### What Matters
+- Clarity over ceremony. A clear 5-line description beats a filled-out template.
+- Tests should cover the change, but don't chase 100% coverage or fix unrelated lint warnings.
+- Communicate what merged to the team. The PR description is the notification.
+- If you're unsure about an approach, request review. Otherwise, trust the process.
+
+### What Doesn't Matter
+- Hitting an exact line count target. This is a guideline, not a KPI.
+- Addressing every linter suggestion in files you didn't change.
+- Getting human approval on every PR. Trust + tooling + communication is the model.
+
+### AI-Assisted PRs
+- AI can open PRs to fix specific bugs or vulnerabilities.
+- AI PRs must include proof of work: screenshot, test output, or a short report.
+- AI reviews check specific criteria (tests pass, no regressions, follows patterns).
+- If criteria pass, AI can merge and notify the eng channel.
+
 ## CI Reference
 CI runs from `src/` and performs:
 - `uv run python manage.py migrate`

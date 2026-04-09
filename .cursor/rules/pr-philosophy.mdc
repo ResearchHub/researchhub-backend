@@ -1,0 +1,49 @@
+---
+description: PR size and continuous delivery guidelines — applies when creating branches, commits, and pull requests
+globs:
+alwaysApply: true
+---
+
+# PR Philosophy: Optimize for Continuous Delivery
+
+We optimize for continuous delivery with minimal gate-keeping. Trust in people and tooling over heavy process. "Individuals and interactions over process and tools."
+
+## Small PRs by Default
+
+- Aim for ~100 lines of meaningful change per PR. Small enough for a human to understand in a few minutes.
+- Write a brief, human-readable description of what changed and why. Clarity over ceremony.
+- One logical change per PR: one bug fix, one new endpoint, one refactor step.
+
+## Breaking Down Large Work
+
+When working on a large feature, don't save it all for one massive PR. Instead:
+
+1. **Scaffold first** — add models, empty views, URL routes with no logic. Merge that.
+2. **Feature flag** — put new behavior behind a flag so incomplete work can merge safely.
+3. **Layer in logic** — each subsequent PR adds one slice of functionality.
+4. **Clean up last** — remove flags, delete dead code, finalize docs.
+
+Each of these is its own small, reviewable PR.
+
+## When Large PRs Are Acceptable
+
+- Frontend changes where CSS/scaffolding naturally inflates line count.
+- Refactoring work that touches many files mechanically (renames, pattern migrations).
+- Auto-generated code (migrations, schema dumps).
+
+## What Matters
+
+- Tests cover the change. Don't chase 100% coverage or fix unrelated lint in files you didn't change.
+- The PR description communicates what merged clearly enough to serve as a notification.
+- If unsure about an approach, request review. Otherwise, trust the process and merge.
+
+## What Doesn't Matter
+
+- Hitting an exact line count. This is a guideline, not a KPI.
+- Getting human approval on every PR.
+- Addressing every linter suggestion in untouched files.
+
+## AI-Assisted PRs
+
+- AI PRs must include proof of work: test output, screenshot, or a short report of what was done.
+- If tests pass and the change follows existing patterns, it can be merged and the eng channel notified.
