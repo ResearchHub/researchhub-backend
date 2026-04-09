@@ -303,14 +303,15 @@ class BountyViewSet(viewsets.ModelViewSet):
                 )
             )
 
-            if TESTING:
-                find_qualified_users_and_notify(
-                    bounty.id, target_hubs, exclude_users=[user.id]
-                )
-            else:
-                find_qualified_users_and_notify.apply_async(
-                    (bounty.id, target_hubs, [user.id]), priority=3, countdown=1
-                )
+            if target_hubs:
+                if TESTING:
+                    find_qualified_users_and_notify(
+                        bounty.id, target_hubs, exclude_users=[user.id]
+                    )
+                else:
+                    find_qualified_users_and_notify.apply_async(
+                        (bounty.id, target_hubs, [user.id]), priority=3, countdown=1
+                    )
 
             return Response(serializer.data, status=201)
 

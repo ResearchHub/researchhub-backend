@@ -152,6 +152,27 @@ class BountyViewTests(APITestCase):
         self.assertIsNotNone(notification)
         self.assertEqual(notification.notification_type, Notification.BOUNTY_FOR_YOU)
 
+    def test_user_create_bounty_without_target_hubs_sends_no_notification(self):
+        self.client.force_authenticate(self.user)
+
+        create_bounty_res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 100,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
+            },
+        )
+
+        self.assertEqual(create_bounty_res.status_code, 201)
+        self.assertFalse(
+            Notification.objects.filter(
+                object_id=create_bounty_res.data["id"],
+                content_type=ContentType.objects.get_for_model(Bounty),
+                notification_type=Notification.BOUNTY_FOR_YOU,
+            ).exists()
+        )
+
     def test_user_can_contribute_to_bounty(self, amount_1=100, amount_2=200):
         self.client.force_authenticate(self.user)
 
