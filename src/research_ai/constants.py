@@ -7,6 +7,8 @@ BASE_FRONTEND_URL = getattr(
     settings, "BASE_FRONTEND_URL", "https://www.researchhub.com"
 )
 
+EXPERT_REGISTERED_USER_LINK_WINDOW_DAYS = 7
+
 
 class ExpertiseLevel(models.TextChoices):
     """Career stage for expert recommendations. Value: snake_case (API/DB), label: display."""

@@ -210,9 +210,8 @@ INVITED_CACHE_SEC = 60 * 60 * 3  # 3 hours
 
 class InvitedExpertsDocumentView(APIView):
     """
-    GET invited experts for a unified document (limit 20, total_count).
-    Response is cached for 3 hours.
-    Returns author entity, expert_search_id, generated_email_id per invited person.
+    GET experts tied to this document's searches who registered on RH (Expert.registered_user).
+    Limit 20 rows, total_count for all matches. Response cached 3 hours.
     """
 
     permission_classes = [

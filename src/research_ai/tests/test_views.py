@@ -4,7 +4,7 @@ from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from research_ai.models import ExpertSearch, GeneratedEmail
+from research_ai.models import Expert, ExpertSearch, GeneratedEmail, SearchExpert
 from user.tests.helpers import create_random_authenticated_user
 
 
@@ -367,10 +367,6 @@ class InvitedExpertsDocumentViewTests(APITestCase):
         self.assertEqual(len(data["invited"]), 0)
 
     def test_invited_returns_invited_with_author_and_chain_ids(self):
-        from datetime import timedelta
-
-        from django.utils import timezone
-
         from paper.tests.helpers import create_paper
         from researchhub_document.models import ResearchhubUnifiedDocument
 
@@ -387,18 +383,20 @@ class InvitedExpertsDocumentViewTests(APITestCase):
             input_type=ExpertSearch.InputType.ABSTRACT,
             status=ExpertSearch.Status.COMPLETED,
         )
+        expert = Expert.objects.create(
+            email=self.moderator.email,
+            first_name="Mod",
+            last_name="Invitee",
+            registered_user=self.moderator,
+        )
+        SearchExpert.objects.create(
+            expert_search=search, expert=expert, position=0
+        )
         ge = GeneratedEmail.objects.create(
             created_by=creator,
             expert_search=search,
             expert_email=self.moderator.email,
             expert_name="Mod",
-        )
-        anchor = timezone.now() - timedelta(days=2)
-        GeneratedEmail.objects.filter(pk=ge.pk).update(created_date=anchor)
-        from user.models import User
-
-        User.objects.filter(pk=self.moderator.pk).update(
-            date_joined=anchor + timedelta(days=1)
         )
         self.client.force_authenticate(self.moderator)
         response = self.client.get(
@@ -411,9 +409,6 @@ class InvitedExpertsDocumentViewTests(APITestCase):
         self.assertEqual(data["total_count"], 1)
         self.assertEqual(len(data["invited"]), 1)
         item = data["invited"][0]
-        self.assertIn("author", item)
-        self.assertEqual(item["expert_search_id"], search.id)
-        self.assertEqual(item["generated_email_id"], ge.id)
         self.assertIn("author", item)
         self.assertEqual(item["expert_search_id"], search.id)
         self.assertEqual(item["generated_email_id"], ge.id)

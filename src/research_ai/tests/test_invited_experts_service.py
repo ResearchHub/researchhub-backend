@@ -3,153 +3,9 @@ from datetime import timedelta
 from django.test import TestCase
 from django.utils import timezone
 
-from research_ai.models import Expert, ExpertSearch, GeneratedEmail
-from research_ai.services.invited_experts_service import (
-    get_document_invite_candidates_for_email,
-    get_document_invited_rows,
-)
+from research_ai.models import Expert, ExpertSearch, GeneratedEmail, SearchExpert
+from research_ai.services.invited_experts_service import get_document_invited_rows
 from user.tests.helpers import create_user
-
-
-class GetDocumentInviteCandidatesForEmailTests(TestCase):
-    def setUp(self):
-        from paper.tests.helpers import create_paper
-
-        self.user = create_user(email="creator@test.com")
-        self.paper = create_paper(
-            title="Candidate doc",
-            paper_publish_date="2021-01-01",
-        )
-        self.ud_id = self.paper.unified_document_id
-
-    def test_empty_email_returns_empty(self):
-        now = timezone.now()
-        self.assertEqual(get_document_invite_candidates_for_email("", now), [])
-        self.assertEqual(get_document_invite_candidates_for_email("   ", now), [])
-
-    def test_no_generated_emails_in_window_returns_empty(self):
-        self.assertEqual(
-            get_document_invite_candidates_for_email(
-                "expert@example.com", timezone.now()
-            ),
-            [],
-        )
-
-    def test_generated_email_in_window_returns_candidate(self):
-        first_seen = timezone.now() - timedelta(days=2)
-        search = ExpertSearch.objects.create(
-            created_by=self.user,
-            unified_document_id=self.ud_id,
-            query="Test",
-            status=ExpertSearch.Status.COMPLETED,
-            completed_at=first_seen,
-            expert_results=[],
-        )
-        ge = GeneratedEmail.objects.create(
-            created_by=self.user,
-            expert_search=search,
-            expert_email="expert@example.com",
-            created_date=first_seen,
-        )
-        candidates = get_document_invite_candidates_for_email(
-            "expert@example.com", timezone.now()
-        )
-        self.assertEqual(len(candidates), 1)
-        doc_id, es_id, ge_id = candidates[0]
-        self.assertEqual(doc_id, self.ud_id)
-        self.assertEqual(es_id, search.id)
-        self.assertEqual(ge_id, ge.id)
-
-    def test_closed_generated_email_excluded_from_candidates(self):
-        first_seen = timezone.now() - timedelta(days=2)
-        search = ExpertSearch.objects.create(
-            created_by=self.user,
-            unified_document_id=self.ud_id,
-            query="Test",
-            status=ExpertSearch.Status.COMPLETED,
-            completed_at=first_seen,
-            expert_results=[],
-        )
-        GeneratedEmail.objects.create(
-            created_by=self.user,
-            expert_search=search,
-            expert_email="closed@example.com",
-            created_date=first_seen,
-            status=GeneratedEmail.Status.CLOSED,
-        )
-        self.assertEqual(
-            get_document_invite_candidates_for_email(
-                "closed@example.com", timezone.now()
-            ),
-            [],
-        )
-
-    def test_case_insensitive_email_match(self):
-        first_seen = timezone.now() - timedelta(days=2)
-        search = ExpertSearch.objects.create(
-            created_by=self.user,
-            unified_document_id=self.ud_id,
-            query="Test",
-            status=ExpertSearch.Status.COMPLETED,
-            completed_at=first_seen,
-            expert_results=[],
-        )
-        GeneratedEmail.objects.create(
-            created_by=self.user,
-            expert_search=search,
-            expert_email="Expert@Example.COM",
-            created_date=first_seen,
-        )
-        candidates = get_document_invite_candidates_for_email(
-            "expert@example.com", timezone.now()
-        )
-        self.assertEqual(len(candidates), 1)
-
-    def test_generated_email_outside_window_excluded(self):
-        """GeneratedEmail created 10 days ago is outside invite window."""
-        first_seen = timezone.now() - timedelta(days=10)
-        search = ExpertSearch.objects.create(
-            created_by=self.user,
-            unified_document_id=self.ud_id,
-            query="Test",
-            status=ExpertSearch.Status.COMPLETED,
-            completed_at=first_seen,
-            expert_results=[],
-        )
-        ge = GeneratedEmail.objects.create(
-            created_by=self.user,
-            expert_search=search,
-            expert_email="old@example.com",
-        )
-        GeneratedEmail.objects.filter(pk=ge.pk).update(created_date=first_seen)
-        candidates = get_document_invite_candidates_for_email(
-            "old@example.com", timezone.now()
-        )
-        self.assertEqual(len(candidates), 0)
-
-    def test_generated_email_adds_candidate_with_generated_email_id(self):
-        first_seen = timezone.now() - timedelta(days=1)
-        search = ExpertSearch.objects.create(
-            created_by=self.user,
-            unified_document_id=self.ud_id,
-            query="Test",
-            status=ExpertSearch.Status.COMPLETED,
-            completed_at=first_seen,
-            expert_results=[],
-        )
-        ge = GeneratedEmail.objects.create(
-            created_by=self.user,
-            expert_search=search,
-            expert_email="ge@example.com",
-            created_date=first_seen,
-        )
-        candidates = get_document_invite_candidates_for_email(
-            "ge@example.com", timezone.now()
-        )
-        self.assertEqual(len(candidates), 1)
-        _, es_id, ge_id = candidates[0]
-        self.assertEqual(es_id, search.id)
-        self.assertEqual(ge_id, ge.id)
 
 
 class GetDocumentInvitedRowsTests(TestCase):
@@ -168,7 +24,7 @@ class GetDocumentInvitedRowsTests(TestCase):
         self.assertEqual(total, 0)
         self.assertEqual(rows, [])
 
-    def test_user_in_window_appears_in_rows(self):
+    def test_registered_expert_on_search_appears_in_rows(self):
         anchor = timezone.now() - timedelta(days=2)
         search = ExpertSearch.objects.create(
             created_by=self.creator,
@@ -178,14 +34,6 @@ class GetDocumentInvitedRowsTests(TestCase):
             completed_at=anchor,
             expert_results=[],
         )
-        ge = GeneratedEmail.objects.create(
-            created_by=self.creator,
-            expert_search=search,
-            expert_email="joiner@example.com",
-        )
-        # DefaultModel.created_date uses auto_now_add; set explicitly for window math.
-        GeneratedEmail.objects.filter(pk=ge.pk).update(created_date=anchor)
-        ge.refresh_from_db()
         joiner = create_user(
             email="joiner@example.com",
             first_name="J",
@@ -194,16 +42,114 @@ class GetDocumentInvitedRowsTests(TestCase):
         from user.models import User
 
         User.objects.filter(pk=joiner.pk).update(date_joined=anchor + timedelta(days=1))
+        expert = Expert.objects.create(
+            email="joiner@example.com",
+            first_name="J",
+            last_name="R",
+            registered_user=joiner,
+        )
+        SearchExpert.objects.create(
+            expert_search=search, expert=expert, position=0
+        )
+        ge = GeneratedEmail.objects.create(
+            created_by=self.creator,
+            expert_search=search,
+            expert_email="joiner@example.com",
+        )
         rows, total = get_document_invited_rows(self.ud_id)
         self.assertEqual(total, 1)
         self.assertEqual(rows[0]["expert_search_id"], search.id)
         self.assertEqual(rows[0]["generated_email_id"], ge.id)
         self.assertEqual(rows[0]["user"].id, joiner.id)
 
+    def test_registered_expert_without_generated_email_has_null_ge_id(self):
+        search = ExpertSearch.objects.create(
+            created_by=self.creator,
+            unified_document_id=self.ud_id,
+            query="Test",
+            status=ExpertSearch.Status.COMPLETED,
+            expert_results=[],
+        )
+        joiner = create_user(email="nogeo@example.com", first_name="N", last_name="G")
+        expert = Expert.objects.create(
+            email="nogeo@example.com",
+            registered_user=joiner,
+        )
+        SearchExpert.objects.create(
+            expert_search=search, expert=expert, position=0
+        )
+        rows, total = get_document_invited_rows(self.ud_id)
+        self.assertEqual(total, 1)
+        self.assertIsNone(rows[0]["generated_email_id"])
+
+    def test_expert_without_registered_user_excluded(self):
+        search = ExpertSearch.objects.create(
+            created_by=self.creator,
+            unified_document_id=self.ud_id,
+            query="Test",
+            status=ExpertSearch.Status.COMPLETED,
+            expert_results=[],
+        )
+        expert = Expert.objects.create(
+            email="anon@example.com",
+            first_name="A",
+            last_name="Non",
+        )
+        SearchExpert.objects.create(
+            expert_search=search, expert=expert, position=0
+        )
+        rows, total = get_document_invited_rows(self.ud_id)
+        self.assertEqual(total, 0)
+        self.assertEqual(rows, [])
+
 
 class LinkExpertOnUserCreatedSignalTests(TestCase):
-    def test_new_user_sets_registered_user_on_matching_expert(self):
+    def test_new_user_links_expert_when_outreach_in_window(self):
+        creator = create_user(email="ge_creator@sig.test")
         Expert.objects.create(email="signal@test.com", first_name="S")
+        anchor = timezone.now() - timedelta(days=1)
+        ge = GeneratedEmail.objects.create(
+            created_by=creator,
+            expert_email="signal@test.com",
+            expert_name="S",
+        )
+        GeneratedEmail.objects.filter(pk=ge.pk).update(created_date=anchor)
         u = create_user(email="signal@test.com", first_name="U", last_name="X")
         ex = Expert.objects.get(email__iexact="signal@test.com")
         self.assertEqual(ex.registered_user_id, u.id)
+
+    def test_new_user_does_not_link_without_generated_email(self):
+        Expert.objects.create(email="orphan@example.com", first_name="O")
+        create_user(email="orphan@example.com")
+        ex = Expert.objects.get(email__iexact="orphan@example.com")
+        self.assertIsNone(ex.registered_user_id)
+
+    def test_new_user_does_not_link_when_outreach_outside_window(self):
+        creator = create_user(email="c2@sig.test")
+        Expert.objects.create(email="oldge@example.com", first_name="O")
+        ge = GeneratedEmail.objects.create(
+            created_by=creator,
+            expert_email="oldge@example.com",
+            expert_name="O",
+        )
+        GeneratedEmail.objects.filter(pk=ge.pk).update(
+            created_date=timezone.now() - timedelta(days=10)
+        )
+        create_user(email="oldge@example.com")
+        ex = Expert.objects.get(email__iexact="oldge@example.com")
+        self.assertIsNone(ex.registered_user_id)
+
+    def test_new_user_does_not_link_when_outreach_closed(self):
+        creator = create_user(email="c3@sig.test")
+        Expert.objects.create(email="closed@example.com", first_name="C")
+        anchor = timezone.now() - timedelta(days=1)
+        ge = GeneratedEmail.objects.create(
+            created_by=creator,
+            expert_email="closed@example.com",
+            expert_name="C",
+            status=GeneratedEmail.Status.CLOSED,
+        )
+        GeneratedEmail.objects.filter(pk=ge.pk).update(created_date=anchor)
+        create_user(email="closed@example.com")
+        ex = Expert.objects.get(email__iexact="closed@example.com")
+        self.assertIsNone(ex.registered_user_id)

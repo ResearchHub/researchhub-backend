@@ -349,8 +349,8 @@ class ExpertSearchListItemSerializer(serializers.ModelSerializer):
 
 class InvitedExpertSerializer(serializers.Serializer):
     """
-    One invited expert row: either a dict from get_document_invited_rows
-    (keys user, expert_search_id, generated_email_id, invited_at) or legacy
+    One invited expert row: dict from get_document_invited_rows
+    (user, expert_search_id, generated_email_id optional, invited_at) or legacy
     DocumentInvitedExpert-like object with .user and ids.
     """
 
