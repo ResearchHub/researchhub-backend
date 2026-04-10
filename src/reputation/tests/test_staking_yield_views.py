@@ -51,7 +51,7 @@ class StakingYieldDetailsTest(StakingYieldViewSetTestBase):
         self.assertEqual(resp.status_code, 200)
         data = resp.data
         self.assertTrue(data["is_staking_opted_in"])
-        self.assertIsNone(data["staking_opted_in_date"])
+        self.assertIsNotNone(data["staking_opted_in_date"])
         self.assertEqual(Decimal(data["current_stake"]), Decimal("0"))
         self.assertEqual(Decimal(data["current_multiplier"]), Decimal("0"))
         self.assertEqual(Decimal(data["current_weighted_stake"]), Decimal("0"))

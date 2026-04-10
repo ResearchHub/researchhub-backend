@@ -91,8 +91,10 @@ class User(AbstractUser):
     referral_code = models.CharField(max_length=36, default=uuid.uuid4, unique=True)
     reputation = models.IntegerField(default=100)
     should_display_rsc_balance_home = models.BooleanField(default=True)
-    is_staking_opted_in = models.BooleanField(default=False, db_index=True)
-    staking_opted_in_date = models.DateTimeField(null=True, blank=True)
+    is_staking_opted_in = models.BooleanField(default=True, db_index=True)
+    staking_opted_in_date = models.DateTimeField(
+        null=True, blank=True, default=timezone.now
+    )
     spam_updated_date = models.DateTimeField(null=True)
     suspended_updated_date = models.DateTimeField(null=True)
     updated_date = models.DateTimeField(auto_now=True)
@@ -157,6 +159,13 @@ class User(AbstractUser):
                 EmailRecipient.objects.create(user=self, email=self.email)
 
         return user_to_save
+
+    def ensure_staking_opted_in(self):
+        """Auto-opt the user into staking if not already opted in."""
+        if not self.is_staking_opted_in:
+            self.is_staking_opted_in = True
+            self.staking_opted_in_date = timezone.now()
+            self.save(update_fields=["is_staking_opted_in", "staking_opted_in_date"])
 
     def set_has_seen_first_coin_modal(self, has_seen):
         self.has_seen_first_coin_modal = has_seen
