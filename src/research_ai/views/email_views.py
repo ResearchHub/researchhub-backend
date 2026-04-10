@@ -24,6 +24,7 @@ from research_ai.services.expert_display import (
     expert_name_for_generated_email_storage,
     expert_title_for_generated_email_storage,
 )
+from research_ai.services.expert_persist import mark_expert_last_email_sent_at
 from research_ai.services.rfp_email_context import resolve_expert_from_search
 from research_ai.tasks import process_bulk_generate_emails_task, send_queued_emails_task
 from user.permissions import IsModerator, UserIsEditor
@@ -439,7 +440,14 @@ class GeneratedEmailDetailView(APIView):
             email, data=request.data, partial=True
         )
         ser.is_valid(raise_exception=True)
-        ser.save()
+        with transaction.atomic():
+            old_status = email.status
+            ser.save()
+            if (
+                old_status != GeneratedEmail.Status.SENT
+                and email.status == GeneratedEmail.Status.SENT
+            ):
+                mark_expert_last_email_sent_at(email.expert_email)
         return Response(_generated_email_detail_response(email))
 
     def delete(self, request, email_id):

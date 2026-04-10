@@ -637,6 +637,34 @@ class GeneratedEmailDetailViewTests(APITestCase):
         email.refresh_from_db()
         self.assertEqual(email.status, "closed")
 
+    def test_patch_status_sent_sets_expert_last_email_sent_at(self):
+        addr = "manual-sent-patch@example.com"
+        expert = Expert.objects.create(
+            email=addr,
+            first_name="Pat",
+            last_name="Expert",
+        )
+        email = GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_email=addr,
+            expert_name="Dr. Pat",
+            email_subject="S",
+            email_body="B",
+            status=GeneratedEmail.Status.DRAFT,
+        )
+        self.assertIsNone(expert.last_email_sent_at)
+        self.client.force_authenticate(self.moderator)
+        before = timezone.now()
+        response = self.client.patch(
+            f"/api/research_ai/expert-finder/emails/{email.id}/",
+            {"status": "sent"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        expert.refresh_from_db()
+        self.assertIsNotNone(expert.last_email_sent_at)
+        self.assertGreaterEqual(expert.last_email_sent_at, before)
+
     def test_patch_returns_200_for_other_users_email(self):
         """Generated emails are shared: any editor can update any email."""
         email = self._create_email(created_by=self.user)
