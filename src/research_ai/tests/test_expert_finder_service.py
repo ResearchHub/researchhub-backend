@@ -4,11 +4,11 @@ from django.test import TestCase
 
 from research_ai.models import ExpertSearch
 from research_ai.services.expert_finder_service import (
-    ExpertFinderService,
     PDF_TOO_LARGE_MESSAGE,
-    get_document_content,
+    ExpertFinderService,
     _extract_text_from_pdf_bytes,
     _get_paper_pdf_bytes,
+    get_document_content,
 )
 from research_ai.services.expert_llm_table import (
     EXPERT_LLM_TABLE_HEADER_LINE,
@@ -45,9 +45,7 @@ def _llm_row(
 
 class GetDocumentContentTests(TestCase):
     def test_paper_abstract_returns_abstract(self):
-        from researchhub_document.related_models.constants.document_type import (
-            PAPER,
-        )
+        from researchhub_document.related_models.constants.document_type import PAPER
 
         paper = MagicMock()
         paper.abstract = "Abstract text here"
@@ -60,9 +58,7 @@ class GetDocumentContentTests(TestCase):
         self.assertEqual(content_type, "abstract")
 
     def test_paper_no_abstract_no_pdf_raises(self):
-        from researchhub_document.related_models.constants.document_type import (
-            PAPER,
-        )
+        from researchhub_document.related_models.constants.document_type import PAPER
 
         paper = MagicMock()
         paper.abstract = None
@@ -143,9 +139,7 @@ class GetDocumentContentTests(TestCase):
 
     @patch("research_ai.services.expert_finder_service._extract_text_from_pdf_bytes")
     @patch("research_ai.services.expert_finder_service._get_paper_pdf_bytes")
-    def test_paper_pdf_returns_extracted_text(
-        self, mock_get_pdf, mock_extract
-    ):
+    def test_paper_pdf_returns_extracted_text(self, mock_get_pdf, mock_extract):
         from researchhub_document.related_models.constants.document_type import PAPER
 
         mock_get_pdf.return_value = b"pdf bytes"
@@ -350,15 +344,9 @@ class ExpertFinderServiceParseTests(TestCase):
     def test_expert_name_matches_excluded_by_tokens_not_substring(self):
         """Excluding 'Li' must not match 'Oliver' (substring 'li' in 'oliver')."""
         service = ExpertFinderService()
-        self.assertFalse(
-            service._expert_name_matches_excluded("Oliver", ["Li"])
-        )
-        self.assertTrue(
-            service._expert_name_matches_excluded("John Li", ["Li"])
-        )
-        self.assertTrue(
-            service._expert_name_matches_excluded("Jane Doe", ["Jane"])
-        )
+        self.assertFalse(service._expert_name_matches_excluded("Oliver", ["Li"]))
+        self.assertTrue(service._expert_name_matches_excluded("John Li", ["Li"]))
+        self.assertTrue(service._expert_name_matches_excluded("Jane Doe", ["Jane"]))
 
     def test_expert_row_suggests_deceased_common_phrases(self):
         service = ExpertFinderService()
@@ -688,7 +676,9 @@ class ExpertFinderServiceParseTests(TestCase):
         mock_openai_llm = MagicMock()
         mock_openai_llm.invoke.return_value = _llm_expert_table(
             _llm_row("Alpha", "One", "alpha@mit.edu"),
-            _llm_row("Beta", "Two", "ALPHA@mit.edu", academic_title="Dr", expertise="ML"),
+            _llm_row(
+                "Beta", "Two", "ALPHA@mit.edu", academic_title="Dr", expertise="ML"
+            ),
             _llm_row(
                 "Gamma",
                 "Three",
@@ -907,7 +897,7 @@ class ExpertFinderServiceParseTests(TestCase):
         result = service.process_expert_search(
             search_id="znew",
             query="Q",
-            config={"expert_count": 5},
+            config={"expert_count": 7},
         )
         self.assertEqual(result["status"], ExpertSearch.Status.COMPLETED)
         self.assertEqual(result["expert_count"], 2)
@@ -988,7 +978,8 @@ class ExpertFinderServiceParseTests(TestCase):
         self.assertIn("placeholder text", result["error_message"])
         self.assertEqual(result["error_message"], openai_bad_response)
         failed_call = next(
-            c for c in publish.call_args_list
+            c
+            for c in publish.call_args_list
             if c[0][2].get("status") == ExpertSearch.Status.FAILED
         )
         self.assertIsNotNone(failed_call)
@@ -1064,7 +1055,8 @@ class ExpertFinderServiceParseTests(TestCase):
                 config={},
             )
         failed_call = next(
-            c for c in publish.call_args_list
+            c
+            for c in publish.call_args_list
             if c[0][2].get("status") == ExpertSearch.Status.FAILED
         )
         self.assertIsNotNone(failed_call)

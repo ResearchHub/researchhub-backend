@@ -144,7 +144,7 @@ class BuildReplacementContextTests(TestCase):
             "first_name": "Jane",
             "middle_name": "Q.",
             "last_name": "Doe",
-            "title": "Professor",
+            "academic_title": "Professor",
             "affiliation": "MIT",
             "email": "j@mit.edu",
             "expertise": "AI",
