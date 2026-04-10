@@ -12,11 +12,10 @@ from web3 import Web3
 import ethereum.lib
 import ethereum.utils
 from ethereum.lib import RSC_CONTRACT_ADDRESS, execute_erc20_transfer, get_private_key
-from mailing_list.lib import base_email_context
+from mailing_list.lib import base_email_context, send_email
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import Withdrawal
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
-from utils.message import send_email_message
 from utils.sentry import log_error
 from utils.web3_utils import web3_provider
 
@@ -442,7 +441,7 @@ def check_hotwallet():
     Alerts admins if the hotwallet is low on eth or RSC on either network
     """
     messages = []
-    send_email = False
+    should_send = False
 
     # Check Ethereum network
     eth_rsc_balance = get_hotwallet_rsc_balance("ETHEREUM")
@@ -455,13 +454,13 @@ def check_hotwallet():
         messages.append(
             f"RSC is running low in the Ethereum hotwallet: {eth_rsc_balance:,}"
         )
-        send_email = True
+        should_send = True
 
     if eth_balance_eth < 0.08:
         messages.append(
             f"ETH is running low in the Ethereum hotwallet: {eth_balance_eth:,}"
         )
-        send_email = True
+        should_send = True
 
     # Check Base network
     base_rsc_balance = get_hotwallet_rsc_balance("BASE")
@@ -472,19 +471,19 @@ def check_hotwallet():
         messages.append(
             f"RSC is running low in the Base hotwallet: {base_rsc_balance:,}"
         )
-        send_email = True
+        should_send = True
 
     if base_balance_eth < 0.001:
         messages.append(
             f"ETH is running low in the Base hotwallet: {base_balance_eth:,}"
         )
-        send_email = True
+        should_send = True
 
-    if send_email:
+    if should_send:
         context = {**base_email_context}
         context["action"] = {"message": "\n\n".join(messages)}
         context["subject"] = "Hotwallet Balance Alert"
-        send_email_message(
+        send_email(
             ["pat@researchhub.com", "tyler@researchhub.com", "dev@researchhub.com"],
             "general_email_message.txt",
             "Hotwallet Balance Alert",

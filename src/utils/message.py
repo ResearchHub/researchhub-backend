@@ -1,45 +1,106 @@
+import logging
 from time import sleep
+from typing import Any
 
 from django.conf import settings
-from django.core.mail import send_mail
+from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
+from django.utils.html import strip_tags
 from sentry_sdk import capture_exception
 
+logger = logging.getLogger(__name__)
 
-def is_valid_email(email):
+
+def is_valid_email(email: str) -> bool:
     if settings.TESTING or settings.PRODUCTION:
         return True
-
     return email in settings.EMAIL_WHITELIST
 
 
-def send_email_message(
-    recipients,
-    template,
-    subject,
-    email_context,
-    html_template=None,
-    sender=f"ResearchHub <{settings.DEFAULT_FROM_EMAIL}>",
-):
-    """Emails `message` to `recipients` and returns a dict with results in the
-    following form:
-    ```
-    {
-        'success':[recipient_email_address, ...],
-        'failure':[recipient_email_address, ...],
-        'exclude':[recipient_email_address, ...]
-    }
-    ```
+def _filter_recipients(
+    recipients: list[str],
+    suppressed_emails: set[str] | None = None,
+) -> tuple[list[str], list[str]]:
+    """Partition recipients into sendable and excluded lists.
 
     Args:
-        recipients (str|list) - Email addresses to send to
-        template (str) - Template name
-        subject (str) - Email subject
-        email_context (dict) - Data to send to template
-        html_template (:str:) - Optional html template name
+        recipients: List of email addresses to filter.
+        suppressed_emails: Optional pre-computed set of emails to exclude.
+
+    Returns:
+        (sendable, excluded) – two lists of email addresses.
     """
-    subject = subject.replace("\n", "")
-    subject = subject.replace("\r", "")
+    sendable = [r for r in recipients if is_valid_email(r)]
+    excluded = list(set(recipients) - set(sendable))
+
+    if sendable and suppressed_emails:
+        excluded.extend(suppressed_emails & set(sendable))
+        sendable = [r for r in sendable if r not in suppressed_emails]
+
+    return sendable, excluded
+
+
+def _render_body(
+    template: str | None, html_template: str | None, context: dict[str, Any]
+) -> tuple[str, str | None]:
+    """Render plain-text and HTML email bodies from templates."""
+    html_body = render_to_string(html_template, context) if html_template else None
+
+    if template:
+        plain_body = render_to_string(template, context)
+    elif html_body:
+        plain_body = strip_tags(html_body).strip()
+    else:
+        plain_body = ""
+
+    return plain_body, html_body
+
+
+def _build_headers(opt_out_url: str | None = None) -> dict[str, str]:
+    """Build email headers, adding unsubscribe when applicable."""
+    headers: dict[str, str] = {"Precedence": "bulk"}
+    if opt_out_url:
+        headers["List-Unsubscribe"] = (
+            f"<mailto:{settings.DEFAULT_FROM_EMAIL}?subject=unsubscribe>, "
+            f"<{opt_out_url}>"
+        )
+        headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"
+    return headers
+
+
+def deliver_email(
+    recipients: str | list[str],
+    template: str | None,
+    subject: str,
+    email_context: dict[str, Any],
+    html_template: str | None = None,
+    sender: str = f"ResearchHub <{settings.DEFAULT_FROM_EMAIL}>",
+    reply_to: str | None = None,
+    cc: list[str] | None = None,
+    suppressed_emails: set[str] | None = None,
+) -> dict[str, list[str]]:
+    """Low-level email delivery: render templates, set headers, and send.
+
+    Callers should prefer ``mailing_list.lib.send_email`` which automatically
+    looks up suppressed addresses before delegating here.
+
+    Args:
+        recipients: Email address string or list of addresses.
+        template: Plain-text Django template name (e.g. ``"general_email_message.txt"``).
+            Pass ``None`` to auto-generate plain text from the HTML.
+        subject: Email subject line.
+        email_context: Context dict passed to the template(s).
+        html_template: HTML Django template name. If ``None``, only the
+            plain-text version is sent.
+        sender: From address.
+        reply_to: Optional reply-to address.
+        cc: Optional list of CC addresses.
+        suppressed_emails: Optional set of email addresses to exclude.
+
+    Returns:
+        ``{"success": [...], "failure": [...], "exclude": [...]}``.
+    """
+    subject = subject.replace("\n", "").replace("\r", "")
 
     if not isinstance(recipients, list):
         recipients = [recipients]
@@ -47,37 +108,38 @@ def send_email_message(
     if not settings.PRODUCTION:
         subject = "[Staging] " + subject
 
-    result = {"success": [], "failure": [], "exclude": []}
+    sendable, excluded = _filter_recipients(recipients, suppressed_emails)
+    result = {"success": [], "failure": [], "exclude": excluded}
 
-    # Exclude invalid recipients
-    for recipient in recipients:
-        if not is_valid_email(recipient):
-            result["exclude"].append(recipient)
-            recipients.remove(recipient)
-            print("EMAIL NOT IN WHITELIST")
+    if not sendable:
+        return result
 
-    for recipient in recipients:
-        # Build email context
-        customContext = email_context
-        if "opt_out" in email_context.keys():
-            customContext["opt_out"] += "?email={}".format(recipient)
+    for recipient in sendable:
+        context = email_context.copy()
+        opt_out_url = context.get("opt_out")
+        if opt_out_url:
+            opt_out_url += f"?email={recipient}"
+            context["opt_out"] = opt_out_url
 
-        message = render_to_string(template, customContext)
-        html_message = render_to_string(html_template, customContext)
-        send_to = [recipient]
+        plain_message, html_message = _render_body(template, html_template, context)
+        headers = _build_headers(opt_out_url)
 
         try:
-            send_mail(
-                subject,
-                message,
-                sender,
-                send_to,
-                html_message=html_message,
-                fail_silently=False,
+            msg = EmailMultiAlternatives(
+                subject=subject,
+                body=plain_message,
+                from_email=sender,
+                to=[recipient],
+                reply_to=[reply_to] if reply_to else None,
+                cc=cc,
+                headers=headers,
             )
+            if html_message:
+                msg.attach_alternative(html_message, "text/html")
+            msg.send(fail_silently=False)
             result["success"].append(recipient)
         except Exception as e:
-            print(e)
+            logger.exception("Email send failed to %s", recipient)
             result["failure"].append(recipient)
             capture_exception(e)
 

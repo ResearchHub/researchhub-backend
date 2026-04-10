@@ -16,7 +16,7 @@ from web3 import Web3
 import utils.locking as lock
 from ethereum.lib import RSC_CONTRACT_ADDRESS
 from hub.models import Hub
-from mailing_list.lib import base_email_context
+from mailing_list.lib import base_email_context, send_email
 from notification.models import Notification
 from reputation.constants.bounty import ASSESSMENT_PERIOD_DAYS
 from reputation.distributions import Distribution as Dist
@@ -35,7 +35,6 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from user.models import User
 from user.related_models.author_model import Author
-from utils.message import send_email_message
 from utils.sentry import log_error, log_info
 from utils.web3_utils import web3_provider
 
@@ -366,7 +365,7 @@ def check_open_bounties():
                 "frontend_view_link": unified_doc.frontend_view_link(),
             }
             context["subject"] = "Bounty Submission Period Ending Soon"
-            send_email_message(
+            send_email(
                 [bounty_creator.email],
                 "general_email_message.txt",
                 outer_subject,
@@ -406,7 +405,7 @@ def check_open_bounties():
             "frontend_view_link": unified_doc.frontend_view_link(),
         }
         context["subject"] = "Bounty Entered Assessment Phase"
-        send_email_message(
+        send_email(
             [bounty_creator.email],
             "general_email_message.txt",
             outer_subject,
@@ -495,7 +494,7 @@ def check_open_bounties():
                 "frontend_view_link": unified_doc.frontend_view_link(),
             }
             context["subject"] = "Bounty Assessment Period Ending Soon"
-            send_email_message(
+            send_email(
                 [bounty_creator.email],
                 "general_email_message.txt",
                 outer_subject,
