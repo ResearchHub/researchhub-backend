@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from django.test import TestCase, override_settings
 
-from research_ai.models import ExpertSearch, GeneratedEmail
+from research_ai.models import Expert, ExpertSearch, GeneratedEmail, SearchExpert
 from research_ai.tasks import (
     _maybe_obfuscate_expert_emails_for_non_production,
     _update_search_progress,
@@ -127,7 +127,6 @@ class ProcessExpertSearchTaskTests(TestCase):
                     "search_id": str(self.search.id),
                     "query": self.search.query,
                     "config": {},
-                    "excluded_expert_names": None,
                     "is_pdf": False,
                 }
             ).get()
@@ -135,11 +134,16 @@ class ProcessExpertSearchTaskTests(TestCase):
         self.assertEqual(self.search.status, ExpertSearch.Status.COMPLETED)
         self.assertEqual(self.search.expert_count, 2)
         self.assertEqual(result["status"], ExpertSearch.Status.COMPLETED)
-        # Emails obfuscated when not production
+        # Emails obfuscated when not production; persisted on Expert rows
+        ses = SearchExpert.objects.filter(expert_search_id=self.search.id).order_by(
+            "position"
+        )
+        self.assertEqual(ses.count(), 2)
         self.assertEqual(
-            [e["email"] for e in self.search.expert_results],
+            [se.expert.email for se in ses],
             ["a_test@lab.org", "b_test@lab.org"],
         )
+        self.assertEqual(Expert.objects.count(), 2)
 
     @patch("research_ai.tasks.ExpertFinderService")
     def test_process_expert_search_when_service_returns_failed_saves_error(
@@ -160,7 +164,6 @@ class ProcessExpertSearchTaskTests(TestCase):
                 "search_id": str(self.search.id),
                 "query": self.search.query,
                 "config": {},
-                "excluded_expert_names": None,
                 "is_pdf": False,
             }
         ).get()
@@ -186,7 +189,6 @@ class ProcessExpertSearchTaskTests(TestCase):
                 "search_id": str(self.search.id),
                 "query": self.search.query,
                 "config": {},
-                "excluded_expert_names": None,
                 "is_pdf": False,
                 "additional_context": "Focus on cardiology.",
             }
@@ -196,23 +198,71 @@ class ProcessExpertSearchTaskTests(TestCase):
         self.assertEqual(call_kw.get("additional_context"), "Focus on cardiology.")
 
     @patch("research_ai.tasks.ExpertFinderService")
-    def test_process_expert_search_exception_updates_status_and_reraises(
+    def test_process_expert_search_resolves_excluded_search_ids_from_model(
+        self, mock_service_class
+    ):
+        user = create_random_authenticated_user("excl_res_user")
+        prior = ExpertSearch.objects.create(
+            created_by=user,
+            query="prior",
+            status=ExpertSearch.Status.COMPLETED,
+        )
+        ex_a = Expert.objects.create(email="excl_res_a@test.org")
+        ex_b = Expert.objects.create(email="excl_res_b@test.org")
+        SearchExpert.objects.create(
+            expert_search=prior, expert=ex_a, position=0
+        )
+        SearchExpert.objects.create(
+            expert_search=prior, expert=ex_b, position=1
+        )
+        new_search = ExpertSearch.objects.create(
+            created_by=user,
+            query="new run",
+            status=ExpertSearch.Status.PENDING,
+            excluded_search_ids=[prior.id],
+        )
+        mock_instance = mock_service_class.return_value
+        mock_instance.process_expert_search.return_value = {
+            "status": ExpertSearch.Status.COMPLETED,
+            "experts": [{"name": "Dr. A", "email": "a@lab.org"}],
+            "expert_count": 1,
+            "report_urls": {"pdf": "/r/1.pdf", "csv": "/r/1.csv"},
+            "llm_model": "test-model",
+        }
+        process_expert_search_task.apply(
+            kwargs={
+                "search_id": str(new_search.id),
+                "query": new_search.query,
+                "config": {},
+                "is_pdf": False,
+            }
+        ).get()
+        mock_instance.process_expert_search.assert_called_once()
+        call_kw = mock_instance.process_expert_search.call_args.kwargs
+        self.assertCountEqual(
+            call_kw.get("excluded_expert_ids") or [],
+            [ex_a.id, ex_b.id],
+        )
+
+    @patch("research_ai.tasks.ExpertFinderService")
+    def test_process_expert_search_exception_marks_failed_and_returns_without_raising(
         self, mock_service_class
     ):
         mock_instance = mock_service_class.return_value
         mock_instance.process_expert_search.side_effect = RuntimeError("LLM error")
-        with self.assertRaises(RuntimeError):
-            process_expert_search_task.apply(
-                kwargs={
-                    "search_id": str(self.search.id),
-                    "query": self.search.query,
-                    "config": {},
-                    "excluded_expert_names": None,
-                    "is_pdf": False,
-                }
-            ).get()
+        result = process_expert_search_task.apply(
+            kwargs={
+                "search_id": str(self.search.id),
+                "query": self.search.query,
+                "config": {},
+                "is_pdf": False,
+            }
+        ).get()
         self.search.refresh_from_db()
         self.assertEqual(self.search.status, ExpertSearch.Status.FAILED)
+        self.assertEqual(self.search.expert_count, 0)
+        self.assertEqual(result.get("status"), ExpertSearch.Status.FAILED)
+        self.assertIn("LLM error", result.get("error_message", ""))
 
 
 # --- process_bulk_generate_emails_task ---
@@ -438,3 +488,54 @@ class SendQueuedEmailsTaskTests(TestCase):
         self.assertEqual(result["failed"], 1)
         rec.refresh_from_db()
         self.assertEqual(rec.status, GeneratedEmail.Status.SEND_FAILED)
+
+    @patch("research_ai.tasks.send_plain_email")
+    def test_send_queued_success_sets_expert_last_email_sent_at(self, mock_send):
+        Expert.objects.create(email="sent-track@example.com", first_name="S")
+        rec = GeneratedEmail.objects.create(
+            created_by=self.user,
+            expert_name="Dr. S",
+            expert_email="sent-track@example.com",
+            email_subject="Subj",
+            email_body="Body",
+            status=GeneratedEmail.Status.SENDING,
+        )
+        self.assertIsNone(
+            Expert.objects.get(email="sent-track@example.com").last_email_sent_at
+        )
+        result = send_queued_emails_task.apply(
+            kwargs={
+                "generated_email_ids": [rec.id],
+                "reply_to": None,
+                "cc": None,
+                "from_email": None,
+            }
+        ).get()
+        self.assertEqual(result["sent"], 1)
+        ex = Expert.objects.get(email="sent-track@example.com")
+        self.assertIsNotNone(ex.last_email_sent_at)
+        rec.refresh_from_db()
+        self.assertEqual(rec.status, GeneratedEmail.Status.SENT)
+
+    @patch("research_ai.tasks.send_plain_email")
+    def test_send_queued_success_no_expert_row_does_not_raise(self, mock_send):
+        rec = GeneratedEmail.objects.create(
+            created_by=self.user,
+            expert_name="Ghost",
+            expert_email="no-expert-row@example.com",
+            email_subject="Subj",
+            email_body="Body",
+            status=GeneratedEmail.Status.SENDING,
+        )
+        result = send_queued_emails_task.apply(
+            kwargs={
+                "generated_email_ids": [rec.id],
+                "reply_to": None,
+                "cc": None,
+                "from_email": None,
+            }
+        ).get()
+        self.assertEqual(result["sent"], 1)
+        self.assertFalse(
+            Expert.objects.filter(email__iexact="no-expert-row@example.com").exists()
+        )
