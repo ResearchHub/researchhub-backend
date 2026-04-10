@@ -107,6 +107,10 @@ class TaskTests(APITestCase):
 
     def test_check_deposits(self):
         user = create_random_authenticated_user("deposit_user")
+        # Opt out so we can verify the deposit opts them back in
+        user.is_staking_opted_in = False
+        user.staking_opted_in_date = None
+        user.save(update_fields=["is_staking_opted_in", "staking_opted_in_date"])
 
         deposit1 = create_deposit(
             user, "2000.5", "from_address_1", "transaction_hash_1"
@@ -123,6 +127,11 @@ class TaskTests(APITestCase):
 
         self.assertEqual(deposit1.paid_status, "PAID")
         self.assertEqual(deposit2.paid_status, "PAID")
+
+        # User was auto-opted into staking
+        user.refresh_from_db()
+        self.assertTrue(user.is_staking_opted_in)
+        self.assertIsNotNone(user.staking_opted_in_date)
 
     def test_check_repeat_deposit_fails(self):
         user = create_random_authenticated_user("deposit_user")
