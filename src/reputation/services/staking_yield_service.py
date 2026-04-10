@@ -102,6 +102,13 @@ class StakingYieldService:
         """
         User = get_user_model()
 
+        if accrual_date < STAKING_RELEASE_DATE:
+            logger.info(
+                "Skipping staking snapshot creation for pre-release accrual_date=%s",
+                accrual_date,
+            )
+            return None
+
         existing = StakingGlobalSnapshot.load_for_accrual_date(accrual_date)
         if existing is not None:
             logger.info(

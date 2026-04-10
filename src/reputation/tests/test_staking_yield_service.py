@@ -80,6 +80,27 @@ class StakingYieldServiceTest(TestCase):
 
     @patch(
         "reputation.services.staking_yield_service."
+        "RscSupplyService.fetch_circulating_supply"
+    )
+    @patch(
+        "reputation.services.staking_yield_service."
+        "StakingGlobalSnapshot.load_for_accrual_date"
+    )
+    def test_create_daily_snapshots_skips_before_release_date(
+        self,
+        mock_load_snapshot,
+        mock_fetch_supply,
+    ):
+        result = StakingYieldService.create_daily_snapshots(
+            STAKING_RELEASE_DATE - timedelta(days=1)
+        )
+
+        self.assertIsNone(result)
+        mock_load_snapshot.assert_not_called()
+        mock_fetch_supply.assert_not_called()
+
+    @patch(
+        "reputation.services.staking_yield_service."
         "StakingGlobalSnapshot.load_for_accrual_date"
     )
     def test_distribute_yield_skips_before_release_date(self, mock_load_snapshot):

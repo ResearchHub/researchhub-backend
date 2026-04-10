@@ -682,10 +682,6 @@ def create_daily_staking_snapshots(self):
     Runs before distribute_staking_yield so the distribution task uses
     up-to-date supply and staking data.
     """
-    if not settings.STAGING:
-        logger.info("Staking daily snapshot creation is only enabled in staging")
-        return False
-
     accrual_date = datetime.now(pytz.UTC).date() - timedelta(days=1)
     key = lock.name(f"create_daily_staking_snapshots_{accrual_date}")
     if not lock.acquire(key):
