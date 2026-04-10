@@ -1,6 +1,7 @@
 import math
 from datetime import date, timedelta
 from decimal import ROUND_DOWN, Decimal
+from unittest.mock import patch
 
 from django.test import TestCase
 
@@ -76,6 +77,18 @@ class StakingYieldServiceTest(TestCase):
             accrual_date=STAKING_RELEASE_DATE - timedelta(days=1),
         )
         self.assertEqual(daily_yield, Decimal("0"))
+
+    @patch(
+        "reputation.services.staking_yield_service."
+        "StakingGlobalSnapshot.load_for_accrual_date"
+    )
+    def test_distribute_yield_skips_before_release_date(self, mock_load_snapshot):
+        result = StakingYieldService.distribute_yield(
+            STAKING_RELEASE_DATE - timedelta(days=1)
+        )
+
+        self.assertIsNone(result)
+        mock_load_snapshot.assert_not_called()
 
     def test_compute_daily_yield_from_pool_share_zero_inputs(self):
         result = StakingYieldService.compute_daily_yield_from_pool_share(

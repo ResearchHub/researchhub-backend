@@ -181,6 +181,13 @@ class StakingYieldService:
 
         Raises on any failure so callers can retry.
         """
+        if accrual_date < STAKING_RELEASE_DATE:
+            logger.info(
+                "Skipping staking yield distribution for pre-release accrual_date=%s",
+                accrual_date,
+            )
+            return None
+
         global_snapshot = StakingGlobalSnapshot.load_for_accrual_date(accrual_date)
         if global_snapshot is None:
             logger.info(
