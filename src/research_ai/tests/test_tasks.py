@@ -488,3 +488,54 @@ class SendQueuedEmailsTaskTests(TestCase):
         self.assertEqual(result["failed"], 1)
         rec.refresh_from_db()
         self.assertEqual(rec.status, GeneratedEmail.Status.SEND_FAILED)
+
+    @patch("research_ai.tasks.send_plain_email")
+    def test_send_queued_success_sets_expert_last_email_sent_at(self, mock_send):
+        Expert.objects.create(email="sent-track@example.com", first_name="S")
+        rec = GeneratedEmail.objects.create(
+            created_by=self.user,
+            expert_name="Dr. S",
+            expert_email="sent-track@example.com",
+            email_subject="Subj",
+            email_body="Body",
+            status=GeneratedEmail.Status.SENDING,
+        )
+        self.assertIsNone(
+            Expert.objects.get(email="sent-track@example.com").last_email_sent_at
+        )
+        result = send_queued_emails_task.apply(
+            kwargs={
+                "generated_email_ids": [rec.id],
+                "reply_to": None,
+                "cc": None,
+                "from_email": None,
+            }
+        ).get()
+        self.assertEqual(result["sent"], 1)
+        ex = Expert.objects.get(email="sent-track@example.com")
+        self.assertIsNotNone(ex.last_email_sent_at)
+        rec.refresh_from_db()
+        self.assertEqual(rec.status, GeneratedEmail.Status.SENT)
+
+    @patch("research_ai.tasks.send_plain_email")
+    def test_send_queued_success_no_expert_row_does_not_raise(self, mock_send):
+        rec = GeneratedEmail.objects.create(
+            created_by=self.user,
+            expert_name="Ghost",
+            expert_email="no-expert-row@example.com",
+            email_subject="Subj",
+            email_body="Body",
+            status=GeneratedEmail.Status.SENDING,
+        )
+        result = send_queued_emails_task.apply(
+            kwargs={
+                "generated_email_ids": [rec.id],
+                "reply_to": None,
+                "cc": None,
+                "from_email": None,
+            }
+        ).get()
+        self.assertEqual(result["sent"], 1)
+        self.assertFalse(
+            Expert.objects.filter(email__iexact="no-expert-row@example.com").exists()
+        )

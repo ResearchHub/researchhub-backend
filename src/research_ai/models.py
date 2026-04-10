@@ -145,6 +145,11 @@ class Expert(DefaultModel):
         related_name="research_ai_expert_profiles",
         db_comment="RH user who signed up with this expert email.",
     )
+    last_email_sent_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_comment="Last time an outreach email was sent to this expert address (any search).",
+    )
 
     class Meta:
         db_table = "research_ai_expert"

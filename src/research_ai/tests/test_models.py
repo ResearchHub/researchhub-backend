@@ -111,10 +111,6 @@ class ExpertAndSearchExpertModelTests(TestCase):
 
     def test_search_expert_unique_per_search(self):
         e = Expert.objects.create(email="x@y.org")
-        SearchExpert.objects.create(
-            expert_search=self.search, expert=e, position=0
-        )
+        SearchExpert.objects.create(expert_search=self.search, expert=e, position=0)
         with self.assertRaises(Exception):
-            SearchExpert.objects.create(
-                expert_search=self.search, expert=e, position=1
-            )
+            SearchExpert.objects.create(expert_search=self.search, expert=e, position=1)

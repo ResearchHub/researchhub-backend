@@ -5,8 +5,8 @@ from django.utils import timezone
 
 from research_ai.models import Expert, ExpertSearch, GeneratedEmail
 from research_ai.services.invited_experts_service import (
-    get_document_invited_rows,
     get_document_invite_candidates_for_email,
+    get_document_invited_rows,
 )
 from user.tests.helpers import create_user
 
@@ -193,9 +193,7 @@ class GetDocumentInvitedRowsTests(TestCase):
         )
         from user.models import User
 
-        User.objects.filter(pk=joiner.pk).update(
-            date_joined=anchor + timedelta(days=1)
-        )
+        User.objects.filter(pk=joiner.pk).update(date_joined=anchor + timedelta(days=1))
         rows, total = get_document_invited_rows(self.ud_id)
         self.assertEqual(total, 1)
         self.assertEqual(rows[0]["expert_search_id"], search.id)

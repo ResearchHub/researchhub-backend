@@ -17,7 +17,6 @@ from research_ai.services.expert_display import (
     normalize_expert_email,
 )
 from research_ai.services.expert_llm_table import (
-    ExpertTableRowError,
     ExpertTableSchemaError,
     clean_expert_table_url,
     extract_citations_from_notes,
@@ -40,8 +39,8 @@ MAX_ERROR_MESSAGE_LENGTH = 10000
 # Cap on how many times we call the model to "top up" unique experts.
 # One API call can return many rows, but duplicates, invalid emails, exclusions, and deceased filtering often leave the
 # pool short of the user's target, so we re-prompt with updated exclusions until we reach the target.
-EXPERT_FILL_MAX_ROUNDS = 6
-EXPERT_FILL_TOLERANCE_SHORT = 10
+EXPERT_FILL_MAX_ROUNDS = 10
+EXPERT_FILL_TOLERANCE_SHORT = 4
 EXPERT_FILL_EXCLUDED_NAMES_CAP = 250
 
 _DECEASED_ROW_REGEX = re.compile(
@@ -265,7 +264,7 @@ class ExpertFinderService:
                     break
                 remaining = target_expert_count - len(accumulated)
                 # Near-target early exit (large jobs only): e.g. target 100 experts,
-                # tolerance 10 → stop once we have ≥90 unique experts. We require
+                # tolerance 4 → stop once we have ≥96 unique experts. We require
                 # target_expert_count > tolerance so small jobs (e.g. need 3, have 2)
                 # are not misclassified as "close enough" when remaining ≤ tolerance.
                 if (
@@ -334,7 +333,7 @@ class ExpertFinderService:
                 )
                 try:
                     batch = parse_expert_markdown_table_strict(llm_response)
-                except (ExpertTableSchemaError, ExpertTableRowError) as e:
+                except ExpertTableSchemaError as e:
                     err_text = str(e)
                     msg = (
                         "The model response did not match the required expert table format. "

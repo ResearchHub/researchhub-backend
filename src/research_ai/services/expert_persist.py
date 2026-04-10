@@ -1,6 +1,7 @@
 from typing import Any
 
 from django.db import transaction
+from django.utils import timezone
 
 from research_ai.models import Expert, SearchExpert
 from research_ai.services.expert_display import normalize_expert_email
@@ -81,3 +82,11 @@ def replace_search_experts_for_search(
             position=position,
         )
     return len(expert_dicts)
+
+
+def mark_expert_last_email_sent_at(email: str) -> None:
+    """Set last_email_sent_at=now on the Expert row for this address, if one exists."""
+    em = normalize_expert_email(email)
+    if not em:
+        return
+    Expert.objects.filter(email__iexact=em).update(last_email_sent_at=timezone.now())

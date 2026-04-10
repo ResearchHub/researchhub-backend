@@ -13,7 +13,6 @@ from research_ai.services.expert_finder_service import (
 from research_ai.services.expert_llm_table import (
     EXPERT_LLM_TABLE_HEADER_LINE,
     EXPERT_LLM_TABLE_SEPARATOR_LINE,
-    ExpertTableRowError,
     ExpertTableSchemaError,
 )
 from research_ai.services.openai_expert_finder_service import OPENAI_EXPERT_FINDER_MODEL
@@ -300,13 +299,31 @@ class ExpertFinderServiceParseTests(TestCase):
         self.assertEqual(experts[0]["email"], "jane@mit.edu")
         self.assertEqual(experts[1]["email"], "john@stanford.edu")
 
-    def test_parse_markdown_table_invalid_email_raises(self):
+    def test_parse_markdown_table_invalid_email_row_skipped(self):
+        service = ExpertFinderService()
+        markdown = _llm_expert_table(
+            _llm_row("Jane", "Doe", "jane@mit.edu"),
+            _llm_row("No", "Email", "not-an-email"),
+        )
+        experts = service._parse_markdown_table(markdown)
+        self.assertEqual(len(experts), 1)
+        self.assertEqual(experts[0]["email"], "jane@mit.edu")
+
+    def test_parse_markdown_table_only_invalid_email_rows_returns_empty(self):
         service = ExpertFinderService()
         markdown = _llm_expert_table(
             _llm_row("No", "Email", "not-an-email"),
         )
-        with self.assertRaises(ExpertTableRowError):
-            service._parse_markdown_table(markdown)
+        self.assertEqual(service._parse_markdown_table(markdown), [])
+
+    def test_parse_markdown_table_email_nbsp_removed_before_validate(self):
+        service = ExpertFinderService()
+        markdown = _llm_expert_table(
+            _llm_row("Jane", "Doe", "jane.doe\u00a0@mit.edu"),
+        )
+        experts = service._parse_markdown_table(markdown)
+        self.assertEqual(len(experts), 1)
+        self.assertEqual(experts[0]["email"], "jane.doe@mit.edu")
 
     def test_extract_citations(self):
         service = ExpertFinderService()
@@ -429,14 +446,42 @@ class ExpertFinderServiceParseTests(TestCase):
         self.assertEqual(len(experts[0]["sources"]), 1)
         self.assertEqual(experts[0]["sources"][0]["url"], "https://example.com")
 
-    def test_parse_markdown_table_wrong_column_count_raises(self):
+    def test_parse_markdown_table_wrong_column_count_row_skipped(self):
         service = ExpertFinderService()
         bad_row = "| Jane | Prof | MIT | jane@mit.edu |"
         markdown = "\n".join(
-            [EXPERT_LLM_TABLE_HEADER_LINE, EXPERT_LLM_TABLE_SEPARATOR_LINE, bad_row]
+            [
+                EXPERT_LLM_TABLE_HEADER_LINE,
+                EXPERT_LLM_TABLE_SEPARATOR_LINE,
+                bad_row,
+            ]
         )
-        with self.assertRaises(ExpertTableRowError):
-            service._parse_markdown_table(markdown)
+        self.assertEqual(service._parse_markdown_table(markdown), [])
+
+    def test_parse_markdown_table_wrong_column_count_does_not_drop_valid_rows(self):
+        service = ExpertFinderService()
+        bad_row = "| Jane | Prof | MIT | jane@mit.edu |"
+        markdown = "\n".join(
+            [
+                EXPERT_LLM_TABLE_HEADER_LINE,
+                EXPERT_LLM_TABLE_SEPARATOR_LINE,
+                _llm_row("Good", "Row", "ok@mit.edu"),
+                bad_row,
+            ]
+        )
+        experts = service._parse_markdown_table(markdown)
+        self.assertEqual(len(experts), 1)
+        self.assertEqual(experts[0]["email"], "ok@mit.edu")
+
+    def test_parse_markdown_table_missing_name_row_skipped(self):
+        service = ExpertFinderService()
+        markdown = _llm_expert_table(
+            _llm_row("Jane", "Doe", "jane@mit.edu"),
+            "| | | | | | Prof | MIT | AI | x@mit.edu | |",
+        )
+        experts = service._parse_markdown_table(markdown)
+        self.assertEqual(len(experts), 1)
+        self.assertEqual(experts[0]["email"], "jane@mit.edu")
 
     def test_parse_markdown_table_wrong_header_raises(self):
         service = ExpertFinderService()

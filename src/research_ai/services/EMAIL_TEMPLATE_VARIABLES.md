@@ -42,8 +42,8 @@ The expert resolved from the search. Built from the `resolved_expert` dict passe
 
 | Property      | Description                |
 | ------------- | -------------------------- |
-| `name`        | Expert's display name      |
-| `title`       | Job/professional title     |
+| `name`        | Salutation-style name: honorific + first + middle + last (from structured fields when present; else fallback to stored display `name`). Omits credentials suffix. |
+| `title`       | Academic / job title (`academic_title` from search results) |
 | `affiliation` | Institution or affiliation |
 | `email`       | Expert's email address     |
 | `expertise`   | Area(s) of expertise       |

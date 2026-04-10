@@ -22,6 +22,7 @@ def expert_model_to_flat_dict(expert: Expert) -> dict[str, Any]:
         "notes": expert.notes,
         "sources": expert.sources if isinstance(expert.sources, list) else [],
         "name": expert_model_display_name(expert),
+        "last_email_sent_at": expert.last_email_sent_at,
     }
 
 

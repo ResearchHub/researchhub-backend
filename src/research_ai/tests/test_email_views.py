@@ -53,7 +53,6 @@ def _make_expert_search(created_by, expert_rows=None):
         input_type=ExpertSearch.InputType.CUSTOM_QUERY,
         status=ExpertSearch.Status.COMPLETED,
         progress=100,
-        expert_results=[],
     )
     if not expert_rows:
         return search
@@ -147,9 +146,10 @@ class GenerateEmailViewTests(APITestCase):
         data = response.json()
         self.assertEqual(
             data["expert_name"],
-            "Dr. Smith",
-            msg="Middle name trimmed from stored expert_name (first + last token)",
+            "Dr. Jane Marie Smith",
+            msg="Stored name matches structured salutation (honorific + first + middle + last)",
         )
+        self.assertEqual(data["expert_title"], "Professor")
         self.assertEqual(data["email_subject"], "Subject here")
         self.assertEqual(data["email_body"], "Body here")
         self.assertEqual(data["status"], "draft")

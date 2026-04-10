@@ -65,6 +65,14 @@ def expert_dict_to_api_payload(
         name_suffix=d.get("name_suffix") or "",
         fallback_name=d.get("name") or "",
     )
+    raw_at = d.get("academic_title")
+    if not isinstance(raw_at, str):
+        raw_at = ""
+    at = raw_at.strip()
+    if not at:
+        legacy_t = d.get("title")
+        if isinstance(legacy_t, str):
+            at = legacy_t.strip()
     out = {
         "expert_id": expert_id,
         "honorific": d.get("honorific") or "",
@@ -72,16 +80,46 @@ def expert_dict_to_api_payload(
         "middle_name": d.get("middle_name") or "",
         "last_name": d.get("last_name") or "",
         "name_suffix": d.get("name_suffix") or "",
-        "academic_title": d.get("academic_title") or d.get("title") or "",
+        "academic_title": at,
+        "title": at,
         "affiliation": d.get("affiliation") or "",
         "expertise": d.get("expertise") or "",
         "email": d.get("email") or "",
         "notes": d.get("notes") or "",
         "sources": d.get("sources") if isinstance(d.get("sources"), list) else [],
         "name": name,
+        "last_email_sent_at": d.get("last_email_sent_at"),
     }
     return out
 
 
 def normalize_expert_email(email: str) -> str:
     return (email or "").strip().lower()
+
+
+def expert_name_for_generated_email_storage(
+    resolved: dict, *, max_length: int = 255
+) -> str:
+    """
+    Denormalized expert_name for GeneratedEmail rows.
+
+    Matches {{expert.name}} in fixed templates: honorific + first + middle + last
+    """
+    s = build_expert_display_name(
+        honorific=resolved.get("honorific") or "",
+        first_name=resolved.get("first_name") or "",
+        middle_name=resolved.get("middle_name") or "",
+        last_name=resolved.get("last_name") or "",
+        name_suffix="",
+        fallback_name=(resolved.get("name") or "").strip(),
+    )
+    return s[:max_length]
+
+
+def expert_title_for_generated_email_storage(
+    resolved: dict, *, max_length: int = 255
+) -> str:
+    """Academic / job title from API-shaped resolved expert."""
+    raw = resolved.get("academic_title") or ""
+    t = raw.strip() if isinstance(raw, str) else ""
+    return t[:max_length]

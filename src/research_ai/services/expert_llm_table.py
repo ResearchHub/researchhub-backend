@@ -1,3 +1,4 @@
+import logging
 import re
 from typing import Any
 
@@ -6,7 +7,27 @@ from django.core.validators import EmailValidator
 
 from research_ai.services.expert_display import build_expert_display_name
 
+logger = logging.getLogger(__name__)
+
 _EMAIL_VALIDATOR = EmailValidator()
+
+# NBSP and other unicode spaces often appear in model/web "email protected" placeholders.
+_UNICODE_SPACE_CHARS_RE = re.compile(
+    r"[\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000\ufeff]+"
+)
+
+
+def _normalize_email_candidate(raw: str) -> str:
+    """
+    Strip and remove unicode whitespace from the email cell so values like
+    ``jane.doe\\u00a0@mit.edu`` validate; does not fix non-email placeholders.
+    """
+    s = (raw or "").strip()
+    if not s:
+        return ""
+    s = _UNICODE_SPACE_CHARS_RE.sub("", s)
+    return s.strip()
+
 
 # Must match expert_finder_system.txt (build_system_prompt injects these lines).
 EXPERT_LLM_TABLE_HEADERS: tuple[str, ...] = (
@@ -33,7 +54,7 @@ class ExpertTableSchemaError(ValueError):
 
 
 class ExpertTableRowError(ValueError):
-    """A data row failed validation (columns, email, or required names)."""
+    """Reserved for row-level issues; the table parser skips bad rows instead of raising."""
 
 
 def _is_markdown_separator_row(line: str) -> bool:
@@ -119,12 +140,14 @@ def extract_citations_from_notes(text: str) -> tuple[str, list[dict[str, str]]]:
 
 def parse_expert_markdown_table_strict(markdown_text: str) -> list[dict[str, Any]]:
     """
-    Parse LLM markdown into expert dicts. Strict contract:
+    Parse LLM markdown into expert dicts.
 
     - No table or only a header (no data rows): returns [].
-    - Header row present but wrong columns/order: ExpertTableSchemaError.
-    - Any non-empty data row with wrong column count, invalid email, or missing
-      first/last name: ExpertTableRowError.
+    - Header row present but wrong columns/order: ExpertTableSchemaError (fails the
+      whole parse; caller should treat as a bad model response).
+    - Data rows: wrong column count, missing names, invalid email, or any unexpected
+      error while building the row are skipped with a log line; valid rows are still
+      returned.
     """
     table_lines = _collect_markdown_table_lines(markdown_text)
     if len(table_lines) < 2:
@@ -143,10 +166,13 @@ def parse_expert_markdown_table_strict(markdown_text: str) -> list[dict[str, Any
         if not any(c.strip() for c in cells):
             continue
         if len(cells) != N_EXPERT_COLUMNS:
-            raise ExpertTableRowError(
-                f"Table row {line_idx} has {len(cells)} columns; "
-                f"expected {N_EXPERT_COLUMNS}."
+            logger.warning(
+                "Skipping expert table row %s: expected %s columns, got %s",
+                line_idx,
+                N_EXPERT_COLUMNS,
+                len(cells),
             )
+            continue
 
         honorific = cells[0]
         first_name = cells[1]
@@ -160,11 +186,13 @@ def parse_expert_markdown_table_strict(markdown_text: str) -> list[dict[str, Any
         notes_raw = cells[9]
 
         if not (first_name or "").strip() or not (last_name or "").strip():
-            raise ExpertTableRowError(
-                f"Table row {line_idx}: First name and Last name are required."
+            logger.warning(
+                "Skipping expert table row %s: first and last name are required",
+                line_idx,
             )
+            continue
 
-        email_stripped = (email or "").strip()
+        email_stripped = _normalize_email_candidate(email)
         try:
             _EMAIL_VALIDATOR(email_stripped)
         except ValidationError as e:
@@ -173,35 +201,46 @@ def parse_expert_markdown_table_strict(markdown_text: str) -> list[dict[str, Any
                 if getattr(e, "messages", None)
                 else (str(e) or "invalid email")
             )
-            raise ExpertTableRowError(
-                f"Table row {line_idx}: invalid email {email_stripped!r}: {detail}"
-            ) from e
+            logger.warning(
+                "Skipping expert table row %s: invalid email after normalize %r: %s",
+                line_idx,
+                email_stripped,
+                detail,
+            )
+            continue
 
-        notes_cleaned, citations = extract_citations_from_notes(notes_raw)
-        display_name = build_expert_display_name(
-            honorific=honorific,
-            first_name=first_name,
-            middle_name=middle_name,
-            last_name=last_name,
-            name_suffix=name_suffix,
-            fallback_name="",
-        )
+        try:
+            notes_cleaned, citations = extract_citations_from_notes(notes_raw)
+            display_name = build_expert_display_name(
+                honorific=honorific,
+                first_name=first_name,
+                middle_name=middle_name,
+                last_name=last_name,
+                name_suffix=name_suffix,
+                fallback_name="",
+            )
 
-        experts.append(
-            {
-                "honorific": honorific,
-                "first_name": first_name,
-                "middle_name": middle_name,
-                "last_name": last_name,
-                "name_suffix": name_suffix,
-                "academic_title": academic_title,
-                "affiliation": affiliation,
-                "expertise": expertise,
-                "email": email_stripped,
-                "notes": notes_cleaned,
-                "sources": citations if citations else [],
-                "name": display_name,
-            }
-        )
+            experts.append(
+                {
+                    "honorific": honorific,
+                    "first_name": first_name,
+                    "middle_name": middle_name,
+                    "last_name": last_name,
+                    "name_suffix": name_suffix,
+                    "academic_title": academic_title,
+                    "affiliation": affiliation,
+                    "expertise": expertise,
+                    "email": email_stripped,
+                    "notes": notes_cleaned,
+                    "sources": citations if citations else [],
+                    "name": display_name,
+                }
+            )
+        except Exception:
+            logger.exception(
+                "Skipping expert table row %s: unexpected error while parsing row",
+                line_idx,
+            )
+            continue
 
     return experts

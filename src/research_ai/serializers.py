@@ -133,6 +133,9 @@ class ExpertResultSerializer(serializers.Serializer):
     email = serializers.CharField()
     notes = serializers.CharField(allow_blank=True, required=False)
     sources = serializers.ListField(required=False, allow_null=True)
+    last_email_sent_at = serializers.DateTimeField(
+        required=False, allow_null=True, read_only=True
+    )
 
 
 class ExpertPartialUpdateSerializer(serializers.ModelSerializer):

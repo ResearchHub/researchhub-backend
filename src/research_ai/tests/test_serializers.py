@@ -202,6 +202,21 @@ class ExpertSearchSerializerTests(TestCase):
         ser = ExpertSearchSerializer(self.search)
         self.assertEqual(ser.data["expert_names"], ["A", "B"])
 
+    def test_expert_results_include_last_email_sent_at(self):
+        from django.utils import timezone
+
+        ser = ExpertSearchSerializer(self.search)
+        rows = ser.data["expert_results"]
+        self.assertEqual(len(rows), 2)
+        self.assertIsNone(rows[0]["last_email_sent_at"])
+        e1 = Expert.objects.get(email="a@x.com")
+        ts = timezone.now()
+        Expert.objects.filter(pk=e1.pk).update(last_email_sent_at=ts)
+        ser2 = ExpertSearchSerializer(self.search)
+        rows2 = ser2.data["expert_results"]
+        self.assertIsNotNone(rows2[0]["last_email_sent_at"])
+        self.assertIsNone(rows2[1]["last_email_sent_at"])
+
     def test_get_report_urls(self):
         ser = ExpertSearchSerializer(self.search)
         self.assertEqual(

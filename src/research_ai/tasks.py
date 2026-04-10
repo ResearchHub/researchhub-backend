@@ -10,7 +10,11 @@ from research_ai.models import ExpertSearch, GeneratedEmail, SearchExpert
 from research_ai.services.email_generator_service import generate_expert_email
 from research_ai.services.email_sending_service import send_plain_email
 from research_ai.services.expert_finder_service import ExpertFinderService
-from research_ai.services.expert_persist import replace_search_experts_for_search
+from research_ai.services.expert_persist import (
+    mark_expert_last_email_sent_at,
+    replace_search_experts_for_search,
+)
+from research_ai.services.rfp_email_context import resolve_expert_from_search
 from researchhub.celery import app
 from user.models import User
 from utils import sentry
@@ -85,7 +89,6 @@ def _fail_expert_search(
         status=ExpertSearch.Status.FAILED,
         progress=0,
         current_step=current_step[:512],
-        expert_results=[],
         expert_count=0,
         report_pdf_url="",
         report_csv_url="",
@@ -194,7 +197,6 @@ def process_expert_search_task(
             status=ExpertSearch.Status.COMPLETED,
             progress=100,
             current_step="Expert search completed!",
-            expert_results=[],
             expert_count=stored_count,
             report_pdf_url=report_urls.get("pdf", ""),
             report_csv_url=report_urls.get("csv", ""),
@@ -307,14 +309,23 @@ def _process_one_bulk_email(
     if not rec:
         return 0, 0
     try:
-        resolved_expert = {
-            "name": rec.expert_name or "",
-            "title": rec.expert_title or "",
-            "affiliation": rec.expert_affiliation or "",
-            "expertise": rec.expertise or "",
-            "email": rec.expert_email or "",
-            "notes": rec.notes or "",
-        }
+        resolved_expert = resolve_expert_from_search(
+            rec.expert_search, rec.expert_email
+        )
+        if not resolved_expert:
+            resolved_expert = {
+                "name": rec.expert_name or "",
+                "honorific": "",
+                "first_name": "",
+                "middle_name": "",
+                "last_name": "",
+                "academic_title": rec.expert_title or "",
+                "title": rec.expert_title or "",
+                "affiliation": rec.expert_affiliation or "",
+                "expertise": rec.expertise or "",
+                "email": rec.expert_email or "",
+                "notes": rec.notes or "",
+            }
         subject, body = generate_expert_email(
             resolved_expert=resolved_expert,
             template=template_key,
@@ -442,6 +453,7 @@ def send_queued_emails_task(
                 status=GeneratedEmail.Status.SENT,
                 updated_date=timezone.now(),
             )
+            mark_expert_last_email_sent_at(rec.expert_email)
             sent += 1
         except Exception as e:
             logger.exception("Send to expert failed id=%s: %s", rec.id, e)
