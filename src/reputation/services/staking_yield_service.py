@@ -19,9 +19,7 @@ logger = logging.getLogger(__name__)
 QUANTIZE_8 = Decimal("0.00000001")
 
 # Halving schedule constants
-STAKING_RELEASE_DATE = date(
-    2026, 3, 27
-)  # TODO: Set actual release date when deploying to prod
+STAKING_RELEASE_DATE = date(2026, 4, 11)
 INITIAL_YEARLY_EMISSION = Decimal("9500000")
 HALVING_PERIOD_DAYS = 64 * 365  # 64 years in days
 
@@ -104,6 +102,13 @@ class StakingYieldService:
         """
         User = get_user_model()
 
+        if accrual_date < STAKING_RELEASE_DATE:
+            logger.info(
+                "Skipping staking snapshot creation for pre-release accrual_date=%s",
+                accrual_date,
+            )
+            return None
+
         existing = StakingGlobalSnapshot.load_for_accrual_date(accrual_date)
         if existing is not None:
             logger.info(
@@ -183,6 +188,13 @@ class StakingYieldService:
 
         Raises on any failure so callers can retry.
         """
+        if accrual_date < STAKING_RELEASE_DATE:
+            logger.info(
+                "Skipping staking yield distribution for pre-release accrual_date=%s",
+                accrual_date,
+            )
+            return None
+
         global_snapshot = StakingGlobalSnapshot.load_for_accrual_date(accrual_date)
         if global_snapshot is None:
             logger.info(
