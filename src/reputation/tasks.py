@@ -294,6 +294,7 @@ def _check_deposits(max_age=None):
                 distributor.distribute()
                 deposit.amount = deposit_amount
                 deposit.set_paid()
+                user.ensure_staking_opted_in()
             except Exception as e:
                 log_error(e, "Failed to process deposit")
                 deposit.set_paid_pending()

@@ -114,6 +114,7 @@ def process_circle_deposit(
             distributor.distribute()
 
     if credited:
+        user.ensure_staking_opted_in()
         logger.info(
             "Circle deposit credited: user=%s amount=%s network=%s "
             "circle_transaction_id=%s",
