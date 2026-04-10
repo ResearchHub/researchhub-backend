@@ -42,9 +42,13 @@ These recommendations will be used to **contact experts by email**. Every row mu
 - Output **at most {expert_count} data rows** (not counting the header row). If you cannot find that many qualified, verifiable experts, output **fewer** rows—**never** duplicate rows to reach the count.
 
 ## Your Task
-Identify up to {expert_count} potential reviewers and extract the following information for each:
-- **Name**: Full name of the potential reviewer
-- **Title**: Their current academic or professional title (e.g., Professor, Associate Professor, Research Scientist)
+Identify up to {expert_count} potential reviewers and extract the following information for each (use **separate columns** — do not combine fields):
+- **Honorific** (optional): Courtesy or address form only — Mr, Ms, Mrs, Miss, Dr, Prof, etc. (not degrees)
+- **First name**: Given name
+- **Middle name** (optional): Middle name or initial
+- **Last name**: Family name only — **do not** put PhD, MD, JD, or other degrees in this column
+- **Suffix / credentials** (optional): Post-nominal degrees or credentials (PhD, MD, JD, MBA, etc.)
+- **Academic title**: Job or role title (e.g., Professor, Associate Professor, Research Scientist) — **not** the same as honorific or credentials
 - **Affiliation**: Their current institution, university, or organization
 - **Expertise**: Their specific area(s) of expertise relevant to the paper
 - **Email**: Their professional email address (MUST be explicit and verifiable - no generic institutional contacts)
@@ -96,13 +100,19 @@ Before including ANY expert in your recommendations, verify:
 **IMPORTANT VERIFICATION NOTE**: All verification checks above are YOUR internal requirements for quality control. The Notes column should contain ONLY the expert recommendation justification, NOT documentation of verification statements or attribution phrases. Verification is a requirement for including an expert, but verification language should NEVER appear in the output table.
 
 ## Output Format
-Present your findings in a properly formatted markdown table with the following structure:
+Present your findings in a properly formatted markdown table with **exactly** these columns (in this order):
 
 ```
-| Name | Title | Affiliation | Expertise | Email | Notes |
-|------|-------|-------------|-----------|-------|-------|
-| [Full Name] | [Title] | [Institution] | [Specific expertise areas] | [email@institution.edu] | [Brief justification for recommendation] |
+{expert_table_header_line}
+{expert_table_separator_line}
+| [optional] | [First] | [optional] | [Last only] | [optional PhD/MD] | [Professor etc.] | [Institution] | [Areas] | [email] | [Justification + optional links] |
 ```
+
+**CRITICAL naming rules**:
+- **Last name** must contain only the family name — never "PhD", "MD", or similar in this column
+- **Suffix** is the only column for PhD, MD, JD, etc.
+- **Honorific** is only for Dr / Prof / Mr / Ms / Mrs / Miss — not for degrees
+- **Academic title** is employment role (Professor, Associate Professor, …), not honorific
 
 ### Table Formatting Requirements
 - Use proper markdown table syntax with pipes (|) as separators
@@ -138,11 +148,11 @@ Each note should be 1-2 sentences explaining:
 
 ## Example Output Format (Plain Text Only)
 
-| Name | Title | Affiliation | Expertise | Email | Notes |
-|------|-------|-------------|-----------|-------|-------|
-| Dr. Sarah Johnson | Associate Professor | Stanford University | Machine Learning, Natural Language Processing | s.johnson@stanford.edu | Recent work on transformer architectures ideal for reviewing NLP methodology. See [profile](https://www.cs.stanford.edu/people/sarahj). |
-| Prof. Michael Chen | Professor | Harvard Medical School | Statistical Analysis, Biomedical Data | m.chen@hms.harvard.edu | Pioneered clinical trial statistical methods directly relevant to this study. [Lab site](https://hms.harvard.edu/faculty/chen). |
-| Dr. Teri Klein | Professor (Research) | Stanford University | Pharmacogenomics, Data Integration | teri.klein@stanford.edu | Leads PharmGKB with strong expertise in evidence curation relevant to this work. [PharmGKB](https://www.pharmgkb.org). |
+{expert_table_header_line}
+{expert_table_separator_line}
+| Dr | Sarah | | Johnson | PhD | Associate Professor | Stanford University | Machine Learning, Natural Language Processing | s.johnson@stanford.edu | Recent work on transformer architectures ideal for reviewing NLP methodology. See [profile](https://www.cs.stanford.edu/people/sarahj). |
+| Prof | Michael | | Chen | MD | Professor | Harvard Medical School | Statistical Analysis, Biomedical Data | m.chen@hms.harvard.edu | Pioneered clinical trial statistical methods directly relevant to this study. [Lab site](https://hms.harvard.edu/faculty/chen). |
+| Dr | Teri | | Klein | PhD | Professor (Research) | Stanford University | Pharmacogenomics, Data Integration | teri.klein@stanford.edu | Leads PharmGKB with strong expertise in evidence curation relevant to this work. [PharmGKB](https://www.pharmgkb.org). |
 
 ## Additional Instructions
 - **STRICT EMAIL REQUIREMENT**: If you cannot find explicit contact information for a highly relevant expert, DO NOT include them in the recommendations - quality over quantity is paramount
@@ -154,7 +164,7 @@ Each note should be 1-2 sentences explaining:
 
 ## Quality Check
 Before submitting your table, verify:
-- [ ] All required columns are populated (Name, Title, Affiliation, Expertise, Email, Notes)
+- [ ] All required columns are populated (First name, Last name, Academic title, Affiliation, Expertise, Email, Notes; Honorific/Middle name/Suffix optional when unknown)
 - [ ] Markdown table syntax is correct and uses plain text only
 - [ ] Each expertise requirement from the input is addressed
 - [ ] ALL email addresses are explicit, verifiable, and follow proper format - NO exceptions

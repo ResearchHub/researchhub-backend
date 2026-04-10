@@ -3,16 +3,24 @@ import re
 from typing import Any, Callable
 
 import fitz
-from django.core.exceptions import ValidationError
-from django.core.validators import EmailValidator
 
 from paper.tasks.tasks import create_download_url
 from paper.utils import download_pdf_from_url
 from research_ai.constants import MAX_PDF_SIZE_BYTES, ExpertiseLevel, Gender, Region
-from research_ai.models import ExpertSearch
+from research_ai.models import Expert, ExpertSearch
 from research_ai.prompts.expert_finder_prompts import (
     build_system_prompt,
     build_user_prompt,
+)
+from research_ai.services.expert_display import (
+    expert_model_display_name,
+    normalize_expert_email,
+)
+from research_ai.services.expert_llm_table import (
+    ExpertTableSchemaError,
+    clean_expert_table_url,
+    extract_citations_from_notes,
+    parse_expert_markdown_table_strict,
 )
 from research_ai.services.openai_expert_finder_service import OpenAIExpertFinderService
 from research_ai.services.progress_service import ProgressService, TaskType
@@ -31,8 +39,8 @@ MAX_ERROR_MESSAGE_LENGTH = 10000
 # Cap on how many times we call the model to "top up" unique experts.
 # One API call can return many rows, but duplicates, invalid emails, exclusions, and deceased filtering often leave the
 # pool short of the user's target, so we re-prompt with updated exclusions until we reach the target.
-EXPERT_FILL_MAX_ROUNDS = 6
-EXPERT_FILL_TOLERANCE_SHORT = 10
+EXPERT_FILL_MAX_ROUNDS = 10
+EXPERT_FILL_TOLERANCE_SHORT = 4
 EXPERT_FILL_EXCLUDED_NAMES_CAP = 250
 
 _DECEASED_ROW_REGEX = re.compile(
@@ -162,7 +170,7 @@ class ExpertFinderService:
         query: str,
         config: dict[str, Any],
         *,
-        excluded_expert_names: list[str] | None = None,
+        excluded_expert_ids: list[int] | None = None,
         is_pdf: bool = False,
         additional_context: str | None = None,
         progress_callback: Callable[[str, int, str], None] | None = None,
@@ -225,13 +233,24 @@ class ExpertFinderService:
             region_filter = config.get("region", Region.ALL_REGIONS)
             state_filter = config.get("state", "All States")
             gender_filter = config.get("gender", Gender.ALL_GENDERS)
-            excluded = excluded_expert_names or []
+            excluded_ids = [
+                int(x) for x in (excluded_expert_ids or []) if x is not None
+            ]
+            excluded_emails_from_user: set[str] = set()
+            user_excluded_lines: list[str] = []
+            if excluded_ids:
+                for ex in Expert.objects.filter(id__in=excluded_ids):
+                    excluded_emails_from_user.add(normalize_expert_email(ex.email))
+                    user_excluded_lines.append(
+                        f"id={ex.id}; email={ex.email}; name={expert_model_display_name(ex)}"
+                    )
             target_expert_count = max(0, int(expert_count))
 
             accumulated: list[dict[str, Any]] = []
             seen_email: set[str] = set()
             llm_response = ""
             all_filtered_out = False
+            had_user_exclusion = bool(excluded_ids)
 
             # Each round: one model call asking for up to `remaining` new experts,
             # then parse/filter/dedupe and merge into `accumulated`. We iterate a
@@ -245,7 +264,7 @@ class ExpertFinderService:
                     break
                 remaining = target_expert_count - len(accumulated)
                 # Near-target early exit (large jobs only): e.g. target 100 experts,
-                # tolerance 10 → stop once we have ≥90 unique experts. We require
+                # tolerance 4 → stop once we have ≥96 unique experts. We require
                 # target_expert_count > tolerance so small jobs (e.g. need 3, have 2)
                 # are not misclassified as "close enough" when remaining ≤ tolerance.
                 if (
@@ -265,8 +284,8 @@ class ExpertFinderService:
                     )
                     break
 
-                effective_excluded = self._effective_excluded_for_fill(
-                    excluded, accumulated
+                effective_excluded_lines = self._effective_excluded_lines_for_fill(
+                    user_excluded_lines, accumulated
                 )
                 round_request = max(1, remaining)
 
@@ -281,7 +300,7 @@ class ExpertFinderService:
                     region_filter=region_filter,
                     state_filter=state_filter,
                     gender_filter=gender_filter,
-                    excluded_expert_names=effective_excluded,
+                    excluded_expert_lines=effective_excluded_lines,
                 )
                 finder_user_task = build_user_prompt(
                     query=query,
@@ -312,21 +331,55 @@ class ExpertFinderService:
                 publish_progress_update(
                     "Parsing expert recommendations...", 58 + round_num * 2
                 )
-                batch = self._parse_markdown_table(llm_response)
+                try:
+                    batch = parse_expert_markdown_table_strict(llm_response)
+                except ExpertTableSchemaError as e:
+                    err_text = str(e)
+                    msg = (
+                        "The model response did not match the required expert table format. "
+                        f"{err_text}"
+                    )
+                    publish_progress_update(msg, 0, status=ExpertSearch.Status.FAILED)
+                    if progress_callback:
+                        progress_callback(search_id, 0, msg)
+                    return {
+                        "search_id": search_id,
+                        "status": ExpertSearch.Status.FAILED,
+                        "query": query,
+                        "config": config,
+                        "experts": [],
+                        "report_urls": {},
+                        "expert_count": 0,
+                        "llm_model": self.openai_expert.model_id,
+                        "error_message": err_text[:MAX_ERROR_MESSAGE_LENGTH],
+                        "current_step": "Model output did not match required table format",
+                    }
                 parsed_count = len(batch)
 
                 before_name_filter = len(batch)
+                accumulated_names = [
+                    (x.get("name") or "").strip()
+                    for x in accumulated
+                    if (x.get("name") or "").strip()
+                ]
+                combined_name_exclusions = list(accumulated_names)
+                batch = [
+                    e
+                    for e in batch
+                    if normalize_expert_email(e.get("email"))
+                    not in excluded_emails_from_user
+                ]
                 batch = [
                     e
                     for e in batch
                     if not self._expert_name_matches_excluded(
-                        e.get("name") or "", effective_excluded
+                        e.get("name") or "", combined_name_exclusions
                     )
                 ]
                 after_exclude = len(batch)
                 if (
                     round_num == 1
-                    and excluded
+                    and had_user_exclusion
                     and before_name_filter > 0
                     and after_exclude == 0
                 ):
@@ -448,25 +501,11 @@ class ExpertFinderService:
 
     def _extract_citations(self, text: str) -> tuple[str, list[dict[str, str]]]:
         """Extract markdown links [text](url) from notes; return (cleaned_text, citations)."""
-        citations = []
-        citation_pattern = r"\[([^\]]+)\]\(([^)]*)\)"
-        for m in re.finditer(citation_pattern, text):
-            raw_url = (m.group(2) or "").strip()
-            if not raw_url:
-                continue
-            url = self._clean_url(raw_url)
-            citations.append({"text": m.group(1), "url": url})
-        cleaned = re.sub(citation_pattern, "", text)
-        cleaned = re.sub(r"\(\)", "", cleaned).strip()
-        return cleaned, citations
+        return extract_citations_from_notes(text)
 
     def _clean_url(self, url: str) -> str:
         """Remove UTM and tracking query params."""
-        if "?" not in url:
-            return url
-        base, qs = url.split("?", 1)
-        params = [p for p in qs.split("&") if not p.startswith("utm_")]
-        return f"{base}?{'&'.join(params)}" if params else base
+        return clean_expert_table_url(url)
 
     @staticmethod
     def _expert_row_suggests_deceased(expert: dict[str, Any]) -> bool:
@@ -477,7 +516,12 @@ class ExpertFinderService:
         """
         parts = [
             expert.get("name") or "",
-            expert.get("title") or "",
+            expert.get("honorific") or "",
+            expert.get("first_name") or "",
+            expert.get("middle_name") or "",
+            expert.get("last_name") or "",
+            expert.get("name_suffix") or "",
+            expert.get("academic_title") or "",
             expert.get("affiliation") or "",
             expert.get("expertise") or "",
             expert.get("notes") or "",
@@ -552,113 +596,40 @@ class ExpertFinderService:
         return out
 
     @staticmethod
-    def _effective_excluded_for_fill(
-        user_excluded: list[str],
+    def _effective_excluded_lines_for_fill(
+        user_excluded_lines: list[str],
         accumulated: list[dict[str, Any]],
     ) -> list[str]:
         """
-        Names the model must not repeat: user exclusions plus experts already collected.
+        Lines for the model (id/email/name): user exclusions plus experts already collected.
         Capped to avoid oversized prompts.
         """
-        acc_names = [
-            (e.get("name") or "").strip()
-            for e in accumulated
-            if (e.get("name") or "").strip()
-        ]
-        combined = list(user_excluded) + acc_names
+        acc_lines = []
+        for e in accumulated:
+            em = (e.get("email") or "").strip()
+            nm = (e.get("name") or "").strip()
+            if em or nm:
+                acc_lines.append(f"email={em}; name={nm}")
+        combined = list(user_excluded_lines) + acc_lines
         if len(combined) <= EXPERT_FILL_EXCLUDED_NAMES_CAP:
             return combined
-        n_user = len(user_excluded)
+        n_user = len(user_excluded_lines)
         if n_user >= EXPERT_FILL_EXCLUDED_NAMES_CAP:
             logger.warning(
                 "Expert fill: user exclusion list length %s exceeds cap %s; truncating",
                 n_user,
                 EXPERT_FILL_EXCLUDED_NAMES_CAP,
             )
-            return list(user_excluded)[:EXPERT_FILL_EXCLUDED_NAMES_CAP]
+            return list(user_excluded_lines)[:EXPERT_FILL_EXCLUDED_NAMES_CAP]
         tail = EXPERT_FILL_EXCLUDED_NAMES_CAP - n_user
         logger.warning(
-            "Expert fill: exclusion list capped to %s (user=%s accumulated_names=%s)",
+            "Expert fill: exclusion list capped to %s (user=%s accumulated_lines=%s)",
             EXPERT_FILL_EXCLUDED_NAMES_CAP,
             n_user,
-            len(acc_names),
+            len(acc_lines),
         )
-        return list(user_excluded) + acc_names[-tail:]
+        return list(user_excluded_lines) + acc_lines[-tail:]
 
     def _parse_markdown_table(self, markdown_text: str) -> list[dict[str, Any]]:
-        """Parse markdown table from LLM response into list of expert dicts."""
-        experts = []
-        lines = markdown_text.split("\n")
-        table_lines = []
-        in_table = False
-        for line in lines:
-            if "|" in line:
-                if re.match(r"^\s*\|[\s\-:]+\|", line):
-                    continue
-                table_lines.append(line)
-                in_table = True
-            elif in_table and line.strip() == "":
-                break
-
-        if len(table_lines) < 2:
-            logger.warning("No valid markdown table in LLM response")
-            return []
-
-        header = table_lines[0]
-        columns = [c.strip() for c in header.split("|") if c.strip()]
-        column_map = {}
-        for i, col in enumerate(columns):
-            col_lower = col.lower()
-            if "name" in col_lower:
-                column_map["name"] = i
-            elif "title" in col_lower:
-                column_map["title"] = i
-            elif "affiliation" in col_lower or "institution" in col_lower:
-                column_map["affiliation"] = i
-            elif "expertise" in col_lower:
-                column_map["expertise"] = i
-            elif "email" in col_lower or "contact" in col_lower:
-                column_map["email"] = i
-            elif "note" in col_lower:
-                column_map["notes"] = i
-
-        for line in table_lines[1:]:
-            cells = [c.strip() for c in line.split("|") if c.strip()]
-            if len(cells) < 5:
-                continue
-            notes_raw = (
-                cells[column_map["notes"]]
-                if "notes" in column_map and len(cells) > column_map.get("notes", 5)
-                else ""
-            )
-            notes_cleaned, citations = self._extract_citations(notes_raw)
-            expert = {
-                "name": (
-                    cells[column_map.get("name", 0)] if "name" in column_map else ""
-                ),
-                "title": (
-                    cells[column_map.get("title", 1)] if "title" in column_map else ""
-                ),
-                "affiliation": (
-                    cells[column_map["affiliation"]]
-                    if "affiliation" in column_map
-                    else ""
-                ),
-                "expertise": (
-                    cells[column_map["expertise"]] if "expertise" in column_map else ""
-                ),
-                "email": (
-                    cells[column_map.get("email", 4)] if "email" in column_map else ""
-                ),
-                "notes": notes_cleaned,
-                "sources": citations if citations else [],
-            }
-            email = (expert["email"] or "").strip()
-            try:
-                EmailValidator()(email)
-            except ValidationError:
-                logger.warning("Skipping expert %s: no valid email", expert["name"])
-                continue
-            experts.append(expert)
-
-        return experts
+        """Parse markdown table using the strict LLM schema (for tests and tooling)."""
+        return parse_expert_markdown_table_strict(markdown_text)
