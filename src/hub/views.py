@@ -19,6 +19,7 @@ from hub.mappers.arxiv_mappings import ARXIV_MAPPINGS
 from hub.mappers.biorxiv_mappings import BIORXIV_MAPPINGS
 from hub.mappers.chemrxiv_mappings import CHEMRXIV_MAPPINGS
 from hub.mappers.medrxiv_mappings import MEDRXIV_MAPPINGS
+from mailing_list.lib import send_email
 from mailing_list.models import EmailRecipient, HubSubscription
 from paper.models import Paper
 from paper.utils import get_cache_key
@@ -33,7 +34,6 @@ from researchhub_document.models import ResearchhubUnifiedDocument
 from user.models import User
 from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.http import DELETE, GET, PATCH, POST, PUT
-from utils.message import send_email_message
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 
@@ -237,7 +237,7 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
                 if recipient in subscriber_emails:
                     recipients.remove(recipient)
 
-        result = send_email_message(
+        result = send_email(
             recipients,
             "invite_to_hub_email.txt",
             subject,

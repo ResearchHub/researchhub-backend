@@ -5,9 +5,8 @@ from django.apps import apps
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 
-from mailing_list.lib import base_email_context
+from mailing_list.lib import base_email_context, send_email
 from researchhub.celery import QUEUE_NOTIFICATION, app
-from utils.message import send_email_message
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +62,7 @@ def celery_create_mention_notification(comment_id, recipients):
                 "frontend_view_link": f"{unified_document.frontend_view_link()}#comments",
             }
             context["subject"] = outer_subject
-            send_email_message(
+            send_email(
                 [notification.recipient.email],
                 "general_email_message.txt",
                 outer_subject,
@@ -102,7 +101,7 @@ def send_author_update_email_notifications(comment_id, follower_user_ids):
                 # Check if user wants to receive emails (following existing patterns)
                 email_recipient = getattr(user, "emailrecipient", None)
                 if email_recipient and email_recipient.receives_notifications:
-                    send_email_message(
+                    send_email(
                         [user.email],
                         "general_email_message.txt",
                         subject,

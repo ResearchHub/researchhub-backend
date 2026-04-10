@@ -9,6 +9,7 @@ from django.db.models.functions import Cast, Coalesce
 from django.utils import timezone
 
 from hub.models import Hub
+from mailing_list.lib import send_email
 from mailing_list.models import EmailRecipient
 from reputation.models import Bounty, Distribution, PaidStatusModelMixin, Withdrawal
 from researchhub.settings import ASSETS_BASE_URL, BASE_FRONTEND_URL
@@ -17,7 +18,6 @@ from researchhub_access_group.constants import (
     ASSOCIATE_EDITOR,
     SENIOR_EDITOR,
 )
-from utils.message import send_email_message
 from utils.throttles import UserSustainedRateThrottle
 
 FOUNDATION_EMAIL = "main@researchhub.foundation"
@@ -268,7 +268,7 @@ class User(AbstractUser):
             "paper_count": paper_count,
             "comment_count": comment_count,
         }
-        send_email_message(
+        send_email(
             recipient,
             "editor_inactivity.txt",
             subject,

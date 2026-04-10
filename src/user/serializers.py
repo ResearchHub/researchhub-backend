@@ -130,8 +130,6 @@ class AuthorSerializer(ModelSerializer):
         model = Author
         fields = [field.name for field in Author._meta.fields] + [
             "added_as_editor_date",
-            "claimed_by_user_author_id",
-            "is_claimed",
             "is_hub_editor_of",
             "is_hub_editor",
             "num_posts",
@@ -148,8 +146,6 @@ class AuthorSerializer(ModelSerializer):
         ]
         read_only_fields = [
             "added_as_editor_date",
-            "claimed_by_user_author_id",
-            "is_claimed",
             "is_hub_editor_of",
             "num_posts",
             "merged_with",

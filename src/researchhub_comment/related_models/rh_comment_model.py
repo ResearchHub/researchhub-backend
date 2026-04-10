@@ -246,7 +246,10 @@ class RhCommentModel(
 
     def refresh_related_discussion_count(self):
         thread = self.thread
-        related_document = thread.unified_document.get_document()
+        unified_doc = thread.unified_document
+        if unified_doc is None:
+            return
+        related_document = unified_doc.get_document()
 
         # Ensure the document has the `rh_threads` relation which provides the
         # custom manager with the `get_discussion_aggregates` helper.

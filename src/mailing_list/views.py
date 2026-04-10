@@ -177,9 +177,10 @@ def email_notifications(request):
 
     elif data_type == "Notification":
         data_message = json.loads(data["Message"])
-        if data_message["notificationType"] == "Bounce":
-            bounced_recipients = data_message["bounce"]["bouncedRecipients"]
+        notification_type = data_message["notificationType"]
 
+        if notification_type == "Bounce":
+            bounced_recipients = data_message["bounce"]["bouncedRecipients"]
             for b_r in bounced_recipients:
                 email_address = b_r["emailAddress"]
                 # TODO: Sanitize email address before putting it in the db
@@ -193,9 +194,26 @@ def email_notifications(request):
                     error = EmailNotificationError(e, message)
                     print(error)
                     log_error(error, base_error=e)
-    elif data_type == "Complaint":
-        message = f"`email_notifications` received {data_type}"
-        log_info(message)
+
+        elif notification_type == "Complaint":
+            complained_recipients = (
+                data_message.get("complaint", {}).get("complainedRecipients", [])
+            )
+            for c_r in complained_recipients:
+                email_address = c_r["emailAddress"]
+                try:
+                    recipient, created = EmailRecipient.objects.get_or_create(
+                        email=email_address
+                    )
+                    recipient.do_not_email = True
+                    recipient.save(update_fields=["do_not_email"])
+                except Exception as e:
+                    message = (
+                        f"Failed handling complained recipient: {email_address}"
+                    )
+                    error = EmailNotificationError(e, message)
+                    log_error(error, base_error=e)
+
     else:
         message = f"`email_notifications` received unsupported type {data_type}"
         print(message)

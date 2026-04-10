@@ -219,6 +219,7 @@ class GeneratedEmail(DefaultModel):
     """
 
     class Status(models.TextChoices):
+        BOUNCED = "bounced", "bounced"
         DRAFT = "draft", "draft"
         SENT = "sent", "sent"
         PROCESSING = "processing", "processing"
@@ -260,6 +261,26 @@ class GeneratedEmail(DefaultModel):
         default=Status.DRAFT,
     )
     notes = models.TextField(blank=True)
+    ses_message_id = models.CharField(
+        max_length=255,
+        blank=True,
+        db_index=True,
+        db_comment="SES message ID to correlate email events.",
+    )
+    opened_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_comment="Timestamp of first tracked email open event.",
+    )
+    open_count = models.IntegerField(
+        default=0,
+        db_comment="Number of email open events.",
+    )
+    bounced_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_comment="Timestamp of bounce email event.",
+    )
 
     class Meta:
         db_table = "research_ai_generated_email"

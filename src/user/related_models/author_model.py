@@ -13,7 +13,6 @@ from paper.related_models.authorship_model import Authorship
 from paper.utils import PAPER_SCORE_Q_ANNOTATION
 from purchase.related_models.purchase_model import Purchase
 from reputation.models import Score
-from researchhub_case.constants.case_constants import APPROVED
 from researchhub_comment.models import RhCommentThreadModel
 from user.related_models.profile_image_storage import ProfileImageStorage
 from user.related_models.school_model import University
@@ -173,13 +172,17 @@ class Author(models.Model):
     def is_orcid_connected(self):
         if not self.user:
             return False
-        return SocialAccount.objects.filter(user=self.user, provider=OrcidProvider.id).exists()
+        return SocialAccount.objects.filter(
+            user=self.user, provider=OrcidProvider.id
+        ).exists()
 
     @property
     def orcid_verified_edu_email(self):
         if not self.user:
             return None
-        account = SocialAccount.objects.filter(user=self.user, provider=OrcidProvider.id).first()
+        account = SocialAccount.objects.filter(
+            user=self.user, provider=OrcidProvider.id
+        ).first()
         if not account:
             return None
         emails = account.extra_data.get("verified_edu_emails", [])
@@ -217,13 +220,15 @@ class Author(models.Model):
     def citation_count(self):
         # UNION doesn't support aggregate(), so sum two indexed queries
         direct = (
-            Authorship.objects.filter(author=self)
-            .aggregate(total=Sum("paper__citations"))["total"]
+            Authorship.objects.filter(author=self).aggregate(
+                total=Sum("paper__citations")
+            )["total"]
             or 0
         )
         merged = (
-            Authorship.objects.filter(author__merged_with_author=self)
-            .aggregate(total=Sum("paper__citations"))["total"]
+            Authorship.objects.filter(author__merged_with_author=self).aggregate(
+                total=Sum("paper__citations")
+            )["total"]
             or 0
         )
         return direct + merged
@@ -264,8 +269,9 @@ class Author(models.Model):
             Authorship.objects.filter(author=self).values_list("paper_id", flat=True)
         )
         merged_ids = set(
-            Authorship.objects.filter(author__merged_with_author=self)
-            .values_list("paper_id", flat=True)
+            Authorship.objects.filter(author__merged_with_author=self).values_list(
+                "paper_id", flat=True
+            )
         )
         return len(direct_ids | merged_ids)
 
@@ -300,24 +306,6 @@ class Author(models.Model):
                 "milestones": [1, 25, 50],
             },
         }
-
-    @property
-    def is_claimed(self):
-        return (
-            self.user is not None
-            or self.user is None
-            and self.related_claim_cases.filter(status=APPROVED).exists()
-        )
-
-    @property
-    def claimed_by_user_author_id(self):
-        approved_claim_case = self.related_claim_cases.filter(status=APPROVED).first()
-        if self.user is not None:
-            return self.id
-        elif approved_claim_case is not None:
-            return approved_claim_case.requestor.author_profile.id
-        else:
-            return None
 
     # Gets ranked list of hubs associated with user's interests.
     # We use comments and votes to determine what is the user interested in
