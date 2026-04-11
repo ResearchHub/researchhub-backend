@@ -2,9 +2,10 @@ from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
 
+from research_ai.models import Expert
 from research_ai.services.report_generator_service import (
-    generate_pdf_report,
     generate_csv_file,
+    generate_pdf_report,
     upload_report_to_storage,
 )
 
@@ -12,14 +13,15 @@ from research_ai.services.report_generator_service import (
 class GeneratePdfReportTests(TestCase):
     def test_generate_pdf_returns_bytes(self):
         experts = [
-            {
-                "name": "Jane Doe",
-                "title": "Professor",
-                "affiliation": "MIT",
-                "expertise": "ML",
-                "email": "jane@mit.edu",
-                "notes": "Notes here",
-            }
+            Expert.objects.create(
+                email="jane@mit.edu",
+                first_name="Jane",
+                last_name="Doe",
+                academic_title="Professor",
+                affiliation="MIT",
+                expertise="ML",
+                notes="Notes here",
+            )
         ]
         query = "Machine learning"
         config = {"expert_count": 10, "expertise_level": "all_levels"}
@@ -36,14 +38,15 @@ class GeneratePdfReportTests(TestCase):
 class GenerateCsvFileTests(TestCase):
     def test_generate_csv_returns_utf8_bytes(self):
         experts = [
-            {
-                "name": "Alice",
-                "title": "Dr",
-                "affiliation": "Stanford",
-                "expertise": "NLP",
-                "email": "alice@stanford.edu",
-                "notes": "Some notes",
-            }
+            Expert.objects.create(
+                email="alice@stanford.edu",
+                first_name="Alice",
+                last_name="Smith",
+                academic_title="Dr",
+                affiliation="Stanford",
+                expertise="NLP",
+                notes="Some notes",
+            )
         ]
         csv_bytes = generate_csv_file(experts)
         self.assertIsInstance(csv_bytes, bytes)
@@ -65,9 +68,7 @@ class UploadReportToStorageTests(TestCase):
         mock_storage.url.return_value = (
             "https://bucket.s3.amazonaws.com/research_ai/expert-finder/123/report.pdf"
         )
-        url = upload_report_to_storage(
-            "123", b"pdf content", "pdf", "application/pdf"
-        )
+        url = upload_report_to_storage("123", b"pdf content", "pdf", "application/pdf")
         self.assertIn("123", url)
         self.assertIn("report.pdf", url)
         mock_storage.save.assert_called_once()

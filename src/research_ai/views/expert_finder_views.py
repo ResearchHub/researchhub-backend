@@ -20,9 +20,8 @@ from research_ai.serializers import (
     InvitedExpertSerializer,
     resolve_work_for_unified_document,
 )
-from research_ai.services.expert_display import expert_dict_to_api_payload
+from research_ai.services.expert_display import expert_to_api_row
 from research_ai.services.expert_finder_service import get_document_content
-from research_ai.services.expert_results_payload import expert_model_to_flat_dict
 from research_ai.services.invited_experts_service import get_document_invited_rows
 from research_ai.services.progress_service import ProgressService, TaskType
 from research_ai.tasks import process_expert_search_task
@@ -171,11 +170,7 @@ class ExpertFinderExpertDetailView(APIView):
         )
         ser.is_valid(raise_exception=True)
         ser.save()
-        payload = expert_dict_to_api_payload(
-            expert_model_to_flat_dict(ser.instance),
-            expert_id=ser.instance.id,
-        )
-        return Response(payload)
+        return Response(expert_to_api_row(ser.instance, expert_id=ser.instance.id))
 
 
 class ExpertSearchWorkView(APIView):

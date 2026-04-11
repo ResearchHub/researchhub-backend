@@ -229,11 +229,12 @@ def _normalize_expert_from_resolved(resolved_expert: dict) -> dict:
     if not isinstance(title, str):
         title = ""
     return {
-        "name": (resolved_expert.get("name") or "").strip(),
         "honorific": (resolved_expert.get("honorific") or "").strip(),
         "first_name": (resolved_expert.get("first_name") or "").strip(),
         "middle_name": (resolved_expert.get("middle_name") or "").strip(),
         "last_name": (resolved_expert.get("last_name") or "").strip(),
+        "name_suffix": (resolved_expert.get("name_suffix") or "").strip(),
+        "academic_title": title,
         "title": title.strip(),
         "affiliation": resolved_expert.get("affiliation") or "",
         "expertise": resolved_expert.get("expertise") or "",
@@ -273,15 +274,17 @@ def _generate_with_fixed_template(
     """Generate subject/body using a fixed email template and variable replacement."""
     doc_ctx = resolve_expert_search_email_document_context(expert_search)
     expert_for_context = {
-        "name": expert_dict["name"],
         "honorific": expert_dict.get("honorific") or "",
         "first_name": expert_dict.get("first_name") or "",
         "middle_name": expert_dict.get("middle_name") or "",
         "last_name": expert_dict.get("last_name") or "",
-        "title": expert_dict["title"],
-        "affiliation": expert_dict["affiliation"],
-        "email": expert_dict["email"],
-        "expertise": expert_dict["expertise"],
+        "name_suffix": expert_dict.get("name_suffix") or "",
+        "academic_title": expert_dict.get("academic_title")
+        or expert_dict.get("title")
+        or "",
+        "affiliation": expert_dict.get("affiliation") or "",
+        "email": expert_dict.get("email") or "",
+        "expertise": expert_dict.get("expertise") or "",
     }
     context = build_replacement_context(
         user=user,
@@ -312,14 +315,13 @@ def _generate_with_llm(
         middle_name=expert_dict.get("middle_name") or "",
         last_name=expert_dict.get("last_name") or "",
         name_suffix="",
-        fallback_name=expert_dict.get("name") or "",
     )
     prompt = build_email_prompt(
         expert_name=expert_name_for_llm or "",
-        expert_title=expert_dict["title"] or "",
-        expert_affiliation=expert_dict["affiliation"] or "",
-        expertise=expert_dict["expertise"] or "",
-        notes=expert_dict["notes"] or "",
+        expert_title=expert_dict.get("title") or "",
+        expert_affiliation=expert_dict.get("affiliation") or "",
+        expertise=expert_dict.get("expertise") or "",
+        notes=expert_dict.get("notes") or "",
         template=template,
         custom_use_case=custom_use_case,
         sender_context=sender_block,

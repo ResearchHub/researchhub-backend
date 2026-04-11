@@ -118,8 +118,8 @@ class BuildReplacementContextTests(TestCase):
             "url": "https://r.com",
         }
         expert_dict = {
-            "name": "Bob",
-            "title": "Dr",
+            "first_name": "Bob",
+            "academic_title": "Dr",
             "affiliation": "Yale",
             "email": "bob@yale.edu",
             "expertise": "Bio",
@@ -139,11 +139,11 @@ class BuildReplacementContextTests(TestCase):
 
     def test_build_replacement_context_expert_name_uses_structured_parts(self):
         expert_dict = {
-            "name": "Dr. Jane Q. Doe, PhD",
             "honorific": "Dr",
             "first_name": "Jane",
             "middle_name": "Q.",
             "last_name": "Doe",
+            "name_suffix": "PhD",
             "academic_title": "Professor",
             "affiliation": "MIT",
             "email": "j@mit.edu",

@@ -78,11 +78,6 @@ class ExpertSearch(DefaultModel):
     )
     progress = models.IntegerField(default=0)  # 0-100
     current_step = models.CharField(max_length=512, blank=True)
-    expert_results = models.JSONField(
-        default=list,
-        blank=True,
-        db_comment="Deprecated: use SearchExpert + Expert rows; may be empty after migration.",
-    )
     expert_count = models.IntegerField(default=0)
     report_pdf_url = models.URLField(max_length=2048, blank=True)
     report_csv_url = models.URLField(max_length=2048, blank=True)
