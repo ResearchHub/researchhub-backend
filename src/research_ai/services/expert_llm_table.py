@@ -132,7 +132,7 @@ def extract_citations_from_notes(text: str) -> tuple[str, list[dict[str, str]]]:
         url = clean_expert_table_url(raw_url)
         citations.append({"text": m.group(1), "url": url})
     cleaned = re.sub(citation_pattern, "", text)
-    cleaned = re.sub(r"\(\)", "", cleaned).strip()
+    cleaned = cleaned.replace("()", "").strip()
     return cleaned, citations
 
 
