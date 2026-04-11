@@ -1,6 +1,10 @@
 import os
 
 from research_ai.constants import ExpertiseLevel, Gender, Region, get_choice_label
+from research_ai.services.expert_llm_table import (
+    EXPERT_LLM_TABLE_HEADER_LINE,
+    EXPERT_LLM_TABLE_SEPARATOR_LINE,
+)
 
 # Descriptions for prompt building; keys are choice values from constants.
 EXPERTISE_DESCRIPTIONS: dict[str, str] = {
@@ -49,27 +53,23 @@ def get_prompt(prompt_name: str) -> str:
     return _load_template(filename) if filename else ""
 
 
-def build_excluded_experts_instruction(excluded_expert_names: list[str]) -> str:
+def build_excluded_experts_instruction(excluded_lines: list[str]) -> str:
     """
     Build the optional paragraph instructing the model to exclude given experts.
 
-    Used when the user runs multiple searches on the same document and wants
-    different experts (exclude previously suggested names).
-
-    Args:
-        excluded_expert_names: List of full names to exclude.
+    Each line is a short human-readable record (e.g. id=…; email=…; name=…).
 
     Returns:
         Instruction paragraph string, or empty string if list is empty.
     """
-    if not excluded_expert_names:
+    if not excluded_lines:
         return ""
-    names = "\n".join(f"- {name}" for name in excluded_expert_names)
+    lines = "\n".join(f"- {line}" for line in excluded_lines)
     return (
         "\n\n## Exclude These Experts - CRITICAL\n"
-        "The following experts have already been suggested in previous searches. "
-        "You MUST recommend a completely DIFFERENT set of experts.\n"
-        f"{names}\n"
+        "The following experts must NOT appear in your recommendations (matched by email "
+        "and identity). You MUST recommend a completely DIFFERENT set of experts.\n"
+        f"{lines}\n"
         "Your recommendations table must contain ONLY new experts who are NOT in the list above. "
         "Do NOT list the excluded experts in your table. "
         "Search for and recommend other qualified experts in the same field who are not listed above."
@@ -105,7 +105,7 @@ def build_system_prompt(
     region_filter: str,
     state_filter: str = "All States",
     gender_filter: str = "all_genders",
-    excluded_expert_names: list[str] | None = None,
+    excluded_expert_lines: list[str] | None = None,
 ) -> str:
     """
     Build the complete system prompt with all configuration parameters.
@@ -148,7 +148,7 @@ def build_system_prompt(
         )
 
     excluded_experts_instruction = build_excluded_experts_instruction(
-        excluded_expert_names or []
+        excluded_expert_lines or []
     )
 
     template = _load_template("expert_finder_system.txt")
@@ -165,6 +165,8 @@ def build_system_prompt(
         state_instruction=state_instruction,
         gender_instruction=gender_instruction,
         excluded_experts_instruction=excluded_experts_instruction,
+        expert_table_header_line=EXPERT_LLM_TABLE_HEADER_LINE,
+        expert_table_separator_line=EXPERT_LLM_TABLE_SEPARATOR_LINE,
     )
 
 

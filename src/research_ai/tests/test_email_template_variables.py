@@ -137,6 +137,22 @@ class BuildReplacementContextTests(TestCase):
         self.assertEqual(ctx["expert"]["name"], "Bob")
         self.assertEqual(ctx["expert"]["affiliation"], "Yale")
 
+    def test_build_replacement_context_expert_name_uses_structured_parts(self):
+        expert_dict = {
+            "name": "Dr. Jane Q. Doe, PhD",
+            "honorific": "Dr",
+            "first_name": "Jane",
+            "middle_name": "Q.",
+            "last_name": "Doe",
+            "academic_title": "Professor",
+            "affiliation": "MIT",
+            "email": "j@mit.edu",
+            "expertise": "AI",
+        }
+        ctx = build_replacement_context(resolved_expert=expert_dict)
+        self.assertEqual(ctx["expert"]["name"], "Dr. Jane Q. Doe")
+        self.assertEqual(ctx["expert"]["title"], "Professor")
+
     def test_none_inputs_yield_empty_entity_dicts(self):
         ctx = build_replacement_context(
             user=None,

@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
 
-from research_ai.models import ExpertSearch
+from research_ai.models import Expert, ExpertSearch, SearchExpert
 from research_ai.services.rfp_email_context import (
     build_rfp_context,
     get_grant_frontend_url,
@@ -133,7 +133,7 @@ class ResolveExpertFromSearchTests(TestCase):
     def test_returns_none_when_expert_search_none(self):
         self.assertIsNone(resolve_expert_from_search(None, "a@b.com"))
 
-    def test_returns_none_when_no_expert_results(self):
+    def test_returns_none_when_no_search_experts(self):
         search = ExpertSearch.objects.create(
             created_by=self.user,
             query="Q",
@@ -142,57 +142,69 @@ class ResolveExpertFromSearchTests(TestCase):
         )
         self.assertIsNone(resolve_expert_from_search(search, "a@b.com"))
 
-    def test_returns_none_when_expert_results_missing(self):
-        search = MagicMock()
-        search.expert_results = None
-        self.assertIsNone(resolve_expert_from_search(search, "a@b.com"))
-
     def test_returns_none_when_email_empty(self):
         search = ExpertSearch.objects.create(
             created_by=self.user,
             query="Q",
             status=ExpertSearch.Status.COMPLETED,
-            expert_results=[{"name": "Dr. A", "email": "a@b.com"}],
+            expert_results=[],
         )
+        ex = Expert.objects.create(email="a@b.com", honorific="Dr", first_name="A")
+        SearchExpert.objects.create(expert_search=search, expert=ex, position=0)
         self.assertIsNone(resolve_expert_from_search(search, ""))
         self.assertIsNone(resolve_expert_from_search(search, "   "))
 
     def test_returns_expert_when_email_matches(self):
-        expert = {
-            "name": "Dr. Jane",
-            "email": "jane@example.com",
-            "title": "Prof",
-            "affiliation": "MIT",
-            "expertise": "ML",
-            "notes": "n",
-        }
         search = ExpertSearch.objects.create(
             created_by=self.user,
             query="Q",
             status=ExpertSearch.Status.COMPLETED,
-            expert_results=[expert],
+            expert_results=[],
         )
+        ex = Expert.objects.create(
+            email="jane@example.com",
+            honorific="Dr",
+            first_name="Jane",
+            affiliation="MIT",
+            expertise="ML",
+            notes="n",
+            academic_title="Prof",
+        )
+        SearchExpert.objects.create(expert_search=search, expert=ex, position=0)
         result = resolve_expert_from_search(search, "jane@example.com")
-        self.assertEqual(result, expert)
+        self.assertIsNotNone(result)
+        self.assertEqual(result["email"], "jane@example.com")
+        self.assertEqual(result["academic_title"], "Prof")
+        self.assertEqual(result["affiliation"], "MIT")
+        self.assertEqual(result["expertise"], "ML")
+        self.assertEqual(result["notes"], "n")
+        self.assertEqual(result["expert_id"], ex.id)
 
     def test_returns_expert_when_email_matches_case_insensitive(self):
-        expert = {"name": "Dr. Jane", "email": "Jane@Example.COM"}
         search = ExpertSearch.objects.create(
             created_by=self.user,
             query="Q",
             status=ExpertSearch.Status.COMPLETED,
-            expert_results=[expert],
+            expert_results=[],
         )
+        ex = Expert.objects.create(
+            email="jane@example.com",
+            honorific="Dr",
+            first_name="Jane",
+        )
+        SearchExpert.objects.create(expert_search=search, expert=ex, position=0)
         result = resolve_expert_from_search(search, "  jane@example.com  ")
-        self.assertEqual(result["email"], "Jane@Example.COM")
+        self.assertEqual(result["email"], "jane@example.com")
 
     def test_returns_none_when_no_match(self):
         search = ExpertSearch.objects.create(
             created_by=self.user,
             query="Q",
             status=ExpertSearch.Status.COMPLETED,
-            expert_results=[{"name": "Dr. A", "email": "a@b.com"}],
+            expert_results=[],
         )
+        ex = Expert.objects.create(email="a@b.com", honorific="Dr", first_name="A")
+        SearchExpert.objects.create(expert_search=search, expert=ex, position=0)
         self.assertIsNone(resolve_expert_from_search(search, "other@b.com"))
 
 

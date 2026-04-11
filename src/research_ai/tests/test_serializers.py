@@ -3,7 +3,13 @@ from unittest.mock import MagicMock, PropertyMock
 from django.test import TestCase
 
 from research_ai.constants import ExpertiseLevel, Gender, Region
-from research_ai.models import EmailTemplate, ExpertSearch, GeneratedEmail
+from research_ai.models import (
+    EmailTemplate,
+    Expert,
+    ExpertSearch,
+    GeneratedEmail,
+    SearchExpert,
+)
 from research_ai.serializers import (
     ADDITIONAL_CONTEXT_MAX_LENGTH,
     EmailTemplateSerializer,
@@ -114,12 +120,12 @@ class ExpertSearchCreateSerializerTests(TestCase):
         )
         self.assertFalse(ser.is_valid())
 
-    def test_excluded_expert_names(self):
+    def test_excluded_search_ids_deduped(self):
         ser = ExpertSearchCreateSerializer(
-            data={"query": "Bar", "excluded_expert_names": ["Alice", "Bob"]}
+            data={"query": "Bar", "excluded_search_ids": [3, 3, 1, 2]},
         )
         self.assertTrue(ser.is_valid())
-        self.assertEqual(ser.validated_data["excluded_expert_names"], ["Alice", "Bob"])
+        self.assertEqual(ser.validated_data["excluded_search_ids"], [3, 1, 2])
 
     def test_name_optional_accepted(self):
         ser = ExpertSearchCreateSerializer(
@@ -173,13 +179,14 @@ class ExpertSearchSerializerTests(TestCase):
             query="Test",
             name="Test search",
             status=ExpertSearch.Status.COMPLETED,
-            expert_results=[
-                {"name": "A", "email": "a@x.com"},
-                {"name": "B", "email": "b@x.com"},
-            ],
+            expert_results=[],
             report_pdf_url="https://example.com/a.pdf",
             report_csv_url="https://example.com/a.csv",
         )
+        e1 = Expert.objects.create(email="a@x.com", first_name="A")
+        e2 = Expert.objects.create(email="b@x.com", first_name="B")
+        SearchExpert.objects.create(expert_search=self.search, expert=e1, position=0)
+        SearchExpert.objects.create(expert_search=self.search, expert=e2, position=1)
 
     def test_serializer_includes_name(self):
         ser = ExpertSearchSerializer(self.search)
@@ -195,6 +202,21 @@ class ExpertSearchSerializerTests(TestCase):
         ser = ExpertSearchSerializer(self.search)
         self.assertEqual(ser.data["expert_names"], ["A", "B"])
 
+    def test_expert_results_include_last_email_sent_at(self):
+        from django.utils import timezone
+
+        ser = ExpertSearchSerializer(self.search)
+        rows = ser.data["expert_results"]
+        self.assertEqual(len(rows), 2)
+        self.assertIsNone(rows[0]["last_email_sent_at"])
+        e1 = Expert.objects.get(email="a@x.com")
+        ts = timezone.now()
+        Expert.objects.filter(pk=e1.pk).update(last_email_sent_at=ts)
+        ser2 = ExpertSearchSerializer(self.search)
+        rows2 = ser2.data["expert_results"]
+        self.assertIsNotNone(rows2[0]["last_email_sent_at"])
+        self.assertIsNone(rows2[1]["last_email_sent_at"])
+
     def test_get_report_urls(self):
         ser = ExpertSearchSerializer(self.search)
         self.assertEqual(
@@ -203,8 +225,7 @@ class ExpertSearchSerializerTests(TestCase):
         )
 
     def test_get_expert_names_empty(self):
-        self.search.expert_results = []
-        self.search.save()
+        SearchExpert.objects.filter(expert_search=self.search).delete()
         ser = ExpertSearchSerializer(self.search)
         self.assertEqual(ser.data["expert_names"], [])
 
@@ -262,7 +283,11 @@ class ExpertSearchListItemSerializerTests(TestCase):
             created_by=self.user,
             query="List test",
             status=ExpertSearch.Status.COMPLETED,
-            expert_results=[{"name": "X", "email": "x@y.com"}],
+            expert_results=[],
+        )
+        self.expert = Expert.objects.create(email="x@y.com", first_name="X")
+        SearchExpert.objects.create(
+            expert_search=self.search, expert=self.expert, position=0
         )
 
     def test_list_item_fields(self):
@@ -270,6 +295,7 @@ class ExpertSearchListItemSerializerTests(TestCase):
         self.assertEqual(ser.data["search_id"], self.search.id)
         self.assertEqual(ser.data["query"], "List test")
         self.assertEqual(ser.data["expert_names"], ["X"])
+        self.assertEqual(ser.data["expert_ids"], [self.expert.id])
 
     def test_created_by_payload_has_user_id_and_author_key(self):
         ser = ExpertSearchListItemSerializer(self.search)

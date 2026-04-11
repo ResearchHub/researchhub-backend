@@ -12,6 +12,7 @@ from research_ai.services.email_template_variables import (
     build_replacement_context,
     replace_template_variables,
 )
+from research_ai.services.expert_display import build_expert_display_name
 from research_ai.services.expert_search_email_document_context import (
     format_document_context_for_llm,
     resolve_expert_search_email_document_context,
@@ -224,9 +225,16 @@ def _parse_subject_and_body(text: str) -> tuple[str, str]:
 
 def _normalize_expert_from_resolved(resolved_expert: dict) -> dict:
     """Extract and normalize expert fields from resolved_expert dict."""
+    title = resolved_expert.get("academic_title") or resolved_expert.get("title") or ""
+    if not isinstance(title, str):
+        title = ""
     return {
         "name": (resolved_expert.get("name") or "").strip(),
-        "title": resolved_expert.get("title") or "",
+        "honorific": (resolved_expert.get("honorific") or "").strip(),
+        "first_name": (resolved_expert.get("first_name") or "").strip(),
+        "middle_name": (resolved_expert.get("middle_name") or "").strip(),
+        "last_name": (resolved_expert.get("last_name") or "").strip(),
+        "title": title.strip(),
         "affiliation": resolved_expert.get("affiliation") or "",
         "expertise": resolved_expert.get("expertise") or "",
         "notes": resolved_expert.get("notes") or "",
@@ -266,6 +274,10 @@ def _generate_with_fixed_template(
     doc_ctx = resolve_expert_search_email_document_context(expert_search)
     expert_for_context = {
         "name": expert_dict["name"],
+        "honorific": expert_dict.get("honorific") or "",
+        "first_name": expert_dict.get("first_name") or "",
+        "middle_name": expert_dict.get("middle_name") or "",
+        "last_name": expert_dict.get("last_name") or "",
         "title": expert_dict["title"],
         "affiliation": expert_dict["affiliation"],
         "email": expert_dict["email"],
@@ -294,8 +306,16 @@ def _generate_with_llm(
     sender_block = _format_sender_context_for_llm(user)
     document_block = format_document_context_for_llm(doc_ctx)
 
+    expert_name_for_llm = build_expert_display_name(
+        honorific=expert_dict.get("honorific") or "",
+        first_name=expert_dict.get("first_name") or "",
+        middle_name=expert_dict.get("middle_name") or "",
+        last_name=expert_dict.get("last_name") or "",
+        name_suffix="",
+        fallback_name=expert_dict.get("name") or "",
+    )
     prompt = build_email_prompt(
-        expert_name=expert_dict["name"] or "",
+        expert_name=expert_name_for_llm or "",
         expert_title=expert_dict["title"] or "",
         expert_affiliation=expert_dict["affiliation"] or "",
         expertise=expert_dict["expertise"] or "",
