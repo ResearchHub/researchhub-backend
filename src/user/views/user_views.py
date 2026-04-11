@@ -119,6 +119,53 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         return Response({"exists": False}, status=200)
 
     @action(detail=False, methods=["POST"], permission_classes=[IsAuthenticated])
+    def update_email(self, request):
+        """
+        Endpoint to request an email address change. This will create a new EmailAddress
+        instance with the new email and send a verification email to that address.
+        """
+        new_email = (request.data.get("email") or "").strip().lower()
+
+        if not new_email:
+            return Response(
+                {"detail": "Email is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user = request.user
+
+        if user.email.lower() == new_email:
+            return Response(
+                {"detail": "This is already the current email address."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Check if another user already has this email as their account email
+        if User.objects.filter(email__iexact=new_email).exclude(pk=user.pk).exists():
+            return Response(
+                {"detail": "A user with this email already exists."},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        # Check if another user already has this email as a verified email address
+        if (
+            EmailAddress.objects.filter(email__iexact=new_email, verified=True)
+            .exclude(user=user)
+            .exists()
+        ):
+            return Response(
+                {"detail": "A user with this email already exists."},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        EmailAddress.objects.add_new_email(request, user, new_email)
+
+        return Response(
+            {"detail": "Verification email sent to the new address."},
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=["POST"], permission_classes=[IsAuthenticated])
     def update_balance_history_clicked(self, request):
         user = request.user
         now = datetime.now()

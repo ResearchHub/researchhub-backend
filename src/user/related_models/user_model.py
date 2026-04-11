@@ -146,6 +146,13 @@ class User(AbstractUser):
         if (self.email is not None) and (self.email != ""):
             self.username = self.email
 
+            update_fields = kwargs.get("update_fields")
+            if update_fields is not None and "email" in update_fields:
+                # Include username in update_fields if email is being updated.
+                # This is necessary for the email change flow with allauth,
+                # which calls save() with update_fields=['email'].
+                kwargs["update_fields"] = [*update_fields, "username"]
+
         user_to_save = super(User, self).save(*args, **kwargs)
 
         # Keep Email Recipient up to date with email
