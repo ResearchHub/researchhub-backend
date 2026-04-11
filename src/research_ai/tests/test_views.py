@@ -116,7 +116,6 @@ class ExpertSearchCreateViewTests(APITestCase):
             "status": ExpertSearch.Status.FAILED,
             "query": "Placeholder RFP",
             "config": {},
-            "experts": [],
             "report_urls": {},
             "expert_count": 0,
             "llm_model": "test-model",
@@ -132,7 +131,7 @@ class ExpertSearchCreateViewTests(APITestCase):
         search = ExpertSearch.objects.get(id=search_id)
         self.assertEqual(search.status, ExpertSearch.Status.FAILED)
         self.assertEqual(search.expert_count, 0)
-        self.assertEqual(search.expert_results, [])
+        self.assertEqual(search.search_experts.count(), 0)
         self.assertIn("placeholder text", search.error_message)
 
 
@@ -389,9 +388,7 @@ class InvitedExpertsDocumentViewTests(APITestCase):
             last_name="Invitee",
             registered_user=self.moderator,
         )
-        SearchExpert.objects.create(
-            expert_search=search, expert=expert, position=0
-        )
+        SearchExpert.objects.create(expert_search=search, expert=expert, position=0)
         ge = GeneratedEmail.objects.create(
             created_by=creator,
             expert_search=search,

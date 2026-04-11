@@ -267,7 +267,11 @@ class GenerateExpertEmailTests(TestCase):
         mock_bedrock_class.return_value = mock_llm
 
         subject, body = generate_expert_email(
-            resolved_expert={"name": "Dr. Smith", "title": "Professor"},
+            resolved_expert={
+                "honorific": "Dr",
+                "last_name": "Smith",
+                "academic_title": "Professor",
+            },
             template="collaboration",
         )
 
@@ -300,7 +304,7 @@ class GenerateExpertEmailTests(TestCase):
         )
 
         subject, body = generate_expert_email(
-            resolved_expert={"name": "Expert"},
+            resolved_expert={"first_name": "Expert"},
             template="collaboration",
             user=user,
         )
@@ -337,7 +341,7 @@ class GenerateExpertEmailTests(TestCase):
         et.email_body = "Hi {{expert.name}}, see {{rfp.amount}} and {{rfp.deadline}}."
         mock_get_template.return_value = et
         subject, body = generate_expert_email(
-            resolved_expert={"name": "Dr. X"},
+            resolved_expert={"honorific": "Dr", "last_name": "X"},
             template=None,
             expert_search=expert_search,
             template_id=1,
@@ -381,7 +385,7 @@ class GenerateExpertEmailTests(TestCase):
         et.email_body = "Body with {{user.full_name}}."
         mock_get_template.return_value = et
         _, body = generate_expert_email(
-            resolved_expert={"name": "Dr. X"},
+            resolved_expert={"honorific": "Dr", "last_name": "X"},
             template=None,
             expert_search=expert_search,
             template_id=1,
@@ -395,7 +399,7 @@ class GenerateExpertEmailTests(TestCase):
         mock_llm.invoke.return_value = "Subject: Hello\n\nBody text here."
         mock_bedrock_class.return_value = mock_llm
         subject, body = generate_expert_email(
-            resolved_expert={"name": "Dr. Y"},
+            resolved_expert={"honorific": "Dr", "last_name": "Y"},
             template="collaboration",
         )
         self.assertEqual(mock_llm.invoke.call_count, 1)
@@ -404,7 +408,7 @@ class GenerateExpertEmailTests(TestCase):
     def test_fixed_path_requires_template_id(self):
         with self.assertRaises(ValueError):
             generate_expert_email(
-                resolved_expert={"name": "X"},
+                resolved_expert={"first_name": "X"},
                 template=None,
                 template_id=None,
             )

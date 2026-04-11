@@ -179,7 +179,6 @@ class ExpertSearchSerializerTests(TestCase):
             query="Test",
             name="Test search",
             status=ExpertSearch.Status.COMPLETED,
-            expert_results=[],
             report_pdf_url="https://example.com/a.pdf",
             report_csv_url="https://example.com/a.csv",
         )
@@ -283,7 +282,6 @@ class ExpertSearchListItemSerializerTests(TestCase):
             created_by=self.user,
             query="List test",
             status=ExpertSearch.Status.COMPLETED,
-            expert_results=[],
         )
         self.expert = Expert.objects.create(email="x@y.com", first_name="X")
         SearchExpert.objects.create(

@@ -13,12 +13,14 @@ from reportlab.lib.units import inch
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from research_ai.constants import ExpertiseLevel, Region, get_choice_label
+from research_ai.models import Expert
+from research_ai.services.expert_display import expert_to_api_row
 
 logger = logging.getLogger(__name__)
 
 
 def generate_pdf_report(
-    experts: list[dict[str, Any]],
+    experts: list[Expert],
     query: str,
     config: dict[str, Any],
 ) -> bytes:
@@ -26,7 +28,7 @@ def generate_pdf_report(
     Create a PDF report of expert recommendations using ReportLab.
 
     Args:
-        experts: List of expert dicts (name, title, affiliation, expertise, email).
+        experts: Persisted Expert rows for this search (display fields via expert_to_api_row).
         query: Original search query.
         config: Search configuration (expert_count, expertise_level, region, state).
 
@@ -65,11 +67,12 @@ def generate_pdf_report(
         )
 
         for i, expert in enumerate(experts, 1):
-            role = expert.get("academic_title") or expert.get("title") or ""
+            row = expert_to_api_row(expert)
+            role = row.get("academic_title") or row.get("title") or ""
             card_data = [
                 [
                     Paragraph(
-                        f"<b>{i}. {escape(expert.get('name', ''))}</b>",
+                        f"<b>{i}. {escape(row.get('name', ''))}</b>",
                         text_style,
                     )
                 ],
@@ -81,25 +84,25 @@ def generate_pdf_report(
                 ],
                 [
                     Paragraph(
-                        f"<b>Affiliation:</b> {escape(expert.get('affiliation', ''))}",
+                        f"<b>Affiliation:</b> {escape(row.get('affiliation', ''))}",
                         text_style,
                     )
                 ],
                 [
                     Paragraph(
-                        f"<b>Expertise:</b> {escape(expert.get('expertise', ''))}",
+                        f"<b>Expertise:</b> {escape(row.get('expertise', ''))}",
                         text_style,
                     )
                 ],
                 [
                     Paragraph(
-                        f"<b>Email:</b> {escape(expert.get('email', ''))}",
+                        f"<b>Email:</b> {escape(row.get('email', ''))}",
                         text_style,
                     )
                 ],
                 [
                     Paragraph(
-                        f"<b>Notes:</b> {escape(expert.get('notes', ''))}",
+                        f"<b>Notes:</b> {escape(row.get('notes', ''))}",
                         text_style,
                     )
                 ],
@@ -134,14 +137,9 @@ def generate_pdf_report(
 
         elements.append(Paragraph("<b>Search Configuration:</b>", styles["Heading3"]))
         expert_count = config.get("expert_count", 10)
-        expertise_level_raw = config.get(
-            "expertise_level", [ExpertiseLevel.ALL_LEVELS]
-        )
+        expertise_level_raw = config.get("expertise_level", [ExpertiseLevel.ALL_LEVELS])
         if isinstance(expertise_level_raw, list):
-            labels = [
-                get_choice_label(v, ExpertiseLevel)
-                for v in expertise_level_raw
-            ]
+            labels = [get_choice_label(v, ExpertiseLevel) for v in expertise_level_raw]
             expertise_level = (
                 ", ".join(labels) if labels else ExpertiseLevel.ALL_LEVELS.label
             )
@@ -187,12 +185,12 @@ def generate_pdf_report(
         return b"%PDF-1.4\nError generating PDF report\n%%EOF"
 
 
-def generate_csv_file(experts: list[dict[str, Any]]) -> bytes:
+def generate_csv_file(experts: list[Expert]) -> bytes:
     """
     Create a CSV file of expert recommendations.
 
     Args:
-        experts: List of expert dicts.
+        experts: Persisted Expert rows for this search.
 
     Returns:
         CSV file content as bytes (UTF-8).
@@ -216,21 +214,21 @@ def generate_csv_file(experts: list[dict[str, Any]]) -> bytes:
         writer = csv.DictWriter(buffer, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         for expert in experts:
+            row = expert_to_api_row(expert)
             writer.writerow(
                 {
-                    "expert_id": expert.get("expert_id", ""),
-                    "honorific": expert.get("honorific", ""),
-                    "first_name": expert.get("first_name", ""),
-                    "middle_name": expert.get("middle_name", ""),
-                    "last_name": expert.get("last_name", ""),
-                    "name_suffix": expert.get("name_suffix", ""),
-                    "academic_title": expert.get("academic_title")
-                    or expert.get("title", ""),
-                    "name": expert.get("name", ""),
-                    "affiliation": expert.get("affiliation", ""),
-                    "expertise": expert.get("expertise", ""),
-                    "email": expert.get("email", ""),
-                    "notes": expert.get("notes", ""),
+                    "expert_id": row.get("expert_id", ""),
+                    "honorific": row.get("honorific", ""),
+                    "first_name": row.get("first_name", ""),
+                    "middle_name": row.get("middle_name", ""),
+                    "last_name": row.get("last_name", ""),
+                    "name_suffix": row.get("name_suffix", ""),
+                    "academic_title": row.get("academic_title") or row.get("title", ""),
+                    "name": row.get("name", ""),
+                    "affiliation": row.get("affiliation", ""),
+                    "expertise": row.get("expertise", ""),
+                    "email": row.get("email", ""),
+                    "notes": row.get("notes", ""),
                 }
             )
         csv_content = buffer.getvalue()

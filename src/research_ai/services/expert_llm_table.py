@@ -5,8 +5,6 @@ from typing import Any
 from django.core.exceptions import ValidationError
 from django.core.validators import EmailValidator
 
-from research_ai.services.expert_display import build_expert_display_name
-
 logger = logging.getLogger(__name__)
 
 _EMAIL_VALIDATOR = EmailValidator()
@@ -211,14 +209,6 @@ def parse_expert_markdown_table_strict(markdown_text: str) -> list[dict[str, Any
 
         try:
             notes_cleaned, citations = extract_citations_from_notes(notes_raw)
-            display_name = build_expert_display_name(
-                honorific=honorific,
-                first_name=first_name,
-                middle_name=middle_name,
-                last_name=last_name,
-                name_suffix=name_suffix,
-                fallback_name="",
-            )
 
             experts.append(
                 {
@@ -233,7 +223,6 @@ def parse_expert_markdown_table_strict(markdown_text: str) -> list[dict[str, Any
                     "email": email_stripped,
                     "notes": notes_cleaned,
                     "sources": citations if citations else [],
-                    "name": display_name,
                 }
             )
         except Exception:

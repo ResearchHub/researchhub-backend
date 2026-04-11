@@ -3,8 +3,8 @@ from datetime import datetime
 from decimal import Decimal
 
 from research_ai.constants import BASE_FRONTEND_URL
-from research_ai.models import ExpertSearch
-from research_ai.services.expert_results_payload import get_expert_results_payload
+from research_ai.models import Expert, ExpertSearch, SearchExpert
+from research_ai.services.expert_display import expert_to_api_row
 
 logger = logging.getLogger(__name__)
 
@@ -89,21 +89,42 @@ def build_rfp_context(grant, description_snippet_length: int = 500) -> dict:
         return {}
 
 
-def resolve_expert_from_search(expert_search, expert_email: str) -> dict | None:
+def get_expert_for_search_email(
+    expert_search: ExpertSearch | None, expert_email: str
+) -> Expert | None:
     """
-    Get one expert dict from ExpertSearch results (SearchExpert + Expert) by email.
-    Returns API-shaped dict (academic_title, name, etc.) or None.
+    Return the Expert linked to this search for the given email (first match by position).
     """
     if not expert_search:
         return None
-    results = get_expert_results_payload(expert_search)
-    email = (expert_email or "").strip().lower()
-    if not email:
+    email_norm = (expert_email or "").strip().lower()
+    if not email_norm:
         return None
-    for e in results:
-        if (e.get("email") or "").strip().lower() == email:
-            return e
-    return None
+    se = (
+        SearchExpert.objects.filter(
+            expert_search=expert_search,
+            expert__email__iexact=email_norm,
+        )
+        .select_related("expert")
+        .order_by("position", "id")
+        .first()
+    )
+    return se.expert if se else None
+
+
+def resolve_expert_from_search(expert_search, expert_email: str) -> dict | None:
+    """
+    Get one expert dict from ExpertSearch results (SearchExpert + Expert) by email.
+
+    Same structured fields as the expert API row, but without ``name`` (display name is
+    derived in serializers via ``expert_to_api_row`` / ``build_expert_display_name``).
+    """
+    expert = get_expert_for_search_email(expert_search, expert_email)
+    if not expert:
+        return None
+    row = expert_to_api_row(expert, expert_id=expert.id)
+    row.pop("name", None)
+    return row
 
 
 def resolve_grant(*, expert_search: ExpertSearch | None = None):
