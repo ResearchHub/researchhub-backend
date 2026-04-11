@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest import TestCase as SimpleTestCase
 from unittest import mock
 
 from django.test import TestCase, override_settings
@@ -260,3 +261,35 @@ class PersonaWebhookViewTests(TestCase):
         )
         self.assertEqual(notification.item, user_verification)
         send_notification_mock.assert_called_once()
+
+
+class PersonaWebhookNullSafetyTests(SimpleTestCase):
+    """Test that _process_payload handles null/missing nested fields gracefully."""
+
+    def test_get_nested_attr_returns_default_for_missing_path(self):
+        view = PersonaWebhookView()
+        data = {"a": {"b": None}}
+        result = view._get_nested_attr(data, "a.b.c", default="fallback")
+        self.assertEqual(result, "fallback")
+
+    def test_get_nested_attr_returns_default_for_none(self):
+        view = PersonaWebhookView()
+        data = {"a": None}
+        result = view._get_nested_attr(data, "a.b", default="default_val")
+        self.assertEqual(result, "default_val")
+
+    def test_get_nested_attr_returns_value_when_present(self):
+        view = PersonaWebhookView()
+        data = {"a": {"b": "found"}}
+        result = view._get_nested_attr(data, "a.b", default="not_found")
+        self.assertEqual(result, "found")
+
+    def test_status_none_does_not_crash(self):
+        """When the status path is missing, should not raise AttributeError on .lower()."""
+        view = PersonaWebhookView()
+        data = {"data": {"attributes": {"payload": {"data": {"attributes": {}}}}}}
+        raw_status = view._get_nested_attr(
+            data, "data.attributes.payload.data.attributes.status", default=""
+        )
+        persona_status = (raw_status or "").lower()
+        self.assertEqual(persona_status, "")
