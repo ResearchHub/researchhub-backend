@@ -136,7 +136,7 @@ def process_expert_search_task(
             pass
 
     try:
-        start_time = datetime.utcnow()
+        start_time = timezone.now()
         logger.info("Starting expert finder for search_id=%s", search_id)
         _update_search_progress(
             search_id,
@@ -165,7 +165,7 @@ def process_expert_search_task(
             progress_callback=progress_callback,
         )
 
-        end_time = datetime.utcnow()
+        end_time = timezone.now()
         processing_time = (end_time - start_time).total_seconds()
 
         if result.get("status") == ExpertSearch.Status.FAILED:
@@ -216,7 +216,7 @@ def process_expert_search_task(
     except Exception as e:
         logger.exception("Expert finder failed for search_id=%s: %s", search_id, e)
         error_message = str(e)
-        end_time = datetime.utcnow()
+        end_time = timezone.now()
         processing_time = (end_time - start_time).total_seconds()
         _update_search_progress(
             search_id,
