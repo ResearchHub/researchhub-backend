@@ -69,6 +69,7 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         # Exclude paper publications
         paper_ct = ContentType.objects.get_for_model(Paper)
         queryset = queryset.exclude(content_type=paper_ct)
+        queryset = queryset.exclude(user__is_active=False)
 
         scope = self.request.query_params.get("scope", "").lower()
         grant_id = self.request.query_params.get("grant_id")
