@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 
 from mailing_list.lib import NotificationFrequencies
@@ -56,6 +57,20 @@ class EmailRecipient(models.Model):
     bounced_date = models.DateTimeField(default=None, null=True)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
+
+    @classmethod
+    def get_suppressed_emails(cls, emails: list[str]) -> set[str]:
+        """Return the subset of *emails* that should not receive mail.
+
+        An address is suppressed when it has ``do_not_email=True``
+        (bounced / complained) or ``is_opted_out=True``.
+        """
+        return set(
+            cls.objects.filter(
+                Q(do_not_email=True) | Q(is_opted_out=True),
+                email__in=emails,
+            ).values_list("email", flat=True)
+        )
 
     def __str__(self):
         return f"{self.email}"

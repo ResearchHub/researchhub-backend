@@ -4,14 +4,13 @@ import uuid
 from django.contrib.admin.options import get_content_type_for_model
 from django.db.models import Sum
 
-from mailing_list.lib import base_email_context
+from mailing_list.lib import base_email_context, send_email
 from reputation.distributions import Distribution as dist
 from reputation.distributions import create_stored_paper_pot
 from reputation.distributor import Distributor
 from reputation.models import Escrow
 from researchhub.settings import BASE_FRONTEND_URL
 from utils import sentry
-from utils.message import send_email_message
 
 
 def get_formatted_token():
@@ -65,7 +64,7 @@ def send_validation_email(case):
         "target_author_name": case.target_author_name,
         "validation_url": get_client_validation_url(validation_token),
     }
-    send_email_message(
+    send_email(
         [case.provided_email],
         "author_claim_validation_email.txt",
         "Please Verify Your Paper Claim",
@@ -89,7 +88,7 @@ def send_verification_email(case, context):
         "requestor_name": requestor_name,
         "paper_title": paper_title,
     }
-    send_email_message(
+    send_email(
         [case.provided_email],
         "account_verified_email.txt",
         "Your account has been verified",
@@ -127,7 +126,7 @@ def send_approval_email(case, context):
         "requestor_name": requestor_name,
         "vote_reward": vote_reward,
     }
-    send_email_message(
+    send_email(
         [case.provided_email],
         "author_approval_email.txt",
         "Your paper claim request has been approved",
@@ -145,7 +144,7 @@ def send_rejection_email(case):
         "paper_url": get_paper_url(case.target_paper),
         "requestor_name": requestor_name,
     }
-    send_email_message(
+    send_email(
         [case.provided_email],
         "author_rejection_email.txt",
         "Your paper claim request has been denied",

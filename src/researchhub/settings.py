@@ -777,6 +777,9 @@ CELERY_WORKER_TASK_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s [%(filename)
 if ELASTIC_BEANSTALK:
     CELERY_WORKER_HIJACK_ROOT_LOGGER = False
 
+if TESTING:
+    CELERY_BROKER_URL = "memory://"  # use in-memory broker for testing
+
 REDBEAT_REDIS_URL = "redis://{}:{}/2".format(REDIS_HOST, REDIS_PORT)
 REDBEAT_KEY_PREFIX = f"{APP_ENV}_redbeat_"
 
@@ -790,6 +793,14 @@ CHANNEL_LAYERS = {
         },
     },
 }
+
+if TESTING:
+    # Use in-memory channel layer for testing
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        },
+    }
 
 # APM
 

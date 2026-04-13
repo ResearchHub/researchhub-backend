@@ -2,9 +2,9 @@ from django.db import models
 
 from invite.models import Invitation
 from researchhub.settings import ASSETS_BASE_URL, BASE_FRONTEND_URL
+from mailing_list.lib import send_email
 from researchhub_access_group.constants import ACCESS_TYPE_CHOICES, VIEWER
 from user.models import Organization
-from utils.message import send_email_message
 
 
 class OrganizationInvitation(Invitation):
@@ -40,4 +40,4 @@ class OrganizationInvitation(Invitation):
         else:
             email_context["user_name"] = "User"
 
-        send_email_message([email], template, subject, email_context, html_template)
+        send_email([email], template, subject, email_context, html_template)

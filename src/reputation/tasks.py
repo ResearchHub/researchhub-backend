@@ -16,7 +16,7 @@ from web3 import Web3
 import utils.locking as lock
 from ethereum.lib import RSC_CONTRACT_ADDRESS
 from hub.models import Hub
-from mailing_list.lib import base_email_context
+from mailing_list.lib import base_email_context, send_email
 from notification.models import Notification
 from reputation.constants.bounty import ASSESSMENT_PERIOD_DAYS
 from reputation.distributions import Distribution as Dist
@@ -35,7 +35,6 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from user.models import User
 from user.related_models.author_model import Author
-from utils.message import send_email_message
 from utils.sentry import log_error, log_info
 from utils.web3_utils import web3_provider
 
@@ -295,6 +294,7 @@ def _check_deposits(max_age=None):
                 distributor.distribute()
                 deposit.amount = deposit_amount
                 deposit.set_paid()
+                user.ensure_staking_opted_in()
             except Exception as e:
                 log_error(e, "Failed to process deposit")
                 deposit.set_paid_pending()
@@ -366,7 +366,7 @@ def check_open_bounties():
                 "frontend_view_link": unified_doc.frontend_view_link(),
             }
             context["subject"] = "Bounty Submission Period Ending Soon"
-            send_email_message(
+            send_email(
                 [bounty_creator.email],
                 "general_email_message.txt",
                 outer_subject,
@@ -406,7 +406,7 @@ def check_open_bounties():
             "frontend_view_link": unified_doc.frontend_view_link(),
         }
         context["subject"] = "Bounty Entered Assessment Phase"
-        send_email_message(
+        send_email(
             [bounty_creator.email],
             "general_email_message.txt",
             outer_subject,
@@ -495,7 +495,7 @@ def check_open_bounties():
                 "frontend_view_link": unified_doc.frontend_view_link(),
             }
             context["subject"] = "Bounty Assessment Period Ending Soon"
-            send_email_message(
+            send_email(
                 [bounty_creator.email],
                 "general_email_message.txt",
                 outer_subject,
@@ -683,10 +683,6 @@ def create_daily_staking_snapshots(self):
     Runs before distribute_staking_yield so the distribution task uses
     up-to-date supply and staking data.
     """
-    if not settings.STAGING:
-        logger.info("Staking daily snapshot creation is only enabled in staging")
-        return False
-
     accrual_date = datetime.now(pytz.UTC).date() - timedelta(days=1)
     key = lock.name(f"create_daily_staking_snapshots_{accrual_date}")
     if not lock.acquire(key):
@@ -725,10 +721,6 @@ def create_daily_staking_snapshots(self):
 )
 def distribute_staking_yield(self):
     """Daily task to distribute staking yield for the previous UTC day."""
-    if not settings.STAGING:
-        logger.info("Staking yield distribution is only enabled in staging")
-        return False
-
     accrual_date = datetime.now(pytz.UTC).date() - timedelta(days=1)
 
     key = lock.name(f"distribute_staking_yield_{accrual_date}")
