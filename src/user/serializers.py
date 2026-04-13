@@ -714,12 +714,15 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
         context = self.context
         _context_fields = context.get("usr_dus_get_author_profile", {})
         try:
+            author_profile = user.author_profile
+        except User.author_profile.RelatedObjectDoesNotExist:
+            return {}
+        try:
             serializer = DynamicAuthorSerializer(
-                user.author_profile, context=context, **_context_fields
+                author_profile, context=context, **_context_fields
             )
             return serializer.data
         except Exception as e:
-            print(e)
             sentry.log_error(e)
             return {}
 

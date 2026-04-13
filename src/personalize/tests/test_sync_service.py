@@ -218,6 +218,19 @@ class SyncServiceTests(TestCase):
         self.assertNotIn("impression", event)
         self.assertNotIn("recommendationId", event)
 
+    @patch("personalize.services.sync_service.SyncClient")
+    def test_sync_item_by_id_handles_deleted_document(self, MockSyncClient):
+        """Deleted unified documents should be skipped without raising."""
+        mock_client = Mock()
+        service = SyncService(sync_client=mock_client)
+
+        result = service.sync_item_by_id(999999999)
+
+        mock_client.put_items.assert_not_called()
+        self.assertEqual(result["success"], True)
+        self.assertEqual(result["synced"], 0)
+        self.assertEqual(result["skipped"], 1)
+
     def test_sync_impression_event_uses_correct_weight(self):
         """Test that FEED_ITEM_IMPRESSION event uses weight of 0.2"""
         user = User.objects.create_user(
