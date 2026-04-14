@@ -12,7 +12,7 @@ dependencies = [
     "beautifulsoup4==4.12.2",
     "boto3==1.34.69",
     "cdp-sdk==1.40.0",
-    "celery==5.5.3",
+    "celery==5.6.3",
     "celery-redbeat==2.3.3",
     "channels>=4.1.0,<5.0.0",
     "channels-redis>=4.2.0,<5.0.0",
