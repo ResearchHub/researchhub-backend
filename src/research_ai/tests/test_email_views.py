@@ -782,9 +782,11 @@ class BulkGenerateEmailViewTests(APITestCase):
 class SendPlainEmailTests(APITestCase):
     """Unit tests for send_plain_email service."""
 
-    @patch("research_ai.services.email_sending_service.send_mail")
-    def test_send_plain_email_calls_send_mail_with_plain_and_html(self, mock_send_mail):
-        send_plain_email(
+    @patch("research_ai.services.email_sending_service.EmailMultiAlternatives")
+    def test_send_plain_email_calls_send_mail_with_plain_and_html(self, mock_email_alt):
+        mock_instance = mock_email_alt.return_value
+        mock_instance.extra_headers = {"message_id": "messageId1"}
+        ses_message_id = send_plain_email(
             ["to@example.com"],
             "Subject",
             "<p>Hello</p>",
@@ -792,13 +794,16 @@ class SendPlainEmailTests(APITestCase):
             cc=None,
             from_email=None,
         )
-        mock_send_mail.assert_called_once()
-        # send_mail(subject, message, from_email, recipient_list, ...)
-        call_args = mock_send_mail.call_args[0]
-        self.assertIn("Subject", call_args[0])
-        self.assertIn("Hello", call_args[1])
-        self.assertEqual(call_args[3], ["to@example.com"])
-        self.assertEqual(mock_send_mail.call_args[1]["html_message"], "<p>Hello</p>")
+        mock_email_alt.assert_called_once()
+        call_kwargs = mock_email_alt.call_args[1]
+        self.assertIn("Subject", call_kwargs["subject"])
+        self.assertIn("Hello", call_kwargs["body"])
+        self.assertEqual(call_kwargs["to"], ["to@example.com"])
+        mock_instance.attach_alternative.assert_called_once_with(
+            "<p>Hello</p>", "text/html"
+        )
+        mock_instance.send.assert_called_once()
+        self.assertEqual(ses_message_id, "messageId1")
 
     @patch("research_ai.services.email_sending_service.EmailMultiAlternatives")
     def test_send_plain_email_with_reply_to_uses_email_multi_alternatives(
@@ -946,6 +951,7 @@ class SendEmailViewTests(APITestCase):
     def test_send_queued_emails_task_sends_and_updates_status(self, mock_send):
         from research_ai.tasks import send_queued_emails_task
 
+        mock_send.return_value = "ses-msg-id-123"
         email_rec = GeneratedEmail.objects.create(
             created_by=self.moderator,
             expert_name="Dr. Y",
@@ -966,4 +972,5 @@ class SendEmailViewTests(APITestCase):
         self.assertEqual(result["failed"], 0)
         email_rec.refresh_from_db()
         self.assertEqual(email_rec.status, "sent")
+        self.assertEqual(email_rec.ses_message_id, "ses-msg-id-123")
         mock_send.assert_called_once()
