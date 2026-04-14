@@ -221,7 +221,9 @@ class BulkGenerateEmailView(APIView):
                     email_record = GeneratedEmail.objects.create(
                         created_by=request.user,
                         expert_search=expert_search,
-                        expert_name=format_expert_name_from_raw(resolved.get("name") or ""),
+                        expert_name=format_expert_name_from_raw(
+                            resolved.get("name") or ""
+                        ),
                         expert_title=resolved.get("title") or "",
                         expert_affiliation=resolved.get("affiliation") or "",
                         expert_email=(resolved.get("email") or "").strip(),

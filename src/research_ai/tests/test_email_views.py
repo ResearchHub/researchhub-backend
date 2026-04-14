@@ -444,25 +444,19 @@ class GeneratedEmailDetailViewTests(APITestCase):
 
     def test_get_requires_authentication(self):
         email = self._create_email()
-        response = self.client.get(
-            f"/api/research_ai/expert-finder/emails/{email.id}/"
-        )
+        response = self.client.get(f"/api/research_ai/expert-finder/emails/{email.id}/")
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_get_requires_moderator(self):
         self.client.force_authenticate(self.user)
         email = self._create_email()
-        response = self.client.get(
-            f"/api/research_ai/expert-finder/emails/{email.id}/"
-        )
+        response = self.client.get(f"/api/research_ai/expert-finder/emails/{email.id}/")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_get_returns_200_for_own_email(self):
         email = self._create_email()
         self.client.force_authenticate(self.moderator)
-        response = self.client.get(
-            f"/api/research_ai/expert-finder/emails/{email.id}/"
-        )
+        response = self.client.get(f"/api/research_ai/expert-finder/emails/{email.id}/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.json()["id"], email.id)
         self.assertEqual(response.json()["expert_name"], "Dr. Test")
@@ -477,9 +471,7 @@ class GeneratedEmailDetailViewTests(APITestCase):
             email_body="",
         )
         self.client.force_authenticate(self.moderator)
-        response = self.client.get(
-            f"/api/research_ai/expert-finder/emails/{email.id}/"
-        )
+        response = self.client.get(f"/api/research_ai/expert-finder/emails/{email.id}/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         nav = response.json()["list_navigation"]
         self.assertEqual(nav["total"], 1)
@@ -570,18 +562,14 @@ class GeneratedEmailDetailViewTests(APITestCase):
 
     def test_get_returns_404_for_nonexistent(self):
         self.client.force_authenticate(self.moderator)
-        response = self.client.get(
-            "/api/research_ai/expert-finder/emails/999999/"
-        )
+        response = self.client.get("/api/research_ai/expert-finder/emails/999999/")
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_get_returns_200_for_other_users_email(self):
         """Generated emails are shared: any editor can retrieve any email."""
         email = self._create_email(created_by=self.user)
         self.client.force_authenticate(self.moderator)
-        response = self.client.get(
-            f"/api/research_ai/expert-finder/emails/{email.id}/"
-        )
+        response = self.client.get(f"/api/research_ai/expert-finder/emails/{email.id}/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.json()["id"], email.id)
 
