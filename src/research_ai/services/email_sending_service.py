@@ -8,13 +8,13 @@ logger = logging.getLogger(__name__)
 
 
 def send_plain_email(
-    to_email,
-    subject,
-    body,
-    reply_to=None,
-    cc=None,
-    from_email=None,
-):
+    to_email: str,
+    subject: str,
+    body: str,
+    reply_to: str | None = None,
+    cc: list[str] | None = None,
+    from_email: str | None = None,
+) -> str | None:
     """
     Send an email with optional HTML body. Normalizes subject, adds staging
     prefix when not production, and supports reply_to/cc.
