@@ -1,6 +1,7 @@
 import json
 import random
 import secrets
+from datetime import datetime, timezone
 import string
 import threading
 import time
@@ -70,7 +71,7 @@ class TestData:
         "Improving Elevator Performance Using Reinforcement Learning",
         "Softassign versus Softmax: Benchmarks in Combinatorial Optimization",
     ]
-    paper_publish_date = "1990-10-01"
+    paper_publish_date = datetime(1990, 10, 1, tzinfo=timezone.utc)
 
 
 # REFACTOR: Instead of having to inherit this class, test cases should import
