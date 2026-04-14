@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 def send_plain_email(
-    to_emails,
+    to_email,
     subject,
     body,
     reply_to=None,
@@ -26,21 +26,19 @@ def send_plain_email(
         subject = "[Staging] " + subject
     if from_email is None:
         from_email = f"ResearchHub <{settings.DEFAULT_FROM_EMAIL}>"
-    to_list = to_emails if isinstance(to_emails, list) else [to_emails]
     html_body = body or ""
     plain_body = strip_tags(html_body).strip() or "(No content)"
 
     ses_message_id = None
-    for to in to_list:
-        msg = EmailMultiAlternatives(
-            subject=subject,
-            body=plain_body,
-            from_email=from_email,
-            to=[to],
-            reply_to=[reply_to] if reply_to else None,
-            cc=cc or None,
-        )
-        msg.attach_alternative(html_body, "text/html")
-        msg.send(fail_silently=False)
-        ses_message_id = msg.extra_headers.get("message_id")
+    msg = EmailMultiAlternatives(
+        subject=subject,
+        body=plain_body,
+        from_email=from_email,
+        to=[to_email],
+        reply_to=[reply_to] if reply_to else None,
+        cc=cc or None,
+    )
+    msg.attach_alternative(html_body, "text/html")
+    msg.send(fail_silently=False)
+    ses_message_id = msg.extra_headers.get("message_id")
     return ses_message_id

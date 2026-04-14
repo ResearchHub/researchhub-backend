@@ -373,7 +373,7 @@ def send_queued_emails_task(
             continue
         try:
             ses_message_id = send_plain_email(
-                [rec.expert_email],
+                rec.expert_email,
                 rec.email_subject,
                 rec.email_body,
                 reply_to=reply_to_stripped,

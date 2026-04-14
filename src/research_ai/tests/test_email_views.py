@@ -787,7 +787,7 @@ class SendPlainEmailTests(APITestCase):
         mock_instance = mock_email_alt.return_value
         mock_instance.extra_headers = {"message_id": "messageId1"}
         ses_message_id = send_plain_email(
-            ["to@example.com"],
+            "to@example.com",
             "Subject",
             "<p>Hello</p>",
             reply_to=None,
@@ -810,7 +810,7 @@ class SendPlainEmailTests(APITestCase):
         self, mock_email_alt
     ):
         send_plain_email(
-            ["to@example.com"],
+            "to@example.com",
             "Subject",
             "Body",
             reply_to="reply@example.com",
