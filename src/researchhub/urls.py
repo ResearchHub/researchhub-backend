@@ -310,6 +310,7 @@ urlpatterns = [
     ),
     re_path(r"api/auth/register/", include("dj_rest_auth.registration.urls")),
     re_path(r"api/auth/login/", MFALoginView.as_view(), name="rest_login"),
+    re_path(r"api/auth/", include("dj_rest_auth.mfa.urls")),
     re_path(r"api/auth/logout/", LogoutView.as_view(), name="rest_logout"),
     re_path(
         r"api/auth/password-reset/$", PasswordResetView.as_view(), name="password-reset"
