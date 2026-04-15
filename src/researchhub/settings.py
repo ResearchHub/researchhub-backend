@@ -399,8 +399,6 @@ AUTHENTICATION_BACKENDS = (
     "allauth.account.auth_backends.AuthenticationBackend",
 )
 
-OAUTH_METHOD = "token"
-
 REST_AUTH = {
     "REGISTER_SERIALIZER": "user.serializers.RegisterSerializer",
     "PASSWORD_RESET_SERIALIZER": "user.custom_allauth.CustomPasswordResetSerializer",
