@@ -11,8 +11,7 @@ class AIPeerReviewPermission(AuthorizationBasedPermission):
     """
     Request-level: authenticated + feature gate (see _can_use_ai_peer_review).
     Object-level: proposal review visibility (author, grant owner, entitlement,
-    editors) or grant comparison visibility (must override here because
-    AuthorizationBasedPermission treats all safe methods as allowed on objects).
+    editors).
     """
 
     message = "Not allowed to use AI peer review features."
@@ -32,5 +31,6 @@ class AIPeerReviewPermission(AuthorizationBasedPermission):
             return False
         return self._can_use_ai_peer_review(request.user)
 
+    # TODO: Add business logic here
     def _can_use_ai_peer_review(self, user):
         return True

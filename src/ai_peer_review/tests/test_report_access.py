@@ -15,10 +15,7 @@ from paper.tests.helpers import create_paper
 from purchase.models import Grant, Purchase
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import GRANT
-from user.tests.helpers import (
-    create_hub_editor,
-    create_random_authenticated_user,
-)
+from user.tests.helpers import create_hub_editor, create_random_authenticated_user
 
 
 class ReportAccessTests(TestCase):
