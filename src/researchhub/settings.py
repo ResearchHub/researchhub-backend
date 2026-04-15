@@ -280,6 +280,7 @@ INSTALLED_APPS = [
     "user_saved",
     "user_lists",
     "research_ai",
+    "ai_peer_review",
     # Health checks
     "health_check",
     "health_check.db",
