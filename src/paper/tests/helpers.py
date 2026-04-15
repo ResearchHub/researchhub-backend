@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from django.core.files.uploadedfile import SimpleUploadedFile
 
 from paper.models import Paper
@@ -16,7 +18,7 @@ class TestData:
         " Aids to Magical Mischief-Makers are proud to present THE"
         " MARAUDER'S MAP"
     )
-    paper_publish_date = "1990-10-01"
+    paper_publish_date = datetime(1990, 10, 1, tzinfo=timezone.utc)
 
 
 def create_paper(
