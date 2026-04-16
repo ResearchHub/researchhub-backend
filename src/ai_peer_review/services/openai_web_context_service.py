@@ -149,3 +149,44 @@ class OpenAIWebContextService:
             max_tokens=max_tokens,
             temperature=temperature,
         )
+
+
+def fetch_proposal_review_web_context(
+    proposal_excerpt: str,
+    author_hint: str,
+    *,
+    max_output_tokens: int = 2048,
+    max_input_proposal_chars: int = 8000,
+    max_input_author_chars: int = 2000,
+    max_return_chars: int = 6000,
+) -> str:
+    """
+    Return a bounded bullet list for the Bedrock user prompt (no-op if no API key).
+    """
+    api_key = getattr(settings, "OPENAI_API_KEY", "") or ""
+    if not api_key:
+        logger.warning(
+            "OPENAI_API_KEY is empty; skipping proposal review web search context"
+        )
+        return ""
+    svc = OpenAIWebContextService()
+    if not svc._client:
+        return ""
+    try:
+        text = svc.fetch_proposal_web_context(
+            proposal_text=(proposal_excerpt or "")[:max_input_proposal_chars],
+            researcher_display_name=(author_hint or "")[:max_input_author_chars]
+            or None,
+            institutional_affiliation=None,
+            max_tokens=max_output_tokens,
+            temperature=0.0,
+        )
+    except Exception as e:
+        logger.warning(
+            "OpenAI web context for proposal review failed: %s", e, exc_info=True
+        )
+        sentry.log_error(e, message="OpenAI proposal review web context failed")
+        return ""
+    if len(text) > max_return_chars:
+        return text[:max_return_chars] + "\n[TRUNCATED]"
+    return text

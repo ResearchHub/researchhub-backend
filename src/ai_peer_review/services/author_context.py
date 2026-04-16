@@ -1,7 +1,27 @@
-from typing import TYPE_CHECKING
+from researchhub_document.models import ResearchhubUnifiedDocument
+from user.models import Author
 
-if TYPE_CHECKING:
-    from user.related_models.author_model import Author
+
+def build_author_context_snippet(
+    unified_document: ResearchhubUnifiedDocument,
+    max_chars: int = 4000,
+) -> str:
+    """
+    Profile-backed author context for proposal-review prompts (bounded length).
+    """
+    owner = unified_document.created_by
+    if not owner:
+        return ""
+    author = Author.objects.filter(user_id=owner.id).first()
+    if author:
+        text = build_author_context_text(author)
+    else:
+        name = f"{owner.first_name} {owner.last_name}".strip()
+        text = f"ResearchHub author: {name}" if name else ""
+    text = (text or "").strip()
+    if len(text) > max_chars:
+        return text[:max_chars] + "\n[TRUNCATED]"
+    return text
 
 
 def build_author_context_text(author: Author | None) -> str:
