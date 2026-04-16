@@ -7,12 +7,14 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from reputation.related_models.staking_global_snapshot import StakingGlobalSnapshot
 from reputation.related_models.staking_user_snapshot import StakingUserSnapshot
 from reputation.related_models.staking_yield_record import StakingYieldRecord
 from reputation.serializers.staking_yield_serializer import (
     StakingYieldDetailsSerializer,
     StakingYieldEarnedSinceSerializer,
 )
+from reputation.services.staking_yield_service import StakingYieldService
 
 
 class StakingYieldViewSet(viewsets.GenericViewSet):
@@ -33,6 +35,17 @@ class StakingYieldViewSet(viewsets.GenericViewSet):
             user_snapshot__user=user
         ).aggregate(total=Sum("yield_amount"))["total"] or Decimal("0")
 
+        global_snapshot = StakingGlobalSnapshot.load()
+        if global_snapshot and global_snapshot.total_staked > 0:
+            daily_emission = StakingYieldService.compute_total_daily_emission(
+                global_snapshot.accrual_date
+            )
+            apy = (
+                float(daily_emission) / float(global_snapshot.total_staked) * 365 * 100
+            )
+        else:
+            apy = 0.0
+
         data = {
             "is_staking_opted_in": user.is_staking_opted_in,
             "staking_opted_in_date": user.staking_opted_in_date,
@@ -51,6 +64,7 @@ class StakingYieldViewSet(viewsets.GenericViewSet):
                 if latest_snapshot
                 else None
             ),
+            "apy": apy,
         }
         serializer = StakingYieldDetailsSerializer(data)
         return Response(serializer.data)
