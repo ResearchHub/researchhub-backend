@@ -22,7 +22,6 @@ import mailing_list.views
 import new_feature_release.views
 import note.views as note_views
 import notification.views
-import oauth.urls
 import oauth.views
 import paper.views as paper_views
 import purchase.views
@@ -330,8 +329,6 @@ urlpatterns = [
         PasswordResetConfirmView.as_view(),
         name="password_reset_confirm",
     ),
-    re_path(r"^auth/signup/", include(oauth.urls.registration_urls)),
-    re_path(r"^auth/", include(oauth.urls.default_urls)),
     path(
         "api/ckeditor/webhook/document_removed/",
         note_views.note_view.ckeditor_webhook_document_removed,
