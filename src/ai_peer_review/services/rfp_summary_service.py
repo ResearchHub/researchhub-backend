@@ -80,14 +80,16 @@ def run_executive_comparison(grant_id: int, created_by_id: int) -> RFPSummary:
         post = ud.posts.first()
         title = (post.title if post else "") or f"Document {ud.id}"
         dims = dimension_overall_scores(r.result_data or {})
+        ed = (r.result_data or {}).get("editorial_summary") or {}
+        snippet = (ed.get("consensus_summary") or "")[:400]
         lines.append(
             f"- Title: {title[:200]}\n"
             f"  Overall: {r.overall_rating} ({r.overall_score_numeric}/15)\n"
             f"  Dimensions: fundability={dims.get('fundability')}, "
             f"feasibility={dims.get('feasibility')}, novelty={dims.get('novelty')}, "
-            f"impact={dims.get('impact')}, reproducibility={dims.get('reproducibility')}\n"
-            f"  Summary snippet: "
-            f"{(r.result_data or {}).get('editorial_summary', {}).get('consensus_summary', '')[:400]}"
+            f"impact={dims.get('impact')}, "
+            f"reproducibility={dims.get('reproducibility')}\n"
+            f"  Summary snippet: {snippet}"
         )
     if not lines:
         raise ValueError(

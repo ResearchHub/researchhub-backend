@@ -3,7 +3,10 @@ from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase, TestCase, override_settings
 
-from ai_peer_review.services.author_context import build_author_context_text
+from ai_peer_review.services.author_context import (
+    build_author_context_snippet,
+    build_author_context_text,
+)
 from ai_peer_review.services.bedrock_llm_service import (
     BEDROCK_MODEL_ID,
     BedrockLLMService,
@@ -11,6 +14,7 @@ from ai_peer_review.services.bedrock_llm_service import (
 from ai_peer_review.services.openai_web_context_service import (
     OPENAI_WEB_CONTEXT_MODEL,
     OpenAIWebContextService,
+    fetch_proposal_review_web_context,
 )
 from ai_peer_review.services.researcher_external_context import (
     build_researcher_external_context_for_author,
@@ -51,6 +55,35 @@ class AuthorContextTests(SimpleTestCase):
         self.assertIn("h-index", text)
         self.assertIn("Education entries (count): 1", text)
         self.assertIn("Google Scholar", text)
+
+    @patch("ai_peer_review.services.author_context.Author.objects.filter")
+    def test_build_author_context_snippet_resolves_linked_author(self, mock_filter):
+        author = SimpleNamespace(
+            first_name="Jane",
+            last_name="Doe",
+            headline="Lab PI",
+            university=SimpleNamespace(name="Example University", city="Boston"),
+            country_code="US",
+            description="Studies widgets.",
+            orcid_id="https://orcid.org/0000-0002-1825-0097",
+            openalex_ids=["https://openalex.org/A123"],
+            h_index=12,
+            i10_index=3,
+            education=[{"school": "MIT"}],
+            google_scholar="https://scholar.google.com/citations?user=x",
+            linkedin=None,
+        )
+        qs = MagicMock()
+        qs.first.return_value = author
+        mock_filter.return_value = qs
+        ud = SimpleNamespace(created_by=SimpleNamespace(id=99, first_name="", last_name=""))
+        text = build_author_context_snippet(ud)
+        self.assertIn("Jane Doe", text)
+        mock_filter.assert_called_once_with(user_id=99)
+
+    def test_build_author_context_snippet_no_owner(self):
+        ud = SimpleNamespace(created_by=None)
+        self.assertEqual(build_author_context_snippet(ud), "")
 
 
 class ResearcherExternalContextTests(SimpleTestCase):
@@ -264,3 +297,10 @@ class OpenAIWebContextServiceTests(SimpleTestCase):
         user = mock_client.responses.create.call_args.kwargs["input"]
         self.assertIn("Do science", user)
         self.assertIn("Dr Z", user)
+
+    @override_settings(OPENAI_API_KEY="")
+    def test_fetch_proposal_review_web_context_empty_without_api_key(self):
+        self.assertEqual(
+            fetch_proposal_review_web_context("proposal text", "author hint"),
+            "",
+        )
