@@ -776,7 +776,7 @@ if ELASTIC_BEANSTALK:
     CELERY_WORKER_HIJACK_ROOT_LOGGER = False
 
 if TESTING:
-    CELERY_BROKER_URL = "memory://"  # use in-memory broker for testing
+    CELERY_BROKER_URL = "memory://localhost"  # use in-memory broker for testing
 
 REDBEAT_REDIS_URL = "redis://{}:{}/2".format(REDIS_HOST, REDIS_PORT)
 REDBEAT_KEY_PREFIX = f"{APP_ENV}_redbeat_"
