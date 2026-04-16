@@ -6,8 +6,8 @@ from ai_peer_review.constants import (
     DIMENSION_KEYS,
     DIMENSION_SUB_AREAS,
     OPTIONAL_SUB_AREAS,
-    OverallRating,
 )
+from ai_peer_review.models import OverallRating
 
 SCORE_MAP = {"High": 3, "Medium": 2, "Low": 1}
 
