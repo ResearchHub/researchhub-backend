@@ -25,6 +25,8 @@ CRITICAL_FAIL_KEYS = {
     ("reproducibility", "methods_rigor", "controls_defined"),
 }
 
+_RESERVED_SUB_AREA_KEYS = frozenset({"score", "rationale", "flags"})
+
 
 def parse_json_response(text: str) -> dict:
     text = text.strip()
@@ -81,49 +83,92 @@ def _cap_sub_area_for_critical_fail(
     return current_label
 
 
+def _answer_keys_in_sub_area(sub_obj: dict) -> list[str]:
+    return [k for k in sub_obj.keys() if k not in _RESERVED_SUB_AREA_KEYS]
+
+
+def _gather_numeric_answers(
+    sub_obj: dict, answer_keys: list[str]
+) -> tuple[list[float], int]:
+    """Collect yes/partial/no as floats; ``na_count`` is explicit ``n/a`` answers only."""
+    question_values: list[float] = []
+    na_count = 0
+    for answer_key in answer_keys:
+        raw = sub_obj.get(answer_key)
+        numeric_val = _answer_to_numeric(raw)
+        if numeric_val is not None:
+            question_values.append(numeric_val)
+            continue
+        if isinstance(raw, str) and raw.strip().lower() == "n/a":
+            na_count += 1
+    return question_values, na_count
+
+
+def _sub_area_contribution_to_dimension_mean(
+    dim_key: str,
+    sub_key: str,
+    sub_obj: dict,
+    is_optional: bool,
+) -> Optional[float]:
+    """Write ``sub_obj['score']``; return mean for dimension rollup, or ``None`` if excluded."""
+    answer_keys = _answer_keys_in_sub_area(sub_obj)
+    question_values, na_count = _gather_numeric_answers(sub_obj, answer_keys)
+
+    if is_optional and answer_keys and na_count == len(answer_keys):
+        sub_obj["score"] = "N/A"
+        return None
+
+    if not question_values:
+        sub_obj["score"] = "Low"
+        return 0.0
+
+    mean_val = sum(question_values) / len(question_values)
+    score_label = _label_from_mean(mean_val)
+    score_label = _cap_sub_area_for_critical_fail(
+        dim_key, sub_key, sub_obj, score_label
+    )
+    sub_obj["score"] = score_label
+    return mean_val
+
+
 def normalize_scores_from_answers(review_dict: dict) -> None:
+    """Derive High/Medium/Low (or N/A for optional rows) from raw LLM answers, in place.
+
+    ``review_dict`` matches the structured review shape: each dimension is a dict of
+    sub-area dicts. Sub-areas hold yes/partial/no (and metadata keys ``score``,
+    ``rationale``, ``flags``). This walk:
+
+    1. For each sub-area, averages numeric equivalents of question fields, maps the
+       mean to a label, writes ``sub_obj["score"]``, and records the mean for rollup.
+    2. Optional sub-areas whose every answer is ``n/a`` get ``score`` ``N/A`` and
+       are excluded from the dimension mean (not appended to ``sub_area_means``).
+    3. Sub-areas with no usable numeric answers default to ``Low`` and contribute
+       ``0.0`` so they still pull the dimension down.
+    4. Each dimension's ``overall_score`` is the label for the mean of sub-area
+       means (or ``Low`` if nothing contributed).
+    """
     for dim_key, sub_area_keys in DIMENSION_SUB_AREAS.items():
         dim_obj = review_dict.get(dim_key)
         if not isinstance(dim_obj, dict):
             continue
-        sub_area_means = []
+
+        sub_area_means: list[float] = []
         for sub_key in sub_area_keys:
             sub_obj = dim_obj.get(sub_key)
             if not isinstance(sub_obj, dict):
                 continue
             is_optional = (dim_key, sub_key) in OPTIONAL_SUB_AREAS
-            question_values = []
-            answer_keys = [
-                k for k in sub_obj.keys() if k not in {"score", "rationale", "flags"}
-            ]
-            na_count = 0
-            for answer_key in answer_keys:
-                raw = sub_obj.get(answer_key)
-                numeric_val = _answer_to_numeric(raw)
-                if numeric_val is None:
-                    if isinstance(raw, str) and raw.strip().lower() == "n/a":
-                        na_count += 1
-                    continue
-                question_values.append(numeric_val)
-            if is_optional and answer_keys and na_count == len(answer_keys):
-                sub_obj["score"] = "N/A"
-                continue
-            if not question_values:
-                sub_obj["score"] = "Low"
-                sub_area_means.append(0.0)
-                continue
-            mean_val = sum(question_values) / len(question_values)
-            score_label = _label_from_mean(mean_val)
-            score_label = _cap_sub_area_for_critical_fail(
-                dim_key, sub_key, sub_obj, score_label
+            contribution = _sub_area_contribution_to_dimension_mean(
+                dim_key, sub_key, sub_obj, is_optional
             )
-            sub_obj["score"] = score_label
-            sub_area_means.append(mean_val)
+            if contribution is not None:
+                sub_area_means.append(contribution)
+
         if not sub_area_means:
             dim_obj["overall_score"] = "Low"
-            continue
-        dim_mean = sum(sub_area_means) / len(sub_area_means)
-        dim_obj["overall_score"] = _label_from_mean(dim_mean)
+        else:
+            dim_mean = sum(sub_area_means) / len(sub_area_means)
+            dim_obj["overall_score"] = _label_from_mean(dim_mean)
 
 
 def compute_overall_rating(review_dict: dict) -> tuple[str, int]:
