@@ -217,7 +217,10 @@ class StakingYieldService:
             staking_position = StakingYieldService.calculate_staking_position(
                 user, accrual_date
             )
-            if staking_position.stake_amount <= 0:
+            if (
+                staking_position.stake_amount <= 0
+                or staking_position.weighted_stake <= 0
+            ):
                 continue
 
             total_staked += staking_position.stake_amount
@@ -226,8 +229,8 @@ class StakingYieldService:
                 StakingUserSnapshot(
                     user=user,
                     stake_amount=staking_position.stake_amount,
-                    multiplier=Decimal("1"),
-                    weighted_stake=staking_position.stake_amount,
+                    multiplier=staking_position.multiplier,
+                    weighted_stake=staking_position.weighted_stake,
                 )
             )
 

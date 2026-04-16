@@ -290,9 +290,7 @@ class StakingMultiplierCalculationTest(TestCase):
         "reputation.services.staking_yield_service."
         "RscSupplyService.fetch_circulating_supply"
     )
-    def test_create_daily_snapshots_applies_global_multiplier_to_denominator(
-        self, mock_supply
-    ):
+    def test_create_daily_snapshots_applies_age_based_multiplier(self, mock_supply):
         mock_supply.return_value = Decimal("220000000")
         self.user.is_staking_opted_in = True
         self.user.staking_opted_in_date = self._timestamp(days_before_accrual=400)
@@ -326,10 +324,14 @@ class StakingMultiplierCalculationTest(TestCase):
         )
 
         self.assertEqual(user_snapshot.stake_amount, Decimal("100.00000000"))
-        self.assertEqual(user_snapshot.multiplier, Decimal("1"))
-        self.assertEqual(user_snapshot.weighted_stake, Decimal("100.00000000"))
-        self.assertEqual(user2_snapshot.multiplier, Decimal("1"))
-        self.assertEqual(user2_snapshot.weighted_stake, Decimal("50.00000000"))
+        self.assertEqual(user_snapshot.multiplier, expected_position_1.multiplier)
+        self.assertEqual(
+            user_snapshot.weighted_stake, expected_position_1.weighted_stake
+        )
+        self.assertEqual(user2_snapshot.multiplier, expected_position_2.multiplier)
+        self.assertEqual(
+            user2_snapshot.weighted_stake, expected_position_2.weighted_stake
+        )
         self.assertEqual(snapshot.total_staked, Decimal("150.00000000"))
         self.assertEqual(snapshot.total_weighted_stake, expected_total_weighted_stake)
         self.assertGreater(snapshot.total_weighted_stake, snapshot.total_staked)
