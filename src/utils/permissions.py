@@ -1,7 +1,7 @@
 from rest_framework.exceptions import PermissionDenied  # noqa: F401
 from rest_framework.permissions import SAFE_METHODS, BasePermission
 
-from utils.http import DELETE, PATCH, POST, PUT, RequestMethods
+from utils.http import RequestMethods
 
 
 class ReadOnly(BasePermission):
