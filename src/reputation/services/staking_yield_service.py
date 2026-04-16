@@ -24,8 +24,9 @@ STAKING_RELEASE_DATE = date(2026, 4, 11)
 INITIAL_YEARLY_EMISSION = Decimal("9500000")
 HALVING_PERIOD_DAYS = 64 * 365  # 64 years in days
 BASE_STAKING_MULTIPLIER = Decimal("1")
-MAX_STAKING_MULTIPLIER = Decimal("1.2")
-STAKING_MULTIPLIER_RAMP_DAYS = 365
+STAKING_MULTIPLIER_30_DAY = Decimal("1.05")
+STAKING_MULTIPLIER_180_DAY = Decimal("1.1")
+STAKING_MULTIPLIER_365_DAY = Decimal("1.25")
 
 
 @dataclass(frozen=True)
@@ -46,18 +47,16 @@ class StakingYieldService:
 
     @staticmethod
     def compute_balance_age_multiplier(age_days):
-        if age_days <= 0:
+        if age_days < 30:
             return BASE_STAKING_MULTIPLIER.quantize(QUANTIZE_8, rounding=ROUND_DOWN)
 
-        capped_days = min(age_days, STAKING_MULTIPLIER_RAMP_DAYS)
-        bonus = (
-            (MAX_STAKING_MULTIPLIER - BASE_STAKING_MULTIPLIER)
-            * Decimal(capped_days)
-            / Decimal(STAKING_MULTIPLIER_RAMP_DAYS)
-        )
-        return (BASE_STAKING_MULTIPLIER + bonus).quantize(
-            QUANTIZE_8, rounding=ROUND_DOWN
-        )
+        if age_days < 180:
+            return STAKING_MULTIPLIER_30_DAY.quantize(QUANTIZE_8, rounding=ROUND_DOWN)
+
+        if age_days < 365:
+            return STAKING_MULTIPLIER_180_DAY.quantize(QUANTIZE_8, rounding=ROUND_DOWN)
+
+        return STAKING_MULTIPLIER_365_DAY.quantize(QUANTIZE_8, rounding=ROUND_DOWN)
 
     @staticmethod
     def calculate_staking_position(user, accrual_date):
@@ -106,6 +105,15 @@ class StakingYieldService:
             stake_amount=stake_amount,
             multiplier=multiplier,
             weighted_stake=weighted_stake,
+        )
+
+    @staticmethod
+    def compute_global_staking_multiplier(total_staked, total_weighted_stake):
+        if total_staked <= 0 or total_weighted_stake <= 0:
+            return Decimal("0")
+
+        return (total_weighted_stake / total_staked).quantize(
+            QUANTIZE_8, rounding=ROUND_DOWN
         )
 
     @staticmethod
@@ -206,31 +214,26 @@ class StakingYieldService:
         position_rows = []
 
         for user in eligible_users:
-            stake = user.get_available_balance()
-            if stake is None:
-                continue
-
-            stake = Decimal(str(stake))
-            if stake <= 0:
-                continue
-
-            multiplier = Decimal("1")
-            weighted_stake = StakingYieldService.compute_weighted_stake(
-                stake, multiplier
+            staking_position = StakingYieldService.calculate_staking_position(
+                user, accrual_date
             )
-            if weighted_stake <= 0:
+            if staking_position.stake_amount <= 0:
                 continue
 
-            total_staked += stake
-            total_weighted_stake += weighted_stake
+            total_staked += staking_position.stake_amount
+            total_weighted_stake += staking_position.weighted_stake
             position_rows.append(
                 StakingUserSnapshot(
                     user=user,
-                    stake_amount=stake,
-                    multiplier=multiplier,
-                    weighted_stake=weighted_stake,
+                    stake_amount=staking_position.stake_amount,
+                    multiplier=Decimal("1"),
+                    weighted_stake=staking_position.stake_amount,
                 )
             )
+
+        global_multiplier = StakingYieldService.compute_global_staking_multiplier(
+            total_staked, total_weighted_stake
+        )
 
         with transaction.atomic():
             global_snapshot = StakingGlobalSnapshot.objects.create(
@@ -245,12 +248,13 @@ class StakingYieldService:
 
         logger.info(
             "Created daily StakingGlobalSnapshot pk=%d accrual_date=%s supply=%s "
-            "total_staked=%s total_weighted_stake=%s",
+            "total_staked=%s total_weighted_stake=%s global_multiplier=%s",
             global_snapshot.pk,
             accrual_date,
             supply,
             total_staked,
             total_weighted_stake,
+            global_multiplier,
         )
         return global_snapshot
 
