@@ -51,7 +51,7 @@ from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.doi import DOI
 from utils.http import POST, check_url_contains_pdf
 from utils.openalex import OpenAlex
-from utils.permissions import CreateOrUpdateIfAllowed, HasAPIKey, PostOnly
+from utils.permissions import CreateOrUpdateIfAllowed, PostOnly
 from utils.sentry import log_error
 from utils.throttles import THROTTLE_CLASSES
 
@@ -69,7 +69,7 @@ class PaperViewSet(
     ordering = "-created_date"
 
     permission_classes = [
-        (IsAuthenticatedOrReadOnly | HasAPIKey)
+        IsAuthenticatedOrReadOnly
         & CreatePaper
         & UpdatePaper
         & CreateOrUpdateIfAllowed
@@ -1270,7 +1270,7 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
     queryset = PaperSubmission.objects.all()
     serializer_class = PaperSubmissionSerializer
     throttle_classes = THROTTLE_CLASSES
-    permission_classes = [IsAuthenticated | HasAPIKey, PostOnly]
+    permission_classes = [IsAuthenticated, PostOnly]
 
     @track_event
     def create(self, *args, **kwargs):
