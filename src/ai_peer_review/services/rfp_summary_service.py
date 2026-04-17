@@ -3,8 +3,7 @@ import time
 
 from django.utils import timezone
 
-from ai_peer_review.constants import ReviewStatus
-from ai_peer_review.models import ProposalReview, RFPSummary
+from ai_peer_review.models import ProposalReview, RFPSummary, ReviewStatus
 from ai_peer_review.prompts.rfp_summary_prompts import (
     build_rfp_summary_user_prompt,
     get_grant_executive_summary_system_prompt,

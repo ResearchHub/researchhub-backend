@@ -1,8 +1,8 @@
 import logging
 import time
 
-from ai_peer_review.constants import PROPOSAL_REVIEW_MAX_OUTPUT_TOKENS, ReviewStatus
-from ai_peer_review.models import ProposalReview
+from ai_peer_review.constants import PROPOSAL_REVIEW_MAX_OUTPUT_TOKENS
+from ai_peer_review.models import ProposalReview, ReviewStatus
 from ai_peer_review.prompts.proposal_review_prompts import (
     build_proposal_review_user_prompt,
     get_proposal_review_system_prompt,
