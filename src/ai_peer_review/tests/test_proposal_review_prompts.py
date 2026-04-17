@@ -16,7 +16,9 @@ class ProposalReviewUserPromptTests(SimpleTestCase):
     def test_proposal_review_system_prompt_loads(self):
         text = get_proposal_review_system_prompt()
         self.assertIn("expert scientific grant reviewer", text)
-        self.assertIn("JSON STRUCTURE", text)
+        self.assertIn("OUTPUT JSON SHAPE", text)
+        self.assertIn("funding_opportunity_fit", text)
+        self.assertIn("Critical fail cap rule", text)
 
     def test_openai_web_context_system_prompt_loads(self):
         text = get_openai_web_context_system_prompt()
@@ -29,6 +31,7 @@ class ProposalReviewUserPromptTests(SimpleTestCase):
             external_researcher_context="OpenAlex stats here",
         )
         self.assertIn("EXTERNAL RESEARCHER CONTEXT", text)
+        self.assertIn("feasibility_and_execution.team_environment", text)
         self.assertIn("OpenAlex stats here", text)
 
     def test_includes_web_search_context_when_provided(self):
