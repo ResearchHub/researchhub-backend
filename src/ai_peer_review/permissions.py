@@ -1,17 +1,19 @@
-from ai_peer_review.models import ProposalReview
+from ai_peer_review.models import ProposalReview, RFPSummary
 from ai_peer_review.services.report_access import (
-    user_can_view_grant_comparison,
     user_can_view_proposal_review,
+    user_can_view_rfp_summary,
 )
-from purchase.models import Grant
 from utils.permissions import AuthorizationBasedPermission
 
 
 class AIPeerReviewPermission(AuthorizationBasedPermission):
     """
     Request-level: authenticated + feature gate (see _can_use_ai_peer_review).
-    Object-level: proposal review visibility (author, grant owner, entitlement,
-    editors).
+    Object-level:
+
+    - ``ProposalReview``: proposal author, linked grant owner (if any), paid
+      entitlement, hub editors / moderators.
+    - ``RFPSummary``: funder-side RFP brief / comparison;
     """
 
     message = "Not allowed to use AI peer review features."
@@ -22,8 +24,8 @@ class AIPeerReviewPermission(AuthorizationBasedPermission):
     def has_object_permission(self, request, view, obj):
         if isinstance(obj, ProposalReview):
             return user_can_view_proposal_review(request.user, obj)
-        if isinstance(obj, Grant):
-            return user_can_view_grant_comparison(request.user, obj)
+        if isinstance(obj, RFPSummary):
+            return user_can_view_rfp_summary(request.user, obj)
         return super().has_object_permission(request, view, obj)
 
     def is_authorized(self, request, view, obj):

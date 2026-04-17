@@ -1,4 +1,4 @@
-from ai_peer_review.models import ProposalReview, ReportEntitlement
+from ai_peer_review.models import ProposalReview, ReportEntitlement, RFPSummary
 from purchase.related_models.purchase_model import Purchase
 
 
@@ -27,9 +27,9 @@ def user_can_view_proposal_review(user, review: ProposalReview) -> bool:
     ).exists()
 
 
-def user_can_view_grant_comparison(user, grant) -> bool:
+def user_can_view_rfp_summary(user, summary: RFPSummary) -> bool:
     if not user.is_authenticated:
         return False
     if is_editor_or_moderator(user):
         return True
-    return grant.created_by_id == user.id
+    return summary.grant.created_by_id == user.id
