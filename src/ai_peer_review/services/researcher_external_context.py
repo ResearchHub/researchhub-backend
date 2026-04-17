@@ -1,6 +1,7 @@
 import logging
 
 from user.related_models.author_model import Author
+from utils import sentry
 from utils.openalex import OpenAlex
 
 logger = logging.getLogger(__name__)
@@ -55,7 +56,20 @@ def fetch_openalex_author_record(
 
 
 def format_openalex_author_record(record: dict | None) -> str:
-    """Turn an OpenAlex author JSON payload into short factual lines."""
+    """Format a subset of an OpenAlex *Author* JSON object for the peer-review prompt.
+
+    The API returns a large document (ids, counts_by_year, dehydrated relations, etc.).
+    We only surface a small, human-readable slice—everything else is dropped:
+
+    - ``display_name``, ``orcid``
+    - ``summary_stats``: ``h_index``, ``i10_index``, ``2yr_mean_citedness`` only
+    - ``works_count``, ``cited_by_count``
+    - ``last_known_institution.display_name``
+    - ``affiliations``: first rows (up to 8), unique ``institution.display_name`` (up to 6)
+    - ``topics`` / ``x_concepts``: ``display_name`` only (up to 8)
+
+    Author entity field reference: https://developers.openalex.org/api-entities/authors/overview
+    """
     if not record:
         return ""
 
@@ -130,7 +144,14 @@ def build_researcher_external_context_text(
         openalex_author_ref=openalex_author_ref,
         client=client,
     )
-    return format_openalex_author_record(raw)
+    try:
+        return format_openalex_author_record(raw)
+    except Exception as exc:
+        sentry.log_error(
+            exc,
+            message="build_researcher_external_context_text: format_openalex_author_record",
+        )
+        return ""
 
 
 def build_researcher_external_context_for_author(
