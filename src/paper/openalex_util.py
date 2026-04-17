@@ -27,7 +27,6 @@ PAPER_FIELDS_ALLOWED_TO_UPDATE = [
     "pdf_license_url",
     "oa_status",
     "is_open_access",
-    "open_alex_raw_json",
     "external_source",
     "work_type",
     "openalex_id",
