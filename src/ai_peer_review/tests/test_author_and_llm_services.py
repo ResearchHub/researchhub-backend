@@ -14,7 +14,6 @@ from ai_peer_review.services.bedrock_llm_service import (
 from ai_peer_review.services.openai_web_context_service import (
     OPENAI_WEB_CONTEXT_MODEL,
     OpenAIWebContextService,
-    fetch_proposal_review_web_context,
 )
 from ai_peer_review.services.researcher_external_context import (
     build_researcher_external_context_for_author,
