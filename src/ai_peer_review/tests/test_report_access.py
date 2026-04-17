@@ -1,16 +1,14 @@
 from decimal import Decimal
 
-from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
-from ai_peer_review.models import ProposalReview, ReportEntitlement, RFPSummary
+from ai_peer_review.models import ProposalReview, RFPSummary
 from ai_peer_review.services.report_access import (
     user_can_view_proposal_review,
     user_can_view_rfp_summary,
 )
-from purchase.models import Grant, Purchase
+from purchase.models import Grant
 from researchhub_document.helpers import create_post
-from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
@@ -57,34 +55,6 @@ class ReportAccessTests(TestCase):
         self.assertTrue(user_can_view_proposal_review(grant_owner, review))
         self.assertTrue(user_can_view_proposal_review(proposal_author, review))
         self.assertFalse(user_can_view_proposal_review(stranger, review))
-
-    def test_paid_entitlement_allows_view(self):
-        author = create_random_authenticated_user("ra_ent_author")
-        buyer = create_random_authenticated_user("ra_buyer")
-        preregistration_post = create_post(
-            created_by=author,
-            document_type=PREREGISTRATION,
-        )
-        review = ProposalReview.objects.create(
-            unified_document=preregistration_post.unified_document,
-            grant=None,
-        )
-        ct_post = ContentType.objects.get_for_model(ResearchhubPost)
-        purchase = Purchase.objects.create(
-            user=buyer,
-            content_type=ct_post,
-            object_id=preregistration_post.id,
-            purchase_type=Purchase.BOOST,
-            paid_status=Purchase.PAID,
-            amount="1",
-            purchase_method=Purchase.OFF_CHAIN,
-        )
-        ReportEntitlement.objects.create(
-            user=buyer,
-            proposal_review=review,
-            purchase=purchase,
-        )
-        self.assertTrue(user_can_view_proposal_review(buyer, review))
 
     def test_rfp_summary_access(self):
         owner = create_random_authenticated_user("ra_rfp_owner")

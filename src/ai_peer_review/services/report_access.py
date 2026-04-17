@@ -1,5 +1,4 @@
-from ai_peer_review.models import ProposalReview, ReportEntitlement, RFPSummary
-from purchase.related_models.purchase_model import Purchase
+from ai_peer_review.models import ProposalReview, RFPSummary
 
 
 def is_editor_or_moderator(user) -> bool:
@@ -20,11 +19,6 @@ def user_can_view_proposal_review(user, review: ProposalReview) -> bool:
         return True
     if review.grant_id and review.grant.created_by_id == user.id:
         return True
-    return ReportEntitlement.objects.filter(
-        user=user,
-        proposal_review=review,
-        purchase__paid_status=Purchase.PAID,
-    ).exists()
 
 
 def user_can_view_rfp_summary(user, summary: RFPSummary) -> bool:

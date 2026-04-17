@@ -43,115 +43,18 @@ class ProposalReviewScoringTests(SimpleTestCase):
         self.assertEqual(rating, OverallRating.POOR.value)
 
     def test_normalize_critical_fail_caps_high(self):
+        """Mean from answers is High, but go_no_go_gates No caps stored score to Medium."""
         review = {
             "fundability": {
                 "timeline_realism": {
+                    "score": "High",
+                    "rationale": "As if LLM mislabeled vs answers.",
+                    "flags": [],
                     "timeline_realistic": "Yes",
                     "milestones_sequenced": "Yes",
                     "buffers_adequate": "Yes",
                     "go_no_go_gates": "No",
                 }
-            },
-            "feasibility": {
-                "investigator_expertise": {
-                    "publication_record": "Yes",
-                    "methods_expertise": "Yes",
-                    "comparable_projects": "Yes",
-                    "recent_activity": "Yes",
-                    "team_composition": "Yes",
-                },
-                "institutional_capacity": {
-                    "core_facilities": "Yes",
-                    "specialized_resources": "Yes",
-                    "institutional_support": "Yes",
-                },
-                "track_record": {
-                    "score": "N/A",
-                    "rationale": "N/A",
-                    "prior_grants": "N/A",
-                    "h_index_profile": "N/A",
-                    "open_science": "N/A",
-                    "community_engagement": "N/A",
-                    "endorsements": "N/A",
-                },
-            },
-            "novelty": {
-                "conceptual_novelty": {
-                    "new_hypothesis": "Yes",
-                    "challenges_models": "Yes",
-                    "distinct_framing": "Yes",
-                },
-                "methodological_novelty": {
-                    "new_methods": "Yes",
-                    "combined_methods": "Yes",
-                    "new_tools_datasets": "Yes",
-                },
-                "literature_positioning": {
-                    "prior_work_cited": "Yes",
-                    "pi_overlap": "Yes",
-                    "recent_overlap": "Yes",
-                    "concurrent_work": "Yes",
-                },
-            },
-            "impact": {
-                "scientific_impact": {
-                    "fundamental_understanding": "Yes",
-                    "generalizability": "Yes",
-                    "new_directions": "Yes",
-                },
-                "clinical_translational_impact": {
-                    "score": "N/A",
-                    "rationale": "N/A",
-                    "clinical_path": "N/A",
-                    "unmet_need": "N/A",
-                    "translational_milestones": "N/A",
-                },
-                "societal_broader_impact": {
-                    "societal_challenge": "Yes",
-                    "public_communication": "Yes",
-                    "commercial_application": "Yes",
-                },
-                "community_ecosystem_impact": {
-                    "score": "N/A",
-                    "rationale": "N/A",
-                    "public_outputs": "N/A",
-                    "pi_reusable_outputs": "N/A",
-                    "community_demand": "N/A",
-                },
-            },
-            "reproducibility": {
-                "methods_rigor": {
-                    "methods_detail": "Yes",
-                    "parameters_specified": "Yes",
-                    "controls_defined": "Yes",
-                    "model_justified": "Yes",
-                },
-                "statistical_analysis_plan": {
-                    "stats_plan": "Yes",
-                    "power_analysis": "Yes",
-                    "multiple_comparisons": "Yes",
-                    "evaluation_metrics": "Yes",
-                },
-                "data_code_transparency": {
-                    "data_sharing_plan": "Yes",
-                    "code_sharing_plan": "Yes",
-                    "pi_data_history": "Yes",
-                    "data_management": "Yes",
-                },
-                "gold_standard_methodology": {
-                    "score": "N/A",
-                    "rationale": "N/A",
-                    "gold_standard_used": "N/A",
-                    "non_standard_justified": "N/A",
-                    "justification_compelling": "N/A",
-                    "novel_method_validated": "N/A",
-                    "literature_support": "N/A",
-                    "prior_studies_cited": "N/A",
-                    "gold_standard_correctly_applied": "N/A",
-                },
-                "validation_robustness": {
-                    "validation_strategies": "Yes",
-                },
             },
         }
         normalize_scores_from_answers(review)

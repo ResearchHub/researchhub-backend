@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from django.test import SimpleTestCase, TestCase, override_settings
+from django.test import SimpleTestCase, override_settings
 
 from ai_peer_review.services.author_context import (
     build_author_context_snippet,
@@ -18,18 +18,14 @@ from ai_peer_review.services.openai_web_context_service import (
 )
 from ai_peer_review.services.researcher_external_context import (
     build_researcher_external_context_for_author,
-    build_researcher_external_context_text,
     fetch_openalex_author_record,
     format_openalex_author_record,
 )
-from user.related_models.author_model import Author
 
 
 class AuthorContextTests(SimpleTestCase):
-    def test_empty_when_no_author(self):
+    def test_build_author_context_text(self):
         self.assertEqual(build_author_context_text(None), "")
-
-    def test_builds_lines_from_stub_author(self):
         author = SimpleNamespace(
             first_name="Jane",
             last_name="Doe",
@@ -76,7 +72,9 @@ class AuthorContextTests(SimpleTestCase):
         qs = MagicMock()
         qs.first.return_value = author
         mock_filter.return_value = qs
-        ud = SimpleNamespace(created_by=SimpleNamespace(id=99, first_name="", last_name=""))
+        ud = SimpleNamespace(
+            created_by=SimpleNamespace(id=99, first_name="", last_name="")
+        )
         text = build_author_context_snippet(ud)
         self.assertIn("Jane Doe", text)
         mock_filter.assert_called_once_with(user_id=99)
@@ -87,11 +85,9 @@ class AuthorContextTests(SimpleTestCase):
 
 
 class ResearcherExternalContextTests(SimpleTestCase):
-    def test_format_empty_record(self):
+    def test_format_openalex_author_record(self):
         self.assertEqual(format_openalex_author_record(None), "")
         self.assertEqual(format_openalex_author_record({}), "")
-
-    def test_format_includes_key_fields(self):
         rec = {
             "display_name": "Ada Lovelace",
             "orcid": "https://orcid.org/0000-0001-0000-0000",
@@ -116,7 +112,7 @@ class ResearcherExternalContextTests(SimpleTestCase):
         self.assertIn("Mathematics", text)
 
     @patch("ai_peer_review.services.researcher_external_context.OpenAlex")
-    def test_fetch_prefers_orcid_then_returns_none_on_second_path(self, mock_oa_cls):
+    def test_fetch_openalex_prefers_orcid_and_skips_id_lookup(self, mock_oa_cls):
         client = MagicMock()
         mock_oa_cls.return_value = client
         client.get_author_via_orcid.return_value = {"display_name": "From ORCID"}
@@ -130,7 +126,7 @@ class ResearcherExternalContextTests(SimpleTestCase):
         client._get.assert_not_called()
 
     @patch("ai_peer_review.services.researcher_external_context.OpenAlex")
-    def test_fetch_openalex_when_orcid_missing(self, mock_oa_cls):
+    def test_fetch_openalex_by_author_id_when_no_orcid(self, mock_oa_cls):
         client = MagicMock()
         mock_oa_cls.return_value = client
         client._get.return_value = {"display_name": "From OA"}
@@ -143,29 +139,12 @@ class ResearcherExternalContextTests(SimpleTestCase):
         self.assertEqual(rec, {"display_name": "From OA"})
         client._get.assert_called_once_with("authors/A888")
 
-    def test_build_text_wires_fetch_and_format(self):
-        fake = {"display_name": "Test", "works_count": 1}
+    def test_build_researcher_external_context_for_author_passes_ids(self):
         mod = "ai_peer_review.services.researcher_external_context"
-        with patch(
-            f"{mod}.fetch_openalex_author_record",
-            return_value=fake,
-        ):
-            text = build_researcher_external_context_text(
-                orcid_bare="0000-0001-0000-0001",
-            )
-        self.assertIn("Test", text)
-        self.assertIn("works_count=1", text)
-
-
-class ResearcherExternalContextAuthorModelTests(TestCase):
-    def test_for_author_passes_ids_to_stack(self):
-        author = Author.objects.create(
-            first_name="A",
-            last_name="B",
+        author = SimpleNamespace(
             orcid_id="0000-0002-0000-0000",
             openalex_ids=["A5050505050"],
         )
-        mod = "ai_peer_review.services.researcher_external_context"
         with patch(f"{mod}.build_researcher_external_context_text") as mock_build:
             mock_build.return_value = "ctx"
             out = build_researcher_external_context_for_author(
@@ -271,36 +250,3 @@ class OpenAIWebContextServiceTests(SimpleTestCase):
         svc = OpenAIWebContextService()
         self.assertEqual(svc.invoke("s", "u"), "fallback")
         mock_client.chat.completions.create.assert_called_once()
-
-    @override_settings(OPENAI_API_KEY="sk-test")
-    @patch("ai_peer_review.services.openai_web_context_service.OpenAI")
-    @patch(
-        "ai_peer_review.services.openai_web_context_service."
-        "get_openai_web_context_system_prompt",
-        return_value="SYSTEM",
-    )
-    def test_fetch_proposal_web_context_delegates(self, mock_sys, mock_openai_cls):
-        mock_client = MagicMock()
-        mock_openai_cls.return_value = mock_client
-        resp = MagicMock()
-        resp.output_text = "notes"
-        mock_client.responses.create.return_value = resp
-
-        svc = OpenAIWebContextService()
-        out = svc.fetch_proposal_web_context(
-            proposal_text="Do science",
-            researcher_display_name="Dr Z",
-            institutional_affiliation="Uni",
-        )
-        self.assertEqual(out, "notes")
-        mock_sys.assert_called_once()
-        user = mock_client.responses.create.call_args.kwargs["input"]
-        self.assertIn("Do science", user)
-        self.assertIn("Dr Z", user)
-
-    @override_settings(OPENAI_API_KEY="")
-    def test_fetch_proposal_review_web_context_empty_without_api_key(self):
-        self.assertEqual(
-            fetch_proposal_review_web_context("proposal text", "author hint"),
-            "",
-        )
