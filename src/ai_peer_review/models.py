@@ -1,11 +1,35 @@
 from django.db import models
 from django.db.models import Q
 
-from ai_peer_review.constants import ExpertDimensionScore, OverallRating, ReviewStatus
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
 from utils.models import DefaultModel
+
+
+class ReviewStatus(models.TextChoices):
+    """Async AI job lifecycle for proposal review and RFP summary."""
+
+    PENDING = "pending", "pending"
+    PROCESSING = "processing", "processing"
+    COMPLETED = "completed", "completed"
+    FAILED = "failed", "failed"
+
+
+class OverallRating(models.TextChoices):
+    """Aggregate proposal quality from five dimension scores (5-15 scale)."""
+
+    EXCELLENT = "excellent", "excellent"
+    GOOD = "good", "good"
+    POOR = "poor", "poor"
+
+
+class ExpertDimensionScore(models.TextChoices):
+    """Human editorial assessment per dimension."""
+
+    HIGH = "high", "high"
+    MEDIUM = "medium", "medium"
+    LOW = "low", "low"
 
 
 class ProposalReview(DefaultModel):
