@@ -35,7 +35,7 @@ def parse_json_response(text: str) -> dict:
         return json.loads(text)
     except json.JSONDecodeError:
         pass
-    code_block = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+    code_block = re.search(r"```(?:json)?\s*(\{[^\}]*\})\s*```", text, re.DOTALL)
     if code_block:
         try:
             return json.loads(code_block.group(1))
