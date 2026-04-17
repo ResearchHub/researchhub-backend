@@ -2,6 +2,7 @@ import logging
 from typing import Any
 
 import requests
+
 from orcid.clients import OrcidClient
 from researchhub_document.models import ResearchhubUnifiedDocument
 from user.models import Author
@@ -330,4 +331,5 @@ def build_researcher_external_context(
     text = (f"Linked ORCID (ResearchHub): {orcid_id}\n\n" + "\n".join(chunks)).strip()
     if len(text) > max_chars:
         return text[:max_chars] + "\n[TRUNCATED]"
+    return text
     return text
