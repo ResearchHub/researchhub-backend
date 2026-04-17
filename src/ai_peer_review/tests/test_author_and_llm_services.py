@@ -178,7 +178,7 @@ class ResearcherExternalContextTests(SimpleTestCase):
 
 
 class BedrockLLMServiceTests(SimpleTestCase):
-    @patch("ai_peer_review.services.bedrock_llm_service.create_client")
+    @patch("ai_peer_review.services.bedrock_llm_service.bedrock_runtime_client")
     def test_invoke_returns_joined_text(self, mock_create_client):
         mock_client = MagicMock()
         mock_create_client.return_value = mock_client
@@ -202,7 +202,7 @@ class BedrockLLMServiceTests(SimpleTestCase):
         self.assertEqual(kwargs["inferenceConfig"]["maxTokens"], 100)
         self.assertEqual(kwargs["inferenceConfig"]["temperature"], 0.1)
 
-    @patch("ai_peer_review.services.bedrock_llm_service.create_client")
+    @patch("ai_peer_review.services.bedrock_llm_service.bedrock_runtime_client")
     @patch("ai_peer_review.services.bedrock_llm_service.sentry.log_error")
     def test_invoke_raises_on_client_error(self, mock_sentry, mock_create_client):
         mock_client = MagicMock()

@@ -3,7 +3,7 @@ import logging
 from django.conf import settings
 
 from utils import sentry
-from utils.aws import create_client
+from utils.aws import bedrock_runtime_client
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ class BedrockLLMService:
     """Invoke Bedrock for structured proposal review JSON (and related tasks)."""
 
     def __init__(self):
-        self.bedrock_client = create_client("bedrock-runtime")
+        self.bedrock_client = bedrock_runtime_client()
         self.model_id = BEDROCK_MODEL_ID
 
     def invoke(
