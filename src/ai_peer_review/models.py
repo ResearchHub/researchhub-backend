@@ -1,6 +1,7 @@
 from django.db import models
 from django.db.models import Q
 
+from ai_peer_review.constants import CATEGORY_KEYS
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -17,11 +18,19 @@ class ReviewStatus(models.TextChoices):
 
 
 class OverallRating(models.TextChoices):
-    """Aggregate proposal quality from five dimension scores (5-15 scale)."""
+    """Aggregate proposal quality from recomputed category scores."""
 
     EXCELLENT = "excellent", "excellent"
     GOOD = "good", "good"
     POOR = "poor", "poor"
+
+
+class OverallConfidence(models.TextChoices):
+    """Reviewer-reported confidence in the overall judgment."""
+
+    HIGH = "High", "High"
+    MEDIUM = "Medium", "Medium"
+    LOW = "Low", "Low"
 
 
 class ExpertDimensionScore(models.TextChoices):
@@ -33,9 +42,7 @@ class ExpertDimensionScore(models.TextChoices):
 
 
 class ProposalReview(DefaultModel):
-    """
-    AI 5-dimension review for a proposal
-    """
+    """AI structured review for a proposal (flat categories + overall fields)."""
 
     created_by = models.ForeignKey(
         "user.User",
@@ -69,6 +76,13 @@ class ProposalReview(DefaultModel):
         choices=OverallRating.choices,
         blank=True,
         null=True,
+    )
+    overall_rationale = models.TextField(blank=True, default="")
+    overall_confidence = models.CharField(
+        max_length=16,
+        blank=True,
+        null=True,
+        choices=OverallConfidence.choices,
     )
     overall_score_numeric = models.IntegerField(null=True, blank=True)
     result_data = models.JSONField(default=dict, blank=True)
@@ -171,26 +185,6 @@ class EditorialFeedback(DefaultModel):
         related_name="ai_peer_review_editorial_feedbacks_updated",
         db_comment="Editor who last saved changes.",
     )
-    fundability_expert = models.CharField(
-        max_length=16,
-        choices=ExpertDimensionScore.choices,
-    )
-    feasibility_expert = models.CharField(
-        max_length=16,
-        choices=ExpertDimensionScore.choices,
-    )
-    novelty_expert = models.CharField(
-        max_length=16,
-        choices=ExpertDimensionScore.choices,
-    )
-    impact_expert = models.CharField(
-        max_length=16,
-        choices=ExpertDimensionScore.choices,
-    )
-    reproducibility_expert = models.CharField(
-        max_length=16,
-        choices=ExpertDimensionScore.choices,
-    )
     expert_insights = models.TextField(blank=True)
 
     class Meta:
@@ -198,3 +192,25 @@ class EditorialFeedback(DefaultModel):
 
     def __str__(self):
         return f"EditorialFeedback ud={self.unified_document_id}"
+
+
+class EditorialFeedbackCategory(DefaultModel):
+    """Per-category human editorial score for a proposal."""
+
+    feedback = models.ForeignKey(
+        EditorialFeedback,
+        on_delete=models.CASCADE,
+        related_name="categories",
+    )
+    category_code = models.CharField(
+        max_length=64,
+        choices=[(k, k) for k in CATEGORY_KEYS],
+    )
+    score = models.CharField(max_length=16, choices=ExpertDimensionScore.choices)
+
+    class Meta:
+        db_table = "ai_peer_review_editorial_feedback_category"
+        unique_together = [("feedback", "category_code")]
+
+    def __str__(self):
+        return f"EditorialFeedbackCategory {self.category_code}={self.score}"
