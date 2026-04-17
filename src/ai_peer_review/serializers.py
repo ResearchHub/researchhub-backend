@@ -1,13 +1,17 @@
 from django.core.exceptions import ObjectDoesNotExist
+from django.db import transaction
 from rest_framework import serializers
 
+from ai_peer_review.constants import CATEGORY_KEYS
 from ai_peer_review.models import (
     EditorialFeedback,
+    EditorialFeedbackCategory,
+    ExpertDimensionScore,
     ProposalReview,
     ReviewStatus,
     RFPSummary,
 )
-from ai_peer_review.services.proposal_review_scoring import dimension_overall_scores
+from ai_peer_review.services.proposal_review_scoring import category_scores
 
 
 class ProposalReviewCreateSerializer(serializers.Serializer):
@@ -27,6 +31,8 @@ class ProposalReviewSerializer(serializers.ModelSerializer):
             "created_by_id",
             "status",
             "overall_rating",
+            "overall_rationale",
+            "overall_confidence",
             "overall_score_numeric",
             "result_data",
             "error_message",
@@ -73,7 +79,14 @@ class RfpBriefRefreshSerializer(serializers.Serializer):
     force = serializers.BooleanField(required=False, default=False)
 
 
+class EditorialFeedbackCategoryEntrySerializer(serializers.Serializer):
+    category_code = serializers.ChoiceField(choices=[(k, k) for k in CATEGORY_KEYS])
+    score = serializers.ChoiceField(choices=ExpertDimensionScore.choices)
+
+
 class EditorialFeedbackSerializer(serializers.ModelSerializer):
+    categories = serializers.SerializerMethodField()
+
     class Meta:
         model = EditorialFeedback
         fields = [
@@ -81,11 +94,7 @@ class EditorialFeedbackSerializer(serializers.ModelSerializer):
             "unified_document_id",
             "created_by_id",
             "updated_by_id",
-            "fundability_expert",
-            "feasibility_expert",
-            "novelty_expert",
-            "impact_expert",
-            "reproducibility_expert",
+            "categories",
             "expert_insights",
             "created_date",
             "updated_date",
@@ -99,26 +108,75 @@ class EditorialFeedbackSerializer(serializers.ModelSerializer):
             "updated_date",
         ]
 
+    def get_categories(self, obj):
+        rows = sorted(
+            obj.categories.all(),
+            key=lambda r: (
+                CATEGORY_KEYS.index(r.category_code)
+                if r.category_code in CATEGORY_KEYS
+                else 99
+            ),
+        )
+        return [{"category_code": r.category_code, "score": r.score} for r in rows]
 
-class EditorialFeedbackUpsertSerializer(serializers.ModelSerializer):
+
+class EditorialFeedbackUpsertSerializer(serializers.Serializer):
     """
-    Create: use partial=False (all five dimension scores required).
-    Update: partial=True (PATCH) or partial=False (PUT) as appropriate.
+    Create: all category codes required (partial=False on the view).
+    Update: optional fields; when ``categories`` is sent, child rows are replaced.
     """
 
-    class Meta:
-        model = EditorialFeedback
-        fields = [
-            "fundability_expert",
-            "feasibility_expert",
-            "novelty_expert",
-            "impact_expert",
-            "reproducibility_expert",
-            "expert_insights",
-        ]
-        extra_kwargs = {
-            "expert_insights": {"required": False, "allow_blank": True},
-        }
+    expert_insights = serializers.CharField(required=False, allow_blank=True)
+    categories = serializers.ListField(
+        child=EditorialFeedbackCategoryEntrySerializer(),
+        required=False,
+    )
+
+    def validate_categories(self, value):
+        codes = {entry["category_code"] for entry in value}
+        if len(codes) != len(value):
+            raise serializers.ValidationError("Duplicate category_code entries.")
+        return value
+
+    def validate(self, attrs):
+        is_create = self.context.get("is_create", False)
+        cats = attrs.get("categories")
+        if is_create:
+            if not cats:
+                raise serializers.ValidationError(
+                    {"categories": "This field is required when creating feedback."}
+                )
+            provided = {c["category_code"] for c in cats}
+            required = set(CATEGORY_KEYS)
+            if provided != required:
+                raise serializers.ValidationError(
+                    {
+                        "categories": (
+                            "Must include exactly one score per category. "
+                            f"Missing: {sorted(required - provided)} "
+                            f"Unexpected: {sorted(provided - required)}"
+                        )
+                    }
+                )
+        return attrs
+
+
+def replace_editorial_feedback_categories(
+    feedback: EditorialFeedback,
+    categories: list[dict],
+) -> None:
+    with transaction.atomic():
+        feedback.categories.all().delete()
+        EditorialFeedbackCategory.objects.bulk_create(
+            [
+                EditorialFeedbackCategory(
+                    feedback=feedback,
+                    category_code=row["category_code"],
+                    score=row["score"],
+                )
+                for row in categories
+            ]
+        )
 
 
 def build_proposal_comparison_row(
@@ -134,11 +192,7 @@ def build_proposal_comparison_row(
         "status": None,
         "overall_rating": None,
         "overall_score_numeric": None,
-        "fundability": None,
-        "feasibility": None,
-        "novelty": None,
-        "impact": None,
-        "reproducibility": None,
+        "categories": None,
         "editorial_feedback": editorial_feedback,
     }
     if review is None:
@@ -148,10 +202,6 @@ def build_proposal_comparison_row(
     row["overall_rating"] = review.overall_rating
     row["overall_score_numeric"] = review.overall_score_numeric
     if review.status == ReviewStatus.COMPLETED and review.result_data:
-        dims = dimension_overall_scores(review.result_data)
-        row["fundability"] = dims.get("fundability")
-        row["feasibility"] = dims.get("feasibility")
-        row["novelty"] = dims.get("novelty")
-        row["impact"] = dims.get("impact")
-        row["reproducibility"] = dims.get("reproducibility")
+        cats = category_scores(review.result_data)
+        row["categories"] = {k: cats.get(k) for k in CATEGORY_KEYS}
     return row

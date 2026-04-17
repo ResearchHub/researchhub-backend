@@ -122,6 +122,8 @@ class ProposalReviewCreateView(APIView):
                 review.error_message = ""
                 review.result_data = {}
                 review.overall_rating = None
+                review.overall_rationale = ""
+                review.overall_confidence = None
                 review.overall_score_numeric = None
                 review.save(
                     update_fields=[
@@ -129,6 +131,8 @@ class ProposalReviewCreateView(APIView):
                         "error_message",
                         "result_data",
                         "overall_rating",
+                        "overall_rationale",
+                        "overall_confidence",
                         "overall_score_numeric",
                         "updated_date",
                     ]
@@ -195,7 +199,9 @@ class ProposalReviewByGrantView(APIView):
         ud_ids = [app.preregistration_post.unified_document_id for app in applications]
         feedback_by_ud = {
             fb.unified_document_id: EditorialFeedbackSerializer(fb).data
-            for fb in EditorialFeedback.objects.filter(unified_document_id__in=ud_ids)
+            for fb in EditorialFeedback.objects.filter(
+                unified_document_id__in=ud_ids
+            ).prefetch_related("categories")
         }
         proposals = []
         for app in applications:
