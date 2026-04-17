@@ -7,7 +7,7 @@ def build_author_context_snippet(
     max_chars: int = 4000,
 ) -> str:
     """
-    Profile-backed author context for proposal-review prompts (bounded length).
+    Profile-backed author context for proposal-review prompts.
     """
     owner = unified_document.created_by
     if not owner:

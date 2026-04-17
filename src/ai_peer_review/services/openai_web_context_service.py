@@ -160,9 +160,6 @@ def fetch_proposal_review_web_context(
     max_input_author_chars: int = 2000,
     max_return_chars: int = 6000,
 ) -> str:
-    """
-    Return a bounded bullet list for the Bedrock user prompt (no-op if no API key).
-    """
     api_key = getattr(settings, "OPENAI_API_KEY", "") or ""
     if not api_key:
         logger.warning(
