@@ -111,10 +111,16 @@ def run_executive_comparison(grant_id: int, created_by_id: int) -> RFPSummary:
     )
     obj.executive_comparison_summary = out.strip()
     obj.executive_comparison_updated_date = timezone.now()
+    obj.status = ReviewStatus.COMPLETED
+    obj.error_message = ""
+    obj.llm_model = llm.model_id
     obj.save(
         update_fields=[
             "executive_comparison_summary",
             "executive_comparison_updated_date",
+            "status",
+            "error_message",
+            "llm_model",
             "updated_date",
         ]
     )

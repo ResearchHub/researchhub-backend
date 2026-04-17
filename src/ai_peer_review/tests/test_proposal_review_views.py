@@ -262,3 +262,4 @@ class GrantExecutiveSummaryAPITests(APITestCase):
         self.assertIn("Compared proposals", r.json()["executive_summary"])
         rs = RFPSummary.objects.get(grant=self.grant)
         self.assertIn("Compared proposals", rs.executive_comparison_summary)
+        self.assertEqual(rs.status, ReviewStatus.COMPLETED)
