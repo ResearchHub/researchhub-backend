@@ -143,40 +143,6 @@ class RFPSummary(DefaultModel):
         return f"RFPSummary grant={self.grant_id} ({self.status})"
 
 
-class ReportEntitlement(DefaultModel):
-    """
-    User may view an AI proposal report.
-    """
-
-    user = models.ForeignKey(
-        "user.User",
-        on_delete=models.CASCADE,
-        related_name="ai_peer_review_report_entitlements",
-    )
-    proposal_review = models.ForeignKey(
-        ProposalReview,
-        on_delete=models.CASCADE,
-        related_name="report_entitlements",
-    )
-    purchase = models.ForeignKey(
-        "purchase.Purchase",
-        on_delete=models.CASCADE,
-        related_name="ai_peer_review_report_entitlements",
-    )
-
-    class Meta:
-        db_table = "ai_peer_review_report_entitlement"
-        constraints = [
-            models.UniqueConstraint(
-                fields=["user", "proposal_review"],
-                name="ai_peer_review_report_ent_user_pr",
-            ),
-        ]
-
-    def __str__(self):
-        return f"ReportEntitlement user={self.user_id} pr={self.proposal_review_id}"
-
-
 class EditorialFeedback(DefaultModel):
     """
     One human editorial assessment per proposal.
