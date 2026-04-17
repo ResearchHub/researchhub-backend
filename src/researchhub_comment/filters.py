@@ -5,7 +5,7 @@ from django.db.models.functions import Cast, Coalesce
 from django_filters import DateTimeFilter
 from django_filters import rest_framework as filters
 
-from reputation.models import Bounty
+from reputation.models import Bounty, BountySolution
 from researchhub_access_group.constants import PRIVATE, PUBLIC, WORKSPACE
 from researchhub_comment.constants.rh_comment_thread_types import (
     AUTHOR_UPDATE,
@@ -15,6 +15,7 @@ from researchhub_comment.constants.rh_comment_thread_types import (
     SUMMARY,
 )
 from researchhub_comment.models import RhCommentModel
+from user.related_models.user_model import FOUNDATION_EMAIL
 from utils.http import GET
 
 BEST = "BEST"
@@ -143,6 +144,21 @@ class RHCommentFilter(filters.FilterSet):
         )
         return queryset
 
+    def _annotate_foundation_award(self, qs):
+        return qs.annotate(
+            foundation_award=Coalesce(
+                Sum(
+                    "bounty_solution__awarded_amount",
+                    filter=Q(
+                        bounty_solution__status=BountySolution.Status.AWARDED,
+                        bounty_solution__bounty__created_by__email=FOUNDATION_EMAIL,
+                    ),
+                ),
+                0,
+                output_field=DecimalField(),
+            )
+        )
+
     def _is_on_child_queryset(self):
         # This checks whether we are filtering on the comment's children
         # because we don't want the related filters to be called
@@ -189,7 +205,13 @@ class RHCommentFilter(filters.FilterSet):
         )
 
     def ordering_filter(self, qs, name, value):
-        if value == BEST:
+        if value == BEST and self.data.get("filtering") == REVIEW:
+            qs = self._annotate_foundation_award(qs)
+            keys = self._get_ordering_keys(
+                ["foundation_award", "score", "created_date"]
+            )
+            qs = qs.order_by(*keys)
+        elif value == BEST:
             qs = self._annotate_bounty_sum(
                 qs, annotation_filters=[{"bounties__status": Bounty.OPEN}]
             )
