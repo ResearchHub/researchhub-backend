@@ -11,6 +11,7 @@ from ai_peer_review.permissions import AIPeerReviewPermission
 from ai_peer_review.serializers import (
     EditorialFeedbackSerializer,
     EditorialFeedbackUpsertSerializer,
+    replace_editorial_feedback_categories,
 )
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
@@ -56,28 +57,39 @@ class EditorialFeedbackUpsertView(APIView):
             existing = None
 
         if existing is None:
-            ser = EditorialFeedbackUpsertSerializer(data=request.data, partial=False)
+            ser = EditorialFeedbackUpsertSerializer(
+                data=request.data,
+                partial=False,
+                context={"is_create": True},
+            )
         else:
             ser = EditorialFeedbackUpsertSerializer(
-                existing,
                 data=request.data,
                 partial=partial,
+                context={"is_create": False},
             )
         ser.is_valid(raise_exception=True)
+        validated = ser.validated_data
 
         if existing is None:
+            categories = validated["categories"]
             fb = EditorialFeedback.objects.create(
                 unified_document=ud,
                 created_by=request.user,
                 updated_by=request.user,
-                **ser.validated_data,
+                expert_insights=validated.get("expert_insights", ""),
             )
+            replace_editorial_feedback_categories(fb, categories)
             return Response(
                 EditorialFeedbackSerializer(fb).data,
                 status=status.HTTP_201_CREATED,
             )
-        for attr, value in ser.validated_data.items():
-            setattr(existing, attr, value)
+        if "expert_insights" in validated:
+            existing.expert_insights = validated["expert_insights"]
+        if "categories" in validated:
+            replace_editorial_feedback_categories(
+                existing, validated["categories"]
+            )
         existing.updated_by = request.user
         existing.save()
         return Response(EditorialFeedbackSerializer(existing).data)

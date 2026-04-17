@@ -2,7 +2,7 @@ import logging
 import time
 
 from ai_peer_review.constants import PROPOSAL_REVIEW_MAX_OUTPUT_TOKENS
-from ai_peer_review.models import ProposalReview, ReviewStatus
+from ai_peer_review.models import OverallConfidence, ProposalReview, ReviewStatus
 from ai_peer_review.prompts.proposal_review_prompts import (
     build_proposal_review_user_prompt,
     get_proposal_review_system_prompt,
@@ -13,9 +13,9 @@ from ai_peer_review.services.openai_web_context_service import (
     fetch_proposal_review_web_context,
 )
 from ai_peer_review.services.proposal_review_scoring import (
-    compute_overall_rating,
     normalize_scores_from_answers,
     parse_json_response,
+    recompute_overall_fields,
 )
 from ai_peer_review.services.researcher_external_context import (
     build_researcher_external_context,
@@ -123,12 +123,15 @@ def run_proposal_review(review_id: int) -> None:
         review.save(update_fields=["progress", "current_step", "updated_date"])
         review_dict = parse_json_response(raw)
         normalize_scores_from_answers(review_dict)
-        rating, numeric_total = compute_overall_rating(review_dict)
-        review_dict["overall_rating"] = rating
-        review_dict["overall_score_numeric"] = numeric_total
+        recompute_overall_fields(review_dict)
+        rating = review_dict["overall_rating"]
+        numeric_total = review_dict["overall_score_numeric"]
         elapsed = time.monotonic() - t0
         review.status = ReviewStatus.COMPLETED
         review.overall_rating = rating
+        review.overall_rationale = review_dict.get("overall_rationale", "") or ""
+        oc = review_dict.get("overall_confidence")
+        review.overall_confidence = oc if oc in OverallConfidence.values else None
         review.overall_score_numeric = numeric_total
         review.result_data = review_dict
         review.llm_model = llm.model_id

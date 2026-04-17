@@ -2,46 +2,77 @@
 PROPOSAL_REVIEW_MAX_OUTPUT_TOKENS = 16384
 
 
-DIMENSION_KEYS = [
-    "fundability",
-    "feasibility",
-    "novelty",
-    "impact",
-    "reproducibility",
+CATEGORY_KEYS = [
+    "funding_opportunity_fit",
+    "methods_rigor",
+    "statistical_analysis_plan",
+    "feasibility_and_execution",
+    "scientific_impact",
+    "clinical_or_translational_impact",
+    "societal_and_broader_impact",
 ]
 
-DIMENSION_SUB_AREAS = {
-    "fundability": ["scope_alignment", "budget_adequacy", "timeline_realism"],
-    "feasibility": [
-        "investigator_expertise",
-        "institutional_capacity",
-        "track_record",
+CATEGORY_ITEMS = {
+    "funding_opportunity_fit": [
+        "fit_modality",
+        "fit_aims",
+        "fit_deliverables",
+        "fit_scope",
     ],
-    "novelty": [
-        "conceptual_novelty",
-        "methodological_novelty",
-        "literature_positioning",
+    "methods_rigor": [
+        "methods_detail",
+        "parameters_specified",
+        "controls_defined",
+        "model_choice_justified",
+        "outcomes_linked_to_aims",
     ],
-    "impact": [
-        "scientific_impact",
-        "clinical_translational_impact",
-        "societal_broader_impact",
-        "community_ecosystem_impact",
+    "statistical_analysis_plan": [
+        "analysis_present",
+        "power_analysis",
+        "multiple_comparisons",
+        "metrics_defined",
+        "analysis_matches_design",
     ],
-    "reproducibility": [
-        "methods_rigor",
-        "statistical_analysis_plan",
-        "data_code_transparency",
-        "gold_standard_methodology",
-        "validation_robustness",
+    "feasibility_and_execution": [
+        "recruitment_feasible",
+        "procedures_feasible",
+        "timeline_milestones",
+        "team_environment",
+        "ethics_data_quality",
+    ],
+    "scientific_impact": [
+        "advances_understanding",
+        "generalizability",
+        "opens_new_directions",
+    ],
+    "clinical_or_translational_impact": [
+        "clinical_pathway",
+        "unmet_need",
+        "milestones_defined",
+    ],
+    "societal_and_broader_impact": [
+        "societal_challenge",
+        "public_communication",
+        "commercial_potential",
     ],
 }
 
-OPTIONAL_SUB_AREAS = frozenset(
+# Only these categories may resolve to "N/A" (entire category inapplicable).
+OPTIONAL_CATEGORIES = frozenset(
     {
-        ("feasibility", "track_record"),
-        ("impact", "clinical_translational_impact"),
-        ("impact", "community_ecosystem_impact"),
-        ("reproducibility", "gold_standard_methodology"),
+        "statistical_analysis_plan",
+        "clinical_or_translational_impact",
+        "societal_and_broader_impact",
+    }
+)
+
+# If any listed item decision is "No", cap the owning category at "Medium".
+CRITICAL_FAIL_ITEMS = frozenset(
+    {
+        ("methods_rigor", "methods_detail"),
+        ("methods_rigor", "controls_defined"),
+        ("statistical_analysis_plan", "analysis_present"),
+        ("statistical_analysis_plan", "power_analysis"),
+        ("feasibility_and_execution", "timeline_milestones"),
     }
 )

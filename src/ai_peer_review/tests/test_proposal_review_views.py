@@ -5,6 +5,7 @@ from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from ai_peer_review.constants import CATEGORY_KEYS
 from ai_peer_review.models import ProposalReview, ReviewStatus, RFPSummary
 from purchase.models import Grant, GrantApplication
 from researchhub_document.helpers import create_post
@@ -86,8 +87,12 @@ class ProposalReviewAPITests(APITestCase):
             grant=self.grant,
             status=ReviewStatus.COMPLETED,
             overall_rating="good",
-            overall_score_numeric=10,
-            result_data={"fundability": {"overall_score": "High"}},
+            overall_score_numeric=2,
+            overall_rationale="Strong fit.",
+            overall_confidence="High",
+            result_data={
+                "categories": {"funding_opportunity_fit": {"score": "High"}},
+            },
         )
         self.client.force_authenticate(self.moderator)
         r_mod = self.client.get(self.detail_url(pr.id))
@@ -110,13 +115,17 @@ class ProposalReviewAPITests(APITestCase):
             grant=self.grant,
             status=ReviewStatus.COMPLETED,
             overall_rating="excellent",
-            overall_score_numeric=15,
+            overall_score_numeric=3,
             result_data={
-                "fundability": {"overall_score": "High"},
-                "feasibility": {"overall_score": "High"},
-                "novelty": {"overall_score": "High"},
-                "impact": {"overall_score": "High"},
-                "reproducibility": {"overall_score": "High"},
+                "categories": {
+                    "funding_opportunity_fit": {"score": "High"},
+                    "methods_rigor": {"score": "High"},
+                    "statistical_analysis_plan": {"score": "N/A"},
+                    "feasibility_and_execution": {"score": "High"},
+                    "scientific_impact": {"score": "High"},
+                    "clinical_or_translational_impact": {"score": "Medium"},
+                    "societal_and_broader_impact": {"score": "High"},
+                },
             },
         )
         self.client.force_authenticate(self.moderator)
@@ -125,17 +134,18 @@ class ProposalReviewAPITests(APITestCase):
         data = r.json()
         self.assertEqual(data["grant_id"], self.grant.id)
         self.assertEqual(len(data["proposals"]), 1)
-        self.assertEqual(data["proposals"][0]["fundability"], "High")
+        self.assertEqual(
+            data["proposals"][0]["categories"]["funding_opportunity_fit"], "High"
+        )
 
     def test_editorial_feedback_upsert_requires_editor(self):
         self.client.force_authenticate(self.user)
         url = f"/api/ai_peer_review/editorial-feedback/{self.ud.id}/"
         body = {
-            "fundability_expert": "high",
-            "feasibility_expert": "medium",
-            "novelty_expert": "low",
-            "impact_expert": "high",
-            "reproducibility_expert": "medium",
+            "expert_insights": "Solid.",
+            "categories": [
+                {"category_code": k, "score": "high"} for k in CATEGORY_KEYS
+            ],
         }
         r = self.client.post(url, body, format="json")
         self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
@@ -143,6 +153,26 @@ class ProposalReviewAPITests(APITestCase):
         self.client.force_authenticate(self.moderator)
         r2 = self.client.post(url, body, format="json")
         self.assertEqual(r2.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(r2.json()["categories"]), len(CATEGORY_KEYS))
+
+    def test_editorial_feedback_patch_replaces_categories(self):
+        url = f"/api/ai_peer_review/editorial-feedback/{self.ud.id}/"
+        create_body = {
+            "categories": [
+                {"category_code": k, "score": "high"} for k in CATEGORY_KEYS
+            ],
+        }
+        self.client.force_authenticate(self.moderator)
+        self.client.post(url, create_body, format="json")
+        patch_body = {
+            "categories": [
+                {"category_code": k, "score": "low"} for k in CATEGORY_KEYS
+            ],
+        }
+        r = self.client.patch(url, patch_body, format="json")
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        for row in r.json()["categories"]:
+            self.assertEqual(row["score"], "low")
 
 
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
@@ -207,14 +237,18 @@ class GrantExecutiveSummaryAPITests(APITestCase):
             grant=self.grant,
             status=ReviewStatus.COMPLETED,
             overall_rating="good",
-            overall_score_numeric=10,
+            overall_score_numeric=2,
             result_data={
-                "editorial_summary": {"consensus_summary": "Solid work."},
-                "fundability": {"overall_score": "High"},
-                "feasibility": {"overall_score": "Medium"},
-                "novelty": {"overall_score": "High"},
-                "impact": {"overall_score": "High"},
-                "reproducibility": {"overall_score": "Medium"},
+                "overall_summary": "Solid work across categories.",
+                "categories": {
+                    "funding_opportunity_fit": {"score": "High"},
+                    "methods_rigor": {"score": "High"},
+                    "statistical_analysis_plan": {"score": "Medium"},
+                    "feasibility_and_execution": {"score": "Medium"},
+                    "scientific_impact": {"score": "High"},
+                    "clinical_or_translational_impact": {"score": "N/A"},
+                    "societal_and_broader_impact": {"score": "High"},
+                },
             },
         )
         self.url = f"/api/ai_peer_review/rfp/{self.grant.id}/executive-summary/"

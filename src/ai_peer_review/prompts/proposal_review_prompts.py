@@ -45,8 +45,8 @@ def build_proposal_review_user_prompt(
     if external_researcher_context and external_researcher_context.strip():
         external = (
             "\n\nEXTERNAL RESEARCHER CONTEXT (from ORCID public record and OpenAlex; "
-            "factual only—use for feasibility.track_record and to ground expertise; "
-            "do not invent facts beyond this block):\n"
+            "factual only—use for feasibility_and_execution.team_environment and to "
+            "ground expertise; do not invent facts beyond this block):\n"
             f"{external_researcher_context.strip()}\n"
         )
     web_ctx = ""
@@ -62,8 +62,10 @@ def build_proposal_review_user_prompt(
         text = text[:120000] + "\n\n[TRUNCATED FOR LENGTH]"
     return (
         "Evaluate the following research proposal and return the structured JSON assessment "
-        "with all five dimensions and narrative sections "
-        "(editorial_summary, issue_table, feasibility_timeline_notes, budget_notes).\n\n"
+        "with the seven top-level categories (under \"categories\"), overall_summary, "
+        "overall_rationale, overall_confidence, major_strengths, major_weaknesses, and "
+        "fatal_flaws. Provide overall_rating and overall_score_numeric when you can; "
+        "the server canonicalizes them and may fill numeric from categories if missing.\n\n"
         "PROPOSAL TEXT:\n"
         f"{text}"
         f"{author}"

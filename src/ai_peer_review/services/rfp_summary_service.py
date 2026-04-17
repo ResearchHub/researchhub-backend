@@ -10,7 +10,8 @@ from ai_peer_review.prompts.rfp_summary_prompts import (
     get_rfp_summary_system_prompt,
 )
 from ai_peer_review.services.bedrock_llm_service import BedrockLLMService
-from ai_peer_review.services.proposal_review_scoring import dimension_overall_scores
+from ai_peer_review.constants import CATEGORY_KEYS
+from ai_peer_review.services.proposal_review_scoring import category_scores
 from purchase.models import Grant
 
 logger = logging.getLogger(__name__)
@@ -78,16 +79,13 @@ def run_executive_comparison(grant_id: int, created_by_id: int) -> RFPSummary:
         ud = r.unified_document
         post = ud.posts.first()
         title = (post.title if post else "") or f"Document {ud.id}"
-        dims = dimension_overall_scores(r.result_data or {})
-        ed = (r.result_data or {}).get("editorial_summary") or {}
-        snippet = (ed.get("consensus_summary") or "")[:400]
+        cats = category_scores(r.result_data or {})
+        cat_parts = [f"{k}={cats.get(k)}" for k in CATEGORY_KEYS]
+        snippet = ((r.result_data or {}).get("overall_summary") or "")[:400]
         lines.append(
             f"- Title: {title[:200]}\n"
-            f"  Overall: {r.overall_rating} ({r.overall_score_numeric}/15)\n"
-            f"  Dimensions: fundability={dims.get('fundability')}, "
-            f"feasibility={dims.get('feasibility')}, novelty={dims.get('novelty')}, "
-            f"impact={dims.get('impact')}, "
-            f"reproducibility={dims.get('reproducibility')}\n"
+            f"  Overall: {r.overall_rating} (numeric {r.overall_score_numeric}, scale 1-3)\n"
+            f"  Categories: {', '.join(cat_parts)}\n"
             f"  Summary snippet: {snippet}"
         )
     if not lines:
