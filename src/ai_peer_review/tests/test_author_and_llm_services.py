@@ -20,6 +20,7 @@ from ai_peer_review.services.researcher_external_context import (
     build_researcher_external_context_for_author,
     fetch_openalex_author_record,
     format_openalex_author_record,
+    format_orcid_works_payload,
 )
 
 
@@ -156,6 +157,25 @@ class ResearcherExternalContextTests(SimpleTestCase):
         _, kwargs = mock_build.call_args
         self.assertEqual(kwargs["orcid_bare"], "0000-0002-0000-0000")
         self.assertEqual(kwargs["openalex_author_ref"], "A5050505050")
+
+    def test_format_orcid_works_payload(self):
+        self.assertEqual(format_orcid_works_payload(None), "")
+        self.assertEqual(format_orcid_works_payload({}), "")
+        payload = {
+            "group": [
+                {
+                    "work-summary": [
+                        {
+                            "title": {"title": {"value": "Example Paper"}},
+                            "publication-date": {"year": {"value": "2020"}},
+                        }
+                    ]
+                }
+            ]
+        }
+        text = format_orcid_works_payload(payload)
+        self.assertIn("Example Paper", text)
+        self.assertIn("2020", text)
 
 
 class BedrockLLMServiceTests(SimpleTestCase):

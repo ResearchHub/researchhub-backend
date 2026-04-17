@@ -183,46 +183,86 @@ def build_researcher_external_context_for_author(
     )
 
 
-def _orcid_title_value(work_summary: dict) -> str:
-    title_block = work_summary.get("title") or {}
-    if isinstance(title_block, dict):
-        inner = title_block.get("title")
-        if isinstance(inner, dict) and inner.get("value"):
-            return str(inner["value"]).strip()
-        if title_block.get("value"):
-            return str(title_block["value"]).strip()
-    return ""
+def fetch_orcid_works(
+    *,
+    orcid_bare: str | None = None,
+    client: OrcidClient | None = None,
+) -> dict:
+    """Load raw ORCID Record ``/works`` JSON (public API). Returns ``{}`` if missing id."""
+    oid = (orcid_bare or "").strip()
+    if not oid:
+        return {}
+    oc = client or OrcidClient()
+    out = oc.get_works(oid)
+    return out if isinstance(out, dict) else {}
 
 
-def _orcid_year_value(work_summary: dict) -> str:
-    pub = work_summary.get("publication-date") or {}
-    if not isinstance(pub, dict):
+def format_orcid_works_payload(works: dict | None) -> str:
+    """Format a subset of the ORCID Record ``/works`` JSON for the peer-review prompt.
+
+    The API returns a large nested bulk summary (identifiers, visibility, put-codes,
+    multiple ``work-summary`` variants per group, etc.). We only surface a small,
+    human-readable slice—everything else is dropped.
+
+    - ``title``: work title string — first non-empty of
+      ``title.title.value``, then ``title.value`` (ORCID nests ``Title`` under
+      ``title`` in some shapes).
+    - ``publication-date``: optional calendar hint — we use ``year`` only, from
+      ``publication-date.year.value`` when present (month/day ignored here).
+
+    **Prompt output**
+
+    - One bullet per kept summary: ``- (year) title`` if year is present, else
+      ``- title``.
+    - At most ``_MAX_ORCID_WORK_LINES`` bullets total, then stop.
+
+    Reading record data (incl. works):
+    https://info.orcid.org/documentation/integration-guide/orcid-record/#Works
+    and
+    https://info.orcid.org/documentation/api-tutorials/api-tutorial-read-data-on-a-record/
+    """
+    if not works:
         return ""
-    year = pub.get("year")
-    if isinstance(year, dict) and year.get("value") is not None:
-        return str(year["value"]).strip()
-    return ""
 
-
-def _lines_from_orcid_works(works_payload: dict) -> list[str]:
     lines: list[str] = []
-    for group in works_payload.get("group") or []:
-        if not isinstance(group, dict):
-            continue
+    for group in works.get("group") or []:
         for ws in group.get("work-summary") or []:
-            if not isinstance(ws, dict):
-                continue
-            title = _orcid_title_value(ws)
+            tb = ws.get("title") or {}
+            inner = tb.get("title") or {}
+            title = str(inner.get("value") or tb.get("value") or "").strip()
             if not title:
                 continue
-            y = _orcid_year_value(ws)
+            year = (ws.get("publication-date") or {}).get("year") or {}
+            y = str(year.get("value") or "").strip()
             if y:
                 lines.append(f"- ({y}) {title}")
             else:
                 lines.append(f"- {title}")
             if len(lines) >= _MAX_ORCID_WORK_LINES:
-                return lines
-    return lines
+                break
+        if len(lines) >= _MAX_ORCID_WORK_LINES:
+            break
+
+    if not lines:
+        return ""
+    return "\n".join(lines)
+
+
+def build_orcid_works_context_text(
+    *,
+    orcid_bare: str | None = None,
+    client: OrcidClient | None = None,
+) -> str:
+    """Fetch ORCID ``/works`` and format for the prompt (empty if nothing found)."""
+    raw = fetch_orcid_works(orcid_bare=orcid_bare, client=client)
+    try:
+        return format_orcid_works_payload(raw)
+    except Exception as exc:
+        sentry.log_error(
+            exc,
+            message="build_orcid_works_context_text: format_orcid_works_payload",
+        )
+        return ""
 
 
 def build_researcher_external_context(
@@ -261,20 +301,19 @@ def build_researcher_external_context(
         )
 
     try:
-        oc = OrcidClient()
-        works = oc.get_works(orcid_id)
-        if works and isinstance(works, dict):
-            work_lines = _lines_from_orcid_works(works)
-            if work_lines:
-                chunks.append(
-                    "--- Recent / listed works (ORCID public record, truncated) ---"
-                )
-                chunks.extend(work_lines)
-                chunks.append("")
-                has_body = True
+        works_text = build_orcid_works_context_text(
+            orcid_bare=_bare_orcid(author.orcid_id) or author.orcid_id.strip(),
+        )
+        if works_text.strip():
+            chunks.append(
+                "--- Recent / listed works (ORCID public record, truncated) ---"
+            )
+            chunks.append(works_text.strip())
+            chunks.append("")
+            has_body = True
     except Exception as e:
         logger.warning(
-            "ORCID works fetch failed for %s: %s", orcid_id, e, exc_info=True
+            "ORCID works context failed for %s: %s", orcid_id, e, exc_info=True
         )
 
     if not has_body:
