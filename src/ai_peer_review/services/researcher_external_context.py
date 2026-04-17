@@ -1,10 +1,7 @@
 import logging
-from typing import TYPE_CHECKING
 
+from user.related_models.author_model import Author
 from utils.openalex import OpenAlex
-
-if TYPE_CHECKING:
-    from user.related_models.author_model import Author
 
 logger = logging.getLogger(__name__)
 

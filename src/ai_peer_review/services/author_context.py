@@ -1,7 +1,4 @@
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from user.related_models.author_model import Author
+from user.related_models.author_model import Author
 
 
 def build_author_context_text(author: Author | None) -> str:
