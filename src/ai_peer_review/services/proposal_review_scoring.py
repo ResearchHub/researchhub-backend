@@ -17,6 +17,7 @@ ANSWER_TO_NUMERIC = {
     "no": 0.0,
 }
 
+# Keep in sync with proposal_review_system.txt (Critical fail cap rule)
 CRITICAL_FAIL_KEYS = {
     ("fundability", "timeline_realism", "go_no_go_gates"),
     ("reproducibility", "statistical_analysis_plan", "stats_plan"),
@@ -66,6 +67,7 @@ def _answer_to_numeric(value: Optional[str]) -> Optional[float]:
     return ANSWER_TO_NUMERIC.get(value_lower)
 
 
+# Extra guard against critical fail rule violation
 def _cap_sub_area_for_critical_fail(
     dim_key: str,
     sub_key: str,
