@@ -17,7 +17,7 @@ from paper.tests.helpers import create_paper
 from reputation.constants.bounty import ASSESSMENT_PERIOD_DAYS
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
-from reputation.models import Bounty, BountyFee, BountySolution, Distribution
+from reputation.models import Bounty, BountyFee, BountySolution, Distribution, Score
 from reputation.tasks import check_open_bounties
 from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
@@ -129,6 +129,49 @@ class BountyViewTests(APITestCase):
 
         self.assertEqual(create_bounty_res.status_code, 201)
         return create_bounty_res
+
+    def test_user_can_create_bounty_with_targeted_notifications(self):
+        self.client.force_authenticate(self.user)
+
+        hub = create_hub(namespace=Hub.Namespace.SUBCATEGORY)
+        Score.objects.create(hub=hub, author=self.user_2.author_profile, score=100)
+
+        create_bounty_res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 100,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
+                "target_hub_ids": [hub.id],
+            },
+        )
+
+        self.assertEqual(create_bounty_res.status_code, 201)
+
+        notification = Notification.objects.filter(recipient=self.user_2).last()
+        self.assertIsNotNone(notification)
+        self.assertEqual(notification.notification_type, Notification.BOUNTY_FOR_YOU)
+
+    def test_user_create_bounty_without_target_hubs_sends_no_notification(self):
+        self.client.force_authenticate(self.user)
+
+        create_bounty_res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 100,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
+            },
+        )
+
+        self.assertEqual(create_bounty_res.status_code, 201)
+        self.assertFalse(
+            Notification.objects.filter(
+                object_id=create_bounty_res.data["id"],
+                content_type=ContentType.objects.get_for_model(Bounty),
+                notification_type=Notification.BOUNTY_FOR_YOU,
+            ).exists()
+        )
 
     def test_user_can_contribute_to_bounty(self, amount_1=100, amount_2=200):
         self.client.force_authenticate(self.user)
