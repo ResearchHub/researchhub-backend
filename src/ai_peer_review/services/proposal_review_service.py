@@ -13,7 +13,7 @@ from ai_peer_review.services.openai_web_context_service import (
     fetch_proposal_review_web_context,
 )
 from ai_peer_review.services.proposal_review_scoring import (
-    normalize_scores_from_answers,
+    normalize_category_scores_from_item_decisions,
     parse_json_response,
     recompute_overall_fields,
 )
@@ -122,7 +122,7 @@ def run_proposal_review(review_id: int) -> None:
         review.current_step = "Normalizing scores"
         review.save(update_fields=["progress", "current_step", "updated_date"])
         review_dict = parse_json_response(raw)
-        normalize_scores_from_answers(review_dict)
+        normalize_category_scores_from_item_decisions(review_dict)
         recompute_overall_fields(review_dict)
         rating = review_dict["overall_rating"]
         numeric_total = review_dict["overall_score_numeric"]
