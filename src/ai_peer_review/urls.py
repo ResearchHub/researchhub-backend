@@ -6,16 +6,11 @@ from ai_peer_review.views.proposal_review_views import (
     ProposalReviewByGrantView,
     ProposalReviewCreateView,
     ProposalReviewDetailView,
-    ProposalReviewPdfExportView,
     RFPSummaryView,
 )
 
 urlpatterns = [
     path("proposal-review/grant/<int:grant_id>/", ProposalReviewByGrantView.as_view()),
-    path(
-        "proposal-review/<int:review_id>/pdf/",
-        ProposalReviewPdfExportView.as_view(),
-    ),
     path("proposal-review/<int:review_id>/", ProposalReviewDetailView.as_view()),
     path("proposal-review/", ProposalReviewCreateView.as_view()),
     path(

@@ -1,9 +1,7 @@
 import logging
 
-from django.core.exceptions import ObjectDoesNotExist
 from django.db import IntegrityError
 from django.db.models import Prefetch
-from django.http import HttpResponse
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -23,10 +21,6 @@ from ai_peer_review.serializers import (
     RfpBriefRefreshSerializer,
     RFPSummarySerializer,
     build_proposal_comparison_row,
-)
-from ai_peer_review.services.proposal_review_pdf import (
-    pdf_bytes_for_proposal_review,
-    safe_pdf_filename_part,
 )
 from ai_peer_review.services.proposal_review_service import validate_grant_application
 from ai_peer_review.services.rfp_summary_service import run_executive_comparison
@@ -175,53 +169,6 @@ class ProposalReviewDetailView(APIView):
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
         self.check_object_permissions(request, review)
         return Response(ProposalReviewSerializer(review).data)
-
-
-class ProposalReviewPdfExportView(APIView):
-    """
-    GET /api/ai_peer_review/proposal-review/<review_id>/pdf/ - Download PDF export.
-    """
-
-    permission_classes = _EDITOR_PERMS
-
-    def get(self, request, review_id):
-        try:
-            review = ProposalReview.objects.select_related(
-                "unified_document",
-                "grant",
-            ).get(pk=review_id)
-        except ProposalReview.DoesNotExist:
-            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
-        self.check_object_permissions(request, review)
-        if review.status != ReviewStatus.COMPLETED:
-            return Response(
-                {
-                    "detail": "Review is not completed; PDF is not available yet.",
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if not review.result_data:
-            return Response(
-                {"detail": "No review content to export."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        ud = review.unified_document
-        title = _proposal_title(ud)
-        editorial = None
-        try:
-            fb = ud.ai_peer_review_editorial_feedback
-            editorial = EditorialFeedbackSerializer(fb).data
-        except ObjectDoesNotExist:
-            pass
-        pdf_bytes = pdf_bytes_for_proposal_review(
-            review,
-            document_title=title,
-            editorial_feedback=editorial,
-        )
-        filename = f"proposal-review-{review_id}-{safe_pdf_filename_part(title)}.pdf"
-        response = HttpResponse(pdf_bytes, content_type="application/pdf")
-        response["Content-Disposition"] = f'attachment; filename="{filename}"'
-        return response
 
 
 class ProposalReviewByGrantView(APIView):
