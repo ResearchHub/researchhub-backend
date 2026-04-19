@@ -17,7 +17,7 @@ OPENAI_WEB_CONTEXT_MODEL = getattr(
 )
 
 
-class OpenAIWebContextService:
+class OpenAIReviewContextService:
     """Produce bullet web-search notes to inject into proposal review prompts."""
 
     def __init__(self):
@@ -166,7 +166,7 @@ def fetch_proposal_review_web_context(
             "OPENAI_API_KEY is empty; skipping proposal review web search context"
         )
         return ""
-    svc = OpenAIWebContextService()
+    svc = OpenAIReviewContextService()
     if not svc._client:
         return ""
     try:

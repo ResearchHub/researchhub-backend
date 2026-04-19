@@ -13,7 +13,7 @@ from ai_peer_review.services.bedrock_llm_service import (
 )
 from ai_peer_review.services.openai_web_context_service import (
     OPENAI_WEB_CONTEXT_MODEL,
-    OpenAIWebContextService,
+    OpenAIReviewContextService,
 )
 from ai_peer_review.services.researcher_external_context import (
     build_researcher_external_context_for_author,
@@ -216,9 +216,9 @@ class BedrockLLMServiceTests(SimpleTestCase):
         mock_sentry.assert_called_once()
 
 
-class OpenAIWebContextServiceTests(SimpleTestCase):
+class OpenAIReviewContextServiceTests(SimpleTestCase):
     def test_build_user_prompt_truncates_long_proposal(self):
-        svc = OpenAIWebContextService()
+        svc = OpenAIReviewContextService()
         long_text = "x" * 30000
         prompt = svc.build_user_prompt(
             proposal_excerpt=long_text,
@@ -231,7 +231,7 @@ class OpenAIWebContextServiceTests(SimpleTestCase):
 
     def test_missing_api_key_raises(self):
         with override_settings(OPENAI_API_KEY=""):
-            svc = OpenAIWebContextService()
+            svc = OpenAIReviewContextService()
         self.assertIsNone(svc._client)
         with self.assertRaises(RuntimeError) as ctx:
             svc.invoke("a", "b")
@@ -246,7 +246,7 @@ class OpenAIWebContextServiceTests(SimpleTestCase):
         resp.output_text = "  - bullet  "
         mock_client.responses.create.return_value = resp
 
-        svc = OpenAIWebContextService()
+        svc = OpenAIReviewContextService()
         self.assertEqual(svc.model_id, OPENAI_WEB_CONTEXT_MODEL)
         out = svc.invoke("sys", "user", max_tokens=512, temperature=0.0)
         self.assertEqual(out, "- bullet")
@@ -266,6 +266,6 @@ class OpenAIWebContextServiceTests(SimpleTestCase):
         completion.choices[0].message.content = "fallback"
         mock_client.chat.completions.create.return_value = completion
 
-        svc = OpenAIWebContextService()
+        svc = OpenAIReviewContextService()
         self.assertEqual(svc.invoke("s", "u"), "fallback")
         mock_client.chat.completions.create.assert_called_once()
