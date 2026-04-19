@@ -179,6 +179,22 @@ def replace_editorial_feedback_categories(
         )
 
 
+def serialize_ai_peer_review_summary(review: ProposalReview | None) -> dict | None:
+    """Compact AI peer review payload for feeds."""
+    if review is None:
+        return None
+    return {
+        "id": review.id,
+        "status": review.status,
+        "overall_rating": review.overall_rating,
+        "overall_score_numeric": review.overall_score_numeric,
+        "grant_id": review.grant_id,
+        "updated_date": (
+            review.updated_date.isoformat() if review.updated_date else None
+        ),
+    }
+
+
 def build_proposal_comparison_row(
     review: ProposalReview | None,
     ud_id: int,
