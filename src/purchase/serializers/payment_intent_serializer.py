@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from rest_framework import serializers
 
 from purchase.related_models.fundraise_model import Fundraise
@@ -14,7 +16,7 @@ class PaymentIntentSerializer(serializers.Serializer):
     amount = serializers.DecimalField(
         max_digits=19,
         decimal_places=10,
-        min_value=0.01,
+        min_value=Decimal("0.01"),
         help_text="Amount of RSC to purchase",
     )
     fundraise_id = serializers.IntegerField(
