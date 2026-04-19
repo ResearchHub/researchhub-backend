@@ -13,13 +13,19 @@ from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
 )
-from user.tests.helpers import create_random_authenticated_user
+from user.tests.helpers import (
+    create_hub_editor,
+    create_random_authenticated_user,
+)
 
 
 class ReportAccessTests(TestCase):
 
-    def test_author_can_view_own_proposal_review(self):
+    def test_proposal_review_visible_only_to_editor_or_moderator(self):
         author = create_random_authenticated_user("ra_author")
+        editor, _hub = create_hub_editor("ra_editor", "ra_hub")
+        moderator = create_random_authenticated_user("ra_mod", moderator=True)
+        stranger = create_random_authenticated_user("ra_stranger")
         preregistration_post = create_post(
             created_by=author,
             document_type=PREREGISTRATION,
@@ -28,12 +34,15 @@ class ReportAccessTests(TestCase):
             unified_document=preregistration_post.unified_document,
             grant=None,
         )
-        self.assertTrue(user_can_view_proposal_review(author, review))
+        self.assertFalse(user_can_view_proposal_review(author, review))
+        self.assertFalse(user_can_view_proposal_review(stranger, review))
+        self.assertTrue(user_can_view_proposal_review(editor, review))
+        self.assertTrue(user_can_view_proposal_review(moderator, review))
 
-    def test_grant_creator_can_view_linked_review(self):
+    def test_proposal_review_not_visible_to_grant_or_proposal_creators(self):
         grant_owner = create_random_authenticated_user("ra_grant_owner")
         proposal_author = create_random_authenticated_user("ra_proposal_author")
-        stranger = create_random_authenticated_user("ra_grant_stranger")
+        editor, _hub = create_hub_editor("ra_editor2", "ra_hub2")
         post = create_post(created_by=grant_owner, document_type=GRANT)
         grant = Grant.objects.create(
             created_by=grant_owner,
@@ -52,14 +61,16 @@ class ReportAccessTests(TestCase):
             unified_document=preregistration_post.unified_document,
             grant=grant,
         )
-        self.assertTrue(user_can_view_proposal_review(grant_owner, review))
-        self.assertTrue(user_can_view_proposal_review(proposal_author, review))
-        self.assertFalse(user_can_view_proposal_review(stranger, review))
+        self.assertFalse(user_can_view_proposal_review(grant_owner, review))
+        self.assertFalse(user_can_view_proposal_review(proposal_author, review))
+        self.assertTrue(user_can_view_proposal_review(editor, review))
 
-    def test_rfp_summary_access(self):
+    def test_rfp_summary_visible_only_to_editor_or_moderator(self):
         owner = create_random_authenticated_user("ra_rfp_owner")
         stranger = create_random_authenticated_user("ra_rfp_stranger")
         worker = create_random_authenticated_user("ra_rfp_worker")
+        editor, _hub = create_hub_editor("ra_rfp_editor", "ra_rfp_hub")
+        moderator = create_random_authenticated_user("ra_rfp_mod", moderator=True)
         post = create_post(created_by=owner, document_type=GRANT)
         grant = Grant.objects.create(
             created_by=owner,
@@ -71,5 +82,7 @@ class ReportAccessTests(TestCase):
             status=Grant.OPEN,
         )
         summary = RFPSummary.objects.create(grant=grant, created_by=worker)
-        self.assertTrue(user_can_view_rfp_summary(owner, summary))
+        self.assertFalse(user_can_view_rfp_summary(owner, summary))
         self.assertFalse(user_can_view_rfp_summary(stranger, summary))
+        self.assertTrue(user_can_view_rfp_summary(editor, summary))
+        self.assertTrue(user_can_view_rfp_summary(moderator, summary))

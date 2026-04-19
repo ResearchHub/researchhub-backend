@@ -1,5 +1,6 @@
 from ai_peer_review.models import ProposalReview, RFPSummary
 from ai_peer_review.services.report_access import (
+    is_editor_or_moderator,
     user_can_view_proposal_review,
     user_can_view_rfp_summary,
 )
@@ -8,12 +9,10 @@ from utils.permissions import AuthorizationBasedPermission
 
 class AIPeerReviewPermission(AuthorizationBasedPermission):
     """
-    Request-level: authenticated + feature gate (see _can_use_ai_peer_review).
+    Request-level: authenticated hub editor or moderator (see _can_use_ai_peer_review).
     Object-level:
 
-    - ``ProposalReview``: proposal author, linked grant owner (if any), paid
-      entitlement, hub editors / moderators.
-    - ``RFPSummary``: funder-side RFP brief / comparison;
+    - ``ProposalReview`` / ``RFPSummary``: same — hub editors and moderators only.
     """
 
     message = "Not allowed to use AI peer review features."
@@ -33,6 +32,5 @@ class AIPeerReviewPermission(AuthorizationBasedPermission):
             return False
         return self._can_use_ai_peer_review(request.user)
 
-    # TODO: Add business logic here
     def _can_use_ai_peer_review(self, user):
-        return True
+        return is_editor_or_moderator(user)

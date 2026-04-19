@@ -9,21 +9,9 @@ def is_editor_or_moderator(user) -> bool:
     return user.is_hub_editor()
 
 
-def user_can_view_proposal_review(user, review: ProposalReview) -> bool:
-    if not user.is_authenticated:
-        return False
-    if is_editor_or_moderator(user):
-        return True
-    owner = review.unified_document.created_by
-    if owner and owner.id == user.id:
-        return True
-    if review.grant_id and review.grant.created_by_id == user.id:
-        return True
+def user_can_view_proposal_review(user, _review: ProposalReview) -> bool:
+    return is_editor_or_moderator(user)
 
 
-def user_can_view_rfp_summary(user, summary: RFPSummary) -> bool:
-    if not user.is_authenticated:
-        return False
-    if is_editor_or_moderator(user):
-        return True
-    return summary.grant.created_by_id == user.id
+def user_can_view_rfp_summary(user, _summary: RFPSummary) -> bool:
+    return is_editor_or_moderator(user)

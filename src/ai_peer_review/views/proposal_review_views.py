@@ -149,7 +149,7 @@ class ProposalReviewDetailView(APIView):
     GET /api/ai_peer_review/proposal-review/<review_id>/ - Proposal review detail.
     """
 
-    permission_classes = [IsAuthenticated, AIPeerReviewPermission]
+    permission_classes = _EDITOR_PERMS
 
     def get(self, request, review_id):
         try:
@@ -176,7 +176,7 @@ class ProposalReviewByGrantView(APIView):
     GET /api/ai_peer_review/proposal-review/grant/<grant_id>/ - Per-proposal rows, editorial feedback, executive summary snippet.
     """
 
-    permission_classes = [IsAuthenticated, AIPeerReviewPermission]
+    permission_classes = _EDITOR_PERMS
 
     def get(self, request, grant_id):
         try:

@@ -80,7 +80,7 @@ class ProposalReviewAPITests(APITestCase):
         pr = ProposalReview.objects.get(unified_document=self.ud, grant=self.grant)
         self.assertEqual(pr.created_by, self.moderator)
 
-    def test_detail_visible_to_moderator_and_author_not_stranger(self):
+    def test_detail_visible_to_moderator_not_author_or_stranger(self):
         pr = ProposalReview.objects.create(
             created_by=self.moderator,
             unified_document=self.ud,
@@ -101,7 +101,7 @@ class ProposalReviewAPITests(APITestCase):
 
         self.client.force_authenticate(self.user)
         r_author = self.client.get(self.detail_url(pr.id))
-        self.assertEqual(r_author.status_code, status.HTTP_200_OK)
+        self.assertEqual(r_author.status_code, status.HTTP_403_FORBIDDEN)
 
         stranger = create_random_authenticated_user("prv_stranger")
         self.client.force_authenticate(stranger)
