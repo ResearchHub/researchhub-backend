@@ -3,7 +3,10 @@ from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase, override_settings
 
-from ai_peer_review.services.author_context import build_author_context_text
+from ai_peer_review.services.author_context import (
+    build_author_context_snippet,
+    build_author_context_text,
+)
 from ai_peer_review.services.bedrock_llm_service import (
     BEDROCK_MODEL_ID,
     BedrockLLMService,
@@ -16,6 +19,7 @@ from ai_peer_review.services.researcher_external_context import (
     build_researcher_external_context_for_author,
     fetch_openalex_author_record,
     format_openalex_author_record,
+    format_orcid_works_payload,
 )
 
 
@@ -47,6 +51,37 @@ class AuthorContextTests(SimpleTestCase):
         self.assertIn("h-index", text)
         self.assertIn("Education entries (count): 1", text)
         self.assertIn("Google Scholar", text)
+
+    @patch("ai_peer_review.services.author_context.Author.objects.filter")
+    def test_build_author_context_snippet_resolves_linked_author(self, mock_filter):
+        author = SimpleNamespace(
+            first_name="Jane",
+            last_name="Doe",
+            headline="Lab PI",
+            university=SimpleNamespace(name="Example University", city="Boston"),
+            country_code="US",
+            description="Studies widgets.",
+            orcid_id="https://orcid.org/0000-0002-1825-0097",
+            openalex_ids=["https://openalex.org/A123"],
+            h_index=12,
+            i10_index=3,
+            education=[{"school": "MIT"}],
+            google_scholar="https://scholar.google.com/citations?user=x",
+            linkedin=None,
+        )
+        qs = MagicMock()
+        qs.first.return_value = author
+        mock_filter.return_value = qs
+        ud = SimpleNamespace(
+            created_by=SimpleNamespace(id=99, first_name="", last_name="")
+        )
+        text = build_author_context_snippet(ud)
+        self.assertIn("Jane Doe", text)
+        mock_filter.assert_called_once_with(user_id=99)
+
+    def test_build_author_context_snippet_no_owner(self):
+        ud = SimpleNamespace(created_by=None)
+        self.assertEqual(build_author_context_snippet(ud), "")
 
 
 class ResearcherExternalContextTests(SimpleTestCase):
@@ -122,9 +157,28 @@ class ResearcherExternalContextTests(SimpleTestCase):
         self.assertEqual(kwargs["orcid_bare"], "0000-0002-0000-0000")
         self.assertEqual(kwargs["openalex_author_ref"], "A5050505050")
 
+    def test_format_orcid_works_payload(self):
+        self.assertEqual(format_orcid_works_payload(None), "")
+        self.assertEqual(format_orcid_works_payload({}), "")
+        payload = {
+            "group": [
+                {
+                    "work-summary": [
+                        {
+                            "title": {"title": {"value": "Example Paper"}},
+                            "publication-date": {"year": {"value": "2020"}},
+                        }
+                    ]
+                }
+            ]
+        }
+        text = format_orcid_works_payload(payload)
+        self.assertIn("Example Paper", text)
+        self.assertIn("2020", text)
+
 
 class BedrockLLMServiceTests(SimpleTestCase):
-    @patch("ai_peer_review.services.bedrock_llm_service.create_client")
+    @patch("ai_peer_review.services.bedrock_llm_service.bedrock_runtime_client")
     def test_invoke_returns_joined_text(self, mock_create_client):
         mock_client = MagicMock()
         mock_create_client.return_value = mock_client
@@ -148,7 +202,7 @@ class BedrockLLMServiceTests(SimpleTestCase):
         self.assertEqual(kwargs["inferenceConfig"]["maxTokens"], 100)
         self.assertEqual(kwargs["inferenceConfig"]["temperature"], 0.1)
 
-    @patch("ai_peer_review.services.bedrock_llm_service.create_client")
+    @patch("ai_peer_review.services.bedrock_llm_service.bedrock_runtime_client")
     @patch("ai_peer_review.services.bedrock_llm_service.sentry.log_error")
     def test_invoke_raises_on_client_error(self, mock_sentry, mock_create_client):
         mock_client = MagicMock()

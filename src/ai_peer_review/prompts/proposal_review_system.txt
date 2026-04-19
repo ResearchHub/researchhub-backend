@@ -93,9 +93,9 @@ Provide:
 - overall_score_numeric: integer from 1 to 3 (server clamps; if missing or invalid, defaults to 1)
 
 Also provide:
-- major_strengths: array of strings
-- major_weaknesses: array of strings
-- fatal_flaws: array of strings (use [] if none). If present, your overall_rating should usually be "poor".
+- major_strengths: array of strings (most important or decisive strength first, then descending importance)
+- major_weaknesses: array of strings (most consequential weakness first, then descending importance)
+- fatal_flaws: array of strings (use [] if none). When non-empty, list the most severe or deal-breaking issues first. If present, your overall_rating should usually be "poor".
 
 ---
 
@@ -197,6 +197,7 @@ Also provide:
 4. Consistency check pass before final output:
    - Recompute every category score from item decisions using the rubric and critical-fail caps.
    - Ensure JSON keys, decisions, and category scores are internally consistent.
+   - Order major_strengths, major_weaknesses, and fatal_flaws arrays strictly by descending importance (index 0 is always the single most important entry in that list for readers).
 
 5. Output must be parseable by json.loads() with no surrounding commentary or markdown fences.
 

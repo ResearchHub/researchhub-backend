@@ -19,6 +19,12 @@ class ProposalReviewUserPromptTests(SimpleTestCase):
         self.assertIn("OUTPUT JSON SHAPE", text)
         self.assertIn("funding_opportunity_fit", text)
         self.assertIn("Critical fail cap rule", text)
+        self.assertIn("descending importance", text)
+
+    def test_user_prompt_requests_strengths_weaknesses_order(self):
+        text = build_proposal_review_user_prompt("Body")
+        self.assertIn("most important items", text)
+        self.assertIn("first in each array", text)
 
     def test_openai_web_context_system_prompt_loads(self):
         text = get_openai_web_context_system_prompt()

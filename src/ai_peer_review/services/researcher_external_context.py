@@ -1,10 +1,15 @@
 import logging
 
-from user.related_models.author_model import Author
+from orcid.clients import OrcidClient
+from researchhub_document.models import ResearchhubUnifiedDocument
+from user.models import Author
 from utils import sentry
 from utils.openalex import OpenAlex
 
 logger = logging.getLogger(__name__)
+
+_MAX_ORCID_WORK_LINES = 30
+_DEFAULT_PIPELINE_MAX_CHARS = 8000
 
 
 def _bare_orcid(author_orcid: str | None) -> str | None:
@@ -176,3 +181,145 @@ def build_researcher_external_context_for_author(
         openalex_author_ref=oa_ref,
         client=client,
     )
+
+
+def fetch_orcid_works(
+    *,
+    orcid_bare: str | None = None,
+    client: OrcidClient | None = None,
+) -> dict:
+    """Load raw ORCID Record ``/works`` JSON (public API). Returns ``{}`` if missing id."""
+    oid = (orcid_bare or "").strip()
+    if not oid:
+        return {}
+    oc = client or OrcidClient()
+    out = oc.get_works(oid)
+    return out if isinstance(out, dict) else {}
+
+
+def format_orcid_works_payload(works: dict | None) -> str:
+    """Format a subset of the ORCID Record ``/works`` JSON for the peer-review prompt.
+
+    The API returns a large nested bulk summary (identifiers, visibility, put-codes,
+    multiple ``work-summary`` variants per group, etc.). We only surface a small,
+    human-readable slice—everything else is dropped.
+
+    - ``title``: work title string — first non-empty of
+      ``title.title.value``, then ``title.value`` (ORCID nests ``Title`` under
+      ``title`` in some shapes).
+    - ``publication-date``: optional calendar hint — we use ``year`` only, from
+      ``publication-date.year.value`` when present (month/day ignored here).
+
+    **Prompt output**
+
+    - One bullet per kept summary: ``- (year) title`` if year is present, else
+      ``- title``.
+    - At most ``_MAX_ORCID_WORK_LINES`` bullets total, then stop.
+
+    Reading record data (incl. works):
+    https://info.orcid.org/documentation/integration-guide/orcid-record/#Works
+    and
+    https://info.orcid.org/documentation/api-tutorials/api-tutorial-read-data-on-a-record/
+    """
+    if not works:
+        return ""
+
+    lines: list[str] = []
+    for group in works.get("group") or []:
+        for ws in group.get("work-summary") or []:
+            tb = ws.get("title") or {}
+            inner = tb.get("title") or {}
+            title = str(inner.get("value") or tb.get("value") or "").strip()
+            if not title:
+                continue
+            year = (ws.get("publication-date") or {}).get("year") or {}
+            y = str(year.get("value") or "").strip()
+            if y:
+                lines.append(f"- ({y}) {title}")
+            else:
+                lines.append(f"- {title}")
+            if len(lines) >= _MAX_ORCID_WORK_LINES:
+                break
+        if len(lines) >= _MAX_ORCID_WORK_LINES:
+            break
+
+    if not lines:
+        return ""
+    return "\n".join(lines)
+
+
+def build_orcid_works_context_text(
+    *,
+    orcid_bare: str | None = None,
+    client: OrcidClient | None = None,
+) -> str:
+    """Fetch ORCID ``/works`` and format for the prompt (empty if nothing found)."""
+    raw = fetch_orcid_works(orcid_bare=orcid_bare, client=client)
+    try:
+        return format_orcid_works_payload(raw)
+    except Exception as exc:
+        sentry.log_error(
+            exc,
+            message="build_orcid_works_context_text: format_orcid_works_payload",
+        )
+        return ""
+
+
+def build_researcher_external_context(
+    unified_document: ResearchhubUnifiedDocument,
+    *,
+    max_chars: int = _DEFAULT_PIPELINE_MAX_CHARS,
+) -> str:
+    """
+    Bounded ORCID + OpenAlex text for the proposal author's linked ORCID.
+
+    Returns "" when there is no owner, no Author row, no orcid_id, or all fetches fail.
+    """
+    owner = unified_document.created_by
+    if not owner:
+        return ""
+    author = Author.objects.filter(user_id=owner.id).first()
+    if not author or not (author.orcid_id or "").strip():
+        return ""
+    orcid_id = author.orcid_id.strip()
+    chunks: list[str] = []
+    has_body = False
+
+    try:
+        oa_text = build_researcher_external_context_for_author(author)
+        if oa_text.strip():
+            chunks.append("--- OpenAlex (public author record) ---")
+            chunks.append(oa_text.strip())
+            chunks.append("")
+            has_body = True
+    except Exception as e:
+        logger.warning(
+            "OpenAlex researcher context failed for ORCID %s: %s",
+            orcid_id,
+            e,
+            exc_info=True,
+        )
+
+    try:
+        works_text = build_orcid_works_context_text(
+            orcid_bare=_bare_orcid(author.orcid_id) or author.orcid_id.strip(),
+        )
+        if works_text.strip():
+            chunks.append(
+                "--- Recent / listed works (ORCID public record, truncated) ---"
+            )
+            chunks.append(works_text.strip())
+            chunks.append("")
+            has_body = True
+    except Exception as e:
+        logger.warning(
+            "ORCID works context failed for %s: %s", orcid_id, e, exc_info=True
+        )
+
+    if not has_body:
+        return ""
+
+    text = (f"Linked ORCID (ResearchHub): {orcid_id}\n\n" + "\n".join(chunks)).strip()
+    if len(text) > max_chars:
+        return text[:max_chars] + "\n[TRUNCATED]"
+    return text
