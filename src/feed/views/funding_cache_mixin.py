@@ -4,6 +4,7 @@ from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory
 
 from feed.views.common import FeedPagination
+from feed.views.funding_feed_view import FundingFeedViewSet
 
 FUNDING_FEED_MAX_CACHED_PAGE = 3
 
@@ -43,7 +44,6 @@ class FundingCacheMixin:
         branch are targeted. Hub-specific ``?hub_slug=`` keys (other than default) are
         not enumerated; they expire via TTL.
         """
-        from feed.views.funding_feed_view import FundingFeedViewSet
 
         view = FundingFeedViewSet()
         view.pagination_class = FeedPagination
