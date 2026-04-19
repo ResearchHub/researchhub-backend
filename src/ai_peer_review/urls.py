@@ -1,4 +1,3 @@
-from django.http import JsonResponse
 from django.urls import path
 
 from ai_peer_review.views.editorial_feedback_views import EditorialFeedbackUpsertView
@@ -10,13 +9,7 @@ from ai_peer_review.views.proposal_review_views import (
     RFPSummaryView,
 )
 
-
-def health(_request):
-    return JsonResponse({"status": "ok", "app": "ai_peer_review"})
-
-
 urlpatterns = [
-    path("health/", health, name="ai_peer_review_health"),
     path("proposal-review/grant/<int:grant_id>/", ProposalReviewByGrantView.as_view()),
     path("proposal-review/<int:review_id>/", ProposalReviewDetailView.as_view()),
     path("proposal-review/", ProposalReviewCreateView.as_view()),
