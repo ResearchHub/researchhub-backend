@@ -233,6 +233,7 @@ INSTALLED_APPS = [
     "allauth.socialaccount.providers.orcid",
     "rest_framework.authtoken",
     "dj_rest_auth",
+    "dj_rest_auth.mfa",
     "dj_rest_auth.registration",
     # Storage
     "storages",
@@ -403,6 +404,7 @@ AUTHENTICATION_BACKENDS = (
 REST_AUTH = {
     "REGISTER_SERIALIZER": "user.serializers.RegisterSerializer",
     "PASSWORD_RESET_SERIALIZER": "user.custom_allauth.CustomPasswordResetSerializer",
+    "MFA_TOTP_ISSUER": "ResearchHub",
 }
 
 
