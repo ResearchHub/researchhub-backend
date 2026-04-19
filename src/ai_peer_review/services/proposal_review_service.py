@@ -20,6 +20,7 @@ from ai_peer_review.services.proposal_review_scoring import (
 from ai_peer_review.services.researcher_external_context import (
     build_researcher_external_context,
 )
+from feed.views.funding_cache_mixin import FundingCacheMixin
 from purchase.models import Grant, GrantApplication
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
@@ -139,6 +140,7 @@ def run_proposal_review(review_id: int) -> None:
         review.progress = 100
         review.current_step = "Complete"
         review.save()
+        FundingCacheMixin.invalidate_funding_feed_cache()
     except Exception as e:
         logger.exception("Proposal review %s failed", review_id)
         review.status = ReviewStatus.FAILED

@@ -12,6 +12,7 @@ from ai_peer_review.prompts.rfp_summary_prompts import (
 )
 from ai_peer_review.services.bedrock_llm_service import BedrockLLMService
 from ai_peer_review.services.proposal_review_scoring import category_scores
+from feed.views.funding_cache_mixin import FundingCacheMixin
 from purchase.models import Grant
 
 logger = logging.getLogger(__name__)
@@ -129,4 +130,5 @@ def run_executive_comparison(
             "updated_date",
         ]
     )
+    FundingCacheMixin.invalidate_funding_feed_cache()
     return obj
