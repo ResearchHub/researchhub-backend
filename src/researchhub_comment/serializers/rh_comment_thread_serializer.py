@@ -102,7 +102,10 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
 
         context = self.context
         _context_fields = context.get("rhc_dts_get_content_object", {})
-        content_object = thread.content_object
+        content_object = thread._safe_content_object()
+
+        if content_object is None:
+            return None
 
         # Use depth limiting to prevent circular dependencies
         if should_use_reference_only(context):
