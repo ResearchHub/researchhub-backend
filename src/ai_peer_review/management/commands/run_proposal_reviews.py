@@ -5,7 +5,7 @@ Usage:
     python manage.py run_proposal_reviews --grant-ids 1,2,3
     python manage.py run_proposal_reviews --created-after 2024-01-01
     python manage.py run_proposal_reviews --created-before 2025-12-31 --created-after 2025-01-01
-    python manage.py run_proposal_reviews --grant-ids 1 --user-id 42
+    python manage.py run_proposal_reviews --grant-ids 1 --user-id 42  # optional override for created_by
 """
 
 from __future__ import annotations
@@ -65,22 +65,15 @@ def _reset_review_for_rerun(review: ProposalReview) -> None:
     )
 
 
-def _resolve_actor_user(user_id: int | None):
+def _load_override_user(user_id: int | None):
+    """If ``user_id`` is set, return that user; otherwise ``None`` (use grant creator per grant)."""
+    if user_id is None:
+        return None
     User = get_user_model()
-    if user_id is not None:
-        try:
-            return User.objects.get(pk=user_id)
-        except User.DoesNotExist as e:
-            raise CommandError(f"User id={user_id} does not exist.") from e
-    u = (
-        User.objects.filter(is_superuser=True).order_by("id").first()
-        or User.objects.filter(is_staff=True).order_by("id").first()
-    )
-    if not u:
-        raise CommandError(
-            "No actor user: pass --user-id or create a superuser/staff user."
-        )
-    return u
+    try:
+        return User.objects.get(pk=user_id)
+    except User.DoesNotExist as e:
+        raise CommandError(f"User id={user_id} does not exist.") from e
 
 
 class Command(BaseCommand):
@@ -112,7 +105,10 @@ class Command(BaseCommand):
             "--user-id",
             type=int,
             default=None,
-            help="User id for created_by on ProposalReview / RFPSummary (default: first superuser/staff).",
+            help=(
+                "Optional user id for created_by on ProposalReview / new RFPSummary rows; "
+                "default is each grant's created_by."
+            ),
         )
 
     def handle(self, *args, **options):
@@ -129,7 +125,7 @@ class Command(BaseCommand):
                 "--created-after / --created-before."
             )
 
-        actor = _resolve_actor_user(user_id)
+        override_user = _load_override_user(user_id)
 
         if has_ids:
             id_strings = [x.strip() for x in grant_ids_raw.split(",") if x.strip()]
@@ -188,6 +184,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.NOTICE(f"Found {total_grants} grant(s)."))
 
         for gi, grant in enumerate(grants, start=1):
+            actor = override_user if override_user is not None else grant.created_by
             apps = list(grant.applications.all())
             prereg_apps = [
                 a

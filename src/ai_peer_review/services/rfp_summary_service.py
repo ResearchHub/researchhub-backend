@@ -64,7 +64,9 @@ def run_rfp_summary(rfp_summary_id: int) -> None:
         obj.save()
 
 
-def run_executive_comparison(grant_id: int, created_by_id: int) -> RFPSummary:
+def run_executive_comparison(
+    grant_id: int, created_by_id: int | None = None
+) -> RFPSummary:
     grant = Grant.objects.get(pk=grant_id)
     reviews = (
         ProposalReview.objects.filter(
@@ -105,9 +107,12 @@ def run_executive_comparison(grant_id: int, created_by_id: int) -> RFPSummary:
         max_tokens=4096,
         temperature=0.2,
     )
+    defaults: dict = {"status": ReviewStatus.PENDING}
+    if created_by_id is not None:
+        defaults["created_by_id"] = created_by_id
     obj, _ = RFPSummary.objects.get_or_create(
         grant=grant,
-        defaults={"created_by_id": created_by_id, "status": ReviewStatus.PENDING},
+        defaults=defaults,
     )
     obj.executive_comparison_summary = out.strip()
     obj.executive_comparison_updated_date = timezone.now()
