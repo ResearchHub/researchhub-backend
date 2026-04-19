@@ -53,19 +53,22 @@ def build_proposal_review_user_prompt(
     if web_search_context and web_search_context.strip():
         web_ctx = (
             "\n\nWEB SEARCH NOTES (short bullets from a web search pass; "
-            "may be incomplete; "
-            "treat as hints with URLs where given; verify against proposal when scoring):\n"
+            "may be incomplete; treat as hints with URLs where given; "
+            "verify against proposal when scoring):\n"
             f"{web_search_context.strip()[:6000]}\n"
         )
     text = (proposal_text or "").strip()
     if len(text) > 120000:
         text = text[:120000] + "\n\n[TRUNCATED FOR LENGTH]"
     return (
-        "Evaluate the following research proposal and return the structured JSON assessment "
-        'with the seven top-level categories (under "categories"), overall_summary, '
-        "overall_rationale, overall_confidence, major_strengths, major_weaknesses, and "
-        "fatal_flaws. Provide overall_rating and overall_score_numeric when you can; "
-        "the server canonicalizes them (overall_score_numeric defaults to 1 if missing or invalid).\n\n"
+        "Evaluate the following research proposal and return the structured JSON "
+        'assessment with the seven top-level categories (under "categories"), '
+        "overall_summary, overall_rationale, overall_confidence, major_strengths, "
+        "major_weaknesses, and fatal_flaws. In major_strengths and major_weaknesses, "
+        "put the most important items first in each array (descending importance). "
+        "Provide overall_rating and overall_score_numeric when you can; the server "
+        "canonicalizes them (overall_score_numeric defaults to 1 if missing or "
+        "invalid).\n\n"
         "PROPOSAL TEXT:\n"
         f"{text}"
         f"{author}"
