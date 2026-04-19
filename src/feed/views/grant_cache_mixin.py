@@ -2,7 +2,13 @@ from django.core.cache import cache
 
 from feed.views.common import FeedPagination
 
-GRANT_FEED_ORDERINGS = ["latest", "newest", "upvotes", "most_applicants", "amount_raised"]
+GRANT_FEED_ORDERINGS = [
+    "latest",
+    "newest",
+    "upvotes",
+    "most_applicants",
+    "amount_raised",
+]
 GRANT_FEED_STATUSES = ["", "OPEN", "CLOSED", "COMPLETED", "PENDING"]
 GRANT_FEED_MAX_CACHED_PAGE = 3
 
