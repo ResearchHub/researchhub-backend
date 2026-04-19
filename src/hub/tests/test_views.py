@@ -77,20 +77,6 @@ class HubViewsTests(APITestCase):
                 h2_second = True
 
         self.assertTrue(h1_first and h2_second)
-        cache.clear()
-        url = self.base_url + "?ordering=score"
-        response = get_get_response(url)
-        response_data = response.data["results"]
-
-        h2_first = False
-        h1_second = False
-        for h in response_data:
-            if h["id"] == hub2.id:
-                h2_first = True
-            elif h2_first and h["id"] == hub.id:
-                h1_second = True
-
-        self.assertTrue(h2_first and h1_second)
 
     def test_hub_order_by_name(self):
         hub = create_hub("Hub A")

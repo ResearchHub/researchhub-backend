@@ -217,12 +217,29 @@ class FundraiseViewTests(APITestCase):
         self.assertEqual(response.status_code, 400)
 
     def test_create_contribution_user_is_owner(self):
+        """Self-contribution without a nonprofit should be rejected."""
         fundraise = self._create_fundraise(self.post.id)
         fundraise_id = fundraise.data["id"]
 
+        self._give_user_balance(self.user, 1000)
         response = self._create_contribution(fundraise_id, self.user)
 
         self.assertEqual(response.status_code, 400)
+        self.assertIn(
+            "Cannot contribute to your own fundraise", response.data["message"]
+        )
+
+    def test_create_contribution_user_is_owner_with_nonprofit(self):
+        """Self-contribution should be allowed when a nonprofit is attached."""
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+        self._link_nonprofit(fundraise_id)
+
+        self._give_user_balance(self.user, 1000)
+        response = self._create_contribution(fundraise_id, self.user, amount=100)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["amount_raised"]["rsc"], 100)
 
     def test_create_contribution_exceeds_goal(self):
         fundraise = self._create_fundraise(self.post.id, goal_amount=100)
@@ -867,14 +884,11 @@ class FundraiseViewTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("Invalid amount", response.data["message"])
 
-    def test_create_usd_contribution_own_fundraise_fails(self):
-        """Test that user cannot contribute USD to their own fundraise."""
-        # Create a fundraise
+    def test_create_usd_contribution_own_fundraise_no_nonprofit_fails(self):
+        """Test that user cannot contribute USD to their own fundraise without a nonprofit."""
         fundraise = self._create_fundraise(self.post.id, goal_amount=100)
         fundraise_id = fundraise.data["id"]
-        self._link_nonprofit(fundraise_id)
 
-        # Try to contribute to own fundraise
         response = self._create_contribution(
             fundraise_id,
             self.user,
@@ -884,9 +898,29 @@ class FundraiseViewTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn(
-            "Cannot contribute to your own fundraise", response.data["message"]
+
+    def test_create_usd_contribution_own_fundraise_with_nonprofit(self):
+        """Test that user CAN contribute USD to their own fundraise when a nonprofit is attached."""
+        fundraise = self._create_fundraise(self.post.id, goal_amount=100)
+        fundraise_id = fundraise.data["id"]
+        self._link_nonprofit(fundraise_id)
+
+        self.mock_fundraise_service.create_contribution.return_value = (None, None)
+
+        view = FundraiseViewSet.as_view({"post": "create_contribution"})
+        request = self.factory.post(
+            f"/api/fundraise/{fundraise_id}/create_contribution/",
+            {"amount": 10000, "amount_currency": "USD", "origin_fund_id": "fund_123"},
         )
+        force_authenticate(request, user=self.user)
+        response = view(
+            request,
+            pk=fundraise_id,
+            fundraise_service=self.mock_fundraise_service,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.mock_fundraise_service.create_contribution.assert_called_once()
 
     def test_create_usd_contribution_closed_fundraise_fails(self):
         """Test that USD contribution to closed fundraise fails."""
