@@ -130,7 +130,9 @@ class RFPSummary(DefaultModel):
     )
     created_by = models.ForeignKey(
         "user.User",
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="created_rfp_summaries",
     )
     status = models.CharField(
