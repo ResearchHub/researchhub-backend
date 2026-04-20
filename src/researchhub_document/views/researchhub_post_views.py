@@ -1,11 +1,13 @@
 from django.core.files.base import ContentFile
 from django.db import transaction
+from django.db.models import Prefetch
 from django.utils.text import slugify
 from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
+from ai_peer_review.models import ProposalReview
 from analytics.amplitude import track_event
 from discussion.views import ReactionViewActionMixin
 from feed.views.grant_cache_mixin import GrantCacheMixin
@@ -70,7 +72,26 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
     def get_queryset(self):
         request = self.request
         try:
-            query_set = ResearchhubPost.objects.all()
+            query_set = (
+                ResearchhubPost.objects.all()
+                .select_related("unified_document")
+                .prefetch_related(
+                    Prefetch(
+                        "grant_applications",
+                        queryset=GrantApplication.objects.select_related("grant"),
+                    ),
+                    Prefetch(
+                        "unified_document__proposal_reviews",
+                        queryset=ProposalReview.objects.filter(
+                            grant__isnull=False,
+                        )
+                        .select_related("grant", "unified_document")
+                        .prefetch_related(
+                            "unified_document__ai_peer_review_editorial_feedback__categories",
+                        ),
+                    ),
+                )
+            )
             query_params = request.query_params
             created_by_id = query_params.get("created_by")
             post_id = query_params.get("post_id")
@@ -248,9 +269,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     try:
                         target_grant = Grant.objects.get(id=grant_id)
                     except (Grant.DoesNotExist, ValueError, TypeError):
-                        raise serializers.ValidationError(
-                            "Grant not found"
-                        )
+                        raise serializers.ValidationError("Grant not found")
                     if not target_grant.is_active():
                         raise serializers.ValidationError(
                             "Grant is no longer accepting applications"
