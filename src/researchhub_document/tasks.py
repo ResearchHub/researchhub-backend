@@ -43,7 +43,7 @@ def assign_preregistration_dois():
                 assigned_count += 1
             else:
                 sentry.log_error(
-                    Exception(
+                    RuntimeError(
                         f"Crossref API failure for post {post.id}: "
                         f"status {response.status_code}"
                     )

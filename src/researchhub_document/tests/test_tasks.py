@@ -38,9 +38,9 @@ class AssignPreregistrationDoisTests(TestCase):
         return mock
 
     @patch("researchhub_document.tasks.DOI")
-    def test_assigns_doi_to_eligible_preregistration(self, MockDOI):
+    def test_assigns_doi_to_eligible_preregistration(self, mock_doi_cls):
         # Arrange
-        MockDOI.return_value = self._build_mock_doi()
+        mock_doi_cls.return_value = self._build_mock_doi()
         post = self._create_preregistration(days_old=10)
 
         # Act
@@ -51,7 +51,7 @@ class AssignPreregistrationDoisTests(TestCase):
         self.assertEqual(post.doi, "10.55277/test123")
 
     @patch("researchhub_document.tasks.DOI")
-    def test_skips_ineligible_posts(self, MockDOI):
+    def test_skips_ineligible_posts(self, mock_doi_cls):
         """Posts that are too young, already have a DOI, are removed,
         are flagged, or are non-preregistration should all be skipped."""
         # Arrange
@@ -80,17 +80,17 @@ class AssignPreregistrationDoisTests(TestCase):
         assign_preregistration_dois()
 
         # Assert
-        MockDOI.assert_not_called()
+        mock_doi_cls.assert_not_called()
 
     @patch("researchhub_document.tasks.DOI")
-    def test_handles_crossref_failure_and_continues(self, MockDOI):
+    def test_handles_crossref_failure_and_continues(self, mock_doi_cls):
         # Arrange
         self._create_preregistration(days_old=10)
         self._create_preregistration(days_old=14)
 
         failing_doi = self._build_mock_doi("10.55277/fail", status_code=500)
         success_doi = self._build_mock_doi("10.55277/ok")
-        MockDOI.side_effect = [failing_doi, success_doi]
+        mock_doi_cls.side_effect = [failing_doi, success_doi]
 
         # Act
         assign_preregistration_dois()
