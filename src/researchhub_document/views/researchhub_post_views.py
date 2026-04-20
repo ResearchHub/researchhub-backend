@@ -340,7 +340,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     status=400,
                 )
 
-            created_by = request.user
             hubs = data.get("hubs", None)
             renderable_text = data.get("renderable_text", "")
             title = data.get("title", "")
