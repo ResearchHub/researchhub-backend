@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from researchhub.celery import QUEUE_HOT_SCORE, QUEUE_PAPER_MISC, app
 from researchhub_document.models import ResearchhubPost
-from researchhub_document.related_models.constants.document_type import PREREGISTRATION
+from researchhub_document.related_models.constants.document_type import GRANT
 from utils import sentry
 from utils.doi import DOI
 
@@ -14,17 +14,17 @@ logger = logging.getLogger(__name__)
 
 
 @app.task(queue=QUEUE_PAPER_MISC)
-def assign_preregistration_dois():
+def assign_post_dois():
     week_ago = timezone.now() - timedelta(days=7)
 
     eligible_posts = (
         ResearchhubPost.objects.filter(
-            document_type=PREREGISTRATION,
             doi__isnull=True,
             created_date__lte=week_ago,
             unified_document__is_removed=False,
             flags__isnull=True,
         )
+        .exclude(document_type=GRANT)
         .select_related("created_by__author_profile", "unified_document")
     )
 
@@ -51,7 +51,7 @@ def assign_preregistration_dois():
         except Exception as error:
             sentry.log_error(error)
 
-    logger.info(f"Assigned DOIs to {assigned_count}/{total} preregistration posts")
+    logger.info(f"Assigned DOIs to {assigned_count}/{total} eligible posts")
 
 
 @app.task(queue=QUEUE_HOT_SCORE)
