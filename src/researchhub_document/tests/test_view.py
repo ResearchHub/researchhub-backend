@@ -1,7 +1,5 @@
-import time
 from datetime import datetime, timedelta
 from decimal import Decimal
-from unittest.mock import patch
 
 import pytz
 from django.contrib.contenttypes.models import ContentType
@@ -14,8 +12,6 @@ from note.tests.helpers import create_note
 from paper.tests.helpers import create_paper
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-from reputation.distributions import Distribution
-from reputation.distributor import Distributor
 from researchhub_access_group.constants import SENIOR_EDITOR
 from researchhub_access_group.models import Permission
 from researchhub_document.helpers import create_post
@@ -679,44 +675,31 @@ class ViewTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["is_removed"], False)
 
-    @patch("requests.post")
-    def test_register_doi_no_charge(self, mock_crossref):
-        # Mock Crossref API response
-        mock_crossref.return_value.status_code = 200
-
+    def test_doi_not_assigned_on_publish(self):
+        """DOIs are no longer assigned at publish time for any post type."""
         author = create_random_default_user("author")
         make_user_verified(author)
         hub = create_hub()
 
         self.client.force_authenticate(author)
 
-        initial_balance = 5
-        distributor = Distributor(
-            Distribution("TEST_REWARD", initial_balance, False),
-            author,
-            None,
-            time.time(),
-        )
-        distributor.distribute()
+        for document_type in ("DISCUSSION", "PREREGISTRATION"):
+            doc_response = self.client.post(
+                "/api/researchhubpost/",
+                {
+                    "assign_doi": True,
+                    "document_type": document_type,
+                    "created_by": author.id,
+                    "full_src": "body",
+                    "is_public": True,
+                    "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
+                    "title": "sufficiently long title. sufficiently long title.",
+                    "hubs": [hub.id],
+                },
+            )
 
-        doc_response = self.client.post(
-            "/api/researchhubpost/",
-            {
-                "assign_doi": True,
-                "document_type": "DISCUSSION",
-                "created_by": author.id,
-                "full_src": "body",
-                "is_public": True,
-                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
-                "title": "sufficiently long title. sufficiently long title.",
-                "hubs": [hub.id],
-            },
-        )
-
-        self.assertEqual(doc_response.status_code, 200)
-        self.assertIsNotNone(doc_response.data["doi"])
-        # Balance should remain unchanged for all post types
-        self.assertEqual(int(author.get_balance()), initial_balance)
+            self.assertEqual(doc_response.status_code, 200)
+            self.assertIsNone(doc_response.data["doi"])
 
     def test_get_document_metadata(self):
         # Arrange
@@ -779,30 +762,6 @@ class ViewTests(APITestCase):
 
         self.assertEqual(doc_response.status_code, 200)
         self.assertIsNone(doc_response.data["fundraise"])
-
-    def test_preregistration_doi_not_assigned(self):
-        author = create_random_default_user("author")
-        make_user_verified(author)
-        hub = create_hub()
-
-        self.client.force_authenticate(author)
-
-        doc_response = self.client.post(
-            "/api/researchhubpost/",
-            {
-                "assign_doi": True,
-                "document_type": "PREREGISTRATION",
-                "created_by": author.id,
-                "full_src": "body",
-                "is_public": True,
-                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
-                "title": "sufficiently long title. sufficiently long title.",
-                "hubs": [hub.id],
-            },
-        )
-
-        self.assertEqual(doc_response.status_code, 200)
-        self.assertIsNone(doc_response.data["doi"])
 
     def test_grant_created_when_grant_amount_provided(self):
         """Test that a grant is created when grant_amount is provided"""
