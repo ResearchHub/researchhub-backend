@@ -17,7 +17,8 @@ class GrantCacheMixin:
     def get_cache_key(self, request, feed_type=""):
         base_key = super().get_cache_key(request, feed_type)
         status = request.query_params.get("status", "")
-        return f"{base_key}:{status}"
+        created_by = request.query_params.get("created_by", "")
+        return f"{base_key}:{status}:{created_by}"
 
     @staticmethod
     def invalidate_grant_feed_cache():
@@ -28,6 +29,6 @@ class GrantCacheMixin:
                 for page in range(1, GRANT_FEED_MAX_CACHED_PAGE + 1):
                     cache_key = (
                         f"grants_feed:popular:all:all:none:"
-                        f"{page}-{page_size}{sort_part}:{status}"
+                        f"{page}-{page_size}{sort_part}:{status}:"
                     )
                     cache.delete(cache_key)
