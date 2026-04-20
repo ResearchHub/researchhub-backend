@@ -36,7 +36,6 @@ from user.models import (
     Organization,
     University,
     User,
-    UserApiToken,
     UserVerification,
     Verdict,
 )
@@ -277,13 +276,6 @@ class GatekeeperSerializer(ModelSerializer):
         model = Gatekeeper
         fields = "__all__"
         read_only_fields = [field.name for field in Gatekeeper._meta.fields]
-
-
-class UserApiTokenSerializer(ModelSerializer):
-    class Meta:
-        model = UserApiToken
-        fields = ["name", "prefix", "revoked"]
-        read_only_fields = [field.name for field in UserApiToken._meta.fields]
 
 
 class DynamicAuthorSerializer(DynamicModelFieldSerializer):
