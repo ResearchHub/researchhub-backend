@@ -88,7 +88,8 @@ class AssignPreregistrationDoisTests(TestCase):
         self._create_preregistration(days_old=10)
         self._create_preregistration(days_old=14)
 
-        failing_doi = self._build_mock_doi("10.55277/fail", status_code=500)
+        failing_doi = self._build_mock_doi("10.55277/fail")
+        failing_doi.register_doi_for_post.side_effect = RuntimeError("Network error")
         success_doi = self._build_mock_doi("10.55277/ok")
         mock_doi_cls.side_effect = [failing_doi, success_doi]
 
