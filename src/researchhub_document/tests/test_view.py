@@ -780,26 +780,12 @@ class ViewTests(APITestCase):
         self.assertEqual(doc_response.status_code, 200)
         self.assertIsNone(doc_response.data["fundraise"])
 
-    @patch("requests.post")
-    def test_preregistration_doi_not_charged(self, mock_crossref):
-        # Mock Crossref API response
-        mock_crossref.return_value.status_code = 200
-
+    def test_preregistration_doi_not_assigned(self):
         author = create_random_default_user("author")
         make_user_verified(author)
         hub = create_hub()
 
         self.client.force_authenticate(author)
-
-        # Give the user some balance
-        initial_balance = 5
-        distributor = Distributor(
-            Distribution("TEST_REWARD", initial_balance, False),
-            author,
-            None,
-            time.time(),
-        )
-        distributor.distribute()
 
         doc_response = self.client.post(
             "/api/researchhubpost/",
@@ -816,9 +802,7 @@ class ViewTests(APITestCase):
         )
 
         self.assertEqual(doc_response.status_code, 200)
-        self.assertIsNotNone(doc_response.data["doi"])
-        # Balance should remain unchanged for preregistrations
-        self.assertEqual(int(author.get_balance()), initial_balance)
+        self.assertIsNone(doc_response.data["doi"])
 
     def test_grant_created_when_grant_amount_provided(self):
         """Test that a grant is created when grant_amount is provided"""

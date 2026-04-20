@@ -145,7 +145,12 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 created_by = request.user
                 created_by_author = created_by.author_profile
                 is_grant = document_type == GRANT
-                doi = DOI() if (assign_doi and not is_grant) else None
+                is_preregistration = document_type == PREREGISTRATION
+                doi = (
+                    DOI()
+                    if (assign_doi and not is_grant and not is_preregistration)
+                    else None
+                )
 
                 # logical ordering & not using signals to avoid race-conditions
                 access_group = self.create_access_group(request)
@@ -361,7 +366,12 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             title = data.get("title", "")
             assign_doi = data.get("assign_doi", False)
             is_grant = rh_post.document_type == GRANT
-            doi = DOI() if (assign_doi and not is_grant) else None
+            is_preregistration = rh_post.document_type == PREREGISTRATION
+            doi = (
+                DOI()
+                if (assign_doi and not is_grant and not is_preregistration)
+                else None
+            )
 
             if type(title) is not str or len(title) < MIN_POST_TITLE_LENGTH:
                 return Response(
