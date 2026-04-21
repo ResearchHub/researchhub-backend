@@ -307,32 +307,47 @@ class StakingMultiplierCalculationTest(TestCase):
         user_snapshot = snapshot.user_snapshots.get(user=self.user)
         user2_snapshot = snapshot.user_snapshots.get(user=user2)
 
-        expected_position_1 = StakingYieldService.calculate_staking_position(
-            self.user, self.accrual_date
-        )
-        expected_position_2 = StakingYieldService.calculate_staking_position(
-            user2, self.accrual_date
-        )
-        expected_total_weighted_stake = (
-            expected_position_1.weighted_stake + expected_position_2.weighted_stake
-        ).quantize(QUANTIZE_8, rounding=ROUND_DOWN)
-        expected_global_multiplier = (
-            StakingYieldService.compute_global_staking_multiplier(
-                snapshot.total_staked,
-                expected_total_weighted_stake,
-            )
-        )
-
         self.assertEqual(user_snapshot.stake_amount, Decimal("100.00000000"))
-        self.assertEqual(user_snapshot.multiplier, expected_position_1.multiplier)
-        self.assertEqual(
-            user_snapshot.weighted_stake, expected_position_1.weighted_stake
-        )
-        self.assertEqual(user2_snapshot.multiplier, expected_position_2.multiplier)
-        self.assertEqual(
-            user2_snapshot.weighted_stake, expected_position_2.weighted_stake
-        )
+        self.assertEqual(user_snapshot.multiplier, Decimal("1.10000000"))
+        self.assertEqual(user_snapshot.weighted_stake, Decimal("110.00000000"))
+        self.assertEqual(user2_snapshot.stake_amount, Decimal("50.00000000"))
+        self.assertEqual(user2_snapshot.multiplier, Decimal("1.05000000"))
+        self.assertEqual(user2_snapshot.weighted_stake, Decimal("52.50000000"))
         self.assertEqual(snapshot.total_staked, Decimal("150.00000000"))
-        self.assertEqual(snapshot.total_weighted_stake, expected_total_weighted_stake)
-        self.assertGreater(snapshot.total_weighted_stake, snapshot.total_staked)
-        self.assertGreater(expected_global_multiplier, Decimal("1"))
+        self.assertEqual(snapshot.total_weighted_stake, Decimal("162.50000000"))
+
+    @patch(
+        "reputation.services.staking_yield_service."
+        "RscSupplyService.fetch_circulating_supply"
+    )
+    def test_create_daily_snapshots_equal_multipliers_preserve_stake_share(
+        self, mock_supply
+    ):
+        mock_supply.return_value = Decimal("220000000")
+        self.user.is_staking_opted_in = True
+        self.user.staking_opted_in_date = self._timestamp(days_before_accrual=400)
+        self.user.save(update_fields=["is_staking_opted_in", "staking_opted_in_date"])
+        self._create_balance("100", days_before_accrual=40)
+
+        user2 = create_random_default_user("staking-equal-multiplier-2")
+        user2.is_staking_opted_in = True
+        user2.staking_opted_in_date = self._timestamp(days_before_accrual=400)
+        user2.save(update_fields=["is_staking_opted_in", "staking_opted_in_date"])
+        self._create_balance("50", days_before_accrual=40, user=user2)
+
+        snapshot = StakingYieldService.create_daily_snapshots(self.accrual_date)
+        user_snapshot = snapshot.user_snapshots.get(user=self.user)
+        user2_snapshot = snapshot.user_snapshots.get(user=user2)
+
+        self.assertEqual(user_snapshot.multiplier, Decimal("1.05000000"))
+        self.assertEqual(user2_snapshot.multiplier, user_snapshot.multiplier)
+        self.assertEqual(snapshot.total_staked, Decimal("150.00000000"))
+        self.assertEqual(snapshot.total_weighted_stake, Decimal("157.50000000"))
+        self.assertEqual(
+            user_snapshot.weighted_stake / snapshot.total_weighted_stake,
+            user_snapshot.stake_amount / snapshot.total_staked,
+        )
+        self.assertEqual(
+            user2_snapshot.weighted_stake / snapshot.total_weighted_stake,
+            user2_snapshot.stake_amount / snapshot.total_staked,
+        )
