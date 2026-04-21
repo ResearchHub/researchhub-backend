@@ -224,7 +224,6 @@ INSTALLED_APPS = [
     "django.contrib.postgres",
     # Rest framework
     "rest_framework",
-    "rest_framework_api_key",
     # Authentication
     "allauth",
     "allauth.account",
