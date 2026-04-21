@@ -29,6 +29,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
     queryset = Fundraise.objects.all()
     serializer_class = DynamicFundraiseSerializer
     permission_classes = [IsAuthenticated]
+    http_method_names = ["get", "head", "options", "post"]
 
     def dispatch(self, request, *args, **kwargs):
         self.fundraise_service = kwargs.pop("fundraise_service", FundraiseService())
