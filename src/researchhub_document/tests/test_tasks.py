@@ -59,12 +59,13 @@ class AssignPostDoisTests(TestCase):
     @patch("researchhub_document.tasks.DOI")
     def test_skips_ineligible_posts(self, mock_doi_cls):
         """Posts that are too young, already have a DOI, are removed,
-        are flagged, or are grants should all be skipped."""
+        are flagged, or are non-notebook types should all be skipped."""
         # Arrange
         self._create_post(days_old=3)
         self._create_post(days_old=10, doi="10.55277/existing")
         self._create_post(days_old=10, is_removed=True)
         self._create_post(document_type="GRANT", days_old=10)
+        self._create_post(document_type="QUESTION", days_old=10)
 
         flagged = self._create_post(days_old=10)
         ct = ContentType.objects.get_for_model(flagged)

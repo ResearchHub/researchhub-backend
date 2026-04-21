@@ -6,7 +6,10 @@ from django.utils import timezone
 
 from researchhub.celery import QUEUE_HOT_SCORE, QUEUE_PAPER_MISC, app
 from researchhub_document.models import ResearchhubPost
-from researchhub_document.related_models.constants.document_type import GRANT
+from researchhub_document.related_models.constants.document_type import (
+    DISCUSSION,
+    PREREGISTRATION,
+)
 from utils import sentry
 from utils.doi import DOI
 
@@ -19,12 +22,12 @@ def assign_post_dois():
 
     eligible_posts = (
         ResearchhubPost.objects.filter(
+            document_type__in=[DISCUSSION, PREREGISTRATION],
             doi__isnull=True,
             created_date__lte=week_ago,
             unified_document__is_removed=False,
             flags__isnull=True,
         )
-        .exclude(document_type=GRANT)
         .select_related("created_by__author_profile", "unified_document")
     )
 
