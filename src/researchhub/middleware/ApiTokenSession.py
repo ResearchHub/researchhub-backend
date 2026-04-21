@@ -1,8 +1,6 @@
-from rest_framework import HTTP_HEADER_ENCODING, exceptions
+from rest_framework import HTTP_HEADER_ENCODING
 from rest_framework.authentication import TokenAuthentication
-from rest_framework_api_key.permissions import KeyParser
 
-from researchhub.settings import API_KEY_CUSTOM_HEADER
 from utils.sentry import log_error
 
 
@@ -19,22 +17,6 @@ def get_organization_header(request):
         # Work around django test client oddness
         org_id = org_id.encode(HTTP_HEADER_ENCODING)
     return org_id
-
-
-def get_user(request):
-    from user.models import UserApiToken
-
-    key_parser = KeyParser()
-    user = None
-    key = key_parser.get(request)
-    try:
-        token = UserApiToken.objects.get_from_key(key)
-        user = token.user
-    except UserApiToken.DoesNotExist:
-        raise exceptions.PermissionDenied("Invalid API key")
-
-    request._cached_user = user
-    return user, key
 
 
 class UserApiTokenAuth(TokenAuthentication):
@@ -58,14 +40,10 @@ class UserApiTokenAuth(TokenAuthentication):
             log_error(e)
 
     def authenticate(self, request):
-        if API_KEY_CUSTOM_HEADER in request.META:
-            user, key = get_user(request)
-        else:
-            res = super().authenticate(request)
-            if res:
-                user, key = super().authenticate(request)
-            else:
-                return res
+        res = super().authenticate(request)
+        if res is None:
+            return res
 
+        user, key = res
         self._set_user_organization(request, user)
         return user, key
