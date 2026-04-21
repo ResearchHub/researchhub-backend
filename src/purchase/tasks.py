@@ -9,7 +9,7 @@ from mailing_list.lib import base_email_context, send_email
 from notification.models import Notification
 from paper.models import Paper
 from purchase.circle.service import CircleWalletService
-from purchase.models import Fundraise, Purchase, Support
+from purchase.models import Fundraise, Purchase
 from purchase.related_models.constants.currency import USD
 from purchase.services.fundraise_service import FundraiseService
 from reputation.models import Deposit
@@ -208,15 +208,7 @@ def send_support_email(
             <a href="{url}" class="header-link">key takeaway</a>
         """
 
-    if payment_type == Support.PAYPAL:
-        payment_type = "Paypal"
-    elif payment_type == Support.ETH:
-        payment_type = "Ethereum"
-    elif payment_type == Support.BTC:
-        payment_type = "Bitcoin"
-    elif payment_type in Support.RSC_ON_CHAIN:
-        payment_type = "RSC"
-    elif payment_type in Support.RSC_OFF_CHAIN:
+    if payment_type in (Purchase.OFF_CHAIN, Purchase.ON_CHAIN):
         payment_type = "RSC"
 
     context = {
