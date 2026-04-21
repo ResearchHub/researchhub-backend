@@ -186,6 +186,15 @@ app.conf.beat_schedule = {
             "queue": QUEUE_PURCHASES,
         },
     },
+    # Search index cleanup
+    "search_cleanup-removed-content": {
+        "task": "search.tasks.cleanup_removed_content_from_search_index",
+        "schedule": crontab(hour="*/6", minute=40),
+        "options": {
+            "priority": 5,
+            "queue": QUEUE_ELASTIC_SEARCH,
+        },
+    },
     # Paper ingestion tasks
     "paper-fetch-all": {
         "task": "paper.ingestion.pipeline.fetch_all_papers",

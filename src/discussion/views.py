@@ -41,6 +41,10 @@ def censor(item):
     else:
         item.unified_document.delete(soft=True)
 
+    if isinstance(item, Paper) and not item.is_removed:
+        item.is_removed = True
+        item.save(update_fields=["is_removed"])
+
     if reviews := getattr(item, "reviews", None):
         reviews.all().update(
             is_removed=True, is_public=False, is_removed_date=timezone.now()
