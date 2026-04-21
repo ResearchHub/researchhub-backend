@@ -42,14 +42,12 @@ def assign_post_dois():
                 post.save(update_fields=["doi"])
                 assigned_count += 1
             else:
-                sentry.log_error(
-                    RuntimeError(
-                        f"Crossref API failure for post {post.id}: "
-                        f"status {response.status_code}"
-                    )
+                logger.error(
+                    f"Crossref API failure for post {post.id}: "
+                    f"status {response.status_code}"
                 )
-        except Exception as error:
-            sentry.log_error(error)
+        except Exception:
+            logger.exception(f"Failed to assign DOI to post {post.id}")
 
     logger.info(f"Assigned DOIs to {assigned_count}/{total} eligible posts")
 
