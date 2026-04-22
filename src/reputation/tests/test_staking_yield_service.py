@@ -239,7 +239,9 @@ class StakingMultiplierCalculationTest(TestCase):
         self._create_balance("100", days_before_accrual=400)
 
         position = StakingYieldService.calculate_staking_position(
-            self.user, self.accrual_date
+            self.user.get_unlocked_balance_lots_lifo(),
+            self.user.staking_opted_in_date.date(),
+            self.accrual_date,
         )
 
         expected_multiplier = Decimal("1.10000000")
@@ -259,7 +261,9 @@ class StakingMultiplierCalculationTest(TestCase):
         self._create_balance("50", days_before_accrual=40)
 
         position = StakingYieldService.calculate_staking_position(
-            self.user, self.accrual_date
+            self.user.get_unlocked_balance_lots_lifo(),
+            self.user.staking_opted_in_date.date(),
+            self.accrual_date,
         )
 
         multiplier_200 = Decimal("1.10000000")
