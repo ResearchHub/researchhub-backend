@@ -25,7 +25,6 @@ from researchhub_document.permissions import HasDocumentEditingPermission
 from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_OPEN,
     FILTER_HAS_BOUNTY,
-    GRANT,
     PREREGISTRATION,
     RESEARCHHUB_POST_DOCUMENT_TYPES,
     SORT_BOUNTY_EXPIRATION_DATE,
@@ -37,7 +36,6 @@ from researchhub_document.serializers.researchhub_post_serializer import (
 )
 from user.models import User
 from user.permissions import IsVerifiedUser
-from utils.doi import DOI
 from utils.sentry import log_error
 from utils.throttles import THROTTLE_CLASSES
 
@@ -126,7 +124,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         document_type = data.get("document_type")
         editor_type = data.get("editor_type")
         title = data.get("title", "")
-        assign_doi = data.get("assign_doi", False)
         renderable_text = data.get("renderable_text", "")
         grant_amount = data.get("grant_amount")
         grant_id = data.get("grant_id")
@@ -164,9 +161,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         try:
             with transaction.atomic():
                 created_by = request.user
-                created_by_author = created_by.author_profile
-                is_grant = document_type == GRANT
-                doi = DOI() if (assign_doi and not is_grant) else None
 
                 # logical ordering & not using signals to avoid race-conditions
                 access_group = self.create_access_group(request)
@@ -179,7 +173,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 rh_post = ResearchhubPost.objects.create(
                     created_by=created_by,
                     document_type=document_type,
-                    doi=doi.doi if doi else None,
                     slug=slug,
                     editor_type=CK_EDITOR if editor_type is None else editor_type,
                     image=data.get("image"),
@@ -262,13 +255,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                         rh_post.discussion_src.save(file_name, full_src_file)
                     else:
                         rh_post.eln_src.save(file_name, full_src_file)
-
-                if doi:
-                    crossref_response = doi.register_doi_for_post(
-                        [created_by_author], title, rh_post
-                    )
-                    if crossref_response.status_code != 200:
-                        return Response("Crossref API Failure", status=400)
 
                 unified_document.update_filters(
                     (
@@ -373,14 +359,9 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     status=400,
                 )
 
-            created_by = request.user
-            created_by_author = created_by.author_profile
             hubs = data.get("hubs", None)
             renderable_text = data.get("renderable_text", "")
             title = data.get("title", "")
-            assign_doi = data.get("assign_doi", False)
-            is_grant = rh_post.document_type == GRANT
-            doi = DOI() if (assign_doi and not is_grant) else None
 
             if type(title) is not str or len(title) < MIN_POST_TITLE_LENGTH:
                 return Response(
@@ -406,9 +387,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     400,
                 )
 
-            rh_post.doi = doi.doi if doi else rh_post.doi
-            rh_post.save(update_fields=["doi"])
-
             serializer = ResearchhubPostSerializer(
                 rh_post, data=request.data, partial=True
             )
@@ -429,13 +407,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             if type(hubs) is list:
                 unified_doc = post.unified_document
                 unified_doc.hubs.set(hubs)
-
-            if doi:
-                crossref_response = doi.register_doi_for_post(
-                    [created_by_author], title, rh_post
-                )
-                if crossref_response.status_code != 200:
-                    return Response("Crossref API Failure", status=400)
 
             # Handle grant updates
             grant = None
