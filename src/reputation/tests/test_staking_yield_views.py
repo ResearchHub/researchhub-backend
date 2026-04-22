@@ -166,6 +166,8 @@ class StakingYieldDetailsBalanceLotsTest(StakingYieldViewSetTestBase):
         self.assertEqual(lot["next_multiplier_date"], "2026-06-21")
         self.assertEqual(lot["created_date"], "2026-05-22")
         self.assertEqual(lot["effective_start_date"], "2026-05-22")
+        # Only lot on its tier transition date — overall == its own multiplier
+        self.assertEqual(Decimal(lot["projected_overall_multiplier"]), Decimal("1.05"))
 
     def test_lot_at_max_tier_has_no_next_multiplier(self):
         self.user.staking_opted_in_date = datetime(2024, 1, 1, tzinfo=timezone.utc)
@@ -182,6 +184,7 @@ class StakingYieldDetailsBalanceLotsTest(StakingYieldViewSetTestBase):
         self.assertIsNone(lot["next_multiplier"])
         self.assertIsNone(lot["days_until_next_multiplier"])
         self.assertIsNone(lot["next_multiplier_date"])
+        self.assertIsNone(lot["projected_overall_multiplier"])
 
     def test_effective_start_uses_opt_in_date(self):
         # Lot created long before opt-in; opt-in date should drive age
@@ -206,6 +209,30 @@ class StakingYieldDetailsBalanceLotsTest(StakingYieldViewSetTestBase):
         self.assertEqual(len(lots), 2)
         amounts = sorted(Decimal(lot["amount"]) for lot in lots)
         self.assertEqual(amounts, [Decimal("100"), Decimal("200")])
+
+    def test_projected_overall_multiplier_weights_all_lots(self):
+        # Lot A: 100 RSC, age 25 — hits 30-day tier in 5 days
+        self._create_balance("100", created_offset_days=25)
+        # Lot B: 300 RSC, age 170 — hits 180-day tier in 10 days
+        self._create_balance("300", created_offset_days=170)
+
+        resp = self._get_details()
+
+        lots = {Decimal(lot["amount"]): lot for lot in resp.data["balance_lots"]}
+
+        # On lot A's transition date (+5 days): A at 30d=1.05, B at 175d=1.05
+        # Weighted: (100 * 1.05 + 300 * 1.05) / 400 = 1.05
+        self.assertEqual(
+            Decimal(lots[Decimal("100")]["projected_overall_multiplier"]),
+            Decimal("1.05"),
+        )
+
+        # On lot B's transition date (+10 days): A at 35d=1.05, B at 180d=1.1
+        # Weighted: (100 * 1.05 + 300 * 1.1) / 400 = 1.0875
+        self.assertEqual(
+            Decimal(lots[Decimal("300")]["projected_overall_multiplier"]),
+            Decimal("1.0875"),
+        )
 
 
 class StakingYieldEarnedSinceTest(StakingYieldViewSetTestBase):

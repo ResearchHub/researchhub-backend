@@ -98,20 +98,38 @@ class StakingYieldService:
         """Return per-lot staking multiplier details for the given user.
 
         Each entry includes the lot's effective start date (respecting the
-        user's staking opt-in date), current age and multiplier, and the
-        next tier the lot will reach (if any).
+        user's staking opt-in date), current age and multiplier, the next
+        tier the lot will reach (if any), and the projected overall
+        weighted-average multiplier across all lots on that tier transition
+        date, assuming balances don't change before then.
         """
         lots = user.get_unlocked_balance_lots_lifo()
         opt_in_date = (
             user.staking_opted_in_date.date() if user.staking_opted_in_date else None
         )
 
-        details = []
+        prepared = []
         for lot in lots:
             effective_start_date = lot.created_date
             if opt_in_date is not None:
                 effective_start_date = max(effective_start_date, opt_in_date)
+            prepared.append((lot, effective_start_date))
 
+        total_amount = sum((lot.amount for lot, _ in prepared), Decimal("0"))
+
+        def projected_overall_multiplier(projected_date):
+            if total_amount <= 0:
+                return Decimal("0")
+            weighted = Decimal("0")
+            for lot, start in prepared:
+                age = max((projected_date - start).days, 0)
+                weighted += lot.amount * (
+                    StakingYieldService.compute_balance_age_multiplier(age)
+                )
+            return (weighted / total_amount).quantize(QUANTIZE_8, rounding=ROUND_DOWN)
+
+        details = []
+        for lot, effective_start_date in prepared:
             age_days = max((reference_date - effective_start_date).days, 0)
             current_multiplier = StakingYieldService.compute_balance_age_multiplier(
                 age_days
@@ -122,6 +140,11 @@ class StakingYieldService:
             next_multiplier_date = (
                 reference_date + timedelta(days=days_until_next)
                 if days_until_next is not None
+                else None
+            )
+            projected_multiplier = (
+                projected_overall_multiplier(next_multiplier_date)
+                if next_multiplier_date is not None
                 else None
             )
 
@@ -135,6 +158,7 @@ class StakingYieldService:
                     "next_multiplier": next_multiplier,
                     "days_until_next_multiplier": days_until_next,
                     "next_multiplier_date": next_multiplier_date,
+                    "projected_overall_multiplier": projected_multiplier,
                 }
             )
 

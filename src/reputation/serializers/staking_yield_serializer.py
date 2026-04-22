@@ -12,6 +12,9 @@ class StakingBalanceLotSerializer(serializers.Serializer):
     )
     days_until_next_multiplier = serializers.IntegerField(allow_null=True)
     next_multiplier_date = serializers.DateField(allow_null=True)
+    projected_overall_multiplier = serializers.DecimalField(
+        max_digits=19, decimal_places=8, allow_null=True
+    )
 
 
 class StakingYieldDetailsSerializer(serializers.Serializer):
