@@ -176,10 +176,6 @@ router.register(
 router.register(r"gatekeeper", user.views.GatekeeperViewSet, basename="gatekeeper")
 
 router.register(
-    r"user_external_token", user.views.UserApiTokenViewSet, basename="user_api_token"
-)
-
-router.register(
     r"researchhub_unified_document/([0-9]+)/review", ReviewViewSet, basename="review"
 )
 

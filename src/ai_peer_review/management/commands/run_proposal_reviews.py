@@ -6,6 +6,7 @@ Usage:
     python manage.py run_proposal_reviews --created-after 2024-01-01
     python manage.py run_proposal_reviews --created-before 2025-12-31 --created-after 2025-01-01
     python manage.py run_proposal_reviews --grant-ids 1 --user-id 42  # optional override for created_by
+    python manage.py run_proposal_reviews --grant-ids 1 --force  # re-run completed proposal reviews too
 """
 
 from __future__ import annotations
@@ -79,7 +80,8 @@ def _load_override_user(user_id: int | None):
 class Command(BaseCommand):
     help = (
         "Run AI proposal reviews for each preregistration linked to grants, "
-        "then refresh executive comparison (no RFP brief)."
+        "then refresh executive comparison (no RFP brief). "
+        "By default, already-completed reviews are skipped; use --force to re-run them."
     )
 
     def add_arguments(self, parser):
@@ -110,12 +112,22 @@ class Command(BaseCommand):
                 "default is each grant's created_by."
             ),
         )
+        parser.add_argument(
+            "--force",
+            action="store_true",
+            help=(
+                "Re-run proposal reviews that are already COMPLETED (e.g. after prompt changes). "
+                "Without this, only pending/failed reviews are executed; executive comparison "
+                "still runs for each grant."
+            ),
+        )
 
     def handle(self, *args, **options):
         grant_ids_raw: str = (options["grant_ids"] or "").strip()
         created_after: str = (options["created_after"] or "").strip()
         created_before: str = (options["created_before"] or "").strip()
         user_id: int | None = options["user_id"]
+        force: bool = bool(options["force"])
 
         has_ids = bool(grant_ids_raw)
         has_dates = bool(created_after or created_before)
@@ -182,6 +194,12 @@ class Command(BaseCommand):
         exec_ok = 0
 
         self.stdout.write(self.style.NOTICE(f"Found {total_grants} grant(s)."))
+        if force:
+            self.stdout.write(
+                self.style.NOTICE(
+                    "--force: re-running completed proposal reviews where applicable."
+                )
+            )
 
         for gi, grant in enumerate(grants, start=1):
             actor = override_user if override_user is not None else grant.created_by
@@ -218,7 +236,7 @@ class Command(BaseCommand):
                         review.created_by = actor
                         review.save(update_fields=["created_by", "updated_date"])
 
-                    if review.status == ReviewStatus.COMPLETED:
+                    if review.status == ReviewStatus.COMPLETED and not force:
                         self.stdout.write(
                             f"  [{pj}/{len(prereg_apps)}] unified_document={ud.id} "
                             f"SKIP (already completed, review_id={review.id})"
