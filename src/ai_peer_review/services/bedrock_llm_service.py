@@ -15,6 +15,18 @@ BEDROCK_MODEL_ID = getattr(
     _DEFAULT_MODEL,
 )
 
+_BEDROCK_OMIT_TEMPERATURE_SUBSTRINGS: tuple[str, ...] = ("opus-4-7",)
+
+
+def _converse_inference_config(
+    model_id: str, *, max_tokens: int, temperature: float
+) -> dict:
+    config: dict[str, int | float] = {"maxTokens": max_tokens}
+    lower = model_id.lower()
+    if not any(s in lower for s in _BEDROCK_OMIT_TEMPERATURE_SUBSTRINGS):
+        config["temperature"] = temperature
+    return config
+
 
 class BedrockLLMService:
     """Invoke Bedrock for structured proposal review JSON (and related tasks)."""
@@ -41,10 +53,11 @@ class BedrockLLMService:
                         "content": [{"text": user_prompt}],
                     }
                 ],
-                inferenceConfig={
-                    "maxTokens": max_tokens,
-                    "temperature": temperature,
-                },
+                inferenceConfig=_converse_inference_config(
+                    self.model_id,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                ),
             )
         except Exception as e:
             sentry.log_error(
