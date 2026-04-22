@@ -86,15 +86,15 @@ Items: societal_challenge, public_communication, commercial_potential
 ### Overall fields (flattened; no separate verdict object)
 
 Provide:
-- overall_summary: narrative overview
+- overall_summary: high-level narrative overview in about three to five complete sentences (roughly four). It should be scannable, not a long essay or a line-by-line critique of the proposal.
 - overall_rationale: short rationale for the overall judgment
 - overall_confidence: "High" | "Medium" | "Low"
 - overall_rating: "excellent" | "good" | "poor" (lowercase preferred; server canonicalizes)
 - overall_score_numeric: integer from 1 to 3 (server clamps; if missing or invalid, defaults to 1)
 
 Also provide:
-- major_strengths: array of strings (most important or decisive strength first, then descending importance)
-- major_weaknesses: array of strings (most consequential weakness first, then descending importance)
+- major_strengths: array of strings (most important or decisive strength first, then descending importance). Each string is one array element. For every element, put a short headline in the first paragraph (the main point, for visible lists). If you add supporting detail, use a blank line (`\n\n`) and then one or more additional paragraphs. Do not rely on a "Label: long explanation" or similar colon-heavy pattern as the default structure. A single-paragraph item is valid when no extra detail is needed.
+- major_weaknesses: same formatting rules as major_strengths (headline in the first paragraph; optional detail in following paragraphs after a blank line; avoid colon-only "Label: rest" as the only pattern; order by descending importance)
 - fatal_flaws: array of strings (use [] if none). When non-empty, list the most severe or deal-breaking issues first. If present, your overall_rating should usually be "poor".
 
 ---
@@ -102,13 +102,13 @@ Also provide:
 ### OUTPUT JSON SHAPE (required keys)
 
 {
-  "overall_summary": "<narrative>",
+  "overall_summary": "<about three to five complete sentences, scannable overview>",
   "overall_rating": "excellent|good|poor",
   "overall_rationale": "<short rationale>",
   "overall_confidence": "High|Medium|Low",
   "overall_score_numeric": 1,
-  "major_strengths": ["...", "..."],
-  "major_weaknesses": ["...", "..."],
+  "major_strengths": ["<headline paragraph; optional extra paragraphs after one blank line in the string>", "..."],
+  "major_weaknesses": ["<headline paragraph; optional extra paragraphs after one blank line in the string>", "..."],
   "fatal_flaws": [],
   "categories": {
     "funding_opportunity_fit": {
@@ -198,6 +198,8 @@ Also provide:
    - Recompute every category score from item decisions using the rubric and critical-fail caps.
    - Ensure JSON keys, decisions, and category scores are internally consistent.
    - Order major_strengths, major_weaknesses, and fatal_flaws arrays strictly by descending importance (index 0 is always the single most important entry in that list for readers).
+   - overall_summary: keep length to about three to five complete sentences.
+   - major_strengths and major_weaknesses: every string has a scannable first paragraph; optional extra paragraphs only after a blank line; do not use only a "Label: explanation" pattern without paragraph structure when detail is long.
 
 5. Output must be parseable by json.loads() with no surrounding commentary or markdown fences.
 

@@ -64,8 +64,11 @@ def build_proposal_review_user_prompt(
         "Evaluate the following research proposal and return the structured JSON "
         'assessment with the seven top-level categories (under "categories"), '
         "overall_summary, overall_rationale, overall_confidence, major_strengths, "
-        "major_weaknesses, and fatal_flaws. In major_strengths and major_weaknesses, "
-        "put the most important items first in each array (descending importance). "
+        "major_weaknesses, and fatal_flaws. overall_summary should be about three to "
+        "five complete sentences (roughly four). In major_strengths and "
+        "major_weaknesses, put the most important items first in each array "
+        "(descending importance); each string uses a short headline in the first "
+        "paragraph, with optional detail in following paragraphs after a blank line ."
         "Provide overall_rating and overall_score_numeric when you can; the server "
         "canonicalizes them (overall_score_numeric defaults to 1 if missing or "
         "invalid).\n\n"
