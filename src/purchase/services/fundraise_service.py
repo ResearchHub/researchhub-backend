@@ -89,7 +89,9 @@ class FundraiseService:
             return False, "Fundraise is expired"
 
         if check_self_contribution and fundraise.created_by.id == user.id:
-            return False, "Cannot contribute to your own fundraise"
+            nonprofit_org = fundraise.get_nonprofit_org()
+            if not nonprofit_org:
+                return False, "Cannot contribute to your own fundraise"
 
         return True, None
 

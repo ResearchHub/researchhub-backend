@@ -21,6 +21,7 @@ class NoteTemplateViewSet(ModelViewSet):
     queryset = NoteTemplate.objects.all()
     permission_classes = [IsAuthenticated]
     serializer_class = NoteTemplateSerializer
+    http_method_names = ["get", "head", "options", "post"]
 
     def create(self, request, *args, **kwargs):
         user = request.user

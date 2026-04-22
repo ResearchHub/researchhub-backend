@@ -18,7 +18,7 @@ from paper.models import Paper, PaperSubmission
 from purchase.models import Purchase
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from referral.models import ReferralSignup
-from reputation.models import Bounty, Contribution, Score, Withdrawal
+from reputation.models import Bounty, Contribution, Distribution, Score, Withdrawal
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.constants import (
     ASSISTANT_EDITOR,
@@ -36,7 +36,6 @@ from user.models import (
     Organization,
     University,
     User,
-    UserApiToken,
     UserVerification,
     Verdict,
 )
@@ -277,13 +276,6 @@ class GatekeeperSerializer(ModelSerializer):
         model = Gatekeeper
         fields = "__all__"
         read_only_fields = [field.name for field in Gatekeeper._meta.fields]
-
-
-class UserApiTokenSerializer(ModelSerializer):
-    class Meta:
-        model = UserApiToken
-        fields = ["name", "prefix", "revoked"]
-        read_only_fields = [field.name for field in UserApiToken._meta.fields]
 
 
 class DynamicAuthorSerializer(DynamicModelFieldSerializer):
@@ -611,7 +603,17 @@ class UserEditableSerializer(ModelSerializer):
             clicked_on_balance_date = user.clicked_on_balance_date
             balances = user.get_balance_qs()
             balances = balances.filter(created_date__gt=clicked_on_balance_date)
-            balance = user.get_balance(balances)
+            deposit_distribution_ids = Distribution.objects.filter(
+                distribution_type="DEPOSIT"
+            ).values_list("id", flat=True)
+            balances = balances.exclude(
+                content_type=ContentType.objects.get_for_model(Distribution),
+                object_id__in=deposit_distribution_ids,
+            )
+            balances = balances.exclude(
+                content_type=ContentType.objects.get_for_model(Withdrawal),
+            )
+            balance = user.get_balance(balances, include_locked=True)
             return balance
         return None
 

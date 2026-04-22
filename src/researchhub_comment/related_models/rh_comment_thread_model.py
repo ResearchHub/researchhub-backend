@@ -123,7 +123,26 @@ class RhCommentThreadModel(AbstractGenericRelationModel):
 
     @property
     def unified_document(self):
-        content_object = self.content_object
+        content_object = self._safe_content_object()
         if content_object is None:
             return None
         return content_object.unified_document
+
+    def _safe_content_object(self):
+        """
+        Resolve `content_object` defensively.
+
+        Returns None if the underlying ContentType points to a model that is
+        no longer registered (stale `django_content_type` row, e.g. from a
+        removed/renamed app) or if the target object no longer exists.
+        """
+        try:
+            model_class = self.content_type.model_class()
+        except Exception:
+            return None
+        if model_class is None:
+            return None
+        try:
+            return self.content_object
+        except (AttributeError, model_class.DoesNotExist):
+            return None

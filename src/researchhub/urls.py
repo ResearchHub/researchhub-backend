@@ -5,8 +5,8 @@ The `urlpatterns` list routes URLs to views. For more information please see:
 """
 
 import debug_toolbar
+from dj_rest_auth.mfa.views import MFALoginView
 from dj_rest_auth.views import (
-    LoginView,
     LogoutView,
     PasswordChangeView,
     PasswordResetConfirmView,
@@ -176,10 +176,6 @@ router.register(
 router.register(r"gatekeeper", user.views.GatekeeperViewSet, basename="gatekeeper")
 
 router.register(
-    r"user_external_token", user.views.UserApiTokenViewSet, basename="user_api_token"
-)
-
-router.register(
     r"researchhub_unified_document/([0-9]+)/review", ReviewViewSet, basename="review"
 )
 
@@ -309,7 +305,8 @@ urlpatterns = [
         name="rest_verify_email",
     ),
     re_path(r"api/auth/register/", include("dj_rest_auth.registration.urls")),
-    re_path(r"api/auth/login/", LoginView.as_view(), name="rest_login"),
+    re_path(r"api/auth/login/", MFALoginView.as_view(), name="rest_login"),
+    re_path(r"api/auth/", include("dj_rest_auth.mfa.urls")),
     re_path(r"api/auth/logout/", LogoutView.as_view(), name="rest_logout"),
     re_path(
         r"api/auth/password-reset/$", PasswordResetView.as_view(), name="password-reset"

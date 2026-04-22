@@ -224,7 +224,6 @@ INSTALLED_APPS = [
     "django.contrib.postgres",
     # Rest framework
     "rest_framework",
-    "rest_framework_api_key",
     # Authentication
     "allauth",
     "allauth.account",
@@ -233,6 +232,7 @@ INSTALLED_APPS = [
     "allauth.socialaccount.providers.orcid",
     "rest_framework.authtoken",
     "dj_rest_auth",
+    "dj_rest_auth.mfa",
     "dj_rest_auth.registration",
     # Storage
     "storages",
@@ -403,6 +403,7 @@ AUTHENTICATION_BACKENDS = (
 REST_AUTH = {
     "REGISTER_SERIALIZER": "user.serializers.RegisterSerializer",
     "PASSWORD_RESET_SERIALIZER": "user.custom_allauth.CustomPasswordResetSerializer",
+    "MFA_TOTP_ISSUER": "ResearchHub",
 }
 
 
@@ -884,10 +885,6 @@ WEB3_KEYSTORE_PASSWORD_SECRET_ID = os.environ.get(
     "WEB3_KEYSTORE_PASSWORD_SECRET_ID", keys.WEB3_KEYSTORE_PASSWORD_SECRET_ID
 )
 WEB3_WALLET_ADDRESS = os.environ.get("WEB3_WALLET_ADDRESS", keys.WEB3_WALLET_ADDRESS)
-
-
-# API Key Settings
-API_KEY_CUSTOM_HEADER = "HTTP_RH_API_KEY"
 
 
 # MJML
