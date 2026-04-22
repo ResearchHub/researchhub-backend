@@ -12,7 +12,7 @@ _DEFAULT_MODEL = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
 BEDROCK_MODEL_ID = getattr(
     settings,
     "AI_PEER_REVIEW_BEDROCK_MODEL_ID",
-    _DEFAULT_MODEL,
+    getattr(settings, "RESEARCH_AI_BEDROCK_MODEL_ID", _DEFAULT_MODEL),
 )
 
 
