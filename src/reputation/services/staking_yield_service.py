@@ -108,28 +108,12 @@ class StakingYieldService:
             user.staking_opted_in_date.date() if user.staking_opted_in_date else None
         )
 
-        prepared = []
+        details = []
         for lot in lots:
             effective_start_date = lot.created_date
             if opt_in_date is not None:
                 effective_start_date = max(effective_start_date, opt_in_date)
-            prepared.append((lot, effective_start_date))
 
-        total_amount = sum((lot.amount for lot, _ in prepared), Decimal("0"))
-
-        def projected_overall_multiplier(projected_date):
-            if total_amount <= 0:
-                return Decimal("0")
-            weighted = Decimal("0")
-            for lot, start in prepared:
-                age = max((projected_date - start).days, 0)
-                weighted += lot.amount * (
-                    StakingYieldService.compute_balance_age_multiplier(age)
-                )
-            return (weighted / total_amount).quantize(QUANTIZE_8, rounding=ROUND_DOWN)
-
-        details = []
-        for lot, effective_start_date in prepared:
             age_days = max((reference_date - effective_start_date).days, 0)
             current_multiplier = StakingYieldService.compute_balance_age_multiplier(
                 age_days
@@ -143,7 +127,9 @@ class StakingYieldService:
                 else None
             )
             projected_multiplier = (
-                projected_overall_multiplier(next_multiplier_date)
+                StakingYieldService.calculate_staking_position(
+                    lots, opt_in_date, next_multiplier_date
+                ).multiplier
                 if next_multiplier_date is not None
                 else None
             )
@@ -165,18 +151,13 @@ class StakingYieldService:
         return details
 
     @staticmethod
-    def calculate_staking_position(user, accrual_date):
-        lots = user.get_unlocked_balance_lots_lifo()
+    def calculate_staking_position(lots, opt_in_date, accrual_date):
         if not lots:
             return StakingPosition(
                 stake_amount=Decimal("0"),
                 multiplier=Decimal("0"),
                 weighted_stake=Decimal("0"),
             )
-
-        opt_in_date = (
-            user.staking_opted_in_date.date() if user.staking_opted_in_date else None
-        )
 
         stake_amount = Decimal("0")
         raw_weighted_stake = Decimal("0")
@@ -416,8 +397,14 @@ class StakingYieldService:
         position_rows = []
 
         for user in eligible_users:
+            user_lots = user.get_unlocked_balance_lots_lifo()
+            user_opt_in_date = (
+                user.staking_opted_in_date.date()
+                if user.staking_opted_in_date
+                else None
+            )
             staking_position = StakingYieldService.calculate_staking_position(
-                user, accrual_date
+                user_lots, user_opt_in_date, accrual_date
             )
             if (
                 staking_position.stake_amount <= 0
