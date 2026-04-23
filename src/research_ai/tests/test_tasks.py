@@ -5,8 +5,10 @@ from unittest.mock import patch
 from django.test import TestCase, override_settings
 
 from research_ai.models import Expert, ExpertSearch, GeneratedEmail, SearchExpert
+from research_ai.services.expert_persist import (
+    maybe_obfuscate_expert_dict_emails_for_non_production,
+)
 from research_ai.tasks import (
-    _maybe_obfuscate_expert_emails_for_non_production,
     _update_search_progress,
     process_bulk_generate_emails_task,
     process_expert_search_task,
@@ -14,26 +16,26 @@ from research_ai.tasks import (
 )
 from user.tests.helpers import create_random_authenticated_user
 
-# --- _maybe_obfuscate_expert_emails_for_non_production ---
+# --- maybe_obfuscate_expert_dict_emails_for_non_production ---
 
 
 class MaybeObfuscateExpertEmailsTests(TestCase):
     """Test email obfuscation for non-production."""
 
     def test_returns_experts_unchanged_when_empty(self):
-        self.assertEqual(_maybe_obfuscate_expert_emails_for_non_production([]), [])
+        self.assertEqual(maybe_obfuscate_expert_dict_emails_for_non_production([]), [])
 
     @override_settings(PRODUCTION=True)
     def test_returns_experts_unchanged_when_production(self):
         experts = [{"name": "Jane", "email": "jane@example.com"}]
-        result = _maybe_obfuscate_expert_emails_for_non_production(experts)
+        result = maybe_obfuscate_expert_dict_emails_for_non_production(experts)
         self.assertEqual(result, experts)
         self.assertEqual(result[0]["email"], "jane@example.com")
 
     @override_settings(TESTING=True)
     def test_returns_experts_unchanged_when_testing(self):
         experts = [{"name": "Jane", "email": "jane@example.com"}]
-        result = _maybe_obfuscate_expert_emails_for_non_production(experts)
+        result = maybe_obfuscate_expert_dict_emails_for_non_production(experts)
         self.assertEqual(result, experts)
 
     @override_settings(PRODUCTION=False, TESTING=False)
@@ -42,7 +44,7 @@ class MaybeObfuscateExpertEmailsTests(TestCase):
             {"name": "Jane", "email": "jane@example.com"},
             {"name": "Bob", "email": "bob@uni.edu"},
         ]
-        result = _maybe_obfuscate_expert_emails_for_non_production(experts)
+        result = maybe_obfuscate_expert_dict_emails_for_non_production(experts)
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0]["email"], "jane_test@example.com")
         self.assertEqual(result[1]["email"], "bob_test@uni.edu")
@@ -54,7 +56,7 @@ class MaybeObfuscateExpertEmailsTests(TestCase):
             {"name": "NoEmail"},
             {"name": "Bad", "email": "no-at-sign"},
         ]
-        result = _maybe_obfuscate_expert_emails_for_non_production(experts)
+        result = maybe_obfuscate_expert_dict_emails_for_non_production(experts)
         self.assertEqual(result[0].get("email"), None)
         self.assertEqual(result[1]["email"], "no-at-sign")
 
@@ -107,16 +109,12 @@ class ProcessExpertSearchTaskTests(TestCase):
         )
 
     @patch("research_ai.tasks.ExpertFinderService")
-    def test_process_expert_search_success_updates_search_and_obfuscates_in_non_prod(
+    def test_process_expert_search_success_updates_search_from_service_counts(
         self, mock_service_class
     ):
         mock_instance = mock_service_class.return_value
         mock_instance.process_expert_search.return_value = {
             "status": ExpertSearch.Status.COMPLETED,
-            "experts": [
-                {"name": "Dr. A", "email": "a@lab.org"},
-                {"name": "Dr. B", "email": "b@lab.org"},
-            ],
             "expert_count": 2,
             "report_urls": {"pdf": "/r/1.pdf", "csv": "/r/1.csv"},
             "llm_model": "test-model",
@@ -134,16 +132,10 @@ class ProcessExpertSearchTaskTests(TestCase):
         self.assertEqual(self.search.status, ExpertSearch.Status.COMPLETED)
         self.assertEqual(self.search.expert_count, 2)
         self.assertEqual(result["status"], ExpertSearch.Status.COMPLETED)
-        # Emails obfuscated when not production; persisted on Expert rows
-        ses = SearchExpert.objects.filter(expert_search_id=self.search.id).order_by(
-            "position"
-        )
-        self.assertEqual(ses.count(), 2)
+        # Persistence and email obfuscation run inside ExpertFinderService, not the task.
         self.assertEqual(
-            [se.expert.email for se in ses],
-            ["a_test@lab.org", "b_test@lab.org"],
+            SearchExpert.objects.filter(expert_search_id=self.search.id).count(), 0
         )
-        self.assertEqual(Expert.objects.count(), 2)
 
     @patch("research_ai.tasks.ExpertFinderService")
     def test_process_expert_search_when_service_returns_failed_saves_error(
@@ -154,7 +146,6 @@ class ProcessExpertSearchTaskTests(TestCase):
             "status": ExpertSearch.Status.FAILED,
             "error_message": "No table parsed",
             "current_step": "No expert table returned",
-            "experts": [],
             "expert_count": 0,
             "report_urls": {},
             "llm_model": "",
@@ -179,7 +170,6 @@ class ProcessExpertSearchTaskTests(TestCase):
         mock_instance = mock_service_class.return_value
         mock_instance.process_expert_search.return_value = {
             "status": ExpertSearch.Status.COMPLETED,
-            "experts": [{"name": "Dr. A", "email": "a@lab.org"}],
             "expert_count": 1,
             "report_urls": {"pdf": "/r/1.pdf", "csv": "/r/1.csv"},
             "llm_model": "test-model",
@@ -209,12 +199,8 @@ class ProcessExpertSearchTaskTests(TestCase):
         )
         ex_a = Expert.objects.create(email="excl_res_a@test.org")
         ex_b = Expert.objects.create(email="excl_res_b@test.org")
-        SearchExpert.objects.create(
-            expert_search=prior, expert=ex_a, position=0
-        )
-        SearchExpert.objects.create(
-            expert_search=prior, expert=ex_b, position=1
-        )
+        SearchExpert.objects.create(expert_search=prior, expert=ex_a, position=0)
+        SearchExpert.objects.create(expert_search=prior, expert=ex_b, position=1)
         new_search = ExpertSearch.objects.create(
             created_by=user,
             query="new run",
@@ -224,7 +210,6 @@ class ProcessExpertSearchTaskTests(TestCase):
         mock_instance = mock_service_class.return_value
         mock_instance.process_expert_search.return_value = {
             "status": ExpertSearch.Status.COMPLETED,
-            "experts": [{"name": "Dr. A", "email": "a@lab.org"}],
             "expert_count": 1,
             "report_urls": {"pdf": "/r/1.pdf", "csv": "/r/1.csv"},
             "llm_model": "test-model",

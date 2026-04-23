@@ -22,17 +22,24 @@ class ExpertSearchModelTests(TestCase):
         self.assertEqual(search.status, ExpertSearch.Status.PENDING)
         self.assertEqual(search.progress, 0)
 
-    def test_create_expert_search_with_config(self):
+    def test_create_expert_search_with_config_and_relational_experts(self):
         search = ExpertSearch.objects.create(
             created_by=self.user,
             query="Climate change",
             config={"expert_count": 15},
             status=ExpertSearch.Status.COMPLETED,
-            expert_results=[{"name": "Jane Doe", "email": "jane@example.com"}],
             expert_count=1,
         )
         self.assertEqual(search.config["expert_count"], 15)
-        self.assertEqual(len(search.expert_results), 1)
+        jane = Expert.objects.create(
+            email="jane@example.com",
+            first_name="Jane",
+            last_name="Doe",
+        )
+        SearchExpert.objects.create(
+            expert_search=search, expert=jane, position=0
+        )
+        self.assertEqual(search.search_experts.count(), 1)
 
     def test_additional_context_optional_defaults_empty(self):
         search = ExpertSearch.objects.create(

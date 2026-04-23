@@ -13,6 +13,7 @@ from research_ai.prompts.expert_finder_prompts import (
     build_user_prompt,
 )
 from research_ai.services.expert_display import (
+    build_expert_display_name,
     expert_model_display_name,
     normalize_expert_email,
 )
@@ -21,6 +22,10 @@ from research_ai.services.expert_llm_table import (
     clean_expert_table_url,
     extract_citations_from_notes,
     parse_expert_markdown_table_strict,
+)
+from research_ai.services.expert_persist import (
+    maybe_obfuscate_expert_dict_emails_for_non_production,
+    replace_search_experts_for_search,
 )
 from research_ai.services.openai_expert_finder_service import OpenAIExpertFinderService
 from research_ai.services.progress_service import ProgressService, TaskType
@@ -32,6 +37,18 @@ from research_ai.services.report_generator_service import (
 from researchhub_document.related_models.constants.document_type import PAPER
 
 logger = logging.getLogger(__name__)
+
+
+def _parsed_row_display_name(e: dict[str, Any]) -> str:
+    """Single display string from a parsed expert row dict (structured fields only)."""
+    return build_expert_display_name(
+        honorific=e.get("honorific") or "",
+        first_name=e.get("first_name") or "",
+        middle_name=e.get("middle_name") or "",
+        last_name=e.get("last_name") or "",
+        name_suffix=e.get("name_suffix") or "",
+    )
+
 
 PDF_TOO_LARGE_MESSAGE = "PDF is too large. Maximum size is 10 MB. Please use another input type (e.g. abstract)."
 MAX_ERROR_MESSAGE_LENGTH = 10000
@@ -347,7 +364,6 @@ class ExpertFinderService:
                         "status": ExpertSearch.Status.FAILED,
                         "query": query,
                         "config": config,
-                        "experts": [],
                         "report_urls": {},
                         "expert_count": 0,
                         "llm_model": self.openai_expert.model_id,
@@ -358,9 +374,9 @@ class ExpertFinderService:
 
                 before_name_filter = len(batch)
                 accumulated_names = [
-                    (x.get("name") or "").strip()
+                    nm
                     for x in accumulated
-                    if (x.get("name") or "").strip()
+                    if (nm := _parsed_row_display_name(x)).strip()
                 ]
                 combined_name_exclusions = list(accumulated_names)
                 batch = [
@@ -373,7 +389,7 @@ class ExpertFinderService:
                     e
                     for e in batch
                     if not self._expert_name_matches_excluded(
-                        e.get("name") or "", combined_name_exclusions
+                        _parsed_row_display_name(e), combined_name_exclusions
                     )
                 ]
                 after_exclude = len(batch)
@@ -456,17 +472,20 @@ class ExpertFinderService:
                     "status": ExpertSearch.Status.FAILED,
                     "query": query,
                     "config": config,
-                    "experts": [],
                     "report_urls": {},
                     "expert_count": 0,
                     "llm_model": self.openai_expert.model_id,
                     "error_message": error_message,
                     "current_step": current_step,
                 }
+            to_store = maybe_obfuscate_expert_dict_emails_for_non_production(
+                [dict(e) for e in experts]
+            )
+            stored_experts = replace_search_experts_for_search(int(search_id), to_store)
             publish_progress_update("Generating PDF report...", 80)
-            pdf_bytes = generate_pdf_report(experts, query, config)
+            pdf_bytes = generate_pdf_report(stored_experts, query, config)
             publish_progress_update("Generating CSV file...", 88)
-            csv_bytes = generate_csv_file(experts)
+            csv_bytes = generate_csv_file(stored_experts)
 
             publish_progress_update("Uploading results to storage...", 94)
             pdf_url = upload_report_to_storage(
@@ -479,9 +498,8 @@ class ExpertFinderService:
                 "status": ExpertSearch.Status.COMPLETED,
                 "query": query,
                 "config": config,
-                "experts": experts,
                 "report_urls": {"pdf": pdf_url, "csv": csv_url},
-                "expert_count": len(experts),
+                "expert_count": len(stored_experts),
                 "llm_model": self.openai_expert.model_id,
             }
             publish_progress_update(
@@ -515,7 +533,7 @@ class ExpertFinderService:
         Conservative: only flags clear phrases (e.g. deceased, late Prof., d. 2020).
         """
         parts = [
-            expert.get("name") or "",
+            _parsed_row_display_name(expert),
             expert.get("honorific") or "",
             expert.get("first_name") or "",
             expert.get("middle_name") or "",
@@ -607,7 +625,7 @@ class ExpertFinderService:
         acc_lines = []
         for e in accumulated:
             em = (e.get("email") or "").strip()
-            nm = (e.get("name") or "").strip()
+            nm = _parsed_row_display_name(e).strip()
             if em or nm:
                 acc_lines.append(f"email={em}; name={nm}")
         combined = list(user_excluded_lines) + acc_lines

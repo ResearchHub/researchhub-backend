@@ -138,7 +138,6 @@ class ResolveExpertFromSearchTests(TestCase):
             created_by=self.user,
             query="Q",
             status=ExpertSearch.Status.COMPLETED,
-            expert_results=[],
         )
         self.assertIsNone(resolve_expert_from_search(search, "a@b.com"))
 
@@ -147,7 +146,6 @@ class ResolveExpertFromSearchTests(TestCase):
             created_by=self.user,
             query="Q",
             status=ExpertSearch.Status.COMPLETED,
-            expert_results=[],
         )
         ex = Expert.objects.create(email="a@b.com", honorific="Dr", first_name="A")
         SearchExpert.objects.create(expert_search=search, expert=ex, position=0)
@@ -159,7 +157,6 @@ class ResolveExpertFromSearchTests(TestCase):
             created_by=self.user,
             query="Q",
             status=ExpertSearch.Status.COMPLETED,
-            expert_results=[],
         )
         ex = Expert.objects.create(
             email="jane@example.com",
@@ -173,6 +170,7 @@ class ResolveExpertFromSearchTests(TestCase):
         SearchExpert.objects.create(expert_search=search, expert=ex, position=0)
         result = resolve_expert_from_search(search, "jane@example.com")
         self.assertIsNotNone(result)
+        self.assertNotIn("name", result)
         self.assertEqual(result["email"], "jane@example.com")
         self.assertEqual(result["academic_title"], "Prof")
         self.assertEqual(result["affiliation"], "MIT")
@@ -185,7 +183,6 @@ class ResolveExpertFromSearchTests(TestCase):
             created_by=self.user,
             query="Q",
             status=ExpertSearch.Status.COMPLETED,
-            expert_results=[],
         )
         ex = Expert.objects.create(
             email="jane@example.com",
@@ -201,7 +198,6 @@ class ResolveExpertFromSearchTests(TestCase):
             created_by=self.user,
             query="Q",
             status=ExpertSearch.Status.COMPLETED,
-            expert_results=[],
         )
         ex = Expert.objects.create(email="a@b.com", honorific="Dr", first_name="A")
         SearchExpert.objects.create(expert_search=search, expert=ex, position=0)

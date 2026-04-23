@@ -1,8 +1,6 @@
 import logging
-from copy import deepcopy
 from datetime import datetime
 
-from django.conf import settings
 from django.utils import timezone
 
 from research_ai.constants import VALID_EMAIL_TEMPLATE_KEYS
@@ -10,18 +8,13 @@ from research_ai.models import ExpertSearch, GeneratedEmail, SearchExpert
 from research_ai.services.email_generator_service import generate_expert_email
 from research_ai.services.email_sending_service import send_plain_email
 from research_ai.services.expert_finder_service import ExpertFinderService
-from research_ai.services.expert_persist import (
-    mark_expert_last_email_sent_at,
-    replace_search_experts_for_search,
-)
+from research_ai.services.expert_persist import mark_expert_last_email_sent_at
 from research_ai.services.rfp_email_context import resolve_expert_from_search
 from researchhub.celery import app
 from user.models import User
 from utils import sentry
 
 logger = logging.getLogger(__name__)
-
-NON_PROD_EMAIL_SUFFIX = "_test"
 
 
 def _resolve_excluded_expert_ids_from_search_ids(search_ids: list[int]) -> list[int]:
@@ -35,25 +28,6 @@ def _resolve_excluded_expert_ids_from_search_ids(search_ids: list[int]) -> list[
         .values_list("expert_id", flat=True)
         .distinct()
     )
-
-
-def _maybe_obfuscate_expert_emails_for_non_production(experts: list) -> list:
-    """
-    In non-production (and not TESTING), mangle each expert's email
-    (e.g. user@domain.com -> user_test@domain.com) so we don't accidentally
-    send to real addresses from dev/staging.
-    """
-    if settings.PRODUCTION or settings.TESTING or not experts:
-        return experts
-    result = []
-    for e in experts:
-        copy = deepcopy(e)
-        email = (copy.get("email") or "").strip()
-        if email and "@" in email:
-            local, _, domain = email.partition("@")
-            copy["email"] = f"{local}{NON_PROD_EMAIL_SUFFIX}@{domain}"
-        result.append(copy)
-    return result
 
 
 def _update_search_progress(
@@ -189,10 +163,7 @@ def process_expert_search_task(
             )
             return result
         report_urls = result.get("report_urls", {})
-        experts = _maybe_obfuscate_expert_emails_for_non_production(
-            result.get("experts", [])
-        )
-        stored_count = replace_search_experts_for_search(int(search_id), experts)
+        stored_count = int(result.get("expert_count") or 0)
         ExpertSearch.objects.filter(id=int(search_id)).update(
             status=ExpertSearch.Status.COMPLETED,
             progress=100,
@@ -236,7 +207,6 @@ def process_expert_search_task(
             "search_id": search_id,
             "status": ExpertSearch.Status.FAILED,
             "error_message": error_message[:10000],
-            "experts": [],
             "expert_count": 0,
             "report_urls": {},
             "llm_model": "",

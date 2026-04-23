@@ -1,10 +1,35 @@
+from copy import deepcopy
 from typing import Any
 
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
 from research_ai.models import Expert, SearchExpert
 from research_ai.services.expert_display import normalize_expert_email
+
+NON_PROD_EMAIL_SUFFIX = "_test"
+
+
+def maybe_obfuscate_expert_dict_emails_for_non_production(
+    experts: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """
+    In non-production (and not TESTING), mangle each expert dict's email
+    (e.g. user@domain.com -> user_test@domain.com) so we don't accidentally
+    store real addresses from dev/staging runs.
+    """
+    if settings.PRODUCTION or settings.TESTING or not experts:
+        return experts
+    result: list[dict[str, Any]] = []
+    for e in experts:
+        copy = deepcopy(e)
+        email = (copy.get("email") or "").strip()
+        if email and "@" in email:
+            local, _, domain = email.partition("@")
+            copy["email"] = f"{local}{NON_PROD_EMAIL_SUFFIX}@{domain}"
+        result.append(copy)
+    return result
 
 
 def _str_field(d: dict[str, Any], *keys: str, max_len: int | None = None) -> str:
@@ -71,9 +96,10 @@ def upsert_expert_from_parsed_dict(d: dict[str, Any]) -> Expert:
 @transaction.atomic
 def replace_search_experts_for_search(
     expert_search_id: int, expert_dicts: list[dict[str, Any]]
-) -> int:
-    """Replace SearchExpert links; upsert Experts. Returns count."""
+) -> list[Expert]:
+    """Replace SearchExpert links; upsert Experts. Returns experts in search order."""
     SearchExpert.objects.filter(expert_search_id=expert_search_id).delete()
+    ordered: list[Expert] = []
     for position, d in enumerate(expert_dicts):
         expert = upsert_expert_from_parsed_dict(d)
         SearchExpert.objects.create(
@@ -81,7 +107,8 @@ def replace_search_experts_for_search(
             expert_id=expert.id,
             position=position,
         )
-    return len(expert_dicts)
+        ordered.append(expert)
+    return ordered
 
 
 def mark_expert_last_email_sent_at(email: str) -> None:

@@ -1,8 +1,12 @@
 from unittest.mock import MagicMock, patch
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
-from research_ai.models import ExpertSearch
+from research_ai.models import ExpertSearch, SearchExpert
+from research_ai.services.expert_display import (
+    build_expert_display_name,
+    expert_model_display_name,
+)
 from research_ai.services.expert_finder_service import (
     PDF_TOO_LARGE_MESSAGE,
     ExpertFinderService,
@@ -16,6 +20,7 @@ from research_ai.services.expert_llm_table import (
     ExpertTableSchemaError,
 )
 from research_ai.services.openai_expert_finder_service import OPENAI_EXPERT_FINDER_MODEL
+from user.tests.helpers import create_random_authenticated_user
 
 
 def _llm_expert_table(*data_rows: str) -> str:
@@ -274,6 +279,14 @@ class GetPaperPdfBytesTests(TestCase):
 
 
 class ExpertFinderServiceParseTests(TestCase):
+    def setUp(self):
+        self._expert_finder_user = create_random_authenticated_user("efs_parse")
+        self.expert_search = ExpertSearch.objects.create(
+            created_by=self._expert_finder_user,
+            query="parse-tests-placeholder",
+            status=ExpertSearch.Status.PENDING,
+        )
+
     def test_parse_markdown_table_returns_experts(self):
         service = ExpertFinderService()
         markdown = _llm_expert_table(
@@ -288,8 +301,17 @@ class ExpertFinderServiceParseTests(TestCase):
         )
         experts = service._parse_markdown_table(markdown)
         self.assertEqual(len(experts), 2)
-        self.assertIn("Jane", experts[0]["name"])
-        self.assertIn("Doe", experts[0]["name"])
+        self.assertEqual(experts[0]["first_name"], "Jane")
+        self.assertEqual(experts[0]["last_name"], "Doe")
+        d0 = build_expert_display_name(
+            honorific=experts[0].get("honorific") or "",
+            first_name=experts[0].get("first_name") or "",
+            middle_name=experts[0].get("middle_name") or "",
+            last_name=experts[0].get("last_name") or "",
+            name_suffix=experts[0].get("name_suffix") or "",
+        )
+        self.assertIn("Jane", d0)
+        self.assertIn("Doe", d0)
         self.assertEqual(experts[0]["email"], "jane@mit.edu")
         self.assertEqual(experts[1]["email"], "john@stanford.edu")
 
@@ -353,18 +375,26 @@ class ExpertFinderServiceParseTests(TestCase):
         self.assertTrue(
             service._expert_row_suggests_deceased(
                 {
-                    "name": "Late Prof. Ada Smith",
+                    "honorific": "",
+                    "first_name": "",
+                    "middle_name": "",
+                    "last_name": "",
+                    "name_suffix": "",
                     "academic_title": "",
                     "affiliation": "",
                     "expertise": "",
-                    "notes": "",
+                    "notes": "Late Prof. Ada Smith",
                 }
             )
         )
         self.assertTrue(
             service._expert_row_suggests_deceased(
                 {
-                    "name": "Bob Jones",
+                    "honorific": "Dr",
+                    "first_name": "Bob",
+                    "middle_name": "",
+                    "last_name": "Jones",
+                    "name_suffix": "",
                     "academic_title": "Professor",
                     "affiliation": "MIT",
                     "expertise": "ML",
@@ -375,7 +405,11 @@ class ExpertFinderServiceParseTests(TestCase):
         self.assertTrue(
             service._expert_row_suggests_deceased(
                 {
-                    "name": "Ann Lee (d. 2019)",
+                    "honorific": "",
+                    "first_name": "Ann",
+                    "middle_name": "",
+                    "last_name": "Lee",
+                    "name_suffix": "(d. 2019)",
                     "academic_title": "",
                     "affiliation": "",
                     "expertise": "",
@@ -386,7 +420,11 @@ class ExpertFinderServiceParseTests(TestCase):
         self.assertFalse(
             service._expert_row_suggests_deceased(
                 {
-                    "name": "Carol Wu",
+                    "honorific": "",
+                    "first_name": "Carol",
+                    "middle_name": "",
+                    "last_name": "Wu",
+                    "name_suffix": "",
                     "academic_title": "Associate Professor",
                     "affiliation": "Berkeley",
                     "expertise": "NLP",
@@ -412,7 +450,8 @@ class ExpertFinderServiceParseTests(TestCase):
         markdown = _llm_expert_table(_llm_row("Jane", "Doe", "jane@mit.edu"))
         experts = service._parse_markdown_table(markdown)
         self.assertEqual(len(experts), 1)
-        self.assertIn("Jane", experts[0]["name"])
+        self.assertEqual(experts[0]["first_name"], "Jane")
+        self.assertEqual(experts[0]["last_name"], "Doe")
 
     def test_parse_markdown_table_notes_and_sources(self):
         service = ExpertFinderService()
@@ -496,12 +535,23 @@ class ExpertFinderServiceParseTests(TestCase):
         self.assertEqual(e["last_name"], "Doe")
         self.assertEqual(e["name_suffix"], "PhD")
         self.assertEqual(e["academic_title"], "Professor")
-        self.assertIn("Doe", e["name"])
+        display = build_expert_display_name(
+            honorific=e.get("honorific") or "",
+            first_name=e.get("first_name") or "",
+            middle_name=e.get("middle_name") or "",
+            last_name=e.get("last_name") or "",
+            name_suffix=e.get("name_suffix") or "",
+        )
+        self.assertIn("Doe", display)
 
     def test_dedupe_experts_keeps_first_and_normalizes_email(self):
         experts = [
             {
-                "name": "First",
+                "honorific": "",
+                "first_name": "First",
+                "middle_name": "",
+                "last_name": "",
+                "name_suffix": "",
                 "academic_title": "Prof",
                 "affiliation": "MIT",
                 "expertise": "AI",
@@ -510,7 +560,11 @@ class ExpertFinderServiceParseTests(TestCase):
                 "sources": [],
             },
             {
-                "name": "Second",
+                "honorific": "",
+                "first_name": "Second",
+                "middle_name": "",
+                "last_name": "",
+                "name_suffix": "",
                 "academic_title": "Dr",
                 "affiliation": "MIT",
                 "expertise": "AI",
@@ -519,7 +573,11 @@ class ExpertFinderServiceParseTests(TestCase):
                 "sources": [],
             },
             {
-                "name": "Other",
+                "honorific": "",
+                "first_name": "Other",
+                "middle_name": "",
+                "last_name": "",
+                "name_suffix": "",
                 "academic_title": "Dr",
                 "affiliation": "Stanford",
                 "expertise": "NLP",
@@ -530,14 +588,18 @@ class ExpertFinderServiceParseTests(TestCase):
         ]
         out = ExpertFinderService._dedupe_experts_by_normalized_email(experts)
         self.assertEqual(len(out), 2)
-        self.assertEqual(out[0]["name"], "First")
+        self.assertEqual(out[0]["first_name"], "First")
         self.assertEqual(out[0]["email"], "person@mit.edu")
         self.assertEqual(out[1]["email"], "other@stanford.edu")
 
     def test_dedupe_experts_skips_empty_email(self):
         experts = [
             {
-                "name": "X",
+                "honorific": "",
+                "first_name": "X",
+                "middle_name": "",
+                "last_name": "",
+                "name_suffix": "",
                 "email": "",
                 "academic_title": "t",
                 "affiliation": "a",
@@ -546,7 +608,11 @@ class ExpertFinderServiceParseTests(TestCase):
                 "sources": [],
             },
             {
-                "name": "Y",
+                "honorific": "",
+                "first_name": "Y",
+                "middle_name": "",
+                "last_name": "",
+                "name_suffix": "",
                 "email": "y@y.edu",
                 "academic_title": "t",
                 "affiliation": "a",
@@ -591,16 +657,63 @@ class ExpertFinderServiceParseTests(TestCase):
 
         service = ExpertFinderService()
         result = service.process_expert_search(
-            search_id="1",
+            search_id=str(self.expert_search.id),
             query="AI research",
             config={"expert_count": 10},
         )
         self.assertEqual(result["status"], ExpertSearch.Status.COMPLETED)
         self.assertEqual(result["expert_count"], 1)
-        self.assertIn("Alice", result["experts"][0]["name"])
+        ses = SearchExpert.objects.filter(
+            expert_search_id=self.expert_search.id
+        ).order_by("position")
+        self.assertEqual(ses.count(), 1)
+        self.assertIn("Alice", expert_model_display_name(ses[0].expert))
         self.assertIn("pdf", result["report_urls"])
         self.assertIn("csv", result["report_urls"])
         self.assertEqual(result["llm_model"], OPENAI_EXPERT_FINDER_MODEL)
+
+    @override_settings(PRODUCTION=False, TESTING=False)
+    @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
+    @patch("research_ai.services.expert_finder_service.ProgressService")
+    @patch(
+        "research_ai.services.expert_finder_service.generate_pdf_report",
+        return_value=b"pdf",
+    )
+    @patch(
+        "research_ai.services.expert_finder_service.generate_csv_file",
+        return_value=b"csv",
+    )
+    @patch(
+        "research_ai.services.expert_finder_service.upload_report_to_storage",
+        side_effect=lambda sid, content, ext, ct: f"https://storage/{sid}.{ext}",
+    )
+    def test_process_expert_search_obfuscates_emails_before_persist_non_prod(
+        self,
+        mock_upload,
+        mock_csv,
+        mock_pdf,
+        mock_progress,
+        mock_openai,
+    ):
+        mock_openai_llm = MagicMock()
+        mock_openai_llm.invoke.return_value = _llm_expert_table(
+            _llm_row("Bob", "Jones", "bob@nonprod.edu"),
+        )
+        mock_openai_llm.model_id = OPENAI_EXPERT_FINDER_MODEL
+        mock_openai.return_value = mock_openai_llm
+        mock_progress.return_value.publish_progress_sync = MagicMock()
+
+        service = ExpertFinderService()
+        result = service.process_expert_search(
+            search_id=str(self.expert_search.id),
+            query="Q",
+            config={"expert_count": 5},
+        )
+        self.assertEqual(result["status"], ExpertSearch.Status.COMPLETED)
+        ses = SearchExpert.objects.filter(
+            expert_search_id=self.expert_search.id
+        ).order_by("position")
+        self.assertEqual(ses[0].expert.email, "bob_test@nonprod.edu")
 
     @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
     @patch("research_ai.services.expert_finder_service.ProgressService")
@@ -642,14 +755,17 @@ class ExpertFinderServiceParseTests(TestCase):
 
         service = ExpertFinderService()
         result = service.process_expert_search(
-            search_id="deceased-filter",
+            search_id=str(self.expert_search.id),
             query="AI research",
             config={"expert_count": 10},
         )
         self.assertEqual(result["status"], ExpertSearch.Status.COMPLETED)
         self.assertEqual(result["expert_count"], 1)
-        self.assertEqual(result["experts"][0]["name"], "Pat Lee")
-        self.assertEqual(result["experts"][0]["email"], "pat@stanford.edu")
+        ses = SearchExpert.objects.filter(
+            expert_search_id=self.expert_search.id
+        ).order_by("position")
+        self.assertEqual(expert_model_display_name(ses[0].expert), "Pat Lee")
+        self.assertEqual(ses[0].expert.email, "pat@stanford.edu")
 
     @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
     @patch("research_ai.services.expert_finder_service.ProgressService")
@@ -694,15 +810,19 @@ class ExpertFinderServiceParseTests(TestCase):
 
         service = ExpertFinderService()
         result = service.process_expert_search(
-            search_id="1",
+            search_id=str(self.expert_search.id),
             query="Q",
             config={"expert_count": 50},
         )
         self.assertEqual(result["status"], ExpertSearch.Status.COMPLETED)
         self.assertEqual(result["expert_count"], 2)
-        self.assertIn("Alpha", result["experts"][0]["name"])
-        self.assertEqual(result["experts"][0]["email"], "alpha@mit.edu")
-        self.assertEqual(result["experts"][1]["email"], "gamma@stanford.edu")
+        ses = SearchExpert.objects.filter(
+            expert_search_id=self.expert_search.id
+        ).order_by("position")
+        self.assertEqual(ses.count(), 2)
+        self.assertIn("Alpha", expert_model_display_name(ses[0].expert))
+        self.assertEqual(ses[0].expert.email, "alpha@mit.edu")
+        self.assertEqual(ses[1].expert.email, "gamma@stanford.edu")
 
     @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
     @patch("research_ai.services.expert_finder_service.ProgressService")
@@ -739,15 +859,18 @@ class ExpertFinderServiceParseTests(TestCase):
 
         service = ExpertFinderService()
         result = service.process_expert_search(
-            search_id="1",
+            search_id=str(self.expert_search.id),
             query="Q",
             config={"expert_count": 2},
         )
         self.assertEqual(result["status"], ExpertSearch.Status.COMPLETED)
         self.assertEqual(result["expert_count"], 2)
-        self.assertEqual(len(result["experts"]), 2)
-        self.assertEqual(result["experts"][0]["email"], "e1@mit.edu")
-        self.assertEqual(result["experts"][1]["email"], "e2@mit.edu")
+        ses = SearchExpert.objects.filter(
+            expert_search_id=self.expert_search.id
+        ).order_by("position")
+        self.assertEqual(ses.count(), 2)
+        self.assertEqual(ses[0].expert.email, "e1@mit.edu")
+        self.assertEqual(ses[1].expert.email, "e2@mit.edu")
 
     @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
     @patch("research_ai.services.expert_finder_service.ProgressService")
@@ -794,14 +917,19 @@ class ExpertFinderServiceParseTests(TestCase):
 
         service = ExpertFinderService()
         result = service.process_expert_search(
-            search_id="iter1",
+            search_id=str(self.expert_search.id),
             query="Q",
             config={"expert_count": 3},
         )
         self.assertEqual(result["status"], ExpertSearch.Status.COMPLETED)
         self.assertEqual(result["expert_count"], 3)
         self.assertEqual(mock_openai_llm.invoke.call_count, 2)
-        emails = {e["email"].lower() for e in result["experts"]}
+        emails = {
+            se.expert.email.lower()
+            for se in SearchExpert.objects.filter(
+                expert_search_id=self.expert_search.id
+            )
+        }
         self.assertEqual(emails, {"dup@mit.edu", "b@stanford.edu", "c@berkeley.edu"})
 
     @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
@@ -845,7 +973,7 @@ class ExpertFinderServiceParseTests(TestCase):
         try:
             efs.EXPERT_FILL_TOLERANCE_SHORT = 2
             result = service.process_expert_search(
-                search_id="tol1",
+                search_id=str(self.expert_search.id),
                 query="Q",
                 config={"expert_count": 5},
             )
@@ -895,7 +1023,7 @@ class ExpertFinderServiceParseTests(TestCase):
 
         service = ExpertFinderService()
         result = service.process_expert_search(
-            search_id="znew",
+            search_id=str(self.expert_search.id),
             query="Q",
             config={"expert_count": 7},
         )
@@ -936,7 +1064,7 @@ class ExpertFinderServiceParseTests(TestCase):
 
         service = ExpertFinderService()
         result = service.process_expert_search(
-            search_id="2",
+            search_id=str(self.expert_search.id),
             query="AI",
             config={},
             progress_callback=callback,
@@ -944,7 +1072,7 @@ class ExpertFinderServiceParseTests(TestCase):
         self.assertEqual(result["status"], ExpertSearch.Status.COMPLETED)
         self.assertGreater(callback.call_count, 1)
         final_call = callback.call_args_list[-1]
-        self.assertEqual(final_call[0][0], "2")
+        self.assertEqual(final_call[0][0], str(self.expert_search.id))
         self.assertEqual(final_call[0][1], 100)
         self.assertIn("complete", final_call[0][2].lower())
 
@@ -967,13 +1095,12 @@ class ExpertFinderServiceParseTests(TestCase):
 
         service = ExpertFinderService()
         result = service.process_expert_search(
-            search_id="3",
+            search_id=str(self.expert_search.id),
             query="Placeholder RFP text",
             config={"expert_count": 5},
         )
         self.assertEqual(result["status"], ExpertSearch.Status.FAILED)
         self.assertEqual(result["expert_count"], 0)
-        self.assertEqual(result["experts"], [])
         self.assertEqual(result["report_urls"], {})
         self.assertIn("placeholder text", result["error_message"])
         self.assertEqual(result["error_message"], openai_bad_response)
@@ -1004,7 +1131,7 @@ class ExpertFinderServiceParseTests(TestCase):
 
         service = ExpertFinderService()
         result = service.process_expert_search(
-            search_id="schema-bad",
+            search_id=str(self.expert_search.id),
             query="Q",
             config={"expert_count": 3},
         )
@@ -1029,7 +1156,7 @@ class ExpertFinderServiceParseTests(TestCase):
 
         service = ExpertFinderService()
         result = service.process_expert_search(
-            search_id="3b",
+            search_id=str(self.expert_search.id),
             query="Q",
             config={},
         )
@@ -1050,7 +1177,7 @@ class ExpertFinderServiceParseTests(TestCase):
         service = ExpertFinderService()
         with self.assertRaises(RuntimeError):
             service.process_expert_search(
-                search_id="3",
+                search_id=str(self.expert_search.id),
                 query="AI",
                 config={},
             )
@@ -1088,7 +1215,7 @@ class ExpertFinderServiceParseTests(TestCase):
 
         service = ExpertFinderService()
         result = service.process_expert_search(
-            search_id="4",
+            search_id=str(self.expert_search.id),
             query="Q",
             config={"expert_count": 5},
         )
@@ -1123,7 +1250,7 @@ class ExpertFinderServiceParseTests(TestCase):
 
         service = ExpertFinderService()
         result = service.process_expert_search(
-            search_id="5",
+            search_id=str(self.expert_search.id),
             query="Q",
             config={"expertise_level": ExpertiseLevel.EARLY_CAREER},
         )
@@ -1155,7 +1282,7 @@ class ExpertFinderServiceParseTests(TestCase):
         service = ExpertFinderService()
         with self.assertRaises(ValueError):
             service.process_expert_search(
-                search_id="6",
+                search_id=str(self.expert_search.id),
                 query="Q",
                 config={},
                 progress_callback=callback,

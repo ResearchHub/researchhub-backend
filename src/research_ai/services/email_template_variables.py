@@ -120,9 +120,8 @@ def _build_expert_context(resolved_expert: dict | None) -> dict[str, str]:
         middle_name=(resolved_expert.get("middle_name") or "").strip(),
         last_name=(resolved_expert.get("last_name") or "").strip(),
         name_suffix="",
-        fallback_name=(resolved_expert.get("name") or "").strip(),
     )
-    title = resolved_expert.get("academic_title") or ""
+    title = resolved_expert.get("academic_title") or resolved_expert.get("title") or ""
     if not isinstance(title, str):
         title = ""
     return {

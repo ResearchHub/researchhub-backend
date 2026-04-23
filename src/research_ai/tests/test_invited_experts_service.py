@@ -32,7 +32,6 @@ class GetDocumentInvitedRowsTests(TestCase):
             query="Test",
             status=ExpertSearch.Status.COMPLETED,
             completed_at=anchor,
-            expert_results=[],
         )
         joiner = create_user(
             email="joiner@example.com",
@@ -68,7 +67,6 @@ class GetDocumentInvitedRowsTests(TestCase):
             unified_document_id=self.ud_id,
             query="Test",
             status=ExpertSearch.Status.COMPLETED,
-            expert_results=[],
         )
         joiner = create_user(email="nogeo@example.com", first_name="N", last_name="G")
         expert = Expert.objects.create(
@@ -88,7 +86,6 @@ class GetDocumentInvitedRowsTests(TestCase):
             unified_document_id=self.ud_id,
             query="Test",
             status=ExpertSearch.Status.COMPLETED,
-            expert_results=[],
         )
         expert = Expert.objects.create(
             email="anon@example.com",
