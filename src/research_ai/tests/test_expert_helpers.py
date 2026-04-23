@@ -9,7 +9,9 @@ from research_ai.services.expert_display import (
     expert_dict_to_api_payload,
     expert_model_display_name,
     expert_name_for_generated_email_storage,
+    expert_name_for_legacy_generated_email_storage,
     expert_title_for_generated_email_storage,
+    expert_title_for_legacy_generated_email_storage,
     normalize_expert_email,
 )
 from research_ai.services.expert_llm_table import (
@@ -102,9 +104,18 @@ class ExpertDisplayTests(TestCase):
             expert_title_for_generated_email_storage(row),
             "Prof",
         )
+
+    def test_expert_name_and_title_legacy_only_rows(self):
+        legacy = {"name": "Legacy Name", "title": "Title X", "email": "e@e.com"}
+        self.assertEqual(expert_name_for_generated_email_storage(legacy), "")
+        self.assertEqual(expert_title_for_generated_email_storage(legacy), "")
         self.assertEqual(
-            expert_name_for_generated_email_storage({"name": "Legacy Name"}),
+            expert_name_for_legacy_generated_email_storage(legacy),
             "Legacy Name",
+        )
+        self.assertEqual(
+            expert_title_for_legacy_generated_email_storage(legacy),
+            "Title X",
         )
 
 
