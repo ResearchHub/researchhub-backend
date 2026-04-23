@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from rest_framework import serializers
 
 
@@ -24,7 +26,7 @@ class CoinbaseSerializer(serializers.Serializer):
 
     preset_crypto_amount = serializers.FloatField(
         required=False,
-        min_value=0.00001,
+        min_value=Decimal("0.00001"),
         help_text="Preset crypto amount",
     )
 

@@ -146,7 +146,7 @@ class AuthenticationTests(BaseTests):
         return self.signup(username, self.valid_email, self.valid_password)
 
     def signup(self, username, email, password):
-        url = "/auth/signup/"
+        url = "/api/auth/register/"
         body = {
             "username": username,
             "email": email,
@@ -159,7 +159,7 @@ class AuthenticationTests(BaseTests):
 
     def login(self, email, password):
         self.signup(email, email, password)
-        url = "/auth/login/"
+        url = "/api/auth/login/"
         body = {"email": email, "password": password}
         return self.post_response(url, body)
 

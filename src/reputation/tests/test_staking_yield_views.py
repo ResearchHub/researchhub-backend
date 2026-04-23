@@ -8,6 +8,7 @@ from reputation.models import (
     StakingUserSnapshot,
     StakingYieldRecord,
 )
+from reputation.services.staking_yield_service import StakingYieldService
 from user.tests.helpers import create_random_default_user
 
 
@@ -51,25 +52,32 @@ class StakingYieldDetailsTest(StakingYieldViewSetTestBase):
         self.assertEqual(resp.status_code, 200)
         data = resp.data
         self.assertTrue(data["is_staking_opted_in"])
-        self.assertIsNone(data["staking_opted_in_date"])
+        self.assertIsNotNone(data["staking_opted_in_date"])
         self.assertEqual(Decimal(data["current_stake"]), Decimal("0"))
         self.assertEqual(Decimal(data["current_multiplier"]), Decimal("0"))
         self.assertEqual(Decimal(data["current_weighted_stake"]), Decimal("0"))
         self.assertEqual(Decimal(data["total_yield_earned"]), Decimal("0"))
         self.assertIsNone(data["latest_accrual_date"])
+        self.assertEqual(Decimal(data["apy"]), Decimal("0"))
 
     def test_returns_correct_details(self):
         accrual = date(2026, 4, 15)
-        self._create_snapshot_with_yield(accrual, Decimal("5000"), Decimal("100"))
+        total_staked = Decimal("10000000")
+        self._create_snapshot_with_yield(accrual, total_staked, Decimal("100"))
 
         resp = self.client.get("/api/staking_yield/details/")
         self.assertEqual(resp.status_code, 200)
         data = resp.data
-        self.assertEqual(Decimal(data["current_stake"]), Decimal("5000"))
+        self.assertEqual(Decimal(data["current_stake"]), total_staked)
         self.assertEqual(Decimal(data["current_multiplier"]), Decimal("1"))
-        self.assertEqual(Decimal(data["current_weighted_stake"]), Decimal("5000"))
+        self.assertEqual(Decimal(data["current_weighted_stake"]), total_staked)
         self.assertEqual(Decimal(data["total_yield_earned"]), Decimal("100"))
         self.assertEqual(data["latest_accrual_date"], "2026-04-15")
+
+        # APY should reflect the global snapshot for this accrual date
+        daily_emission = StakingYieldService.compute_total_daily_emission(accrual)
+        expected_apy = float(daily_emission) / float(total_staked) * 365 * 100
+        self.assertAlmostEqual(float(data["apy"]), expected_apy, places=4)
 
     def test_aggregates_across_multiple_days(self):
         self._create_snapshot_with_yield(

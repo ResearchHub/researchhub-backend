@@ -9,6 +9,7 @@ class StakingYieldDetailsSerializer(serializers.Serializer):
     current_weighted_stake = serializers.DecimalField(max_digits=19, decimal_places=8)
     total_yield_earned = serializers.DecimalField(max_digits=19, decimal_places=8)
     latest_accrual_date = serializers.DateField(allow_null=True)
+    apy = serializers.FloatField()
 
 
 class StakingYieldEarnedSinceSerializer(serializers.Serializer):

@@ -224,7 +224,6 @@ INSTALLED_APPS = [
     "django.contrib.postgres",
     # Rest framework
     "rest_framework",
-    "rest_framework_api_key",
     # Authentication
     "allauth",
     "allauth.account",
@@ -233,6 +232,7 @@ INSTALLED_APPS = [
     "allauth.socialaccount.providers.orcid",
     "rest_framework.authtoken",
     "dj_rest_auth",
+    "dj_rest_auth.mfa",
     "dj_rest_auth.registration",
     # Storage
     "storages",
@@ -280,6 +280,7 @@ INSTALLED_APPS = [
     "user_saved",
     "user_lists",
     "research_ai",
+    "ai_peer_review",
     # Health checks
     "health_check",
     "health_check.db",
@@ -345,7 +346,7 @@ if DEBUG:
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "researchhub.middleware.ApiTokenSession.UserApiTokenAuth",
+        "rest_framework.authentication.TokenAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
@@ -399,11 +400,10 @@ AUTHENTICATION_BACKENDS = (
     "allauth.account.auth_backends.AuthenticationBackend",
 )
 
-OAUTH_METHOD = "token"
-
 REST_AUTH = {
     "REGISTER_SERIALIZER": "user.serializers.RegisterSerializer",
     "PASSWORD_RESET_SERIALIZER": "user.custom_allauth.CustomPasswordResetSerializer",
+    "MFA_TOTP_ISSUER": "ResearchHub",
 }
 
 
@@ -777,7 +777,7 @@ if ELASTIC_BEANSTALK:
     CELERY_WORKER_HIJACK_ROOT_LOGGER = False
 
 if TESTING:
-    CELERY_BROKER_URL = "memory://"  # use in-memory broker for testing
+    CELERY_BROKER_URL = "memory://localhost"  # use in-memory broker for testing
 
 REDBEAT_REDIS_URL = "redis://{}:{}/2".format(REDIS_HOST, REDIS_PORT)
 REDBEAT_KEY_PREFIX = f"{APP_ENV}_redbeat_"
@@ -885,10 +885,6 @@ WEB3_KEYSTORE_PASSWORD_SECRET_ID = os.environ.get(
     "WEB3_KEYSTORE_PASSWORD_SECRET_ID", keys.WEB3_KEYSTORE_PASSWORD_SECRET_ID
 )
 WEB3_WALLET_ADDRESS = os.environ.get("WEB3_WALLET_ADDRESS", keys.WEB3_WALLET_ADDRESS)
-
-
-# API Key Settings
-API_KEY_CUSTOM_HEADER = "HTTP_RH_API_KEY"
 
 
 # MJML

@@ -295,7 +295,7 @@ class PreviewEmailView(APIView):
         for rec in qs:
             try:
                 send_plain_email(
-                    [recipient],
+                    recipient,
                     rec.email_subject,
                     rec.email_body,
                     reply_to=reply_to,

@@ -34,7 +34,7 @@ The Staking Yield API allows authenticated users to retrieve details about Resea
 | `is_staking_opted_in` | boolean | No | Whether the user has opted into staking. |
 | `staking_opted_in_date` | datetime | Yes | Timestamp of when the user opted into staking. `null` if the user has never opted in. |
 | `current_stake` | decimal | No | The user's RSC stake amount from the most recent daily snapshot. `0` if no snapshots exist. |
-| `current_multiplier` | decimal | No | The staking multiplier applied to the user's stake. Currently `1` for all users in v1. `0` if no snapshots exist. |
+| `current_multiplier` | decimal | No | The staking multiplier applied to the user's stake based on the age of their remaining unlocked balance lots, clipped by how long they have been opted into staking. `0` if no snapshots exist. |
 | `current_weighted_stake` | decimal | No | The user's effective stake after applying the multiplier (`current_stake * current_multiplier`). Used to determine their share of daily yield. `0` if no snapshots exist. |
 | `total_yield_earned` | decimal | No | Cumulative RSC earned from staking across all accrual dates. `0` if no yield has been accrued. |
 | `latest_accrual_date` | date | Yes | The date of the most recent daily snapshot that includes this user. `null` if no snapshots exist. |
@@ -99,7 +99,7 @@ Before a user can earn yield, they must opt into staking via the User API.
 
 #### Behavior
 
-- **Opting in** (`true`): Sets `is_staking_opted_in` to `true` and records the current timestamp in `staking_opted_in_date`. The user's full available (unlocked) RSC balance is treated as their stake starting from the next daily snapshot.
+- **Opting in** (`true`): Sets `is_staking_opted_in` to `true` and records the current timestamp in `staking_opted_in_date`. The user's full available (unlocked) RSC balance is treated as their stake starting from the next daily snapshot. Existing balance only receives age-based multiplier credit from the opt-in date forward.
 - **Opting out** (`false`): Sets `is_staking_opted_in` to `false` and clears `staking_opted_in_date` to `null`. The user is excluded from future snapshots and stops earning yield. Previously earned yield is not affected.
 - **Idempotent**: Opting in when already opted in does not reset `staking_opted_in_date`.
 
@@ -122,6 +122,7 @@ Even after opting in, a user is excluded from daily snapshots if any of the foll
 2. Each opted-in user gets a **user snapshot** within that global snapshot, capturing their stake amount and multiplier at that point in time.
 3. A second task computes each user's share of the daily emission and writes a **yield record** linked to their snapshot. The yield is distributed as locked RSC balance.
 4. Daily emission follows a halving schedule: starting at 9,500,000 RSC/year, halving every 64 years. A user's daily yield is proportional to their weighted stake relative to the total weighted stake.
+5. The staking multiplier uses the step schedule `0-29d = 1.0x`, `30-179d = 1.05x`, `180-364d = 1.1x`, `365+d = 1.25x`. A user's snapshot stores their own multiplier and weighted stake, and the global snapshot denominator is derived from the weighted positions of all opted-in staked users.
 
 ## Related Code
 

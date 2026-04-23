@@ -5,6 +5,7 @@ import pytz
 from django.core.cache import cache
 from rest_framework.test import APITestCase
 
+from feed.views.common import FeedPagination
 from purchase.models import Fundraise, Grant, GrantApplication
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
@@ -620,6 +621,99 @@ class GrantFeedViewTests(APITestCase):
         self.assertNotIn("Pending Grant", titles)
         self.assertNotIn("Declined Grant", titles)
         self.assertEqual(len(titles), 3)
+
+    def test_created_by_cache_key_isolates_per_user(self):
+        """Cache key must differ by created_by so different users don't share results."""
+        # Arrange - two grant creators with distinct grants
+        user1 = create_random_authenticated_user("grant_creator_1")
+        user2 = create_random_authenticated_user("grant_creator_2")
+
+        user1_post = create_post(
+            created_by=user1, document_type=GRANT, title="User1 Grant"
+        )
+        Grant.objects.create(
+            created_by=user1,
+            unified_document=user1_post.unified_document,
+            amount=Decimal("1000.00"),
+            currency="USD",
+            organization="Org1",
+            description="User1-owned grant",
+            status=Grant.OPEN,
+            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
+        )
+
+        user2_post = create_post(
+            created_by=user2, document_type=GRANT, title="User2 Grant"
+        )
+        Grant.objects.create(
+            created_by=user2,
+            unified_document=user2_post.unified_document,
+            amount=Decimal("2000.00"),
+            currency="USD",
+            organization="Org2",
+            description="User2-owned grant",
+            status=Grant.OPEN,
+            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
+        )
+
+        self.client.force_authenticate(self.user)
+
+        # Act - populate cache with user1's grants, then request user2's grants
+        user1_response = self.client.get(f"/api/grant_feed/?created_by={user1.id}")
+        user2_response = self.client.get(f"/api/grant_feed/?created_by={user2.id}")
+
+        # Assert - each creator's query returns only their own grants (no cache bleed)
+        user1_titles = [
+            r["content_object"]["title"] for r in user1_response.data["results"]
+        ]
+        user2_titles = [
+            r["content_object"]["title"] for r in user2_response.data["results"]
+        ]
+        self.assertEqual(user1_titles, ["User1 Grant"])
+        self.assertEqual(user2_titles, ["User2 Grant"])
+
+    def test_invalidate_grant_feed_cache_clears_created_by_entries(self):
+        """invalidate_grant_feed_cache must clear per-creator cache entries too."""
+        # Arrange
+        from feed.views.grant_cache_mixin import GrantCacheMixin
+
+        user1 = create_random_authenticated_user("invalidate_creator_1")
+        user1_post = create_post(
+            created_by=user1, document_type=GRANT, title="User1 Grant"
+        )
+        Grant.objects.create(
+            created_by=user1,
+            unified_document=user1_post.unified_document,
+            amount=Decimal("1000.00"),
+            currency="USD",
+            organization="Org1",
+            description="User1-owned grant",
+            status=Grant.OPEN,
+            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
+        )
+        self.client.force_authenticate(self.user)
+
+        # Populate caches: unfiltered + filtered by created_by
+        unfiltered_response = self.client.get("/api/grant_feed/")
+        filtered_response = self.client.get(f"/api/grant_feed/?created_by={user1.id}")
+        self.assertEqual(unfiltered_response.status_code, 200)
+        self.assertEqual(filtered_response.status_code, 200)
+
+        unfiltered_key = (
+            f"grants_feed:popular:all:all:none:1-{FeedPagination.page_size}::"
+        )
+        filtered_key = (
+            f"grants_feed:popular:all:all:none:1-{FeedPagination.page_size}::{user1.id}"
+        )
+        self.assertIsNotNone(cache.get(unfiltered_key))
+        self.assertIsNotNone(cache.get(filtered_key))
+
+        # Act
+        GrantCacheMixin.invalidate_grant_feed_cache()
+
+        # Assert - both cache entries should be cleared
+        self.assertIsNone(cache.get(unfiltered_key))
+        self.assertIsNone(cache.get(filtered_key))
 
     def test_pending_status_filter(self):
         """?status=PENDING returns only pending grants."""

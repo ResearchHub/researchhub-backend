@@ -482,7 +482,12 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        read_only_fields = [
+            "id",
+            "created_at",
+            "updated_at",
+            "ses_message_id",
+        ]
 
     def get_created_by(self, obj):
         return _get_created_by_payload(obj)

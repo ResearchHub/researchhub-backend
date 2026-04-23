@@ -1,9 +1,7 @@
 from rest_framework.exceptions import PermissionDenied  # noqa: F401
 from rest_framework.permissions import SAFE_METHODS, BasePermission
-from rest_framework_api_key.permissions import BaseHasAPIKey
 
-from user.models import UserApiToken
-from utils.http import DELETE, PATCH, POST, PUT, RequestMethods
+from utils.http import RequestMethods
 
 
 class ReadOnly(BasePermission):
@@ -74,7 +72,3 @@ class RuleBasedPermission(BasePermission):
 
     def satisfies_rule(self, request):
         raise NotImplementedError
-
-
-class HasAPIKey(BaseHasAPIKey):
-    model = UserApiToken

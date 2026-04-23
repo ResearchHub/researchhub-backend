@@ -10,7 +10,6 @@ from rest_framework.test import APITestCase
 
 from discussion.models import Flag
 from feed.views.grant_cache_mixin import GrantCacheMixin
-from user.related_models.verdict_model import Verdict
 from notification.models import Notification
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
@@ -20,6 +19,7 @@ from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
 )
+from user.related_models.verdict_model import Verdict
 from user.tests.helpers import create_random_authenticated_user
 
 
@@ -591,13 +591,16 @@ class GrantViewTests(APITestCase):
         post = create_post(created_by=self.moderator, document_type=GRANT)
 
         # Act
-        response = self.client.post("/api/grant/", {
-            "unified_document_id": post.unified_document.id,
-            "amount": "10000.00",
-            "currency": "EUR",
-            "organization": "Euro Org",
-            "description": "Non-USD grant",
-        })
+        response = self.client.post(
+            "/api/grant/",
+            {
+                "unified_document_id": post.unified_document.id,
+                "amount": "10000.00",
+                "currency": "EUR",
+                "organization": "Euro Org",
+                "description": "Non-USD grant",
+            },
+        )
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -637,10 +640,10 @@ class GrantCacheInvalidationTests(APITestCase):
 
     def test_invalidate_clears_grant_feed_caches(self):
         cache_keys = [
-            "grants_feed:popular:all:all:none:1-20:",
-            "grants_feed:popular:all:all:none:1-20:OPEN",
-            "grants_feed:popular:all:all:none:2-20-newest:",
-            "grants_feed:popular:all:all:none:3-20-upvotes:CLOSED",
+            "grants_feed:popular:all:all:none:1-20::",
+            "grants_feed:popular:all:all:none:1-20:OPEN:",
+            "grants_feed:popular:all:all:none:2-20-newest::",
+            "grants_feed:popular:all:all:none:3-20-upvotes:CLOSED:",
         ]
 
         for key in cache_keys:
@@ -788,13 +791,16 @@ class GrantModerationTests(APITestCase):
         post = create_post(created_by=self.user, document_type=GRANT)
 
         # Act
-        response = self.client.post("/api/grant/", {
-            "unified_document_id": post.unified_document.id,
-            "amount": "10000.00",
-            "currency": "USD",
-            "organization": "User Foundation",
-            "description": "User-submitted grant",
-        })
+        response = self.client.post(
+            "/api/grant/",
+            {
+                "unified_document_id": post.unified_document.id,
+                "amount": "10000.00",
+                "currency": "USD",
+                "organization": "User Foundation",
+                "description": "User-submitted grant",
+            },
+        )
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -1018,9 +1024,12 @@ class GrantModerationServiceTests(APITestCase):
         self.post.refresh_from_db()
         self.assertEqual(self.post.doi, "10.55277/rhj.test")
         mock_doi_class.return_value.register_doi_for_post.assert_called_once()
-        self.assertTrue(Notification.objects.filter(
-            notification_type=Notification.GRANT_APPROVED, recipient=self.author,
-        ).exists())
+        self.assertTrue(
+            Notification.objects.filter(
+                notification_type=Notification.GRANT_APPROVED,
+                recipient=self.author,
+            ).exists()
+        )
 
     @patch("purchase.services.grant_service.DOI")
     def test_approve_skips_doi_when_already_set(self, mock_doi_class):
@@ -1044,12 +1053,17 @@ class GrantModerationServiceTests(APITestCase):
         grant_ct = ContentType.objects.get_for_model(Grant)
         flag = Flag.objects.get(content_type=grant_ct, object_id=self.grant.id)
         self.assertEqual(flag.reason_choice, "SPAM")
-        self.assertTrue(Verdict.objects.filter(flag=flag, is_content_removed=True).exists())
+        self.assertTrue(
+            Verdict.objects.filter(flag=flag, is_content_removed=True).exists()
+        )
         self.post.unified_document.refresh_from_db()
         self.assertTrue(self.post.unified_document.is_removed)
-        self.assertTrue(Notification.objects.filter(
-            notification_type=Notification.GRANT_DECLINED, recipient=self.author,
-        ).exists())
+        self.assertTrue(
+            Notification.objects.filter(
+                notification_type=Notification.GRANT_DECLINED,
+                recipient=self.author,
+            ).exists()
+        )
 
     @patch("purchase.services.grant_service.DOI")
     def test_approve_skips_doi_when_no_post(self, mock_doi_class):

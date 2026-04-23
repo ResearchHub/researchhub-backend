@@ -1,4 +1,6 @@
 import uuid
+from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth.models import AbstractUser, UserManager
@@ -22,6 +24,12 @@ from utils.throttles import UserSustainedRateThrottle
 
 FOUNDATION_EMAIL = "main@researchhub.foundation"
 FOUNDATION_REVENUE_EMAIL = "revenue1@researchhub.foundation"
+
+
+@dataclass(frozen=True)
+class UnlockedBalanceLot:
+    amount: Decimal
+    created_date: date
 
 
 class UserManager(UserManager):
@@ -91,8 +99,10 @@ class User(AbstractUser):
     referral_code = models.CharField(max_length=36, default=uuid.uuid4, unique=True)
     reputation = models.IntegerField(default=100)
     should_display_rsc_balance_home = models.BooleanField(default=True)
-    is_staking_opted_in = models.BooleanField(default=False, db_index=True)
-    staking_opted_in_date = models.DateTimeField(null=True, blank=True)
+    is_staking_opted_in = models.BooleanField(default=True, db_index=True)
+    staking_opted_in_date = models.DateTimeField(
+        null=True, blank=True, default=timezone.now
+    )
     spam_updated_date = models.DateTimeField(null=True)
     suspended_updated_date = models.DateTimeField(null=True)
     updated_date = models.DateTimeField(auto_now=True)
@@ -157,6 +167,13 @@ class User(AbstractUser):
                 EmailRecipient.objects.create(user=self, email=self.email)
 
         return user_to_save
+
+    def ensure_staking_opted_in(self):
+        """Auto-opt the user into staking if not already opted in."""
+        if not self.is_staking_opted_in:
+            self.is_staking_opted_in = True
+            self.staking_opted_in_date = timezone.now()
+            self.save(update_fields=["is_staking_opted_in", "staking_opted_in_date"])
 
     def set_has_seen_first_coin_modal(self, has_seen):
         self.has_seen_first_coin_modal = has_seen
@@ -228,6 +245,49 @@ class User(AbstractUser):
         """Returns total locked balance amount."""
         locked_queryset = self.get_balance_qs().filter(is_locked=True)
         return self.get_balance(queryset=locked_queryset, include_locked=True)
+
+    def get_unlocked_balance_lots_lifo(self):
+        """
+        Reconstruct the user's remaining unlocked balance lots using LIFO.
+
+        Negative balance rows consume the most recent positive rows first.
+        """
+        remaining_debits = Decimal("0")
+        lots = []
+        balance_rows = (
+            self.get_balance_qs()
+            .filter(is_locked=False)
+            .order_by("-created_date", "-id")
+            .only("id", "amount", "created_date")
+        )
+
+        for balance in balance_rows.iterator():
+            amount = Decimal(str(balance.amount))
+            if amount < 0:
+                remaining_debits += -amount
+                continue
+
+            if amount <= 0:
+                continue
+
+            if remaining_debits >= amount:
+                remaining_debits -= amount
+                continue
+
+            remaining_amount = amount - remaining_debits
+            remaining_debits = Decimal("0")
+
+            if remaining_amount <= 0:
+                continue
+
+            lots.append(
+                UnlockedBalanceLot(
+                    amount=remaining_amount,
+                    created_date=balance.created_date.date(),
+                )
+            )
+
+        return lots
 
     def allocate_spend(self, amount, allow_locked=False):
         """

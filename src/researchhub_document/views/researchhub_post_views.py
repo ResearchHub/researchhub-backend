@@ -1,11 +1,13 @@
 from django.core.files.base import ContentFile
 from django.db import transaction
+from django.db.models import Prefetch
 from django.utils.text import slugify
 from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
+from ai_peer_review.models import ProposalReview
 from analytics.amplitude import track_event
 from discussion.views import ReactionViewActionMixin
 from feed.views.grant_cache_mixin import GrantCacheMixin
@@ -23,7 +25,6 @@ from researchhub_document.permissions import HasDocumentEditingPermission
 from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_OPEN,
     FILTER_HAS_BOUNTY,
-    GRANT,
     PREREGISTRATION,
     RESEARCHHUB_POST_DOCUMENT_TYPES,
     SORT_BOUNTY_EXPIRATION_DATE,
@@ -35,7 +36,6 @@ from researchhub_document.serializers.researchhub_post_serializer import (
 )
 from user.models import User
 from user.permissions import IsVerifiedUser
-from utils.doi import DOI
 from utils.sentry import log_error
 from utils.throttles import THROTTLE_CLASSES
 
@@ -72,7 +72,26 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
     def get_queryset(self):
         request = self.request
         try:
-            query_set = ResearchhubPost.objects.all()
+            query_set = (
+                ResearchhubPost.objects.all()
+                .select_related("unified_document")
+                .prefetch_related(
+                    Prefetch(
+                        "grant_applications",
+                        queryset=GrantApplication.objects.select_related("grant"),
+                    ),
+                    Prefetch(
+                        "unified_document__proposal_reviews",
+                        queryset=ProposalReview.objects.filter(
+                            grant__isnull=False,
+                        )
+                        .select_related("grant", "unified_document")
+                        .prefetch_related(
+                            "unified_document__ai_peer_review_editorial_feedback__categories",
+                        ),
+                    ),
+                )
+            )
             query_params = request.query_params
             created_by_id = query_params.get("created_by")
             post_id = query_params.get("post_id")
@@ -105,7 +124,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         document_type = data.get("document_type")
         editor_type = data.get("editor_type")
         title = data.get("title", "")
-        assign_doi = data.get("assign_doi", False)
         renderable_text = data.get("renderable_text", "")
         grant_amount = data.get("grant_amount")
         grant_id = data.get("grant_id")
@@ -143,9 +161,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         try:
             with transaction.atomic():
                 created_by = request.user
-                created_by_author = created_by.author_profile
-                is_grant = document_type == GRANT
-                doi = DOI() if (assign_doi and not is_grant) else None
 
                 # logical ordering & not using signals to avoid race-conditions
                 access_group = self.create_access_group(request)
@@ -158,7 +173,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 rh_post = ResearchhubPost.objects.create(
                     created_by=created_by,
                     document_type=document_type,
-                    doi=doi.doi if doi else None,
                     slug=slug,
                     editor_type=CK_EDITOR if editor_type is None else editor_type,
                     image=data.get("image"),
@@ -242,13 +256,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     else:
                         rh_post.eln_src.save(file_name, full_src_file)
 
-                if doi:
-                    crossref_response = doi.register_doi_for_post(
-                        [created_by_author], title, rh_post
-                    )
-                    if crossref_response.status_code != 200:
-                        return Response("Crossref API Failure", status=400)
-
                 unified_document.update_filters(
                     (
                         FILTER_BOUNTY_OPEN,
@@ -262,9 +269,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     try:
                         target_grant = Grant.objects.get(id=grant_id)
                     except (Grant.DoesNotExist, ValueError, TypeError):
-                        raise serializers.ValidationError(
-                            "Grant not found"
-                        )
+                        raise serializers.ValidationError("Grant not found")
                     if not target_grant.is_active():
                         raise serializers.ValidationError(
                             "Grant is no longer accepting applications"
@@ -354,14 +359,9 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     status=400,
                 )
 
-            created_by = request.user
-            created_by_author = created_by.author_profile
             hubs = data.get("hubs", None)
             renderable_text = data.get("renderable_text", "")
             title = data.get("title", "")
-            assign_doi = data.get("assign_doi", False)
-            is_grant = rh_post.document_type == GRANT
-            doi = DOI() if (assign_doi and not is_grant) else None
 
             if type(title) is not str or len(title) < MIN_POST_TITLE_LENGTH:
                 return Response(
@@ -387,9 +387,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     400,
                 )
 
-            rh_post.doi = doi.doi if doi else rh_post.doi
-            rh_post.save(update_fields=["doi"])
-
             serializer = ResearchhubPostSerializer(
                 rh_post, data=request.data, partial=True
             )
@@ -410,13 +407,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             if type(hubs) is list:
                 unified_doc = post.unified_document
                 unified_doc.hubs.set(hubs)
-
-            if doi:
-                crossref_response = doi.register_doi_for_post(
-                    [created_by_author], title, rh_post
-                )
-                if crossref_response.status_code != 200:
-                    return Response("Crossref API Failure", status=400)
 
             # Handle grant updates
             grant = None

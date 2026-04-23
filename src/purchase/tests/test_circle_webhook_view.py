@@ -101,6 +101,11 @@ class TestCircleWebhookView(TestCase):
         self.assertIsNotNone(balance)
         self.assertEqual(balance.amount, "100")
 
+        # User was auto-opted into staking
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.is_staking_opted_in)
+        self.assertIsNotNone(self.user.staking_opted_in_date)
+
     def test_missing_signature_headers_returns_401(self):
         payload = _make_payload()
         response = self._post(payload, sig=None, key_id=None)
@@ -414,6 +419,11 @@ class TestCircleWebhookView(TestCase):
         balance = Balance.objects.filter(user=self.user).first()
         self.assertIsNotNone(balance)
         self.assertEqual(balance.amount, "100")
+
+        # User was auto-opted into staking
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.is_staking_opted_in)
+        self.assertIsNotNone(self.user.staking_opted_in_date)
 
         # Sweep was dispatched
         mock_dispatch.assert_called_once()

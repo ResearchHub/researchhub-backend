@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import PropertyMock, patch
 
 from django.conf import settings
-from django.test import Client, TestCase
+from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -856,19 +856,6 @@ class PaperViewsTests(TestCase):
         data = {"url": "bitcoin"}
         response = get_authenticated_post_response(self.user, url, data)
         self.assertContains(response, "false", status_code=200)
-
-    def test_api_token_can_upload_paper(self):
-        api_token_url = "/api/user_external_token/"
-        api_token_response = get_authenticated_post_response(
-            self.user, api_token_url, {}
-        )
-        token = api_token_response.json().get("token", "")
-        api_token_client = Client(HTTP_RH_API_KEY=token)
-        res = api_token_client.post(
-            self.base_url,
-            {"title": "Paper Uploaded via API Token", "paper_type": "REGULAR"},
-        )
-        self.assertEqual(res.status_code, 201)
 
     @patch.object(Paper, "paper_rewards", new_callable=PropertyMock)
     def test_eligible_reward_summary(self, mock_get_paper_reward):

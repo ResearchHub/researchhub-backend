@@ -104,6 +104,7 @@ class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ModelViewSet):
             .prefetch_related(
                 "unified_document__hubs",
                 "unified_document__grants",
+                "unified_document__grants__proposal_reviews",
                 "unified_document__grants__applications__applicant__author_profile",
                 Prefetch(
                     "unified_document__grants__applications__preregistration_post__unified_document__fundraises",

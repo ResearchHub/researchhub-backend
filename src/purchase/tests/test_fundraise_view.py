@@ -217,12 +217,29 @@ class FundraiseViewTests(APITestCase):
         self.assertEqual(response.status_code, 400)
 
     def test_create_contribution_user_is_owner(self):
+        """Self-contribution without a nonprofit should be rejected."""
         fundraise = self._create_fundraise(self.post.id)
         fundraise_id = fundraise.data["id"]
 
+        self._give_user_balance(self.user, 1000)
         response = self._create_contribution(fundraise_id, self.user)
 
         self.assertEqual(response.status_code, 400)
+        self.assertIn(
+            "Cannot contribute to your own fundraise", response.data["message"]
+        )
+
+    def test_create_contribution_user_is_owner_with_nonprofit(self):
+        """Self-contribution should be allowed when a nonprofit is attached."""
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+        self._link_nonprofit(fundraise_id)
+
+        self._give_user_balance(self.user, 1000)
+        response = self._create_contribution(fundraise_id, self.user, amount=100)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["amount_raised"]["rsc"], 100)
 
     def test_create_contribution_exceeds_goal(self):
         fundraise = self._create_fundraise(self.post.id, goal_amount=100)
@@ -396,6 +413,130 @@ class FundraiseViewTests(APITestCase):
 
         # Should get 403 Forbidden
         self.assertEqual(response.status_code, 403)
+
+    def test_reopen_closed_fundraise(self):
+        """A moderator can reopen a CLOSED fundraise with a duration."""
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+
+        fundraise_obj = Fundraise.objects.get(id=fundraise_id)
+        fundraise_obj.status = Fundraise.CLOSED
+        fundraise_obj.save()
+        fundraise_obj.escrow.set_cancelled_status()
+
+        self.client.force_authenticate(self.user)
+        before = datetime.now(pytz.UTC)
+        response = self.client.post(
+            f"/api/fundraise/{fundraise_id}/reopen/",
+            {"duration_days": 14},
+        )
+        after = datetime.now(pytz.UTC)
+
+        self.assertEqual(response.status_code, 200)
+
+        fundraise_obj.refresh_from_db()
+        self.assertEqual(fundraise_obj.status, Fundraise.OPEN)
+        self.assertGreaterEqual(
+            fundraise_obj.end_date, before + timedelta(days=14, seconds=-1)
+        )
+        self.assertLessEqual(
+            fundraise_obj.end_date, after + timedelta(days=14, seconds=1)
+        )
+        # Escrow returned to PENDING so new contributions can land
+        self.assertEqual(fundraise_obj.escrow.status, "PENDING")
+
+    def test_reopen_expired_fundraise_extends_end_date(self):
+        """Reopening an expired (but still OPEN) fundraise extends the end date."""
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+
+        fundraise_obj = Fundraise.objects.get(id=fundraise_id)
+        fundraise_obj.end_date = datetime.now(pytz.UTC) - timedelta(days=1)
+        fundraise_obj.save()
+        self.assertTrue(fundraise_obj.is_expired())
+
+        self.client.force_authenticate(self.user)
+        response = self.client.post(
+            f"/api/fundraise/{fundraise_id}/reopen/",
+            {"duration_days": 7},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        fundraise_obj.refresh_from_db()
+        self.assertEqual(fundraise_obj.status, Fundraise.OPEN)
+        self.assertFalse(fundraise_obj.is_expired())
+
+    def test_reopen_completed_fundraise_fails(self):
+        """Completed fundraises cannot be reopened; funds are already paid out."""
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+
+        fundraise_obj = Fundraise.objects.get(id=fundraise_id)
+        fundraise_obj.status = Fundraise.COMPLETED
+        fundraise_obj.save()
+
+        self.client.force_authenticate(self.user)
+        response = self.client.post(
+            f"/api/fundraise/{fundraise_id}/reopen/",
+            {"duration_days": 30},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        fundraise_obj.refresh_from_db()
+        self.assertEqual(fundraise_obj.status, Fundraise.COMPLETED)
+
+    def test_reopen_fundraise_invalid_duration(self):
+        """Non-positive or non-integer durations are rejected."""
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+
+        self.client.force_authenticate(self.user)
+
+        for bad in [0, -5, "abc", None]:
+            payload = {} if bad is None else {"duration_days": bad}
+            response = self.client.post(
+                f"/api/fundraise/{fundraise_id}/reopen/",
+                payload,
+            )
+            self.assertEqual(response.status_code, 400, msg=f"input={bad!r}")
+
+    def test_reopen_fundraise_not_moderator(self):
+        """Only moderators can reopen a fundraise."""
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+
+        regular_user = create_random_authenticated_user("regular_user")
+        self.client.force_authenticate(regular_user)
+        response = self.client.post(
+            f"/api/fundraise/{fundraise_id}/reopen/",
+            {"duration_days": 14},
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_reopen_fundraise_allows_new_contributions(self):
+        """After reopening a closed fundraise, new contributions should succeed."""
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+
+        # Close the fundraise through the normal flow
+        self.client.force_authenticate(self.user)
+        self.client.post(f"/api/fundraise/{fundraise_id}/close/")
+
+        # Reopen it
+        response = self.client.post(
+            f"/api/fundraise/{fundraise_id}/reopen/",
+            {"duration_days": 30},
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # A contributor can now contribute
+        contributor = create_random_authenticated_user("new_contributor")
+        self._give_user_balance(contributor, 1000)
+        contrib_response = self._create_contribution(
+            fundraise_id, contributor, amount=100
+        )
+        self.assertEqual(contrib_response.status_code, 200)
 
     def test_referral_bonuses_processed_on_fundraise_completion(self):
         """Test that referral bonuses are processed when a fundraise completes"""
@@ -867,14 +1008,11 @@ class FundraiseViewTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("Invalid amount", response.data["message"])
 
-    def test_create_usd_contribution_own_fundraise_fails(self):
-        """Test that user cannot contribute USD to their own fundraise."""
-        # Create a fundraise
+    def test_create_usd_contribution_own_fundraise_no_nonprofit_fails(self):
+        """Test that user cannot contribute USD to their own fundraise without a nonprofit."""
         fundraise = self._create_fundraise(self.post.id, goal_amount=100)
         fundraise_id = fundraise.data["id"]
-        self._link_nonprofit(fundraise_id)
 
-        # Try to contribute to own fundraise
         response = self._create_contribution(
             fundraise_id,
             self.user,
@@ -884,9 +1022,29 @@ class FundraiseViewTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn(
-            "Cannot contribute to your own fundraise", response.data["message"]
+
+    def test_create_usd_contribution_own_fundraise_with_nonprofit(self):
+        """Test that user CAN contribute USD to their own fundraise when a nonprofit is attached."""
+        fundraise = self._create_fundraise(self.post.id, goal_amount=100)
+        fundraise_id = fundraise.data["id"]
+        self._link_nonprofit(fundraise_id)
+
+        self.mock_fundraise_service.create_contribution.return_value = (None, None)
+
+        view = FundraiseViewSet.as_view({"post": "create_contribution"})
+        request = self.factory.post(
+            f"/api/fundraise/{fundraise_id}/create_contribution/",
+            {"amount": 10000, "amount_currency": "USD", "origin_fund_id": "fund_123"},
         )
+        force_authenticate(request, user=self.user)
+        response = view(
+            request,
+            pk=fundraise_id,
+            fundraise_service=self.mock_fundraise_service,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.mock_fundraise_service.create_contribution.assert_called_once()
 
     def test_create_usd_contribution_closed_fundraise_fails(self):
         """Test that USD contribution to closed fundraise fails."""

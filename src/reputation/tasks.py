@@ -294,6 +294,7 @@ def _check_deposits(max_age=None):
                 distributor.distribute()
                 deposit.amount = deposit_amount
                 deposit.set_paid()
+                user.ensure_staking_opted_in()
             except Exception as e:
                 log_error(e, "Failed to process deposit")
                 deposit.set_paid_pending()
@@ -682,10 +683,6 @@ def create_daily_staking_snapshots(self):
     Runs before distribute_staking_yield so the distribution task uses
     up-to-date supply and staking data.
     """
-    if not settings.STAGING:
-        logger.info("Staking daily snapshot creation is only enabled in staging")
-        return False
-
     accrual_date = datetime.now(pytz.UTC).date() - timedelta(days=1)
     key = lock.name(f"create_daily_staking_snapshots_{accrual_date}")
     if not lock.acquire(key):
@@ -724,10 +721,6 @@ def create_daily_staking_snapshots(self):
 )
 def distribute_staking_yield(self):
     """Daily task to distribute staking yield for the previous UTC day."""
-    if not settings.STAGING:
-        logger.info("Staking yield distribution is only enabled in staging")
-        return False
-
     accrual_date = datetime.now(pytz.UTC).date() - timedelta(days=1)
 
     key = lock.name(f"distribute_staking_yield_{accrual_date}")

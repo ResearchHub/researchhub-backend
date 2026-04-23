@@ -441,8 +441,8 @@ def send_queued_emails_task(
             failed += 1
             continue
         try:
-            send_plain_email(
-                [rec.expert_email],
+            ses_message_id = send_plain_email(
+                rec.expert_email,
                 rec.email_subject,
                 rec.email_body,
                 reply_to=reply_to_stripped,
@@ -451,6 +451,7 @@ def send_queued_emails_task(
             )
             GeneratedEmail.objects.filter(id=rec.id).update(
                 status=GeneratedEmail.Status.SENT,
+                ses_message_id=ses_message_id or "",
                 updated_date=timezone.now(),
             )
             mark_expert_last_email_sent_at(rec.expert_email)

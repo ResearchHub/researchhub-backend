@@ -5,8 +5,8 @@ The `urlpatterns` list routes URLs to views. For more information please see:
 """
 
 import debug_toolbar
+from dj_rest_auth.mfa.views import MFALoginView
 from dj_rest_auth.views import (
-    LoginView,
     LogoutView,
     PasswordChangeView,
     PasswordResetConfirmView,
@@ -22,7 +22,6 @@ import mailing_list.views
 import new_feature_release.views
 import note.views as note_views
 import notification.views
-import oauth.urls
 import oauth.views
 import paper.views as paper_views
 import purchase.views
@@ -177,10 +176,6 @@ router.register(
 router.register(r"gatekeeper", user.views.GatekeeperViewSet, basename="gatekeeper")
 
 router.register(
-    r"user_external_token", user.views.UserApiTokenViewSet, basename="user_api_token"
-)
-
-router.register(
     r"researchhub_unified_document/([0-9]+)/review", ReviewViewSet, basename="review"
 )
 
@@ -276,6 +271,7 @@ urlpatterns = [
     path("api/permissions/", researchhub.views.permissions, name="permissions"),
     path("api/search/", include(search.urls)),
     path("api/research_ai/", include("research_ai.urls")),
+    path("api/ai_peer_review/", include("ai_peer_review.urls")),
     # Referral endpoints
     path("api/referral/", include("referral.urls")),
     # Organization endpoints
@@ -309,7 +305,8 @@ urlpatterns = [
         name="rest_verify_email",
     ),
     re_path(r"api/auth/register/", include("dj_rest_auth.registration.urls")),
-    re_path(r"api/auth/login/", LoginView.as_view(), name="rest_login"),
+    re_path(r"api/auth/login/", MFALoginView.as_view(), name="rest_login"),
+    re_path(r"api/auth/", include("dj_rest_auth.mfa.urls")),
     re_path(r"api/auth/logout/", LogoutView.as_view(), name="rest_logout"),
     re_path(
         r"api/auth/password-reset/$", PasswordResetView.as_view(), name="password-reset"
@@ -329,8 +326,6 @@ urlpatterns = [
         PasswordResetConfirmView.as_view(),
         name="password_reset_confirm",
     ),
-    re_path(r"^auth/signup/", include(oauth.urls.registration_urls)),
-    re_path(r"^auth/", include(oauth.urls.default_urls)),
     path(
         "api/ckeditor/webhook/document_removed/",
         note_views.note_view.ckeditor_webhook_document_removed,

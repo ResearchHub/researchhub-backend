@@ -10,8 +10,6 @@ from .related_models.leaderboard_model import Leaderboard
 from .related_models.organization_model import Organization
 from .related_models.profile_image_storage import ProfileImageStorage
 from .related_models.school_model import Major, University
-from .related_models.phone_verification_model import PhoneVerification
-from .related_models.user_api_token_model import UserApiToken
 from .related_models.user_model import User
 from .related_models.user_verification_model import UserVerification
 from .related_models.verdict_model import Verdict
@@ -25,12 +23,10 @@ migratables = (
     Gatekeeper,
     Leaderboard,
     Major,
-    PhoneVerification,
     ProfileImageStorage,
     University,
     User,
     Organization,
-    UserApiToken,
     UserVerification,
     Verdict,
 )

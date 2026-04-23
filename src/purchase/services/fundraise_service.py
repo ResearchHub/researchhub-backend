@@ -1,10 +1,12 @@
 import logging
 import time
+from datetime import timedelta
 from decimal import Decimal
 from typing import Optional, Tuple
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.utils import timezone
 
 from analytics.tasks import track_revenue_event
 from purchase.endaoment import EndaomentService
@@ -89,7 +91,9 @@ class FundraiseService:
             return False, "Fundraise is expired"
 
         if check_self_contribution and fundraise.created_by.id == user.id:
-            return False, "Cannot contribute to your own fundraise"
+            nonprofit_org = fundraise.get_nonprofit_org()
+            if not nonprofit_org:
+                return False, "Cannot contribute to your own fundraise"
 
         return True, None
 
@@ -498,6 +502,29 @@ class FundraiseService:
             fundraise.escrow.set_cancelled_status()
 
             return True
+
+    def reopen_fundraise(self, fundraise: Fundraise, duration_days: int) -> None:
+        """
+        Reopen a fundraise and set its end date `duration_days` days from now.
+        Rejects COMPLETED fundraises because funds have already been paid out.
+
+        Raises:
+            ValueError: If fundraise is completed or duration_days is not a
+                positive integer.
+        """
+        if not isinstance(duration_days, int) or duration_days <= 0:
+            raise ValueError("duration_days must be a positive integer")
+
+        with transaction.atomic():
+            if fundraise.status == Fundraise.COMPLETED:
+                raise ValueError("Cannot reopen a completed fundraise")
+
+            fundraise.status = Fundraise.OPEN
+            fundraise.end_date = timezone.now() + timedelta(days=duration_days)
+            fundraise.save()
+
+            if fundraise.escrow and fundraise.escrow.status == Escrow.CANCELLED:
+                fundraise.escrow.set_pending_status()
 
     def export_usd_contributions(self, fundraise: Fundraise) -> list[list]:
         """
