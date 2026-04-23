@@ -17,6 +17,10 @@ from feed.filters import FundOrderingFilter
 from feed.models import FeedEntry
 from feed.serializers import FundingFeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
+from feed.views.funding_cache_mixin import (
+    FUNDING_FEED_MAX_CACHED_PAGE,
+    FundingCacheMixin,
+)
 from purchase.related_models.fundraise_model import Fundraise
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -25,7 +29,7 @@ from ..serializers import PostSerializer, serialize_feed_metrics
 from .common import FeedPagination
 
 
-class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
+class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
     serializer_class = PostSerializer
     permission_classes = []
     pagination_class = FeedPagination
@@ -46,7 +50,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         funded_by = request.query_params.get("funded_by", None)
         cache_key = self.get_cache_key(request, "funding")
         use_cache = (
-            page_num < 4
+            page_num <= FUNDING_FEED_MAX_CACHED_PAGE
             and grant_id is None
             and created_by is None
             and funded_by is None
