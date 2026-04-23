@@ -7,6 +7,7 @@ from django.db.models import JSONField
 
 from discussion.models import Vote
 from paper.related_models.citation_model import Citation
+from reputation.related_models.contribution_weight import ContributionWeight
 from utils.models import DefaultModel
 
 ALGORITHM_VERSION = 2
@@ -16,6 +17,7 @@ class Score(DefaultModel):
     author = models.ForeignKey("user.Author", on_delete=models.CASCADE, db_index=True)
     hub = models.ForeignKey("hub.Hub", on_delete=models.CASCADE, db_index=True)
     score = models.IntegerField(default=0)
+    score_v2 = models.IntegerField(default=0)
 
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
@@ -26,7 +28,7 @@ class Score(DefaultModel):
             "hub",
         )
 
-    # FIXME query score algorithm variables for bins.
+
     @property
     def percentile(self):
         if self.score <= 1000:
@@ -155,6 +157,35 @@ class Score(DefaultModel):
 
         return score
 
+    @classmethod
+    def update_score_funding(
+        cls,
+        author,
+        hub,
+        rsc_amount,
+        content,
+        contribution_type,
+        is_funder=False,
+    ):
+        from reputation.related_models.contribution_weight import ContributionWeight
+
+        score = cls.get_or_create_score(author, hub)
+        content_type = ContentType.objects.get_for_model(content)
+
+        score_change = ScoreChange.create_score_change_funding(
+            score=score,
+            rsc_amount=rsc_amount,
+            content_type=content_type,
+            object_id=content.id,
+            contribution_type=contribution_type,
+            is_funder=is_funder,
+        )
+
+        score.score = score_change.score_after_change
+        score.save()
+
+        return score
+
 
 class ScoreChange(DefaultModel):
     algorithm_version = models.IntegerField(default=1)
@@ -163,25 +194,53 @@ class ScoreChange(DefaultModel):
     )
     score_after_change = models.IntegerField()
     score_change = models.IntegerField()
-    raw_value_change = models.IntegerField()  # change of number of citations or votes.
+    raw_value_change = models.IntegerField()
     changed_content_type = models.ForeignKey(
         ContentType, on_delete=models.CASCADE
-    )  # content type of paper, historical paper or vote.
+    )
     changed_object_id = (
         models.PositiveIntegerField()
-    )  # id of the paper (with updated citation) or vote.
+    )
     changed_object_field = models.CharField(
         max_length=100
-    )  # field name of the changed object, citation, upvote.
+    )
     variable_counts = JSONField(default=dict)
-    # {
-    #     "citations": 10,
-    #     "votes": 5,
-    # }
+
+
+
+
     score = models.ForeignKey(
         "reputation.Score", on_delete=models.CASCADE, db_index=True
     )
     created_date = models.DateTimeField(auto_now_add=True, db_index=True)
+    contribution_type = models.CharField(
+        max_length=50,
+        default="UPVOTE",
+        help_text="Type of contribution (TIP_RECEIVED, BOUNTY_PAYOUT, UPVOTE, etc.)",
+    )
+    rsc_amount = models.DecimalField(
+        max_digits=19,
+        decimal_places=8,
+        default=0,
+        help_text="Amount of RSC involved in this reputation change (0 for non-RSC contributions)",
+    )
+    is_deleted = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Whether the content associated with this score change was deleted",
+    )
+
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=["score", "contribution_type"],
+                name="idx_score_contribution_type",
+            ),
+            models.Index(
+                fields=["contribution_type", "created_date"],
+                name="idx_contribution_type_date",
+            ),
+        ]
 
     @classmethod
     def get_latest_score_change(cls, score, algorithm_variables=None):
@@ -287,6 +346,7 @@ class ScoreChange(DefaultModel):
             changed_object_field="citations",
             variable_counts=current_variable_counts,
             score=score,
+            contribution_type=ContributionWeight.CITATION,
         )
         score_change.save()
 
@@ -327,6 +387,12 @@ class ScoreChange(DefaultModel):
 
         current_rep = previous_score + score_value_change
 
+        contribution_type = (
+            ContributionWeight.UPVOTE
+            if raw_value_change > 0
+            else ContributionWeight.DOWNVOTE
+        )
+
         score_change = cls(
             algorithm_version=ALGORITHM_VERSION,
             algorithm_variables=algorithm_variables,
@@ -338,6 +404,7 @@ class ScoreChange(DefaultModel):
             changed_object_field="vote_type",
             variable_counts=current_variable_counts,
             score=score,
+            contribution_type=contribution_type,
         )
         score_change.save()
 
@@ -413,7 +480,7 @@ class ScoreChange(DefaultModel):
 
             citation_count_curr_bin = max(
                 min(citation_count, key_tuple[1]) - key_tuple[0], 0
-            )  # Take min of the citation count and the upper bound of the bin range then subtract the lower bound of the bin range and avoid going negative.
+            )
             rep += citation_count_curr_bin * val
 
         return rep
@@ -425,7 +492,7 @@ class ScoreChange(DefaultModel):
 
             citation_count_curr_bin = max(
                 min(citation_count, key_tuple[1]) - key_tuple[0], 0
-            )  # Take min of the citation count and the upper bound of the bin range then subtract the lower bound of the bin range and avoid going negative.
+            )
             rep_change = citation_count_curr_bin * val
             if paper_work_type == "review":
                 rep_change = math.ceil(rep_change / 5)
@@ -433,6 +500,127 @@ class ScoreChange(DefaultModel):
             rep += rep_change
 
         return rep
+
+    @classmethod
+    def create_score_change_funding(
+        cls,
+        score,
+        rsc_amount,
+        content_type,
+        object_id,
+        contribution_type,
+        is_funder=False,
+    ):
+        from reputation.related_models.contribution_weight import ContributionWeight
+
+        algorithm_variables = AlgorithmVariables.objects.filter(hub=score.hub).latest(
+            "created_date"
+        )
+        previous_score_change = cls.get_latest_score_change(score, algorithm_variables)
+
+        previous_score = 0
+        previous_variable_counts = {
+            "citations": 0,
+            "votes": 0,
+            "rsc_received": 0,
+        }
+        if previous_score_change:
+            previous_score = previous_score_change.score_after_change
+            previous_variable_counts = previous_score_change.variable_counts
+
+        current_variable_counts = previous_variable_counts.copy()
+        current_variable_counts["rsc_received"] = current_variable_counts.get(
+            "rsc_received", 0
+        ) + float(rsc_amount)
+
+
+        if ContributionWeight.is_tiered_scoring_enabled():
+
+            score_value_change = ContributionWeight.calculate_reputation_from_rsc(
+                contribution_type, float(rsc_amount), is_funder=is_funder
+            )
+        else:
+
+            score_value_change = 0
+
+        current_rep = previous_score + score_value_change
+
+
+        score_change = cls(
+            algorithm_version=ALGORITHM_VERSION,
+            algorithm_variables=algorithm_variables,
+            score_after_change=current_rep,
+            score_change=score_value_change,
+            raw_value_change=1,
+            changed_content_type=content_type,
+            changed_object_id=object_id,
+            changed_object_field="rsc_amount",
+            variable_counts=current_variable_counts,
+            score=score,
+            contribution_type=contribution_type,
+            rsc_amount=rsc_amount,
+            is_deleted=False,
+        )
+        score_change.save()
+
+        score.score = current_rep
+        score.save()
+
+        return score_change
+
+    @classmethod
+    def apply_deletion_penalty(cls, score, deleted_content_id, deleted_content_type):
+
+        rsc_score_changes = cls.objects.filter(
+            score=score,
+            changed_object_id=deleted_content_id,
+            changed_content_type=deleted_content_type,
+            is_deleted=False,
+            rsc_amount__gt=0,
+        )
+
+        total_penalty = 0
+
+        for sc in rsc_score_changes:
+
+            total_penalty += sc.score_change
+
+
+            sc.is_deleted = True
+            sc.save()
+
+        if total_penalty > 0:
+
+            algorithm_variables = AlgorithmVariables.objects.filter(
+                hub=score.hub
+            ).latest("created_date")
+            previous_score_change = cls.get_latest_score_change(
+                score, algorithm_variables
+            )
+
+            penalty_score_change = cls(
+                algorithm_version=ALGORITHM_VERSION,
+                algorithm_variables=algorithm_variables,
+                score_after_change=previous_score_change.score_after_change
+                - total_penalty,
+                score_change=-total_penalty,
+                raw_value_change=-1,
+                changed_content_type=deleted_content_type,
+                changed_object_id=deleted_content_id,
+                changed_object_field="deletion_penalty",
+                variable_counts=previous_score_change.variable_counts,
+                score=score,
+                contribution_type="DELETION_PENALTY",
+                rsc_amount=0,
+                is_deleted=True,
+            )
+            penalty_score_change.save()
+
+
+            score.score = penalty_score_change.score_after_change
+            score.save()
+
+        return total_penalty
 
     def vote_change(vote, previous_score_change):
         vote_values = {
@@ -449,14 +637,14 @@ class ScoreChange(DefaultModel):
         return vote_value - previous_vote_value
 
 
-# AlgorithmVariables stores the variables required to calculate the reputation score.
-# Currently each upvote is worth 1 point.
+
+
 class AlgorithmVariables(DefaultModel):
-    # {"citations":
-    #   {"bins":{(0, 2): 50, (2, 12): 100, (12, 200): 250, (200, 2800): 100}},
-    #  "votes": {"value": 1},
-    #  "bins": [[0, 1000], [1_000, 10_000], [10_000, 100_000], [100_000, 1_000_000]]
-    # }
+
+
+
+
+
     variables = JSONField()
     hub = models.ForeignKey("hub.Hub", on_delete=models.CASCADE, db_index=True)
     created_date = models.DateTimeField(auto_now_add=True)
