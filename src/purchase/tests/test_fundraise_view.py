@@ -71,6 +71,7 @@ class FundraiseViewTests(APITestCase):
         amount=100,
         amount_currency="RSC",
         origin_fund_id=None,
+        use_credits=None,
     ):
         self.client.force_authenticate(user)
         payload = {
@@ -79,6 +80,8 @@ class FundraiseViewTests(APITestCase):
         }
         if origin_fund_id:
             payload["origin_fund_id"] = origin_fund_id
+        if use_credits is not None:
+            payload["use_credits"] = use_credits
         return self.client.post(
             f"/api/fundraise/{fundraise_id}/create_contribution/",
             payload,
@@ -842,6 +845,92 @@ class FundraiseViewTests(APITestCase):
         self.assertIsNotNone(regular_fee_balance)
         self.assertEqual(float(regular_fee_balance.amount), -9.0)
 
+    def test_create_contribution_use_credits_false_uses_only_unlocked(self):
+        """
+        When use_credits=False, the contribution must only debit the user's
+        unlocked balance, even if they have locked funds available.
+        """
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+
+        user = create_random_authenticated_user("fundraise_views")
+
+        # Enough unlocked to cover amount + fee on its own.
+        Balance.objects.create(
+            amount=200,
+            user=user,
+            content_type=ContentType.objects.get(model="distribution"),
+            is_locked=False,
+        )
+        # Locked funds that would otherwise be consumed first.
+        Balance.objects.create(
+            amount=500,
+            user=user,
+            content_type=ContentType.objects.get(model="distribution"),
+            is_locked=True,
+        )
+
+        response = self._create_contribution(
+            fundraise_id, user, amount=100, use_credits=False
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        purchase_content_type = ContentType.objects.get_for_model(Purchase)
+        fee_content_type = ContentType.objects.get_for_model(BountyFee)
+
+        # Locked debits must not exist; unlocked must cover the full spend.
+        self.assertFalse(
+            Balance.objects.filter(
+                user=user,
+                content_type__in=[purchase_content_type, fee_content_type],
+                is_locked=True,
+            ).exists()
+        )
+        amount_balance = Balance.objects.get(
+            user=user, content_type=purchase_content_type
+        )
+        self.assertEqual(float(amount_balance.amount), -100.0)
+        self.assertFalse(amount_balance.is_locked)
+        fee_balance = Balance.objects.get(user=user, content_type=fee_content_type)
+        self.assertEqual(float(fee_balance.amount), -9.0)
+        self.assertFalse(fee_balance.is_locked)
+
+        # Locked balance is untouched.
+        self.assertEqual(float(user.get_locked_balance()), 500.0)
+
+    def test_create_contribution_use_credits_false_rejects_when_unlocked_short(self):
+        """
+        When use_credits=False, locked balance must not be spent even if the
+        user's total (locked + unlocked) could otherwise cover the contribution.
+        """
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+
+        user = create_random_authenticated_user("fundraise_views")
+
+        # Unlocked alone is insufficient.
+        Balance.objects.create(
+            amount=50,
+            user=user,
+            content_type=ContentType.objects.get(model="distribution"),
+            is_locked=False,
+        )
+        # Locked would cover it if use_credits were True.
+        Balance.objects.create(
+            amount=200,
+            user=user,
+            content_type=ContentType.objects.get(model="distribution"),
+            is_locked=True,
+        )
+
+        response = self._create_contribution(
+            fundraise_id, user, amount=100, use_credits=False
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Insufficient balance", response.data["message"])
+
     def test_complete_fundraise(self):
         """Test that a fundraise can be completed via the API by a moderator"""
         # Create a fundraise
@@ -967,6 +1056,7 @@ class FundraiseViewTests(APITestCase):
             amount=10000,
             currency="USD",
             origin_fund_id="fund_123",
+            use_credits=True,
         )
 
     def test_create_usd_contribution_requires_origin_fund_id(self):

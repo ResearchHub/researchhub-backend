@@ -105,6 +105,7 @@ class FundraiseService:
         currency: str = RSC,
         check_self_contribution: bool = True,
         origin_fund_id: Optional[str] = None,
+        use_credits: bool = True,
     ) -> Tuple[Optional[Purchase], Optional[str]]:
         """
         Validates and creates a contribution to a fundraise.
@@ -117,6 +118,9 @@ class FundraiseService:
             currency: The currency type (RSC or USD)
             check_self_contribution: Whether to check if user is contributing to own fundraise
             origin_fund_id: The Endaoment fund (DAF) ID of the doner for USD grants
+            use_credits: For RSC contributions, whether to spend funding credits
+                (locked balance) before unlocked balance. When False, only
+                unlocked balance is used. Ignored for USD contributions.
 
         Returns:
             Tuple of (contribution, error_message). If successful, error_message is None.
@@ -168,7 +172,9 @@ class FundraiseService:
                     f"{MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC}"
                 )
 
-            return self.create_rsc_contribution(user, fundraise, amount)
+            return self.create_rsc_contribution(
+                user, fundraise, amount, use_credits=use_credits
+            )
 
     def create_fundraise_with_escrow(
         self,
@@ -202,7 +208,11 @@ class FundraiseService:
         return fundraise
 
     def create_rsc_contribution(
-        self, user: User, fundraise: Fundraise, amount: Decimal
+        self,
+        user: User,
+        fundraise: Fundraise,
+        amount: Decimal,
+        use_credits: bool = True,
     ) -> Tuple[Optional[Purchase], Optional[str]]:
         """
         Creates an RSC contribution to a fundraise.
@@ -211,6 +221,8 @@ class FundraiseService:
             user: The user making the contribution
             fundraise: The fundraise to contribute to
             amount: The contribution amount in RSC
+            use_credits: Whether to spend funding credits (locked balance) before
+                unlocked balance. When False, only unlocked balance is used.
 
         Returns:
             Tuple of (purchase, error_message). If successful, error_message is None.
@@ -223,9 +235,12 @@ class FundraiseService:
             user = User.objects.select_for_update().get(id=user.id)
 
             # Allocate the total spend (amount + fee) across locked/unlocked
-            # pools. Fundraise contributions are allowed to consume locked funds.
+            # pools. Fundraise contributions may consume locked funds (funding
+            # credits) when the contributor opts in via ``use_credits``.
             try:
-                allocations = user.allocate_spend(amount + fee, allow_locked=True)
+                allocations = user.allocate_spend(
+                    amount + fee, allow_locked=use_credits
+                )
             except ValueError:
                 return None, "Insufficient balance"
 
