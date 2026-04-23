@@ -1,16 +1,19 @@
 import math
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import ROUND_DOWN, Decimal
 from unittest.mock import patch
 
+from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
+from purchase.models import Balance
 from reputation.models import StakingGlobalSnapshot
 from reputation.services.staking_yield_service import (
     QUANTIZE_8,
     STAKING_RELEASE_DATE,
     StakingYieldService,
 )
+from user.tests.helpers import create_random_default_user
 
 
 class StakingYieldServiceTest(TestCase):
@@ -159,3 +162,192 @@ class StakingYieldServiceTest(TestCase):
             STAKING_RELEASE_DATE + timedelta(days=730)
         )
         self.assertAlmostEqual(float(emission), 25469.68381, places=2)
+
+
+class StakingMultiplierCalculationTest(TestCase):
+    def setUp(self):
+        self.user = create_random_default_user("staking-multiplier")
+        self.content_type = ContentType.objects.get_for_model(StakingGlobalSnapshot)
+        self.accrual_date = STAKING_RELEASE_DATE + timedelta(days=30)
+
+    def _timestamp(self, days_before_accrual):
+        return datetime.combine(
+            self.accrual_date - timedelta(days=days_before_accrual),
+            time.min,
+            tzinfo=timezone.utc,
+        )
+
+    def _create_balance(self, amount, days_before_accrual, is_locked=False, user=None):
+        user = user or self.user
+        balance = Balance.objects.create(
+            user=user,
+            amount=str(amount),
+            content_type=self.content_type,
+            is_locked=is_locked,
+        )
+        balance.created_date = self._timestamp(days_before_accrual)
+        balance.save(update_fields=["created_date"])
+        return balance
+
+    def test_get_unlocked_balance_lots_lifo_uses_lifo(self):
+        self._create_balance("100", days_before_accrual=20)
+        self._create_balance("50", days_before_accrual=5)
+        self._create_balance("-60", days_before_accrual=1)
+
+        lots = sorted(
+            self.user.get_unlocked_balance_lots_lifo(),
+            key=lambda lot: lot.created_date,
+        )
+
+        self.assertEqual(len(lots), 1)
+        self.assertEqual(lots[0].amount, Decimal("90.00000000"))
+        self.assertEqual(lots[0].created_date, self.accrual_date - timedelta(days=20))
+
+    def test_compute_balance_age_multiplier_uses_step_schedule(self):
+        self.assertEqual(
+            StakingYieldService.compute_balance_age_multiplier(0),
+            Decimal("1.00000000"),
+        )
+        self.assertEqual(
+            StakingYieldService.compute_balance_age_multiplier(29),
+            Decimal("1.00000000"),
+        )
+        self.assertEqual(
+            StakingYieldService.compute_balance_age_multiplier(30),
+            Decimal("1.05000000"),
+        )
+        self.assertEqual(
+            StakingYieldService.compute_balance_age_multiplier(179),
+            Decimal("1.05000000"),
+        )
+        self.assertEqual(
+            StakingYieldService.compute_balance_age_multiplier(180),
+            Decimal("1.10000000"),
+        )
+        self.assertEqual(
+            StakingYieldService.compute_balance_age_multiplier(364),
+            Decimal("1.10000000"),
+        )
+        self.assertEqual(
+            StakingYieldService.compute_balance_age_multiplier(365),
+            Decimal("1.25000000"),
+        )
+
+    def test_calculate_staking_position_clips_age_to_opt_in_date(self):
+        self.user.staking_opted_in_date = self._timestamp(days_before_accrual=200)
+        self.user.save(update_fields=["staking_opted_in_date"])
+        self._create_balance("100", days_before_accrual=400)
+
+        position = StakingYieldService.calculate_staking_position(
+            self.user, self.accrual_date
+        )
+
+        expected_multiplier = Decimal("1.10000000")
+        self.assertEqual(position.stake_amount, Decimal("100.00000000"))
+        self.assertEqual(position.multiplier, expected_multiplier)
+        self.assertEqual(
+            position.weighted_stake,
+            StakingYieldService.compute_weighted_stake(
+                Decimal("100.00000000"), expected_multiplier
+            ),
+        )
+
+    def test_calculate_staking_position_weights_multiple_lots(self):
+        self.user.staking_opted_in_date = self._timestamp(days_before_accrual=400)
+        self.user.save(update_fields=["staking_opted_in_date"])
+        self._create_balance("100", days_before_accrual=200)
+        self._create_balance("50", days_before_accrual=40)
+
+        position = StakingYieldService.calculate_staking_position(
+            self.user, self.accrual_date
+        )
+
+        multiplier_200 = Decimal("1.10000000")
+        multiplier_40 = Decimal("1.05000000")
+        expected_multiplier = (
+            (Decimal("100") * multiplier_200 + Decimal("50") * multiplier_40)
+            / Decimal("150")
+        ).quantize(QUANTIZE_8, rounding=ROUND_DOWN)
+
+        self.assertEqual(position.stake_amount, Decimal("150.00000000"))
+        self.assertEqual(position.multiplier, expected_multiplier)
+        self.assertEqual(
+            position.weighted_stake,
+            StakingYieldService.compute_weighted_stake(
+                Decimal("150.00000000"), expected_multiplier
+            ),
+        )
+
+    def test_compute_global_staking_multiplier(self):
+        global_multiplier = StakingYieldService.compute_global_staking_multiplier(
+            total_staked=Decimal("150"),
+            total_weighted_stake=Decimal("157.50000000"),
+        )
+
+        self.assertEqual(global_multiplier, Decimal("1.05000000"))
+
+    @patch(
+        "reputation.services.staking_yield_service."
+        "RscSupplyService.fetch_circulating_supply"
+    )
+    def test_create_daily_snapshots_applies_age_based_multiplier(self, mock_supply):
+        mock_supply.return_value = Decimal("220000000")
+        self.user.is_staking_opted_in = True
+        self.user.staking_opted_in_date = self._timestamp(days_before_accrual=400)
+        self.user.save(update_fields=["is_staking_opted_in", "staking_opted_in_date"])
+        self._create_balance("100", days_before_accrual=200)
+
+        user2 = create_random_default_user("staking-multiplier-2")
+        user2.is_staking_opted_in = True
+        user2.staking_opted_in_date = self._timestamp(days_before_accrual=400)
+        user2.save(update_fields=["is_staking_opted_in", "staking_opted_in_date"])
+        self._create_balance("50", days_before_accrual=40, user=user2)
+
+        snapshot = StakingYieldService.create_daily_snapshots(self.accrual_date)
+        user_snapshot = snapshot.user_snapshots.get(user=self.user)
+        user2_snapshot = snapshot.user_snapshots.get(user=user2)
+
+        self.assertEqual(user_snapshot.stake_amount, Decimal("100.00000000"))
+        self.assertEqual(user_snapshot.multiplier, Decimal("1.10000000"))
+        self.assertEqual(user_snapshot.weighted_stake, Decimal("110.00000000"))
+        self.assertEqual(user2_snapshot.stake_amount, Decimal("50.00000000"))
+        self.assertEqual(user2_snapshot.multiplier, Decimal("1.05000000"))
+        self.assertEqual(user2_snapshot.weighted_stake, Decimal("52.50000000"))
+        self.assertEqual(snapshot.total_staked, Decimal("150.00000000"))
+        self.assertEqual(snapshot.total_weighted_stake, Decimal("162.50000000"))
+
+    @patch(
+        "reputation.services.staking_yield_service."
+        "RscSupplyService.fetch_circulating_supply"
+    )
+    def test_create_daily_snapshots_equal_multipliers_preserve_stake_share(
+        self, mock_supply
+    ):
+        mock_supply.return_value = Decimal("220000000")
+        self.user.is_staking_opted_in = True
+        self.user.staking_opted_in_date = self._timestamp(days_before_accrual=400)
+        self.user.save(update_fields=["is_staking_opted_in", "staking_opted_in_date"])
+        self._create_balance("100", days_before_accrual=40)
+
+        user2 = create_random_default_user("staking-equal-multiplier-2")
+        user2.is_staking_opted_in = True
+        user2.staking_opted_in_date = self._timestamp(days_before_accrual=400)
+        user2.save(update_fields=["is_staking_opted_in", "staking_opted_in_date"])
+        self._create_balance("50", days_before_accrual=40, user=user2)
+
+        snapshot = StakingYieldService.create_daily_snapshots(self.accrual_date)
+        user_snapshot = snapshot.user_snapshots.get(user=self.user)
+        user2_snapshot = snapshot.user_snapshots.get(user=user2)
+
+        self.assertEqual(user_snapshot.multiplier, Decimal("1.05000000"))
+        self.assertEqual(user2_snapshot.multiplier, user_snapshot.multiplier)
+        self.assertEqual(snapshot.total_staked, Decimal("150.00000000"))
+        self.assertEqual(snapshot.total_weighted_stake, Decimal("157.50000000"))
+        self.assertEqual(
+            user_snapshot.weighted_stake / snapshot.total_weighted_stake,
+            user_snapshot.stake_amount / snapshot.total_staked,
+        )
+        self.assertEqual(
+            user2_snapshot.weighted_stake / snapshot.total_weighted_stake,
+            user2_snapshot.stake_amount / snapshot.total_staked,
+        )

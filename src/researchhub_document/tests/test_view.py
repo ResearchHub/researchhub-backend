@@ -1,26 +1,30 @@
-import time
+
+import json
 from datetime import datetime, timedelta
 from decimal import Decimal
-from unittest.mock import patch
 
 import pytz
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
+from rest_framework.renderers import JSONRenderer
 from rest_framework.test import APITestCase
 
+from ai_peer_review.models import OverallRating, ProposalReview, ReviewStatus
+from ai_peer_review.serializers import ProposalReviewSerializer
 from hub.models import Hub
 from hub.tests.helpers import create_hub
 from note.tests.helpers import create_note
 from paper.tests.helpers import create_paper
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-from reputation.distributions import Distribution
-from reputation.distributor import Distributor
 from researchhub_access_group.constants import SENIOR_EDITOR
 from researchhub_access_group.models import Permission
 from researchhub_document.helpers import create_post
 from researchhub_document.models import ResearchhubUnifiedDocument
-from researchhub_document.related_models.constants.document_type import GRANT
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+)
 from researchhub_document.serializers.researchhub_post_serializer import (
     ResearchhubPostSerializer,
 )
@@ -679,44 +683,31 @@ class ViewTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["is_removed"], False)
 
-    @patch("requests.post")
-    def test_register_doi_no_charge(self, mock_crossref):
-        # Mock Crossref API response
-        mock_crossref.return_value.status_code = 200
-
+    def test_doi_not_assigned_on_publish(self):
+        """DOIs are no longer assigned at publish time for any post type."""
         author = create_random_default_user("author")
         make_user_verified(author)
         hub = create_hub()
 
         self.client.force_authenticate(author)
 
-        initial_balance = 5
-        distributor = Distributor(
-            Distribution("TEST_REWARD", initial_balance, False),
-            author,
-            None,
-            time.time(),
-        )
-        distributor.distribute()
+        for document_type in ("DISCUSSION", "PREREGISTRATION"):
+            doc_response = self.client.post(
+                "/api/researchhubpost/",
+                {
+                    "assign_doi": True,
+                    "document_type": document_type,
+                    "created_by": author.id,
+                    "full_src": "body",
+                    "is_public": True,
+                    "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
+                    "title": "sufficiently long title. sufficiently long title.",
+                    "hubs": [hub.id],
+                },
+            )
 
-        doc_response = self.client.post(
-            "/api/researchhubpost/",
-            {
-                "assign_doi": True,
-                "document_type": "DISCUSSION",
-                "created_by": author.id,
-                "full_src": "body",
-                "is_public": True,
-                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
-                "title": "sufficiently long title. sufficiently long title.",
-                "hubs": [hub.id],
-            },
-        )
-
-        self.assertEqual(doc_response.status_code, 200)
-        self.assertIsNotNone(doc_response.data["doi"])
-        # Balance should remain unchanged for all post types
-        self.assertEqual(int(author.get_balance()), initial_balance)
+            self.assertEqual(doc_response.status_code, 200)
+            self.assertIsNone(doc_response.data["doi"])
 
     def test_get_document_metadata(self):
         # Arrange
@@ -779,46 +770,6 @@ class ViewTests(APITestCase):
 
         self.assertEqual(doc_response.status_code, 200)
         self.assertIsNone(doc_response.data["fundraise"])
-
-    @patch("requests.post")
-    def test_preregistration_doi_not_charged(self, mock_crossref):
-        # Mock Crossref API response
-        mock_crossref.return_value.status_code = 200
-
-        author = create_random_default_user("author")
-        make_user_verified(author)
-        hub = create_hub()
-
-        self.client.force_authenticate(author)
-
-        # Give the user some balance
-        initial_balance = 5
-        distributor = Distributor(
-            Distribution("TEST_REWARD", initial_balance, False),
-            author,
-            None,
-            time.time(),
-        )
-        distributor.distribute()
-
-        doc_response = self.client.post(
-            "/api/researchhubpost/",
-            {
-                "assign_doi": True,
-                "document_type": "PREREGISTRATION",
-                "created_by": author.id,
-                "full_src": "body",
-                "is_public": True,
-                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
-                "title": "sufficiently long title. sufficiently long title.",
-                "hubs": [hub.id],
-            },
-        )
-
-        self.assertEqual(doc_response.status_code, 200)
-        self.assertIsNotNone(doc_response.data["doi"])
-        # Balance should remain unchanged for preregistrations
-        self.assertEqual(int(author.get_balance()), initial_balance)
 
     def test_grant_created_when_grant_amount_provided(self):
         """Test that a grant is created when grant_amount is provided"""
@@ -1904,6 +1855,99 @@ class PreregistrationGrantAutoAttachTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, 200)
         self.assertFalse(GrantApplication.objects.exists())
+
+
+class PreregistrationGrantsPayloadTests(APITestCase):
+    """GET researchhubpost returns grants[] with proposal.ai_peer_review for preregistrations."""
+
+    def setUp(self):
+        self.user = create_random_default_user("prereg_grants_user")
+        make_user_verified(self.user)
+        self.hub = create_hub("prereg_grants_hub")
+        self.moderator = create_random_default_user("prereg_grants_mod")
+        make_user_verified(self.moderator)
+
+        def make_grant(short_suffix):
+            grant_post = create_post(created_by=self.moderator, document_type=GRANT)
+            return Grant.objects.create(
+                created_by=self.moderator,
+                unified_document=grant_post.unified_document,
+                amount=Decimal("10000.00"),
+                currency="USD",
+                organization=f"Org {short_suffix}",
+                short_title=f"Grant {short_suffix}",
+                description="Test grant",
+                status=Grant.OPEN,
+            )
+
+        self.grant_a = make_grant("A")
+        self.grant_b = make_grant("B")
+
+        self.prereg_post = create_post(
+            title="Prereg title for grants payload",
+            renderable_text="x" * MIN_POST_BODY_LENGTH,
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+        )
+        GrantApplication.objects.create(
+            grant=self.grant_a,
+            preregistration_post=self.prereg_post,
+            applicant=self.user,
+        )
+        GrantApplication.objects.create(
+            grant=self.grant_b,
+            preregistration_post=self.prereg_post,
+            applicant=self.user,
+        )
+        ProposalReview.objects.create(
+            unified_document=self.prereg_post.unified_document,
+            grant=self.grant_a,
+            status=ReviewStatus.COMPLETED,
+            overall_rating=OverallRating.GOOD,
+            overall_score_numeric=82,
+        )
+
+    def test_get_preregistration_includes_grants_and_ai_peer_review(self):
+        url = f"/api/researchhubpost/{self.prereg_post.id}/"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        grants = response.data["grants"]
+        self.assertEqual(len(grants), 2)
+        by_grant_id = {g["id"]: g for g in grants}
+        self.assertEqual(set(by_grant_id), {self.grant_a.id, self.grant_b.id})
+
+        entry_a = by_grant_id[self.grant_a.id]
+        self.assertEqual(entry_a["short_title"], "Grant A")
+        self.assertEqual(entry_a["status"], Grant.OPEN)
+        self.assertEqual(entry_a["organization"], "Org A")
+        self.assertEqual(entry_a["currency"], "USD")
+        proposal_a = entry_a["proposal"]
+        self.assertEqual(
+            proposal_a["unified_document_id"], self.prereg_post.unified_document_id
+        )
+        review_a = proposal_a["ai_peer_review"]
+        self.assertIsNotNone(review_a)
+        review_obj = ProposalReview.objects.get(
+            unified_document=self.prereg_post.unified_document,
+            grant=self.grant_a,
+        )
+        expected_review = ProposalReviewSerializer(review_obj).data
+        expected_json = json.loads(JSONRenderer().render(expected_review).decode())
+        self.assertEqual(dict(review_a), expected_json)
+
+        entry_b = by_grant_id[self.grant_b.id]
+        self.assertIsNone(entry_b["proposal"]["ai_peer_review"])
+
+    def test_get_non_preregistration_returns_empty_grants(self):
+        discussion = create_post(
+            title="Discussion post",
+            renderable_text="x" * MIN_POST_BODY_LENGTH,
+            created_by=self.user,
+            document_type="DISCUSSION",
+        )
+        response = self.client.get(f"/api/researchhubpost/{discussion.id}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["grants"], [])
 
 
 class PostPeerReviewTests(TestCase):

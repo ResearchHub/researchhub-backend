@@ -224,7 +224,6 @@ INSTALLED_APPS = [
     "django.contrib.postgres",
     # Rest framework
     "rest_framework",
-    "rest_framework_api_key",
     # Authentication
     "allauth",
     "allauth.account",
@@ -347,7 +346,7 @@ if DEBUG:
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "researchhub.middleware.ApiTokenSession.UserApiTokenAuth",
+        "rest_framework.authentication.TokenAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
@@ -886,10 +885,6 @@ WEB3_KEYSTORE_PASSWORD_SECRET_ID = os.environ.get(
     "WEB3_KEYSTORE_PASSWORD_SECRET_ID", keys.WEB3_KEYSTORE_PASSWORD_SECRET_ID
 )
 WEB3_WALLET_ADDRESS = os.environ.get("WEB3_WALLET_ADDRESS", keys.WEB3_WALLET_ADDRESS)
-
-
-# API Key Settings
-API_KEY_CUSTOM_HEADER = "HTTP_RH_API_KEY"
 
 
 # MJML

@@ -1,6 +1,7 @@
 import logging
 import math
 import time
+from dataclasses import dataclass
 from datetime import date
 from decimal import ROUND_DOWN, Decimal
 
@@ -22,6 +23,17 @@ QUANTIZE_8 = Decimal("0.00000001")
 STAKING_RELEASE_DATE = date(2026, 4, 11)
 INITIAL_YEARLY_EMISSION = Decimal("9500000")
 HALVING_PERIOD_DAYS = 64 * 365  # 64 years in days
+BASE_STAKING_MULTIPLIER = Decimal("1")
+STAKING_MULTIPLIER_30_DAY = Decimal("1.05")
+STAKING_MULTIPLIER_180_DAY = Decimal("1.1")
+STAKING_MULTIPLIER_365_DAY = Decimal("1.25")
+
+
+@dataclass(frozen=True)
+class StakingPosition:
+    stake_amount: Decimal
+    multiplier: Decimal
+    weighted_stake: Decimal
 
 
 class StakingYieldService:
@@ -32,6 +44,77 @@ class StakingYieldService:
 
         raw = stake * multiplier
         return raw.quantize(QUANTIZE_8, rounding=ROUND_DOWN)
+
+    @staticmethod
+    def compute_balance_age_multiplier(age_days):
+        if age_days < 30:
+            return BASE_STAKING_MULTIPLIER.quantize(QUANTIZE_8, rounding=ROUND_DOWN)
+
+        if age_days < 180:
+            return STAKING_MULTIPLIER_30_DAY.quantize(QUANTIZE_8, rounding=ROUND_DOWN)
+
+        if age_days < 365:
+            return STAKING_MULTIPLIER_180_DAY.quantize(QUANTIZE_8, rounding=ROUND_DOWN)
+
+        return STAKING_MULTIPLIER_365_DAY.quantize(QUANTIZE_8, rounding=ROUND_DOWN)
+
+    @staticmethod
+    def calculate_staking_position(user, accrual_date):
+        lots = user.get_unlocked_balance_lots_lifo()
+        if not lots:
+            return StakingPosition(
+                stake_amount=Decimal("0"),
+                multiplier=Decimal("0"),
+                weighted_stake=Decimal("0"),
+            )
+
+        opt_in_date = (
+            user.staking_opted_in_date.date() if user.staking_opted_in_date else None
+        )
+
+        stake_amount = Decimal("0")
+        raw_weighted_stake = Decimal("0")
+
+        for lot in lots:
+            effective_start_date = lot.created_date
+            if opt_in_date is not None:
+                effective_start_date = max(effective_start_date, opt_in_date)
+
+            age_days = max((accrual_date - effective_start_date).days, 0)
+            lot_multiplier = StakingYieldService.compute_balance_age_multiplier(
+                age_days
+            )
+            stake_amount += lot.amount
+            raw_weighted_stake += lot.amount * lot_multiplier
+
+        if stake_amount <= 0:
+            return StakingPosition(
+                stake_amount=Decimal("0"),
+                multiplier=Decimal("0"),
+                weighted_stake=Decimal("0"),
+            )
+
+        stake_amount = stake_amount.quantize(QUANTIZE_8, rounding=ROUND_DOWN)
+        multiplier = (raw_weighted_stake / stake_amount).quantize(
+            QUANTIZE_8, rounding=ROUND_DOWN
+        )
+        weighted_stake = StakingYieldService.compute_weighted_stake(
+            stake_amount, multiplier
+        )
+        return StakingPosition(
+            stake_amount=stake_amount,
+            multiplier=multiplier,
+            weighted_stake=weighted_stake,
+        )
+
+    @staticmethod
+    def compute_global_staking_multiplier(total_staked, total_weighted_stake):
+        if total_staked <= 0 or total_weighted_stake <= 0:
+            return Decimal("0")
+
+        return (total_weighted_stake / total_staked).quantize(
+            QUANTIZE_8, rounding=ROUND_DOWN
+        )
 
     @staticmethod
     def compute_total_daily_emission(accrual_date):
@@ -131,31 +214,29 @@ class StakingYieldService:
         position_rows = []
 
         for user in eligible_users:
-            stake = user.get_available_balance()
-            if stake is None:
-                continue
-
-            stake = Decimal(str(stake))
-            if stake <= 0:
-                continue
-
-            multiplier = Decimal("1")  # v1: hardcoded
-            weighted_stake = StakingYieldService.compute_weighted_stake(
-                stake, multiplier
+            staking_position = StakingYieldService.calculate_staking_position(
+                user, accrual_date
             )
-            if weighted_stake <= 0:
+            if (
+                staking_position.stake_amount <= 0
+                or staking_position.weighted_stake <= 0
+            ):
                 continue
 
-            total_staked += stake
-            total_weighted_stake += weighted_stake
+            total_staked += staking_position.stake_amount
+            total_weighted_stake += staking_position.weighted_stake
             position_rows.append(
                 StakingUserSnapshot(
                     user=user,
-                    stake_amount=stake,
-                    multiplier=multiplier,
-                    weighted_stake=weighted_stake,
+                    stake_amount=staking_position.stake_amount,
+                    multiplier=staking_position.multiplier,
+                    weighted_stake=staking_position.weighted_stake,
                 )
             )
+
+        global_multiplier = StakingYieldService.compute_global_staking_multiplier(
+            total_staked, total_weighted_stake
+        )
 
         with transaction.atomic():
             global_snapshot = StakingGlobalSnapshot.objects.create(
@@ -170,12 +251,13 @@ class StakingYieldService:
 
         logger.info(
             "Created daily StakingGlobalSnapshot pk=%d accrual_date=%s supply=%s "
-            "total_staked=%s total_weighted_stake=%s",
+            "total_staked=%s total_weighted_stake=%s global_multiplier=%s",
             global_snapshot.pk,
             accrual_date,
             supply,
             total_staked,
             total_weighted_stake,
+            global_multiplier,
         )
         return global_snapshot
 

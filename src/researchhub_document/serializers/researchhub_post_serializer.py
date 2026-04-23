@@ -1,6 +1,8 @@
 from django.core.files.storage import default_storage
 from rest_framework.serializers import CharField, ModelSerializer, SerializerMethodField
 
+from ai_peer_review.models import ProposalReview
+from ai_peer_review.serializers import ProposalReviewSerializer
 from discussion.models import Vote
 from discussion.serializers import (
     DynamicVoteSerializer,  # Import is needed for discussion serializer imports
@@ -11,6 +13,7 @@ from purchase.models import Purchase
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.document_type import (
+    PREREGISTRATION,
     RESEARCHHUB_POST_DOCUMENT_TYPES,
 )
 from review.serializers.review_serializer import DynamicReviewSerializer
@@ -38,6 +41,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             "doi",
             "editor_type",
             "full_markdown",
+            "grants",
             "hubs",
             "id",
             "image",
@@ -65,6 +69,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             "created_by",
             "created_date",
             "discussion_count",
+            "grants",
             "image_url",
             "is_latest_version",
             "is_root_version",
@@ -88,6 +93,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
     created_by = SerializerMethodField(method_name="get_created_by")
     peer_reviews = SerializerMethodField()
     full_markdown = SerializerMethodField(method_name="get_full_markdown")
+    grants = SerializerMethodField()
     hubs = SerializerMethodField(method_name="get_hubs")
     image = CharField(write_only=True, required=False, allow_null=True)
     image_url = SerializerMethodField()
@@ -204,6 +210,55 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
 
     def get_hubs(self, instance):
         return SimpleHubSerializer(instance.unified_document.hubs, many=True).data
+
+    def get_grants(self, post):
+        if post.document_type != PREREGISTRATION:
+            return []
+
+        unified_document = post.unified_document
+        if unified_document is None:
+            return []
+
+        reviews_by_grant_id = {}
+        prefetched_reviews = getattr(
+            unified_document, "_prefetched_objects_cache", {}
+        ).get("proposal_reviews")
+        if prefetched_reviews is not None:
+            for review in prefetched_reviews:
+                if review.grant_id is not None:
+                    reviews_by_grant_id[review.grant_id] = review
+        else:
+            for review in ProposalReview.objects.filter(
+                unified_document=unified_document,
+                grant__isnull=False,
+            ):
+                reviews_by_grant_id[review.grant_id] = review
+
+        ud_id = unified_document.id
+        out = []
+        for application in post.grant_applications.all():
+            grant = application.grant
+            review = reviews_by_grant_id.get(grant.id)
+            ai_peer_review = (
+                ProposalReviewSerializer(review, context=self.context).data
+                if review is not None
+                else None
+            )
+            out.append(
+                {
+                    "id": grant.id,
+                    "short_title": grant.short_title,
+                    "status": grant.status,
+                    "organization": grant.organization,
+                    "amount": str(grant.amount),
+                    "currency": grant.currency,
+                    "proposal": {
+                        "unified_document_id": ud_id,
+                        "ai_peer_review": ai_peer_review,
+                    },
+                }
+            )
+        return out
 
     def get_peer_reviews(self, instance):
         from review.models import Review

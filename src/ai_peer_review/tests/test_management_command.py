@@ -159,3 +159,30 @@ class RunProposalReviewsCommandTests(TestCase):
         )
         mock_run_review.assert_called_once()
         mock_run_exec.assert_called_once()
+
+    @patch(
+        "ai_peer_review.management.commands.run_proposal_reviews."
+        "run_executive_comparison"
+    )
+    @patch(
+        "ai_peer_review.management.commands.run_proposal_reviews.run_proposal_review"
+    )
+    def test_force_reruns_completed(self, mock_run_review, mock_run_exec):
+        ProposalReview.objects.create(
+            created_by=self.actor,
+            unified_document=self.ud,
+            grant=self.grant,
+            status=ReviewStatus.COMPLETED,
+            overall_rating="good",
+            overall_score_numeric=2,
+        )
+        out = StringIO()
+        call_command(
+            "run_proposal_reviews",
+            grant_ids=str(self.grant.id),
+            user_id=self.actor.id,
+            force=True,
+            stdout=out,
+        )
+        mock_run_review.assert_called_once()
+        mock_run_exec.assert_called_once_with(self.grant.id, self.actor.id)
