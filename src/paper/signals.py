@@ -1,6 +1,8 @@
+import logging
+
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
-from django.db.models.signals import post_save
+from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 from django.utils.crypto import get_random_string
 from django.utils.text import slugify
@@ -14,6 +16,8 @@ from utils.sentry import log_error, log_info
 
 from .models import Paper
 from .related_models.paper_version import PaperVersion
+
+logger = logging.getLogger(__name__)
 
 
 @receiver(post_save, sender=Paper, dispatch_uid="add_paper_slug")
@@ -127,3 +131,111 @@ def update_paper_journal_status(sender, instance, created, **kwargs):
 
     except Exception as e:
         log_error(e, message="Error updating paper journal status")
+
+
+@receiver(post_save, sender=Paper, dispatch_uid="update_paper_knn_vector_on_save")
+def update_paper_knn_vector_on_save(sender, instance, created, update_fields, **kwargs):
+    """
+    Update paper_knn index vector when paper is saved.
+
+    This signal handler listens for paper saves and triggers vector generation:
+    - For new papers: Generate vector after paper is created
+    - For updates: Only regenerate if abstract field was explicitly changed
+
+    It queues a Celery task to generate the vector embedding.
+    """
+    # Check if we should process this save
+    should_process = False
+
+    if created:
+        # New paper - generate vector if it has an abstract
+        should_process = True
+    else:
+        # Updated paper - ONLY process if abstract was explicitly in update_fields
+        # Don't process if update_fields is None (which happens on any save without update_fields)
+        # This prevents duplicate queuing when other signals save the paper
+        if update_fields and "abstract" in update_fields:
+            should_process = True
+
+    if not should_process:
+        logger.debug(
+            f"Paper {instance.id} signal skipped: created={created}, "
+            f"update_fields={update_fields}"
+        )
+        return
+
+    if not instance.abstract or instance.abstract.strip() == "":
+        logger.debug(f"Paper {instance.id} has no abstract, skipping vector generation")
+        return
+
+    try:
+        from paper.tasks.tasks import generate_abstract_vector_for_paper
+
+        # For new papers, skip if vector already exists
+        # For updates, force regeneration (skip_existing=False)
+        skip_existing = created
+
+        # Queue vector generation task with a delay to ensure indexing is complete
+        generate_abstract_vector_for_paper.apply_async(
+            args=(instance.id, skip_existing),
+            countdown=5,  # 5 second delay to ensure OpenSearch indexing is complete
+        )
+
+        action = "creation" if created else "abstract update"
+        logger.info(f"Queued vector generation for paper {instance.id} after {action}")
+    except ImportError:
+        logger.warning(
+            "paper.tasks.tasks.generate_abstract_vector_for_paper not available, "
+            "skipping vector generation"
+        )
+    except Exception as e:
+        log_error(
+            e,
+            message=f"Failed to queue vector generation for paper {instance.id}",
+        )
+
+
+@receiver(post_delete, sender=Paper, dispatch_uid="remove_paper_from_knn_index")
+def remove_paper_from_knn_index(sender, instance, **kwargs):
+    """
+    Remove paper from paper_knn index when paper is deleted.
+
+    This signal handler listens for paper deletions and removes the
+    corresponding document from the paper_knn OpenSearch index.
+    """
+    try:
+        from search.documents.paper import PaperDocument
+
+        document = PaperDocument()
+        client = document._index._get_connection()
+        knn_index_name = "paper_knn"
+
+        # Check if paper_knn index exists
+        try:
+            client.indices.get(index=knn_index_name)
+        except Exception:
+            # paper_knn index doesn't exist, nothing to clean up
+            logger.debug(
+                f"paper_knn index does not exist, skipping deletion for paper {instance.id}"
+            )
+            return
+
+        # Delete document from paper_knn index
+        try:
+            client.delete(index=knn_index_name, id=str(instance.id))
+            logger.info(
+                f"Successfully removed paper {instance.id} from {knn_index_name} index"
+            )
+        except Exception as delete_error:
+            # Document might not exist in paper_knn, which is fine
+            logger.debug(
+                f"Paper {instance.id} not found in {knn_index_name} "
+                f"(may not have been indexed): {str(delete_error)}"
+            )
+
+    except Exception as e:
+        # Log error but don't fail the deletion
+        log_error(
+            e,
+            message=f"Failed to remove paper {instance.id} from paper_knn index",
+        )

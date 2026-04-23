@@ -9,4 +9,6 @@ from paper.tasks.tasks import (  # noqa: F401
     censored_paper_cleanup,
     create_download_url,
     download_pdf,
+    generate_abstract_vector_for_paper,
+    generate_abstract_vectors_task,
 )
