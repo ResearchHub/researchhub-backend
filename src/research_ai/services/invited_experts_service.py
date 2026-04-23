@@ -1,46 +1,68 @@
-from datetime import timedelta
-
-from research_ai.models import GeneratedEmail
-
-INVITE_WINDOW_DAYS = 7
+from research_ai.models import GeneratedEmail, SearchExpert
 
 
-def get_document_invite_candidates_for_email(normalized_email, date_joined):
-    """
-    Return document invite candidates for a normalized email and user join date.
-
-    Returns list of tuples:
-        (unified_document_id, expert_search_id, generated_email_id)
-    One entry per document (earliest created_date per doc).
-    """
-    if not normalized_email or not normalized_email.strip():
-        return []
-    if not date_joined:
-        return []
-
-    normalized = normalized_email.strip().lower()
-    window_end = date_joined
-    window_start = date_joined - timedelta(days=INVITE_WINDOW_DAYS)
-
-    generated = (
-        GeneratedEmail.objects.filter(
-            expert_search__unified_document_id__isnull=False,
-            expert_email__iexact=normalized,
-            created_date__gte=window_start,
-            created_date__lte=window_end,
-        )
+def _latest_generated_email_id_by_search_and_email(
+    expert_search_ids: set[int],
+) -> dict[tuple[int, str], int]:
+    """Most recent non-closed GeneratedEmail id per (expert_search_id, normalized email)."""
+    if not expert_search_ids:
+        return {}
+    mapping: dict[tuple[int, str], int] = {}
+    rows = (
+        GeneratedEmail.objects.filter(expert_search_id__in=expert_search_ids)
         .exclude(status=GeneratedEmail.Status.CLOSED)
-        .select_related("expert_search")
-        .only("id", "created_date", "expert_search_id")
-        .order_by("created_date")
+        .order_by("-created_date")
+        .values_list("expert_search_id", "expert_email", "id")
     )
-
-    # One per doc, earliest created_date
-    by_doc = {}
-    for ge in generated:
-        doc_id = ge.expert_search.unified_document_id if ge.expert_search else None
-        if not doc_id or doc_id in by_doc:
+    for es_id, raw_email, ge_id in rows:
+        em = (raw_email or "").strip().lower()
+        if not em:
             continue
-        by_doc[doc_id] = (ge.expert_search_id, ge.id)
+        key = (es_id, em)
+        if key not in mapping:
+            mapping[key] = ge_id
+    return mapping
 
-    return [(doc_id, es_id, ge_id) for doc_id, (es_id, ge_id) in by_doc.items()]
+
+def get_document_invited_rows(
+    unified_document_id: int,
+    *,
+    limit: int | None = None,
+) -> tuple[list[dict], int]:
+    """
+    Experts linked to this unified document (via ExpertSearch → SearchExpert) who
+    have registered_user set (RH account tied to that expert email).
+
+    Returns (rows_newest_first, total_count). Each row:
+    user (registered_user), expert_search_id, generated_email_id (latest matching
+    outreach row if any, else None), invited_at (user.date_joined).
+    """
+    memberships = list(
+        SearchExpert.objects.filter(
+            expert_search__unified_document_id=unified_document_id,
+            expert__registered_user__isnull=False,
+        ).select_related(
+            "expert",
+            "expert__registered_user",
+            "expert__registered_user__author_profile",
+        )
+    )
+    search_ids = {m.expert_search_id for m in memberships}
+    ge_by_key = _latest_generated_email_id_by_search_and_email(search_ids)
+    rows: list[dict] = []
+    for m in memberships:
+        user = m.expert.registered_user
+        em = (m.expert.email or "").strip().lower()
+        rows.append(
+            {
+                "user": user,
+                "expert_search_id": m.expert_search_id,
+                "generated_email_id": ge_by_key.get((m.expert_search_id, em)),
+                "invited_at": user.date_joined,
+            }
+        )
+    rows.sort(key=lambda r: r["invited_at"], reverse=True)
+    total_count = len(rows)
+    if limit is not None:
+        rows = rows[:limit]
+    return rows, total_count

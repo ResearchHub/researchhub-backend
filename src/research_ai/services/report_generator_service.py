@@ -65,6 +65,7 @@ def generate_pdf_report(
         )
 
         for i, expert in enumerate(experts, 1):
+            role = expert.get("academic_title") or expert.get("title") or ""
             card_data = [
                 [
                     Paragraph(
@@ -74,7 +75,7 @@ def generate_pdf_report(
                 ],
                 [
                     Paragraph(
-                        f"<b>Title:</b> {escape(expert.get('title', ''))}",
+                        f"<b>Academic title:</b> {escape(role)}",
                         text_style,
                     )
                 ],
@@ -198,16 +199,34 @@ def generate_csv_file(experts: list[dict[str, Any]]) -> bytes:
     """
     try:
         buffer = io.StringIO()
-        writer = csv.DictWriter(
-            buffer,
-            fieldnames=["name", "title", "affiliation", "expertise", "email", "notes"],
-        )
+        fieldnames = [
+            "expert_id",
+            "honorific",
+            "first_name",
+            "middle_name",
+            "last_name",
+            "name_suffix",
+            "academic_title",
+            "name",
+            "affiliation",
+            "expertise",
+            "email",
+            "notes",
+        ]
+        writer = csv.DictWriter(buffer, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         for expert in experts:
             writer.writerow(
                 {
+                    "expert_id": expert.get("expert_id", ""),
+                    "honorific": expert.get("honorific", ""),
+                    "first_name": expert.get("first_name", ""),
+                    "middle_name": expert.get("middle_name", ""),
+                    "last_name": expert.get("last_name", ""),
+                    "name_suffix": expert.get("name_suffix", ""),
+                    "academic_title": expert.get("academic_title")
+                    or expert.get("title", ""),
                     "name": expert.get("name", ""),
-                    "title": expert.get("title", ""),
                     "affiliation": expert.get("affiliation", ""),
                     "expertise": expert.get("expertise", ""),
                     "email": expert.get("email", ""),

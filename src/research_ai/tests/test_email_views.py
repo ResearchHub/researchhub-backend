@@ -7,7 +7,13 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from research_ai.models import EmailTemplate, ExpertSearch, GeneratedEmail
+from research_ai.models import (
+    EmailTemplate,
+    Expert,
+    ExpertSearch,
+    GeneratedEmail,
+    SearchExpert,
+)
 from research_ai.services.email_sending_service import send_plain_email
 from research_ai.views.email_views import _normalize_template
 from user.tests.helpers import create_random_authenticated_user
@@ -39,16 +45,32 @@ class NormalizeTemplateTests(APITestCase):
         )
 
 
-def _make_expert_search(created_by, expert_results=None):
-    return ExpertSearch.objects.create(
+def _make_expert_search(created_by, expert_rows=None):
+    search = ExpertSearch.objects.create(
         created_by=created_by,
         name="Test Search",
         query="ML",
         input_type=ExpertSearch.InputType.CUSTOM_QUERY,
         status=ExpertSearch.Status.COMPLETED,
         progress=100,
-        expert_results=expert_results or [],
     )
+    if not expert_rows:
+        return search
+    for i, row in enumerate(expert_rows):
+        ex = Expert.objects.create(
+            email=(row["email"] or "").strip().lower(),
+            honorific=row.get("honorific") or "",
+            first_name=row.get("first_name") or "",
+            middle_name=row.get("middle_name") or "",
+            last_name=row.get("last_name") or "",
+            name_suffix=row.get("name_suffix") or "",
+            academic_title=row.get("academic_title") or row.get("title") or "",
+            affiliation=row.get("affiliation") or "",
+            expertise=row.get("expertise") or "",
+            notes=row.get("notes") or "",
+        )
+        SearchExpert.objects.create(expert_search=search, expert=ex, position=i)
+    return search
 
 
 class GenerateEmailViewTests(APITestCase):
@@ -58,11 +80,14 @@ class GenerateEmailViewTests(APITestCase):
         self.url = "/api/research_ai/expert-finder/generate-email/"
         self.expert_search = _make_expert_search(
             self.moderator,
-            expert_results=[
+            expert_rows=[
                 {
-                    "name": "Dr. Jane Marie Smith",
                     "email": "jane@example.com",
-                    "title": "Professor",
+                    "honorific": "Dr",
+                    "first_name": "Jane",
+                    "middle_name": "Marie",
+                    "last_name": "Smith",
+                    "academic_title": "Professor",
                     "affiliation": "MIT",
                     "expertise": "ML",
                     "notes": "",
@@ -121,9 +146,10 @@ class GenerateEmailViewTests(APITestCase):
         data = response.json()
         self.assertEqual(
             data["expert_name"],
-            "Dr. Smith",
-            msg="Middle name trimmed from stored expert_name (first + last token)",
+            "Dr. Jane Marie Smith",
+            msg="Stored name matches structured salutation (honorific + first + middle + last)",
         )
+        self.assertEqual(data["expert_title"], "Professor")
         self.assertEqual(data["email_subject"], "Subject here")
         self.assertEqual(data["email_body"], "Body here")
         self.assertEqual(data["status"], "draft")
@@ -188,11 +214,12 @@ class GenerateEmailViewTests(APITestCase):
         mock_generate.return_value = ("S", "B")
         search = _make_expert_search(
             self.moderator,
-            expert_results=[
+            expert_rows=[
                 {
-                    "name": "Dr. A",
                     "email": "a@example.com",
-                    "title": "",
+                    "honorific": "Dr",
+                    "first_name": "A",
+                    "academic_title": "",
                     "affiliation": "",
                     "expertise": "",
                     "notes": "",
@@ -598,6 +625,34 @@ class GeneratedEmailDetailViewTests(APITestCase):
         email.refresh_from_db()
         self.assertEqual(email.status, "closed")
 
+    def test_patch_status_sent_sets_expert_last_email_sent_at(self):
+        addr = "manual-sent-patch@example.com"
+        expert = Expert.objects.create(
+            email=addr,
+            first_name="Pat",
+            last_name="Expert",
+        )
+        email = GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_email=addr,
+            expert_name="Dr. Pat",
+            email_subject="S",
+            email_body="B",
+            status=GeneratedEmail.Status.DRAFT,
+        )
+        self.assertIsNone(expert.last_email_sent_at)
+        self.client.force_authenticate(self.moderator)
+        before = timezone.now()
+        response = self.client.patch(
+            f"/api/research_ai/expert-finder/emails/{email.id}/",
+            {"status": "sent"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        expert.refresh_from_db()
+        self.assertIsNotNone(expert.last_email_sent_at)
+        self.assertGreaterEqual(expert.last_email_sent_at, before)
+
     def test_patch_returns_200_for_other_users_email(self):
         """Generated emails are shared: any editor can update any email."""
         email = self._create_email(created_by=self.user)
@@ -637,19 +692,21 @@ class BulkGenerateEmailViewTests(APITestCase):
         self.url = "/api/research_ai/expert-finder/generate-emails-bulk/"
         self.expert_search = _make_expert_search(
             self.moderator,
-            expert_results=[
+            expert_rows=[
                 {
-                    "name": "Dr. A",
                     "email": "a@x.com",
-                    "title": "",
+                    "honorific": "Dr",
+                    "first_name": "A",
+                    "academic_title": "",
                     "affiliation": "",
                     "expertise": "",
                     "notes": "",
                 },
                 {
-                    "name": "Dr. B",
                     "email": "b@x.com",
-                    "title": "",
+                    "honorific": "Dr",
+                    "first_name": "B",
+                    "academic_title": "",
                     "affiliation": "",
                     "expertise": "",
                     "notes": "",

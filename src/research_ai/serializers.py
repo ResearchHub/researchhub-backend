@@ -3,7 +3,8 @@ from rest_framework import serializers
 from feed.serializers import SimpleAuthorSerializer
 from paper.serializers import PaperSerializer
 from research_ai.constants import ExpertiseLevel, Gender, Region
-from research_ai.models import EmailTemplate, ExpertSearch, GeneratedEmail
+from research_ai.models import EmailTemplate, Expert, ExpertSearch, GeneratedEmail
+from research_ai.services.expert_results_payload import get_expert_results_payload
 from researchhub_document.related_models.constants.document_type import PAPER
 from researchhub_document.serializers import ResearchhubPostSerializer
 from user.models import Author
@@ -89,8 +90,8 @@ class ExpertSearchCreateSerializer(serializers.Serializer):
         required=False,
     )
     config = ExpertSearchConfigSerializer(required=False, default=dict)
-    excluded_expert_names = serializers.ListField(
-        child=serializers.CharField(),
+    excluded_search_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
         required=False,
         default=list,
     )
@@ -110,20 +111,69 @@ class ExpertSearchCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 {"input_type": "This field is required when using a document."}
             )
-        attrs["excluded_expert_names"] = attrs.get("excluded_expert_names") or []
+        raw_sid = attrs.get("excluded_search_ids") or []
+        attrs["excluded_search_ids"] = list(dict.fromkeys(int(x) for x in raw_sid))
         attrs["config"] = attrs.get("config") or {}
         return attrs
 
 
 class ExpertResultSerializer(serializers.Serializer):
 
+    expert_id = serializers.IntegerField(required=False, allow_null=True)
+    honorific = serializers.CharField(allow_blank=True, required=False)
+    first_name = serializers.CharField(allow_blank=True, required=False)
+    middle_name = serializers.CharField(allow_blank=True, required=False)
+    last_name = serializers.CharField(allow_blank=True, required=False)
+    name_suffix = serializers.CharField(allow_blank=True, required=False)
     name = serializers.CharField()
-    title = serializers.CharField(allow_blank=True)
+    academic_title = serializers.CharField(allow_blank=True, required=False)
+    title = serializers.CharField(allow_blank=True, required=False)
     affiliation = serializers.CharField(allow_blank=True)
     expertise = serializers.CharField(allow_blank=True)
     email = serializers.CharField()
     notes = serializers.CharField(allow_blank=True, required=False)
     sources = serializers.ListField(required=False, allow_null=True)
+    last_email_sent_at = serializers.DateTimeField(
+        required=False, allow_null=True, read_only=True
+    )
+
+
+class ExpertPartialUpdateSerializer(serializers.ModelSerializer):
+    """PATCH body for a single Expert (expert-finder canonical contact)."""
+
+    class Meta:
+        model = Expert
+        fields = [
+            "honorific",
+            "first_name",
+            "middle_name",
+            "last_name",
+            "name_suffix",
+            "academic_title",
+            "affiliation",
+            "expertise",
+            "notes",
+            "email",
+            "sources",
+        ]
+
+    def validate_email(self, value):
+        email = (value or "").strip().lower()
+        if not email:
+            raise serializers.ValidationError("This field may not be blank.")
+        qs = Expert.objects.filter(email__iexact=email)
+        if self.instance is not None:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError(
+                "An expert with this email already exists."
+            )
+        return email
+
+    def update(self, instance, validated_data):
+        if "email" in validated_data:
+            validated_data["email"] = (validated_data["email"] or "").strip().lower()
+        return super().update(instance, validated_data)
 
 
 class ResearchAIAuthorSerializer(serializers.ModelSerializer):
@@ -196,7 +246,9 @@ class ExpertSearchSerializer(serializers.ModelSerializer):
 
     search_id = serializers.IntegerField(source="id", read_only=True)
     created_by = serializers.SerializerMethodField()
+    expert_results = serializers.SerializerMethodField()
     expert_names = serializers.SerializerMethodField()
+    expert_ids = serializers.SerializerMethodField()
     report_urls = serializers.SerializerMethodField()
     work = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(source="created_date", read_only=True)
@@ -213,7 +265,7 @@ class ExpertSearchSerializer(serializers.ModelSerializer):
             "work",
             "input_type",
             "config",
-            "excluded_expert_names",
+            "excluded_search_ids",
             "llm_model",
             "status",
             "progress",
@@ -221,6 +273,7 @@ class ExpertSearchSerializer(serializers.ModelSerializer):
             "expert_results",
             "expert_count",
             "expert_names",
+            "expert_ids",
             "report_urls",
             "report_pdf_url",
             "report_csv_url",
@@ -238,11 +291,16 @@ class ExpertSearchSerializer(serializers.ModelSerializer):
     def get_work(self, obj):
         return _resolve_expert_search_work(obj, context=self.context)
 
+    def get_expert_results(self, obj):
+        return get_expert_results_payload(obj)
+
     def get_expert_names(self, obj):
-        """List of expert names for FE excluder (SearchHistoryExcluder)."""
-        if not obj.expert_results:
-            return []
-        return [e.get("name") or "" for e in obj.expert_results if e.get("name")]
+        rows = get_expert_results_payload(obj)
+        return [e.get("name") or "" for e in rows if e.get("name")]
+
+    def get_expert_ids(self, obj):
+        rows = get_expert_results_payload(obj)
+        return [e["expert_id"] for e in rows if e.get("expert_id") is not None]
 
     def get_report_urls(self, obj):
         out = {}
@@ -258,6 +316,7 @@ class ExpertSearchListItemSerializer(serializers.ModelSerializer):
     search_id = serializers.IntegerField(source="id", read_only=True)
     created_by = serializers.SerializerMethodField()
     expert_names = serializers.SerializerMethodField()
+    expert_ids = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(source="created_date", read_only=True)
 
     class Meta:
@@ -270,6 +329,7 @@ class ExpertSearchListItemSerializer(serializers.ModelSerializer):
             "status",
             "expert_count",
             "expert_names",
+            "expert_ids",
             "created_at",
             "completed_at",
         ]
@@ -279,29 +339,54 @@ class ExpertSearchListItemSerializer(serializers.ModelSerializer):
         return _get_created_by_payload(obj)
 
     def get_expert_names(self, obj):
-        if not obj.expert_results:
-            return []
-        return [e.get("name") or "" for e in obj.expert_results if e.get("name")]
+        rows = get_expert_results_payload(obj)
+        return [e.get("name") or "" for e in rows if e.get("name")]
+
+    def get_expert_ids(self, obj):
+        rows = get_expert_results_payload(obj)
+        return [e["expert_id"] for e in rows if e.get("expert_id") is not None]
 
 
 class InvitedExpertSerializer(serializers.Serializer):
+    """
+    One invited expert row: dict from get_document_invited_rows
+    (user, expert_search_id, generated_email_id optional, invited_at) or legacy
+    DocumentInvitedExpert-like object with .user and ids.
+    """
 
     author = serializers.SerializerMethodField()
     expert_search_id = serializers.SerializerMethodField()
     generated_email_id = serializers.SerializerMethodField()
-    invited_at = serializers.DateTimeField(source="created_date", read_only=True)
+    invited_at = serializers.SerializerMethodField()
+
+    def _user(self, obj):
+        if isinstance(obj, dict):
+            return obj.get("user")
+        return getattr(obj, "user", None)
 
     def get_author(self, obj):
-        author = getattr(obj.user, "author_profile", None)
+        user = self._user(obj)
+        if user is None:
+            return None
+        author = getattr(user, "author_profile", None)
         if author is None:
             return None
         return SimpleAuthorSerializer(author).data
 
     def get_expert_search_id(self, obj):
-        return obj.expert_search_id
+        if isinstance(obj, dict):
+            return obj.get("expert_search_id")
+        return getattr(obj, "expert_search_id", None)
 
     def get_generated_email_id(self, obj):
-        return obj.generated_email_id
+        if isinstance(obj, dict):
+            return obj.get("generated_email_id")
+        return getattr(obj, "generated_email_id", None)
+
+    def get_invited_at(self, obj):
+        if isinstance(obj, dict):
+            return obj.get("invited_at")
+        return getattr(obj, "created_date", None)
 
 
 class ExpertSearchSubmitResponseSerializer(serializers.Serializer):

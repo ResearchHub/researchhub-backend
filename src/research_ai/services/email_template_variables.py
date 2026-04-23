@@ -1,6 +1,8 @@
 import re
 from typing import Any
 
+from research_ai.services.expert_display import build_expert_display_name
+
 # Supported variable names per entity (for documentation and optional validation).
 # To extend: add keys here and in _build_*_context.
 # See EMAIL_TEMPLATE_VARIABLES.md in this directory; update that README when changing
@@ -28,7 +30,7 @@ EXPERT_VARIABLES = ("name", "title", "affiliation", "email", "expertise")
 
 
 def format_expert_name_from_raw(raw: str) -> str:
-    """Stored expert_name and {{expert.name}}: first and last word only, middle dropped."""
+    """Short label for stored GeneratedEmail.expert_name (first + last token only)."""
     s = " ".join((raw or "").split())
     if not s:
         return ""
@@ -36,6 +38,7 @@ def format_expert_name_from_raw(raw: str) -> str:
     if len(tokens) == 1:
         return tokens[0]
     return f"{tokens[0]} {tokens[-1]}"
+
 
 # Regex for {{entity.field}} placeholders.
 VARIABLE_PATTERN = re.compile(r"\{\{(\w+)\.(\w+)\}\}")
@@ -99,19 +102,32 @@ def _build_proposal_context(proposal_context_dict: dict | None) -> dict[str, str
         "created_by_name": (proposal_context_dict.get("created_by_name") or "").strip(),
         "goal_amount": (proposal_context_dict.get("goal_amount") or "").strip(),
         "amount_raised": (proposal_context_dict.get("amount_raised") or "").strip(),
-        "contributor_count": (proposal_context_dict.get("contributor_count") or "").strip(),
+        "contributor_count": (
+            proposal_context_dict.get("contributor_count") or ""
+        ).strip(),
         "deadline": (proposal_context_dict.get("deadline") or "").strip(),
         "blurb": (proposal_context_dict.get("blurb") or "").strip(),
     }
 
 
 def _build_expert_context(resolved_expert: dict | None) -> dict[str, str]:
-    """Build expert entity dict from resolve_expert_from_search() result."""
+    """Build expert entity dict from resolve_expert_from_search() / API-shaped dict."""
     if not resolved_expert:
         return dict.fromkeys(EXPERT_VARIABLES, "")
+    expert_name = build_expert_display_name(
+        honorific=(resolved_expert.get("honorific") or "").strip(),
+        first_name=(resolved_expert.get("first_name") or "").strip(),
+        middle_name=(resolved_expert.get("middle_name") or "").strip(),
+        last_name=(resolved_expert.get("last_name") or "").strip(),
+        name_suffix="",
+        fallback_name=(resolved_expert.get("name") or "").strip(),
+    )
+    title = resolved_expert.get("academic_title") or ""
+    if not isinstance(title, str):
+        title = ""
     return {
-        "name": format_expert_name_from_raw(resolved_expert.get("name") or ""),
-        "title": (resolved_expert.get("title") or "").strip(),
+        "name": expert_name,
+        "title": title.strip(),
         "affiliation": (resolved_expert.get("affiliation") or "").strip(),
         "email": (resolved_expert.get("email") or "").strip(),
         "expertise": (resolved_expert.get("expertise") or "").strip(),

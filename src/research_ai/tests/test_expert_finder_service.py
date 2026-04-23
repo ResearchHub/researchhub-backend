@@ -4,20 +4,48 @@ from django.test import TestCase
 
 from research_ai.models import ExpertSearch
 from research_ai.services.expert_finder_service import (
-    ExpertFinderService,
     PDF_TOO_LARGE_MESSAGE,
-    get_document_content,
+    ExpertFinderService,
     _extract_text_from_pdf_bytes,
     _get_paper_pdf_bytes,
+    get_document_content,
+)
+from research_ai.services.expert_llm_table import (
+    EXPERT_LLM_TABLE_HEADER_LINE,
+    EXPERT_LLM_TABLE_SEPARATOR_LINE,
+    ExpertTableSchemaError,
 )
 from research_ai.services.openai_expert_finder_service import OPENAI_EXPERT_FINDER_MODEL
 
 
+def _llm_expert_table(*data_rows: str) -> str:
+    return "\n".join(
+        [EXPERT_LLM_TABLE_HEADER_LINE, EXPERT_LLM_TABLE_SEPARATOR_LINE, *data_rows]
+    )
+
+
+def _llm_row(
+    first: str,
+    last: str,
+    email: str,
+    *,
+    honorific: str = "",
+    middle: str = "",
+    suffix: str = "",
+    academic_title: str = "Professor",
+    affiliation: str = "MIT",
+    expertise: str = "AI",
+    notes: str = "",
+) -> str:
+    return (
+        f"| {honorific} | {first} | {middle} | {last} | {suffix} | {academic_title} | "
+        f"{affiliation} | {expertise} | {email} | {notes} |"
+    )
+
+
 class GetDocumentContentTests(TestCase):
     def test_paper_abstract_returns_abstract(self):
-        from researchhub_document.related_models.constants.document_type import (
-            PAPER,
-        )
+        from researchhub_document.related_models.constants.document_type import PAPER
 
         paper = MagicMock()
         paper.abstract = "Abstract text here"
@@ -30,9 +58,7 @@ class GetDocumentContentTests(TestCase):
         self.assertEqual(content_type, "abstract")
 
     def test_paper_no_abstract_no_pdf_raises(self):
-        from researchhub_document.related_models.constants.document_type import (
-            PAPER,
-        )
+        from researchhub_document.related_models.constants.document_type import PAPER
 
         paper = MagicMock()
         paper.abstract = None
@@ -113,9 +139,7 @@ class GetDocumentContentTests(TestCase):
 
     @patch("research_ai.services.expert_finder_service._extract_text_from_pdf_bytes")
     @patch("research_ai.services.expert_finder_service._get_paper_pdf_bytes")
-    def test_paper_pdf_returns_extracted_text(
-        self, mock_get_pdf, mock_extract
-    ):
+    def test_paper_pdf_returns_extracted_text(self, mock_get_pdf, mock_extract):
         from researchhub_document.related_models.constants.document_type import PAPER
 
         mock_get_pdf.return_value = b"pdf bytes"
@@ -252,27 +276,48 @@ class GetPaperPdfBytesTests(TestCase):
 class ExpertFinderServiceParseTests(TestCase):
     def test_parse_markdown_table_returns_experts(self):
         service = ExpertFinderService()
-        markdown = """
-        | Name | Title | Affiliation | Expertise | Email |
-        |------|-------|-------------|-----------|-------|
-        | Jane Doe | Prof | MIT | ML | jane@mit.edu |
-        | John Smith | Dr | Stanford | NLP | john@stanford.edu |
-        """
+        markdown = _llm_expert_table(
+            _llm_row("Jane", "Doe", "jane@mit.edu", expertise="ML"),
+            _llm_row(
+                "John",
+                "Smith",
+                "john@stanford.edu",
+                affiliation="Stanford",
+                expertise="NLP",
+            ),
+        )
         experts = service._parse_markdown_table(markdown)
         self.assertEqual(len(experts), 2)
-        self.assertEqual(experts[0]["name"], "Jane Doe")
+        self.assertIn("Jane", experts[0]["name"])
+        self.assertIn("Doe", experts[0]["name"])
         self.assertEqual(experts[0]["email"], "jane@mit.edu")
-        self.assertEqual(experts[1]["name"], "John Smith")
+        self.assertEqual(experts[1]["email"], "john@stanford.edu")
 
-    def test_parse_markdown_table_skips_invalid_email(self):
+    def test_parse_markdown_table_invalid_email_row_skipped(self):
         service = ExpertFinderService()
-        markdown = """
-        | Name | Title | Affiliation | Expertise | Email |
-        |------|-------|-------------|-----------|-------|
-        | No Email | Prof | MIT | ML | not-an-email |
-        """
+        markdown = _llm_expert_table(
+            _llm_row("Jane", "Doe", "jane@mit.edu"),
+            _llm_row("No", "Email", "not-an-email"),
+        )
         experts = service._parse_markdown_table(markdown)
-        self.assertEqual(len(experts), 0)
+        self.assertEqual(len(experts), 1)
+        self.assertEqual(experts[0]["email"], "jane@mit.edu")
+
+    def test_parse_markdown_table_only_invalid_email_rows_returns_empty(self):
+        service = ExpertFinderService()
+        markdown = _llm_expert_table(
+            _llm_row("No", "Email", "not-an-email"),
+        )
+        self.assertEqual(service._parse_markdown_table(markdown), [])
+
+    def test_parse_markdown_table_email_nbsp_removed_before_validate(self):
+        service = ExpertFinderService()
+        markdown = _llm_expert_table(
+            _llm_row("Jane", "Doe", "jane.doe\u00a0@mit.edu"),
+        )
+        experts = service._parse_markdown_table(markdown)
+        self.assertEqual(len(experts), 1)
+        self.assertEqual(experts[0]["email"], "jane.doe@mit.edu")
 
     def test_extract_citations(self):
         service = ExpertFinderService()
@@ -299,15 +344,9 @@ class ExpertFinderServiceParseTests(TestCase):
     def test_expert_name_matches_excluded_by_tokens_not_substring(self):
         """Excluding 'Li' must not match 'Oliver' (substring 'li' in 'oliver')."""
         service = ExpertFinderService()
-        self.assertFalse(
-            service._expert_name_matches_excluded("Oliver", ["Li"])
-        )
-        self.assertTrue(
-            service._expert_name_matches_excluded("John Li", ["Li"])
-        )
-        self.assertTrue(
-            service._expert_name_matches_excluded("Jane Doe", ["Jane"])
-        )
+        self.assertFalse(service._expert_name_matches_excluded("Oliver", ["Li"]))
+        self.assertTrue(service._expert_name_matches_excluded("John Li", ["Li"]))
+        self.assertTrue(service._expert_name_matches_excluded("Jane Doe", ["Jane"]))
 
     def test_expert_row_suggests_deceased_common_phrases(self):
         service = ExpertFinderService()
@@ -315,7 +354,7 @@ class ExpertFinderServiceParseTests(TestCase):
             service._expert_row_suggests_deceased(
                 {
                     "name": "Late Prof. Ada Smith",
-                    "title": "",
+                    "academic_title": "",
                     "affiliation": "",
                     "expertise": "",
                     "notes": "",
@@ -326,7 +365,7 @@ class ExpertFinderServiceParseTests(TestCase):
             service._expert_row_suggests_deceased(
                 {
                     "name": "Bob Jones",
-                    "title": "Professor",
+                    "academic_title": "Professor",
                     "affiliation": "MIT",
                     "expertise": "ML",
                     "notes": "Leading researcher, deceased 2021.",
@@ -337,7 +376,7 @@ class ExpertFinderServiceParseTests(TestCase):
             service._expert_row_suggests_deceased(
                 {
                     "name": "Ann Lee (d. 2019)",
-                    "title": "",
+                    "academic_title": "",
                     "affiliation": "",
                     "expertise": "",
                     "notes": "",
@@ -348,7 +387,7 @@ class ExpertFinderServiceParseTests(TestCase):
             service._expert_row_suggests_deceased(
                 {
                     "name": "Carol Wu",
-                    "title": "Associate Professor",
+                    "academic_title": "Associate Professor",
                     "affiliation": "Berkeley",
                     "expertise": "NLP",
                     "notes": "Recent work on transformers.",
@@ -370,22 +409,24 @@ class ExpertFinderServiceParseTests(TestCase):
 
     def test_parse_markdown_table_separator_line_skipped(self):
         service = ExpertFinderService()
-        markdown = """
-        | Name | Title | Affiliation | Expertise | Email |
-        |------|-------|-------------|-----------|-------|
-        | Jane | Prof | MIT | ML | jane@mit.edu |
-        """
+        markdown = _llm_expert_table(_llm_row("Jane", "Doe", "jane@mit.edu"))
         experts = service._parse_markdown_table(markdown)
         self.assertEqual(len(experts), 1)
-        self.assertEqual(experts[0]["name"], "Jane")
+        self.assertIn("Jane", experts[0]["name"])
 
-    def test_parse_markdown_table_institution_and_notes_columns(self):
+    def test_parse_markdown_table_notes_and_sources(self):
         service = ExpertFinderService()
-        markdown = """
-        | Name | Title | Institution | Expertise | Email | Note |
-        |------|-------|-------------|-----------|-------|------|
-        | Bob | Dr | Stanford | NLP | bob@stanford.edu | See [link](https://example.com) |
-        """
+        markdown = _llm_expert_table(
+            _llm_row(
+                "Bob",
+                "Jones",
+                "bob@stanford.edu",
+                academic_title="Dr",
+                affiliation="Stanford",
+                expertise="NLP",
+                notes="See [link](https://example.com)",
+            ),
+        )
         experts = service._parse_markdown_table(markdown)
         self.assertEqual(len(experts), 1)
         self.assertEqual(experts[0]["affiliation"], "Stanford")
@@ -393,23 +434,75 @@ class ExpertFinderServiceParseTests(TestCase):
         self.assertEqual(len(experts[0]["sources"]), 1)
         self.assertEqual(experts[0]["sources"][0]["url"], "https://example.com")
 
-    def test_parse_markdown_table_skips_row_with_fewer_than_five_cells(self):
+    def test_parse_markdown_table_wrong_column_count_row_skipped(self):
         service = ExpertFinderService()
-        markdown = """
-        | Name | Title | Affiliation | Expertise | Email |
-        |------|-------|-------------|-----------|-------|
-        | Jane | Prof | MIT | jane@mit.edu |
-        | John | Dr | Stanford | AI | john@stanford.edu |
-        """
+        bad_row = "| Jane | Prof | MIT | jane@mit.edu |"
+        markdown = "\n".join(
+            [
+                EXPERT_LLM_TABLE_HEADER_LINE,
+                EXPERT_LLM_TABLE_SEPARATOR_LINE,
+                bad_row,
+            ]
+        )
+        self.assertEqual(service._parse_markdown_table(markdown), [])
+
+    def test_parse_markdown_table_wrong_column_count_does_not_drop_valid_rows(self):
+        service = ExpertFinderService()
+        bad_row = "| Jane | Prof | MIT | jane@mit.edu |"
+        markdown = "\n".join(
+            [
+                EXPERT_LLM_TABLE_HEADER_LINE,
+                EXPERT_LLM_TABLE_SEPARATOR_LINE,
+                _llm_row("Good", "Row", "ok@mit.edu"),
+                bad_row,
+            ]
+        )
         experts = service._parse_markdown_table(markdown)
         self.assertEqual(len(experts), 1)
-        self.assertEqual(experts[0]["name"], "John")
+        self.assertEqual(experts[0]["email"], "ok@mit.edu")
+
+    def test_parse_markdown_table_missing_name_row_skipped(self):
+        service = ExpertFinderService()
+        markdown = _llm_expert_table(
+            _llm_row("Jane", "Doe", "jane@mit.edu"),
+            "| | | | | | Prof | MIT | AI | x@mit.edu | |",
+        )
+        experts = service._parse_markdown_table(markdown)
+        self.assertEqual(len(experts), 1)
+        self.assertEqual(experts[0]["email"], "jane@mit.edu")
+
+    def test_parse_markdown_table_wrong_header_raises(self):
+        service = ExpertFinderService()
+        markdown = "\n".join(
+            [
+                "| Name | Email |",
+                "|------|-------|",
+                "| x | a@b.com |",
+            ]
+        )
+        with self.assertRaises(ExpertTableSchemaError):
+            service._parse_markdown_table(markdown)
+
+    def test_parse_markdown_table_structured_name_columns(self):
+        service = ExpertFinderService()
+        markdown = _llm_expert_table(
+            "| Dr | Jane | Q | Doe | PhD | Professor | MIT | ML | jane@mit.edu | Good |",
+        )
+        experts = service._parse_markdown_table(markdown)
+        self.assertEqual(len(experts), 1)
+        e = experts[0]
+        self.assertEqual(e["first_name"], "Jane")
+        self.assertEqual(e["middle_name"], "Q")
+        self.assertEqual(e["last_name"], "Doe")
+        self.assertEqual(e["name_suffix"], "PhD")
+        self.assertEqual(e["academic_title"], "Professor")
+        self.assertIn("Doe", e["name"])
 
     def test_dedupe_experts_keeps_first_and_normalizes_email(self):
         experts = [
             {
                 "name": "First",
-                "title": "Prof",
+                "academic_title": "Prof",
                 "affiliation": "MIT",
                 "expertise": "AI",
                 "email": "Person@MIT.EDU",
@@ -418,7 +511,7 @@ class ExpertFinderServiceParseTests(TestCase):
             },
             {
                 "name": "Second",
-                "title": "Dr",
+                "academic_title": "Dr",
                 "affiliation": "MIT",
                 "expertise": "AI",
                 "email": " person@mit.edu ",
@@ -427,7 +520,7 @@ class ExpertFinderServiceParseTests(TestCase):
             },
             {
                 "name": "Other",
-                "title": "Dr",
+                "academic_title": "Dr",
                 "affiliation": "Stanford",
                 "expertise": "NLP",
                 "email": "other@stanford.edu",
@@ -446,7 +539,7 @@ class ExpertFinderServiceParseTests(TestCase):
             {
                 "name": "X",
                 "email": "",
-                "title": "t",
+                "academic_title": "t",
                 "affiliation": "a",
                 "expertise": "e",
                 "notes": "",
@@ -455,7 +548,7 @@ class ExpertFinderServiceParseTests(TestCase):
             {
                 "name": "Y",
                 "email": "y@y.edu",
-                "title": "t",
+                "academic_title": "t",
                 "affiliation": "a",
                 "expertise": "e",
                 "notes": "",
@@ -489,11 +582,9 @@ class ExpertFinderServiceParseTests(TestCase):
         mock_openai,
     ):
         mock_openai_llm = MagicMock()
-        mock_openai_llm.invoke.return_value = """
-        | Name | Title | Affiliation | Expertise | Email |
-        |------|-------|-------------|-----------|-------|
-        | Alice | Prof | MIT | AI | alice@mit.edu |
-        """
+        mock_openai_llm.invoke.return_value = _llm_expert_table(
+            _llm_row("Alice", "Smith", "alice@mit.edu"),
+        )
         mock_openai_llm.model_id = OPENAI_EXPERT_FINDER_MODEL
         mock_openai.return_value = mock_openai_llm
         mock_progress.return_value.publish_progress_sync = MagicMock()
@@ -506,7 +597,7 @@ class ExpertFinderServiceParseTests(TestCase):
         )
         self.assertEqual(result["status"], ExpertSearch.Status.COMPLETED)
         self.assertEqual(result["expert_count"], 1)
-        self.assertEqual(result["experts"][0]["name"], "Alice")
+        self.assertIn("Alice", result["experts"][0]["name"])
         self.assertIn("pdf", result["report_urls"])
         self.assertIn("csv", result["report_urls"])
         self.assertEqual(result["llm_model"], OPENAI_EXPERT_FINDER_MODEL)
@@ -535,12 +626,16 @@ class ExpertFinderServiceParseTests(TestCase):
     ):
         """Rows matching deceased heuristics are dropped before merge/dedupe."""
         mock_openai_llm = MagicMock()
-        mock_openai_llm.invoke.return_value = """
-        | Name | Title | Affiliation | Expertise | Email |
-        |------|-------|-------------|-----------|-------|
-        | Late Prof. Old Name | Prof | MIT | AI | old@mit.edu |
-        | Pat Lee | Prof | Stanford | ML | pat@stanford.edu |
-        """
+        mock_openai_llm.invoke.return_value = _llm_expert_table(
+            "| Dr | Late | Prof. Ada | Name | | Professor | MIT | AI | old@mit.edu | |",
+            _llm_row(
+                "Pat",
+                "Lee",
+                "pat@stanford.edu",
+                affiliation="Stanford",
+                expertise="ML",
+            ),
+        )
         mock_openai_llm.model_id = OPENAI_EXPERT_FINDER_MODEL
         mock_openai.return_value = mock_openai_llm
         mock_progress.return_value.publish_progress_sync = MagicMock()
@@ -579,13 +674,20 @@ class ExpertFinderServiceParseTests(TestCase):
         mock_openai,
     ):
         mock_openai_llm = MagicMock()
-        mock_openai_llm.invoke.return_value = """
-        | Name | Title | Affiliation | Expertise | Email |
-        |------|-------|-------------|-----------|-------|
-        | Alpha | Prof | MIT | AI | alpha@mit.edu |
-        | Beta | Dr | MIT | ML | ALPHA@mit.edu |
-        | Gamma | Dr | Stanford | NLP | gamma@stanford.edu |
-        """
+        mock_openai_llm.invoke.return_value = _llm_expert_table(
+            _llm_row("Alpha", "One", "alpha@mit.edu"),
+            _llm_row(
+                "Beta", "Two", "ALPHA@mit.edu", academic_title="Dr", expertise="ML"
+            ),
+            _llm_row(
+                "Gamma",
+                "Three",
+                "gamma@stanford.edu",
+                academic_title="Dr",
+                affiliation="Stanford",
+                expertise="NLP",
+            ),
+        )
         mock_openai_llm.model_id = OPENAI_EXPERT_FINDER_MODEL
         mock_openai.return_value = mock_openai_llm
         mock_progress.return_value.publish_progress_sync = MagicMock()
@@ -598,7 +700,7 @@ class ExpertFinderServiceParseTests(TestCase):
         )
         self.assertEqual(result["status"], ExpertSearch.Status.COMPLETED)
         self.assertEqual(result["expert_count"], 2)
-        self.assertEqual(result["experts"][0]["name"], "Alpha")
+        self.assertIn("Alpha", result["experts"][0]["name"])
         self.assertEqual(result["experts"][0]["email"], "alpha@mit.edu")
         self.assertEqual(result["experts"][1]["email"], "gamma@stanford.edu")
 
@@ -625,14 +727,12 @@ class ExpertFinderServiceParseTests(TestCase):
         mock_openai,
     ):
         mock_openai_llm = MagicMock()
-        mock_openai_llm.invoke.return_value = """
-        | Name | Title | Affiliation | Expertise | Email |
-        |------|-------|-------------|-----------|-------|
-        | E1 | Prof | MIT | AI | e1@mit.edu |
-        | E2 | Prof | MIT | AI | e2@mit.edu |
-        | E3 | Prof | MIT | AI | e3@mit.edu |
-        | E4 | Prof | MIT | AI | e4@mit.edu |
-        """
+        mock_openai_llm.invoke.return_value = _llm_expert_table(
+            _llm_row("E", "One", "e1@mit.edu"),
+            _llm_row("E", "Two", "e2@mit.edu"),
+            _llm_row("E", "Three", "e3@mit.edu"),
+            _llm_row("E", "Four", "e4@mit.edu"),
+        )
         mock_openai_llm.model_id = OPENAI_EXPERT_FINDER_MODEL
         mock_openai.return_value = mock_openai_llm
         mock_progress.return_value.publish_progress_sync = MagicMock()
@@ -672,18 +772,20 @@ class ExpertFinderServiceParseTests(TestCase):
         mock_openai,
     ):
         """Duplicate emails in round 1 leave us short; round 2 fills to target."""
-        table_r1 = """
-        | Name | Title | Affiliation | Expertise | Email |
-        |------|-------|-------------|-----------|-------|
-        | A1 | Prof | MIT | AI | dup@mit.edu |
-        | A2 | Prof | MIT | AI | dup@mit.edu |
-        | B | Prof | Stanford | ML | b@stanford.edu |
-        """
-        table_r2 = """
-        | Name | Title | Affiliation | Expertise | Email |
-        |------|-------|-------------|-----------|-------|
-        | C | Prof | Berkeley | CV | c@berkeley.edu |
-        """
+        table_r1 = _llm_expert_table(
+            _llm_row("A", "One", "dup@mit.edu"),
+            _llm_row("A", "Two", "dup@mit.edu"),
+            _llm_row("B", "Bee", "b@stanford.edu", affiliation="Stanford"),
+        )
+        table_r2 = _llm_expert_table(
+            _llm_row(
+                "C",
+                "See",
+                "c@berkeley.edu",
+                affiliation="Berkeley",
+                expertise="CV",
+            ),
+        )
         mock_openai_llm = MagicMock()
         mock_openai_llm.invoke.side_effect = [table_r1, table_r2]
         mock_openai_llm.model_id = OPENAI_EXPERT_FINDER_MODEL
@@ -727,13 +829,11 @@ class ExpertFinderServiceParseTests(TestCase):
         """When remaining <= tolerance after round 1, do not call OpenAI again."""
         from research_ai.services import expert_finder_service as efs
 
-        table_r1 = """
-        | Name | Title | Affiliation | Expertise | Email |
-        |------|-------|-------------|-----------|-------|
-        | E1 | Prof | MIT | AI | e1@mit.edu |
-        | E2 | Prof | MIT | AI | e2@mit.edu |
-        | E3 | Prof | MIT | AI | e3@mit.edu |
-        """
+        table_r1 = _llm_expert_table(
+            _llm_row("E", "One", "e1@mit.edu"),
+            _llm_row("E", "Two", "e2@mit.edu"),
+            _llm_row("E", "Three", "e3@mit.edu"),
+        )
         mock_openai_llm = MagicMock()
         mock_openai_llm.invoke.return_value = table_r1
         mock_openai_llm.model_id = OPENAI_EXPERT_FINDER_MODEL
@@ -779,18 +879,14 @@ class ExpertFinderServiceParseTests(TestCase):
         mock_openai,
     ):
         """If a follow-up round merges zero new emails, stop with partial list."""
-        table_r1 = """
-        | Name | Title | Affiliation | Expertise | Email |
-        |------|-------|-------------|-----------|-------|
-        | A | Prof | MIT | AI | a@mit.edu |
-        | B | Prof | MIT | AI | b@mit.edu |
-        """
-        table_r2 = """
-        | Name | Title | Affiliation | Expertise | Email |
-        |------|-------|-------------|-----------|-------|
-        | A | Prof | MIT | AI | a@mit.edu |
-        | B | Prof | MIT | AI | b@mit.edu |
-        """
+        table_r1 = _llm_expert_table(
+            _llm_row("A", "Aye", "a@mit.edu"),
+            _llm_row("B", "Bee", "b@mit.edu"),
+        )
+        table_r2 = _llm_expert_table(
+            _llm_row("A", "Aye", "a@mit.edu"),
+            _llm_row("B", "Bee", "b@mit.edu"),
+        )
         mock_openai_llm = MagicMock()
         mock_openai_llm.invoke.side_effect = [table_r1, table_r2]
         mock_openai_llm.model_id = OPENAI_EXPERT_FINDER_MODEL
@@ -801,7 +897,7 @@ class ExpertFinderServiceParseTests(TestCase):
         result = service.process_expert_search(
             search_id="znew",
             query="Q",
-            config={"expert_count": 5},
+            config={"expert_count": 7},
         )
         self.assertEqual(result["status"], ExpertSearch.Status.COMPLETED)
         self.assertEqual(result["expert_count"], 2)
@@ -830,11 +926,9 @@ class ExpertFinderServiceParseTests(TestCase):
         mock_openai,
     ):
         mock_openai_llm = MagicMock()
-        mock_openai_llm.invoke.return_value = """
-        | Name | Title | Affiliation | Expertise | Email |
-        |------|-------|-------------|-----------|-------|
-        | Alice | Prof | MIT | AI | alice@mit.edu |
-        """
+        mock_openai_llm.invoke.return_value = _llm_expert_table(
+            _llm_row("Alice", "Smith", "alice@mit.edu"),
+        )
         mock_openai_llm.model_id = OPENAI_EXPERT_FINDER_MODEL
         mock_openai.return_value = mock_openai_llm
         mock_progress.return_value.publish_progress_sync = MagicMock()
@@ -884,10 +978,39 @@ class ExpertFinderServiceParseTests(TestCase):
         self.assertIn("placeholder text", result["error_message"])
         self.assertEqual(result["error_message"], openai_bad_response)
         failed_call = next(
-            c for c in publish.call_args_list
+            c
+            for c in publish.call_args_list
             if c[0][2].get("status") == ExpertSearch.Status.FAILED
         )
         self.assertIsNotNone(failed_call)
+
+    @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
+    @patch("research_ai.services.expert_finder_service.ProgressService")
+    def test_process_expert_search_fails_when_table_header_wrong(
+        self, mock_progress, mock_openai
+    ):
+        bad_table = "\n".join(
+            [
+                "| Name | Email | Affiliation |",
+                "|------|-------|-------------|",
+                "| Jane | j@j.edu | MIT |",
+            ]
+        )
+        mock_openai_llm = MagicMock()
+        mock_openai_llm.invoke.return_value = bad_table
+        mock_openai_llm.model_id = OPENAI_EXPERT_FINDER_MODEL
+        mock_openai.return_value = mock_openai_llm
+        mock_progress.return_value.publish_progress_sync = MagicMock()
+
+        service = ExpertFinderService()
+        result = service.process_expert_search(
+            search_id="schema-bad",
+            query="Q",
+            config={"expert_count": 3},
+        )
+        self.assertEqual(result["status"], ExpertSearch.Status.FAILED)
+        self.assertEqual(result["expert_count"], 0)
+        self.assertIn("required table format", result["current_step"].lower())
 
     @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
     @patch("research_ai.services.expert_finder_service.ProgressService")
@@ -932,7 +1055,8 @@ class ExpertFinderServiceParseTests(TestCase):
                 config={},
             )
         failed_call = next(
-            c for c in publish.call_args_list
+            c
+            for c in publish.call_args_list
             if c[0][2].get("status") == ExpertSearch.Status.FAILED
         )
         self.assertIsNotNone(failed_call)
@@ -955,11 +1079,9 @@ class ExpertFinderServiceParseTests(TestCase):
         self, mock_upload, mock_csv, mock_pdf, mock_progress, mock_openai
     ):
         mock_openai_llm = MagicMock()
-        mock_openai_llm.invoke.return_value = """
-        | Name | Title | Affiliation | Expertise | Email |
-        |------|-------|-------------|-----------|-------|
-        | Alice | Prof | MIT | AI | alice@mit.edu |
-        """
+        mock_openai_llm.invoke.return_value = _llm_expert_table(
+            _llm_row("Alice", "Smith", "alice@mit.edu"),
+        )
         mock_openai_llm.model_id = OPENAI_EXPERT_FINDER_MODEL
         mock_openai.return_value = mock_openai_llm
         mock_progress.return_value.publish_progress_sync = MagicMock()
@@ -992,11 +1114,9 @@ class ExpertFinderServiceParseTests(TestCase):
         from research_ai.constants import ExpertiseLevel
 
         mock_openai_llm = MagicMock()
-        mock_openai_llm.invoke.return_value = """
-        | Name | Title | Affiliation | Expertise | Email |
-        |------|-------|-------------|-----------|-------|
-        | Alice | Prof | MIT | AI | alice@mit.edu |
-        """
+        mock_openai_llm.invoke.return_value = _llm_expert_table(
+            _llm_row("Alice", "Smith", "alice@mit.edu"),
+        )
         mock_openai_llm.model_id = OPENAI_EXPERT_FINDER_MODEL
         mock_openai.return_value = mock_openai_llm
         mock_progress.return_value.publish_progress_sync = MagicMock()

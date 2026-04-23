@@ -10,16 +10,20 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from research_ai.constants import ExpertiseLevel, Gender, Region
-from research_ai.models import DocumentInvitedExpert, ExpertSearch
+from research_ai.models import Expert, ExpertSearch
 from research_ai.permissions import ResearchAIPermission
 from research_ai.serializers import (
+    ExpertPartialUpdateSerializer,
     ExpertSearchCreateSerializer,
     ExpertSearchListItemSerializer,
     ExpertSearchSerializer,
     InvitedExpertSerializer,
     resolve_work_for_unified_document,
 )
+from research_ai.services.expert_display import expert_dict_to_api_payload
 from research_ai.services.expert_finder_service import get_document_content
+from research_ai.services.expert_results_payload import expert_model_to_flat_dict
+from research_ai.services.invited_experts_service import get_document_invited_rows
 from research_ai.services.progress_service import ProgressService, TaskType
 from research_ai.tasks import process_expert_search_task
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -68,7 +72,7 @@ class ExpertSearchCreateView(APIView):
         search_name = (data.get("name") or "").strip()
         input_type = data.get("input_type")
         config = data.get("config") or {}
-        excluded_expert_names = data.get("excluded_expert_names") or []
+        excluded_search_ids = data.get("excluded_search_ids") or []
 
         search_config = {
             "expert_count": config.get("expert_count", 10),
@@ -116,7 +120,7 @@ class ExpertSearchCreateView(APIView):
             additional_context=additional_context,
             input_type=effective_input_type,
             config=search_config,
-            excluded_expert_names=excluded_expert_names,
+            excluded_search_ids=excluded_search_ids,
             status=ExpertSearch.Status.PENDING,
             progress=0,
             current_step="Queued for processing",
@@ -127,9 +131,6 @@ class ExpertSearchCreateView(APIView):
             search_id=str(search_id),
             query=query_text,
             config=search_config,
-            excluded_expert_names=(
-                excluded_expert_names if excluded_expert_names else None
-            ),
             is_pdf=is_pdf,
             additional_context=additional_context or None,
         )
@@ -144,6 +145,37 @@ class ExpertSearchCreateView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
+
+
+class ExpertFinderExpertDetailView(APIView):
+    """
+    PATCH a canonical Expert (name parts, email, affiliation, etc.).
+    """
+
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
+
+    def patch(self, request, expert_id):
+        try:
+            expert = Expert.objects.get(id=expert_id)
+        except Expert.DoesNotExist:
+            return Response(
+                {"detail": "Expert not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        ser = ExpertPartialUpdateSerializer(
+            expert, data=request.data, partial=True, context={"request": request}
+        )
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        payload = expert_dict_to_api_payload(
+            expert_model_to_flat_dict(ser.instance),
+            expert_id=ser.instance.id,
+        )
+        return Response(payload)
 
 
 class ExpertSearchWorkView(APIView):
@@ -178,9 +210,8 @@ INVITED_CACHE_SEC = 60 * 60 * 3  # 3 hours
 
 class InvitedExpertsDocumentView(APIView):
     """
-    GET invited experts for a unified document (limit 20, total_count).
-    Response is cached for 3 hours.
-    Returns author entity, expert_search_id, generated_email_id per invited person.
+    GET experts tied to this document's searches who registered on RH (Expert.registered_user).
+    Limit 20 rows, total_count for all matches. Response cached 3 hours.
     """
 
     permission_classes = [
@@ -198,17 +229,9 @@ class InvitedExpertsDocumentView(APIView):
                 {"detail": "Unified document not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        qs = (
-            DocumentInvitedExpert.objects.filter(
-                unified_document_id=unified_document_id
-            )
-            .select_related(
-                "user", "user__author_profile", "expert_search", "generated_email"
-            )
-            .order_by("-created_date")
+        page, total_count = get_document_invited_rows(
+            unified_document_id, limit=INVITED_LIMIT
         )
-        total_count = qs.count()
-        page = list(qs[:INVITED_LIMIT])
         invited_data = InvitedExpertSerializer(page, many=True).data
         return Response(
             {
@@ -228,10 +251,14 @@ class ExpertSearchDetailView(APIView):
 
     def get(self, request, search_id):
         try:
-            expert_search = ExpertSearch.objects.select_related(
-                "created_by",
-                "created_by__author_profile",
-            ).get(id=search_id)
+            expert_search = (
+                ExpertSearch.objects.select_related(
+                    "created_by",
+                    "created_by__author_profile",
+                )
+                .prefetch_related("search_experts__expert")
+                .get(id=search_id)
+            )
         except ExpertSearch.DoesNotExist:
             return Response(
                 {"detail": "Expert search not found."},
@@ -249,10 +276,14 @@ class ExpertSearchListView(APIView):
     ]
 
     def get_queryset(self):
-        return ExpertSearch.objects.select_related(
-            "created_by",
-            "created_by__author_profile",
-        ).order_by("-created_date")
+        return (
+            ExpertSearch.objects.select_related(
+                "created_by",
+                "created_by__author_profile",
+            )
+            .prefetch_related("search_experts__expert")
+            .order_by("-created_date")
+        )
 
     def get(self, request):
         limit = max(1, min(100, int(request.query_params.get("limit", 10))))

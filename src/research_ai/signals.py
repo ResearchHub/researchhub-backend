@@ -1,11 +1,13 @@
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
+from django.db.models import Exists, OuterRef
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from django.utils import timezone
 
-from research_ai.models import DocumentInvitedExpert
-from research_ai.services.invited_experts_service import (
-    get_document_invite_candidates_for_email,
-)
+from research_ai.constants import EXPERT_REGISTERED_USER_LINK_WINDOW_DAYS
+from research_ai.models import Expert, GeneratedEmail
 
 User = get_user_model()
 
@@ -13,33 +15,32 @@ User = get_user_model()
 @receiver(
     post_save,
     sender=User,
-    dispatch_uid="research_ai_document_invited_expert_on_user_created",
+    dispatch_uid="research_ai_link_expert_on_user_created",
 )
-def on_user_created_maybe_add_document_invited_expert(
-    sender, instance, created, **kwargs
-):
+def on_user_created_link_expert_profile(sender, instance, created, **kwargs):
     """
-    When a new user is created, if their email was surfaced for a document
-    in expert-finder and they joined within 7 days of that, add a
-    DocumentInvitedExpert row for that document.
+    When a new user is created, link Expert rows with the same email only if a
+    non-closed GeneratedEmail for that address exists with created_date within
+    EXPERT_REGISTERED_USER_LINK_WINDOW_DAYS before date_joined (inclusive).
     """
     if not created:
         return
     email = (getattr(instance, "email", None) or "").strip()
     if not email:
         return
-    normalized = email.lower()
-    date_joined = getattr(instance, "date_joined", None)
-    if not date_joined:
-        return
+    date_joined = getattr(instance, "date_joined", None) or timezone.now()
+    window_end = date_joined
+    window_start = window_end - timedelta(days=EXPERT_REGISTERED_USER_LINK_WINDOW_DAYS)
 
-    candidates = get_document_invite_candidates_for_email(normalized, date_joined)
-    for unified_document_id, expert_search_id, generated_email_id in candidates:
-        DocumentInvitedExpert.objects.get_or_create(
-            unified_document_id=unified_document_id,
-            user=instance,
-            defaults={
-                "expert_search_id": expert_search_id,
-                "generated_email_id": generated_email_id,
-            },
-        )
+    qualifying_ge = GeneratedEmail.objects.filter(
+        expert_email__iexact=OuterRef("email"),
+        created_date__gte=window_start,
+        created_date__lte=window_end,
+    ).exclude(status=GeneratedEmail.Status.CLOSED)
+
+    Expert.objects.filter(
+        email__iexact=email,
+        registered_user__isnull=True,
+    ).filter(
+        Exists(qualifying_ge)
+    ).update(registered_user_id=instance.id)

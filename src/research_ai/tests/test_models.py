@@ -1,7 +1,8 @@
+from django.db import IntegrityError
 from django.test import TestCase
 
 from research_ai.constants import EmailTemplateType
-from research_ai.models import DocumentInvitedExpert, ExpertSearch, GeneratedEmail
+from research_ai.models import Expert, ExpertSearch, GeneratedEmail, SearchExpert
 from user.tests.helpers import create_random_authenticated_user
 
 
@@ -94,41 +95,22 @@ class GeneratedEmailModelTests(TestCase):
         self.assertIn("John Smith", str(email))
 
 
-class DocumentInvitedExpertModelTests(TestCase):
+class ExpertAndSearchExpertModelTests(TestCase):
     def setUp(self):
-        from paper.tests.helpers import create_paper
-
-        self.user = create_random_authenticated_user("invited_doc")
-        self.paper = create_paper(
-            title="Doc for invited expert",
-            paper_publish_date="2021-01-01",
+        self.user = create_random_authenticated_user("expert_row")
+        self.search = ExpertSearch.objects.create(
+            created_by=self.user,
+            query="Q",
+            input_type=ExpertSearch.InputType.CUSTOM_QUERY,
         )
-        self.unified_document_id = self.paper.unified_document_id
 
-    def test_create_document_invited_expert(self):
-        from researchhub_document.models import ResearchhubUnifiedDocument
+    def test_expert_email_unique_case_insensitive(self):
+        Expert.objects.create(email="a@b.com", first_name="A")
+        with self.assertRaises(IntegrityError):
+            Expert.objects.create(email="A@B.COM", first_name="B")
 
-        ud = ResearchhubUnifiedDocument.objects.get(id=self.unified_document_id)
-        record = DocumentInvitedExpert.objects.create(
-            unified_document=ud,
-            user=self.user,
-        )
-        self.assertEqual(record.unified_document_id, self.unified_document_id)
-        self.assertEqual(record.user_id, self.user.id)
-        self.assertIsNotNone(record.id)
-        self.assertIsNotNone(record.created_date)
-
-    def test_unique_constraint_document_user(self):
-        from researchhub_document.models import ResearchhubUnifiedDocument
-
-        ud = ResearchhubUnifiedDocument.objects.get(id=self.unified_document_id)
-        DocumentInvitedExpert.objects.create(
-            unified_document=ud,
-            user=self.user,
-        )
-        created_again, _ = DocumentInvitedExpert.objects.get_or_create(
-            unified_document_id=self.unified_document_id,
-            user=self.user,
-        )
-        self.assertEqual(DocumentInvitedExpert.objects.count(), 1)
-        self.assertEqual(created_again.user_id, self.user.id)
+    def test_search_expert_unique_per_search(self):
+        e = Expert.objects.create(email="x@y.org")
+        SearchExpert.objects.create(expert_search=self.search, expert=e, position=0)
+        with self.assertRaises(Exception):
+            SearchExpert.objects.create(expert_search=self.search, expert=e, position=1)
