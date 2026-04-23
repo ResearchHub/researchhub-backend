@@ -267,6 +267,41 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         detail=True,
         permission_classes=[IsModerator],
     )
+    def reopen(self, request, *args, **kwargs):
+        """
+        Reopen a fundraise (status OPEN) and extend its end date by
+        `duration_days` days from now. Only accessible to moderators.
+        Cannot reopen fundraises that have already paid out (COMPLETED).
+        """
+        fundraise_id = kwargs.get("pk", None)
+
+        try:
+            fundraise = Fundraise.objects.get(id=fundraise_id)
+        except Fundraise.DoesNotExist:
+            return Response({"message": "Fundraise does not exist"}, status=400)
+
+        raw_duration = request.data.get("duration_days")
+        try:
+            duration_days = int(raw_duration)
+        except (TypeError, ValueError):
+            return Response(
+                {"message": "duration_days must be a positive integer"}, status=400
+            )
+
+        try:
+            self.fundraise_service.reopen_fundraise(fundraise, duration_days)
+        except ValueError as e:
+            return Response({"message": str(e)}, status=400)
+
+        context = self.get_serializer_context()
+        serializer = self.get_serializer(fundraise, context=context)
+        return Response(serializer.data)
+
+    @action(
+        methods=["POST"],
+        detail=True,
+        permission_classes=[IsModerator],
+    )
     def close(self, request, *args, **kwargs):
         """
         Close a fundraise and refund all contributions to their contributors.
