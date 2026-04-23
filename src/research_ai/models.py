@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models.functions import Lower
 
 from research_ai.constants import EmailTemplateType
 from researchhub_document.related_models.researchhub_unified_document_model import (
@@ -102,6 +103,114 @@ class ExpertSearch(DefaultModel):
 
     def __str__(self):
         return f"ExpertSearch {self.id} ({self.status})"
+
+
+class Expert(DefaultModel):
+    """
+    Canonical expert contact keyed by professional email (one row per email).
+    """
+
+    email = models.EmailField(
+        max_length=254,
+        db_index=True,
+        db_comment="Normalized lowercase for matching.",
+    )
+    honorific = models.CharField(
+        max_length=64,
+        blank=True,
+        db_comment="e.g. Dr, Prof, Mr, Ms",
+    )
+    first_name = models.CharField(max_length=255, blank=True)
+    middle_name = models.CharField(max_length=255, blank=True)
+    last_name = models.CharField(max_length=255, blank=True)
+    name_suffix = models.CharField(
+        max_length=64,
+        blank=True,
+        db_comment="Credentials e.g. PhD, MD",
+    )
+    academic_title = models.CharField(
+        max_length=255,
+        blank=True,
+        db_comment="Role e.g. Professor, Associate Professor",
+    )
+    affiliation = models.TextField(blank=True)
+    expertise = models.TextField(blank=True)
+    notes = models.TextField(blank=True)
+    sources = models.JSONField(default=list, blank=True)
+    registered_user = models.ForeignKey(
+        "user.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="research_ai_expert_profiles",
+        db_comment="RH user who signed up with this expert email.",
+    )
+    last_email_sent_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_comment="Last time an outreach email was sent to this expert address (any search).",
+    )
+
+    class Meta:
+        db_table = "research_ai_expert"
+        ordering = ["-created_date"]
+        constraints = [
+            models.UniqueConstraint(
+                Lower("email"),
+                name="research_ai_expert_email_lower_unique",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["registered_user"],
+                name="ra_expert_reg_user_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Expert {self.id} ({self.email})"
+
+    def save(self, *args, **kwargs):
+        if self.email:
+            self.email = self.email.strip().lower()
+        super().save(*args, **kwargs)
+
+
+class SearchExpert(DefaultModel):
+    """
+    Membership of an Expert in one ExpertSearch (at most once per search).
+    """
+
+    expert_search = models.ForeignKey(
+        ExpertSearch,
+        on_delete=models.CASCADE,
+        related_name="search_experts",
+    )
+    expert = models.ForeignKey(
+        Expert,
+        on_delete=models.CASCADE,
+        related_name="search_experts",
+    )
+    position = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "research_ai_search_expert"
+        ordering = ["expert_search", "position"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["expert_search", "expert"],
+                name="research_ai_se_search_expert_unique",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["expert_search", "position"],
+                name="ra_se_search_pos_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return f"SearchExpert search={self.expert_search_id} expert={self.expert_id}"
 
 
 class GeneratedEmail(DefaultModel):
