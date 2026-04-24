@@ -118,9 +118,10 @@ class FundraiseService:
             currency: The currency type (RSC or USD)
             check_self_contribution: Whether to check if user is contributing to own fundraise
             origin_fund_id: The Endaoment fund (DAF) ID of the doner for USD grants
-            use_credits: For RSC contributions, whether to spend funding credits
-                (locked balance) before unlocked balance. When False, only
-                unlocked balance is used. Ignored for USD contributions.
+            use_credits: For RSC contributions, which balance pool pays for
+                ``amount + fee``. When True, pay entirely from funding credits
+                (locked balance); when False, pay entirely from unlocked RSC.
+                Pools are never mixed. Ignored for USD contributions.
 
         Returns:
             Tuple of (contribution, error_message). If successful, error_message is None.
