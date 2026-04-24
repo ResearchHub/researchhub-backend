@@ -21,7 +21,7 @@ from researchhub_comment.views.rh_comment_view import remove_bounties
 from researchhub_document.models import ResearchhubUnifiedDocument
 from review.models.peer_review_model import PeerReview
 from review.models.review_model import Review
-from search.utils import bulk_add_to_search_index, bulk_remove_from_search_index
+from search.utils import bulk_remove_from_search_index
 from user.editor_payout_tasks import editor_daily_payout_task
 from user.models import User
 from user.related_models.verdict_model import Verdict
@@ -157,14 +157,12 @@ def reinstate_user_task(user_id):
     ResearchhubUnifiedDocument.all_objects.filter(paper__in=papers).update(
         is_removed=False
     )
-    bulk_add_to_search_index(papers)
 
     posts = user.created_posts.all()
     post_unified_docs = ResearchhubUnifiedDocument.all_objects.filter(
         posts__in=posts
     ).distinct()
     post_unified_docs.update(is_removed=False)
-    bulk_add_to_search_index(posts)
 
     # Restore comments
     RhCommentModel.all_objects.filter(created_by=user).update(

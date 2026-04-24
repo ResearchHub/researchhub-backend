@@ -31,11 +31,6 @@ def remove_from_search_index(instance):
     _update_search_index(instance, "delete")
 
 
-def add_to_search_index(instance):
-    """Add (or re-index) a model instance in the OpenSearch index."""
-    _update_search_index(instance, "index")
-
-
 def bulk_remove_from_search_index(queryset):
     """Remove every instance in *queryset* from the OpenSearch index.
 
@@ -44,13 +39,3 @@ def bulk_remove_from_search_index(queryset):
     """
     for instance in queryset.iterator():
         remove_from_search_index(instance)
-
-
-def bulk_add_to_search_index(queryset):
-    """Add (or re-index) every instance in *queryset* to the OpenSearch index.
-
-    Intended for use after bulk ``QuerySet.update(is_removed=False)`` calls
-    which bypass Django signals.
-    """
-    for instance in queryset.iterator():
-        add_to_search_index(instance)
