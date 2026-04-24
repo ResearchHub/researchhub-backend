@@ -630,6 +630,8 @@ class CloseFundraiseTests(TestCase):
         )
         self.assertIsNone(purchase)
         self.assertEqual(error, "Insufficient funding credits")
+        # Funding credits are untouched.
+        self.assertEqual(contributor.get_locked_balance(), Decimal("50"))
 
     def test_create_rsc_contribution_use_credits_false_skips_locked_balance(self):
         """
