@@ -231,7 +231,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         }
         return context
 
-    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
+    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def check_user_vote(self, request):
         paper_ids = request.query_params.get("paper_ids", "")
         post_ids = request.query_params.get("post_ids", "")
@@ -253,23 +253,20 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             "posts": {},
         }
 
-        if user.is_authenticated:
-            # TODO: Refactor below
-            if paper_ids:
-                paper_votes = _get_user_votes(
-                    user, paper_ids, ContentType.objects.get_for_model(Paper)
-                )
-                for vote in paper_votes.iterator():
-                    paper_id = vote.object_id
-                    response["paper"][paper_id] = VoteSerializer(instance=vote).data
-            if post_ids:
-                post_votes = _get_user_votes(
-                    user, post_ids, ContentType.objects.get_for_model(ResearchhubPost)
-                )
-                for vote in post_votes.iterator():
-                    response["posts"][vote.object_id] = VoteSerializer(
-                        instance=vote
-                    ).data
+        # TODO: Refactor below
+        if paper_ids:
+            paper_votes = _get_user_votes(
+                user, paper_ids, ContentType.objects.get_for_model(Paper)
+            )
+            for vote in paper_votes.iterator():
+                paper_id = vote.object_id
+                response["paper"][paper_id] = VoteSerializer(instance=vote).data
+        if post_ids:
+            post_votes = _get_user_votes(
+                user, post_ids, ContentType.objects.get_for_model(ResearchhubPost)
+            )
+            for vote in post_votes.iterator():
+                response["posts"][vote.object_id] = VoteSerializer(instance=vote).data
         return Response(response, status=status.HTTP_200_OK)
 
     def _get_document_metadata_context(self):
