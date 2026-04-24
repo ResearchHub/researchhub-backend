@@ -172,6 +172,7 @@ def build_user_prompt(
     expert_count: int,
     expertise_level: list[str] | str,
     region_filter: str,
+    gender_filter: str = "all_genders",
     is_pdf: bool = False,
     additional_context: str | None = None,
 ) -> str:

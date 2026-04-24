@@ -1,5 +1,4 @@
 import logging
-import math
 from collections.abc import Callable
 from typing import Any
 
@@ -41,7 +40,9 @@ def _prompt_expert_count_for_round(remaining: int) -> int:
     We ask for ~10% more (rounded up) to absorb duplicates that are dropped in deduplication.
     """
     base = max(1, remaining)
-    return max(base, math.ceil(base * (1.0 + V2_PROMPT_EXPERT_RESERVE_PCT)))
+    p_ct = int(round(100 * V2_PROMPT_EXPERT_RESERVE_PCT))
+    with_headroom = (base * (100 + p_ct) + 99) // 100
+    return max(base, with_headroom)
 
 
 def clear_expert_search_links(expert_search_id: int) -> None:
