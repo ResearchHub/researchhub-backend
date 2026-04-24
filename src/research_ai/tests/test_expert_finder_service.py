@@ -1,23 +1,27 @@
 from unittest.mock import MagicMock, patch
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
-from research_ai.models import ExpertSearch
+from research_ai.constants import ExpertiseLevel, Region
+from research_ai.models import Expert, ExpertSearch, SearchExpert
 from research_ai.services.expert_finder_service import (
-    ExpertFinderService,
     PDF_TOO_LARGE_MESSAGE,
-    get_document_content,
+    ExpertFinderService,
     _extract_text_from_pdf_bytes,
     _get_paper_pdf_bytes,
+    get_document_content,
+)
+from research_ai.services.expert_finder_v2 import (
+    _prompt_expert_count_for_round,
+    run_v2_expert_search,
 )
 from research_ai.services.openai_expert_finder_service import OPENAI_EXPERT_FINDER_MODEL
+from user.tests.helpers import create_random_authenticated_user
 
 
 class GetDocumentContentTests(TestCase):
     def test_paper_abstract_returns_abstract(self):
-        from researchhub_document.related_models.constants.document_type import (
-            PAPER,
-        )
+        from researchhub_document.related_models.constants.document_type import PAPER
 
         paper = MagicMock()
         paper.abstract = "Abstract text here"
@@ -30,9 +34,7 @@ class GetDocumentContentTests(TestCase):
         self.assertEqual(content_type, "abstract")
 
     def test_paper_no_abstract_no_pdf_raises(self):
-        from researchhub_document.related_models.constants.document_type import (
-            PAPER,
-        )
+        from researchhub_document.related_models.constants.document_type import PAPER
 
         paper = MagicMock()
         paper.abstract = None
@@ -113,9 +115,7 @@ class GetDocumentContentTests(TestCase):
 
     @patch("research_ai.services.expert_finder_service._extract_text_from_pdf_bytes")
     @patch("research_ai.services.expert_finder_service._get_paper_pdf_bytes")
-    def test_paper_pdf_returns_extracted_text(
-        self, mock_get_pdf, mock_extract
-    ):
+    def test_paper_pdf_returns_extracted_text(self, mock_get_pdf, mock_extract):
         from researchhub_document.related_models.constants.document_type import PAPER
 
         mock_get_pdf.return_value = b"pdf bytes"
@@ -299,15 +299,9 @@ class ExpertFinderServiceParseTests(TestCase):
     def test_expert_name_matches_excluded_by_tokens_not_substring(self):
         """Excluding 'Li' must not match 'Oliver' (substring 'li' in 'oliver')."""
         service = ExpertFinderService()
-        self.assertFalse(
-            service._expert_name_matches_excluded("Oliver", ["Li"])
-        )
-        self.assertTrue(
-            service._expert_name_matches_excluded("John Li", ["Li"])
-        )
-        self.assertTrue(
-            service._expert_name_matches_excluded("Jane Doe", ["Jane"])
-        )
+        self.assertFalse(service._expert_name_matches_excluded("Oliver", ["Li"]))
+        self.assertTrue(service._expert_name_matches_excluded("John Li", ["Li"]))
+        self.assertTrue(service._expert_name_matches_excluded("Jane Doe", ["Jane"]))
 
     def test_expert_row_suggests_deceased_common_phrases(self):
         service = ExpertFinderService()
@@ -884,7 +878,8 @@ class ExpertFinderServiceParseTests(TestCase):
         self.assertIn("placeholder text", result["error_message"])
         self.assertEqual(result["error_message"], openai_bad_response)
         failed_call = next(
-            c for c in publish.call_args_list
+            c
+            for c in publish.call_args_list
             if c[0][2].get("status") == ExpertSearch.Status.FAILED
         )
         self.assertIsNotNone(failed_call)
@@ -932,7 +927,8 @@ class ExpertFinderServiceParseTests(TestCase):
                 config={},
             )
         failed_call = next(
-            c for c in publish.call_args_list
+            c
+            for c in publish.call_args_list
             if c[0][2].get("status") == ExpertSearch.Status.FAILED
         )
         self.assertIsNotNone(failed_call)
@@ -1046,3 +1042,61 @@ class ExpertFinderServiceParseTests(TestCase):
         )
         self.assertIsNotNone(error_call)
         self.assertIn("fail", error_call[0][2])
+
+
+class ExpertFinderV2PromptReserveTests(TestCase):
+    def test_adds_ten_percent_headroom_ceil(self):
+        self.assertEqual(_prompt_expert_count_for_round(50), 55)
+        self.assertEqual(_prompt_expert_count_for_round(10), 11)
+        self.assertEqual(_prompt_expert_count_for_round(1), 2)
+
+
+@override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+class ExpertFinderV2RunSearchTests(TestCase):
+    def setUp(self):
+        self.user = create_random_authenticated_user("v2_expert_user")
+        self.search = ExpertSearch.objects.create(
+            created_by=self.user,
+            query="Q",
+            status=ExpertSearch.Status.PENDING,
+        )
+
+    @patch(
+        "research_ai.services.expert_finder_v2.upload_report_to_storage",
+        return_value="https://x/r",
+    )
+    @patch(
+        "research_ai.services.expert_finder_v2.generate_csv_file_v2", return_value=b"c"
+    )
+    @patch(
+        "research_ai.services.expert_finder_v2.generate_pdf_report_v2",
+        return_value=b"p",
+    )
+    @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
+    def test_run_v2_success_persists_and_returns_completed(
+        self, mock_openai_class, _pdf, _csv, _up
+    ):
+        expert_json = (
+            '{"experts": ['
+            '{"email": "u@mit.edu", "first_name": "U", "last_name": "V", '
+            '"academic_title": "Prof", "affiliation": "MIT", "expertise": "X", "notes": "N", "sources": []}'
+            "]}"
+        )
+        mock_oa = MagicMock()
+        mock_oa.model_id = "m1"
+        mock_oa.invoke.return_value = expert_json
+        mock_openai_class.return_value = mock_oa
+        r = run_v2_expert_search(
+            str(self.search.id),
+            "query",
+            {
+                "expert_count": 1,
+                "expertise_level": [ExpertiseLevel.ALL_LEVELS],
+                "region": Region.ALL_REGIONS,
+            },
+        )
+        self.assertEqual(r["status"], ExpertSearch.Status.COMPLETED)
+        self.assertEqual(r["expert_count"], 1)
+        se = SearchExpert.objects.filter(expert_search_id=self.search.id)
+        self.assertEqual(se.count(), 1)
+        self.assertTrue(Expert.objects.filter(email="u@mit.edu").exists())

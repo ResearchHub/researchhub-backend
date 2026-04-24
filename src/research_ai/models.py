@@ -62,6 +62,11 @@ class ExpertSearch(DefaultModel):
         blank=True,
         db_comment="Expert full names to exclude (multiple runs on same doc).",
     )
+    excluded_search_ids = models.JSONField(
+        default=list,
+        blank=True,
+        db_comment="Expert ids to exclude from new search results.",
+    )
     additional_context = models.TextField(
         blank=True,
         default="",
