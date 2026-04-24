@@ -217,12 +217,17 @@ class FundraiseService:
         """
         Creates an RSC contribution to a fundraise.
 
+        The contribution is funded exclusively from a single pool: when
+        ``use_credits`` is True the full ``amount + fee`` must be covered by
+        the user's funding credits (locked balance); when False, by unlocked
+        RSC. Mixing the two pools is not allowed.
+
         Args:
             user: The user making the contribution
             fundraise: The fundraise to contribute to
             amount: The contribution amount in RSC
-            use_credits: Whether to spend funding credits (locked balance) before
-                unlocked balance. When False, only unlocked balance is used.
+            use_credits: When True, pay entirely from funding credits (locked
+                balance). When False, pay entirely from unlocked RSC.
 
         Returns:
             Tuple of (purchase, error_message). If successful, error_message is None.
@@ -230,19 +235,19 @@ class FundraiseService:
         """
         # Calculate fees
         fee, rh_fee, dao_fee, fee_object = calculate_bounty_fees(amount)
+        total_cost = amount + fee
 
         with transaction.atomic():
             user = User.objects.select_for_update().get(id=user.id)
 
-            # Allocate the total spend (amount + fee) across locked/unlocked
-            # pools. Fundraise contributions may consume locked funds (funding
-            # credits) when the contributor opts in via ``use_credits``.
-            try:
-                allocations = user.allocate_spend(
-                    amount + fee, allow_locked=use_credits
-                )
-            except ValueError:
-                return None, "Insufficient balance"
+            if use_credits:
+                if user.get_locked_balance() < total_cost:
+                    return None, "Insufficient funding credits"
+                allocations = [{"amount": total_cost, "is_locked": True}]
+            else:
+                if user.get_available_balance() < total_cost:
+                    return None, "Insufficient balance"
+                allocations = [{"amount": total_cost, "is_locked": False}]
 
             # Create purchase object
             purchase = Purchase.objects.create(

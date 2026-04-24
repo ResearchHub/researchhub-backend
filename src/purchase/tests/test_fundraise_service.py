@@ -359,7 +359,7 @@ class CloseFundraiseTests(TestCase):
 
         contribution_amount = Decimal("100")
         purchase, error = self.fundraise_service.create_rsc_contribution(
-            contributor, self.fundraise, contribution_amount
+            contributor, self.fundraise, contribution_amount, use_credits=False
         )
         self.assertIsNone(error)
         self.assertEqual(purchase.rsc_usd_rate, 0.5)
@@ -401,12 +401,12 @@ class CloseFundraiseTests(TestCase):
         amt2 = Decimal("200")
 
         _, err1 = self.fundraise_service.create_rsc_contribution(
-            contributor, self.fundraise, amt1
+            contributor, self.fundraise, amt1, use_credits=False
         )
         self.assertIsNone(err1)
 
         _, err2 = self.fundraise_service.create_rsc_contribution(
-            contributor, self.fundraise, amt2
+            contributor, self.fundraise, amt2, use_credits=False
         )
         self.assertIsNone(err2)
 
@@ -496,7 +496,7 @@ class CloseFundraiseTests(TestCase):
 
     def test_close_fundraise_refunds_locked_funds_as_locked(self):
         """
-        When a contribution used locked funds, the refund should
+        When a contribution is paid from funding credits, the refund should
         restore those funds as locked (not unlocked).
         """
         # Ensure default account (id=1) exists for fee deduction
@@ -504,62 +504,44 @@ class CloseFundraiseTests(TestCase):
 
         contributor = create_random_authenticated_user("locked_contributor")
 
-        # Give contributor 50 locked + 100 unlocked RSC
+        # Give contributor enough locked RSC to cover 100 + fee
         dist_ct = ContentType.objects.get(model="distribution")
         Balance.objects.create(
-            amount=50,
+            amount=200,
             user=contributor,
             content_type=dist_ct,
             is_locked=True,
         )
-        Balance.objects.create(
-            amount=100,
-            user=contributor,
-            content_type=dist_ct,
-            is_locked=False,
-        )
 
-        # Create contribution of 100 RSC via the service (uses
-        # allocate_spend which consumes locked funds first).
+        # Create contribution of 100 RSC via the service (use_credits=True)
         purchase, error = self.fundraise_service.create_rsc_contribution(
             contributor, self.fundraise, Decimal("100")
         )
         self.assertIsNone(error)
 
-        # Verify debit Balance records have correct locked flags
+        # All debits must be locked; no unlocked debits should exist
         purchase_ct = ContentType.objects.get_for_model(Purchase)
-        locked_debits = Balance.objects.filter(
-            content_type=purchase_ct,
-            object_id=purchase.id,
-            is_locked=True,
+        self.assertTrue(
+            Balance.objects.filter(
+                content_type=purchase_ct,
+                object_id=purchase.id,
+                is_locked=True,
+            ).exists()
         )
-        unlocked_debits = Balance.objects.filter(
-            content_type=purchase_ct,
-            object_id=purchase.id,
-            is_locked=False,
+        self.assertFalse(
+            Balance.objects.filter(
+                content_type=purchase_ct,
+                object_id=purchase.id,
+                is_locked=False,
+            ).exists()
         )
-        self.assertTrue(locked_debits.exists())
-        self.assertTrue(unlocked_debits.exists())
 
         # Close the fundraise (triggers refunds)
         result = self.fundraise_service.close_fundraise(self.fundraise)
         self.assertTrue(result)
 
-        # Verify that refund created locked Balance credits
-        dist_ct_distribution = ContentType.objects.get(model="distribution")
-        locked_refunds = Balance.objects.filter(
-            user=contributor,
-            content_type=dist_ct_distribution,
-            is_locked=True,
-        ).exclude(
-            # Exclude the original seed balance
-            amount="50",
-        )
-        self.assertTrue(locked_refunds.exists())
-
-        # Verify the contributor's locked balance is restored
-        locked_balance = contributor.get_locked_balance()
-        self.assertEqual(locked_balance, Decimal("50"))
+        # Contributor's locked balance is fully restored
+        self.assertEqual(contributor.get_locked_balance(), Decimal("200"))
 
     def test_close_fundraise_all_unlocked_stays_unlocked(self):
         """
@@ -573,7 +555,7 @@ class CloseFundraiseTests(TestCase):
         self._give_user_rsc_balance(contributor, 1000)
 
         _, error = self.fundraise_service.create_rsc_contribution(
-            contributor, self.fundraise, Decimal("100")
+            contributor, self.fundraise, Decimal("100"), use_credits=False
         )
         self.assertIsNone(error)
 
@@ -593,6 +575,61 @@ class CloseFundraiseTests(TestCase):
         self.assertEqual(contributor.get_locked_balance(), Decimal("0"))
 
     # --- use_credits toggle tests ---
+
+    def test_create_rsc_contribution_use_credits_true_uses_only_locked(self):
+        """
+        With use_credits=True, the full contribution + fee must be paid from
+        locked balance, even when unlocked balance is also available.
+        """
+        User.objects.get_or_create(id=1)
+
+        contributor = create_random_authenticated_user("credits_contributor")
+
+        dist_ct = ContentType.objects.get(model="distribution")
+        Balance.objects.create(
+            amount=200, user=contributor, content_type=dist_ct, is_locked=True
+        )
+        Balance.objects.create(
+            amount=500, user=contributor, content_type=dist_ct, is_locked=False
+        )
+
+        purchase, error = self.fundraise_service.create_rsc_contribution(
+            contributor, self.fundraise, Decimal("100"), use_credits=True
+        )
+        self.assertIsNone(error)
+
+        purchase_ct = ContentType.objects.get_for_model(Purchase)
+        self.assertFalse(
+            Balance.objects.filter(
+                content_type=purchase_ct,
+                object_id=purchase.id,
+                is_locked=False,
+            ).exists()
+        )
+        # Unlocked balance is untouched.
+        self.assertEqual(contributor.get_available_balance(), Decimal("500"))
+
+    def test_create_rsc_contribution_use_credits_true_insufficient_credits(self):
+        """
+        With use_credits=True, the service must reject the contribution when
+        locked balance alone cannot cover amount + fee, even if unlocked
+        balance could.
+        """
+        contributor = create_random_authenticated_user("short_credits_contributor")
+
+        dist_ct = ContentType.objects.get(model="distribution")
+        Balance.objects.create(
+            amount=50, user=contributor, content_type=dist_ct, is_locked=True
+        )
+        Balance.objects.create(
+            amount=500, user=contributor, content_type=dist_ct, is_locked=False
+        )
+
+        purchase, error = self.fundraise_service.create_rsc_contribution(
+            contributor, self.fundraise, Decimal("100"), use_credits=True
+        )
+        self.assertIsNone(purchase)
+        self.assertEqual(error, "Insufficient funding credits")
 
     def test_create_rsc_contribution_use_credits_false_skips_locked_balance(self):
         """
