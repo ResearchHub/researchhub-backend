@@ -241,6 +241,12 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         if post_ids:
             post_ids = post_ids.split(",")
 
+        if len(paper_ids) > 1 or len(post_ids) > 1:
+            return Response(
+                {"detail": "Only one id is allowed per request."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         user = request.user
         response = {
             "paper": {},
