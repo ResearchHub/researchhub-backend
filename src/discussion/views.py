@@ -29,6 +29,7 @@ from researchhub_document.related_models.constants.document_type import (
     SORT_DISCUSSED,
     SORT_UPVOTED,
 )
+from search.utils import remove_from_search_index
 from user.models import User
 from utils.models import SoftDeletableModel
 from utils.permissions import CreateOrUpdateIfAllowed
@@ -44,6 +45,8 @@ def censor(item):
     if isinstance(item, Paper) and not item.is_removed:
         item.is_removed = True
         item.save(update_fields=["is_removed"])
+
+    remove_from_search_index(item)
 
     if reviews := getattr(item, "reviews", None):
         reviews.all().update(

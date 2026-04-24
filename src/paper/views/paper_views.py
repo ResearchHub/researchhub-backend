@@ -46,6 +46,7 @@ from reputation.related_models.paper_reward import (
 )
 from researchhub.permissions import IsObjectOwnerOrModerator
 from researchhub_document.permissions import HasDocumentCensorPermission
+from search.utils import remove_from_search_index
 from user.related_models.author_model import Author
 from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.doi import DOI
@@ -864,6 +865,8 @@ class PaperViewSet(
         unified_document = paper.unified_document
         unified_document.is_removed = True
         unified_document.save()
+
+        remove_from_search_index(paper)
 
         return Response("Paper was deleted.", status=200)
 
