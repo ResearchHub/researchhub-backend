@@ -1,6 +1,5 @@
 import logging
 from copy import deepcopy
-from datetime import datetime
 
 from django.conf import settings
 from django.utils import timezone
@@ -10,6 +9,7 @@ from research_ai.models import ExpertSearch, GeneratedEmail
 from research_ai.services.email_generator_service import generate_expert_email
 from research_ai.services.email_sending_service import send_plain_email
 from research_ai.services.expert_finder_service import ExpertFinderService
+from research_ai.services.expert_finder_v2 import run_v2_expert_search
 from researchhub.celery import app
 from user.models import User
 from utils import sentry
@@ -103,7 +103,7 @@ def process_expert_search_task(
         )
 
         service = ExpertFinderService()
-        start_time = datetime.utcnow()
+        start_time = timezone.now()
 
         result = service.process_expert_search(
             search_id=search_id,
@@ -115,7 +115,7 @@ def process_expert_search_task(
             progress_callback=progress_callback,
         )
 
-        end_time = datetime.utcnow()
+        end_time = timezone.now()
         processing_time = (end_time - start_time).total_seconds()
 
         if result.get("status") == ExpertSearch.Status.FAILED:
@@ -182,6 +182,143 @@ def process_expert_search_task(
         ExpertSearch.objects.filter(id=int(search_id)).update(
             status=ExpertSearch.Status.FAILED,
             error_message=error_message[:10000],
+        )
+        raise
+
+
+@app.task(bind=True)
+def run_expert_finder_search_v2(
+    self,
+    search_id: str,
+    query: str,
+    config: dict,
+    *,
+    excluded_search_ids: list | None = None,
+    is_pdf: bool = False,
+    additional_context: str | None = None,
+):
+    """
+    Background task to process an expert search.
+
+    Args:
+        search_id: ExpertSearch id (string of integer).
+        query: Research description or document text.
+        config: Dict with expert_count, expertise_level, region, state, gender.
+        excluded_search_ids: Optional list of expert search ids to exclude.
+        is_pdf: True if query was extracted from PDF.
+        additional_context: Optional user notes to steer the model alongside query.
+    """
+
+    def progress_callback(sid: str, percent: int, message: str):
+        status = (
+            ExpertSearch.Status.COMPLETED
+            if percent == 100
+            else ExpertSearch.Status.PROCESSING
+        )
+        _update_search_progress(sid, percent, message, status=status)
+        try:
+            self.update_state(
+                state="PROGRESS", meta={"progress": percent, "status": message}
+            )
+        except Exception:
+            pass
+
+    try:
+        es = ExpertSearch.objects.get(id=int(search_id))
+    except ExpertSearch.DoesNotExist:
+        logger.warning(
+            "run_expert_finder_search_v2: ExpertSearch %s not found", search_id
+        )
+        return {"status": "not_found", "search_id": search_id}
+
+    merged_search_ids = (
+        excluded_search_ids
+        if excluded_search_ids is not None
+        else (es.excluded_search_ids or [])
+    )
+    norm_search_ids: list[int] = []
+    for x in merged_search_ids or []:
+        try:
+            norm_search_ids.append(int(x))
+        except (TypeError, ValueError):
+            continue
+    if additional_context is None and (es.additional_context or "").strip():
+        additional_context = (es.additional_context or "").strip()
+
+    try:
+        logger.info("Starting v2 expert finder for search_id=%s", search_id)
+        _update_search_progress(
+            search_id,
+            5,
+            "Initializing expert search (v2)...",
+            status=ExpertSearch.Status.PROCESSING,
+        )
+        start_time = timezone.now()
+        result = run_v2_expert_search(
+            search_id=search_id,
+            query=query,
+            config=config,
+            excluded_search_ids=norm_search_ids,
+            is_pdf=is_pdf,
+            additional_context=additional_context,
+            progress_callback=progress_callback,
+        )
+        end_time = timezone.now()
+        processing_time = (end_time - start_time).total_seconds()
+        if result.get("status") == ExpertSearch.Status.FAILED:
+            error_message = (result.get("error_message") or "")[:10000]
+            ExpertSearch.objects.filter(id=int(search_id)).update(
+                status=ExpertSearch.Status.FAILED,
+                progress=0,
+                current_step=(result.get("current_step") or "V2 expert search failed")[
+                    :512
+                ],
+                expert_results=[],
+                expert_count=0,
+                report_pdf_url="",
+                report_csv_url="",
+                processing_time=processing_time,
+                completed_at=end_time,
+                llm_model=result.get("llm_model", ""),
+                error_message=error_message,
+            )
+            logger.warning(
+                "V2 expert finder failed for search_id=%s: %s",
+                search_id,
+                error_message[:200] if len(error_message) > 200 else error_message,
+            )
+            return result
+        ExpertSearch.objects.filter(id=int(search_id)).update(
+            status=ExpertSearch.Status.COMPLETED,
+            progress=100,
+            current_step="Expert search completed!",
+            expert_results=[],  # Deprecated: v2 no longer returns inline expert rows.
+            expert_count=result.get("expert_count", 0),
+            report_pdf_url=result.get("report_urls", {}).get("pdf", ""),
+            report_csv_url=result.get("report_urls", {}).get("csv", ""),
+            processing_time=processing_time,
+            completed_at=end_time,
+            llm_model=result.get("llm_model", ""),
+        )
+        logger.info(
+            "V2 expert finder completed search_id=%s experts=%s time=%.2fs",
+            search_id,
+            result.get("expert_count", 0),
+            processing_time,
+        )
+        return result
+    except Exception as e:
+        logger.exception("V2 expert finder failed for search_id=%s: %s", search_id, e)
+        err = str(e)[:10000]
+        _update_search_progress(
+            search_id,
+            0,
+            f"Processing failed: {err}",
+            status=ExpertSearch.Status.FAILED,
+        )
+        ExpertSearch.objects.filter(id=int(search_id)).update(
+            status=ExpertSearch.Status.FAILED,
+            error_message=err,
         )
         raise
 

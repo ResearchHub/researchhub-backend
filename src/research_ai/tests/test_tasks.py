@@ -10,6 +10,7 @@ from research_ai.tasks import (
     _update_search_progress,
     process_bulk_generate_emails_task,
     process_expert_search_task,
+    run_expert_finder_search_v2,
     send_queued_emails_task,
 )
 from user.tests.helpers import create_random_authenticated_user
@@ -213,6 +214,43 @@ class ProcessExpertSearchTaskTests(TestCase):
             ).get()
         self.search.refresh_from_db()
         self.assertEqual(self.search.status, ExpertSearch.Status.FAILED)
+
+
+# --- run_expert_finder_search_v2 ---
+
+
+@override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+class RunExpertFinderSearchV2TaskTests(TestCase):
+    def setUp(self):
+        self.user = create_random_authenticated_user("v2_task_user")
+        self.search = ExpertSearch.objects.create(
+            created_by=self.user,
+            query="Task v2",
+            status=ExpertSearch.Status.PENDING,
+            excluded_search_ids=[42],
+        )
+
+    @patch("research_ai.tasks.run_v2_expert_search")
+    def test_v2_task_merges_excluded_search_ids_from_model_when_kwargs_omitted(
+        self, mock_run_v2
+    ):
+        mock_run_v2.return_value = {
+            "status": ExpertSearch.Status.COMPLETED,
+            "experts": [{"name": "A", "email": "a@b.com"}],
+            "expert_count": 1,
+            "report_urls": {"pdf": "/p", "csv": "/c"},
+            "llm_model": "m",
+        }
+        run_expert_finder_search_v2.apply(
+            kwargs={
+                "search_id": str(self.search.id),
+                "query": self.search.query,
+                "config": {},
+            }
+        ).get()
+        mock_run_v2.assert_called_once()
+        kw = mock_run_v2.call_args.kwargs
+        self.assertEqual(kw["excluded_search_ids"], [42])
 
 
 # --- process_bulk_generate_emails_task ---

@@ -38,17 +38,6 @@ def _load_template(name: str) -> str:
     return _template_cache[name]
 
 
-def get_prompt(prompt_name: str) -> str:
-    """Retrieve a prompt template by name (unformatted)."""
-    mapping = {
-        "system_prompt": "expert_finder_system.txt",
-        "user_query": "expert_finder_user_query.txt",
-        "user_pdf": "expert_finder_user_pdf.txt",
-    }
-    filename = mapping.get(prompt_name.lower())
-    return _load_template(filename) if filename else ""
-
-
 def build_excluded_experts_instruction(excluded_expert_names: list[str]) -> str:
     """
     Build the optional paragraph instructing the model to exclude given experts.
@@ -183,7 +172,6 @@ def build_user_prompt(
     expert_count: int,
     expertise_level: list[str] | str,
     region_filter: str,
-    gender_filter: str = "all_genders",
     is_pdf: bool = False,
     additional_context: str | None = None,
 ) -> str:
@@ -215,4 +203,58 @@ def build_user_prompt(
         expertise_level=expertise_level_display,
         region_text=region_text,
         additional_context_section=additional_context_section,
+    )
+
+
+def build_system_prompt_v2(
+    expert_count: int,
+    expertise_level: list[str] | str,
+    region_filter: str,
+    state_filter: str = "All States",
+    excluded_expert_names: list[str] | None = None,
+) -> str:
+    """Build the system prompt for the expert finder v2."""
+    levels = _normalize_expertise_levels(expertise_level)
+    expertise_instruction = ""
+    if levels and not (len(levels) == 1 and levels[0] == ExpertiseLevel.ALL_LEVELS):
+        descriptions = []
+        for level in levels:
+            desc = EXPERTISE_DESCRIPTIONS.get(level, level)
+            descriptions.append(f"• {get_choice_label(level, ExpertiseLevel)}: {desc}")
+        expertise_instruction = (
+            "\n\n## Expertise Level Targeting\nFocus specifically on the following "
+            "expertise level(s):\n" + "\n".join(descriptions)
+        )
+
+    region_instruction = ""
+    if region_filter != Region.ALL_REGIONS:
+        region_label = get_choice_label(region_filter, Region)
+        region_instruction = (
+            f"\n\n## Geographic Region Targeting\nFocus specifically on {region_label}: "
+            f"{REGION_DESCRIPTIONS.get(region_filter, region_filter)}"
+        )
+
+    state_instruction = ""
+    if region_filter == Region.US and state_filter != "All States":
+        state_instruction = (
+            f"\n\n## US State-Specific Targeting\n"
+            f"Further narrow your search to experts affiliated with institutions "
+            f"specifically in {state_filter}."
+        )
+
+    excluded_experts_instruction = build_excluded_experts_instruction(
+        excluded_expert_names or []
+    )
+
+    template = _load_template("expert_finder_system_v2.txt")
+    expertise_level_display = _expertise_levels_display(expertise_level)
+    region_label = get_choice_label(region_filter, Region)
+    return template.format(
+        expert_count=expert_count,
+        expertise_level=expertise_level_display,
+        region_filter=region_label,
+        expertise_instruction=expertise_instruction,
+        region_instruction=region_instruction,
+        state_instruction=state_instruction,
+        excluded_experts_instruction=excluded_experts_instruction,
     )
