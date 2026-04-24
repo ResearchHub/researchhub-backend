@@ -21,6 +21,7 @@ from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from reputation.views.bounty_view import _create_bounty, _create_bounty_checks
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
+from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_OPEN,
     FILTER_HAS_BOUNTY,
@@ -46,7 +47,10 @@ def censor(item):
         item.is_removed = True
         item.save(update_fields=["is_removed"])
 
-    remove_from_search_index(item)
+    searchable_item = item
+    if isinstance(item, ResearchhubUnifiedDocument):
+        searchable_item = item.get_document()
+    remove_from_search_index(searchable_item)
 
     if reviews := getattr(item, "reviews", None):
         reviews.all().update(
