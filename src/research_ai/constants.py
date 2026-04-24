@@ -60,6 +60,8 @@ class EmailTemplateType(models.TextChoices):
 VALID_EMAIL_TEMPLATE_KEYS = frozenset(e.value for e in EmailTemplateType)
 DEFAULT_EMAIL_TEMPLATE_KEY = EmailTemplateType.COLLABORATION.value
 
+EXPERT_REGISTERED_USER_LINK_WINDOW_DAYS = 7
+
 EMAIL_TEMPLATE_PROMPT_FILES = {
     EmailTemplateType.CUSTOM.value: "email_custom.txt",
     EmailTemplateType.COLLABORATION.value: "email_collaboration.txt",
