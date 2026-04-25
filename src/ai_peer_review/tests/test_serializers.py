@@ -41,13 +41,13 @@ class BuildProposalComparisonRowTests(SimpleTestCase):
         review.overall_score_numeric = 2
         review.result_data = {
             "categories": {
-                "funding_opportunity_fit": {"score": "Medium"},
+                "overall_impact": {"score": "Medium"},
             }
         }
         row = build_proposal_comparison_row(review, 9, "Title", None)
-        self.assertEqual(row["categories"]["funding_opportunity_fit"], "Medium")
+        self.assertEqual(row["categories"]["overall_impact"], "Medium")
         for key in CATEGORY_KEYS:
-            if key != "funding_opportunity_fit":
+            if key != "overall_impact":
                 self.assertIsNone(row["categories"][key])
 
 

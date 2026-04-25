@@ -3,74 +3,47 @@ PROPOSAL_REVIEW_MAX_OUTPUT_TOKENS = 16384
 
 
 CATEGORY_KEYS = [
-    "funding_opportunity_fit",
-    "methods_rigor",
-    "statistical_analysis_plan",
-    "feasibility_and_execution",
-    "scientific_impact",
-    "clinical_or_translational_impact",
-    "societal_and_broader_impact",
+    "overall_impact",
+    "importance_significance_innovation",
+    "rigor_and_feasibility",
+    "additional_review_criteria",
 ]
 
 CATEGORY_ITEMS = {
-    "funding_opportunity_fit": [
-        "fit_modality",
-        "fit_aims",
-        "fit_deliverables",
-        "fit_scope",
+    "overall_impact": [
+        "novelty",
+        "rigor",
+        "reproducibility",
+        "field_impact",
     ],
-    "methods_rigor": [
-        "methods_detail",
-        "parameters_specified",
-        "controls_defined",
-        "model_choice_justified",
-        "outcomes_linked_to_aims",
+    "importance_significance_innovation": [
+        "hypothesis_strength",
+        "work_novelty",
+        "question_importance",
+        "advances_knowledge",
     ],
-    "statistical_analysis_plan": [
-        "analysis_present",
-        "power_analysis",
-        "multiple_comparisons",
-        "metrics_defined",
-        "analysis_matches_design",
+    "rigor_and_feasibility": [
+        "study_design",
+        "methodology",
+        "timeline_feasibility",
+        "team_qualifications",
+        "research_environment",
+        "budget_appropriateness_justification",
     ],
-    "feasibility_and_execution": [
-        "recruitment_feasible",
-        "procedures_feasible",
-        "timeline_milestones",
-        "team_environment",
-        "ethics_data_quality",
-    ],
-    "scientific_impact": [
-        "advances_understanding",
-        "generalizability",
-        "opens_new_directions",
-    ],
-    "clinical_or_translational_impact": [
-        "clinical_pathway",
-        "unmet_need",
-        "milestones_defined",
-    ],
-    "societal_and_broader_impact": [
-        "societal_challenge",
-        "public_communication",
-        "commercial_potential",
+    "additional_review_criteria": [
+        "human_or_animal_protections",
+        "resubmission_critiques_addressed",
+        "open_science_adherence",
+        "ai_use_disclosed",
+        "conflicts_of_interest_disclosed",
     ],
 }
 
-OPTIONAL_CATEGORIES = frozenset(
-    {
-        "statistical_analysis_plan",
-        "clinical_or_translational_impact",
-        "societal_and_broader_impact",
-    }
-)
 
 CRITICAL_FAIL_ITEMS = frozenset(
     {
-        ("methods_rigor", "methods_detail"),
-        ("methods_rigor", "controls_defined"),
-        ("statistical_analysis_plan", "analysis_present"),
-        ("statistical_analysis_plan", "power_analysis"),
-        ("feasibility_and_execution", "timeline_milestones"),
+        ("rigor_and_feasibility", "study_design"),
+        ("rigor_and_feasibility", "methodology"),
+        ("rigor_and_feasibility", "timeline_feasibility"),
     }
 )

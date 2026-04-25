@@ -45,8 +45,9 @@ def build_proposal_review_user_prompt(
     if external_researcher_context and external_researcher_context.strip():
         external = (
             "\n\nEXTERNAL RESEARCHER CONTEXT (from ORCID public record and OpenAlex; "
-            "factual only—use for feasibility_and_execution.team_environment and to "
-            "ground expertise; do not invent facts beyond this block):\n"
+            "factual only-use for rigor_and_feasibility.team_qualifications and "
+            "rigor_and_feasibility.research_environment to ground expertise; "
+            "do not invent facts beyond this block):\n"
             f"{external_researcher_context.strip()}\n"
         )
     web_ctx = ""
@@ -62,13 +63,13 @@ def build_proposal_review_user_prompt(
         text = text[:120000] + "\n\n[TRUNCATED FOR LENGTH]"
     return (
         "Evaluate the following research proposal and return the structured JSON "
-        'assessment with the seven top-level categories (under "categories"), '
-        "overall_summary, overall_rationale, overall_confidence, major_strengths, "
-        "major_weaknesses, and fatal_flaws. In major_strengths and major_weaknesses, "
-        "put the most important items first in each array (descending importance). "
-        "Provide overall_rating and overall_score_numeric when you can; the server "
-        "canonicalizes them (overall_score_numeric defaults to 1 if missing or "
-        "invalid).\n\n"
+        'assessment with four top-level categories under "categories" (all scored), '
+        "overall_summary, "
+        "overall_rationale, overall_confidence, major_strengths, major_weaknesses, "
+        "and fatal_flaws. In major_strengths and major_weaknesses, put the most "
+        "important items first in each array (descending importance). Provide "
+        "overall_rating and overall_score_numeric when you can; the server "
+        "canonicalizes them (overall_score_numeric defaults to 1 if missing or invalid).\n\n"
         "PROPOSAL TEXT:\n"
         f"{text}"
         f"{author}"
