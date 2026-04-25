@@ -2,11 +2,7 @@ import json
 import re
 from typing import Optional
 
-from ai_peer_review.constants import (
-    CATEGORY_ITEMS,
-    CATEGORY_KEYS,
-    CRITICAL_FAIL_ITEMS,
-)
+from ai_peer_review.constants import CATEGORY_ITEMS, CATEGORY_KEYS, CRITICAL_FAIL_ITEMS
 from ai_peer_review.models import OverallRating
 
 # Category label -> points for overall rollup.
@@ -59,12 +55,6 @@ def _label_from_mean(mean_value: float) -> str:
     if mean_value >= 0.40:
         return "Medium"
     return "Low"
-
-
-def _optional_category_all_items_na(cat_key: str, items: dict) -> bool:
-    """No optional categories remain in the 4-category schema."""
-    _ = (cat_key, items)
-    return False
 
 
 def _critical_fail_cap(cat_key: str, items: dict, label: str) -> str:

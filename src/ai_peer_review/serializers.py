@@ -122,8 +122,7 @@ class EditorialFeedbackSerializer(serializers.ModelSerializer):
 
 class EditorialFeedbackUpsertSerializer(serializers.Serializer):
     """
-    Create: all category codes required (currently the 4 canonical categories;
-    partial=False on the view).
+    Create: all category codes required (partial=False on the view).
     Update: optional fields; when ``categories`` is sent, child rows are replaced.
     """
 

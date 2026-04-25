@@ -121,7 +121,7 @@ class ProposalReviewAPITests(APITestCase):
                     "overall_impact": {"score": "High"},
                     "importance_significance_innovation": {"score": "High"},
                     "rigor_and_feasibility": {"score": "High"},
-                    "additional_review_criteria": {"score": "High"},
+                    "additional_review_criteria": {"score": "Low"},
                 },
             },
         )
@@ -134,7 +134,7 @@ class ProposalReviewAPITests(APITestCase):
         self.assertEqual(data["proposals"][0]["categories"]["overall_impact"], "High")
         self.assertEqual(
             data["proposals"][0]["categories"]["additional_review_criteria"],
-            "High",
+            "Low",
         )
 
     def test_editorial_feedback_upsert_requires_editor(self):
@@ -241,7 +241,7 @@ class GrantExecutiveSummaryAPITests(APITestCase):
                     "overall_impact": {"score": "High"},
                     "importance_significance_innovation": {"score": "High"},
                     "rigor_and_feasibility": {"score": "Medium"},
-                    "additional_review_criteria": {"score": "High"},
+                    "additional_review_criteria": {"score": "Low"},
                 },
             },
         )
