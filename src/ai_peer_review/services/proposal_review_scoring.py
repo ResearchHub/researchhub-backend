@@ -2,18 +2,14 @@ import json
 import re
 from typing import Optional
 
-from ai_peer_review.constants import (
-    CATEGORY_ITEMS,
-    CATEGORY_KEYS,
-    CRITICAL_FAIL_ITEMS,
-)
+from ai_peer_review.constants import CATEGORY_ITEMS, CATEGORY_KEYS, CRITICAL_FAIL_ITEMS
 from ai_peer_review.models import OverallRating
 
 # Category label -> points for overall rollup.
 SCORE_MAP = {"High": 3, "Medium": 2, "Low": 1}
 
-_OVERALL_EXCELLENT_FRACTION = 18 / 21
-_OVERALL_GOOD_FRACTION = 14 / 21
+_OVERALL_EXCELLENT_FRACTION = 0.85
+_OVERALL_GOOD_FRACTION = 0.65
 
 
 def parse_json_response(text: str) -> dict:
@@ -62,12 +58,6 @@ def _label_from_mean(mean_value: float) -> str:
     if mean_value >= 0.40:
         return "Medium"
     return "Low"
-
-
-def _optional_category_all_items_na(cat_key: str, items: dict) -> bool:
-    """No optional categories remain in the 4-category schema."""
-    _ = (cat_key, items)
-    return False
 
 
 def _critical_fail_cap(cat_key: str, items: dict, label: str) -> str:
@@ -150,10 +140,9 @@ def _overall_rating_from_category_labels(labels: list[str]) -> str:
 
     Sum points ``T`` (High=3, Medium=2, Low=1).
     With all four scored categories contributing, ``T`` is out of 12: excellent if
-    ``T >= (18/21) * 12 ~= 10.29`` (effectively 11), good if
-    ``T >= (14/21) * 12 = 8`` (and not excellent), else poor. For fewer contributors,
-    the same
-    ``18/21`` and ``14/21`` fractions apply to ``3 * n``.
+    ``T >= 0.85 * 12 = 10.2`` (effectively 11), good if
+    ``T >= 0.65 * 12 = 7.8`` (effectively 8) and not excellent, else poor. For
+    fewer contributors, the same ``0.85`` and ``0.65`` fractions apply to ``3 * n``.
     """
     points: list[int] = []
     for lab in labels:

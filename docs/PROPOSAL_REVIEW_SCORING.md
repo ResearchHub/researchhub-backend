@@ -58,8 +58,8 @@ Let **`T`** be total points and **`n`** be contributing categories. Max points i
 
 | Condition | `overall_rating` |
 |-----------|------------------|
-| `T >= (18/21) * 3n` (>= 11 when `n = 4`) | excellent |
-| else if `T >= (14/21) * 3n` (>= 8 when `n = 4`) | good |
+| `T >= 0.85 * 3n` (>= 11 when `n = 4`) | excellent |
+| else if `T >= 0.65 * 3n` (>= 8 when `n = 4`) | good |
 | else | poor |
 
 When `n = 0`, Python uses `poor`.
