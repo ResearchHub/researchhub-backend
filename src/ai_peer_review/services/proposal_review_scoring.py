@@ -12,9 +12,6 @@ from ai_peer_review.models import OverallRating
 # Category label -> points for overall rollup.
 SCORE_MAP = {"High": 3, "Medium": 2, "Low": 1}
 
-_OVERALL_EXCELLENT_FRACTION = 18 / 21
-_OVERALL_GOOD_FRACTION = 14 / 21
-
 
 def parse_json_response(text: str) -> dict:
     text = text.strip()
@@ -146,14 +143,24 @@ def _category_score_label(categories: dict, cat_key: str) -> Optional[str]:
 
 def _overall_rating_from_category_labels(labels: list[str]) -> str:
     """
-    Map category labels to ``excellent`` / ``good`` / ``poor``.
+    Map category labels to overall 5-level ratings:
+    ``excellent`` / ``good`` / ``adequate`` / ``marginal`` / ``poor``.
 
-    Sum points ``T`` (High=3, Medium=2, Low=1).
-    With all four scored categories contributing, ``T`` is out of 12: excellent if
-    ``T >= (18/21) * 12 ~= 10.29`` (effectively 11), good if
-    ``T >= (14/21) * 12 = 8`` (and not excellent), else poor. For fewer contributors,
-    the same
-    ``18/21`` and ``14/21`` fractions apply to ``3 * n``.
+    Category points remain ``High=3``, ``Medium=2``, ``Low=1``.
+    Overall 1-5 score is computed from equal-width bands over the normalized total:
+    ``normalized = (total - min_points) / (max_points - min_points)``, where
+    ``min_points = 1 * n`` and ``max_points = 3 * n`` for ``n`` contributing categories.
+    """
+    score_numeric = _overall_score_numeric_from_category_labels(labels)
+    return _overall_rating_from_numeric(score_numeric)
+
+
+def _overall_score_numeric_from_category_labels(labels: list[str]) -> int:
+    """
+    Compute overall 1-5 numeric score from category labels.
+
+    Uses five equal-width bins on normalized category points:
+    [0.0,0.2) -> 1, [0.2,0.4) -> 2, [0.4,0.6) -> 3, [0.6,0.8) -> 4, [0.8,1.0] -> 5.
     """
     points: list[int] = []
     for lab in labels:
@@ -161,23 +168,30 @@ def _overall_rating_from_category_labels(labels: list[str]) -> str:
             points.append(SCORE_MAP[lab])
     n = len(points)
     if n == 0:
-        return OverallRating.POOR.value
+        return 1
     total = sum(points)
+    min_points = 1 * n
     max_points = 3 * n
-    if total >= _OVERALL_EXCELLENT_FRACTION * max_points:
-        return OverallRating.EXCELLENT.value
-    if total >= _OVERALL_GOOD_FRACTION * max_points:
-        return OverallRating.GOOD.value
-    return OverallRating.POOR.value
+    span = max_points - min_points
+    if span <= 0:
+        return 1
+    normalized = (total - min_points) / span
+    normalized = min(max(normalized, 0.0), 1.0)
+    if normalized >= 1.0:
+        return 5
+    return min(int(normalized * 5) + 1, 5)
 
 
-def _overall_score_numeric_from_rating(rating: str) -> int:
-    """Single 1-3 display/sort field aligned with coarse ``OverallRating``."""
-    if rating == OverallRating.EXCELLENT.value:
-        return 3
-    if rating == OverallRating.GOOD.value:
-        return 2
-    return 1
+def _overall_rating_from_numeric(score_numeric: int) -> str:
+    """Map 1-5 numeric score to overall rating label."""
+    numeric_to_rating = {
+        1: OverallRating.POOR.value,
+        2: OverallRating.MARGINAL.value,
+        3: OverallRating.ADEQUATE.value,
+        4: OverallRating.GOOD.value,
+        5: OverallRating.EXCELLENT.value,
+    }
+    return numeric_to_rating.get(score_numeric, OverallRating.POOR.value)
 
 
 def recompute_overall_fields(review_dict: dict) -> None:
@@ -192,9 +206,9 @@ def recompute_overall_fields(review_dict: dict) -> None:
         _category_score_label(review_dict.get("categories") or {}, k) or "Low"
         for k in CATEGORY_KEYS
     ]
-    rating = _overall_rating_from_category_labels(labels)
-    review_dict["overall_rating"] = rating
-    review_dict["overall_score_numeric"] = _overall_score_numeric_from_rating(rating)
+    score_numeric = _overall_score_numeric_from_category_labels(labels)
+    review_dict["overall_score_numeric"] = score_numeric
+    review_dict["overall_rating"] = _overall_rating_from_numeric(score_numeric)
 
 
 def compute_overall_rating_totals(review_dict: dict) -> tuple[str, int, int]:

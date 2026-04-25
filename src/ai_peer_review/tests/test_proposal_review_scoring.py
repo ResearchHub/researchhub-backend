@@ -4,7 +4,6 @@ from ai_peer_review.constants import CATEGORY_ITEMS, CATEGORY_KEYS
 from ai_peer_review.models import OverallRating
 from ai_peer_review.services.proposal_review_scoring import (
     category_scores,
-    compute_overall_rating_totals,
     normalize_category_scores_from_item_decisions,
     parse_json_response,
     recompute_overall_fields,
@@ -127,9 +126,9 @@ class ProposalReviewScoringTests(SimpleTestCase):
         normalize_category_scores_from_item_decisions(review)
         recompute_overall_fields(review)
         self.assertEqual(review["overall_rating"], OverallRating.EXCELLENT.value)
-        self.assertEqual(review["overall_score_numeric"], 3)
+        self.assertEqual(review["overall_score_numeric"], 5)
 
-    def test_recompute_all_partial_scored_categories_is_good(self):
+    def test_recompute_all_partial_scored_categories_is_adequate(self):
         review = {
             "overall_rating": "poor",
             "overall_score_numeric": 1,
@@ -137,8 +136,8 @@ class ProposalReviewScoringTests(SimpleTestCase):
         }
         normalize_category_scores_from_item_decisions(review)
         recompute_overall_fields(review)
-        self.assertEqual(review["overall_rating"], OverallRating.GOOD.value)
-        self.assertEqual(review["overall_score_numeric"], 2)
+        self.assertEqual(review["overall_rating"], OverallRating.ADEQUATE.value)
+        self.assertEqual(review["overall_score_numeric"], 3)
 
     def test_category_scores_reads_normalized_labels(self):
         review = {

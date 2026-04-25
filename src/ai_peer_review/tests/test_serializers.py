@@ -38,7 +38,7 @@ class BuildProposalComparisonRowTests(SimpleTestCase):
         review.id = 1
         review.status = ReviewStatus.COMPLETED
         review.overall_rating = "good"
-        review.overall_score_numeric = 2
+        review.overall_score_numeric = 4
         review.result_data = {
             "categories": {
                 "overall_impact": {"score": "Medium"},

@@ -22,6 +22,8 @@ class OverallRating(models.TextChoices):
 
     EXCELLENT = "excellent", "excellent"
     GOOD = "good", "good"
+    ADEQUATE = "adequate", "adequate"
+    MARGINAL = "marginal", "marginal"
     POOR = "poor", "poor"
 
 
