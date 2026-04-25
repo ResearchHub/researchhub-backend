@@ -57,12 +57,6 @@ def _label_from_mean(mean_value: float) -> str:
     return "Low"
 
 
-def _optional_category_all_items_na(cat_key: str, items: dict) -> bool:
-    """No optional categories remain in the 4-category schema."""
-    _ = (cat_key, items)
-    return False
-
-
 def _critical_fail_cap(cat_key: str, items: dict, label: str) -> str:
     """If label is High and any critical item is ``No``, cap to Medium."""
     if label != "High":
