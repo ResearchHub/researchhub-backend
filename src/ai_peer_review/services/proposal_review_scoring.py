@@ -2,11 +2,7 @@ import json
 import re
 from typing import Optional
 
-from ai_peer_review.constants import (
-    CATEGORY_ITEMS,
-    CATEGORY_KEYS,
-    CRITICAL_FAIL_ITEMS,
-)
+from ai_peer_review.constants import CATEGORY_ITEMS, CATEGORY_KEYS, CRITICAL_FAIL_ITEMS
 from ai_peer_review.models import OverallRating
 
 # Category label -> points for overall rollup.
