@@ -560,6 +560,11 @@ OPENAI_API_KEY = os.environ.get(
     getattr(keys, "OPENAI_API_KEY", ""),
 )
 
+AI_PEER_REVIEW_BEDROCK_MODEL_ID = os.environ.get(
+    "AI_PEER_REVIEW_BEDROCK_MODEL_ID",
+    getattr(keys, "AI_PEER_REVIEW_BEDROCK_MODEL_ID", ""),
+)
+
 if not (CLOUD or TESTING) and os.environ.get("AWS_PROFILE") is None:
     # Set AWS profile for local development
     os.environ["AWS_PROFILE"] = keys.AWS_PROFILE
