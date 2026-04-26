@@ -5,9 +5,6 @@ from typing import Optional
 from ai_peer_review.constants import CATEGORY_ITEMS, CATEGORY_KEYS, CRITICAL_FAIL_ITEMS
 from ai_peer_review.models import OverallRating
 
-# Category label -> points for overall rollup.
-SCORE_MAP = {"High": 3, "Medium": 2, "Low": 1}
-
 
 def parse_json_response(text: str) -> dict:
     text = text.strip()
@@ -30,9 +27,9 @@ def parse_json_response(text: str) -> dict:
     raise ValueError("Could not extract valid JSON from LLM response")
 
 
-def _decision_to_numeric(decision: object) -> Optional[float]:
+def _decision_to_score_value(decision: object) -> Optional[float]:
     """
-    Map one item ``decision`` to a rubric value for averaging.
+    Map one item ``decision`` to a 1-5 scale value for averaging.
 
     Unknown values return ``None``.
     """
@@ -40,27 +37,21 @@ def _decision_to_numeric(decision: object) -> Optional[float]:
         return None
     key = decision.strip().lower()
     if key == "yes":
-        return 1.0
+        return 5.0
     if key == "partial":
-        return 0.5
+        return 3.0
     if key == "no":
-        return 0.0
+        return 1.0
     return None
 
 
-def _label_from_mean(mean_value: float) -> str:
-    """Map mean of yes/partial/no numerics to High / Medium / Low."""
-    if mean_value >= 0.75:
-        return "High"
-    if mean_value >= 0.40:
-        return "Medium"
-    return "Low"
-
-
-def _critical_fail_cap(cat_key: str, items: dict, label: str) -> str:
-    """If label is High and any critical item is ``No``, cap to Medium."""
-    if label != "High":
-        return label
+def _critical_fail_cap_int(cat_key: str, items: dict, score: int) -> int:
+    """
+    If any critical item is ``No``, ``rigor_and_feasibility`` cannot be 5
+    (cap to 4) when any such item is ``No``.
+    """
+    if score < 5:
+        return score
     for ckey, ikey in CRITICAL_FAIL_ITEMS:
         if ckey != cat_key:
             continue
@@ -69,8 +60,8 @@ def _critical_fail_cap(cat_key: str, items: dict, label: str) -> str:
             continue
         raw = item.get("decision")
         if isinstance(raw, str) and raw.strip().lower() == "no":
-            return "Medium"
-    return label
+            return 4
+    return score
 
 
 def _gather_item_numerics(cat_key: str, items: dict) -> list[float]:
@@ -80,36 +71,36 @@ def _gather_item_numerics(cat_key: str, items: dict) -> list[float]:
         item = items.get(item_key)
         if not isinstance(item, dict):
             continue
-        num = _decision_to_numeric(item.get("decision"))
+        num = _decision_to_score_value(item.get("decision"))
         if num is not None:
             out.append(num)
     return out
 
 
-def _category_score_from_items(cat_key: str, cat_obj: dict) -> str:
+def _category_score_from_items(cat_key: str, cat_obj: dict) -> int:
     """
-    Derive ``score`` from ``categories[cat_key].items[*].decision``.
+    Derive integer ``score`` 1-5 from ``categories[cat_key].items[*].decision``.
 
-    If there is no usable numeric mean (missing ``items``, missing keys, or no
-    Yes/Partial/No values), the category is scored ``Low``.
+    If there is no usable numeric mean, the category is scored ``1``.
     """
     items = cat_obj.get("items")
     numerics = _gather_item_numerics(cat_key, items if isinstance(items, dict) else {})
     if not numerics:
-        return "Low"
+        return 1
 
     mean_val = sum(numerics) / len(numerics)
-    label = _label_from_mean(mean_val)
-    label = _critical_fail_cap(cat_key, items if isinstance(items, dict) else {}, label)
-    return label
+    score = max(1, min(5, round(mean_val)))
+    return _critical_fail_cap_int(
+        cat_key, items if isinstance(items, dict) else {}, score
+    )
 
 
 def normalize_category_scores_from_item_decisions(review_dict: dict) -> None:
     """
-    Set each ``categories[*].score`` from item decisions.
+    Set each ``categories[*].score`` from item decisions (integers 1-5).
 
-    Rationales and justifications are left unchanged. The LLM category ``score`` string
-    is not used; missing or unusable item data yields ``Low``.
+    The LLM category ``score`` field is replaced; missing or unusable item
+    data yields ``1``.
     """
     cats = review_dict.get("categories")
     if not isinstance(cats, dict):
@@ -121,55 +112,44 @@ def normalize_category_scores_from_item_decisions(review_dict: dict) -> None:
         cat_obj["score"] = _category_score_from_items(cat_key, cat_obj)
 
 
-def _category_score_label(categories: dict, cat_key: str) -> Optional[str]:
+def _category_score_label(categories: dict, cat_key: str) -> Optional[int]:
+    """
+    Return stored category score as 1-5, or None.
+    """
     obj = categories.get(cat_key)
     if not isinstance(obj, dict):
         return None
     score = obj.get("score")
-    if score in ("High", "Medium", "Low"):
-        return score
+    if isinstance(score, int):
+        if 1 <= score <= 5:
+            return score
+        return None
+    if isinstance(score, str):
+        s = score.strip()
+        if s.isdigit():
+            n = int(s)
+            if 1 <= n <= 5:
+                return n
     return None
 
 
-def _overall_rating_from_category_labels(labels: list[str]) -> str:
-    """
-    Map category labels to overall 5-level ratings:
-    ``excellent`` / ``good`` / ``adequate`` / ``marginal`` / ``poor``.
-
-    Category points remain ``High=3``, ``Medium=2``, ``Low=1``.
-    Overall 1-5 score is computed from equal-width bands over the normalized total:
-    ``normalized = (total - min_points) / (max_points - min_points)``, where
-    ``min_points = 1 * n`` and ``max_points = 3 * n`` for ``n`` contributing categories.
-    """
-    score_numeric = _overall_score_numeric_from_category_labels(labels)
-    return _overall_rating_from_numeric(score_numeric)
+def _read_category_int(categories: dict, cat_key: str) -> int:
+    """Default missing or invalid to ``1`` (lowest)."""
+    v = _category_score_label(categories, cat_key)
+    if v is None:
+        return 1
+    return max(1, min(5, v))
 
 
-def _overall_score_numeric_from_category_labels(labels: list[str]) -> int:
+def _overall_score_numeric_from_category_ints(category_ints: list[int]) -> int:
     """
-    Compute overall 1-5 numeric score from category labels.
-
-    Uses five equal-width bins on normalized category points:
-    [0.0,0.2) -> 1, [0.2,0.4) -> 2, [0.4,0.6) -> 3, [0.6,0.8) -> 4, [0.8,1.0] -> 5.
+    Overall 1-5: ``round`` of the average of category scores, clamped to 1-5.
     """
-    points: list[int] = []
-    for lab in labels:
-        if lab in SCORE_MAP:
-            points.append(SCORE_MAP[lab])
-    n = len(points)
+    n = len(category_ints)
     if n == 0:
         return 1
-    total = sum(points)
-    min_points = 1 * n
-    max_points = 3 * n
-    span = max_points - min_points
-    if span <= 0:
-        return 1
-    normalized = (total - min_points) / span
-    normalized = min(max(normalized, 0.0), 1.0)
-    if normalized >= 1.0:
-        return 5
-    return min(int(normalized * 5) + 1, 5)
+    s = sum(category_ints)
+    return max(1, min(5, round(s / n)))
 
 
 def _overall_rating_from_numeric(score_numeric: int) -> str:
@@ -186,42 +166,42 @@ def _overall_rating_from_numeric(score_numeric: int) -> str:
 
 def recompute_overall_fields(review_dict: dict) -> None:
     """
-    Set overall fields from normalized category scores.
+    Set overall fields from normalized category scores (integers 1-5 per
+    category).
 
-    Headline fields from the LLM are replaced: stored overall values follow the same
-    deterministic rubric as category ``score`` labels (see
-    :func:`normalize_category_scores_from_item_decisions`).
+    Headline fields from the LLM are replaced: overall follows the mean of
+    the four category scores, rounded, then mapped to ``overall_rating``.
     """
-    labels = [
-        _category_score_label(review_dict.get("categories") or {}, k) or "Low"
-        for k in CATEGORY_KEYS
-    ]
-    score_numeric = _overall_score_numeric_from_category_labels(labels)
+    cats = review_dict.get("categories") or {}
+    if not isinstance(cats, dict):
+        cats = {}
+    ints = [_read_category_int(cats, k) for k in CATEGORY_KEYS]
+    score_numeric = _overall_score_numeric_from_category_ints(ints)
     review_dict["overall_score_numeric"] = score_numeric
     review_dict["overall_rating"] = _overall_rating_from_numeric(score_numeric)
 
 
 def compute_overall_rating_totals(review_dict: dict) -> tuple[str, int, int]:
     """
-    Return ``(overall_rating, total_points, n_contributing)``.
+    Return ``(overall_rating, total_sum_category_scores, n_categories)``.
 
-    ``total_points`` sums 1-3 points per contributing category.
-    ``n_contributing`` is the count of categories that contributed to that sum.
+    ``total_sum_category_scores`` is the sum of 1-5 per category (max ``5 * n``).
+    ``n_categories`` is the number of ``CATEGORY_KEYS``.
     """
     cats = review_dict.get("categories")
     if not isinstance(cats, dict):
         return OverallRating.POOR.value, 0, 0
-    labels = [_category_score_label(cats, k) or "Low" for k in CATEGORY_KEYS]
-    contributing = [lab for lab in labels if lab in SCORE_MAP]
-    total = sum(SCORE_MAP[lab] for lab in contributing)
-    n = len(contributing)
-    rating = _overall_rating_from_category_labels(contributing)
+    ints = [_read_category_int(cats, k) for k in CATEGORY_KEYS]
+    n = len(ints)
+    total = sum(ints)
+    overall_numeric = _overall_score_numeric_from_category_ints(ints)
+    rating = _overall_rating_from_numeric(overall_numeric)
     return rating, total, n
 
 
-def category_scores(review_dict: dict) -> dict[str, Optional[str]]:
-    """Return each category ``score`` label after normalization."""
-    out: dict[str, Optional[str]] = {}
+def category_scores(review_dict: dict) -> dict[str, Optional[int]]:
+    """Return each category score 1-5; ``None`` if missing category object."""
+    out: dict[str, Optional[int]] = {}
     cats = review_dict.get("categories")
     if not isinstance(cats, dict):
         for key in CATEGORY_KEYS:
