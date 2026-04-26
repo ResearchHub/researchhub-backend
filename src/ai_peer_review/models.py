@@ -218,3 +218,63 @@ class EditorialFeedbackCategory(DefaultModel):
 
     def __str__(self):
         return f"EditorialFeedbackCategory {self.category_code}={self.score}"
+
+
+class KeyInsightItemType(models.TextChoices):
+    """Pros / cons row type for key insights."""
+
+    STRENGTH = "strength", "strength"
+    WEAKNESS = "weakness", "weakness"
+
+
+class ProposalKeyInsight(DefaultModel):
+    """
+    Short TLDR and pros/cons.
+    """
+
+    proposal_review = models.OneToOneField(
+        ProposalReview,
+        on_delete=models.CASCADE,
+        related_name="key_insight",
+    )
+    status = models.CharField(
+        max_length=32,
+        choices=ReviewStatus.choices,
+        default=ReviewStatus.PENDING,
+        db_index=True,
+    )
+    tldr = models.TextField(blank=True, default="")
+    error_message = models.TextField(blank=True)
+    llm_model = models.CharField(max_length=256, blank=True)
+    processing_time = models.FloatField(null=True, blank=True)
+
+    class Meta:
+        db_table = "ai_peer_review_proposal_key_insight"
+        ordering = ["-created_date"]
+
+    def __str__(self):
+        return f"ProposalKeyInsight review={self.proposal_review_id} ({self.status})"
+
+
+class ProposalKeyInsightItem(DefaultModel):
+    """Single strength or weakness line under a ProposalKeyInsight."""
+
+    key_insight = models.ForeignKey(
+        ProposalKeyInsight,
+        on_delete=models.CASCADE,
+        related_name="items",
+    )
+    item_type = models.CharField(
+        max_length=16,
+        choices=KeyInsightItemType.choices,
+    )
+    label = models.CharField(max_length=200)
+    description = models.TextField(blank=True, default="")
+    order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        db_table = "ai_peer_review_proposal_key_insight_item"
+        ordering = ["item_type", "order", "id"]
+
+    def __str__(self):
+        return f"ProposalKeyInsightItem {self.item_type} {self.label!r}"
