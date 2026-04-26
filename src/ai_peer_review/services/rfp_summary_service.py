@@ -87,7 +87,8 @@ def run_executive_comparison(
         snippet = ((r.result_data or {}).get("overall_summary") or "")[:400]
         lines.append(
             f"- Title: {title[:200]}\n"
-            f"  Overall: {r.overall_rating} (numeric {r.overall_score_numeric}, scale 1-3)\n"
+            "  Overall: "
+            f"{r.overall_rating} (numeric {r.overall_score_numeric}, scale 1-3)\n"
             f"  Categories: {', '.join(cat_parts)}\n"
             f"  Summary snippet: {snippet}"
         )

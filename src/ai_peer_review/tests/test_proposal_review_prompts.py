@@ -17,12 +17,14 @@ class ProposalReviewUserPromptTests(SimpleTestCase):
         text = get_proposal_review_system_prompt()
         self.assertIn("expert scientific grant reviewer", text)
         self.assertIn("OUTPUT JSON SHAPE", text)
-        self.assertIn("funding_opportunity_fit", text)
+        self.assertIn("overall_impact", text)
         self.assertIn("Critical fail cap rule", text)
+        self.assertIn("max 500 characters", text)
         self.assertIn("descending importance", text)
 
     def test_user_prompt_requests_strengths_weaknesses_order(self):
         text = build_proposal_review_user_prompt("Body")
+        self.assertIn("four top-level categories", text)
         self.assertIn("most important items", text)
         self.assertIn("first in each array", text)
 
@@ -37,7 +39,7 @@ class ProposalReviewUserPromptTests(SimpleTestCase):
             external_researcher_context="OpenAlex stats here",
         )
         self.assertIn("EXTERNAL RESEARCHER CONTEXT", text)
-        self.assertIn("feasibility_and_execution.team_environment", text)
+        self.assertIn("rigor_and_feasibility.team_qualifications", text)
         self.assertIn("OpenAlex stats here", text)
 
     def test_includes_web_search_context_when_provided(self):
@@ -57,6 +59,7 @@ class RfpSummaryPromptTests(SimpleTestCase):
     def test_grant_executive_summary_system_prompt_loads(self):
         text = get_grant_executive_summary_system_prompt()
         self.assertIn("funding program officer", text)
+        self.assertIn("1000 characters", text)
 
     def test_build_rfp_summary_user_prompt(self):
         text = build_rfp_summary_user_prompt("  Hello RFP  ")

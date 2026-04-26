@@ -91,7 +91,7 @@ class ProposalReviewAPITests(APITestCase):
             overall_rationale="Strong fit.",
             overall_confidence="High",
             result_data={
-                "categories": {"funding_opportunity_fit": {"score": "High"}},
+                "categories": {"overall_impact": {"score": "High"}},
             },
         )
         self.client.force_authenticate(self.moderator)
@@ -118,13 +118,10 @@ class ProposalReviewAPITests(APITestCase):
             overall_score_numeric=3,
             result_data={
                 "categories": {
-                    "funding_opportunity_fit": {"score": "High"},
-                    "methods_rigor": {"score": "High"},
-                    "statistical_analysis_plan": {"score": "N/A"},
-                    "feasibility_and_execution": {"score": "High"},
-                    "scientific_impact": {"score": "High"},
-                    "clinical_or_translational_impact": {"score": "Medium"},
-                    "societal_and_broader_impact": {"score": "High"},
+                    "overall_impact": {"score": "High"},
+                    "importance_significance_innovation": {"score": "High"},
+                    "rigor_and_feasibility": {"score": "High"},
+                    "additional_review_criteria": {"score": "Low"},
                 },
             },
         )
@@ -134,8 +131,10 @@ class ProposalReviewAPITests(APITestCase):
         data = r.json()
         self.assertEqual(data["grant_id"], self.grant.id)
         self.assertEqual(len(data["proposals"]), 1)
+        self.assertEqual(data["proposals"][0]["categories"]["overall_impact"], "High")
         self.assertEqual(
-            data["proposals"][0]["categories"]["funding_opportunity_fit"], "High"
+            data["proposals"][0]["categories"]["additional_review_criteria"],
+            "Low",
         )
 
     def test_editorial_feedback_upsert_requires_editor(self):
@@ -239,13 +238,10 @@ class GrantExecutiveSummaryAPITests(APITestCase):
             result_data={
                 "overall_summary": "Solid work across categories.",
                 "categories": {
-                    "funding_opportunity_fit": {"score": "High"},
-                    "methods_rigor": {"score": "High"},
-                    "statistical_analysis_plan": {"score": "Medium"},
-                    "feasibility_and_execution": {"score": "Medium"},
-                    "scientific_impact": {"score": "High"},
-                    "clinical_or_translational_impact": {"score": "N/A"},
-                    "societal_and_broader_impact": {"score": "High"},
+                    "overall_impact": {"score": "High"},
+                    "importance_significance_innovation": {"score": "High"},
+                    "rigor_and_feasibility": {"score": "Medium"},
+                    "additional_review_criteria": {"score": "Low"},
                 },
             },
         )

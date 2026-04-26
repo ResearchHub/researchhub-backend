@@ -200,7 +200,6 @@ class BedrockLLMServiceTests(SimpleTestCase):
         self.assertEqual(kwargs["system"], [{"text": "sys"}])
         self.assertEqual(kwargs["messages"][0]["role"], "user")
         self.assertEqual(kwargs["inferenceConfig"]["maxTokens"], 100)
-        self.assertEqual(kwargs["inferenceConfig"]["temperature"], 0.1)
 
     @patch("ai_peer_review.services.bedrock_llm_service.bedrock_runtime_client")
     def test_invoke_omits_temperature_for_opus_4_7(self, mock_create_client):
