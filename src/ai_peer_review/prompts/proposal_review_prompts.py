@@ -16,6 +16,66 @@ def get_proposal_review_system_prompt() -> str:
     return _load_template("proposal_review_system.txt")
 
 
+def get_proposal_key_insights_system_prompt() -> str:
+    return _load_template("proposal_key_insights_system.txt")
+
+
+def build_proposal_key_insights_user_prompt(
+    proposal_text: str,
+    rfp_context: str | None = None,
+    ai_review_summary: str = "",
+    human_reviews_text: str = "",
+) -> str:
+    """
+    User message for the key-insights pass: proposal, RFP, AI review
+    summary, and human review text. Truncation matches
+    build_proposal_review_user_prompt for proposal (120k) and RFP (8k).
+    """
+    rfp = ""
+    if rfp_context and rfp_context.strip():
+        rfp = (
+            "\n\nRFP CONTEXT (from funding opportunity; prefer alignment and "
+            "fit when summarizing and when naming strengths/weaknesses):\n"
+            f"{rfp_context.strip()[:8000]}\n"
+        )
+    ai = ""
+    if ai_review_summary and ai_review_summary.strip():
+        s = ai_review_summary.strip()
+        if len(s) > 20000:
+            s = s[:20000] + "\n\n[TRUNCATED FOR LENGTH]"
+        ai = (
+            "\n\nAI REVIEW SUMMARY (existing structured review on this proposal; use "
+            "as an input signal, not a substitute for the proposal text):\n"
+            f"{s}\n"
+        )
+    human = ""
+    if human_reviews_text and human_reviews_text.strip():
+        h = human_reviews_text.strip()
+        if len(h) > 10000:
+            h = h[:10000] + "\n\n[TRUNCATED FOR LENGTH]"
+        human = (
+            "\n\nHUMAN REVIEWS (RHF-ENDORSED: awarded or tipped by the ResearchHub "
+            "Foundation account; use as peer signal where relevant):\n"
+            f"{h}\n"
+        )
+    text = (proposal_text or "").strip()
+    if len(text) > 120000:
+        text = text[:120000] + "\n\n[TRUNCATED FOR LENGTH]"
+    return (
+        "Read the following inputs and return only the required JSON: a short tldr, "
+        "a strengths list, and a weaknesses list. Order strengths and weaknesses by "
+        "descending importance (index 0 is most important in each array). The tldr "
+        "must be 2-3 sentences and at most 600 characters, covering what the "
+        "proposal is about, RFP fit when context exists, one major highlight, and "
+        "one major issue.\n\n"
+        "PROPOSAL TEXT:\n"
+        f"{text}"
+        f"{rfp}"
+        f"{ai}"
+        f"{human}"
+    )
+
+
 def get_openai_web_context_system_prompt() -> str:
     """System instructions for OpenAI web search in proposal review."""
     return _load_template("openai_web_context_system.txt")
