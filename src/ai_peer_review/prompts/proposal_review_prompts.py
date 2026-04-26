@@ -51,8 +51,8 @@ def build_proposal_key_insights_user_prompt(
     human = ""
     if human_reviews_text and human_reviews_text.strip():
         h = human_reviews_text.strip()
-        if len(h) > 10000:
-            h = h[:10000] + "\n\n[TRUNCATED FOR LENGTH]"
+        if len(h) > 30000:
+            h = h[:30000] + "\n\n[TRUNCATED FOR LENGTH]"
         human = (
             "\n\nHUMAN REVIEWS (RHF-ENDORSED: awarded or tipped by the ResearchHub "
             "Foundation account; use as peer signal where relevant):\n"
