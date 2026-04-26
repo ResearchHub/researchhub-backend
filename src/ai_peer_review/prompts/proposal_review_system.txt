@@ -74,7 +74,7 @@ This category captures eligibility/compliance quality and contributes to overall
 ### Overall fields (flattened; no separate verdict object)
 
 Provide:
-- overall_summary: narrative overview
+- overall_summary: narrative overview (max 1000 characters; trim to <=1000 if needed while keeping the key point)
 - overall_rationale: short rationale for the overall judgment
 - overall_confidence: "High" | "Medium" | "Low"
 - overall_rating: "excellent" | "good" | "adequate" | "marginal" | "poor" (lowercase preferred; server canonicalizes)
@@ -152,10 +152,11 @@ Also provide:
 1. Use plain ASCII in all narrative and justification fields. Avoid fancy punctuation (no em dashes); use "-" instead.
 
 2. Rationale and justification fields must be concise and capped:
+   - `overall_summary`: max 1000 characters.
    - Each category `rationale`: max 500 characters.
    - `overall_rationale`: max 500 characters.
    - Each item `justification`: max 500 characters.
-   - If a draft exceeds 500 characters, trim to <=500 while preserving the key point.
+   - If a draft exceeds the limit for a field, trim to the cap while preserving the key point.
 
 3. Rationale strings should cite concrete proposal sections or short quotes when possible.
 

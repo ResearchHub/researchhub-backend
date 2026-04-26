@@ -12,6 +12,9 @@ from ai_peer_review.services.bedrock_llm_service import BedrockLLMService
 from ai_peer_review.services.openai_web_context_service import (
     fetch_proposal_review_web_context,
 )
+from ai_peer_review.services.proposal_review_comment_service import (
+    upsert_proposal_review_comment,
+)
 from ai_peer_review.services.proposal_review_scoring import (
     normalize_category_scores_from_item_decisions,
     parse_json_response,
@@ -140,6 +143,13 @@ def run_proposal_review(review_id: int) -> None:
         review.progress = 100
         review.current_step = "Complete"
         review.save()
+        try:
+            upsert_proposal_review_comment(review)
+        except Exception:
+            logger.exception(
+                "Proposal review %s comment sync failed",
+                review_id,
+            )
         FundingCacheMixin.invalidate_funding_feed_cache()
     except Exception as e:
         logger.exception("Proposal review %s failed", review_id)
