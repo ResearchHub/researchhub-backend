@@ -24,6 +24,7 @@ from purchase.related_models.usd_fundraise_contribution_model import (
 )
 from researchhub_document.related_models.constants.document_type import GRANT
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from review.models import Review
 
 from ..serializers import PostSerializer, serialize_feed_metrics
 from .common import FeedPagination
@@ -103,9 +104,20 @@ class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ModelViewSet):
             )
             .prefetch_related(
                 "unified_document__hubs",
-                "unified_document__grants",
+                Prefetch(
+                    "unified_document__reviews",
+                    queryset=Review.objects.select_related(
+                        "created_by__author_profile"
+                    ),
+                ),
                 "unified_document__grants__proposal_reviews",
                 "unified_document__grants__applications__applicant__author_profile",
+                Prefetch(
+                    "unified_document__grants__applications__preregistration_post__unified_document__reviews",
+                    queryset=Review.objects.filter(is_removed=False).select_related(
+                        "created_by__author_profile"
+                    ),
+                ),
                 Prefetch(
                     "unified_document__grants__applications__preregistration_post__unified_document__fundraises",
                     queryset=Fundraise.objects.select_related(
