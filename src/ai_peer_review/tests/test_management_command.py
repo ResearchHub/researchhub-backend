@@ -134,7 +134,7 @@ class RunProposalReviewsCommandTests(TestCase):
             grant=self.grant,
             status=ReviewStatus.COMPLETED,
             overall_rating="good",
-            overall_score_numeric=2,
+            overall_score_numeric=4,
         )
         out = StringIO()
         call_command(
@@ -174,7 +174,7 @@ class RunProposalReviewsCommandTests(TestCase):
             grant=self.grant,
             status=ReviewStatus.COMPLETED,
             overall_rating="good",
-            overall_score_numeric=2,
+            overall_score_numeric=4,
         )
         out = StringIO()
         call_command(
