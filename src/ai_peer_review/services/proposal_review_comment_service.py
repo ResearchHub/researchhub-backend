@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 AI_EXPERT_EMAIL = "ai-review@researchhub.foundation"
 AI_REVIEW_COMMENT_CONTEXT_TITLE = "AI Proposal Review"
 AI_REVIEW_COMMENT_TYPE = "REVIEW"
+AI_REVIEW_OVERALL_SUMMARY_TITLE = "Summary"
 
 
 def get_ai_expert_user() -> User | None:
@@ -176,11 +177,6 @@ def proposal_review_to_tiptap_content(review: ProposalReview) -> dict:
     impact_rationale = _rationale_text(impact.get("rationale"))
 
     body: list[dict] = []
-    overall_summary = _rationale_text(review.overall_rationale)
-    if overall_summary:
-        body.append(_paragraph(overall_summary))
-        body.append(_paragraph())
-
     _append_title_and_rationale(
         body,
         title_bold=f"1. Overall Impact. Score: {_format_category_score_value(impact.get('score'))}",
@@ -228,7 +224,10 @@ def proposal_review_to_tiptap_content(review: ProposalReview) -> dict:
         items = [str(s).strip() for s in (raw_fatal or []) if str(s).strip()]
         body.append(_paragraph("Fatal flaws", bold=True, italic=True))
         body.append(_bullet_list(items[:5]))
-
+    summary_text = _rationale_text(result_data.get("overall_summary"))
+    if summary_text:
+        body.append(_paragraph(AI_REVIEW_OVERALL_SUMMARY_TITLE, bold=True))
+        body.append(_paragraph(summary_text))
     body.append(_paragraph())
 
     return {"type": "doc", "content": body}

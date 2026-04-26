@@ -40,6 +40,7 @@ class ProposalReviewCommentServiceTests(TestCase):
             overall_score_numeric=2,
             overall_rationale="Strong fit with moderate execution risk.",
             result_data={
+                "overall_summary": "Strong fit with moderate execution risk.",
                 "fatal_flaws": [],
                 "categories": {
                     "overall_impact": {
@@ -86,16 +87,11 @@ class ProposalReviewCommentServiceTests(TestCase):
         self.assertEqual(payload["type"], "doc")
         self.assertEqual(
             payload["content"][0]["content"][0]["text"],
-            "Strong fit with moderate execution risk.",
-        )
-        self.assertEqual(payload["content"][1], {"type": "paragraph"})
-        self.assertEqual(
-            payload["content"][2]["content"][0]["text"],
             "1. Overall Impact. Score: High",
         )
         # Per-category item bullets: overall impact, then 2. Core, 2a/2b/3 each with a bullet list
-        self.assertEqual(payload["content"][3]["type"], "bulletList")
-        first_item_para = payload["content"][3]["content"][0]["content"][0]
+        self.assertEqual(payload["content"][1]["type"], "bulletList")
+        first_item_para = payload["content"][1]["content"][0]["content"][0]
         self.assertEqual(
             [n["text"] for n in first_item_para["content"]],
             ["Novelty", ": ", "Clear novelty in framing."],
@@ -113,36 +109,44 @@ class ProposalReviewCommentServiceTests(TestCase):
             [{"type": "italic"}],
         )
         self.assertEqual(
-            payload["content"][4]["content"][0]["text"],
+            payload["content"][2]["content"][0]["text"],
             "2. Core Review Factors",
         )
         self.assertEqual(
-            payload["content"][5]["content"][0]["text"],
+            payload["content"][3]["content"][0]["text"],
             "2.a Importance, significance, and innovation. Score: Medium",
         )
         self.assertEqual(
-            payload["content"][6]["content"][0]["text"],
+            payload["content"][4]["content"][0]["text"],
             "Question is important but not novel.",
         )
-        self.assertEqual(payload["content"][7]["type"], "bulletList")
+        self.assertEqual(payload["content"][5]["type"], "bulletList")
         self.assertEqual(
-            payload["content"][8]["content"][0]["text"],
+            payload["content"][6]["content"][0]["text"],
             "2.b Rigor & Feasibility. Score: Medium",
         )
         self.assertEqual(
-            payload["content"][9]["content"][0]["text"],
+            payload["content"][7]["content"][0]["text"],
             "Methods are adequate; timeline is tight.",
         )
-        self.assertEqual(payload["content"][10]["type"], "bulletList")
+        self.assertEqual(payload["content"][8]["type"], "bulletList")
         self.assertEqual(
-            payload["content"][11]["content"][0]["text"],
+            payload["content"][9]["content"][0]["text"],
             "3. Additional review criteria. Score: High",
         )
         self.assertEqual(
-            payload["content"][12]["content"][0]["text"],
+            payload["content"][10]["content"][0]["text"],
             "Disclosures in order.",
         )
-        self.assertEqual(payload["content"][13]["type"], "bulletList")
+        self.assertEqual(payload["content"][11]["type"], "bulletList")
+        self.assertEqual(
+            payload["content"][12]["content"][0]["text"],
+            "Summary",
+        )
+        self.assertEqual(
+            payload["content"][13]["content"][0]["text"],
+            "Strong fit with moderate execution risk.",
+        )
         self.assertEqual(payload["content"][14], {"type": "paragraph"})
         self.assertNotIn("blockquote", [b.get("type") for b in payload["content"]])
         bullet_idx = [
