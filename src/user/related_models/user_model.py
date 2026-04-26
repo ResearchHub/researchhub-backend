@@ -119,8 +119,9 @@ class User(AbstractUser):
 
     @classmethod
     def is_rh_community_account(cls, user) -> bool:
-        community_account = cls.objects.get_community_account()
-        if community_account is None:
+        try:
+            community_account = cls.objects.get_community_account()
+        except Exception:
             return False
         return user.id == community_account.id
 
