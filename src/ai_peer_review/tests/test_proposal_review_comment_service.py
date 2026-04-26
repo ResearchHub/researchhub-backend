@@ -4,7 +4,6 @@ from ai_peer_review.models import ProposalReview, ReviewStatus
 from ai_peer_review.services.proposal_review_comment_service import (
     AI_EXPERT_EMAIL,
     AI_REVIEW_COMMENT_TYPE,
-    proposal_review_to_plain_text,
     proposal_review_to_tiptap_content,
     upsert_proposal_review_comment,
 )
@@ -41,14 +40,43 @@ class ProposalReviewCommentServiceTests(TestCase):
             overall_score_numeric=2,
             overall_rationale="Strong fit with moderate execution risk.",
             result_data={
-                "major_strengths": ["Important problem", "Reasonable methods"],
-                "major_weaknesses": ["Sample size justification is limited"],
                 "fatal_flaws": [],
                 "categories": {
-                    "overall_impact": {"score": "High"},
-                    "importance_significance_innovation": {"score": "Medium"},
-                    "rigor_and_feasibility": {"score": "Medium"},
-                    "additional_review_criteria": {"score": "High"},
+                    "overall_impact": {
+                        "score": "High",
+                        "items": {
+                            "novelty": {
+                                "justification": "Clear novelty in framing.",
+                            },
+                        },
+                    },
+                    "importance_significance_innovation": {
+                        "score": "Medium",
+                        "rationale": "Question is important but not novel.",
+                        "items": {
+                            "question_importance": {
+                                "justification": "The core question matters for the field.",
+                            },
+                        },
+                    },
+                    "rigor_and_feasibility": {
+                        "score": "Medium",
+                        "rationale": "Methods are adequate; timeline is tight.",
+                        "items": {
+                            "methodology": {
+                                "justification": "Analytic plan is defensible.",
+                            },
+                        },
+                    },
+                    "additional_review_criteria": {
+                        "score": "High",
+                        "rationale": "Disclosures in order.",
+                        "items": {
+                            "open_science_adherence": {
+                                "justification": "Preregistration and data code noted.",
+                            },
+                        },
+                    },
                 },
             },
         )
@@ -56,12 +84,72 @@ class ProposalReviewCommentServiceTests(TestCase):
     def test_proposal_review_to_tiptap_content_creates_structured_doc(self):
         payload = proposal_review_to_tiptap_content(self.review)
         self.assertEqual(payload["type"], "doc")
-        self.assertEqual(payload["content"][0]["type"], "paragraph")
-        title_text = payload["content"][0]["content"][0]["text"]
-        self.assertEqual(title_text, "AI Proposal Review")
-        self.assertEqual(payload["content"][3]["type"], "blockquote")
-        self.assertEqual(payload["content"][5]["type"], "bulletList")
-        self.assertEqual(payload["content"][7]["type"], "orderedList")
+        self.assertEqual(
+            payload["content"][0]["content"][0]["text"],
+            "Strong fit with moderate execution risk.",
+        )
+        self.assertEqual(payload["content"][1], {"type": "paragraph"})
+        self.assertEqual(
+            payload["content"][2]["content"][0]["text"],
+            "1. Overall Impact. Score: High",
+        )
+        # Per-category item bullets: overall impact, then 2. Core, 2a/2b/3 each with a bullet list
+        self.assertEqual(payload["content"][3]["type"], "bulletList")
+        first_item_para = payload["content"][3]["content"][0]["content"][0]
+        self.assertEqual(
+            [n["text"] for n in first_item_para["content"]],
+            ["Novelty", ": ", "Clear novelty in framing."],
+        )
+        self.assertEqual(
+            first_item_para["content"][0]["text"],
+            "Novelty",
+        )
+        self.assertEqual(
+            first_item_para["content"][0]["marks"],
+            [{"type": "bold"}],
+        )
+        self.assertEqual(
+            first_item_para["content"][2]["marks"],
+            [{"type": "italic"}],
+        )
+        self.assertEqual(
+            payload["content"][4]["content"][0]["text"],
+            "2. Core Review Factors",
+        )
+        self.assertEqual(
+            payload["content"][5]["content"][0]["text"],
+            "2.a Importance, significance, and innovation. Score: Medium",
+        )
+        self.assertEqual(
+            payload["content"][6]["content"][0]["text"],
+            "Question is important but not novel.",
+        )
+        self.assertEqual(payload["content"][7]["type"], "bulletList")
+        self.assertEqual(
+            payload["content"][8]["content"][0]["text"],
+            "2.b Rigor & Feasibility. Score: Medium",
+        )
+        self.assertEqual(
+            payload["content"][9]["content"][0]["text"],
+            "Methods are adequate; timeline is tight.",
+        )
+        self.assertEqual(payload["content"][10]["type"], "bulletList")
+        self.assertEqual(
+            payload["content"][11]["content"][0]["text"],
+            "3. Additional review criteria. Score: High",
+        )
+        self.assertEqual(
+            payload["content"][12]["content"][0]["text"],
+            "Disclosures in order.",
+        )
+        self.assertEqual(payload["content"][13]["type"], "bulletList")
+        self.assertEqual(payload["content"][14], {"type": "paragraph"})
+        self.assertNotIn("blockquote", [b.get("type") for b in payload["content"]])
+        bullet_idx = [
+            i for i, b in enumerate(payload["content"]) if b["type"] == "bulletList"
+        ]
+        # One bullet list per category; fatal_flaws is empty
+        self.assertEqual(len(bullet_idx), 4)
 
     def test_upsert_proposal_review_comment_creates_thread_and_comment(self):
         comment = upsert_proposal_review_comment(self.review)
@@ -74,7 +162,8 @@ class ProposalReviewCommentServiceTests(TestCase):
 
         ai_user = User.objects.get(email=AI_EXPERT_EMAIL)
         self.assertEqual(comment.created_by_id, ai_user.id)
-        self.assertIn("Overall rating: good", comment.plain_text)
+        self.assertIn("Overall Impact", comment.plain_text)
+        self.assertIn("Strong fit with moderate execution risk.", comment.plain_text)
         self.assertTrue(
             RhCommentThreadModel.objects.filter(
                 id=comment.thread_id,
@@ -111,15 +200,6 @@ class ProposalReviewCommentServiceTests(TestCase):
             top_level_count,
             1,
         )
-        self.assertIn("Overall rating: excellent", updated.plain_text)
-        self.assertIn("Overall score: 5/5", updated.plain_text)
+        self.assertIn("Very strong overall package.", updated.plain_text)
         review_row = Review.objects.get(object_id=updated.id)
         self.assertEqual(review_row.score, 5.0)
-
-    def test_proposal_review_to_plain_text_contains_core_sections(self):
-        text = proposal_review_to_plain_text(self.review)
-        self.assertIn("AI Proposal Review", text)
-        self.assertIn("Category scores:", text)
-        self.assertIn("Major strengths:", text)
-        self.assertIn("Major weaknesses:", text)
-        self.assertIn("Fatal flaws:", text)

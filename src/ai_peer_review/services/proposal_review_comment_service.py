@@ -19,67 +19,34 @@ def get_ai_expert_user() -> User | None:
     return User.objects.filter(email=AI_EXPERT_EMAIL).first()
 
 
-def proposal_review_to_plain_text(review: ProposalReview) -> str:
-    result_data = review.result_data or {}
-    categories = result_data.get("categories") or {}
-    significance_score = categories.get("importance_significance_innovation", {}).get(
-        "score",
-        "N/A",
-    )
-    major_strengths = result_data.get("major_strengths") or []
-    major_weaknesses = result_data.get("major_weaknesses") or []
-    fatal_flaws = result_data.get("fatal_flaws") or []
-
-    lines = [
-        "AI Proposal Review",
-        "",
-        f"Overall rating: {review.overall_rating or 'N/A'}",
-        f"Overall score: {review.overall_score_numeric or 'N/A'}/5",
-        f"Confidence: {review.overall_confidence or 'N/A'}",
-        "",
-        f"Rationale: {review.overall_rationale or ''}",
-        "",
-        "Category scores:",
-        f"- Overall impact: {categories.get('overall_impact', {}).get('score', 'N/A')}",
-        ("- Importance/significance/innovation: " f"{significance_score}"),
-        (
-            "- Rigor and feasibility: "
-            f"{categories.get('rigor_and_feasibility', {}).get('score', 'N/A')}"
-        ),
-        (
-            "- Additional review criteria: "
-            f"{categories.get('additional_review_criteria', {}).get('score', 'N/A')}"
-        ),
-        "",
-        "Major strengths:",
-    ]
-
-    lines.extend(f"- {item}" for item in major_strengths[:5])
-    if not major_strengths:
-        lines.append("- N/A")
-
-    lines.append("")
-    lines.append("Major weaknesses:")
-    lines.extend(f"- {item}" for item in major_weaknesses[:5])
-    if not major_weaknesses:
-        lines.append("- N/A")
-
-    lines.append("")
-    lines.append("Fatal flaws:")
-    lines.extend(f"- {item}" for item in fatal_flaws[:5])
-    if not fatal_flaws:
-        lines.append("- None")
-
-    return "\n".join(lines).strip()
+def _text_node(
+    text: str,
+    *,
+    bold: bool = False,
+    italic: bool = False,
+) -> dict:
+    node: dict = {"type": "text", "text": text}
+    marks: list[dict] = []
+    if bold:
+        marks.append({"type": "bold"})
+    if italic:
+        marks.append({"type": "italic"})
+    if marks:
+        node["marks"] = marks
+    return node
 
 
-def _paragraph(text: str | None = None, bold: bool = False) -> dict:
+def _paragraph(
+    text: str | None = None,
+    bold: bool = False,
+    italic: bool = False,
+) -> dict:
     if not text:
         return {"type": "paragraph"}
-    text_node = {"type": "text", "text": text}
-    if bold:
-        text_node["marks"] = [{"type": "bold"}]
-    return {"type": "paragraph", "content": [text_node]}
+    return {
+        "type": "paragraph",
+        "content": [_text_node(text, bold=bold, italic=italic)],
+    }
 
 
 def _bullet_list(items: list[str]) -> dict:
@@ -97,68 +64,174 @@ def _bullet_list(items: list[str]) -> dict:
     }
 
 
-def _ordered_list(items: list[str]) -> dict:
+_LABEL_IMPORTANCE = "Importance, significance, and innovation"
+_LABEL_RIGOR = "Rigor & Feasibility"
+_LABEL_ADDITIONAL = "Additional review criteria"
+
+
+def _format_category_score_value(score) -> str:
+    """``Score:`` value for a category: numeric 1–5 as ``n/5``, else string or N/A."""
+    if score is None:
+        return "N/A"
+    if isinstance(score, (int, float)) and 1 <= float(score) <= 5:
+        return f"{int(float(score))}/5"
+    return str(score)
+
+
+def _rationale_text(raw: object) -> str:
+    if raw is None:
+        return ""
+    return str(raw).strip()
+
+
+def _item_key_to_label(snake: str) -> str:
+    """e.g. ``question_importance`` -> ``Question Importance``."""
+    if not snake:
+        return ""
+    return " ".join(part.capitalize() for part in str(snake).split("_") if part)
+
+
+def _list_item_bold_italic_bullet(item_key: str, justification: str) -> dict:
+    """``{Label}: {justification}`` with label bold, justification italic."""
+    label = _item_key_to_label(item_key)
     return {
-        "type": "orderedList",
-        "attrs": {"start": 1, "type": None},
+        "type": "listItem",
         "content": [
             {
-                "type": "listItem",
+                "type": "paragraph",
                 "content": [
-                    {"type": "paragraph", "content": [{"type": "text", "text": i}]}
+                    _text_node(label, bold=True),
+                    _text_node(": "),
+                    _text_node(justification, italic=True),
                 ],
             }
-            for i in items
         ],
     }
+
+
+def _append_category_item_bullets(
+    body: list[dict],
+    category: dict,
+) -> None:
+    """
+    One bullet list per category: each item is **Label**: *justification*.
+
+    Skips non-dict item rows or rows with no justification and no decision string.
+    """
+    raw = category.get("items")
+    if not isinstance(raw, dict) or not raw:
+        return
+    out: list[dict] = []
+    for key in sorted(raw.keys(), key=str):
+        row = raw.get(key)
+        if not isinstance(row, dict):
+            continue
+        j = _rationale_text(row.get("justification"))
+        if not j:
+            j = _rationale_text(row.get("decision"))
+        if not j:
+            continue
+        out.append(_list_item_bold_italic_bullet(str(key), j))
+    if not out:
+        return
+    body.append({"type": "bulletList", "content": out})
+
+
+def _append_title_and_rationale(
+    body: list[dict],
+    *,
+    title_bold: str,
+    category_rationale: object,
+) -> None:
+    body.append(_paragraph(title_bold, bold=True))
+    t = _rationale_text(category_rationale)
+    if t:
+        body.append(_paragraph(t))
+
+
+def _omit_fatal_flaws_section(raw) -> bool:
+    """Omit the Fatal flaws block for ``[]``, missing, or a sole ``"None"``-style entry."""
+    if raw is None:
+        return True
+    if not isinstance(raw, list):
+        return True
+    items = [x.strip() for x in (str(s) for s in raw) if x.strip()]
+    if not items:
+        return True
+    if len(items) == 1 and items[0].lower() in ("none", "n/a", "n/a."):
+        return True
+    return False
 
 
 def proposal_review_to_tiptap_content(review: ProposalReview) -> dict:
     result_data = review.result_data or {}
     categories = result_data.get("categories") or {}
-    strengths = result_data.get("major_strengths") or ["N/A"]
-    weaknesses = result_data.get("major_weaknesses") or ["N/A"]
-    fatal_flaws = result_data.get("fatal_flaws") or ["None"]
-    rationale_text = review.overall_rationale or "No rationale available."
+    raw_fatal = result_data.get("fatal_flaws")
 
-    category_rows = [
-        f"Overall impact: {categories.get('overall_impact', {}).get('score', 'N/A')}",
-        (
-            "Importance/significance/innovation: "
-            f"{categories.get('importance_significance_innovation', {}).get('score', 'N/A')}"
-        ),
-        f"Rigor and feasibility: {categories.get('rigor_and_feasibility', {}).get('score', 'N/A')}",
-        (
-            "Additional review criteria: "
-            f"{categories.get('additional_review_criteria', {}).get('score', 'N/A')}"
-        ),
-    ]
+    impact = categories.get("overall_impact") or {}
+    importance = categories.get("importance_significance_innovation") or {}
+    rigor = categories.get("rigor_and_feasibility") or {}
+    additional = categories.get("additional_review_criteria") or {}
 
-    return {
-        "type": "doc",
-        "content": [
-            _paragraph(AI_REVIEW_COMMENT_CONTEXT_TITLE, bold=True),
-            _paragraph(
-                f"Overall rating: {review.overall_rating or 'N/A'} | "
-                f"Overall score: {review.overall_score_numeric or 'N/A'}/5 | "
-                f"Confidence: {review.overall_confidence or 'N/A'}"
+    impact_rationale = _rationale_text(impact.get("rationale"))
+
+    body: list[dict] = []
+    overall_summary = _rationale_text(review.overall_rationale)
+    if overall_summary:
+        body.append(_paragraph(overall_summary))
+        body.append(_paragraph())
+
+    _append_title_and_rationale(
+        body,
+        title_bold=f"1. Overall Impact. Score: {_format_category_score_value(impact.get('score'))}",
+        category_rationale=impact_rationale or None,
+    )
+    _append_category_item_bullets(body, impact)
+
+    show_core_header = (
+        importance.get("score") is not None or rigor.get("score") is not None
+    )
+    if show_core_header:
+        body.append(_paragraph("2. Core Review Factors", bold=True))
+
+    if importance.get("score") is not None:
+        _append_title_and_rationale(
+            body,
+            title_bold=(
+                f"2.a {_LABEL_IMPORTANCE}. "
+                f"Score: {_format_category_score_value(importance.get('score'))}"
             ),
-            _paragraph("Rationale", bold=True),
-            {
-                "type": "blockquote",
-                "content": [_paragraph(rationale_text)],
-            },
-            _paragraph("Category scores", bold=True),
-            _bullet_list(category_rows),
-            _paragraph("Major strengths", bold=True),
-            _ordered_list(strengths[:5]),
-            _paragraph("Major weaknesses", bold=True),
-            _ordered_list(weaknesses[:5]),
-            _paragraph("Fatal flaws", bold=True),
-            _bullet_list(fatal_flaws[:5]),
-            _paragraph(),
-        ],
-    }
+            category_rationale=importance.get("rationale"),
+        )
+        _append_category_item_bullets(body, importance)
+    if rigor.get("score") is not None:
+        _append_title_and_rationale(
+            body,
+            title_bold=(
+                f"2.b {_LABEL_RIGOR}. "
+                f"Score: {_format_category_score_value(rigor.get('score'))}"
+            ),
+            category_rationale=rigor.get("rationale"),
+        )
+        _append_category_item_bullets(body, rigor)
+    if additional.get("score") is not None:
+        _append_title_and_rationale(
+            body,
+            title_bold=(
+                f"3. {_LABEL_ADDITIONAL}. "
+                f"Score: {_format_category_score_value(additional.get('score'))}"
+            ),
+            category_rationale=additional.get("rationale"),
+        )
+        _append_category_item_bullets(body, additional)
+    if not _omit_fatal_flaws_section(raw_fatal):
+        items = [str(s).strip() for s in (raw_fatal or []) if str(s).strip()]
+        body.append(_paragraph("Fatal flaws", bold=True, italic=True))
+        body.append(_bullet_list(items[:5]))
+
+    body.append(_paragraph())
+
+    return {"type": "doc", "content": body}
 
 
 def _review_thread_reference(review: ProposalReview) -> str:

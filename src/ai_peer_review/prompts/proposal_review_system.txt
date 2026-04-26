@@ -153,7 +153,7 @@ Also provide:
 
 2. Rationale and justification fields must be concise and capped:
    - Each category `rationale`: max 500 characters.
-   - `overall_rationale`: max 500 characters.
+   - `overall_rationale`: max 1000 characters.
    - Each item `justification`: max 500 characters.
    - If a draft exceeds 500 characters, trim to <=500 while preserving the key point.
 
