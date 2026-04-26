@@ -210,4 +210,3 @@ def category_scores(review_dict: dict) -> dict[str, Optional[int]]:
     for key in CATEGORY_KEYS:
         out[key] = _category_score_label(cats, key)
     return out
-    return out
