@@ -117,6 +117,13 @@ class User(AbstractUser):
     def full_name(self):
         return self.first_name + " " + self.last_name
 
+    @classmethod
+    def is_rh_community_account(cls, user) -> bool:
+        community_account = cls.objects.get_community_account()
+        if community_account is None:
+            return False
+        return user.id == community_account.id
+
     @property
     def is_orcid_connected(self):
         if author := getattr(self, "author_profile", None):
