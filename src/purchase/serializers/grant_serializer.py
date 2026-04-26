@@ -117,8 +117,8 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
 
         return application_data
 
-    @staticmethod
-    def _serialize_application_fundraise(application):
+    @classmethod
+    def _serialize_application_fundraise(cls, application):
         post = application.preregistration_post
         if (
             not post
@@ -199,6 +199,15 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
             }
 
         review_details = ud.get_review_details()
+        reviews = [
+            {
+                "id": r.id,
+                "score": r.score,
+                "is_assessed": r.is_assessed,
+                "author": cls._serialize_review_author(r),
+            }
+            for r in ud.reviews.all()
+        ]
 
         return {
             "id": fundraise.id,
@@ -218,4 +227,26 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
                 "avg": review_details.get("avg", 0),
                 "count": review_details.get("count", 0),
             },
+            "reviews": reviews,
+        }
+
+    @staticmethod
+    def _serialize_review_author(review):
+        user = review.created_by
+        if not user:
+            return None
+        author = getattr(user, "author_profile", None)
+        if not author:
+            return None
+        profile_image = None
+        if author.profile_image:
+            try:
+                profile_image = author.profile_image.url
+            except ValueError:
+                pass
+        return {
+            "id": author.id,
+            "first_name": author.first_name,
+            "last_name": author.last_name,
+            "profile_image": profile_image,
         }
