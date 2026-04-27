@@ -154,14 +154,15 @@ class ProposalReviewDetailView(APIView):
     def get(self, request, review_id):
         try:
             review = (
-                ProposalReview.objects.select_related("grant")
+                ProposalReview.objects.select_related("grant", "key_insight")
                 .prefetch_related(
+                    "key_insight__items",
                     Prefetch(
                         "unified_document",
                         queryset=ResearchhubUnifiedDocument.objects.select_related(
                             "ai_peer_review_editorial_feedback"
                         ),
-                    )
+                    ),
                 )
                 .get(pk=review_id)
             )
