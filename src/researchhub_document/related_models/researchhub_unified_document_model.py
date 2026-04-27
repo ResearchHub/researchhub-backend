@@ -260,12 +260,13 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
             return None
 
     def get_review_details(self):
-        """Return average score & count of *active* reviews.
+        """Return average score & count of assessed reviews.
 
-        A review is considered active if:
+        A review is counted if:
         1. The review itself has not been soft-deleted (`is_removed=False`).
         2. The underlying comment (`RhCommentModel`) it references has not been
            soft-deleted.
+        3. The review has been assessed by the foundation (`is_assessed=True`).
         """
 
         comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
@@ -276,6 +277,7 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
 
         reviews = self.reviews.filter(
             is_removed=False,
+            is_assessed=True,
             content_type=comment_content_type,
             object_id__in=active_comment_ids,
         )
