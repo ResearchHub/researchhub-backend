@@ -8,12 +8,12 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 
 from feed.models import FeedEntry
 from feed.serializers import (
-
     CommentSerializer,
     ContentObjectSerializer,
     FeedEntrySerializer,
     FundingFeedEntrySerializer,
     FundraiseContributionContentSerializer,
+    GrantFeedEntrySerializer,
     PaperSerializer,
     PostSerializer,
     SimpleReviewSerializer,
@@ -43,6 +43,7 @@ from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
+from researchhub_comment.tests.helpers import create_rh_comment
 from researchhub_document.related_models.constants import document_type
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
@@ -2445,6 +2446,87 @@ class FundingFeedEntrySerializerTests(AWSMockTestCase):
 
         serializer = FundingFeedEntrySerializer(feed_entry)
         self.assertEqual(serializer.data["associated_grants"], [])
+
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.rsc_to_usd")
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
+    def test_grant_application_fundraise_includes_reviews(
+        self, mock_usd_to_rsc, mock_rsc_to_usd
+    ):
+        """Reviews on a preregistration appear in its fundraise within a grant's applications."""
+        mock_usd_to_rsc.return_value = 200.0
+        mock_rsc_to_usd.return_value = 0.005
+
+        # Arrange
+        grant_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
+        grant_post = ResearchhubPost.objects.create(
+            title="Test Grant Post",
+            created_by=self.user,
+            document_type=GRANT,
+            renderable_text="Grant post",
+            unified_document=grant_doc,
+        )
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_doc,
+            amount=Decimal("10000.00"),
+            currency=USD,
+            organization="Test Foundation",
+            short_title="Test Grant",
+            description="A test grant",
+            status=Grant.OPEN,
+        )
+        prereg_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        prereg_post = ResearchhubPost.objects.create(
+            title="Preregistration With Review",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            renderable_text="Prereg post",
+            unified_document=prereg_doc,
+        )
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=prereg_doc,
+            goal_amount=Decimal("5000.00"),
+            goal_currency=USD,
+            status=Fundraise.OPEN,
+        )
+        GrantApplication.objects.create(
+            grant=grant, preregistration_post=prereg_post, applicant=self.user
+        )
+        comment = create_rh_comment(post=prereg_post, created_by=self.user)
+        Review.objects.create(
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(comment),
+            object_id=comment.id,
+            unified_document=prereg_doc,
+            score=8,
+        )
+        feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=grant_post.id,
+            user=self.user,
+            action="PUBLISH",
+            action_date=grant_post.created_date,
+            unified_document=grant_doc,
+        )
+
+        # Act
+        data = GrantFeedEntrySerializer(feed_entry).data
+
+        # Assert
+        grant_data = data["content_object"]["grant"]
+        application = next(
+            app
+            for app in grant_data["applications"]
+            if app["preregistration_post_id"] == prereg_post.id
+        )
+        reviews = application["fundraise"]["reviews"]
+        self.assertEqual(len(reviews), 1)
+        self.assertEqual(reviews[0]["score"], 8.0)
+        self.assertFalse(reviews[0]["is_assessed"])
+        self.assertIsNotNone(reviews[0]["author"])
 
 
 class FundraiseContributionContentSerializerTests(AWSMockTestCase):

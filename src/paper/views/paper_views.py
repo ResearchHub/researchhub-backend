@@ -69,10 +69,7 @@ class PaperViewSet(
     ordering = "-created_date"
 
     permission_classes = [
-        IsAuthenticatedOrReadOnly
-        & CreatePaper
-        & UpdatePaper
-        & CreateOrUpdateIfAllowed
+        IsAuthenticatedOrReadOnly & CreatePaper & UpdatePaper & CreateOrUpdateIfAllowed
     ]
 
     def prefetch_lookups(self):
@@ -918,29 +915,6 @@ class PaperViewSet(
             return Response(vote_id, status=200)
         except Exception as e:
             return Response(f"Failed to delete vote: {e}", status=400)
-
-    @action(
-        detail=False,
-        methods=["get"],
-    )
-    def check_user_vote(self, request):
-        paper_ids = request.query_params["paper_ids"].split(",")
-        user = request.user
-        response = {}
-
-        if user.is_authenticated:
-            votes = Vote.objects.filter(
-                content_type=get_content_type_for_model(Paper),
-                object_id__in=paper_ids,
-                created_by=user,
-            )
-
-            for vote in votes.iterator():
-                paper_id = vote.object_id
-                data = VoteSerializer(instance=vote).data
-                response[paper_id] = data
-
-        return Response(response, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=[POST])
     def check_url(self, request):

@@ -346,7 +346,7 @@ if DEBUG:
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "researchhub.middleware.ApiTokenSession.UserApiTokenAuth",
+        "rest_framework.authentication.TokenAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
@@ -560,6 +560,11 @@ OPENAI_API_KEY = os.environ.get(
     getattr(keys, "OPENAI_API_KEY", ""),
 )
 
+AI_PEER_REVIEW_BEDROCK_MODEL_ID = os.environ.get(
+    "AI_PEER_REVIEW_BEDROCK_MODEL_ID",
+    getattr(keys, "AI_PEER_REVIEW_BEDROCK_MODEL_ID", ""),
+)
+
 if not (CLOUD or TESTING) and os.environ.get("AWS_PROFILE") is None:
     # Set AWS profile for local development
     os.environ["AWS_PROFILE"] = keys.AWS_PROFILE
@@ -740,7 +745,7 @@ REDIS_PORT = int(os.environ.get("REDIS_PORT", "6379"))
 if TESTING:
     CACHES = {
         "default": {
-            "BACKEND": "researchhub.TestCache.TestCache",
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
             "LOCATION": f"{REDIS_HOST}:{REDIS_PORT}",
             "KEY_PREFIX": APP_ENV,
         },

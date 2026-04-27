@@ -1,10 +1,12 @@
 import logging
 import time
+from datetime import timedelta
 from decimal import Decimal
 from typing import Optional, Tuple
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.utils import timezone
 
 from analytics.tasks import track_revenue_event
 from purchase.endaoment import EndaomentService
@@ -103,6 +105,7 @@ class FundraiseService:
         currency: str = RSC,
         check_self_contribution: bool = True,
         origin_fund_id: Optional[str] = None,
+        use_credits: bool = True,
     ) -> Tuple[Optional[Purchase], Optional[str]]:
         """
         Validates and creates a contribution to a fundraise.
@@ -115,6 +118,10 @@ class FundraiseService:
             currency: The currency type (RSC or USD)
             check_self_contribution: Whether to check if user is contributing to own fundraise
             origin_fund_id: The Endaoment fund (DAF) ID of the doner for USD grants
+            use_credits: For RSC contributions, which balance pool pays for
+                ``amount + fee``. When True, pay entirely from funding credits
+                (locked balance); when False, pay entirely from unlocked RSC.
+                Pools are never mixed. Ignored for USD contributions.
 
         Returns:
             Tuple of (contribution, error_message). If successful, error_message is None.
@@ -166,7 +173,9 @@ class FundraiseService:
                     f"{MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC}"
                 )
 
-            return self.create_rsc_contribution(user, fundraise, amount)
+            return self.create_rsc_contribution(
+                user, fundraise, amount, use_credits=use_credits
+            )
 
     def create_fundraise_with_escrow(
         self,
@@ -200,15 +209,26 @@ class FundraiseService:
         return fundraise
 
     def create_rsc_contribution(
-        self, user: User, fundraise: Fundraise, amount: Decimal
+        self,
+        user: User,
+        fundraise: Fundraise,
+        amount: Decimal,
+        use_credits: bool = True,
     ) -> Tuple[Optional[Purchase], Optional[str]]:
         """
         Creates an RSC contribution to a fundraise.
+
+        The contribution is funded exclusively from a single pool: when
+        ``use_credits`` is True the full ``amount + fee`` must be covered by
+        the user's funding credits (locked balance); when False, by unlocked
+        RSC. Mixing the two pools is not allowed.
 
         Args:
             user: The user making the contribution
             fundraise: The fundraise to contribute to
             amount: The contribution amount in RSC
+            use_credits: When True, pay entirely from funding credits (locked
+                balance). When False, pay entirely from unlocked RSC.
 
         Returns:
             Tuple of (purchase, error_message). If successful, error_message is None.
@@ -216,16 +236,19 @@ class FundraiseService:
         """
         # Calculate fees
         fee, rh_fee, dao_fee, fee_object = calculate_bounty_fees(amount)
+        total_cost = amount + fee
 
         with transaction.atomic():
             user = User.objects.select_for_update().get(id=user.id)
 
-            # Allocate the total spend (amount + fee) across locked/unlocked
-            # pools. Fundraise contributions are allowed to consume locked funds.
-            try:
-                allocations = user.allocate_spend(amount + fee, allow_locked=True)
-            except ValueError:
-                return None, "Insufficient balance"
+            if use_credits:
+                if user.get_locked_balance() < total_cost:
+                    return None, "Insufficient funding credits"
+                allocations = [{"amount": total_cost, "is_locked": True}]
+            else:
+                if user.get_available_balance() < total_cost:
+                    return None, "Insufficient balance"
+                allocations = [{"amount": total_cost, "is_locked": False}]
 
             # Create purchase object
             purchase = Purchase.objects.create(
@@ -500,6 +523,29 @@ class FundraiseService:
             fundraise.escrow.set_cancelled_status()
 
             return True
+
+    def reopen_fundraise(self, fundraise: Fundraise, duration_days: int) -> None:
+        """
+        Reopen a fundraise and set its end date `duration_days` days from now.
+        Rejects COMPLETED fundraises because funds have already been paid out.
+
+        Raises:
+            ValueError: If fundraise is completed or duration_days is not a
+                positive integer.
+        """
+        if not isinstance(duration_days, int) or duration_days <= 0:
+            raise ValueError("duration_days must be a positive integer")
+
+        with transaction.atomic():
+            if fundraise.status == Fundraise.COMPLETED:
+                raise ValueError("Cannot reopen a completed fundraise")
+
+            fundraise.status = Fundraise.OPEN
+            fundraise.end_date = timezone.now() + timedelta(days=duration_days)
+            fundraise.save()
+
+            if fundraise.escrow and fundraise.escrow.status == Escrow.CANCELLED:
+                fundraise.escrow.set_pending_status()
 
     def export_usd_contributions(self, fundraise: Fundraise) -> list[list]:
         """
