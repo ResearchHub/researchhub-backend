@@ -196,40 +196,11 @@ class RhCommentModel(
 
     """ --- METHODS --- """
 
-    # Recursively counts all direct and indirect children of a comment.
     def get_total_children_count(self):
-        """Return the total number of **direct and indirect** children, **including
-        censored / soft-deleted comments**.
-
-        The default related manager (`self.children`) only yields comments from
-        the default manager (i.e. *non-removed* ones).  For discussion metrics
-        we need to include comments that have been *censored* (soft-deleted)
-        because they still participate in the thread and must be counted.  To
-        achieve this we query through `RhCommentModel.all_objects`, which does
-        **not** filter out removed comments.
-        """
-
-        from researchhub_comment.models import (
-            RhCommentModel,  # local import to avoid circular
-        )
-
         total_count = 0
-
-        # Fetch **all** direct children regardless of `is_removed` status so we
-        # can traverse into the sub-tree even if an intermediate node is
-        # censored.  We will *only* count the child itself if it is **not**
-        # removed.
-        children_qs = RhCommentModel.all_objects.filter(parent=self)
-
-        for child in children_qs:
-            # Include the child in the tally only if it hasn't been censored
-            if not child.is_removed:
-                total_count += 1
-
-            # Always recurse into the child's descendants – they might contain
-            # visible comments even when the parent is censored.
-            total_count += child.get_total_children_count()
-
+        children = self.children.all()
+        for child in children:
+            total_count += 1 + child.get_total_children_count()
         return total_count
 
     def update_comment_content(self):
