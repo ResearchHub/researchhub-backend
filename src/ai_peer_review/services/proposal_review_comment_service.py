@@ -242,9 +242,7 @@ def get_proposal_review_ai_expert_comment(
     review: ProposalReview,
 ) -> RhCommentModel | None:
     """
-    The AI proposal review :class:`RhCommentModel` for this review, if it exists
-    (same location :func:`upsert_proposal_review_comment` would read or write).
-    Does not create threads, users, or comments.
+    The AI proposal review comment.
     """
     post = review.unified_document.posts.first()
     if post is None:
