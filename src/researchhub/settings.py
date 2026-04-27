@@ -745,7 +745,7 @@ REDIS_PORT = int(os.environ.get("REDIS_PORT", "6379"))
 if TESTING:
     CACHES = {
         "default": {
-            "BACKEND": "researchhub.TestCache.TestCache",
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
             "LOCATION": f"{REDIS_HOST}:{REDIS_PORT}",
             "KEY_PREFIX": APP_ENV,
         },
