@@ -638,9 +638,17 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         with transaction.atomic():
             comment = self.get_object()
             remove_bounties(comment)
+            self._cascade_censor_descendants(comment)
             censor_response = super().censor(request, *args, **kwargs)
             comment.refresh_related_discussion_count()
             return censor_response
+
+    def _cascade_censor_descendants(self, comment):
+        """Soft-delete all descendants so orphaned children don't inflate counts."""
+        for child in comment.children.all():
+            remove_bounties(child)
+            self._cascade_censor_descendants(child)
+            child.delete(soft=True)
 
     @action(
         detail=True,
