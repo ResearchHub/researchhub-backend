@@ -2,6 +2,7 @@ from datetime import date as date_cls
 from decimal import Decimal
 
 from django.db.models import Sum
+from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -46,6 +47,10 @@ class StakingYieldViewSet(viewsets.GenericViewSet):
         else:
             apy = 0.0
 
+        balance_lots = StakingYieldService.get_balance_lot_details(
+            user, timezone.now().date()
+        )
+
         data = {
             "is_staking_opted_in": user.is_staking_opted_in,
             "staking_opted_in_date": user.staking_opted_in_date,
@@ -65,6 +70,7 @@ class StakingYieldViewSet(viewsets.GenericViewSet):
                 else None
             ),
             "apy": apy,
+            "balance_lots": balance_lots,
         }
         serializer = StakingYieldDetailsSerializer(data)
         return Response(serializer.data)
