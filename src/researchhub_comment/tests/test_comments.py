@@ -570,26 +570,23 @@ class CommentViewTests(APITestCase):
         post_res = self.client.get(f"/api/researchhubpost/{post_id}/")
         self.assertEqual(post_res.data["discussion_count"], initial_count - 1)
 
-    def test_censored_top_level_comments_appear_in_list(self):
+    def test_censored_top_level_comments_excluded_from_list(self):
         """
-        Test that censored top-level comments still appear in the list endpoint
-        but in a sanitized form, with their children intact.
+        Test that censored top-level comments are completely excluded
+        from the list endpoint.
         """
-        # Create a parent comment with children
         parent_comment = self._create_paper_comment(self.paper.id, self.user_1)
-        child1 = self._create_paper_comment(
+        self._create_paper_comment(
             self.paper.id, self.user_2, parent_id=parent_comment.data["id"]
         )
-        child2 = self._create_paper_comment(
+        self._create_paper_comment(
             self.paper.id, self.user_3, parent_id=parent_comment.data["id"]
         )
 
         # Verify the top-level comment is initially visible in the list
         comments_res = self.client.get(f"/api/paper/{self.paper.id}/comments/")
         self.assertEqual(comments_res.status_code, 200)
-        initial_count = comments_res.data["count"]
-        # The list only shows top-level comments
-        self.assertEqual(initial_count, 1)
+        self.assertEqual(comments_res.data["count"], 1)
 
         # Censor the parent comment
         self.client.force_authenticate(self.moderator)
@@ -598,58 +595,28 @@ class CommentViewTests(APITestCase):
         )
         self.assertEqual(censor_res.status_code, 200)
 
-        # Get comments list again
+        # Get comments list again - censored comment should be gone
         comments_res = self.client.get(f"/api/paper/{self.paper.id}/comments/")
         self.assertEqual(comments_res.status_code, 200)
+        self.assertEqual(comments_res.data["count"], 0)
+        self.assertEqual(len(comments_res.data["results"]), 0)
 
-        # Should still have the same count of top-level comments
-        self.assertEqual(comments_res.data["count"], initial_count)
-
-        # Verify the censored parent comment is still in the results
-        censored_parent = comments_res.data["results"][0]
-        self.assertEqual(censored_parent["id"], parent_comment.data["id"])
-
-        # Verify it's properly sanitized
-        self.assertTrue(censored_parent["is_removed"])
-        self.assertIsNone(censored_parent["created_by"])
-        self.assertEqual(
-            censored_parent["comment_content_json"]["ops"][0]["insert"],
-            "[Comment removed]",
-        )
-
-        # Verify children are still associated
-        self.assertEqual(censored_parent["children_count"], 2)
-        child_ids = {child1.data["id"], child2.data["id"]}
-        result_child_ids = {child["id"] for child in censored_parent["children"]}
-        self.assertEqual(child_ids, result_child_ids)
-
-        # Verify child comments have proper content
-        for child in censored_parent["children"]:
-            self.assertFalse(child.get("is_removed", False))
-            self.assertIsNotNone(child["created_by"])
-            self.assertNotEqual(
-                child["comment_content_json"]["ops"][0]["insert"], "[Comment removed]"
-            )
-
-    def test_censored_nested_comments_appear_in_list(self):
+    def test_censored_nested_comments_excluded_from_children(self):
         """
-        Test that censored nested comments still appear in the list endpoint
-        but in a sanitized form, with their children intact.
+        Test that censored nested comments are excluded from the parent's
+        children in list and detail views.
         """
-        # Create a nested structure of comments
         parent = self._create_paper_comment(self.paper.id, self.user_1)
         middle = self._create_paper_comment(
             self.paper.id, self.user_2, parent_id=parent.data["id"]
         )
-        child = self._create_paper_comment(
+        self._create_paper_comment(
             self.paper.id, self.user_3, parent_id=middle.data["id"]
         )
 
         # Verify initial state
         comments_res = self.client.get(f"/api/paper/{self.paper.id}/comments/")
         self.assertEqual(comments_res.status_code, 200)
-
-        # Should have 1 top-level comment (list endpoint only shows top-level)
         self.assertEqual(comments_res.data["count"], 1)
 
         # Censor the middle comment
@@ -659,91 +626,31 @@ class CommentViewTests(APITestCase):
         )
         self.assertEqual(censor_res.status_code, 200)
 
-        # Get the top-level comment from the list
+        # Parent should still be visible, but the censored middle child excluded
         comments_res = self.client.get(f"/api/paper/{self.paper.id}/comments/")
+        self.assertEqual(comments_res.data["count"], 1)
         top_comment = comments_res.data["results"][0]
+        self.assertEqual(top_comment["id"], parent.data["id"])
 
-        # Get the individual comment details to check children
+        # The censored middle comment should not appear in parent's children
+        child_ids = [c["id"] for c in top_comment["children"]]
+        self.assertNotIn(middle.data["id"], child_ids)
+
+        # Directly requesting the censored comment should return 404
         comment_detail_res = self.client.get(
             f"/api/paper/{self.paper.id}/comments/{middle.data['id']}/"
         )
-        self.assertEqual(comment_detail_res.status_code, 200)
-        middle_comment = comment_detail_res.data
+        self.assertEqual(comment_detail_res.status_code, 404)
 
-        # Verify middle comment is properly sanitized
-        self.assertEqual(middle_comment["id"], middle.data["id"])
-        self.assertTrue(middle_comment["is_removed"])
-        self.assertIsNone(middle_comment["created_by"])
-        self.assertEqual(
-            middle_comment["comment_content_json"]["ops"][0]["insert"],
-            "[Comment removed]",
-        )
-
-        # Verify middle comment's child is still visible
-        self.assertEqual(middle_comment["children_count"], 1)
-        self.assertEqual(len(middle_comment["children"]), 1)
-        child_comment = middle_comment["children"][0]
-
-        # Child should not be sanitized
-        self.assertEqual(child_comment["id"], child.data["id"])
-        self.assertFalse(child_comment.get("is_removed", False))
-        self.assertIsNotNone(child_comment["created_by"])
-        self.assertNotEqual(
-            child_comment["comment_content_json"]["ops"][0]["insert"],
-            "[Comment removed]",
-        )
-
-    def test_censored_comments_visibility(self):
+    def test_nested_censored_comments_excluded_from_hierarchy(self):
         """
-        Test to verify that censored comments are returned by the list endpoint
-        but with sanitized content.
+        Test that censored comments are excluded from the comment hierarchy.
         """
-        # Create a top-level comment
-        parent_comment = self._create_paper_comment(self.paper.id, self.user_1)
-
-        # Verify the comment is initially visible
-        comments_res = self.client.get(f"/api/paper/{self.paper.id}/comments/")
-        self.assertEqual(comments_res.status_code, 200)
-        initial_count = comments_res.data["count"]
-        self.assertEqual(initial_count, 1)
-
-        # Censor the comment
-        self.client.force_authenticate(self.moderator)
-        censor_res = self.client.delete(
-            f"/api/paper/{self.paper.id}/comments/{parent_comment.data['id']}/censor/"
-        )
-        self.assertEqual(censor_res.status_code, 200)
-
-        # Check if comment is still in list - should be included with our updated queryset
-        comments_res = self.client.get(f"/api/paper/{self.paper.id}/comments/")
-        self.assertEqual(comments_res.status_code, 200)
-
-        # Count should remain the same since censored comments are now included
-        self.assertEqual(comments_res.data["count"], initial_count)
-
-        # The censored comment should be in the results
-        censored_comment = comments_res.data["results"][0]
-        self.assertEqual(censored_comment["id"], parent_comment.data["id"])
-
-        # Verify it's properly sanitized
-        self.assertTrue(censored_comment["is_removed"])
-        self.assertIsNone(censored_comment["created_by"])
-        self.assertEqual(
-            censored_comment["comment_content_json"]["ops"][0]["insert"],
-            "[Comment removed]",
-        )
-
-    def test_nested_censored_comments_visibility(self):
-        """
-        Test that censored comments at different levels in the hierarchy
-        are properly sanitized but remain visible in the comment tree.
-        """
-        # Create a nested comment structure
         parent = self._create_paper_comment(self.paper.id, self.user_1)
         child1 = self._create_paper_comment(
             self.paper.id, self.user_2, parent_id=parent.data["id"]
         )
-        child2 = self._create_paper_comment(
+        self._create_paper_comment(
             self.paper.id, self.user_3, parent_id=child1.data["id"]
         )
 
@@ -754,61 +661,28 @@ class CommentViewTests(APITestCase):
         )
         self.assertEqual(censor_res.status_code, 200)
 
-        # Get the top-level comment directly, which should include its censored child and grandchild
+        # Get the top-level comment - censored child should be excluded
         comment_detail_res = self.client.get(
             f"/api/paper/{self.paper.id}/comments/{parent.data['id']}/"
         )
         self.assertEqual(comment_detail_res.status_code, 200)
         top_comment = comment_detail_res.data
 
-        # Check the comment structure directly - parent should have a censored child
-        self.assertEqual(
-            len(top_comment["children"]), 1, "The parent should have exactly one child"
-        )
+        # The censored child should not appear in parent's children
+        child_ids = [c["id"] for c in top_comment["children"]]
+        self.assertNotIn(child1.data["id"], child_ids)
 
-        # The child should be censored
-        censored_child = top_comment["children"][0]
-        self.assertEqual(censored_child["id"], child1.data["id"])
-        self.assertTrue(censored_child["is_removed"])
-        self.assertIsNone(censored_child["created_by"])
-        self.assertEqual(
-            censored_child["comment_content_json"]["ops"][0]["insert"],
-            "[Comment removed]",
-        )
-
-        # The censored comment should still have its child visible
-        self.assertEqual(len(censored_child["children"]), 1)
-        grandchild = censored_child["children"][0]
-        self.assertEqual(grandchild["id"], child2.data["id"])
-        self.assertFalse(grandchild.get("is_removed", False))
-
-        # Now censor the parent and verify the entire hierarchy is still visible
+        # Now censor the parent too
         censor_res = self.client.delete(
             f"/api/paper/{self.paper.id}/comments/{parent.data['id']}/censor/"
         )
         self.assertEqual(censor_res.status_code, 200)
 
-        # Get the list - parent should be censored but still present
+        # The list should now be empty since the top-level parent is removed
         comments_res = self.client.get(f"/api/paper/{self.paper.id}/comments/")
         self.assertEqual(comments_res.status_code, 200)
-        self.assertEqual(comments_res.data["count"], 1)
-
-        # Parent should be censored
-        censored_parent = comments_res.data["results"][0]
-        self.assertEqual(censored_parent["id"], parent.data["id"])
-        self.assertTrue(censored_parent["is_removed"])
-
-        # The hierarchy should be preserved
-        self.assertEqual(len(censored_parent["children"]), 1)
-        middle_comment = censored_parent["children"][0]
-        self.assertEqual(middle_comment["id"], child1.data["id"])
-
-        # Both parent and middle are censored, grandchild is still intact
-        self.assertTrue(middle_comment["is_removed"])
-        self.assertEqual(len(middle_comment["children"]), 1)
-        grandchild = middle_comment["children"][0]
-        self.assertEqual(grandchild["id"], child2.data["id"])
-        self.assertFalse(grandchild.get("is_removed", False))
+        self.assertEqual(comments_res.data["count"], 0)
+        self.assertEqual(len(comments_res.data["results"]), 0)
 
     # ------------------------------------------------------------------
     #  DOCUMENT-METADATA METRICS TESTS

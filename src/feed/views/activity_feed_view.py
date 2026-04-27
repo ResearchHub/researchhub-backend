@@ -71,6 +71,15 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         queryset = queryset.exclude(content_type=paper_ct)
         queryset = queryset.exclude(user__is_active=False)
 
+        comment_ct = ContentType.objects.get_for_model(RhCommentModel)
+        removed_comment_ids = RhCommentModel.all_objects.filter(
+            is_removed=True
+        ).values_list("id", flat=True)
+        queryset = queryset.exclude(
+            content_type=comment_ct,
+            object_id__in=removed_comment_ids,
+        )
+
         scope = self.request.query_params.get("scope", "").lower()
         grant_id = self.request.query_params.get("grant_id")
 
