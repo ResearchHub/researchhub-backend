@@ -198,7 +198,6 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
                 "endaoment_org_id": np.endaoment_org_id,
             }
 
-        review_details = ud.get_review_details()
         reviews = [
             {
                 "id": r.id,
@@ -208,6 +207,14 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
             }
             for r in ud.reviews.all()
         ]
+
+        assessed_scores = [r["score"] for r in reviews if r["is_assessed"]]
+        review_metrics = {
+            "avg": (
+                sum(assessed_scores) / len(assessed_scores) if assessed_scores else 0
+            ),
+            "count": len(assessed_scores),
+        }
 
         return {
             "id": fundraise.id,
@@ -223,10 +230,7 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
                 "top": contributors,
             },
             "nonprofit": nonprofit_data,
-            "review_metrics": {
-                "avg": review_details.get("avg", 0),
-                "count": review_details.get("count", 0),
-            },
+            "review_metrics": review_metrics,
             "reviews": reviews,
         }
 
