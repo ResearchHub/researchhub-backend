@@ -1,6 +1,7 @@
 import os
 
 _PROMPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+_TRUNCATED_FOR_LENGTH_SUFFIX = "\n\n[TRUNCATED FOR LENGTH]"
 _template_cache: dict[str, str] = {}
 
 
@@ -28,8 +29,7 @@ def build_proposal_key_insights_user_prompt(
 ) -> str:
     """
     User message for the key-insights pass: proposal, RFP, AI review
-    summary, and human review text. Truncation matches
-    build_proposal_review_user_prompt for proposal (120k) and RFP (8k).
+    summary, and human review text.
     """
     rfp = ""
     if rfp_context and rfp_context.strip():
@@ -42,7 +42,7 @@ def build_proposal_key_insights_user_prompt(
     if ai_review_summary and ai_review_summary.strip():
         s = ai_review_summary.strip()
         if len(s) > 20000:
-            s = s[:20000] + "\n\n[TRUNCATED FOR LENGTH]"
+            s = s[:20000] + _TRUNCATED_FOR_LENGTH_SUFFIX
         ai = (
             "\n\nAI REVIEW SUMMARY (existing structured review on this proposal; use "
             "as an input signal, not a substitute for the proposal text):\n"
@@ -52,7 +52,7 @@ def build_proposal_key_insights_user_prompt(
     if human_reviews_text and human_reviews_text.strip():
         h = human_reviews_text.strip()
         if len(h) > 10000:
-            h = h[:10000] + "\n\n[TRUNCATED FOR LENGTH]"
+            h = h[:10000] + _TRUNCATED_FOR_LENGTH_SUFFIX
         human = (
             "\n\nHUMAN REVIEWS (RHF-ENDORSED: awarded or tipped by the ResearchHub "
             "Foundation account; use as peer signal where relevant):\n"
@@ -60,7 +60,7 @@ def build_proposal_key_insights_user_prompt(
         )
     text = (proposal_text or "").strip()
     if len(text) > 120000:
-        text = text[:120000] + "\n\n[TRUNCATED FOR LENGTH]"
+        text = text[:120000] + _TRUNCATED_FOR_LENGTH_SUFFIX
     return (
         "Read the following inputs and return only the required JSON: a short tldr, "
         "a strengths list, and a weaknesses list. Order strengths and weaknesses by "
@@ -120,7 +120,7 @@ def build_proposal_review_user_prompt(
         )
     text = (proposal_text or "").strip()
     if len(text) > 120000:
-        text = text[:120000] + "\n\n[TRUNCATED FOR LENGTH]"
+        text = text[:120000] + _TRUNCATED_FOR_LENGTH_SUFFIX
     return (
         "Evaluate the following research proposal and return the structured JSON "
         'assessment with four top-level categories under "categories" (all scored), '
