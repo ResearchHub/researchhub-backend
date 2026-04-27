@@ -17,6 +17,7 @@ from researchhub_document.serializers import (
     DynamicUnifiedDocumentSerializer,
     ResearchhubUnifiedDocumentSerializer,
 )
+from search.utils import remove_from_search_index
 from utils.permissions import ReadOnly
 
 
@@ -64,6 +65,8 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         if isinstance(inner_doc, Paper):
             inner_doc.is_removed = True
             inner_doc.save()
+
+        remove_from_search_index(inner_doc)
 
         action = inner_doc.actions
         if action.exists():
