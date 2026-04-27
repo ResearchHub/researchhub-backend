@@ -241,14 +241,22 @@ class PaperOpenAlexEnrichmentService:
                     ),
                 }
 
-                _, created = Author.objects.update_or_create(
-                    openalex_ids=author_instance.openalex_ids, defaults=defaults
-                )
+                # Use filter().first() instead of update_or_create to handle
+                # duplicate Author records with the same openalex_ids array.
+                existing_author = Author.objects.filter(
+                    openalex_ids=author_instance.openalex_ids
+                ).first()
 
-                if created:
-                    authors_created += 1
-                else:
+                if existing_author:
+                    for field, value in defaults.items():
+                        setattr(existing_author, field, value)
+                    existing_author.save(update_fields=list(defaults.keys()))
                     authors_updated += 1
+                else:
+                    Author.objects.create(
+                        openalex_ids=author_instance.openalex_ids, **defaults
+                    )
+                    authors_created += 1
 
             except Exception as e:
                 logger.error(
