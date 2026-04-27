@@ -54,7 +54,7 @@ def _get_rhf_endorsed_human_reviews(
 ) -> str:
     """
     Top-level community reviews on the proposal post that RHF either awarded
-    (bounty solution) or tipped (purchase), as labeled text for the LLM.
+    (bounty solution) or tipped (purchase).
     """
     rhf = User.objects.get_community_account()
     post = unified_document.posts.first()
