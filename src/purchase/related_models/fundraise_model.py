@@ -222,11 +222,14 @@ class Fundraise(DefaultModel):
             top=result,
         )
 
-    def get_amount_raised(self, currency=USD):
+    def get_amount_raised(self, currency=USD, rsc_to_usd_rate=None):
         """
         Get the net amount raised from both RSC (via escrow) and USD contributions.
         RSC amounts are calculated from escrow holdings. USD amounts are calculated
         live from UsdFundraiseContribution records.
+
+        When ``currency`` is USD, an explicit ``rsc_to_usd_rate`` may be provided
+        (e.g. a multi-day average) to value RSC at a rate other than the latest.
         """
         # Calculate RSC amount from escrow
         rsc_amount = 0.0
@@ -240,9 +243,13 @@ class Fundraise(DefaultModel):
         usd_from_contributions = usd_cents / 100.0
 
         if currency == USD:
-            usd_from_rsc = (
-                RscExchangeRate.rsc_to_usd(rsc_amount) if rsc_amount > 0 else 0
-            )
+            if rsc_amount > 0:
+                if rsc_to_usd_rate is not None:
+                    usd_from_rsc = rsc_amount * rsc_to_usd_rate
+                else:
+                    usd_from_rsc = RscExchangeRate.rsc_to_usd(rsc_amount)
+            else:
+                usd_from_rsc = 0
             return usd_from_rsc + usd_from_contributions
 
         if currency == RSC:

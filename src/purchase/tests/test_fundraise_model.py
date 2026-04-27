@@ -158,6 +158,21 @@ class GetAmountRaisedTests(TestCase):
         # We're mocking rsc_to_eth to return 0.0005, and it gets called twice
         self.assertEqual(amount_eth, 0.001)
 
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest")
+    def test_get_amount_raised_usd_with_rate_override(self, mock_exchange_rate):
+        """An explicit rsc_to_usd_rate overrides the latest rate for the USD branch."""
+        mock_exchange_rate.return_value = 0.01  # latest: 1 RSC = $0.01
+
+        self.fundraise.escrow.amount_holding = 1000
+        self.fundraise.escrow.save()
+        self._create_usd_contribution(self.fundraise, self.contributor, 5000)  # $50
+
+        # Override rate at $0.005 — 1000 RSC = $5, plus $50 in USD contribs = $55
+        amount = self.fundraise.get_amount_raised(currency=USD, rsc_to_usd_rate=0.005)
+        self.assertEqual(amount, 55.0)
+        # Latest rate must not have been consulted for the RSC conversion.
+        mock_exchange_rate.assert_not_called()
+
     def test_get_amount_raised_invalid_currency(self):
         """Test get_amount_raised raises ValueError for invalid currency."""
         with self.assertRaises(ValueError) as context:

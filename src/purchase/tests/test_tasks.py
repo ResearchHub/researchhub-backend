@@ -47,7 +47,8 @@ class FundraiseTasksTest(TestCase):
             target_currency="USD",
         )
         self.exchange_rate_patcher = patch(
-            "purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest",
+            "purchase.related_models.rsc_exchange_rate_model."
+            "RscExchangeRate.get_latest",
             return_value=self.rsc_exchange_rate.rate,
         )
         self.exchange_rate_patcher.start()
@@ -136,6 +137,50 @@ class FundraiseTasksTest(TestCase):
         self.assertEqual(fundraise.status, Fundraise.OPEN)
         self.assertEqual(fundraise.escrow.amount_holding, Decimal("100.00"))
         self.assertEqual(fundraise.escrow.amount_paid, Decimal("0.00"))
+
+    def test_complete_eligible_fundraises_uses_3_day_average_rate(self):
+        """Closeout should value RSC at the 3-day average rate, not the latest spike."""
+        from purchase.models import RscExchangeRate
+
+        # Stop the get_latest patcher set up in setUp so the task path
+        # exercises the real get_average_rate query.
+        self.exchange_rate_patcher.stop()
+        self.addCleanup(self.exchange_rate_patcher.start)
+
+        # Historical rates over the last 3 days average to 0.5 ($/RSC).
+        # Today there's an extreme spike (rate=2.0). Under the latest rate,
+        # 100 RSC would be worth $200 and would clear a $100 goal — but the
+        # 3-day average values it at $50, so the goal should NOT be met.
+        for days_ago, rate in [(2, 0.5), (1, 0.5), (0, 2.0)]:
+            obj = RscExchangeRate.objects.create(
+                rate=rate,
+                real_rate=rate,
+                price_source="COIN_GECKO",
+                target_currency="USD",
+            )
+            backdated = datetime.now(pytz.UTC) - timedelta(days=days_ago)
+            RscExchangeRate.objects.filter(pk=obj.pk).update(created_date=backdated)
+
+        fundraise = self.fundraise_service.create_fundraise_with_escrow(
+            user=self.user,
+            unified_document=self.post.unified_document,
+            goal_amount=Decimal("100.00"),
+            goal_currency="USD",
+            status=Fundraise.OPEN,
+        )
+        old_date = datetime.now(pytz.UTC) - timedelta(days=8)
+        fundraise.start_date = old_date
+        fundraise.save()
+
+        # 100 RSC: avg-rate value = $50 (under goal), latest value = $200 (over).
+        fundraise.escrow.amount_holding = Decimal("100.00")
+        fundraise.escrow.save()
+
+        result = complete_eligible_fundraises()
+
+        self.assertEqual(result["completed_count"], 0)
+        fundraise.refresh_from_db()
+        self.assertEqual(fundraise.status, Fundraise.OPEN)
 
     def test_complete_eligible_fundraises_too_new(self):
         """Test that fundraises less than a week old are not completed"""

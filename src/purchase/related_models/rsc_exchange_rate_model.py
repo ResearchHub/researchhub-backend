@@ -1,8 +1,12 @@
+from datetime import timedelta
 from typing import override
 
 from django.core.cache import cache
 from django.db import models
+from django.db.models import Avg
+from django.utils import timezone
 
+from purchase.related_models.constants.currency import USD
 from purchase.related_models.constants.rsc_exchange_currency import (
     MORALIS,
     PRICE_SOURCES,
@@ -54,6 +58,17 @@ class RscExchangeRate(DefaultModel):
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
         cache.delete(self._LATEST_EXCHANGE_RATE_CACHE_KEY)
+
+    @classmethod
+    def get_average_rate(cls, days: int = 3, target_currency: str = USD) -> float:
+        cutoff = timezone.now() - timedelta(days=days)
+        avg = cls.objects.filter(
+            target_currency=target_currency,
+            created_date__gte=cutoff,
+        ).aggregate(avg=Avg("rate"))["avg"]
+        if avg is None:
+            return cls.get_latest()
+        return avg
 
     @classmethod
     def get_latest(cls, force_refresh: bool = False) -> float:

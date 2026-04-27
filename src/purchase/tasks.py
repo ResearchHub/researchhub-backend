@@ -9,7 +9,7 @@ from mailing_list.lib import base_email_context, send_email
 from notification.models import Notification
 from paper.models import Paper
 from purchase.circle.service import CircleWalletService
-from purchase.models import Fundraise, Purchase, Support
+from purchase.models import Fundraise, Purchase, RscExchangeRate, Support
 from purchase.related_models.constants.currency import USD
 from purchase.services.fundraise_service import FundraiseService
 from reputation.models import Deposit
@@ -55,10 +55,16 @@ def complete_eligible_fundraises():
     completed_count = 0
     error_count = 0
 
+    # Use the trailing 3-day average RSC→USD rate so a transient price spike
+    # on the closeout day can't push a fundraise past its USD goal.
+    average_rsc_usd_rate = RscExchangeRate.get_average_rate(days=3)
+
     for fundraise in eligible_fundraises:
         try:
             # Check if the fundraise has met its goal
-            amount_raised_usd = fundraise.get_amount_raised(currency=USD)
+            amount_raised_usd = fundraise.get_amount_raised(
+                currency=USD, rsc_to_usd_rate=average_rsc_usd_rate
+            )
             goal_amount_usd = float(fundraise.goal_amount)
 
             if amount_raised_usd >= goal_amount_usd:
