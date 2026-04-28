@@ -1,6 +1,6 @@
 from functools import reduce
 
-from django.db.models import DecimalField, IntegerField, Q, Sum
+from django.db.models import DecimalField, IntegerField, Max, Q, Sum
 from django.db.models.functions import Cast, Coalesce
 from django_filters import DateTimeFilter
 from django_filters import rest_framework as filters
@@ -189,7 +189,15 @@ class RHCommentFilter(filters.FilterSet):
         )
 
     def ordering_filter(self, qs, name, value):
-        if value == BEST:
+        if value == BEST and self.data.get("filtering") == REVIEW:
+            qs = qs.annotate(
+                is_assessed=Max(
+                    Cast("reviews__is_assessed", output_field=IntegerField()),
+                )
+            )
+            keys = self._get_ordering_keys(["is_assessed", "score", "created_date"])
+            qs = qs.order_by(*keys)
+        elif value == BEST:
             qs = self._annotate_bounty_sum(
                 qs, annotation_filters=[{"bounties__status": Bounty.OPEN}]
             )
