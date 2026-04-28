@@ -1193,6 +1193,41 @@ class FundraiseViewTests(APITestCase):
         self.assertEqual(result["amount_usd"], "25.00")
         self.assertEqual(result["fee_cents"], 225)
         self.assertEqual(result["fee_usd"], "2.25")
+        # setUp creates an RscExchangeRate with rate=0.5 USD/RSC,
+        # so $25.00 -> 50 RSC.
+        self.assertEqual(result["rsc_usd_rate"], "0.5")
+        self.assertEqual(result["amount_rsc"], "50.00")
+
+    def test_usd_contributions_uses_historical_rsc_rate(self):
+        # Arrange — record a newer exchange rate AFTER the contribution,
+        # then verify the contribution serializes with the rate that was
+        # in effect at its created_date, not the latest one.
+        fundraise_response = self._create_fundraise(self.post.id)
+        fundraise = Fundraise.objects.get(id=fundraise_response.data["id"])
+        contributor = create_random_authenticated_user("usd_contrib_history")
+
+        contribution = UsdFundraiseContribution.objects.create(
+            user=contributor,
+            fundraise=fundraise,
+            amount_cents=1000,
+        )
+        # New rate created strictly after the contribution should not affect it.
+        newer_rate = RscExchangeRate.objects.create(
+            rate=2.0,
+            real_rate=2.0,
+            price_source="COIN_GECKO",
+            target_currency="USD",
+        )
+        self.assertGreater(newer_rate.created_date, contribution.created_date)
+
+        # Act
+        self.client.force_authenticate(contributor)
+        response = self.client.get("/api/fundraise/usd_contributions/")
+
+        # Assert — historical rate of 0.5 from setUp, $10 -> 20 RSC.
+        result = response.data["results"][0]
+        self.assertEqual(result["rsc_usd_rate"], "0.5")
+        self.assertEqual(result["amount_rsc"], "20.00")
 
     def test_usd_contributions_orders_most_recent_first(self):
         # Arrange
