@@ -274,7 +274,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 "_exclude_fields": (
                     "comment_content_src",
                     "promoted",
-                    "user_endorsement",
                     "user_flag",
                 ),
                 "_select_related_fields": (
@@ -421,7 +420,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 context=context,
                 _exclude_fields=(
                     "promoted",
-                    "user_endorsement",
                     "user_flag",
                     "comment_content_src",
                 ),
@@ -505,7 +503,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 context=context,
                 _exclude_fields=(
                     "promoted",
-                    "user_endorsement",
                     "user_flag",
                     "comment_content_src",
                 ),
@@ -624,7 +621,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 context=context,
                 _exclude_fields=(
                     "promoted",
-                    "user_endorsement",
                     "user_flag",
                     "comment_content_src",
                 ),
@@ -637,7 +633,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             context=context,
             _exclude_fields=(
                 "promoted",
-                "user_endorsement",
                 "user_flag",
                 "reviews",
                 "comment_content_src",
@@ -742,7 +737,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     context=context,
                     _exclude_fields=(
                         "promoted",
-                        "user_endorsement",
                         "user_flag",
                         "comment_content_src",
                     ),
@@ -764,7 +758,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             context=context,
             _exclude_fields=(
                 "promoted",
-                "user_endorsement",
                 "user_flag",
                 "comment_content_src",
             ),
@@ -795,7 +788,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 context=context,
                 _exclude_fields=(
                     "promoted",
-                    "user_endorsement",
                     "user_flag",
                     "comment_content_src",
                 ),
@@ -851,7 +843,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     context=context,
                     _exclude_fields=(
                         "promoted",
-                        "user_endorsement",
                         "user_flag",
                         "comment_content_src",
                     ),
@@ -905,7 +896,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 context=context,
                 _exclude_fields=(
                     "promoted",
-                    "user_endorsement",
                     "user_flag",
                     "comment_content_src",
                 ),
