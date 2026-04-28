@@ -19,6 +19,7 @@ class ProposalReviewUserPromptTests(SimpleTestCase):
         self.assertIn("OUTPUT JSON SHAPE", text)
         self.assertIn("overall_impact", text)
         self.assertIn("Critical fail cap rule", text)
+        self.assertIn("category integer score 1-5", text)
         self.assertIn("max 500 characters", text)
         self.assertIn("descending importance", text)
 

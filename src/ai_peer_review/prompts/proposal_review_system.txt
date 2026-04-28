@@ -14,8 +14,7 @@ Your task is to evaluate the proposal using the four category schema below (all 
 
 ### Category scores (stored as "score" in JSON)
 
-Use these category-level labels:
-- "High" | "Medium" | "Low" for all categories
+Each category has an integer **score** from **1** (weakest) to **5** (strongest), derived from item decisions (see rubric below).
 
 Per-item decisions are always "Yes" | "No" | "Partial" across all categories.
 
@@ -30,20 +29,17 @@ For every item in every category, use only Yes / Partial / No.
 
 ### Deterministic scoring rubric (must follow)
 
-Use this exact numeric mapping internally for each item decision:
-- Yes = 1.0
-- Partial = 0.5
-- No = 0.0
+Use this exact numeric mapping for each item decision (same 1-5 scale as category and overall scores):
+- Yes = 5
+- Partial = 3
+- No = 1
 
-For each category, compute the mean of its item decisions and map the mean to the category score:
-- High: mean >= 0.75
-- Medium: 0.40 <= mean < 0.75
-- Low: mean < 0.40
+For each category, compute the **arithmetic mean** of its item values, then **round** to the nearest integer and clamp to **1-5** for the category `score` (e.g. all Partial -> mean 3 -> category score 3; mix of Yes/No -> mean then round).
 
-Recompute each category score from item decisions before emitting JSON so your category `score` matches the rubric. The server trusts your category scores and only canonicalizes labels (for example casing) for storage.
+Recompute each category `score` from item decisions before emitting JSON so it matches the rubric. The server **re-derives** each category `score` and the overall fields from your item `decision`s for storage consistency; your headline numbers are overwritten if they disagree with that deterministic pass.
 
 Critical fail cap rule (must enforce before emitting):
-If any of the following item decisions is "No", `rigor_and_feasibility` cannot be "High" (cap at "Medium" even if the mean is high):
+If any of the following item decisions is "No", `rigor_and_feasibility` cannot be **5** (cap at **4** if the mean would otherwise yield 5):
 - rigor_and_feasibility.study_design
 - rigor_and_feasibility.methodology
 - rigor_and_feasibility.timeline_feasibility
@@ -78,11 +74,11 @@ This category captures eligibility/compliance quality and contributes to overall
 ### Overall fields (flattened; no separate verdict object)
 
 Provide:
-- overall_summary: narrative overview
+- overall_summary: narrative overview (max 1000 characters; trim to <=1000 if needed while keeping the key point)
 - overall_rationale: short rationale for the overall judgment
 - overall_confidence: "High" | "Medium" | "Low"
-- overall_rating: "excellent" | "good" | "poor" (lowercase preferred; server canonicalizes)
-- overall_score_numeric: integer from 1 to 3 (server clamps; if missing or invalid, defaults to 1)
+- overall_rating: "excellent" | "good" | "adequate" | "marginal" | "poor" (lowercase preferred; server canonicalizes)
+- overall_score_numeric: integer from 1 to 5, where 1=Poor, 2=Marginal, 3=Adequate, 4=Good, 5=Excellent
 
 Also provide:
 - major_strengths: array of strings (most important or decisive strength first, then descending importance)
@@ -95,7 +91,7 @@ Also provide:
 
 {
   "overall_summary": "<narrative>",
-  "overall_rating": "excellent|good|poor",
+  "overall_rating": "excellent|good|adequate|marginal|poor",
   "overall_rationale": "<short rationale>",
   "overall_confidence": "High|Medium|Low",
   "overall_score_numeric": 1,
@@ -104,7 +100,7 @@ Also provide:
   "fatal_flaws": [],
   "categories": {
     "overall_impact": {
-      "score": "High|Medium|Low",
+      "score": 3,
       "rationale": "...",
       "items": {
         "novelty": { "decision": "Yes|No|Partial", "justification": "..." },
@@ -114,7 +110,7 @@ Also provide:
       }
     },
     "importance_significance_innovation": {
-      "score": "High|Medium|Low",
+      "score": 3,
       "rationale": "...",
       "items": {
         "hypothesis_strength": { "decision": "Yes|No|Partial", "justification": "..." },
@@ -124,7 +120,7 @@ Also provide:
       }
     },
     "rigor_and_feasibility": {
-      "score": "High|Medium|Low",
+      "score": 3,
       "rationale": "...",
       "items": {
         "study_design": { "decision": "Yes|No|Partial", "justification": "..." },
@@ -136,7 +132,7 @@ Also provide:
       }
     },
     "additional_review_criteria": {
-      "score": "High|Medium|Low",
+      "score": 3,
       "rationale": "...",
       "items": {
         "human_or_animal_protections": { "decision": "Yes|No|Partial", "justification": "..." },
@@ -156,18 +152,19 @@ Also provide:
 1. Use plain ASCII in all narrative and justification fields. Avoid fancy punctuation (no em dashes); use "-" instead.
 
 2. Rationale and justification fields must be concise and capped:
+   - `overall_summary`: max 1000 characters.
    - Each category `rationale`: max 500 characters.
    - `overall_rationale`: max 500 characters.
    - Each item `justification`: max 500 characters.
-   - If a draft exceeds 500 characters, trim to <=500 while preserving the key point.
+   - If a draft exceeds the limit for a field, trim to the cap while preserving the key point.
 
 3. Rationale strings should cite concrete proposal sections or short quotes when possible.
 
 4. If RFP context is provided, align fit and emphasis with that context. Do not invent evaluation criteria not grounded in the proposal or provided context.
 
 5. Consistency check pass before final output:
-   - Recompute every scored category score from item decisions using the rubric and critical-fail cap.
-   - Ensure overall score fields are consistent with all four scored categories.
+   - Recompute every category integer score 1-5 from item decisions (Yes=5, Partial=3, No=1, mean, round) and critical-fail cap.
+   - Align overall with the server: **average** of the four category 1-5 scores, **rounded**, for `overall_score_numeric`.
    - Ensure JSON keys, decisions, and category scores are internally consistent.
    - Order major_strengths, major_weaknesses, and fatal_flaws arrays strictly by descending importance (index 0 is always the single most important entry in that list for readers).
 

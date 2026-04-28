@@ -87,11 +87,11 @@ class ProposalReviewAPITests(APITestCase):
             grant=self.grant,
             status=ReviewStatus.COMPLETED,
             overall_rating="good",
-            overall_score_numeric=2,
+            overall_score_numeric=4,
             overall_rationale="Strong fit.",
             overall_confidence="High",
             result_data={
-                "categories": {"overall_impact": {"score": "High"}},
+                "categories": {"overall_impact": {"score": 5}},
             },
         )
         self.client.force_authenticate(self.moderator)
@@ -115,13 +115,13 @@ class ProposalReviewAPITests(APITestCase):
             grant=self.grant,
             status=ReviewStatus.COMPLETED,
             overall_rating="excellent",
-            overall_score_numeric=3,
+            overall_score_numeric=5,
             result_data={
                 "categories": {
-                    "overall_impact": {"score": "High"},
-                    "importance_significance_innovation": {"score": "High"},
-                    "rigor_and_feasibility": {"score": "High"},
-                    "additional_review_criteria": {"score": "Low"},
+                    "overall_impact": {"score": 5},
+                    "importance_significance_innovation": {"score": 5},
+                    "rigor_and_feasibility": {"score": 5},
+                    "additional_review_criteria": {"score": 1},
                 },
             },
         )
@@ -131,10 +131,10 @@ class ProposalReviewAPITests(APITestCase):
         data = r.json()
         self.assertEqual(data["grant_id"], self.grant.id)
         self.assertEqual(len(data["proposals"]), 1)
-        self.assertEqual(data["proposals"][0]["categories"]["overall_impact"], "High")
+        self.assertEqual(data["proposals"][0]["categories"]["overall_impact"], 5)
         self.assertEqual(
             data["proposals"][0]["categories"]["additional_review_criteria"],
-            "Low",
+            1,
         )
 
     def test_editorial_feedback_upsert_requires_editor(self):
@@ -234,14 +234,14 @@ class GrantExecutiveSummaryAPITests(APITestCase):
             grant=self.grant,
             status=ReviewStatus.COMPLETED,
             overall_rating="good",
-            overall_score_numeric=2,
+            overall_score_numeric=4,
             result_data={
                 "overall_summary": "Solid work across categories.",
                 "categories": {
-                    "overall_impact": {"score": "High"},
-                    "importance_significance_innovation": {"score": "High"},
-                    "rigor_and_feasibility": {"score": "Medium"},
-                    "additional_review_criteria": {"score": "Low"},
+                    "overall_impact": {"score": 5},
+                    "importance_significance_innovation": {"score": 5},
+                    "rigor_and_feasibility": {"score": 3},
+                    "additional_review_criteria": {"score": 1},
                 },
             },
         )
