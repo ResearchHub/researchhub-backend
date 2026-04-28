@@ -21,7 +21,6 @@ class UsdFundraiseContributionSerializer(serializers.ModelSerializer):
             "fee_cents",
             "fee_usd",
             "status",
-            "is_refunded",
             "created_date",
             "updated_date",
         ]

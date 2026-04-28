@@ -228,6 +228,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         """
         contributions = (
             UsdFundraiseContribution.objects.for_user(request.user.id)
+            .not_refunded()
             .select_related("fundraise")
             .order_by("-created_date")
         )
