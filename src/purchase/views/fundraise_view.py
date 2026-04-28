@@ -3,6 +3,8 @@ from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.db.models import FloatField, OuterRef, Subquery
+from django.db.models.functions import Coalesce
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import serializers, viewsets
@@ -13,6 +15,7 @@ from rest_framework.response import Response
 from analytics.amplitude import track_event
 from purchase.models import Fundraise
 from purchase.related_models.constants.currency import RSC, USD
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.usd_fundraise_contribution_model import (
     UsdFundraiseContribution,
 )
@@ -226,10 +229,22 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         Return the authenticated user's USD fundraise contributions,
         ordered by most recent first.
         """
+        historical_rate_subquery = (
+            RscExchangeRate.objects.filter(created_date__lte=OuterRef("created_date"))
+            .annotate(effective_rate=Coalesce("real_rate", "rate"))
+            .order_by("-created_date")
+            .values("effective_rate")[:1]
+        )
+
         contributions = (
             UsdFundraiseContribution.objects.for_user(request.user.id)
             .not_refunded()
             .select_related("fundraise")
+            .annotate(
+                rsc_usd_rate_at_contribution=Subquery(
+                    historical_rate_subquery, output_field=FloatField()
+                )
+            )
             .order_by("-created_date")
         )
 
