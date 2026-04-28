@@ -209,7 +209,7 @@ class RhCommentModel(
 
         for bounty in self.bounties.iterator():
             if not bounty.close(Bounty.CANCELLED):
-                raise Exception("Failed to close bounties on comment")
+                raise RuntimeError("Failed to close bounties on comment")
 
     def soft_delete_descendants(self):
         """Soft-delete all descendants (not self).
