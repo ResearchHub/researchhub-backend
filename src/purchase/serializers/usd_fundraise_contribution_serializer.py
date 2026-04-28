@@ -35,20 +35,20 @@ class UsdFundraiseContributionSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def _cents_to_usd(self, cents):
+    def _cents_to_usd(self, cents: int) -> str:
         return str((Decimal(cents) / Decimal(100)).quantize(Decimal("0.01")))
 
-    def get_amount_usd(self, obj):
+    def get_amount_usd(self, obj: UsdFundraiseContribution) -> str:
         return self._cents_to_usd(obj.amount_cents)
 
-    def get_fee_usd(self, obj):
+    def get_fee_usd(self, obj: UsdFundraiseContribution) -> str:
         return self._cents_to_usd(obj.fee_cents)
 
-    def get_rsc_usd_rate(self, obj):
+    def get_rsc_usd_rate(self, obj: UsdFundraiseContribution) -> str | None:
         rate = obj.rsc_usd_rate_at_contribution
         return str(rate) if rate is not None else None
 
-    def get_amount_rsc(self, obj):
+    def get_amount_rsc(self, obj: UsdFundraiseContribution) -> str | None:
         rate = obj.rsc_usd_rate_at_contribution
         if not rate:
             return None
