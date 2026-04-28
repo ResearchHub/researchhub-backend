@@ -2,7 +2,9 @@ import decimal
 from datetime import datetime, timedelta
 from unittest import mock
 
+import pyotp
 import pytz
+from dj_rest_auth.mfa.totp import TOTP, generate_totp_secret
 from django.conf import settings
 from django.contrib.admin.models import LogEntry
 from django.contrib.contenttypes.models import ContentType
@@ -820,3 +822,118 @@ class WithdrawalViewSetTests(APITestCase):
 
         self.assertTrue(valid)
         self.assertIsNone(message)
+
+    def _make_eligible_withdrawer(self, name):
+        user = create_random_authenticated_user_with_reputation(name, 1000)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
+        user.save()
+        create_deposit(user, amount=str(WITHDRAWAL_MINIMUM * 2))
+        return user
+
+    @mock.patch.object(
+        WithdrawalViewSet, "_check_hotwallet_balance", return_value=(True, None)
+    )
+    def test_withdrawal_succeeds_without_mfa_when_user_has_no_mfa(self, _mock_balance):
+        """
+        Users without MFA enabled withdraw without supplying a code.
+        """
+        # Arrange
+        user = self._make_eligible_withdrawer("no_mfa_user")
+        self.client.force_authenticate(user)
+
+        # Act
+        response = self.client.post(
+            self.withdrawal_url,
+            {
+                "amount": str(WITHDRAWAL_MINIMUM + 10),
+                "to_address": "0xabcdef1234567890abcdef1234567890abcdef12",
+                "network": "ETHEREUM",
+            },
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 201)
+
+    @mock.patch.object(
+        WithdrawalViewSet, "_check_hotwallet_balance", return_value=(True, None)
+    )
+    def test_withdrawal_requires_mfa_code_when_mfa_enabled(self, _mock_balance):
+        """
+        MFA-enabled users get a 400 if they don't include an mfa_code.
+        """
+        # Arrange
+        user = self._make_eligible_withdrawer("mfa_required_user")
+        TOTP.activate(user, generate_totp_secret())
+        self.client.force_authenticate(user)
+
+        # Act
+        response = self.client.post(
+            self.withdrawal_url,
+            {
+                "amount": str(WITHDRAWAL_MINIMUM + 10),
+                "to_address": "0xabcdef1234567890abcdef1234567890abcdef12",
+                "network": "ETHEREUM",
+            },
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("MFA code is required", str(response.data))
+        self.assertFalse(Withdrawal.objects.filter(user=user).exists())
+
+    @mock.patch.object(
+        WithdrawalViewSet, "_check_hotwallet_balance", return_value=(True, None)
+    )
+    def test_withdrawal_rejects_invalid_mfa_code(self, _mock_balance):
+        """
+        An incorrect MFA code is rejected with a 400.
+        """
+        # Arrange
+        user = self._make_eligible_withdrawer("mfa_invalid_user")
+        TOTP.activate(user, generate_totp_secret())
+        self.client.force_authenticate(user)
+
+        # Act
+        response = self.client.post(
+            self.withdrawal_url,
+            {
+                "amount": str(WITHDRAWAL_MINIMUM + 10),
+                "to_address": "0xabcdef1234567890abcdef1234567890abcdef12",
+                "network": "ETHEREUM",
+                "mfa_code": "000000",
+            },
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Invalid MFA code", str(response.data))
+        self.assertFalse(Withdrawal.objects.filter(user=user).exists())
+
+    @mock.patch.object(
+        WithdrawalViewSet, "_check_hotwallet_balance", return_value=(True, None)
+    )
+    def test_withdrawal_succeeds_with_valid_totp_code(self, _mock_balance):
+        """
+        A valid TOTP code allows the withdrawal to proceed.
+        """
+        # Arrange
+        user = self._make_eligible_withdrawer("mfa_totp_user")
+        secret = generate_totp_secret()
+        TOTP.activate(user, secret)
+        self.client.force_authenticate(user)
+
+        # Act
+        response = self.client.post(
+            self.withdrawal_url,
+            {
+                "amount": str(WITHDRAWAL_MINIMUM + 10),
+                "to_address": "0xabcdef1234567890abcdef1234567890abcdef12",
+                "network": "ETHEREUM",
+                "mfa_code": pyotp.TOTP(secret).now(),
+            },
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(Withdrawal.objects.filter(id=response.data["id"]).exists())
