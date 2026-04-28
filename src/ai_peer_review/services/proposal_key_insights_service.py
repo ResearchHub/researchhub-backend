@@ -4,7 +4,6 @@ from typing import Any, Sequence
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import Q
 
 from ai_peer_review.models import (
     KeyInsightItemType,
@@ -19,6 +18,7 @@ from ai_peer_review.prompts.proposal_review_prompts import (
 )
 from ai_peer_review.services.bedrock_llm_service import BedrockLLMService
 from ai_peer_review.services.proposal_review_comment_service import (
+    get_ai_expert_user,
     get_proposal_review_ai_expert_comment,
 )
 from ai_peer_review.services.proposal_review_scoring import parse_json_response
@@ -26,11 +26,9 @@ from ai_peer_review.services.proposal_review_service import (
     get_grant_context_text,
     get_proposal_markdown,
 )
-from reputation.models import BountySolution
 from researchhub_comment.constants.rh_comment_thread_types import COMMUNITY_REVIEW
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubUnifiedDocument
-from user.models import User
 
 logger = logging.getLogger(__name__)
 
@@ -53,35 +51,28 @@ def _get_rhf_endorsed_human_reviews(
     unified_document: ResearchhubUnifiedDocument,
 ) -> str:
     """
-    Top-level community reviews on the proposal post that RHF either awarded
-    (bounty solution) or tipped (purchase).
+    Top-level community reviews on the proposal post whose Review row is
+    marked assessed. Excludes the AI review user since
+    the AI review is provided separately as ai_review_summary.
     """
-    rhf = User.objects.get_community_account()
     post = unified_document.posts.first()
     if not post:
         return ""
 
     post_ct = ContentType.objects.get_for_model(post)
+    ai_user = get_ai_expert_user()
 
-    awarded_by_rhf = Q(
-        bounty_solution__status=BountySolution.Status.AWARDED,
-        bounty_solution__awarded_amount__gt=0,
-        bounty_solution__bounty__created_by=rhf,
+    qs = RhCommentModel.objects.filter(
+        thread__content_type=post_ct,
+        thread__object_id=post.id,
+        comment_type=COMMUNITY_REVIEW,
+        parent__isnull=True,
+        is_removed=False,
+        reviews__is_assessed=True,
     )
-    tipped_by_rhf = Q(purchases__user=rhf)
-
-    qs = (
-        RhCommentModel.objects.filter(
-            thread__content_type=post_ct,
-            thread__object_id=post.id,
-            comment_type=COMMUNITY_REVIEW,
-            parent__isnull=True,
-            is_removed=False,
-        )
-        .filter(awarded_by_rhf | tipped_by_rhf)
-        .distinct()
-        .order_by("created_date", "id")
-    )
+    if ai_user is not None:
+        qs = qs.exclude(created_by=ai_user)
+    qs = qs.distinct().order_by("created_date", "id")
 
     blocks: list[str] = []
     for idx, comment in enumerate(qs, start=1):

@@ -142,6 +142,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         amount = data.get("amount", None)
         amount_currency = data.get("amount_currency", RSC)
         origin_fund_id = data.get("origin_fund_id") or None
+        use_credits = bool(data.get("use_credits", True))
 
         # Validate body
         if fundraise_id is None:
@@ -190,6 +191,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             amount=amount,
             currency=amount_currency,
             origin_fund_id=origin_fund_id,
+            use_credits=use_credits,
         )
 
         if error:

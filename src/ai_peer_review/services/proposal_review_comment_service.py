@@ -375,6 +375,7 @@ def upsert_proposal_review_comment(review: ProposalReview) -> RhCommentModel | N
                 review.overall_score_numeric
             ),
             "is_removed": False,
+            "is_assessed": True,
         },
     )
     return comment

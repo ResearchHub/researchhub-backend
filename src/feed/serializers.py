@@ -94,6 +94,7 @@ class SimpleReviewSerializer(serializers.ModelSerializer):
         fields = [
             "author",
             "id",
+            "is_assessed",
             "score",
         ]
 
