@@ -1156,3 +1156,96 @@ class FundraiseViewTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, 404)
+
+    # usd_contributions tests
+
+    def test_usd_contributions_returns_only_authenticated_users(self):
+        # Arrange
+        fundraise_response = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise_response.data["id"]
+        fundraise = Fundraise.objects.get(id=fundraise_id)
+
+        contributor = create_random_authenticated_user("usd_contrib_user")
+        other_user = create_random_authenticated_user("usd_contrib_other")
+
+        UsdFundraiseContribution.objects.create(
+            user=contributor,
+            fundraise=fundraise,
+            amount_cents=2500,
+            fee_cents=225,
+        )
+        UsdFundraiseContribution.objects.create(
+            user=other_user,
+            fundraise=fundraise,
+            amount_cents=9999,
+        )
+
+        # Act
+        self.client.force_authenticate(contributor)
+        response = self.client.get("/api/fundraise/usd_contributions/")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+        result = response.data["results"][0]
+        self.assertEqual(result["fundraise"], fundraise_id)
+        self.assertEqual(result["amount_cents"], 2500)
+        self.assertEqual(result["amount_usd"], "25.00")
+        self.assertEqual(result["fee_cents"], 225)
+        self.assertEqual(result["fee_usd"], "2.25")
+        self.assertFalse(result["is_refunded"])
+
+    def test_usd_contributions_orders_most_recent_first(self):
+        # Arrange
+        fundraise_response = self._create_fundraise(self.post.id)
+        fundraise = Fundraise.objects.get(id=fundraise_response.data["id"])
+        contributor = create_random_authenticated_user("usd_contrib_order")
+
+        older = UsdFundraiseContribution.objects.create(
+            user=contributor, fundraise=fundraise, amount_cents=1000
+        )
+        newer = UsdFundraiseContribution.objects.create(
+            user=contributor, fundraise=fundraise, amount_cents=2000
+        )
+
+        # Act
+        self.client.force_authenticate(contributor)
+        response = self.client.get("/api/fundraise/usd_contributions/")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        ids = [row["id"] for row in response.data["results"]]
+        self.assertEqual(ids, [newer.id, older.id])
+
+    def test_usd_contributions_includes_refunded(self):
+        # Arrange
+        fundraise_response = self._create_fundraise(self.post.id)
+        fundraise = Fundraise.objects.get(id=fundraise_response.data["id"])
+        contributor = create_random_authenticated_user("usd_contrib_refunded")
+
+        UsdFundraiseContribution.objects.create(
+            user=contributor, fundraise=fundraise, amount_cents=500
+        )
+        UsdFundraiseContribution.objects.create(
+            user=contributor,
+            fundraise=fundraise,
+            amount_cents=1000,
+            is_refunded=True,
+        )
+
+        # Act
+        self.client.force_authenticate(contributor)
+        response = self.client.get("/api/fundraise/usd_contributions/")
+
+        # Assert
+        self.assertEqual(response.data["count"], 2)
+
+    def test_usd_contributions_requires_authentication(self):
+        # Arrange
+        self.client.force_authenticate(user=None)
+
+        # Act
+        response = self.client.get("/api/fundraise/usd_contributions/")
+
+        # Assert
+        self.assertEqual(response.status_code, 401)
