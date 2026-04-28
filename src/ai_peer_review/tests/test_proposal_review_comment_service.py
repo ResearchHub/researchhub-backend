@@ -178,6 +178,7 @@ class ProposalReviewCommentServiceTests(TestCase):
         )
         review_row = Review.objects.get(object_id=comment.id)
         self.assertEqual(review_row.score, 2.0)
+        self.assertTrue(review_row.is_assessed)
 
     def test_upsert_proposal_review_comment_updates_existing_comment(self):
         original = upsert_proposal_review_comment(self.review)
@@ -211,3 +212,4 @@ class ProposalReviewCommentServiceTests(TestCase):
         self.assertIn("Very strong overall package.", updated.plain_text)
         review_row = Review.objects.get(object_id=updated.id)
         self.assertEqual(review_row.score, 5.0)
+        self.assertTrue(review_row.is_assessed)
