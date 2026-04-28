@@ -19,7 +19,7 @@ from rest_framework.viewsets import ModelViewSet
 from analytics.amplitude import track_event
 from discussion.permissions import EditorCensorDiscussion
 from discussion.views import ReactionViewActionMixin
-from reputation.models import Bounty, Contribution
+from reputation.models import Contribution
 from reputation.tasks import create_contribution, find_qualified_users_and_notify
 from reputation.utils import deduct_bounty_fees
 from reputation.views.bounty_view import _create_bounty, _create_bounty_checks
@@ -64,13 +64,6 @@ from review.services.review_service import (
     get_review_availability,
 )
 from utils.throttles import THROTTLE_CLASSES
-
-
-def remove_bounties(comment):
-    for bounty in comment.bounties.iterator():
-        cancelled = bounty.close(Bounty.CANCELLED)
-        if not cancelled:
-            raise Exception("Failed to close bounties on comment")
 
 
 class CommentPagination(PageNumberPagination):
@@ -637,18 +630,11 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
     def censor(self, request, *args, **kwargs):
         with transaction.atomic():
             comment = self.get_object()
-            remove_bounties(comment)
-            self._cascade_censor_descendants(comment)
+            comment.cancel_bounties()
+            comment.soft_delete_descendants()
             censor_response = super().censor(request, *args, **kwargs)
             comment.refresh_related_discussion_count()
             return censor_response
-
-    def _cascade_censor_descendants(self, comment):
-        """Soft-delete all descendants so orphaned children don't inflate counts."""
-        for child in comment.children.all():
-            remove_bounties(child)
-            self._cascade_censor_descendants(child)
-            child.delete(soft=True)
 
     @action(
         detail=True,

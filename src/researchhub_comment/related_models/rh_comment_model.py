@@ -203,6 +203,25 @@ class RhCommentModel(
             total_count += 1 + child.get_total_children_count()
         return total_count
 
+    def cancel_bounties(self):
+        """Cancel all open bounties attached to this comment."""
+        from reputation.models import Bounty
+
+        for bounty in self.bounties.iterator():
+            if not bounty.close(Bounty.CANCELLED):
+                raise Exception("Failed to close bounties on comment")
+
+    def soft_delete_descendants(self):
+        """Soft-delete all descendants (not self).
+
+        Cancels bounties on each descendant before removing it so
+        orphaned children never inflate discussion counts.
+        """
+        for child in self.children.all():
+            child.soft_delete_descendants()
+            child.cancel_bounties()
+            child.delete(soft=True)
+
     def update_comment_content(self):
         celery_create_comment_content_src.apply_async(
             (self.id, self.comment_content_json), countdown=2
