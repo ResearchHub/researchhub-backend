@@ -1,7 +1,6 @@
 """Tests for proposal key insights (RHF human-review filter, service, CLI)."""
 
 import json
-from decimal import Decimal
 from io import StringIO
 from unittest.mock import patch
 
@@ -22,12 +21,11 @@ from ai_peer_review.services.proposal_key_insights_service import (
     _get_rhf_endorsed_human_reviews,
     run_proposal_key_insights,
 )
-from purchase.models import Purchase
-from reputation.models import Bounty, BountySolution, Escrow
 from researchhub_comment.constants.rh_comment_thread_types import COMMUNITY_REVIEW
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
+from review.models import Review
 from user.models import User
 from user.related_models.user_model import FOUNDATION_EMAIL
 from user.tests.helpers import create_random_authenticated_user
@@ -54,14 +52,6 @@ class ProposalKeyInsightsRhfHumanReviewsFilterTests(TestCase):
     def setUp(self):
         self.reviewer = create_random_authenticated_user("ki_reviewer")
         self.other = create_random_authenticated_user("ki_other")
-        self.rhf, _ = User.objects.get_or_create(
-            email=FOUNDATION_EMAIL,
-            defaults={
-                "username": "rhf_foundation_key_insights",
-                "first_name": "RHF",
-                "last_name": "Foundation",
-            },
-        )
         self.post = create_post(
             created_by=self.other,
             document_type=PREREGISTRATION,
@@ -92,107 +82,38 @@ class ProposalKeyInsightsRhfHumanReviewsFilterTests(TestCase):
             comment_type=COMMUNITY_REVIEW,
         )
 
-    def _rhf_bounty(
-        self,
-        comment: RhCommentModel,
-        *,
-        created_by: User,
-        sol_status: str,
-        awarded_amount: Decimal = Decimal("10"),
-    ) -> Bounty:
-        escrow = Escrow.objects.create(
-            hold_type=Escrow.BOUNTY,
-            status=Escrow.PENDING,
-            amount_holding=Decimal("20"),
+    def _review(
+        self, comment: RhCommentModel, *, is_assessed: bool = True
+    ) -> Review:
+        return Review.objects.create(
             content_type=self.comment_ct,
             object_id=comment.id,
-            created_by=created_by,
-        )
-        bounty = Bounty.objects.create(
-            bounty_type=Bounty.Type.REVIEW,
-            amount=Decimal("20"),
-            created_by=created_by,
-            item_content_type=self.comment_ct,
-            item_object_id=comment.id,
-            escrow=escrow,
             unified_document=self.ud,
-        )
-        BountySolution.objects.create(
-            bounty=bounty,
             created_by=self.reviewer,
-            content_type=self.comment_ct,
-            object_id=comment.id,
-            status=sol_status,
-            awarded_amount=awarded_amount,
-        )
-        return bounty
-
-    def _rhf_tip(self, comment: RhCommentModel) -> None:
-        Purchase.objects.create(
-            user=self.rhf,
-            content_type=self.comment_ct,
-            object_id=comment.id,
-            amount="1",
-            paid_status=Purchase.PAID,
-            purchase_method=Purchase.OFF_CHAIN,
-            purchase_type=Purchase.BOOST,
+            score=3.0,
+            is_assessed=is_assessed,
         )
 
-    def test_includes_rhf_bounty_awarded_with_positive_amount(self):
+    def test_includes_assessed_community_review(self):
         t = self._thread()
-        c = self._comment(t, "MARK_AWARDED_OK")
-        self._rhf_bounty(
-            c, created_by=self.rhf, sol_status=BountySolution.Status.AWARDED
-        )
+        c = self._comment(t, "ASSESSED_TEXT")
+        self._review(c, is_assessed=True)
         out = _get_rhf_endorsed_human_reviews(self.ud)
-        self.assertIn("MARK_AWARDED_OK", out)
+        self.assertIn("ASSESSED_TEXT", out)
         self.assertIn("Reviewer 1", out)
 
-    def test_includes_rhf_purchase_tip(self):
+    def test_excludes_comment_with_no_review_row(self):
         t = self._thread()
-        c = self._comment(t, "MARK_TIP_OK")
-        self._rhf_tip(c)
+        self._comment(t, "NO_REVIEW")
         out = _get_rhf_endorsed_human_reviews(self.ud)
-        self.assertIn("MARK_TIP_OK", out)
+        self.assertNotIn("NO_REVIEW", out)
 
-    def test_excludes_unendorsed_comment(self):
+    def test_excludes_unassessed_review(self):
         t = self._thread()
-        self._comment(t, "MARK_EXCLUDED_PLAIN")
+        c = self._comment(t, "NOT_ASSESSED")
+        self._review(c, is_assessed=False)
         out = _get_rhf_endorsed_human_reviews(self.ud)
-        self.assertNotIn("MARK_EXCLUDED_PLAIN", out)
-
-    def test_excludes_non_rhf_bounty_even_if_awarded(self):
-        t = self._thread()
-        c = self._comment(t, "MARK_BOUNTY_OTHER_USER")
-        self._rhf_bounty(
-            c, created_by=self.other, sol_status=BountySolution.Status.AWARDED
-        )
-        out = _get_rhf_endorsed_human_reviews(self.ud)
-        self.assertNotIn("MARK_BOUNTY_OTHER_USER", out)
-
-    def test_excludes_submitted_solution_rhf_bounty(self):
-        t = self._thread()
-        c = self._comment(t, "MARK_SUBMITTED")
-        self._rhf_bounty(
-            c, created_by=self.rhf, sol_status=BountySolution.Status.SUBMITTED
-        )
-        out = _get_rhf_endorsed_human_reviews(self.ud)
-        self.assertNotIn("MARK_SUBMITTED", out)
-
-    def test_excludes_tip_from_non_rhf(self):
-        t = self._thread()
-        c = self._comment(t, "MARK_NONRHF_TIP")
-        Purchase.objects.create(
-            user=self.other,
-            content_type=self.comment_ct,
-            object_id=c.id,
-            amount="1",
-            paid_status=Purchase.PAID,
-            purchase_method=Purchase.OFF_CHAIN,
-            purchase_type=Purchase.BOOST,
-        )
-        out = _get_rhf_endorsed_human_reviews(self.ud)
-        self.assertNotIn("MARK_NONRHF_TIP", out)
+        self.assertNotIn("NOT_ASSESSED", out)
 
 
 @patch(
