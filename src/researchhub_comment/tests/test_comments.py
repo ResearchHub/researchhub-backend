@@ -430,6 +430,62 @@ class CommentViewTests(APITestCase):
         self.assertEqual(comments_res.data["count"], 0)
         self.assertEqual(len(comments_res.data["results"]), 0)
 
+    def test_censor_parent_cascades_to_descendants(self):
+        """Censoring a parent soft-deletes all descendants and updates the
+        discussion count to reflect that none of them are visible."""
+        parent = self._create_paper_comment(self.paper.id, self.user_1)
+        child = self._create_paper_comment(
+            self.paper.id, self.user_2, parent_id=parent.data["id"]
+        )
+        self._create_paper_comment(
+            self.paper.id, self.user_3, parent_id=child.data["id"]
+        )
+
+        # Arrange -- verify baseline: 1 top-level thread, 3 total comments
+        paper_res = self.client.get(f"/api/paper/{self.paper.id}/")
+        self.assertEqual(paper_res.data["discussion_count"], 3)
+
+        # Act -- censor only the parent
+        self.client.force_authenticate(self.moderator)
+        censor_res = self.client.delete(
+            f"/api/paper/{self.paper.id}/comments/{parent.data['id']}/censor/"
+        )
+        self.assertEqual(censor_res.status_code, 200)
+
+        # Assert -- all 3 comments removed, count drops to 0
+        paper_res = self.client.get(f"/api/paper/{self.paper.id}/")
+        self.assertEqual(paper_res.data["discussion_count"], 0)
+
+        comments_res = self.client.get(f"/api/paper/{self.paper.id}/comments/")
+        self.assertEqual(comments_res.data["count"], 0)
+
+    def test_censor_comment_with_bounty_cancels_bounty(self):
+        """Censoring a comment cancels its attached bounties."""
+        from reputation.models import Bounty
+
+        self._give_rsc(self.user_1, 1_000_000)
+        comment = self._create_paper_comment_with_bounty(
+            self.paper.id, self.user_1, amount=100
+        )
+        self.assertEqual(comment.status_code, 201)
+
+        bounty = Bounty.objects.filter(
+            item_content_type__model="rhcommentmodel",
+            item_object_id=comment.data["id"],
+        ).first()
+        self.assertEqual(bounty.status, Bounty.OPEN)
+
+        # Act
+        self.client.force_authenticate(self.moderator)
+        censor_res = self.client.delete(
+            f"/api/paper/{self.paper.id}/comments/{comment.data['id']}/censor/"
+        )
+        self.assertEqual(censor_res.status_code, 200)
+
+        # Assert
+        bounty.refresh_from_db()
+        self.assertEqual(bounty.status, Bounty.CANCELLED)
+
     # ------------------------------------------------------------------
     #  DOCUMENT-METADATA METRICS TESTS
     # ------------------------------------------------------------------
