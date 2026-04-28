@@ -268,7 +268,6 @@ urlpatterns = [
         "api/rsc/get_rsc_circulating_supply",
         reputation.views.get_rsc_circulating_supply,
     ),
-    path("api/permissions/", researchhub.views.permissions, name="permissions"),
     path("api/search/", include(search.urls)),
     path("api/research_ai/", include("research_ai.urls")),
     path("api/ai_peer_review/", include("ai_peer_review.urls")),
