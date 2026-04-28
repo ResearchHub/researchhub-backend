@@ -185,11 +185,15 @@ class ProposalReviewCommentServiceTests(TestCase):
         self.review.overall_rating = "excellent"
         self.review.overall_score_numeric = 5
         self.review.overall_rationale = "Very strong overall package."
+        rd = dict(self.review.result_data or {})
+        rd["overall_summary"] = "Very strong overall package."
+        self.review.result_data = rd
         self.review.save(
             update_fields=[
                 "overall_rating",
                 "overall_score_numeric",
                 "overall_rationale",
+                "result_data",
                 "updated_date",
             ]
         )
