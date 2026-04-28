@@ -821,10 +821,11 @@ class CommentViewTests(APITestCase):
 
     def test_get_document_metadata_review_metrics_update(self):
         """
-        Creating a *peer-review* and then deleting it should respectively
-        increase and decrease the ``reviews.count`` field returned by the
-        ``get_document_metadata`` endpoint.
+        Creating an assessed *peer-review* and then deleting it should
+        respectively increase and decrease the ``reviews.count`` field
+        returned by the ``get_document_metadata`` endpoint.
         """
+        from review.models import Review
 
         # Authenticate as user_1 who will author the review comment & review
         self.client.force_authenticate(self.user_1)
@@ -857,6 +858,9 @@ class CommentViewTests(APITestCase):
             },
         )
         self.assertIn(review_create_res.status_code, (200, 201))
+
+        # Mark the review as assessed so it counts toward review_metrics
+        Review.objects.filter(id=review_create_res.data["id"]).update(is_assessed=True)
 
         # 3) Metadata should now report *one* review
         after_create_meta = self._get_metadata()
