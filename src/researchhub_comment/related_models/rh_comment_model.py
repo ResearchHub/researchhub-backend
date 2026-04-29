@@ -31,6 +31,7 @@ from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
 from researchhub_comment.tasks import celery_create_comment_content_src
+from user.related_models.user_verification_model import UserVerification
 from utils.models import DefaultAuthenticatedModel, SoftDeletableModel
 
 
@@ -269,8 +270,6 @@ class RhCommentModel(
 
         Formula: weighted_score = 5 * (is_verified) + 2 * (score)
         """
-        from user.related_models.user_verification_model import UserVerification
-
         is_verified = Case(
             When(
                 created_by__userverification__status=UserVerification.Status.APPROVED,
