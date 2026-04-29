@@ -191,8 +191,10 @@ class RHCommentFilter(filters.FilterSet):
     def ordering_filter(self, qs, name, value):
         if value == BEST and self.data.get("filtering") == REVIEW:
             qs = qs.annotate(
-                is_assessed=Max(
-                    Cast("reviews__is_assessed", output_field=IntegerField()),
+                is_assessed=Coalesce(
+                    Max(Cast("reviews__is_assessed", output_field=IntegerField())),
+                    0,
+                    output_field=IntegerField(),
                 )
             )
             qs = RhCommentModel.annotate_weighted_score(qs)

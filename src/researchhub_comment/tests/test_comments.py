@@ -11,6 +11,7 @@ from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.models import Score
 from researchhub_comment.models import RhCommentModel
+from review.models import Review
 from user.models import UserVerification
 from user.tests.helpers import create_moderator, create_random_default_user, create_user
 
@@ -90,6 +91,11 @@ class CommentViewTests(APITestCase):
             },
         )
         return res
+
+    def _create_review_comment(self, paper_id, created_by, **kwargs):
+        return self._create_paper_comment(
+            paper_id, created_by, thread_type="REVIEW", comment_type="REVIEW", **kwargs
+        )
 
     def _create_post_comment(
         self, post_id, created_by, text="this is a test comment", **kwargs
@@ -951,83 +957,59 @@ class CommentViewTests(APITestCase):
     def test_best_ordering_verified_user_ranks_above_unverified(self):
         """Verified user's comment should sort above an unverified user's
         comment even when the unverified comment has a higher raw score."""
-        verified_comment = self._create_paper_comment(
-            self.paper.id, self.verified_user
-        )
-        unverified_comment = self._create_paper_comment(self.paper.id, self.user_1)
+        # Arrange
+        verified = self._create_paper_comment(self.paper.id, self.verified_user)
+        unverified = self._create_paper_comment(self.paper.id, self.user_1)
+        RhCommentModel.objects.filter(id=unverified.data["id"]).update(score=2)
 
-        # Give the unverified comment a higher raw score
-        comment_obj = RhCommentModel.objects.get(id=unverified_comment.data["id"])
-        comment_obj.score = 2
-        comment_obj.save()
-
+        # Act
         self.client.force_authenticate(self.user_1)
         res = self.client.get(
             f"/api/paper/{self.paper.id}/comments/?ordering=BEST&ascending=FALSE"
         )
 
-        self.assertEqual(res.status_code, 200)
+        # Assert
         results = res.data["results"]
-        self.assertEqual(results[0]["id"], verified_comment.data["id"])
-        self.assertEqual(results[1]["id"], unverified_comment.data["id"])
+        self.assertEqual(results[0]["id"], verified.data["id"])
+        self.assertEqual(results[1]["id"], unverified.data["id"])
 
     def test_best_ordering_review_assessed_outranks_verified(self):
         """For reviews, is_assessed should still outrank weighted_score."""
-        assessed_comment = self._create_paper_comment(
-            self.paper.id,
-            self.user_1,
-            thread_type="REVIEW",
-            comment_type="REVIEW",
-        )
-        verified_comment = self._create_paper_comment(
-            self.paper.id,
-            self.verified_user,
-            thread_type="REVIEW",
-            comment_type="REVIEW",
-        )
-
-        # Mark the unverified user's review as assessed
-        from review.models import Review
-
+        # Arrange
+        assessed = self._create_review_comment(self.paper.id, self.user_1)
+        verified = self._create_review_comment(self.paper.id, self.verified_user)
         Review.objects.create(
             content_type=ContentType.objects.get_for_model(RhCommentModel),
-            object_id=assessed_comment.data["id"],
+            object_id=assessed.data["id"],
             created_by=self.user_1,
             is_assessed=True,
         )
 
+        # Act
         self.client.force_authenticate(self.user_1)
         res = self.client.get(
             f"/api/paper/{self.paper.id}/comments/?filtering=REVIEW&ordering=BEST&ascending=FALSE"
         )
 
-        self.assertEqual(res.status_code, 200)
+        # Assert
         results = res.data["results"]
-        self.assertEqual(results[0]["id"], assessed_comment.data["id"])
-        self.assertEqual(results[1]["id"], verified_comment.data["id"])
+        self.assertEqual(results[0]["id"], assessed.data["id"])
+        self.assertEqual(results[1]["id"], verified.data["id"])
 
     def test_best_ordering_review_verified_ranks_higher_within_same_assessed_tier(self):
         """Within the same is_assessed tier, verified user's review should
         sort above unverified user's review."""
-        unverified_comment = self._create_paper_comment(
-            self.paper.id,
-            self.user_1,
-            thread_type="REVIEW",
-            comment_type="REVIEW",
-        )
-        verified_comment = self._create_paper_comment(
-            self.paper.id,
-            self.verified_user,
-            thread_type="REVIEW",
-            comment_type="REVIEW",
-        )
+        # Arrange
+        unverified = self._create_review_comment(self.paper.id, self.user_1)
+        verified = self._create_review_comment(self.paper.id, self.verified_user)
 
+        # Act
         self.client.force_authenticate(self.user_1)
         res = self.client.get(
             f"/api/paper/{self.paper.id}/comments/?filtering=REVIEW&ordering=BEST&ascending=FALSE"
         )
 
-        self.assertEqual(res.status_code, 200)
+        # Assert
         results = res.data["results"]
-        self.assertEqual(results[0]["id"], verified_comment.data["id"])
-        self.assertEqual(results[1]["id"], unverified_comment.data["id"])
+        self.assertEqual(results[0]["id"], verified.data["id"])
+        self.assertEqual(results[1]["id"], unverified.data["id"])
