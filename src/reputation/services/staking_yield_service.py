@@ -4,9 +4,11 @@ import time
 from dataclasses import dataclass
 from datetime import date
 from decimal import ROUND_DOWN, Decimal
+from typing import Optional
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models import Count, Q
 
 from reputation.distributions import create_staking_yield_distribution
 from reputation.distributor import Distributor
@@ -27,6 +29,17 @@ BASE_STAKING_MULTIPLIER = Decimal("1")
 STAKING_MULTIPLIER_30_DAY = Decimal("1.05")
 STAKING_MULTIPLIER_180_DAY = Decimal("1.1")
 STAKING_MULTIPLIER_365_DAY = Decimal("1.25")
+
+
+def _resolve_rate_for_date(rates, target_date):
+    """Return the rate from the latest record on or before `target_date`, or None."""
+    chosen = None
+    for record in rates:
+        if record["created_date"].date() <= target_date:
+            chosen = record["rate"]
+        else:
+            break
+    return chosen
 
 
 @dataclass(frozen=True)
@@ -115,6 +128,107 @@ class StakingYieldService:
         return (total_weighted_stake / total_staked).quantize(
             QUANTIZE_8, rounding=ROUND_DOWN
         )
+
+    @staticmethod
+    def compute_apy_for_snapshot(snapshot: Optional[StakingGlobalSnapshot]) -> float:
+        """APY % implied by the daily emission for a snapshot's accrual_date."""
+        if snapshot is None or snapshot.total_staked <= 0:
+            return 0.0
+
+        daily_emission = StakingYieldService.compute_total_daily_emission(
+            snapshot.accrual_date
+        )
+        if daily_emission <= 0:
+            return 0.0
+
+        return float(daily_emission) / float(snapshot.total_staked) * 365 * 100
+
+    @staticmethod
+    def compute_top_n_pct_concentration(
+        snapshot: StakingGlobalSnapshot, pct: int = 10
+    ) -> float:
+        """Share of total stake held by the top `pct`% of stakers, as a percentage.
+
+        Uses ceiling rounding for the cohort size (e.g. 7 stakers, top 10% → 1 staker).
+        """
+        if snapshot is None or snapshot.total_staked <= 0:
+            return 0.0
+
+        holders = snapshot.user_snapshots.filter(stake_amount__gt=0).count()
+        if holders == 0:
+            return 0.0
+
+        cohort_size = max(1, math.ceil(holders * pct / 100))
+        top_stakes = (
+            snapshot.user_snapshots.filter(stake_amount__gt=0)
+            .order_by("-stake_amount")
+            .values_list("stake_amount", flat=True)[:cohort_size]
+        )
+        cohort_total = sum(top_stakes, Decimal("0"))
+        return float(cohort_total / snapshot.total_staked) * 100
+
+    @staticmethod
+    def holders_count(snapshot: Optional[StakingGlobalSnapshot]) -> int:
+        if snapshot is None:
+            return 0
+        return snapshot.user_snapshots.filter(stake_amount__gt=0).count()
+
+    @staticmethod
+    def build_history(start_date: Optional[date], end_date: Optional[date]) -> list:
+        """Return per-snapshot history rows in ascending date order.
+
+        Each row: {accrual_date, apy, total_staked_rsc, total_value_locked_usd,
+        holders}. `total_value_locked_usd` is `None` when no USD rate exists on
+        or before the snapshot date.
+        """
+        from purchase.related_models.constants.rsc_exchange_currency import USD
+        from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+
+        snapshots_qs = StakingGlobalSnapshot.objects.all()
+        if start_date is not None:
+            snapshots_qs = snapshots_qs.filter(accrual_date__gte=start_date)
+        if end_date is not None:
+            snapshots_qs = snapshots_qs.filter(accrual_date__lte=end_date)
+
+        snapshots = list(
+            snapshots_qs.annotate(
+                holders=Count(
+                    "user_snapshots",
+                    filter=Q(user_snapshots__stake_amount__gt=0),
+                )
+            ).order_by("accrual_date")
+        )
+        if not snapshots:
+            return []
+
+        rate_lookup_end = snapshots[-1].accrual_date
+        rates = list(
+            RscExchangeRate.objects.filter(
+                target_currency=USD,
+                created_date__date__lte=rate_lookup_end,
+            )
+            .order_by("created_date")
+            .values("created_date", "rate")
+        )
+
+        rows = []
+        for snapshot in snapshots:
+            rate = _resolve_rate_for_date(rates, snapshot.accrual_date)
+            if rate is None:
+                tvl_usd = None
+            else:
+                tvl_usd = snapshot.total_staked * Decimal(str(rate))
+
+            rows.append(
+                {
+                    "accrual_date": snapshot.accrual_date,
+                    "apy": StakingYieldService.compute_apy_for_snapshot(snapshot),
+                    "total_staked_rsc": snapshot.total_staked,
+                    "total_value_locked_usd": tvl_usd,
+                    "holders": snapshot.holders,
+                }
+            )
+        return rows
 
     @staticmethod
     def compute_total_daily_emission(accrual_date):

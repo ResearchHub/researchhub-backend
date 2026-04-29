@@ -79,6 +79,93 @@ The Staking Yield API allows authenticated users to retrieve details about Resea
 | 400 | `date` value is not a valid date | `{"error": "Invalid date format. Use YYYY-MM-DD."}` |
 | 401 | Request is not authenticated | Standard DRF authentication error |
 
+### 3. Get Public Staking Stats
+
+**Endpoint**: `GET /api/staking_yield/stats/`
+
+**Authentication**: None (public).
+
+**Description**: Returns the latest snapshot's headline metrics for marketing-page display. Cached for 15 minutes.
+
+#### Response
+
+```json
+{
+    "accrual_date": "2026-04-29",
+    "apy": 12.34,
+    "apy_30d_avg": 12.10,
+    "holders": 1543,
+    "top_10_concentration_pct": 62.5,
+    "total_staked_rsc": "5000000.00000000",
+    "total_value_locked_usd": "1750000.00",
+    "circulating_supply_rsc": "85000000.00000000",
+    "pct_of_supply_staked": 5.88
+}
+```
+
+#### Response Fields
+
+| Field | Type | Nullable | Description |
+|---|---|---|---|
+| `accrual_date` | date | Yes | Date of the most recent global snapshot. `null` if no snapshot exists. |
+| `apy` | float | No | Current APY % implied by today's daily emission and total staked. |
+| `apy_30d_avg` | float | No | Mean APY across up to the last 30 daily snapshots. |
+| `holders` | integer | No | Distinct stakers in the latest snapshot with stake > 0. |
+| `top_10_concentration_pct` | float | No | Share of total stake held by the top 10% of stakers (ceil rounded). |
+| `total_staked_rsc` | decimal | No | Total RSC staked in the latest snapshot. |
+| `total_value_locked_usd` | decimal | Yes | `total_staked_rsc` × latest USD rate. `null` if no rate exists. |
+| `circulating_supply_rsc` | decimal | No | Circulating RSC supply at the latest snapshot. |
+| `pct_of_supply_staked` | float | No | `total_staked / circulating_supply × 100`. |
+
+When no snapshots exist, all numeric fields are `0` (or `null` for `accrual_date` and `total_value_locked_usd`); status is still `200`.
+
+---
+
+### 4. Get Historical Staking Series
+
+**Endpoint**: `GET /api/staking_yield/history/?range=90d`
+
+**Authentication**: None (public).
+
+**Description**: Returns one row per global snapshot in the requested window, ascending by date. Cached for 15 minutes.
+
+#### Query Parameters
+
+| Parameter | Required | Allowed | Default | Description |
+|---|---|---|---|---|
+| `range` | No | `7d`, `30d`, `90d`, `all` | `90d` | Look-back window measured from today. |
+
+Invalid `range` values return `400`.
+
+#### Response
+
+```json
+{
+    "range": "90d",
+    "results": [
+        {
+            "accrual_date": "2026-04-11",
+            "apy": 14.20,
+            "total_staked_rsc": "4000000.00000000",
+            "total_value_locked_usd": "1400000.00",
+            "holders": 412
+        }
+    ]
+}
+```
+
+#### Response Fields (per row)
+
+| Field | Type | Nullable | Description |
+|---|---|---|---|
+| `accrual_date` | date | No | Snapshot date. |
+| `apy` | float | No | APY % implied by daily emission for that date. |
+| `total_staked_rsc` | decimal | No | Total RSC staked on that date. |
+| `total_value_locked_usd` | decimal | Yes | `total_staked_rsc` × that day's USD rate (latest record on or before the snapshot date). `null` if no rate is on file. |
+| `holders` | integer | No | Distinct stakers with stake > 0 on that date. |
+
+---
+
 ## Staking Opt-In
 
 Before a user can earn yield, they must opt into staking via the User API.
