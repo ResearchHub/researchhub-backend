@@ -1,6 +1,7 @@
 # flake8: noqa
 import time
 
+from django.contrib.contenttypes.models import ContentType
 from rest_framework.test import APITestCase
 
 from hub.models import Hub
@@ -9,6 +10,7 @@ from paper.tests.helpers import create_paper
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.models import Score
+from researchhub_comment.models import RhCommentModel
 from user.models import UserVerification
 from user.tests.helpers import create_moderator, create_random_default_user, create_user
 
@@ -945,3 +947,87 @@ class CommentViewTests(APITestCase):
         self.assertEqual(author_update_res.data["count"], 1)
         self.assertEqual(regular_res.status_code, 200)
         self.assertEqual(regular_res.data["count"], 1)
+
+    def test_best_ordering_verified_user_ranks_above_unverified(self):
+        """Verified user's comment should sort above an unverified user's
+        comment even when the unverified comment has a higher raw score."""
+        verified_comment = self._create_paper_comment(
+            self.paper.id, self.verified_user
+        )
+        unverified_comment = self._create_paper_comment(self.paper.id, self.user_1)
+
+        # Give the unverified comment a higher raw score
+        comment_obj = RhCommentModel.objects.get(id=unverified_comment.data["id"])
+        comment_obj.score = 2
+        comment_obj.save()
+
+        self.client.force_authenticate(self.user_1)
+        res = self.client.get(
+            f"/api/paper/{self.paper.id}/comments/?ordering=BEST&ascending=FALSE"
+        )
+
+        self.assertEqual(res.status_code, 200)
+        results = res.data["results"]
+        self.assertEqual(results[0]["id"], verified_comment.data["id"])
+        self.assertEqual(results[1]["id"], unverified_comment.data["id"])
+
+    def test_best_ordering_review_assessed_outranks_verified(self):
+        """For reviews, is_assessed should still outrank weighted_score."""
+        assessed_comment = self._create_paper_comment(
+            self.paper.id,
+            self.user_1,
+            thread_type="REVIEW",
+            comment_type="REVIEW",
+        )
+        verified_comment = self._create_paper_comment(
+            self.paper.id,
+            self.verified_user,
+            thread_type="REVIEW",
+            comment_type="REVIEW",
+        )
+
+        # Mark the unverified user's review as assessed
+        from review.models import Review
+
+        Review.objects.create(
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=assessed_comment.data["id"],
+            created_by=self.user_1,
+            is_assessed=True,
+        )
+
+        self.client.force_authenticate(self.user_1)
+        res = self.client.get(
+            f"/api/paper/{self.paper.id}/comments/?filtering=REVIEW&ordering=BEST&ascending=FALSE"
+        )
+
+        self.assertEqual(res.status_code, 200)
+        results = res.data["results"]
+        self.assertEqual(results[0]["id"], assessed_comment.data["id"])
+        self.assertEqual(results[1]["id"], verified_comment.data["id"])
+
+    def test_best_ordering_review_verified_ranks_higher_within_same_assessed_tier(self):
+        """Within the same is_assessed tier, verified user's review should
+        sort above unverified user's review."""
+        unverified_comment = self._create_paper_comment(
+            self.paper.id,
+            self.user_1,
+            thread_type="REVIEW",
+            comment_type="REVIEW",
+        )
+        verified_comment = self._create_paper_comment(
+            self.paper.id,
+            self.verified_user,
+            thread_type="REVIEW",
+            comment_type="REVIEW",
+        )
+
+        self.client.force_authenticate(self.user_1)
+        res = self.client.get(
+            f"/api/paper/{self.paper.id}/comments/?filtering=REVIEW&ordering=BEST&ascending=FALSE"
+        )
+
+        self.assertEqual(res.status_code, 200)
+        results = res.data["results"]
+        self.assertEqual(results[0]["id"], verified_comment.data["id"])
+        self.assertEqual(results[1]["id"], unverified_comment.data["id"])

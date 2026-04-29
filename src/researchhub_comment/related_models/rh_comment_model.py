@@ -5,11 +5,15 @@ from django.db.models import (
     CASCADE,
     SET_NULL,
     BooleanField,
+    Case,
     CharField,
+    F,
     FileField,
     ForeignKey,
+    IntegerField,
     JSONField,
     TextField,
+    When,
 )
 
 from discussion.models import AbstractGenericReactionModel
@@ -258,6 +262,24 @@ class RhCommentModel(
         ):
             related_document.discussion_count = related_document.get_discussion_count()
             related_document.save(update_fields=["discussion_count"])
+
+    @classmethod
+    def annotate_weighted_score(cls, qs):
+        """Annotate a comment queryset with ``weighted_score``.
+
+        Formula: weighted_score = 5 * (is_verified) + 2 * (score)
+        """
+        from user.related_models.user_verification_model import UserVerification
+
+        is_verified = Case(
+            When(
+                created_by__userverification__status=UserVerification.Status.APPROVED,
+                then=1,
+            ),
+            default=0,
+            output_field=IntegerField(),
+        )
+        return qs.annotate(weighted_score=5 * is_verified + 2 * F("score"))
 
     @classmethod
     def create_from_data(cls, data):
