@@ -2,7 +2,9 @@ import decimal
 from datetime import datetime, timedelta
 from unittest import mock
 
+import pyotp
 import pytz
+from dj_rest_auth.mfa.totp import TOTP, generate_totp_secret
 from django.conf import settings
 from django.contrib.admin.models import LogEntry
 from django.contrib.contenttypes.models import ContentType
@@ -85,6 +87,13 @@ class WithdrawalViewSetTests(APITestCase):
         self.settings_patcher.stop()
         self.requests_get_patcher.stop()
 
+    def _create_withdrawer(self, name):
+        user = create_random_authenticated_user_with_reputation(name, 1000)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
+        user.save()
+        return user
+
     def test_list_only_shows_user_withdrawals(self):
         """Test that a user can only see their own withdrawals."""
         # Create withdrawals for various users
@@ -125,10 +134,7 @@ class WithdrawalViewSetTests(APITestCase):
 
     def test_create_withdrawal_success(self):
         """Test successful withdrawal creation."""
-        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
-        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
-        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
-        user.save()
+        user = self._create_withdrawer("rep_user")
 
         # Create a deposit well above the minimum
         deposit_amount = WITHDRAWAL_MINIMUM * 2
@@ -170,10 +176,7 @@ class WithdrawalViewSetTests(APITestCase):
 
     def test_withdrawal_below_minimum(self):
         """Test that withdrawals below minimum amount are rejected."""
-        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
-        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
-        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
-        user.save()
+        user = self._create_withdrawer("rep_user")
 
         # Create a small deposit
         create_deposit(user, amount=str(WITHDRAWAL_MINIMUM - 1))
@@ -194,10 +197,7 @@ class WithdrawalViewSetTests(APITestCase):
 
     def test_withdrawal_with_pending_transaction(self):
         """Test that users can't create a new withdrawal with a pending one."""
-        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
-        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
-        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
-        user.save()
+        user = self._create_withdrawer("rep_user")
 
         # Create a deposit
         create_deposit(user, amount="1000.0")
@@ -227,10 +227,7 @@ class WithdrawalViewSetTests(APITestCase):
 
     def test_withdrawal_exceeds_user_balance(self):
         """Test that users can't withdraw more than their balance."""
-        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
-        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
-        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
-        user.save()
+        user = self._create_withdrawer("rep_user")
 
         # Create a deposit
         create_deposit(user, amount="100.0")
@@ -250,10 +247,7 @@ class WithdrawalViewSetTests(APITestCase):
 
     def test_locked_balance_cannot_be_withdrawn(self):
         """Test that locked balance is excluded from user withdrawals."""
-        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
-        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
-        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
-        user.save()
+        user = self._create_withdrawer("rep_user")
 
         Balance.objects.create(
             user=user,
@@ -289,10 +283,7 @@ class WithdrawalViewSetTests(APITestCase):
 
     def test_withdrawal_does_not_consume_locked_balance(self):
         """Test that successful withdrawals only reduce unlocked balance."""
-        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
-        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
-        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
-        user.save()
+        user = self._create_withdrawer("rep_user")
 
         deposit_amount = WITHDRAWAL_MINIMUM * 2
         create_deposit(user, amount=str(deposit_amount))
@@ -385,10 +376,7 @@ class WithdrawalViewSetTests(APITestCase):
 
     def test_withdrawal_network_validation(self):
         """Test that invalid networks are rejected."""
-        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
-        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
-        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
-        user.save()
+        user = self._create_withdrawer("rep_user")
 
         create_deposit(user, amount="1000.0")
         self.client.force_authenticate(user)
@@ -408,10 +396,7 @@ class WithdrawalViewSetTests(APITestCase):
 
     def test_withdrawal_creates_balance_record(self):
         """Test that a balance record is created when withdrawing."""
-        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
-        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
-        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
-        user.save()
+        user = self._create_withdrawer("rep_user")
 
         # Create a deposit well above the minimum
         deposit_amount = WITHDRAWAL_MINIMUM * 2
@@ -497,10 +482,7 @@ class WithdrawalViewSetTests(APITestCase):
 
     def test_check_withdrawal_interval_within_time_limit(self):
         """Test withdrawal interval validation for withdrawals within the time limit."""
-        user = create_random_authenticated_user("test_user")
-        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
-        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
-        user.save()
+        user = self._create_withdrawer("rep_user")
 
         # Create a recent withdrawal
         withdrawal = Withdrawal.objects.create(
@@ -531,10 +513,7 @@ class WithdrawalViewSetTests(APITestCase):
 
     def test_check_withdrawal_interval_after_time_limit(self):
         """Test withdrawal interval validation for withdrawals after the time limit."""
-        user = create_random_authenticated_user("test_user")
-        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
-        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
-        user.save()
+        user = self._create_withdrawer("rep_user")
 
         # Create an old withdrawal
         withdrawal = Withdrawal.objects.create(
@@ -556,10 +535,7 @@ class WithdrawalViewSetTests(APITestCase):
 
     def test_verified_user_withdrawal_interval(self):
         """Test that verified users have a shorter withdrawal interval."""
-        user = create_random_authenticated_user("verified_user")
-        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
-        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
-        user.save()
+        user = self._create_withdrawer("rep_user")
 
         # Add verification
         UserVerification.objects.create(
@@ -588,10 +564,7 @@ class WithdrawalViewSetTests(APITestCase):
 
     def test_exception_in_payment_process(self):
         """Test that exceptions in the payment process are handled properly."""
-        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
-        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
-        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
-        user.save()
+        user = self._create_withdrawer("rep_user")
 
         create_deposit(user, amount="1000.0")
         self.client.force_authenticate(user)
@@ -627,10 +600,7 @@ class WithdrawalViewSetTests(APITestCase):
 
     def test_transaction_fee_bigger_than_withdrawal_amount(self):
         """Test that withdrawal fails if transaction fee is bigger than amount."""
-        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
-        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
-        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
-        user.save()
+        user = self._create_withdrawer("rep_user")
 
         # Create a deposit with an amount above the withdrawal minimum
         deposit_amount = WITHDRAWAL_MINIMUM + 100.0
@@ -820,3 +790,114 @@ class WithdrawalViewSetTests(APITestCase):
 
         self.assertTrue(valid)
         self.assertIsNone(message)
+
+    @mock.patch.object(
+        WithdrawalViewSet, "_check_hotwallet_balance", return_value=(True, None)
+    )
+    def test_withdrawal_succeeds_without_mfa_when_user_has_no_mfa(self, _mock_balance):
+        """
+        Users without MFA enabled withdraw without supplying a code.
+        """
+        # Arrange
+        user = self._create_withdrawer("no_mfa_user")
+        create_deposit(user, amount=str(WITHDRAWAL_MINIMUM * 2))
+        self.client.force_authenticate(user)
+
+        # Act
+        response = self.client.post(
+            self.withdrawal_url,
+            {
+                "amount": str(WITHDRAWAL_MINIMUM + 10),
+                "to_address": "0xabcdef1234567890abcdef1234567890abcdef12",
+                "network": "ETHEREUM",
+            },
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 201)
+
+    @mock.patch.object(
+        WithdrawalViewSet, "_check_hotwallet_balance", return_value=(True, None)
+    )
+    def test_withdrawal_requires_mfa_code_when_mfa_enabled(self, _mock_balance):
+        """
+        MFA-enabled users get a 400 if they don't include an mfa_code.
+        """
+        # Arrange
+        user = self._create_withdrawer("mfa_required_user")
+        create_deposit(user, amount=str(WITHDRAWAL_MINIMUM * 2))
+        TOTP.activate(user, generate_totp_secret())
+        self.client.force_authenticate(user)
+
+        # Act
+        response = self.client.post(
+            self.withdrawal_url,
+            {
+                "amount": str(WITHDRAWAL_MINIMUM + 10),
+                "to_address": "0xabcdef1234567890abcdef1234567890abcdef12",
+                "network": "ETHEREUM",
+            },
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("MFA code is required", str(response.data))
+        self.assertFalse(Withdrawal.objects.filter(user=user).exists())
+
+    @mock.patch.object(
+        WithdrawalViewSet, "_check_hotwallet_balance", return_value=(True, None)
+    )
+    def test_withdrawal_rejects_invalid_mfa_code(self, _mock_balance):
+        """
+        An incorrect MFA code is rejected with a 400.
+        """
+        # Arrange
+        user = self._create_withdrawer("mfa_invalid_user")
+        create_deposit(user, amount=str(WITHDRAWAL_MINIMUM * 2))
+        TOTP.activate(user, generate_totp_secret())
+        self.client.force_authenticate(user)
+
+        # Act
+        response = self.client.post(
+            self.withdrawal_url,
+            {
+                "amount": str(WITHDRAWAL_MINIMUM + 10),
+                "to_address": "0xabcdef1234567890abcdef1234567890abcdef12",
+                "network": "ETHEREUM",
+                "mfa_code": "000000",
+            },
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Invalid MFA code", str(response.data))
+        self.assertFalse(Withdrawal.objects.filter(user=user).exists())
+
+    @mock.patch.object(
+        WithdrawalViewSet, "_check_hotwallet_balance", return_value=(True, None)
+    )
+    def test_withdrawal_succeeds_with_valid_totp_code(self, _mock_balance):
+        """
+        A valid TOTP code allows the withdrawal to proceed.
+        """
+        # Arrange
+        user = self._create_withdrawer("mfa_totp_user")
+        create_deposit(user, amount=str(WITHDRAWAL_MINIMUM * 2))
+        secret = generate_totp_secret()
+        TOTP.activate(user, secret)
+        self.client.force_authenticate(user)
+
+        # Act
+        response = self.client.post(
+            self.withdrawal_url,
+            {
+                "amount": str(WITHDRAWAL_MINIMUM + 10),
+                "to_address": "0xabcdef1234567890abcdef1234567890abcdef12",
+                "network": "ETHEREUM",
+                "mfa_code": pyotp.TOTP(secret).now(),
+            },
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(Withdrawal.objects.filter(id=response.data["id"]).exists())
