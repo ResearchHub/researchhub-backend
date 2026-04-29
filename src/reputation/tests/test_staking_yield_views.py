@@ -405,6 +405,29 @@ class StakingHistoryEndpointTest(StakingPublicStatsTestBase):
         resp = self.client.get("/api/staking_yield/history/?range=all")
         self.assertIsNone(resp.data["results"][0]["total_value_locked_usd"])
 
+    def test_unknown_query_params_dont_bust_cache(self):
+        snap = self._create_global_snapshot(
+            date(2026, 4, 15), total_staked=Decimal("1000")
+        )
+        self._add_user_snapshot(snap, Decimal("1000"), label="solo")
+
+        # Prime the cache with a vanilla request.
+        first = self.client.get("/api/staking_yield/history/?range=all")
+        self.assertEqual(first.status_code, 200)
+
+        # An attacker varying the URL with junk params must not trigger another
+        # DB-backed build_history call. Mutating snapshot data after the cache
+        # is primed proves the second response came from cache.
+        StakingGlobalSnapshot.objects.filter(pk=snap.pk).update(
+            total_staked=Decimal("99999999")
+        )
+
+        nonced = self.client.get(
+            "/api/staking_yield/history/?range=all&nonce=attack&foo=bar"
+        )
+        self.assertEqual(nonced.status_code, 200)
+        self.assertEqual(nonced.data, first.data)
+
     def test_holders_per_day(self):
         snap1 = self._create_global_snapshot(
             date(2026, 4, 15), total_staked=Decimal("100")

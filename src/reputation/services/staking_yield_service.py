@@ -10,6 +10,8 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Count, Q
 
+from purchase.related_models.constants.rsc_exchange_currency import USD
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.distributions import create_staking_yield_distribution
 from reputation.distributor import Distributor
 from reputation.related_models.staking_global_snapshot import StakingGlobalSnapshot
@@ -130,9 +132,9 @@ class StakingYieldService:
         )
 
     @staticmethod
-    def compute_apy_for_snapshot(snapshot: Optional[StakingGlobalSnapshot]) -> float:
+    def compute_apy_for_snapshot(snapshot: StakingGlobalSnapshot) -> float:
         """APY % implied by the daily emission for a snapshot's accrual_date."""
-        if snapshot is None or snapshot.total_staked <= 0:
+        if snapshot.total_staked <= 0:
             return 0.0
 
         daily_emission = StakingYieldService.compute_total_daily_emission(
@@ -151,7 +153,7 @@ class StakingYieldService:
 
         Uses ceiling rounding for the cohort size (e.g. 7 stakers, top 10% → 1 staker).
         """
-        if snapshot is None or snapshot.total_staked <= 0:
+        if snapshot.total_staked <= 0:
             return 0.0
 
         holders = snapshot.user_snapshots.filter(stake_amount__gt=0).count()
@@ -168,9 +170,7 @@ class StakingYieldService:
         return float(cohort_total / snapshot.total_staked) * 100
 
     @staticmethod
-    def holders_count(snapshot: Optional[StakingGlobalSnapshot]) -> int:
-        if snapshot is None:
-            return 0
+    def holders_count(snapshot: StakingGlobalSnapshot) -> int:
         return snapshot.user_snapshots.filter(stake_amount__gt=0).count()
 
     @staticmethod
@@ -181,9 +181,6 @@ class StakingYieldService:
         holders}. `total_value_locked_usd` is `None` when no USD rate exists on
         or before the snapshot date.
         """
-        from purchase.related_models.constants.rsc_exchange_currency import USD
-        from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-
         snapshots_qs = StakingGlobalSnapshot.objects.all()
         if start_date is not None:
             snapshots_qs = snapshots_qs.filter(accrual_date__gte=start_date)

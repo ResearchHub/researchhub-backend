@@ -85,7 +85,7 @@ The Staking Yield API allows authenticated users to retrieve details about Resea
 
 **Authentication**: None (public).
 
-**Description**: Returns the latest snapshot's headline metrics for marketing-page display. Cached for 15 minutes.
+**Description**: Returns the latest snapshot's headline metrics for marketing-page display. Cached for 1 hour.
 
 #### Response
 
@@ -127,7 +127,7 @@ When no snapshots exist, all numeric fields are `0` (or `null` for `accrual_date
 
 **Authentication**: None (public).
 
-**Description**: Returns one row per global snapshot in the requested window, ascending by date. Cached for 15 minutes.
+**Description**: Returns one row per global snapshot in the requested window, ascending by date. Cached for 1 hour.
 
 #### Query Parameters
 
