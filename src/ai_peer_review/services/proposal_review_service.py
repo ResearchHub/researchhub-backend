@@ -58,6 +58,29 @@ def get_grant_context_text(grant: Grant) -> str:
     return "\n\n".join(p for p in parts if p).strip()
 
 
+def reset_proposal_review_for_rerun(review: ProposalReview) -> None:
+    """Clear AI outputs so :func:`run_proposal_review` can run again."""
+    review.status = ReviewStatus.PENDING
+    review.error_message = ""
+    review.result_data = {}
+    review.overall_rating = None
+    review.overall_rationale = ""
+    review.overall_confidence = None
+    review.overall_score_numeric = None
+    review.save(
+        update_fields=[
+            "status",
+            "error_message",
+            "result_data",
+            "overall_rating",
+            "overall_rationale",
+            "overall_confidence",
+            "overall_score_numeric",
+            "updated_date",
+        ]
+    )
+
+
 def validate_grant_application(grant_id: int, unified_document_id: int) -> None:
     if not GrantApplication.objects.filter(
         grant_id=grant_id,

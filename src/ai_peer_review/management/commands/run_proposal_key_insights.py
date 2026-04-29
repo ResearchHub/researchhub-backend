@@ -17,6 +17,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from ai_peer_review.models import ProposalKeyInsight, ProposalReview, ReviewStatus
+from ai_peer_review.services.auto_run_guards import should_skip_key_insights
 from ai_peer_review.services.proposal_key_insights_service import (
     run_proposal_key_insights,
 )
@@ -140,7 +141,9 @@ class Command(BaseCommand):
             reviews_qs = base.filter(q)
 
         reviews = list(
-            reviews_qs.select_related("unified_document", "grant").order_by("id")
+            reviews_qs.select_related(
+                "unified_document", "grant", "key_insight"
+            ).order_by("id")
         )
         total = len(reviews)
         generated = 0
@@ -169,6 +172,13 @@ class Command(BaseCommand):
         for i, review in enumerate(reviews, start=1):
             before = review.id in completed_before_ids
             label = f"review={review.id} grant={review.grant_id}"
+            skip, reason = should_skip_key_insights(review, force=force)
+            if skip:
+                skipped += 1
+                self.stdout.write(
+                    self.style.WARNING(f"[{i}/{total}] {label} SKIP (guard: {reason})")
+                )
+                continue
             try:
                 ki = run_proposal_key_insights(review.id, force=force)
             except Exception as e:
