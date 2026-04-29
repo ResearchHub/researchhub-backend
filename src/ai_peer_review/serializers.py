@@ -69,7 +69,6 @@ class ProposalReviewSerializer(serializers.ModelSerializer):
             "status",
             "overall_rating",
             "overall_rationale",
-            "overall_confidence",
             "overall_score_numeric",
             "result_data",
             "error_message",

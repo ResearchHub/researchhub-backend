@@ -1,7 +1,9 @@
 import logging
 
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 
+from ai_peer_review.constants import AI_PEER_REVIEW_EXPERT_EMAIL_DEFAULT
 from ai_peer_review.models import ProposalReview, ReviewStatus
 from researchhub_comment.constants.rh_comment_content_types import TIPTAP
 from researchhub_comment.constants.rh_comment_thread_types import COMMUNITY_REVIEW
@@ -11,13 +13,20 @@ from user.models import User
 
 logger = logging.getLogger(__name__)
 
-AI_EXPERT_EMAIL = "ai-review@researchhub.foundation"
+
+def resolve_ai_expert_email() -> str:
+    """Email for the AI proposal-review user; empty/missing settings use the default constant."""
+    raw = getattr(settings, "AI_PEER_REVIEW_EXPERT_EMAIL", "") or ""
+    s = raw.strip()
+    return s if s else AI_PEER_REVIEW_EXPERT_EMAIL_DEFAULT
+
+
 AI_REVIEW_COMMENT_CONTEXT_TITLE = "AI Proposal Review"
 AI_REVIEW_OVERALL_SUMMARY_TITLE = "Summary"
 
 
 def get_ai_expert_user() -> User | None:
-    return User.objects.filter(email=AI_EXPERT_EMAIL).first()
+    return User.objects.filter(email=resolve_ai_expert_email()).first()
 
 
 def _text_node(
@@ -47,21 +56,6 @@ def _paragraph(
     return {
         "type": "paragraph",
         "content": [_text_node(text, bold=bold, italic=italic)],
-    }
-
-
-def _bullet_list(items: list[str]) -> dict:
-    return {
-        "type": "bulletList",
-        "content": [
-            {
-                "type": "listItem",
-                "content": [
-                    {"type": "paragraph", "content": [{"type": "text", "text": i}]}
-                ],
-            }
-            for i in items
-        ],
     }
 
 
@@ -150,24 +144,9 @@ def _append_title_and_rationale(
         body.append(_paragraph(t))
 
 
-def _omit_fatal_flaws_section(raw) -> bool:
-    """Omit the Fatal flaws block for ``[]``, missing, or a sole ``"None"``-style entry."""
-    if raw is None:
-        return True
-    if not isinstance(raw, list):
-        return True
-    items = [x.strip() for x in (str(s) for s in raw) if x.strip()]
-    if not items:
-        return True
-    if len(items) == 1 and items[0].lower() in ("none", "n/a", "n/a."):
-        return True
-    return False
-
-
 def proposal_review_to_tiptap_content(review: ProposalReview) -> dict:
     result_data = review.result_data or {}
     categories = result_data.get("categories") or {}
-    raw_fatal = result_data.get("fatal_flaws")
 
     impact = categories.get("overall_impact") or {}
     importance = categories.get("importance_significance_innovation") or {}
@@ -220,10 +199,6 @@ def proposal_review_to_tiptap_content(review: ProposalReview) -> dict:
             category_rationale=additional.get("rationale"),
         )
         _append_category_item_bullets(body, additional)
-    if not _omit_fatal_flaws_section(raw_fatal):
-        items = [str(s).strip() for s in (raw_fatal or []) if str(s).strip()]
-        body.append(_paragraph("Fatal flaws", bold=True, italic=True))
-        body.append(_bullet_list(items[:5]))
     summary_text = _rationale_text(result_data.get("overall_summary"))
     if summary_text:
         body.append(_paragraph(AI_REVIEW_OVERALL_SUMMARY_TITLE, bold=True))
@@ -305,7 +280,7 @@ def upsert_proposal_review_comment(review: ProposalReview) -> RhCommentModel | N
         logger.warning(
             "AI expert user missing for proposal review comment sync "
             "(expected email=%s)",
-            AI_EXPERT_EMAIL,
+            resolve_ai_expert_email(),
         )
         return None
     content_type = ContentType.objects.get_for_model(post)

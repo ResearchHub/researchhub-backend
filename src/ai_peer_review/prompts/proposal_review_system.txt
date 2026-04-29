@@ -76,14 +76,8 @@ This category captures eligibility/compliance quality and contributes to overall
 Provide:
 - overall_summary: narrative overview (max 1000 characters; trim to <=1000 if needed while keeping the key point)
 - overall_rationale: short rationale for the overall judgment
-- overall_confidence: "High" | "Medium" | "Low"
 - overall_rating: "excellent" | "good" | "adequate" | "marginal" | "poor" (lowercase preferred; server canonicalizes)
 - overall_score_numeric: integer from 1 to 5, where 1=Poor, 2=Marginal, 3=Adequate, 4=Good, 5=Excellent
-
-Also provide:
-- major_strengths: array of strings (most important or decisive strength first, then descending importance)
-- major_weaknesses: array of strings (most consequential weakness first, then descending importance)
-- fatal_flaws: array of strings (use [] if none). When non-empty, list the most severe or deal-breaking issues first. If present, your overall_rating should usually be "poor".
 
 ---
 
@@ -93,11 +87,7 @@ Also provide:
   "overall_summary": "<narrative>",
   "overall_rating": "excellent|good|adequate|marginal|poor",
   "overall_rationale": "<short rationale>",
-  "overall_confidence": "High|Medium|Low",
   "overall_score_numeric": 1,
-  "major_strengths": ["...", "..."],
-  "major_weaknesses": ["...", "..."],
-  "fatal_flaws": [],
   "categories": {
     "overall_impact": {
       "score": 3,
@@ -166,7 +156,6 @@ Also provide:
    - Recompute every category integer score 1-5 from item decisions (Yes=5, Partial=3, No=1, mean, round) and critical-fail cap.
    - Align overall with the server: **average** of the four category 1-5 scores, **rounded**, for `overall_score_numeric`.
    - Ensure JSON keys, decisions, and category scores are internally consistent.
-   - Order major_strengths, major_weaknesses, and fatal_flaws arrays strictly by descending importance (index 0 is always the single most important entry in that list for readers).
 
 6. Output must be parseable by json.loads() with no surrounding commentary or markdown fences.
 

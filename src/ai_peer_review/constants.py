@@ -1,6 +1,8 @@
 # Bedrock Converse `maxTokens` for structured proposal review JSON.
 PROPOSAL_REVIEW_MAX_OUTPUT_TOKENS = 16384
 
+AI_PEER_REVIEW_EXPERT_EMAIL_DEFAULT = "ai-review@researchhub.foundation"
+
 AUTO_PR_DAILY_CAP_PER_GRANT_DEFAULT = 10
 AUTO_KI_DAILY_CAP_PER_REVIEW_DEFAULT = 20
 

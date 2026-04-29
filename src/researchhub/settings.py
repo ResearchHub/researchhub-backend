@@ -564,6 +564,11 @@ AI_PEER_REVIEW_BEDROCK_MODEL_ID = os.environ.get(
     getattr(keys, "AI_PEER_REVIEW_BEDROCK_MODEL_ID", ""),
 )
 
+AI_PEER_REVIEW_EXPERT_EMAIL = os.environ.get(
+    "AI_PEER_REVIEW_EXPERT_EMAIL",
+    getattr(keys, "AI_PEER_REVIEW_EXPERT_EMAIL", ""),
+)
+
 if not (CLOUD or TESTING) and os.environ.get("AWS_PROFILE") is None:
     # Set AWS profile for local development
     os.environ["AWS_PROFILE"] = keys.AWS_PROFILE

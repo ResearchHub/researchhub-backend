@@ -27,14 +27,6 @@ class OverallRating(models.TextChoices):
     POOR = "poor", "poor"
 
 
-class OverallConfidence(models.TextChoices):
-    """Reviewer-reported confidence in the overall judgment."""
-
-    HIGH = "High", "High"
-    MEDIUM = "Medium", "Medium"
-    LOW = "Low", "Low"
-
-
 class ExpertDimensionScore(models.TextChoices):
     """Human editorial assessment per dimension."""
 
@@ -80,12 +72,6 @@ class ProposalReview(DefaultModel):
         null=True,
     )
     overall_rationale = models.TextField(blank=True, default="")
-    overall_confidence = models.CharField(
-        max_length=16,
-        blank=True,
-        null=True,
-        choices=OverallConfidence.choices,
-    )
     overall_score_numeric = models.IntegerField(null=True, blank=True)
     result_data = models.JSONField(default=dict, blank=True)
     error_message = models.TextField(blank=True)

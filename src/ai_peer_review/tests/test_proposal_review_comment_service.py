@@ -2,8 +2,8 @@ from django.test import TestCase
 
 from ai_peer_review.models import ProposalReview, ReviewStatus
 from ai_peer_review.services.proposal_review_comment_service import (
-    AI_EXPERT_EMAIL,
     proposal_review_to_tiptap_content,
+    resolve_ai_expert_email,
     upsert_proposal_review_comment,
 )
 from researchhub_comment.constants.rh_comment_content_types import TIPTAP
@@ -21,7 +21,7 @@ class ProposalReviewCommentServiceTests(TestCase):
         self.reviewer = create_random_authenticated_user("ai_review_editor")
         self.proposal_owner = create_random_authenticated_user("ai_review_owner")
         User.objects.create(
-            email=AI_EXPERT_EMAIL,
+            email=resolve_ai_expert_email(),
             first_name="AI",
             last_name="Expert",
             is_official_account=True,
@@ -36,12 +36,10 @@ class ProposalReviewCommentServiceTests(TestCase):
             unified_document=self.proposal_post.unified_document,
             status=ReviewStatus.COMPLETED,
             overall_rating="good",
-            overall_confidence="High",
             overall_score_numeric=2,
             overall_rationale="Strong fit with moderate execution risk.",
             result_data={
                 "overall_summary": "Strong fit with moderate execution risk.",
-                "fatal_flaws": [],
                 "categories": {
                     "overall_impact": {
                         "score": "High",
@@ -152,7 +150,7 @@ class ProposalReviewCommentServiceTests(TestCase):
         bullet_idx = [
             i for i, b in enumerate(payload["content"]) if b["type"] == "bulletList"
         ]
-        # One bullet list per category; fatal_flaws is empty
+        # One bullet list per scored category
         self.assertEqual(len(bullet_idx), 4)
 
     def test_upsert_proposal_review_comment_creates_thread_and_comment(self):
@@ -164,7 +162,7 @@ class ProposalReviewCommentServiceTests(TestCase):
         self.assertEqual(comment.thread.thread_type, COMMUNITY_REVIEW)
         self.assertEqual(comment.thread.object_id, self.proposal_post.id)
 
-        ai_user = User.objects.get(email=AI_EXPERT_EMAIL)
+        ai_user = User.objects.get(email=resolve_ai_expert_email())
         self.assertEqual(comment.created_by_id, ai_user.id)
         self.assertIn("Overall Impact", comment.plain_text)
         self.assertIn("Strong fit with moderate execution risk.", comment.plain_text)

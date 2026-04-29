@@ -21,13 +21,14 @@ class ProposalReviewUserPromptTests(SimpleTestCase):
         self.assertIn("Critical fail cap rule", text)
         self.assertIn("category integer score 1-5", text)
         self.assertIn("max 500 characters", text)
-        self.assertIn("descending importance", text)
+        self.assertIn("overall_rationale", text)
 
-    def test_user_prompt_requests_strengths_weaknesses_order(self):
+    def test_user_prompt_requests_structured_json_and_overall_fields(self):
         text = build_proposal_review_user_prompt("Body")
         self.assertIn("four top-level categories", text)
-        self.assertIn("most important items", text)
-        self.assertIn("first in each array", text)
+        self.assertIn("overall_summary", text)
+        self.assertIn("overall_rationale", text)
+        self.assertIn("overall_score_numeric", text)
 
     def test_openai_web_context_system_prompt_loads(self):
         text = get_openai_web_context_system_prompt()
