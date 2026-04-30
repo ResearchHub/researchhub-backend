@@ -2,7 +2,7 @@ import logging
 import time
 
 from ai_peer_review.constants import PROPOSAL_REVIEW_MAX_OUTPUT_TOKENS
-from ai_peer_review.models import ProposalReview, ReviewStatus
+from ai_peer_review.models import ProposalReview, Status
 from ai_peer_review.prompts.proposal_review_prompts import (
     build_proposal_review_user_prompt,
     get_proposal_review_system_prompt,
@@ -60,7 +60,7 @@ def get_grant_context_text(grant: Grant) -> str:
 
 def reset_proposal_review_for_rerun(review: ProposalReview) -> None:
     """Clear AI outputs so :func:`run_proposal_review` can run again."""
-    review.status = ReviewStatus.PENDING
+    review.status = Status.PENDING
     review.error_message = ""
     review.result_data = {}
     review.overall_rating = None
@@ -93,10 +93,10 @@ def run_proposal_review(review_id: int) -> None:
     review = ProposalReview.objects.select_related(
         "unified_document", "grant", "created_by"
     ).get(pk=review_id)
-    if review.status == ReviewStatus.COMPLETED:
+    if review.status == Status.COMPLETED:
         return
     t0 = time.monotonic()
-    review.status = ReviewStatus.PROCESSING
+    review.status = Status.PROCESSING
     review.progress = 10
     review.current_step = "Loading proposal text"
     review.error_message = ""
@@ -152,7 +152,7 @@ def run_proposal_review(review_id: int) -> None:
         rating = review_dict["overall_rating"]
         numeric_total = review_dict["overall_score_numeric"]
         elapsed = time.monotonic() - t0
-        review.status = ReviewStatus.COMPLETED
+        review.status = Status.COMPLETED
         review.overall_rating = rating
         review.overall_rationale = review_dict.get("overall_rationale", "") or ""
         review.overall_score_numeric = numeric_total
@@ -172,7 +172,7 @@ def run_proposal_review(review_id: int) -> None:
         FundingCacheMixin.invalidate_funding_feed_cache()
     except Exception as e:
         logger.exception("Proposal review %s failed", review_id)
-        review.status = ReviewStatus.FAILED
+        review.status = Status.FAILED
         review.error_message = str(e)[:4000]
         review.progress = 0
         review.current_step = "Failed"

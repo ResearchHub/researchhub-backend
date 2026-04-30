@@ -1,32 +1,18 @@
 import logging
 
-from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 
-from ai_peer_review.constants import AI_PEER_REVIEW_EXPERT_EMAIL_DEFAULT
-from ai_peer_review.models import ProposalReview, ReviewStatus
+from ai_peer_review.models import ProposalReview, Status
 from researchhub_comment.constants.rh_comment_content_types import TIPTAP
 from researchhub_comment.constants.rh_comment_thread_types import COMMUNITY_REVIEW
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from review.models import Review
-from user.models import User
+from user.related_models.user_model import AI_EXPERT_EMAIL, User
 
 logger = logging.getLogger(__name__)
 
-
-def resolve_ai_expert_email() -> str:
-    """Email for the AI proposal-review user; empty/missing settings use the default constant."""
-    raw = getattr(settings, "AI_PEER_REVIEW_EXPERT_EMAIL", "") or ""
-    s = raw.strip()
-    return s if s else AI_PEER_REVIEW_EXPERT_EMAIL_DEFAULT
-
-
 AI_REVIEW_COMMENT_CONTEXT_TITLE = "AI Proposal Review"
 AI_REVIEW_OVERALL_SUMMARY_TITLE = "Summary"
-
-
-def get_ai_expert_user() -> User | None:
-    return User.objects.filter(email=resolve_ai_expert_email()).first()
 
 
 def _text_node(
@@ -222,7 +208,7 @@ def get_proposal_review_ai_expert_comment(
     post = review.unified_document.posts.first()
     if post is None:
         return None
-    ai_user = get_ai_expert_user()
+    ai_user = User.objects.get_ai_expert_account()
     if ai_user is None:
         return None
     content_type = ContentType.objects.get_for_model(post)
@@ -268,19 +254,19 @@ def proposal_overall_numeric_to_review_score(
 
 
 def upsert_proposal_review_comment(review: ProposalReview) -> RhCommentModel | None:
-    if review.status != ReviewStatus.COMPLETED:
+    if review.status != Status.COMPLETED:
         return None
 
     post = review.unified_document.posts.first()
     if post is None:
         return None
 
-    ai_user = get_ai_expert_user()
+    ai_user = User.objects.get_ai_expert_account()
     if ai_user is None:
         logger.warning(
             "AI expert user missing for proposal review comment sync "
             "(expected email=%s)",
-            resolve_ai_expert_email(),
+            AI_EXPERT_EMAIL,
         )
         return None
     content_type = ContentType.objects.get_for_model(post)

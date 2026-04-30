@@ -1,5 +1,12 @@
 """
-Run the key-insights LLM pass (TLDR + pros/cons) for completed proposal reviews.
+Run the key-insights LLM pass (TLDR + strengths/weaknesses).
+
+For each review, the model receives the proposal body, funding-opportunity
+(grant) context, the platform AI peer-review comment text for that review, and
+assessed human community reviews on the proposal post.
+
+Only proposal reviews whose main AI review has finished are eligible
+(``ProposalReview.status`` is ``Status.COMPLETED``).
 
 Usage:
     python manage.py run_proposal_key_insights --grant-ids 1,2,3
@@ -16,10 +23,10 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Q
 from django.utils import timezone
 
-from ai_peer_review.models import ProposalKeyInsight, ProposalReview, ReviewStatus
-from ai_peer_review.services.auto_run_guards import should_skip_key_insights
+from ai_peer_review.models import ProposalKeyInsight, ProposalReview, Status
+from ai_peer_review.services.auto_run_guards import AutoRunGuardsService
 from ai_peer_review.services.proposal_key_insights_service import (
-    run_proposal_key_insights,
+    ProposalKeyInsightsService,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,8 +50,10 @@ def _parse_date_end(s: str) -> datetime:
 
 class Command(BaseCommand):
     help = (
-        "Run key insights (TLDR + pros/cons) for each completed proposal review. "
-        "By default, reviews that already have a completed key insight are skipped; "
+        "Run key insights (TLDR + pros/cons) for each selected proposal review that has "
+        "finished the main AI review (processed reviews only). Each LLM call uses proposal "
+        "text, optional grant/funding context, the AI review comment, and assessed human "
+        "community reviews. By default, skips reviews whose key insight already succeeded; "
         "use --force to re-run the LLM."
     )
 
@@ -54,15 +63,18 @@ class Command(BaseCommand):
             type=str,
             default="",
             help=(
-                "Comma-separated grant primary keys; selects completed "
-                "reviews for these grants."
+                "Comma-separated grant primary keys; selects processed "
+                "(main review finished) proposal reviews for these grants."
             ),
         )
         parser.add_argument(
             "--review-ids",
             type=str,
             default="",
-            help=("Comma-separated ProposalReview primary keys (must be completed)."),
+            help=(
+                "Comma-separated ProposalReview primary keys (each must have finished "
+                "the main AI review)."
+            ),
         )
         parser.add_argument(
             "--created-after",
@@ -86,8 +98,8 @@ class Command(BaseCommand):
             "--force",
             action="store_true",
             help=(
-                "Re-run key insights that are already completed (e.g. after "
-                "prompt changes)."
+                "Re-run key insights even when the key-insight row already succeeded "
+                "(e.g. after prompt changes)."
             ),
         )
 
@@ -109,7 +121,7 @@ class Command(BaseCommand):
                 "created_date filter)."
             )
 
-        base = ProposalReview.objects.filter(status=ReviewStatus.COMPLETED)
+        processed_review_qs = ProposalReview.objects.filter(status=Status.COMPLETED)
         if has_grant:
             id_strings = [x.strip() for x in grant_ids_raw.split(",") if x.strip()]
             if not id_strings:
@@ -120,7 +132,7 @@ class Command(BaseCommand):
                 raise CommandError(
                     "--grant-ids must be comma-separated integers."
                 ) from e
-            reviews_qs = base.filter(grant_id__in=grant_ids)
+            reviews_qs = processed_review_qs.filter(grant_id__in=grant_ids)
         elif has_review:
             id_strings = [x.strip() for x in review_ids_raw.split(",") if x.strip()]
             if not id_strings:
@@ -131,48 +143,51 @@ class Command(BaseCommand):
                 raise CommandError(
                     "--review-ids must be comma-separated integers."
                 ) from e
-            reviews_qs = base.filter(id__in=review_ids)
+            reviews_qs = processed_review_qs.filter(id__in=review_ids)
         else:
             q = Q(grant__isnull=False)
             if created_after:
                 q &= Q(grant__created_date__gte=_parse_date(created_after))
             if created_before:
                 q &= Q(grant__created_date__lte=_parse_date_end(created_before))
-            reviews_qs = base.filter(q)
+            reviews_qs = processed_review_qs.filter(q)
 
-        reviews = list(
+        selected_reviews = list(
             reviews_qs.select_related(
                 "unified_document", "grant", "key_insight"
             ).order_by("id")
         )
-        total = len(reviews)
+        total = len(selected_reviews)
         generated = 0
         skipped = 0
         failed = 0
 
-        completed_before_ids = set(
+        processed_reviews = set(
             ProposalKeyInsight.objects.filter(
-                proposal_review_id__in=[r.id for r in reviews],
-                status=ReviewStatus.COMPLETED,
+                proposal_review_id__in=[r.id for r in selected_reviews],
+                status=Status.COMPLETED,
             ).values_list("proposal_review_id", flat=True)
         )
 
         self.stdout.write(
             self.style.NOTICE(
-                f"Key insights: {total} completed proposal review(s) to process."
+                f"Key insights: {total} processed proposal review(s) selected "
+                "(main AI review finished)."
             )
         )
         if force:
             self.stdout.write(
                 self.style.NOTICE(
-                    "--force: re-running key insights that were already completed."
+                    "--force: re-running key insights even when a prior run succeeded."
                 )
             )
 
-        for i, review in enumerate(reviews, start=1):
-            before = review.id in completed_before_ids
+        for i, review in enumerate(selected_reviews, start=1):
+            key_insight_was_already_done = review.id in processed_reviews
             label = f"review={review.id} grant={review.grant_id}"
-            skip, reason = should_skip_key_insights(review, force=force)
+            skip, reason = AutoRunGuardsService.should_skip_key_insights(
+                review, force=force
+            )
             if skip:
                 skipped += 1
                 self.stdout.write(
@@ -180,32 +195,36 @@ class Command(BaseCommand):
                 )
                 continue
             try:
-                ki = run_proposal_key_insights(review.id, force=force)
+                ki = ProposalKeyInsightsService().run(review.id, force=force)
             except Exception as e:
                 failed += 1
                 logger.exception(
-                    "run_proposal_key_insights failed for review %s",
+                    "ProposalKeyInsightsService.run failed for review %s",
                     review.id,
                 )
                 self.stdout.write(self.style.ERROR(f"[{i}/{total}] {label} ERROR: {e}"))
                 continue
 
-            if ki.status == ReviewStatus.FAILED:
+            if ki.status == Status.FAILED:
                 failed += 1
                 self.stdout.write(
                     self.style.ERROR(
                         f"[{i}/{total}] {label} FAILED: {ki.error_message[:200]!r}"
                     )
                 )
-            elif not force and before and ki.status == ReviewStatus.COMPLETED:
+            elif (
+                not force
+                and key_insight_was_already_done
+                and ki.status == Status.COMPLETED
+            ):
                 skipped += 1
                 self.stdout.write(
-                    f"[{i}/{total}] {label} SKIP (key insight already completed)"
+                    f"[{i}/{total}] {label} SKIP (key insight already succeeded)"
                 )
-            elif ki.status == ReviewStatus.COMPLETED:
+            elif ki.status == Status.COMPLETED:
                 generated += 1
                 self.stdout.write(
-                    self.style.SUCCESS(f"[{i}/{total}] {label} key insight COMPLETED")
+                    self.style.SUCCESS(f"[{i}/{total}] {label} key insight succeeded")
                 )
             else:
                 self.stdout.write(

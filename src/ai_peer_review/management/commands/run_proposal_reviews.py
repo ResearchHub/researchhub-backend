@@ -17,8 +17,8 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Prefetch, Q
 from django.utils import timezone
 
-from ai_peer_review.models import ProposalReview, ReviewStatus
-from ai_peer_review.services.auto_run_guards import should_skip_proposal_review
+from ai_peer_review.models import ProposalReview, Status
+from ai_peer_review.services.auto_run_guards import AutoRunGuardsService
 from ai_peer_review.services.proposal_review_service import (
     reset_proposal_review_for_rerun,
     run_proposal_review,
@@ -184,11 +184,11 @@ class Command(BaseCommand):
                         unified_document=ud,
                         grant=grant,
                         defaults={
-                            "status": ReviewStatus.PENDING,
+                            "status": Status.PENDING,
                         },
                     )
 
-                    if review.status == ReviewStatus.COMPLETED and not force:
+                    if review.status == Status.COMPLETED and not force:
                         self.stdout.write(
                             f"  [{pj}/{len(prereg_apps)}] unified_document={ud.id} "
                             f"SKIP (already completed, review_id={review.id})"
@@ -196,7 +196,9 @@ class Command(BaseCommand):
                         proposals_skipped += 1
                         continue
 
-                    skip, reason = should_skip_proposal_review(review, force=force)
+                    skip, reason = AutoRunGuardsService.should_skip_proposal_review(
+                        review, force=force
+                    )
                     if skip:
                         self.stdout.write(
                             self.style.WARNING(
@@ -216,7 +218,7 @@ class Command(BaseCommand):
                     )
                     run_proposal_review(review.id)
                     review.refresh_from_db()
-                    if review.status == ReviewStatus.COMPLETED:
+                    if review.status == Status.COMPLETED:
                         proposals_run += 1
                         self.stdout.write(
                             self.style.SUCCESS(

@@ -886,15 +886,15 @@ wheels = [
 
 [[package]]
 name = "django-allauth"
-version = "65.16.0"
+version = "65.16.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "asgiref" },
     { name = "django" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/40/a0/94f485e056c1d1ddd0a50ef240a8d810aaa917855dccecbc3d9af3d7f880/django_allauth-65.16.0.tar.gz", hash = "sha256:7a94857146f8dfe810da1ab78514792e5f7ddb115c22d054e04c1ef18112af32", size = 2233580, upload-time = "2026-04-13T18:35:22.307Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3d/df/357187dfff18c7783e4911827a6c69437e290d7259a32a99c23fcd85997f/django_allauth-65.16.1.tar.gz", hash = "sha256:4425ac3088541c4c54983e16e08f6e3eb9f438dc1b1009534fa51c8bb739ed31", size = 2232835, upload-time = "2026-04-17T18:53:59.475Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b6/45/e3b2ccbf1a6d07725ed089812bfc13065795213f19b50ec27b7c4b6abaa9/django_allauth-65.16.0-py3-none-any.whl", hash = "sha256:e65d4aa4ed754c634d0f381dc58c6bbe2a0453f9a26d5bf7f138eee86919dc7e", size = 2053654, upload-time = "2026-04-13T18:35:10.753Z" },
+    { url = "https://files.pythonhosted.org/packages/ad/58/d95b6c3088d83697bfd93782ee57bc6a6462e41eb19121a947b8a015396a/django_allauth-65.16.1-py3-none-any.whl", hash = "sha256:e49df24056bf37c44e56aaad1e51f78994b7d175bc3476d65e8f8f58390a8ce8", size = 2051868, upload-time = "2026-04-17T18:54:12.032Z" },
 ]
 
 [package.optional-dependencies]

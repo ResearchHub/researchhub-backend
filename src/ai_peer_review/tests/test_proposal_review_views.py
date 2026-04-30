@@ -6,7 +6,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from ai_peer_review.constants import CATEGORY_KEYS
-from ai_peer_review.models import ProposalReview, ReviewStatus, RFPSummary
+from ai_peer_review.models import ProposalReview, RFPSummary, Status
 from purchase.models import Grant, GrantApplication
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
@@ -85,7 +85,7 @@ class ProposalReviewAPITests(APITestCase):
             created_by=self.moderator,
             unified_document=self.ud,
             grant=self.grant,
-            status=ReviewStatus.COMPLETED,
+            status=Status.COMPLETED,
             overall_rating="good",
             overall_score_numeric=4,
             overall_rationale="Strong fit.",
@@ -112,7 +112,7 @@ class ProposalReviewAPITests(APITestCase):
             created_by=self.moderator,
             unified_document=self.ud,
             grant=self.grant,
-            status=ReviewStatus.COMPLETED,
+            status=Status.COMPLETED,
             overall_rating="excellent",
             overall_score_numeric=5,
             result_data={
@@ -231,7 +231,7 @@ class GrantExecutiveSummaryAPITests(APITestCase):
             created_by=self.moderator,
             unified_document=self.prop_post.unified_document,
             grant=self.grant,
-            status=ReviewStatus.COMPLETED,
+            status=Status.COMPLETED,
             overall_rating="good",
             overall_score_numeric=4,
             result_data={
@@ -257,4 +257,4 @@ class GrantExecutiveSummaryAPITests(APITestCase):
         self.assertIn("Compared proposals", r.json()["executive_summary"])
         rs = RFPSummary.objects.get(grant=self.grant)
         self.assertIn("Compared proposals", rs.executive_comparison_summary)
-        self.assertEqual(rs.status, ReviewStatus.COMPLETED)
+        self.assertEqual(rs.status, Status.COMPLETED)
