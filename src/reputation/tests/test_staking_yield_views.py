@@ -230,68 +230,11 @@ class StakingStatsEndpointTest(StakingPublicStatsTestBase):
         self.assertEqual(float(data["apy"]), 0.0)
         self.assertEqual(float(data["apy_30d_avg"]), 0.0)
         self.assertEqual(int(data["holders"]), 0)
-        self.assertEqual(float(data["top_10_concentration_pct"]), 0.0)
         self.assertEqual(Decimal(data["total_staked_rsc"]), Decimal("0"))
         self.assertIsNone(data["total_value_locked_usd"])
         self.assertEqual(float(data["pct_of_supply_staked"]), 0.0)
-
-    def test_single_user_top_10_is_100_pct(self):
-        snap = self._create_global_snapshot(
-            date(2026, 4, 15), total_staked=Decimal("1000")
-        )
-        self._add_user_snapshot(snap, Decimal("1000"), label="solo")
-
-        resp = self.client.get("/api/staking_yield/stats/")
-        data = resp.data
-        self.assertEqual(data["accrual_date"], "2026-04-15")
-        self.assertEqual(int(data["holders"]), 1)
-        self.assertAlmostEqual(float(data["top_10_concentration_pct"]), 100.0, places=2)
-
-    def test_top_10_pct_with_ten_uniform_stakers(self):
-        snap = self._create_global_snapshot(
-            date(2026, 4, 20), total_staked=Decimal("1000")
-        )
-        for i in range(10):
-            self._add_user_snapshot(snap, Decimal("100"), label=f"u{i}")
-
-        resp = self.client.get("/api/staking_yield/stats/")
-        data = resp.data
-        self.assertEqual(int(data["holders"]), 10)
-        # Top 10% of 10 = 1 staker with 100 of 1000 = 10%
-        self.assertAlmostEqual(float(data["top_10_concentration_pct"]), 10.0, places=2)
-
-    def test_top_10_pct_with_skewed_distribution(self):
-        snap = self._create_global_snapshot(
-            date(2026, 4, 20), total_staked=Decimal("550")
-        )
-        # 10 stakers, top one has 100, rest have 50 each
-        self._add_user_snapshot(snap, Decimal("100"), label="whale")
-        for i in range(9):
-            self._add_user_snapshot(snap, Decimal("50"), label=f"u{i}")
-
-        resp = self.client.get("/api/staking_yield/stats/")
-        # Top 10% of 10 = 1 staker; whale holds 100 / 550 ≈ 18.18%
-        self.assertAlmostEqual(
-            float(resp.data["top_10_concentration_pct"]),
-            100.0 / 550.0 * 100,
-            places=2,
-        )
-
-    def test_top_10_pct_ceil_rounding(self):
-        snap = self._create_global_snapshot(
-            date(2026, 4, 20), total_staked=Decimal("700")
-        )
-        # 7 uniform stakers; top 10% rounds up to 1 (ceil(0.7) = 1).
-        for i in range(7):
-            self._add_user_snapshot(snap, Decimal("100"), label=f"u{i}")
-
-        resp = self.client.get("/api/staking_yield/stats/")
-        # 1 of 7 stakers, each with 100 of 700 = ~14.29%
-        self.assertAlmostEqual(
-            float(resp.data["top_10_concentration_pct"]),
-            100.0 / 700.0 * 100,
-            places=2,
-        )
+        self.assertEqual(Decimal(data["issued_today_rsc"]), Decimal("0"))
+        self.assertIsNone(data["issued_today_usd"])
 
     def test_apy_30d_avg_over_multiple_snapshots(self):
         # Three snapshots with different total_staked → different APYs.
@@ -326,6 +269,28 @@ class StakingStatsEndpointTest(StakingPublicStatsTestBase):
         self.assertEqual(
             Decimal(resp.data["total_value_locked_usd"]), Decimal("500.00")
         )
+
+    def test_issued_today_matches_daily_emission(self):
+        accrual_date = date(2026, 4, 20)
+        snap = self._create_global_snapshot(accrual_date, total_staked=Decimal("1000"))
+        self._add_user_snapshot(snap, Decimal("1000"), label="solo")
+        self._create_usd_rate(Decimal("0.50"), on_date=accrual_date)
+
+        expected_rsc = StakingYieldService.compute_total_daily_emission(accrual_date)
+        expected_usd = (Decimal("0.50") * expected_rsc).quantize(Decimal("0.01"))
+
+        resp = self.client.get("/api/staking_yield/stats/")
+        self.assertEqual(Decimal(resp.data["issued_today_rsc"]), expected_rsc)
+        self.assertEqual(Decimal(resp.data["issued_today_usd"]), expected_usd)
+
+    def test_issued_today_usd_is_null_without_rate(self):
+        snap = self._create_global_snapshot(
+            date(2026, 4, 20), total_staked=Decimal("1000")
+        )
+        self._add_user_snapshot(snap, Decimal("1000"), label="solo")
+
+        resp = self.client.get("/api/staking_yield/stats/")
+        self.assertIsNone(resp.data["issued_today_usd"])
 
 
 class StakingHistoryEndpointTest(StakingPublicStatsTestBase):

@@ -22,13 +22,16 @@ class StakingStatsSerializer(serializers.Serializer):
     apy = serializers.FloatField()
     apy_30d_avg = serializers.FloatField()
     holders = serializers.IntegerField()
-    top_10_concentration_pct = serializers.FloatField()
     total_staked_rsc = serializers.DecimalField(max_digits=19, decimal_places=8)
     total_value_locked_usd = serializers.DecimalField(
         max_digits=19, decimal_places=2, allow_null=True
     )
     circulating_supply_rsc = serializers.DecimalField(max_digits=19, decimal_places=8)
     pct_of_supply_staked = serializers.FloatField()
+    issued_today_rsc = serializers.DecimalField(max_digits=19, decimal_places=8)
+    issued_today_usd = serializers.DecimalField(
+        max_digits=19, decimal_places=2, allow_null=True
+    )
 
 
 class StakingHistoryEntrySerializer(serializers.Serializer):

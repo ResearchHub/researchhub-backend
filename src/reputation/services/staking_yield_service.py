@@ -146,30 +146,6 @@ class StakingYieldService:
         return float(daily_emission) / float(snapshot.total_staked) * 365 * 100
 
     @staticmethod
-    def compute_top_n_pct_concentration(
-        snapshot: StakingGlobalSnapshot, pct: int = 10
-    ) -> float:
-        """Share of total stake held by the top `pct`% of stakers, as a percentage.
-
-        Uses ceiling rounding for the cohort size (e.g. 7 stakers, top 10% → 1 staker).
-        """
-        if snapshot.total_staked <= 0:
-            return 0.0
-
-        holders = snapshot.user_snapshots.filter(stake_amount__gt=0).count()
-        if holders == 0:
-            return 0.0
-
-        cohort_size = max(1, math.ceil(holders * pct / 100))
-        top_stakes = (
-            snapshot.user_snapshots.filter(stake_amount__gt=0)
-            .order_by("-stake_amount")
-            .values_list("stake_amount", flat=True)[:cohort_size]
-        )
-        cohort_total = sum(top_stakes, Decimal("0"))
-        return float(cohort_total / snapshot.total_staked) * 100
-
-    @staticmethod
     def holders_count(snapshot: StakingGlobalSnapshot) -> int:
         return snapshot.user_snapshots.filter(stake_amount__gt=0).count()
 
