@@ -102,14 +102,11 @@ def build_proposal_review_user_prompt(
         text = text[:120000] + _TRUNCATED_FOR_LENGTH_SUFFIX
     return (
         "Evaluate the following research proposal and return the structured JSON "
-        'assessment with four top-level categories under "categories" (all scored), '
-        "overall_summary, "
-        "overall_rationale, overall_confidence, major_strengths, major_weaknesses, "
-        "and fatal_flaws. In major_strengths and major_weaknesses, put the most "
-        "important items first in each array (descending importance). Provide "
-        "overall_rating and overall_score_numeric when you can; the server "
-        "re-derives them from your per-item decisions (overall_score_numeric is "
-        "1-5; defaults apply if missing or invalid).\n\n"
+        'assessment with four top-level categories under "categories" (all scored) '
+        "and overall fields: overall_summary, overall_rationale, overall_rating, and "
+        "overall_score_numeric. The server re-derives category scores and overall "
+        "from your per-item decisions (overall_score_numeric is 1-5; defaults apply "
+        "if missing or invalid).\n\n"
         "PROPOSAL TEXT:\n"
         f"{text}"
         f"{author}"

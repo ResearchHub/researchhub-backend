@@ -2,7 +2,7 @@ import logging
 import time
 
 from ai_peer_review.constants import PROPOSAL_REVIEW_MAX_OUTPUT_TOKENS
-from ai_peer_review.models import OverallConfidence, ProposalReview, Status
+from ai_peer_review.models import ProposalReview, Status
 from ai_peer_review.prompts.proposal_review_prompts import (
     build_proposal_review_user_prompt,
     get_proposal_review_system_prompt,
@@ -65,7 +65,6 @@ def reset_proposal_review_for_rerun(review: ProposalReview) -> None:
     review.result_data = {}
     review.overall_rating = None
     review.overall_rationale = ""
-    review.overall_confidence = None
     review.overall_score_numeric = None
     review.save(
         update_fields=[
@@ -74,7 +73,6 @@ def reset_proposal_review_for_rerun(review: ProposalReview) -> None:
             "result_data",
             "overall_rating",
             "overall_rationale",
-            "overall_confidence",
             "overall_score_numeric",
             "updated_date",
         ]
@@ -157,8 +155,6 @@ def run_proposal_review(review_id: int) -> None:
         review.status = Status.COMPLETED
         review.overall_rating = rating
         review.overall_rationale = review_dict.get("overall_rationale", "") or ""
-        oc = review_dict.get("overall_confidence")
-        review.overall_confidence = oc if oc in OverallConfidence.values else None
         review.overall_score_numeric = numeric_total
         review.result_data = review_dict
         review.llm_model = llm.model_id

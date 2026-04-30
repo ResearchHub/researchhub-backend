@@ -13,6 +13,7 @@ from ai_peer_review.models import ProposalReview
 from ai_peer_review.services.proposal_review_comment_service import (
     upsert_proposal_review_comment,
 )
+from user.related_models.user_model import AI_EXPERT_EMAIL
 
 
 class Command(BaseCommand):
@@ -41,7 +42,7 @@ class Command(BaseCommand):
             self.stdout.write(
                 self.style.WARNING(
                     "No comment written (expected status=completed, a post on the "
-                    "unified document, and user ai-review@researchhub.foundation)."
+                    f"unified document, and user {AI_EXPERT_EMAIL})."
                 )
             )
             return

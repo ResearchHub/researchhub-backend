@@ -89,7 +89,6 @@ class ProposalReviewAPITests(APITestCase):
             overall_rating="good",
             overall_score_numeric=4,
             overall_rationale="Strong fit.",
-            overall_confidence="High",
             result_data={
                 "categories": {"overall_impact": {"score": 5}},
             },

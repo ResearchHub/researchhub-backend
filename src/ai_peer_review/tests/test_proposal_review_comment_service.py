@@ -35,12 +35,10 @@ class ProposalReviewCommentServiceTests(TestCase):
             unified_document=self.proposal_post.unified_document,
             status=Status.COMPLETED,
             overall_rating="good",
-            overall_confidence="High",
             overall_score_numeric=2,
             overall_rationale="Strong fit with moderate execution risk.",
             result_data={
                 "overall_summary": "Strong fit with moderate execution risk.",
-                "fatal_flaws": [],
                 "categories": {
                     "overall_impact": {
                         "score": "High",
@@ -151,7 +149,7 @@ class ProposalReviewCommentServiceTests(TestCase):
         bullet_idx = [
             i for i, b in enumerate(payload["content"]) if b["type"] == "bulletList"
         ]
-        # One bullet list per category; fatal_flaws is empty
+        # One bullet list per scored category
         self.assertEqual(len(bullet_idx), 4)
 
     def test_upsert_proposal_review_comment_creates_thread_and_comment(self):

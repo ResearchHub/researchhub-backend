@@ -118,7 +118,6 @@ class ProposalReviewCreateView(APIView):
                 review.result_data = {}
                 review.overall_rating = None
                 review.overall_rationale = ""
-                review.overall_confidence = None
                 review.overall_score_numeric = None
                 review.save(
                     update_fields=[
@@ -127,7 +126,6 @@ class ProposalReviewCreateView(APIView):
                         "result_data",
                         "overall_rating",
                         "overall_rationale",
-                        "overall_confidence",
                         "overall_score_numeric",
                         "updated_date",
                     ]
