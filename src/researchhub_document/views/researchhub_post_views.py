@@ -85,9 +85,11 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                         queryset=ProposalReview.objects.filter(
                             grant__isnull=False,
                         )
-                        .select_related("grant", "unified_document")
+                        .select_related("grant", "unified_document", "key_insight")
                         .prefetch_related(
-                            "unified_document__ai_peer_review_editorial_feedback__categories",
+                            "unified_document__"
+                            "ai_peer_review_editorial_feedback__categories",
+                            "key_insight__items",
                         ),
                     ),
                 )
