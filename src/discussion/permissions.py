@@ -1,8 +1,5 @@
 from rest_framework.permissions import BasePermission
 
-from paper.models import Paper
-from researchhub.lib import get_document_id_from_path
-from user.models import Author
 from utils.permissions import AuthorizationBasedPermission, PermissionDenied
 
 
@@ -31,13 +28,3 @@ class Vote(AuthorizationBasedPermission):
         if request.user == obj.created_by:
             raise PermissionDenied(detail=self.message)
         return True
-
-
-class Endorse(AuthorizationBasedPermission):
-    def is_authorized(self, request, view, obj):
-        paper_id = get_document_id_from_path(request)
-        paper = Paper.objects.get(pk=paper_id)
-        author = Author.objects.get(user=request.user)
-        return (author in paper.authors.all()) or (
-            request.user in paper.moderators.all()
-        )
