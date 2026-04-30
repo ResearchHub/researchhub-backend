@@ -532,7 +532,6 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
                     "thread",
                     "comment_content_src",
                     "promoted",
-                    "user_endorsement",
                     "user_flag",
                     "purchases",
                 ]

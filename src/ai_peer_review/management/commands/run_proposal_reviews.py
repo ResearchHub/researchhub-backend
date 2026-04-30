@@ -19,7 +19,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Prefetch, Q
 from django.utils import timezone
 
-from ai_peer_review.models import ProposalReview, ReviewStatus
+from ai_peer_review.models import ProposalReview, Status
 from ai_peer_review.services.proposal_review_service import run_proposal_review
 from ai_peer_review.services.rfp_summary_service import run_executive_comparison
 from purchase.models import Grant, GrantApplication
@@ -45,7 +45,7 @@ def _parse_date_end(s: str) -> datetime:
 
 
 def _reset_review_for_rerun(review: ProposalReview) -> None:
-    review.status = ReviewStatus.PENDING
+    review.status = Status.PENDING
     review.error_message = ""
     review.result_data = {}
     review.overall_rating = None
@@ -229,14 +229,14 @@ class Command(BaseCommand):
                         grant=grant,
                         defaults={
                             "created_by": actor,
-                            "status": ReviewStatus.PENDING,
+                            "status": Status.PENDING,
                         },
                     )
                     if review.created_by_id is None:
                         review.created_by = actor
                         review.save(update_fields=["created_by", "updated_date"])
 
-                    if review.status == ReviewStatus.COMPLETED and not force:
+                    if review.status == Status.COMPLETED and not force:
                         self.stdout.write(
                             f"  [{pj}/{len(prereg_apps)}] unified_document={ud.id} "
                             f"SKIP (already completed, review_id={review.id})"
@@ -253,7 +253,7 @@ class Command(BaseCommand):
                     )
                     run_proposal_review(review.id)
                     review.refresh_from_db()
-                    if review.status == ReviewStatus.COMPLETED:
+                    if review.status == Status.COMPLETED:
                         proposals_run += 1
                         self.stdout.write(
                             self.style.SUCCESS(
