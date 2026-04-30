@@ -1,6 +1,7 @@
 import os
 
 _PROMPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+_TRUNCATED_FOR_LENGTH_SUFFIX = "\n\n[TRUNCATED FOR LENGTH]"
 _template_cache: dict[str, str] = {}
 
 
@@ -14,6 +15,40 @@ def _load_template(name: str) -> str:
 
 def get_proposal_review_system_prompt() -> str:
     return _load_template("proposal_review_system.txt")
+
+
+def build_proposal_key_insights_user_prompt(
+    proposal_text: str,
+    rfp_context: str | None = None,
+    ai_review_summary: str = "",
+    human_reviews_text: str = "",
+) -> str:
+    """
+    User message for the key-insights pass: proposal, RFP, AI review
+    summary, and human review text.
+    """
+    rfp = ""
+    if rfp_context and rfp_context.strip():
+        rfp = (
+            "\n\nRFP context (aka funding opportunity):\n"
+            f"{rfp_context.strip()[:8000]}\n"
+        )
+    ai = ""
+    if ai_review_summary and ai_review_summary.strip():
+        s = ai_review_summary.strip()
+        if len(s) > 20000:
+            s = s[:20000] + _TRUNCATED_FOR_LENGTH_SUFFIX
+        ai = f"\n\nAI REVIEW SUMMARY:\n{s}\n"
+    human = ""
+    if human_reviews_text and human_reviews_text.strip():
+        h = human_reviews_text.strip()
+        if len(h) > 10000:
+            h = h[:10000] + _TRUNCATED_FOR_LENGTH_SUFFIX
+        human = f"\n\nHUMAN REVIEWS:\n{h}\n"
+    text = (proposal_text or "").strip()
+    if len(text) > 120000:
+        text = text[:120000] + _TRUNCATED_FOR_LENGTH_SUFFIX
+    return f"PROPOSAL TEXT:\n{text}{rfp}{ai}{human}"
 
 
 def get_openai_web_context_system_prompt() -> str:
@@ -60,7 +95,7 @@ def build_proposal_review_user_prompt(
         )
     text = (proposal_text or "").strip()
     if len(text) > 120000:
-        text = text[:120000] + "\n\n[TRUNCATED FOR LENGTH]"
+        text = text[:120000] + _TRUNCATED_FOR_LENGTH_SUFFIX
     return (
         "Evaluate the following research proposal and return the structured JSON "
         'assessment with four top-level categories under "categories" (all scored), '
