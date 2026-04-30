@@ -24,6 +24,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from ai_peer_review.models import ProposalKeyInsight, ProposalReview, Status
+from ai_peer_review.services.auto_run_guards import AutoRunGuardsService
 from ai_peer_review.services.proposal_key_insights_service import (
     ProposalKeyInsightsService,
 )
@@ -152,7 +153,9 @@ class Command(BaseCommand):
             reviews_qs = processed_review_qs.filter(q)
 
         selected_reviews = list(
-            reviews_qs.select_related("unified_document", "grant").order_by("id")
+            reviews_qs.select_related(
+                "unified_document", "grant", "key_insight"
+            ).order_by("id")
         )
         total = len(selected_reviews)
         generated = 0
@@ -182,6 +185,15 @@ class Command(BaseCommand):
         for i, review in enumerate(selected_reviews, start=1):
             key_insight_was_already_done = review.id in processed_reviews
             label = f"review={review.id} grant={review.grant_id}"
+            skip, reason = AutoRunGuardsService.should_skip_key_insights(
+                review, force=force
+            )
+            if skip:
+                skipped += 1
+                self.stdout.write(
+                    self.style.WARNING(f"[{i}/{total}] {label} SKIP (guard: {reason})")
+                )
+                continue
             try:
                 ki = ProposalKeyInsightsService().run(review.id, force=force)
             except Exception as e:

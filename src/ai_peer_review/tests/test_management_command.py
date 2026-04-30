@@ -76,11 +76,10 @@ class RunProposalReviewsCommandTests(TestCase):
         call_command(
             "run_proposal_reviews",
             grant_ids=str(self.grant.id),
-            user_id=self.actor.id,
             stdout=out,
         )
         mock_run_review.assert_called_once()
-        mock_run_exec.assert_called_once_with(self.grant.id, self.actor.id)
+        mock_run_exec.assert_called_once_with(self.grant.id, None)
 
     @patch(
         "ai_peer_review.management.commands.run_proposal_reviews."
@@ -111,7 +110,6 @@ class RunProposalReviewsCommandTests(TestCase):
         call_command(
             "run_proposal_reviews",
             created_after=yesterday,
-            user_id=self.actor.id,
             stdout=out,
         )
         # Only OPEN + future deadline grant (self.grant), not closed_grant
@@ -140,7 +138,6 @@ class RunProposalReviewsCommandTests(TestCase):
         call_command(
             "run_proposal_reviews",
             grant_ids=str(self.grant.id),
-            user_id=self.actor.id,
             stdout=out,
         )
         mock_run_review.assert_not_called()
@@ -154,7 +151,6 @@ class RunProposalReviewsCommandTests(TestCase):
         call_command(
             "run_proposal_reviews",
             grant_ids=str(self.grant.id),
-            user_id=self.actor.id,
             stdout=out,
         )
         mock_run_review.assert_called_once()
@@ -180,9 +176,8 @@ class RunProposalReviewsCommandTests(TestCase):
         call_command(
             "run_proposal_reviews",
             grant_ids=str(self.grant.id),
-            user_id=self.actor.id,
             force=True,
             stdout=out,
         )
         mock_run_review.assert_called_once()
-        mock_run_exec.assert_called_once_with(self.grant.id, self.actor.id)
+        mock_run_exec.assert_called_once_with(self.grant.id, None)
