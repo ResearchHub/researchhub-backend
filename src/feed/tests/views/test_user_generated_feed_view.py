@@ -106,14 +106,23 @@ class UserGeneratedFeedViewTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_moderator_receives_paginated_results(self):
+    def test_returns_user_generated_papers_posts_and_comments(self):
         self.client.force_authenticate(self.moderator_user)
 
         response = self.client.get(self._user_generated_url())
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("results", response.data)
-        self.assertIn("next", response.data)
+        self.assertEqual(response["RH-Feed-Source"], "rh-user-generated")
+        self.assertIn(
+            self.user_paper.id, self._ids_for(response, self.paper_content_type)
+        )
+        self.assertIn(
+            self.user_post.id, self._ids_for(response, self.post_content_type)
+        )
+        self.assertIn(
+            self.user_comment.id,
+            self._ids_for(response, self.comment_content_type),
+        )
 
     def test_excludes_entries_without_user(self):
         self.client.force_authenticate(self.moderator_user)
@@ -125,25 +134,6 @@ class UserGeneratedFeedViewTests(APITestCase):
             self._ids_for(response, self.paper_content_type),
         )
 
-    def test_bypasses_main_feed_filters(self):
-        self.client.force_authenticate(self.moderator_user)
-
-        response = self.client.get(self._user_generated_url())
-
-        self.assertIn(
-            self.user_paper.id, self._ids_for(response, self.paper_content_type)
-        )
-
-    def test_includes_comments(self):
-        self.client.force_authenticate(self.moderator_user)
-
-        response = self.client.get(self._user_generated_url())
-
-        self.assertIn(
-            self.user_comment.id,
-            self._ids_for(response, self.comment_content_type),
-        )
-
     def test_results_ordered_by_action_date_desc(self):
         self.client.force_authenticate(self.moderator_user)
 
@@ -151,10 +141,3 @@ class UserGeneratedFeedViewTests(APITestCase):
 
         action_dates = [r["action_date"] for r in response.data["results"]]
         self.assertEqual(action_dates, sorted(action_dates, reverse=True))
-
-    def test_response_includes_feed_source_header(self):
-        self.client.force_authenticate(self.moderator_user)
-
-        response = self.client.get(self._user_generated_url())
-
-        self.assertEqual(response["RH-Feed-Source"], "rh-user-generated")
