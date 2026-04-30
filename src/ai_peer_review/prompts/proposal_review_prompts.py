@@ -17,6 +17,10 @@ def get_proposal_review_system_prompt() -> str:
     return _load_template("proposal_review_system.txt")
 
 
+def get_proposal_key_insights_system_prompt() -> str:
+    return _load_template("proposal_key_insights_system.txt")
+
+
 def build_proposal_key_insights_user_prompt(
     proposal_text: str,
     rfp_context: str | None = None,
