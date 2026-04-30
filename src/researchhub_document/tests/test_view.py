@@ -9,7 +9,7 @@ from django.test import TestCase
 from rest_framework.renderers import JSONRenderer
 from rest_framework.test import APITestCase
 
-from ai_peer_review.models import OverallRating, ProposalReview, ReviewStatus
+from ai_peer_review.models import OverallRating, ProposalReview, Status
 from ai_peer_review.serializers import ProposalReviewSerializer
 from hub.models import Hub
 from hub.tests.helpers import create_hub
@@ -1902,7 +1902,7 @@ class PreregistrationGrantsPayloadTests(APITestCase):
         ProposalReview.objects.create(
             unified_document=self.prereg_post.unified_document,
             grant=self.grant_a,
-            status=ReviewStatus.COMPLETED,
+            status=Status.COMPLETED,
             overall_rating=OverallRating.GOOD,
             overall_score_numeric=82,
         )

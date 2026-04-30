@@ -1,11 +1,7 @@
-"""Tests for proposal key insights (RHF human-review filter, service, CLI)."""
-
 import json
-from io import StringIO
 from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
-from django.core.management import call_command
 from django.test import TestCase
 from rest_framework.renderers import JSONRenderer
 
@@ -14,12 +10,11 @@ from ai_peer_review.models import (
     ProposalKeyInsight,
     ProposalKeyInsightItem,
     ProposalReview,
-    ReviewStatus,
+    Status,
 )
 from ai_peer_review.serializers import ProposalReviewSerializer
 from ai_peer_review.services.proposal_key_insights_service import (
-    _get_rhf_endorsed_human_reviews,
-    run_proposal_key_insights,
+    ProposalKeyInsightsService,
 )
 from researchhub_comment.constants.rh_comment_thread_types import COMMUNITY_REVIEW
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
@@ -67,7 +62,7 @@ class ProposalKeyInsightsRhfHumanReviewsFilterTests(TestCase):
             updated_by=self.other,
         )
 
-    def _comment(
+    def _create_comment(
         self,
         thread: RhCommentThreadModel,
         body: str,
@@ -82,7 +77,7 @@ class ProposalKeyInsightsRhfHumanReviewsFilterTests(TestCase):
             comment_type=COMMUNITY_REVIEW,
         )
 
-    def _review(
+    def _create_review(
         self, comment: RhCommentModel, *, is_assessed: bool = True
     ) -> Review:
         return Review.objects.create(
@@ -96,23 +91,23 @@ class ProposalKeyInsightsRhfHumanReviewsFilterTests(TestCase):
 
     def test_includes_assessed_community_review(self):
         t = self._thread()
-        c = self._comment(t, "ASSESSED_TEXT")
-        self._review(c, is_assessed=True)
-        out = _get_rhf_endorsed_human_reviews(self.ud)
+        c = self._create_comment(t, "ASSESSED_TEXT")
+        self._create_review(c, is_assessed=True)
+        out = ProposalKeyInsightsService._get_rhf_endorsed_human_reviews(self.ud)
         self.assertIn("ASSESSED_TEXT", out)
         self.assertIn("Reviewer 1", out)
 
     def test_excludes_comment_with_no_review_row(self):
         t = self._thread()
-        self._comment(t, "NO_REVIEW")
-        out = _get_rhf_endorsed_human_reviews(self.ud)
+        self._create_comment(t, "NO_REVIEW")
+        out = ProposalKeyInsightsService._get_rhf_endorsed_human_reviews(self.ud)
         self.assertNotIn("NO_REVIEW", out)
 
     def test_excludes_unassessed_review(self):
         t = self._thread()
-        c = self._comment(t, "NOT_ASSESSED")
-        self._review(c, is_assessed=False)
-        out = _get_rhf_endorsed_human_reviews(self.ud)
+        c = self._create_comment(t, "NOT_ASSESSED")
+        self._create_review(c, is_assessed=False)
+        out = ProposalKeyInsightsService._get_rhf_endorsed_human_reviews(self.ud)
         self.assertNotIn("NOT_ASSESSED", out)
 
 
@@ -140,7 +135,7 @@ class RunProposalKeyInsightsServiceTests(TestCase):
             created_by=self.user,
             unified_document=self.ud,
             grant_id=None,
-            status=ReviewStatus.COMPLETED,
+            status=Status.COMPLETED,
             result_data={},
         )
 
@@ -151,9 +146,9 @@ class RunProposalKeyInsightsServiceTests(TestCase):
 
     def test_success_saves_tldr_and_items(self, mock_bedrock, _mock_proposal_markdown):
         self._mock_llm(mock_bedrock, _CANNED_JSON)
-        ki = run_proposal_key_insights(self.review.id, force=True)
+        ki = ProposalKeyInsightsService().run(self.review.id, force=True)
         ki.refresh_from_db()
-        self.assertEqual(ki.status, ReviewStatus.COMPLETED)
+        self.assertEqual(ki.status, Status.COMPLETED)
         self.assertIn("First.", ki.tldr)
         self.assertEqual(ki.llm_model, "us.test.model")
         self.assertIsNotNone(ki.processing_time)
@@ -174,7 +169,7 @@ class RunProposalKeyInsightsServiceTests(TestCase):
 
     def test_force_replaces_items_and_tldr(self, mock_bedrock, _mock_proposal_markdown):
         self._mock_llm(mock_bedrock, _CANNED_JSON)
-        run_proposal_key_insights(self.review.id, force=True)
+        ProposalKeyInsightsService().run(self.review.id, force=True)
         v2 = json.dumps(
             {
                 "tldr": "Replaced one. Two. Three.",
@@ -183,7 +178,7 @@ class RunProposalKeyInsightsServiceTests(TestCase):
             }
         )
         self._mock_llm(mock_bedrock, v2)
-        run_proposal_key_insights(self.review.id, force=True)
+        ProposalKeyInsightsService().run(self.review.id, force=True)
         ki = ProposalKeyInsight.objects.get(proposal_review=self.review)
         self.assertIn("Replaced", ki.tldr)
         self.assertEqual(ki.items.count(), 1)
@@ -193,7 +188,7 @@ class RunProposalKeyInsightsServiceTests(TestCase):
         self, mock_bedrock, _mock_proposal_markdown
     ):
         self._mock_llm(mock_bedrock, _CANNED_JSON)
-        run_proposal_key_insights(self.review.id, force=True)
+        ProposalKeyInsightsService().run(self.review.id, force=True)
         self.assertEqual(
             ProposalKeyInsightItem.objects.filter(
                 key_insight__proposal_review=self.review
@@ -201,9 +196,9 @@ class RunProposalKeyInsightsServiceTests(TestCase):
             3,
         )
         self._mock_llm(mock_bedrock, "not valid json {")
-        run_proposal_key_insights(self.review.id, force=True)
+        ProposalKeyInsightsService().run(self.review.id, force=True)
         ki = ProposalKeyInsight.objects.get(proposal_review=self.review)
-        self.assertEqual(ki.status, ReviewStatus.FAILED)
+        self.assertEqual(ki.status, Status.FAILED)
         self.assertTrue(ki.error_message)
         self.assertEqual(
             ProposalKeyInsightItem.objects.filter(
@@ -221,12 +216,12 @@ class ProposalKeyInsightSerializerTests(TestCase):
             created_by=self.user,
             unified_document=self.post.unified_document,
             grant_id=None,
-            status=ReviewStatus.COMPLETED,
+            status=Status.COMPLETED,
             result_data={},
         )
         self.ki = ProposalKeyInsight.objects.create(
             proposal_review=self.review,
-            status=ReviewStatus.COMPLETED,
+            status=Status.COMPLETED,
             tldr="A short summary here.",
         )
         ProposalKeyInsightItem.objects.create(
@@ -255,5 +250,7 @@ class ProposalKeyInsightSerializerTests(TestCase):
         # Mirrors researchhub_document use of JSONRenderer for proposal review payloads
         data = ProposalReviewSerializer(self.review).data
         as_json = json.loads(JSONRenderer().render(data).decode())
+        self.assertIn("key_insight", as_json)
+        self.assertIsNotNone(as_json["key_insight"])
         self.assertIn("key_insight", as_json)
         self.assertIsNotNone(as_json["key_insight"])

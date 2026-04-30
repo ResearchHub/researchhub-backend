@@ -34,8 +34,7 @@ def build_proposal_key_insights_user_prompt(
     rfp = ""
     if rfp_context and rfp_context.strip():
         rfp = (
-            "\n\nRFP CONTEXT (from funding opportunity; prefer alignment and "
-            "fit when summarizing and when naming strengths/weaknesses):\n"
+            "\n\nRFP context (aka funding opportunity):\n"
             f"{rfp_context.strip()[:8000]}\n"
         )
     ai = ""
@@ -43,37 +42,17 @@ def build_proposal_key_insights_user_prompt(
         s = ai_review_summary.strip()
         if len(s) > 20000:
             s = s[:20000] + _TRUNCATED_FOR_LENGTH_SUFFIX
-        ai = (
-            "\n\nAI REVIEW SUMMARY (existing structured review on this proposal; use "
-            "as an input signal, not a substitute for the proposal text):\n"
-            f"{s}\n"
-        )
+        ai = f"\n\nAI REVIEW SUMMARY:\n{s}\n"
     human = ""
     if human_reviews_text and human_reviews_text.strip():
         h = human_reviews_text.strip()
         if len(h) > 30000:
             h = h[:30000] + _TRUNCATED_FOR_LENGTH_SUFFIX
-        human = (
-            "\n\nHUMAN REVIEWS (RHF-ENDORSED: awarded or tipped by the ResearchHub "
-            "Foundation account; use as peer signal where relevant):\n"
-            f"{h}\n"
-        )
+        human = f"\n\nHUMAN REVIEWS:\n{h}\n"
     text = (proposal_text or "").strip()
     if len(text) > 120000:
         text = text[:120000] + _TRUNCATED_FOR_LENGTH_SUFFIX
-    return (
-        "Read the following inputs and return only the required JSON: a short tldr, "
-        "a strengths list, and a weaknesses list. Order strengths and weaknesses by "
-        "descending importance (index 0 is most important in each array). The tldr "
-        "must be 2-3 sentences and at most 600 characters, covering what the "
-        "proposal is about, RFP fit when context exists, one major highlight, and "
-        "one major issue.\n\n"
-        "PROPOSAL TEXT:\n"
-        f"{text}"
-        f"{rfp}"
-        f"{ai}"
-        f"{human}"
-    )
+    return f"PROPOSAL TEXT:\n{text}{rfp}{ai}{human}"
 
 
 def get_openai_web_context_system_prompt() -> str:

@@ -2,7 +2,7 @@ import logging
 import time
 
 from ai_peer_review.constants import PROPOSAL_REVIEW_MAX_OUTPUT_TOKENS
-from ai_peer_review.models import OverallConfidence, ProposalReview, ReviewStatus
+from ai_peer_review.models import OverallConfidence, ProposalReview, Status
 from ai_peer_review.prompts.proposal_review_prompts import (
     build_proposal_review_user_prompt,
     get_proposal_review_system_prompt,
@@ -95,10 +95,10 @@ def run_proposal_review(review_id: int) -> None:
     review = ProposalReview.objects.select_related(
         "unified_document", "grant", "created_by"
     ).get(pk=review_id)
-    if review.status == ReviewStatus.COMPLETED:
+    if review.status == Status.COMPLETED:
         return
     t0 = time.monotonic()
-    review.status = ReviewStatus.PROCESSING
+    review.status = Status.PROCESSING
     review.progress = 10
     review.current_step = "Loading proposal text"
     review.error_message = ""
@@ -154,7 +154,7 @@ def run_proposal_review(review_id: int) -> None:
         rating = review_dict["overall_rating"]
         numeric_total = review_dict["overall_score_numeric"]
         elapsed = time.monotonic() - t0
-        review.status = ReviewStatus.COMPLETED
+        review.status = Status.COMPLETED
         review.overall_rating = rating
         review.overall_rationale = review_dict.get("overall_rationale", "") or ""
         oc = review_dict.get("overall_confidence")
@@ -176,7 +176,7 @@ def run_proposal_review(review_id: int) -> None:
         FundingCacheMixin.invalidate_funding_feed_cache()
     except Exception as e:
         logger.exception("Proposal review %s failed", review_id)
-        review.status = ReviewStatus.FAILED
+        review.status = Status.FAILED
         review.error_message = str(e)[:4000]
         review.progress = 0
         review.current_step = "Failed"

@@ -325,11 +325,6 @@ urlpatterns = [
         PasswordResetConfirmView.as_view(),
         name="password_reset_confirm",
     ),
-    path(
-        "api/ckeditor/webhook/document_removed/",
-        note_views.note_view.ckeditor_webhook_document_removed,
-    ),
-    path("api/ckeditor/token/", note_views.note_view.ckeditor_token),
     path("email_notifications/", mailing_list.views.email_notifications),
     path("", researchhub.views.index, name="index"),
     path(
