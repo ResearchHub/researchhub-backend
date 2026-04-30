@@ -7,12 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from ai_peer_review.models import (
-    EditorialFeedback,
-    ProposalReview,
-    ReviewStatus,
-    RFPSummary,
-)
+from ai_peer_review.models import EditorialFeedback, ProposalReview, RFPSummary, Status
 from ai_peer_review.permissions import AIPeerReviewPermission
 from ai_peer_review.serializers import (
     EditorialFeedbackSerializer,
@@ -94,14 +89,14 @@ class ProposalReviewCreateView(APIView):
                 grant=grant,
                 defaults={
                     "created_by": request.user,
-                    "status": ReviewStatus.PENDING,
+                    "status": Status.PENDING,
                 },
             )
         except IntegrityError:
             review = ProposalReview.objects.get(unified_document=ud, grant=grant)
             created = False
         if not created:
-            if review.status == ReviewStatus.COMPLETED:
+            if review.status == Status.COMPLETED:
                 return Response(
                     {
                         **ProposalReviewSerializer(review).data,
@@ -110,15 +105,15 @@ class ProposalReviewCreateView(APIView):
                     status=status.HTTP_200_OK,
                 )
             if review.status in (
-                ReviewStatus.PENDING,
-                ReviewStatus.PROCESSING,
+                Status.PENDING,
+                Status.PROCESSING,
             ):
                 return Response(
                     ProposalReviewSerializer(review).data,
                     status=status.HTTP_202_ACCEPTED,
                 )
-            if review.status == ReviewStatus.FAILED:
-                review.status = ReviewStatus.PENDING
+            if review.status == Status.FAILED:
+                review.status = Status.PENDING
                 review.error_message = ""
                 review.result_data = {}
                 review.overall_rating = None
@@ -270,16 +265,12 @@ class RFPSummaryView(APIView):
             grant=grant,
             defaults={"created_by": request.user},
         )
-        if (
-            not force
-            and obj.status == ReviewStatus.COMPLETED
-            and obj.summary_content.strip()
-        ):
+        if not force and obj.status == Status.COMPLETED and obj.summary_content.strip():
             return Response(
                 {**RFPSummarySerializer(obj).data, "already_exists": True},
                 status=status.HTTP_200_OK,
             )
-        obj.status = ReviewStatus.PENDING
+        obj.status = Status.PENDING
         obj.error_message = ""
         if force:
             obj.summary_content = ""

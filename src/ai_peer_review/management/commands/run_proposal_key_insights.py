@@ -6,7 +6,7 @@ For each review, the model receives the proposal body, funding-opportunity
 assessed human community reviews on the proposal post.
 
 Only proposal reviews whose main AI review has finished are eligible
-(``ProposalReview`` processed state; the enum value is still ``COMPLETED``).
+(``ProposalReview.status`` is ``Status.COMPLETED``).
 
 Usage:
     python manage.py run_proposal_key_insights --grant-ids 1,2,3
@@ -23,9 +23,9 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Q
 from django.utils import timezone
 
-from ai_peer_review.models import ProposalKeyInsight, ProposalReview, ReviewStatus
+from ai_peer_review.models import ProposalKeyInsight, ProposalReview, Status
 from ai_peer_review.services.proposal_key_insights_service import (
-    run_proposal_key_insights,
+    ProposalKeyInsightsService,
 )
 
 logger = logging.getLogger(__name__)
@@ -120,9 +120,7 @@ class Command(BaseCommand):
                 "created_date filter)."
             )
 
-        processed_review_qs = ProposalReview.objects.filter(
-            status=ReviewStatus.COMPLETED
-        )
+        processed_review_qs = ProposalReview.objects.filter(status=Status.COMPLETED)
         if has_grant:
             id_strings = [x.strip() for x in grant_ids_raw.split(",") if x.strip()]
             if not id_strings:
@@ -164,7 +162,7 @@ class Command(BaseCommand):
         processed_reviews = set(
             ProposalKeyInsight.objects.filter(
                 proposal_review_id__in=[r.id for r in selected_reviews],
-                status=ReviewStatus.COMPLETED,
+                status=Status.COMPLETED,
             ).values_list("proposal_review_id", flat=True)
         )
 
@@ -185,17 +183,17 @@ class Command(BaseCommand):
             key_insight_was_already_done = review.id in processed_reviews
             label = f"review={review.id} grant={review.grant_id}"
             try:
-                ki = run_proposal_key_insights(review.id, force=force)
+                ki = ProposalKeyInsightsService().run(review.id, force=force)
             except Exception as e:
                 failed += 1
                 logger.exception(
-                    "run_proposal_key_insights failed for review %s",
+                    "ProposalKeyInsightsService.run failed for review %s",
                     review.id,
                 )
                 self.stdout.write(self.style.ERROR(f"[{i}/{total}] {label} ERROR: {e}"))
                 continue
 
-            if ki.status == ReviewStatus.FAILED:
+            if ki.status == Status.FAILED:
                 failed += 1
                 self.stdout.write(
                     self.style.ERROR(
@@ -205,13 +203,13 @@ class Command(BaseCommand):
             elif (
                 not force
                 and key_insight_was_already_done
-                and ki.status == ReviewStatus.COMPLETED
+                and ki.status == Status.COMPLETED
             ):
                 skipped += 1
                 self.stdout.write(
                     f"[{i}/{total}] {label} SKIP (key insight already succeeded)"
                 )
-            elif ki.status == ReviewStatus.COMPLETED:
+            elif ki.status == Status.COMPLETED:
                 generated += 1
                 self.stdout.write(
                     self.style.SUCCESS(f"[{i}/{total}] {label} key insight succeeded")

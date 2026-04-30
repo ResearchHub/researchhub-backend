@@ -4,7 +4,7 @@ import time
 from django.utils import timezone
 
 from ai_peer_review.constants import CATEGORY_KEYS
-from ai_peer_review.models import ProposalReview, ReviewStatus, RFPSummary
+from ai_peer_review.models import ProposalReview, RFPSummary, Status
 from ai_peer_review.prompts.rfp_summary_prompts import (
     build_rfp_summary_user_prompt,
     get_grant_executive_summary_system_prompt,
@@ -35,10 +35,10 @@ def get_grant_source_text(grant: Grant) -> str:
 
 def run_rfp_summary(rfp_summary_id: int) -> None:
     obj = RFPSummary.objects.select_related("grant").get(pk=rfp_summary_id)
-    if obj.status == ReviewStatus.COMPLETED and obj.summary_content.strip():
+    if obj.status == Status.COMPLETED and obj.summary_content.strip():
         return
     t0 = time.monotonic()
-    obj.status = ReviewStatus.PROCESSING
+    obj.status = Status.PROCESSING
     obj.error_message = ""
     obj.save(update_fields=["status", "error_message", "updated_date"])
     try:
@@ -53,13 +53,13 @@ def run_rfp_summary(rfp_summary_id: int) -> None:
             temperature=0.0,
         )
         obj.summary_content = out.strip()
-        obj.status = ReviewStatus.COMPLETED
+        obj.status = Status.COMPLETED
         obj.llm_model = llm.model_id
         obj.processing_time = time.monotonic() - t0
         obj.save()
     except Exception as e:
         logger.exception("RFP summary %s failed", rfp_summary_id)
-        obj.status = ReviewStatus.FAILED
+        obj.status = Status.FAILED
         obj.error_message = str(e)[:4000]
         obj.processing_time = time.monotonic() - t0
         obj.save()
@@ -72,7 +72,7 @@ def run_executive_comparison(
     reviews = (
         ProposalReview.objects.filter(
             grant_id=grant_id,
-            status=ReviewStatus.COMPLETED,
+            status=Status.COMPLETED,
         )
         .select_related("unified_document")
         .order_by("-overall_score_numeric", "id")
@@ -109,7 +109,7 @@ def run_executive_comparison(
         max_tokens=4096,
         temperature=0.2,
     )
-    defaults: dict = {"status": ReviewStatus.PENDING}
+    defaults: dict = {"status": Status.PENDING}
     if created_by_id is not None:
         defaults["created_by_id"] = created_by_id
     obj, _ = RFPSummary.objects.get_or_create(
@@ -118,7 +118,7 @@ def run_executive_comparison(
     )
     obj.executive_comparison_summary = out.strip()
     obj.executive_comparison_updated_date = timezone.now()
-    obj.status = ReviewStatus.COMPLETED
+    obj.status = Status.COMPLETED
     obj.error_message = ""
     obj.llm_model = llm.model_id
     obj.save(

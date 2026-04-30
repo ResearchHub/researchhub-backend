@@ -10,7 +10,7 @@ from django.core.management.base import CommandError
 from django.test import TestCase
 from django.utils import timezone
 
-from ai_peer_review.models import ProposalReview, ReviewStatus
+from ai_peer_review.models import ProposalReview, Status
 from purchase.models import Grant, GrantApplication
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
@@ -132,7 +132,7 @@ class RunProposalReviewsCommandTests(TestCase):
             created_by=self.actor,
             unified_document=self.ud,
             grant=self.grant,
-            status=ReviewStatus.COMPLETED,
+            status=Status.COMPLETED,
             overall_rating="good",
             overall_score_numeric=4,
         )
@@ -150,7 +150,7 @@ class RunProposalReviewsCommandTests(TestCase):
         mock_run_exec.reset_mock()
         ProposalReview.objects.filter(
             grant=self.grant, unified_document=self.ud
-        ).update(status=ReviewStatus.FAILED, error_message="x")
+        ).update(status=Status.FAILED, error_message="x")
         call_command(
             "run_proposal_reviews",
             grant_ids=str(self.grant.id),
@@ -172,7 +172,7 @@ class RunProposalReviewsCommandTests(TestCase):
             created_by=self.actor,
             unified_document=self.ud,
             grant=self.grant,
-            status=ReviewStatus.COMPLETED,
+            status=Status.COMPLETED,
             overall_rating="good",
             overall_score_numeric=4,
         )
