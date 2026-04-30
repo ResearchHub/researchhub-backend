@@ -191,11 +191,16 @@ class RHCommentFilter(filters.FilterSet):
     def ordering_filter(self, qs, name, value):
         if value == BEST and self.data.get("filtering") == REVIEW:
             qs = qs.annotate(
-                is_assessed=Max(
-                    Cast("reviews__is_assessed", output_field=IntegerField()),
+                is_assessed=Coalesce(
+                    Max(Cast("reviews__is_assessed", output_field=IntegerField())),
+                    0,
+                    output_field=IntegerField(),
                 )
             )
-            keys = self._get_ordering_keys(["is_assessed", "score", "created_date"])
+            qs = RhCommentModel.annotate_weighted_score(qs)
+            keys = self._get_ordering_keys(
+                ["is_assessed", "weighted_score", "score", "created_date"]
+            )
             qs = qs.order_by(*keys)
         elif value == BEST:
             qs = self._annotate_bounty_sum(
@@ -204,8 +209,10 @@ class RHCommentFilter(filters.FilterSet):
             qs = qs.annotate(
                 accepted_answer=Cast("is_accepted_answer", output_field=IntegerField())
             )
+            qs = RhCommentModel.annotate_weighted_score(qs)
             keys = self._get_ordering_keys(
                 [
+                    "weighted_score",
                     "bounty_sum",
                     "accepted_answer",
                     "score",
