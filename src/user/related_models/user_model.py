@@ -24,6 +24,7 @@ from utils.throttles import UserSustainedRateThrottle
 
 FOUNDATION_EMAIL = "main@researchhub.foundation"
 FOUNDATION_REVENUE_EMAIL = "revenue1@researchhub.foundation"
+AI_EXPERT_EMAIL = "ai-review@researchhub.foundation"
 
 
 @dataclass(frozen=True)
@@ -71,6 +72,12 @@ class UserManager(UserManager):
             return user.first()
 
         return self._get_default_account()
+
+    def get_ai_expert_account(self):
+        user = self.filter(email=AI_EXPERT_EMAIL)
+        if user.exists():
+            return user.first()
+        return None
 
 
 """

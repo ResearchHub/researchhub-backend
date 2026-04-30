@@ -8,8 +8,8 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 from utils.models import DefaultModel
 
 
-class ReviewStatus(models.TextChoices):
-    """Async AI job lifecycle for proposal review and RFP summary."""
+class Status(models.TextChoices):
+    """Lifecycle for async AI jobs: proposal review, RFP summary, proposal key insight."""
 
     PENDING = "pending", "pending"
     PROCESSING = "processing", "processing"
@@ -69,8 +69,8 @@ class ProposalReview(DefaultModel):
     )
     status = models.CharField(
         max_length=32,
-        choices=ReviewStatus.choices,
-        default=ReviewStatus.PENDING,
+        choices=Status.choices,
+        default=Status.PENDING,
         db_index=True,
     )
     overall_rating = models.CharField(
@@ -139,8 +139,8 @@ class RFPSummary(DefaultModel):
     )
     status = models.CharField(
         max_length=32,
-        choices=ReviewStatus.choices,
-        default=ReviewStatus.PENDING,
+        choices=Status.choices,
+        default=Status.PENDING,
         db_index=True,
     )
     summary_content = models.TextField(blank=True)
@@ -239,8 +239,8 @@ class ProposalKeyInsight(DefaultModel):
     )
     status = models.CharField(
         max_length=32,
-        choices=ReviewStatus.choices,
-        default=ReviewStatus.PENDING,
+        choices=Status.choices,
+        default=Status.PENDING,
         db_index=True,
     )
     tldr = models.TextField(blank=True, default="")

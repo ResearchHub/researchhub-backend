@@ -4,7 +4,7 @@ from django.test import SimpleTestCase
 from rest_framework.exceptions import ValidationError
 
 from ai_peer_review.constants import CATEGORY_KEYS
-from ai_peer_review.models import ReviewStatus
+from ai_peer_review.models import Status
 from ai_peer_review.serializers import (
     EditorialFeedbackUpsertSerializer,
     build_proposal_comparison_row,
@@ -22,7 +22,7 @@ class BuildProposalComparisonRowTests(SimpleTestCase):
     def test_non_completed_review_has_no_category_scores(self):
         review = MagicMock()
         review.id = 5
-        review.status = ReviewStatus.PENDING
+        review.status = Status.PENDING
         review.overall_rating = None
         review.overall_score_numeric = None
         review.result_data = {}
@@ -36,7 +36,7 @@ class BuildProposalComparisonRowTests(SimpleTestCase):
     def test_completed_review_exposes_category_map(self):
         review = MagicMock()
         review.id = 1
-        review.status = ReviewStatus.COMPLETED
+        review.status = Status.COMPLETED
         review.overall_rating = "good"
         review.overall_score_numeric = 4
         review.result_data = {

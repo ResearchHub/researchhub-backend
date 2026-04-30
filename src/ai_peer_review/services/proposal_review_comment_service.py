@@ -2,22 +2,17 @@ import logging
 
 from django.contrib.contenttypes.models import ContentType
 
-from ai_peer_review.models import ProposalReview, ReviewStatus
+from ai_peer_review.models import ProposalReview, Status
 from researchhub_comment.constants.rh_comment_content_types import TIPTAP
+from researchhub_comment.constants.rh_comment_thread_types import COMMUNITY_REVIEW
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from review.models import Review
-from user.models import User
+from user.related_models.user_model import AI_EXPERT_EMAIL, User
 
 logger = logging.getLogger(__name__)
 
-AI_EXPERT_EMAIL = "ai-review@researchhub.foundation"
 AI_REVIEW_COMMENT_CONTEXT_TITLE = "AI Proposal Review"
-AI_REVIEW_COMMENT_TYPE = "REVIEW"
 AI_REVIEW_OVERALL_SUMMARY_TITLE = "Summary"
-
-
-def get_ai_expert_user() -> User | None:
-    return User.objects.filter(email=AI_EXPERT_EMAIL).first()
 
 
 def _text_node(
@@ -238,6 +233,38 @@ def _review_thread_reference(review: ProposalReview) -> str:
     return f"ai_proposal_review:{review.unified_document_id}:{grant_part}"
 
 
+def get_proposal_review_ai_expert_comment(
+    review: ProposalReview,
+) -> RhCommentModel | None:
+    """
+    The AI proposal review comment.
+    """
+    post = review.unified_document.posts.first()
+    if post is None:
+        return None
+    ai_user = User.objects.get_ai_expert_account()
+    if ai_user is None:
+        return None
+    content_type = ContentType.objects.get_for_model(post)
+    thread = RhCommentThreadModel.objects.filter(
+        content_type=content_type,
+        object_id=post.id,
+        thread_type=COMMUNITY_REVIEW,
+        thread_reference=_review_thread_reference(review),
+    ).first()
+    if thread is None:
+        return None
+    return (
+        RhCommentModel.objects.filter(
+            thread=thread,
+            parent__isnull=True,
+            created_by=ai_user,
+        )
+        .order_by("created_date")
+        .first()
+    )
+
+
 def proposal_overall_numeric_to_review_score(
     overall_score_numeric: int | None,
 ) -> float:
@@ -261,14 +288,14 @@ def proposal_overall_numeric_to_review_score(
 
 
 def upsert_proposal_review_comment(review: ProposalReview) -> RhCommentModel | None:
-    if review.status != ReviewStatus.COMPLETED:
+    if review.status != Status.COMPLETED:
         return None
 
     post = review.unified_document.posts.first()
     if post is None:
         return None
 
-    ai_user = get_ai_expert_user()
+    ai_user = User.objects.get_ai_expert_account()
     if ai_user is None:
         logger.warning(
             "AI expert user missing for proposal review comment sync "
@@ -282,7 +309,7 @@ def upsert_proposal_review_comment(review: ProposalReview) -> RhCommentModel | N
     thread, _ = RhCommentThreadModel.objects.get_or_create(
         content_type=content_type,
         object_id=post.id,
-        thread_type=AI_REVIEW_COMMENT_TYPE,
+        thread_type=COMMUNITY_REVIEW,
         thread_reference=thread_reference,
         defaults={
             "created_by": ai_user,
@@ -308,7 +335,7 @@ def upsert_proposal_review_comment(review: ProposalReview) -> RhCommentModel | N
             created_by=ai_user,
             updated_by=ai_user,
             context_title=AI_REVIEW_COMMENT_CONTEXT_TITLE,
-            comment_type=AI_REVIEW_COMMENT_TYPE,
+            comment_type=COMMUNITY_REVIEW,
             comment_content_type=TIPTAP,
             comment_content_json=tiptap_content,
         )
@@ -316,7 +343,7 @@ def upsert_proposal_review_comment(review: ProposalReview) -> RhCommentModel | N
     else:
         comment.updated_by = ai_user
         comment.context_title = AI_REVIEW_COMMENT_CONTEXT_TITLE
-        comment.comment_type = AI_REVIEW_COMMENT_TYPE
+        comment.comment_type = COMMUNITY_REVIEW
         comment.comment_content_type = TIPTAP
         comment.comment_content_json = tiptap_content
         comment.save(
@@ -343,6 +370,7 @@ def upsert_proposal_review_comment(review: ProposalReview) -> RhCommentModel | N
                 review.overall_score_numeric
             ),
             "is_removed": False,
+            "is_assessed": True,
         },
     )
     return comment

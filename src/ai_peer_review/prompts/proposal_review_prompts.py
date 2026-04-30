@@ -42,8 +42,8 @@ def build_proposal_key_insights_user_prompt(
     human = ""
     if human_reviews_text and human_reviews_text.strip():
         h = human_reviews_text.strip()
-        if len(h) > 10000:
-            h = h[:10000] + _TRUNCATED_FOR_LENGTH_SUFFIX
+        if len(h) > 30000:
+            h = h[:30000] + _TRUNCATED_FOR_LENGTH_SUFFIX
         human = f"\n\nHUMAN REVIEWS:\n{h}\n"
     text = (proposal_text or "").strip()
     if len(text) > 120000:

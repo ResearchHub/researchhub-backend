@@ -1,18 +1,17 @@
 from django.test import TestCase
 
-from ai_peer_review.models import ProposalReview, ReviewStatus
+from ai_peer_review.models import ProposalReview, Status
 from ai_peer_review.services.proposal_review_comment_service import (
-    AI_EXPERT_EMAIL,
-    AI_REVIEW_COMMENT_TYPE,
     proposal_review_to_tiptap_content,
     upsert_proposal_review_comment,
 )
 from researchhub_comment.constants.rh_comment_content_types import TIPTAP
+from researchhub_comment.constants.rh_comment_thread_types import COMMUNITY_REVIEW
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from review.models import Review
-from user.models import User
+from user.related_models.user_model import AI_EXPERT_EMAIL, User
 from user.tests.helpers import create_random_authenticated_user
 
 
@@ -34,7 +33,7 @@ class ProposalReviewCommentServiceTests(TestCase):
         self.review = ProposalReview.objects.create(
             created_by=self.reviewer,
             unified_document=self.proposal_post.unified_document,
-            status=ReviewStatus.COMPLETED,
+            status=Status.COMPLETED,
             overall_rating="good",
             overall_confidence="High",
             overall_score_numeric=2,
@@ -160,8 +159,8 @@ class ProposalReviewCommentServiceTests(TestCase):
 
         self.assertIsNotNone(comment)
         self.assertEqual(comment.comment_content_type, TIPTAP)
-        self.assertEqual(comment.comment_type, AI_REVIEW_COMMENT_TYPE)
-        self.assertEqual(comment.thread.thread_type, AI_REVIEW_COMMENT_TYPE)
+        self.assertEqual(comment.comment_type, COMMUNITY_REVIEW)
+        self.assertEqual(comment.thread.thread_type, COMMUNITY_REVIEW)
         self.assertEqual(comment.thread.object_id, self.proposal_post.id)
 
         ai_user = User.objects.get(email=AI_EXPERT_EMAIL)
@@ -178,6 +177,7 @@ class ProposalReviewCommentServiceTests(TestCase):
         )
         review_row = Review.objects.get(object_id=comment.id)
         self.assertEqual(review_row.score, 2.0)
+        self.assertTrue(review_row.is_assessed)
 
     def test_upsert_proposal_review_comment_updates_existing_comment(self):
         original = upsert_proposal_review_comment(self.review)
@@ -211,3 +211,4 @@ class ProposalReviewCommentServiceTests(TestCase):
         self.assertIn("Very strong overall package.", updated.plain_text)
         review_row = Review.objects.get(object_id=updated.id)
         self.assertEqual(review_row.score, 5.0)
+        self.assertTrue(review_row.is_assessed)

@@ -8,8 +8,8 @@ from ai_peer_review.models import (
     EditorialFeedbackCategory,
     ExpertDimensionScore,
     ProposalReview,
-    ReviewStatus,
     RFPSummary,
+    Status,
 )
 from ai_peer_review.services.proposal_review_scoring import category_scores
 
@@ -217,7 +217,7 @@ def build_proposal_comparison_row(
     row["status"] = review.status
     row["overall_rating"] = review.overall_rating
     row["overall_score_numeric"] = review.overall_score_numeric
-    if review.status == ReviewStatus.COMPLETED and review.result_data:
+    if review.status == Status.COMPLETED and review.result_data:
         cats = category_scores(review.result_data)
         row["categories"] = {k: cats.get(k) for k in CATEGORY_KEYS}
     return row
