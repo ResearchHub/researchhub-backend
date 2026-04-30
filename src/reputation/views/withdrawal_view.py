@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 
 import humanize
 import pytz
+from dj_rest_auth.mfa.totp import TOTP
+from dj_rest_auth.mfa.utils import is_mfa_enabled
 from django.conf import settings
 from django.contrib.admin.models import LogEntry
 from django.contrib.contenttypes.models import ContentType
@@ -98,6 +100,9 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                 "Invalid network. Please choose either 'BASE' or 'ETHEREUM'", status=400
             )
 
+        if mfa_error := self._check_mfa(user, request):
+            return Response(mfa_error, status=400)
+
         transaction_fee = self.calculate_transaction_fee(network)
 
         pending_tx = Withdrawal.objects.filter(
@@ -173,6 +178,23 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         else:
             logger.error(f"Invalid withdrawal: {message}")
             return Response(message, status=400)
+
+    def _check_mfa(self, user, request) -> str | None:
+        """
+        When MFA is enabled by the user, validate the given MFA code from the request.
+        Returns an error message if invalid, or None if MFA passes (or is disabled).
+        """
+        if not is_mfa_enabled(user):
+            return None
+
+        code = (request.data.get("mfa_code") or "").strip()
+        if not code:
+            return "MFA code is required for withdrawals"
+
+        if not TOTP.validate_code(user, code):
+            return "Invalid MFA code"
+
+        return None
 
     def _can_withdraw(self, user: User) -> bool:
         # User can withdraw if rep score is 10 or more

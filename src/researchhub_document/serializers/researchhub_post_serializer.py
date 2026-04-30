@@ -85,7 +85,6 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
     # GenericReactionSerializerMixin
     promoted = SerializerMethodField()
     boost_amount = SerializerMethodField()
-    user_endorsement = SerializerMethodField()
     user_flag = SerializerMethodField()
 
     # local
